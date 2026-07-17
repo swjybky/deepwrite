@@ -8,6 +8,7 @@ import type {
   ThinkingLevel
 } from "@deepwrite/contracts";
 import type { DialogMode } from "../types/workspace";
+import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
 
 interface DraftModel extends ModelConfig {
@@ -35,7 +36,6 @@ const imitationSample = ref("");
 const draftModels = ref<DraftModel[]>([]);
 const draftDefaultModelId = ref("");
 const modelEditor = ref<DraftModel | null>(null);
-const editorError = ref<string | null>(null);
 const modelDirty = ref(false);
 
 const thinkingOptions: Array<{ value: ThinkingLevel; label: string }> = [
@@ -55,7 +55,6 @@ function resetModelDraft(settings: ModelSettings | null): void {
   draftModels.value = (settings?.models ?? []).map((model) => ({ ...model }));
   draftDefaultModelId.value = settings?.defaultModelId ?? "";
   modelEditor.value = null;
-  editorError.value = null;
   modelDirty.value = false;
 }
 
@@ -76,6 +75,24 @@ watch(
   (settings) => {
     if (props.mode === "models" && !props.modelSaving) {
       resetModelDraft(settings);
+    }
+  }
+);
+
+watch(
+  () => props.modelError,
+  (error) => {
+    if (error) {
+      uiMessage.error(error);
+    }
+  }
+);
+
+watch(
+  () => props.modelTestMessage,
+  (successMessage) => {
+    if (successMessage) {
+      uiMessage.success(successMessage);
     }
   }
 );
@@ -103,12 +120,10 @@ function createModel(): void {
     hasApiKey: false,
     apiKey: ""
   };
-  editorError.value = null;
 }
 
 function editModel(model: DraftModel): void {
   modelEditor.value = { ...model, apiKey: "", clearApiKey: false };
-  editorError.value = null;
 }
 
 function applyProviderPreset(provider: string): void {
@@ -146,7 +161,7 @@ function saveModelEditor(): void {
     return;
   }
   if (!editor.label.trim() || !editor.provider.trim() || !editor.modelId.trim()) {
-    editorError.value = "请填写名称、Provider 和模型 ID。";
+    uiMessage.warning("请填写名称、Provider 和模型 ID。");
     return;
   }
   const { apiKey, ...editorWithoutApiKey } = editor;
@@ -169,7 +184,6 @@ function saveModelEditor(): void {
     draftDefaultModelId.value = normalized.id;
   }
   modelEditor.value = null;
-  editorError.value = null;
   modelDirty.value = true;
 }
 
@@ -373,7 +387,6 @@ function submitModelSettings(): void {
                   清除已保存密钥
                 </button>
               </div>
-              <p v-if="editorError" class="model-config-error">{{ editorError }}</p>
               <div class="dialog-actions">
                 <button class="dialog-primary-button" type="button" @click="saveModelEditor">
                   应用到配置
@@ -390,8 +403,6 @@ function submitModelSettings(): void {
               <AppIcon name="plus" :size="15" />添加模型
             </button>
 
-            <p v-if="modelError" class="model-config-error" role="alert">{{ modelError }}</p>
-            <p v-if="modelTestMessage" class="model-test-message">{{ modelTestMessage }}</p>
             <div class="dialog-actions model-save-actions">
               <button class="dialog-secondary-button" type="button" @click="emit('close')">取消</button>
               <button

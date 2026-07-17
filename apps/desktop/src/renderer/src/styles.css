@@ -1840,25 +1840,6 @@ ol {
   font-size: 9.5px;
 }
 
-.model-config-error,
-.model-test-message {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.model-config-error {
-  background: #fff0f0;
-  color: #a14f4f;
-}
-
-.model-test-message {
-  background: #edf5ef;
-  color: #4c7556;
-}
-
 .model-add-button {
   width: 100%;
 }
