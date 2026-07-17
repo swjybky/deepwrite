@@ -1,0 +1,48 @@
+{
+  "name": "@deepwrite/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "smoke": "node scripts/electron-smoke.mjs"
+  },
+  "dependencies": {
+    "@deepwrite/contracts": "workspace:*",
+    "@deepwrite/pi-runtime-adapter": "workspace:*",
+    "@deepwrite/shared": "workspace:*",
+    "naive-ui": "2.44.1",
+    "pinia": "3.0.4",
+    "vue": "3.5.39"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "@vitejs/plugin-vue": "6.0.7",
+    "electron": "42.5.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "typescript": "6.0.3",
+    "vite": "8.1.0",
+    "vue-tsc": "3.3.5"
+  },
+  "build": {
+    "appId": "cn.deepwrite.desktop",
+    "productName": "DeepWrite",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "category": "Office"
+    }
+  }
+}

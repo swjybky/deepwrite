@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "electron"],
+    "paths": {
+      "@deepwrite/contracts": ["../../packages/contracts/src/index.ts"],
+      "@deepwrite/pi-runtime-adapter": ["../../packages/pi-runtime-adapter/src/index.ts"],
+      "@deepwrite/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "src/utilities/**/*.ts"
+  ]
+}

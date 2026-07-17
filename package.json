@@ -1,0 +1,32 @@
+{
+  "name": "deepwrite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @deepwrite/desktop dev",
+    "build": "pnpm --filter @deepwrite/desktop build",
+    "typecheck": "vue-tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/shared/tsconfig.json && tsc --noEmit -p packages/pi-runtime-adapter/tsconfig.json",
+    "lint": "node tools/check-renderer-boundary.mjs",
+    "test": "vitest run",
+    "smoke": "pnpm --filter @deepwrite/desktop smoke",
+    "smoke:renderer": "node tools/check-renderer-build.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "@vitejs/plugin-vue": "6.0.7",
+    "@vue/tsconfig": "0.9.1",
+    "electron": "42.5.0",
+    "electron-vite": "5.0.0",
+    "typescript": "6.0.3",
+    "vite": "8.1.0",
+    "vitest": "4.1.9",
+    "vue-tsc": "3.3.5"
+  }
+}

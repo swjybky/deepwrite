@@ -1,0 +1,14 @@
+{
+  "name": "@deepwrite/pi-runtime-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepwrite/contracts": "workspace:*",
+    "@earendil-works/pi-agent-core": "0.80.3",
+    "@earendil-works/pi-ai": "0.80.3"
+  }
+}

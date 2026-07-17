@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@deepwrite/contracts": ["../contracts/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

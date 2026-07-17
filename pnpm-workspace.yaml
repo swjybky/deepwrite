@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  electron: true
+  esbuild: true
+  electron-winstaller: false
+  # Slice 2 only uses Pi's local Faux provider; these transitive provider
+  # packages do not need install scripts for the desktop runtime.
+  '@google/genai': false
+  protobufjs: false

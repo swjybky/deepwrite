@@ -1,0 +1,15 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "paths": {
+      "@deepwrite/contracts": ["../../packages/contracts/src/index.ts"]
+    },
+    "types": ["vite/client"]
+  },
+  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.vue", "src/renderer/src/**/*.d.ts"]
+}
