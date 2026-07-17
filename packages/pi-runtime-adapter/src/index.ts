@@ -1,16 +1,33 @@
-import { Agent, type AgentEvent, type AgentMessage } from "@earendil-works/pi-agent-core";
+import {
+  Agent,
+  type AgentEvent,
+  type AgentMessage,
+  type StreamFn
+} from "@earendil-works/pi-agent-core";
 import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
   fauxThinking,
+  type Api,
   type AssistantMessage,
+  type Context,
+  type Model,
+  type ProviderStreams,
+  type SimpleStreamOptions,
   type Usage
 } from "@earendil-works/pi-ai";
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
+import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
+import { getBuiltinModels, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
 import type {
+  AgentProviderRuntimeConfig,
   AgentRuntimeRef,
   AgentUsage,
+  ModelConnectionTestResult,
   ThinkingLevel,
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
@@ -20,6 +37,7 @@ export interface AgentRunInput {
   sessionId: string;
   prompt: string;
   thinkingLevel?: ThinkingLevel;
+  runtimeConfig?: AgentProviderRuntimeConfig;
   workspaceContext?: WorkspaceRuntimeContext;
   signal?: AbortSignal;
 }
@@ -141,55 +159,105 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     this.systemPrompt = options.systemPrompt ?? buildDeepWriteSystemPrompt();
   }
 
-  describe(): AgentRuntimeRef {
+  describe(config?: AgentProviderRuntimeConfig): AgentRuntimeRef {
+    if (config) {
+      return {
+        provider: config.provider,
+        model: config.modelId,
+        mode: "provider"
+      };
+    }
     return { ...DEEPWRITE_FAUX_RUNTIME };
+  }
+
+  async testConnection(
+    config: AgentProviderRuntimeConfig
+  ): Promise<ModelConnectionTestResult> {
+    const { model, streamFn } = buildProviderRuntime(config);
+    const stream = streamFn(
+      model,
+      {
+        systemPrompt: "You are a connection test. Reply with OK only.",
+        messages: [{ role: "user", content: "OK", timestamp: Date.now() }]
+      },
+      {
+        ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+        maxTokens: 8,
+        maxRetries: 0,
+        timeoutMs: 15_000
+      }
+    );
+    const result = await (await stream).result();
+    if (result.stopReason === "error" || result.stopReason === "aborted") {
+      throw new Error(result.errorMessage || "模型连接测试失败。");
+    }
+    return {
+      modelId: config.id,
+      ok: true,
+      message: "连接成功，模型已返回有效响应。",
+      testedAt: new Date().toISOString()
+    };
   }
 
   async *start(input: AgentRunInput): AsyncIterable<AgentRuntimeEvent> {
     const queue = new AsyncEventQueue<AgentRuntimeEvent>();
-    const runtime = this.describe();
+    const runtime = this.describe(input.runtimeConfig);
     const messageId = `${input.runId}_assistant`;
-    const models = createModels();
-    const faux = fauxProvider({
-      api: "deepwrite-faux",
-      provider: runtime.provider,
-      models: [
-        {
-          id: runtime.model,
-          name: "DeepWrite Local Writing Faux",
-          reasoning: true,
-          input: ["text"]
-        }
-      ],
-      tokensPerSecond: this.tokensPerSecond,
-      tokenSize: { min: 2, max: 4 }
-    });
-    models.setProvider(faux.provider);
-    const model = faux.getModel(runtime.model);
-    if (!model) {
-      throw new Error("DeepWrite faux model is unavailable.");
-    }
+    let model: Model<Api>;
+    let streamFn: StreamFn;
+    let effectiveThinkingLevel: ThinkingLevel;
 
-    const effectiveThinkingLevel = input.thinkingLevel ?? "medium";
-    faux.setResponses([
-      fauxAssistantMessage(
-        effectiveThinkingLevel === "off"
-          ? [fauxText(buildLocalWritingResponse(input))]
-          : [
-              fauxThinking(buildLocalThinking(input)),
-              fauxText(buildLocalWritingResponse(input))
-            ]
-      )
-    ]);
+    if (input.runtimeConfig) {
+      const providerRuntime = buildProviderRuntime(input.runtimeConfig);
+      model = providerRuntime.model;
+      streamFn = providerRuntime.streamFn;
+      effectiveThinkingLevel = input.runtimeConfig.reasoning
+        ? input.thinkingLevel ?? input.runtimeConfig.defaultThinkingLevel
+        : "off";
+    } else {
+      const models = createModels();
+      const faux = fauxProvider({
+        api: "deepwrite-faux",
+        provider: runtime.provider,
+        models: [
+          {
+            id: runtime.model,
+            name: "DeepWrite Local Writing Faux",
+            reasoning: true,
+            input: ["text"]
+          }
+        ],
+        tokensPerSecond: this.tokensPerSecond,
+        tokenSize: { min: 2, max: 4 }
+      });
+      models.setProvider(faux.provider);
+      const fauxModel = faux.getModel(runtime.model);
+      if (!fauxModel) {
+        throw new Error("DeepWrite faux model is unavailable.");
+      }
+      model = fauxModel;
+      streamFn = models.streamSimple.bind(models) as StreamFn;
+      effectiveThinkingLevel = input.thinkingLevel ?? "medium";
+      faux.setResponses([
+        fauxAssistantMessage(
+          effectiveThinkingLevel === "off"
+            ? [fauxText(buildLocalWritingResponse(input))]
+            : [
+                fauxThinking(buildLocalThinking(input)),
+                fauxText(buildLocalWritingResponse(input))
+              ]
+        )
+      ]);
+    }
 
     const agent = new Agent({
       initialState: {
         systemPrompt: this.systemPrompt,
         model,
-        thinkingLevel: input.thinkingLevel ?? "medium",
+        thinkingLevel: effectiveThinkingLevel,
         tools: []
       },
-      streamFn: models.streamSimple.bind(models),
+      streamFn,
       toolExecution: "sequential"
     });
 
@@ -258,7 +326,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           sessionId: input.sessionId,
           payload: {
             code: "pi_agent.prompt_timeout",
-            message: `本地智能体响应超时（${this.requestTimeoutMs}ms）。`,
+            message: `智能体响应超时（${this.requestTimeoutMs}ms）。`,
             runtime
           }
         });
@@ -316,6 +384,73 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       }
     }
   }
+}
+
+function providerStreams(api: AgentProviderRuntimeConfig["api"]): ProviderStreams {
+  if (api === "openai-completions") {
+    return openAICompletionsApi();
+  }
+  if (api === "openai-responses") {
+    return openAIResponsesApi();
+  }
+  if (api === "anthropic-messages") {
+    return anthropicMessagesApi();
+  }
+  return googleGenerativeAIApi();
+}
+
+function findBuiltinModel(config: AgentProviderRuntimeConfig): Model<Api> | undefined {
+  const provider = getBuiltinProviders().find(
+    (candidate) => candidate.toLowerCase() === config.provider.toLowerCase()
+  );
+  if (!provider) {
+    return undefined;
+  }
+  return getBuiltinModels(provider).find(
+    (candidate) => candidate.id.toLowerCase() === config.modelId.toLowerCase()
+  ) as Model<Api> | undefined;
+}
+
+function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
+  model: Model<Api>;
+  streamFn: StreamFn;
+} {
+  const builtin = findBuiltinModel(config);
+  const baseUrl = config.baseUrl || (builtin?.api === config.api ? builtin.baseUrl : "");
+  if (!baseUrl) {
+    throw new Error("当前模型不在 Pi 内置目录中，请填写 API 地址后再试。");
+  }
+
+  const model = {
+    ...(builtin?.api === config.api ? builtin : {}),
+    id: config.modelId,
+    name: config.label,
+    api: config.api,
+    provider: config.provider,
+    baseUrl,
+    reasoning: config.reasoning,
+    input: builtin?.input ?? ["text"],
+    cost: builtin?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: builtin?.contextWindow ?? 128_000,
+    maxTokens: builtin?.maxTokens ?? 8_192,
+    ...(builtin?.headers ? { headers: builtin.headers } : {}),
+    ...(builtin?.thinkingLevelMap ? { thinkingLevelMap: builtin.thinkingLevelMap } : {}),
+    ...(builtin?.compat && builtin.api === config.api ? { compat: builtin.compat } : {})
+  } as Model<Api>;
+  const streams = providerStreams(config.api);
+  const streamFn = (
+    requestModel: Model<Api>,
+    context: Context,
+    options?: SimpleStreamOptions
+  ) => streams.streamSimple(requestModel, context, {
+    ...options,
+    ...(config.apiKey
+      ? { apiKey: config.apiKey }
+      : options?.apiKey
+        ? { apiKey: options.apiKey }
+        : {})
+  });
+  return { model, streamFn: streamFn as StreamFn };
 }
 
 function toRuntimeEvents(

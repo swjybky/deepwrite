@@ -4,6 +4,8 @@ import {
   AgentMessageDeltaEventEnvelopeSchema,
   ActiveResourceSnapshotSchema,
   CommandEnvelopeSchema,
+  ModelSettingsInputSchema,
+  ModelSettingsSchema,
   PROTOCOL_VERSION,
   SessionPromptAcceptedPayloadSchema,
   SystemEventEnvelopeSchema,
@@ -81,6 +83,52 @@ describe("DeepWrite desktop contracts", () => {
     );
 
     expect(CommandEnvelopeSchema.parse(envelope).type).toBe("session.prompt");
+  });
+
+  it("normalizes public model settings without exposing API keys", () => {
+    const settings = ModelSettingsSchema.parse({
+      defaultModelId: "deepseek",
+      models: [
+        {
+          id: "deepseek",
+          label: "DeepSeek",
+          provider: "deepseek",
+          modelId: "deepseek-chat",
+          api: "openai-completions",
+          baseUrl: "https://api.deepseek.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "xhigh",
+          hasApiKey: true,
+          apiKey: "must-not-cross-the-boundary"
+        }
+      ]
+    });
+
+    expect(settings.models[0]?.defaultThinkingLevel).toBe("xhigh");
+    expect("apiKey" in (settings.models[0] ?? {})).toBe(false);
+  });
+
+  it("rejects invalid model defaults and reasoning defaults", () => {
+    const model = {
+      id: "plain",
+      label: "Plain model",
+      provider: "custom",
+      modelId: "plain-model",
+      api: "openai-completions" as const,
+      baseUrl: "http://127.0.0.1:11434/v1",
+      reasoning: false,
+      defaultThinkingLevel: "high" as const
+    };
+
+    expect(() =>
+      ModelSettingsInputSchema.parse({ models: [model], defaultModelId: "plain" })
+    ).toThrow();
+    expect(() =>
+      ModelSettingsInputSchema.parse({
+        models: [{ ...model, reasoning: true, defaultThinkingLevel: "medium" }],
+        defaultModelId: "missing"
+      })
+    ).toThrow();
   });
 
   it("rejects blank prompts and mismatched session context", () => {

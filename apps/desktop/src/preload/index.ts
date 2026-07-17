@@ -3,6 +3,9 @@ import {
   CommandResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
+  ModelConnectionTestResultSchema,
+  ModelSettingsInputSchema,
+  ModelSettingsSchema,
   SessionPromptAcceptedPayloadSchema,
   SessionPromptCommandPayloadSchema,
   SystemEventEnvelopeSchema,
@@ -10,6 +13,9 @@ import {
   createEnvelope,
   type CommandEnvelope,
   type DeepWriteApi,
+  type ModelConnectionTestResult,
+  type ModelSettings,
+  type ModelSettingsInput,
   type SessionPromptAcceptedPayload,
   type SessionPromptCommandPayload,
   type SystemEventEnvelope,
@@ -66,12 +72,45 @@ async function prompt(
   return accepted;
 }
 
+async function listModels(): Promise<ModelSettings> {
+  const id = browserId("cmd_models_list");
+  return ModelSettingsSchema.parse(
+    await invokeCommand<ModelSettings>(
+      createEnvelope("models.list", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function saveModels(rawSettings: ModelSettingsInput): Promise<ModelSettings> {
+  const settings = ModelSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_models_save");
+  return ModelSettingsSchema.parse(
+    await invokeCommand<ModelSettings>(
+      createEnvelope("models.save", settings, { id, correlationId: id })
+    )
+  );
+}
+
+async function testModel(modelId: string): Promise<ModelConnectionTestResult> {
+  const id = browserId("cmd_models_test");
+  return ModelConnectionTestResultSchema.parse(
+    await invokeCommand<ModelConnectionTestResult>(
+      createEnvelope("models.test", { modelId }, { id, correlationId: id })
+    )
+  );
+}
+
 const api: DeepWriteApi = {
   system: {
     health: getHealth
   },
   session: {
     prompt
+  },
+  models: {
+    list: listModels,
+    save: saveModels,
+    test: testModel
   },
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void {

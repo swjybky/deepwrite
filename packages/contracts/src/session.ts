@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
+import {
+  AgentProviderRuntimeConfigSchema,
+  ThinkingLevelSchema
+} from "./models";
+import type { ThinkingLevel } from "./models";
 
-export const ThinkingLevelSchema = z.enum(["off", "minimal", "low", "medium", "high"]);
-export type ThinkingLevel = z.infer<typeof ThinkingLevelSchema>;
+export type { ThinkingLevel } from "./models";
 
 export const AgentRuntimeRefSchema = z.object({
   provider: z.string().min(1),
@@ -65,6 +69,7 @@ export type WorkspaceRuntimeContext = z.infer<typeof WorkspaceRuntimeContextSche
 export const SessionPromptCommandPayloadSchema = z.object({
   sessionId: z.string().min(1),
   message: z.string().trim().min(1).max(20_000),
+  modelId: z.string().min(1).max(120).optional(),
   thinkingLevel: ThinkingLevelSchema.optional(),
   workspaceContext: WorkspaceRuntimeContextSchema.optional()
 });
@@ -87,6 +92,32 @@ export const SessionPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
       code: "custom",
       path: ["context", "sessionId"],
       message: "Envelope sessionId must match session.prompt payload."
+    });
+  }
+  const activeResourceId = value.payload.workspaceContext?.activeResource?.id;
+  if (activeResourceId && value.context.resourceId !== activeResourceId) {
+    context.addIssue({
+      code: "custom",
+      path: ["context", "resourceId"],
+      message: "Envelope resourceId must match the active resource snapshot."
+    });
+  }
+});
+
+export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
+  runtimeConfig: AgentProviderRuntimeConfigSchema.optional()
+});
+export type AgentPromptCommandPayload = z.infer<typeof AgentPromptCommandPayloadSchema>;
+
+export const AgentPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("agent.prompt"),
+  payload: AgentPromptCommandPayloadSchema
+}).superRefine((value, context) => {
+  if (value.context.sessionId !== value.payload.sessionId) {
+    context.addIssue({
+      code: "custom",
+      path: ["context", "sessionId"],
+      message: "Envelope sessionId must match agent.prompt payload."
     });
   }
   const activeResourceId = value.payload.workspaceContext?.activeResource?.id;

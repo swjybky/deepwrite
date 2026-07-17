@@ -1,5 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#242629"/>
-  <path d="M18 12h20l9 9v31H18z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M38 12v10h9M24 40l17-12-8 17-3-6z" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="DeepWrite app icon">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3c5871"/>
+      <stop offset="0.55" stop-color="#18354e"/>
+      <stop offset="1" stop-color="#081c30"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="0.55" stop-color="#f6e8d5"/>
+      <stop offset="1" stop-color="#d8c3a7"/>
+    </linearGradient>
+  </defs>
+  <rect x=".625" y=".625" width="14.75" height="14.75" rx="3.1" fill="url(#background)"/>
+  <g transform="translate(-0.975 -0.725)">
+    <path
+      d="M 4.5 4 H 8.55 C 11.65 4 13.45 5.8 13.45 8.65 V 10.05 C 13.45 12.25 12 13.45 9.65 13.45 H 4.5 V 8.3 C 5.55 8.3 6.15 10.45 7.15 10.45 C 8.15 10.45 8.75 8.2 9.65 8.2 C 10.65 8.2 11.15 10.45 12.05 10.45 C 12.9 10.45 13.45 9.55 13.45 8.65"
+      fill="none"
+      stroke="url(#mark)"
+      stroke-width="1.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>

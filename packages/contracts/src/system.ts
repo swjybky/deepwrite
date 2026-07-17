@@ -5,6 +5,7 @@ import {
   AgentMessageCompletedEventEnvelopeSchema,
   AgentMessageDeltaEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
+  AgentPromptCommandEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   SessionPromptCommandEnvelopeSchema,
@@ -15,6 +16,12 @@ import {
   type AgentToolCompletedEventEnvelope,
   type AgentToolRequestedEventEnvelope
 } from "./session";
+import {
+  AgentModelTestCommandEnvelopeSchema,
+  ModelsListCommandEnvelopeSchema,
+  ModelsSaveCommandEnvelopeSchema,
+  ModelsTestCommandEnvelopeSchema
+} from "./models";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
 export const IPC_EVENT_CHANNEL = "deepwrite:event";
@@ -46,7 +53,12 @@ export const SystemHealthCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   SystemHealthCommandEnvelopeSchema,
-  SessionPromptCommandEnvelopeSchema
+  SessionPromptCommandEnvelopeSchema,
+  ModelsListCommandEnvelopeSchema,
+  ModelsSaveCommandEnvelopeSchema,
+  ModelsTestCommandEnvelopeSchema,
+  AgentPromptCommandEnvelopeSchema,
+  AgentModelTestCommandEnvelopeSchema
 ]);
 export type CommandEnvelope = z.infer<typeof CommandEnvelopeSchema>;
 export type CommandType = CommandEnvelope["type"];

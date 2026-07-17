@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ResourceTreeNode, ResourceTreeSection } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
 import TreeNodeItem from "./TreeNodeItem.vue";
 
-defineProps<{
+const props = defineProps<{
   section: ResourceTreeSection;
   selectedId: string;
 }>();
@@ -14,6 +14,44 @@ const emit = defineEmits<{
 }>();
 
 const collapsed = ref(false);
+const actionMenuOpen = ref(false);
+const actionArea = ref<HTMLElement | null>(null);
+
+const actionItems = computed(() => {
+  const resourceName =
+    props.section.id === "creation"
+      ? "书籍"
+      : props.section.id === "skill"
+        ? "技能库"
+        : "素材库";
+  return [
+    { id: "create", label: `新建${resourceName}`, icon: "plus" as const },
+    { id: "import", label: `导入已有${resourceName}`, icon: "folder" as const }
+  ];
+});
+
+function handleDocumentPointerDown(event: PointerEvent): void {
+  if (actionArea.value?.contains(event.target as Node)) {
+    return;
+  }
+  actionMenuOpen.value = false;
+}
+
+function handleDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") {
+    actionMenuOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown);
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
 </script>
 
 <template>
@@ -30,9 +68,34 @@ const collapsed = ref(false);
         <AppIcon :name="section.icon" :size="15" />
         <span>{{ section.label }}</span>
       </button>
-      <button class="section-action" type="button" :aria-label="`新建${section.label}内容`">
-        <AppIcon name="plus" :size="14" />
-      </button>
+      <div ref="actionArea" class="section-action-area">
+        <button
+          class="section-action"
+          :class="{ 'is-active': actionMenuOpen }"
+          type="button"
+          :aria-label="`${section.label}新建或导入`"
+          :aria-expanded="actionMenuOpen"
+          aria-haspopup="menu"
+          @click="actionMenuOpen = !actionMenuOpen"
+        >
+          <AppIcon name="plus" :size="14" />
+        </button>
+
+        <div v-if="actionMenuOpen" class="section-action-menu" role="menu">
+          <button
+            v-for="item in actionItems"
+            :key="item.id"
+            class="section-action-menu-item"
+            type="button"
+            role="menuitem"
+            :data-resource-action="`${section.id}-${item.id}`"
+            @click="actionMenuOpen = false"
+          >
+            <AppIcon :name="item.icon" :size="17" />
+            <span>{{ item.label }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <ul

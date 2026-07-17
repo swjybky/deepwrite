@@ -14,6 +14,7 @@ export type IconName =
   | "globe"
   | "history"
   | "italic"
+  | "keyboard"
   | "ledger"
   | "library"
   | "logo"
@@ -26,6 +27,7 @@ export type IconName =
   | "quote"
   | "save"
   | "search"
+  | "settings"
   | "sparkles"
   | "user"
   | "wand";
@@ -66,4 +68,4 @@ export interface EditorDraftState {
   dirty: boolean;
 }
 
-export type DialogMode = "directory" | "models" | "imitation" | "more";
+export type DialogMode = "directory" | "models" | "imitation";

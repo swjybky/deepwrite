@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import type { AgentRuntimeRef } from "@deepwrite/contracts";
+import type {
+  AgentRuntimeRef,
+  ModelConfig,
+  ThinkingLevel
+} from "@deepwrite/contracts";
 import type { ChatMessage } from "../types/conversation";
 import AppIcon from "./AppIcon.vue";
 
@@ -11,6 +15,9 @@ const props = defineProps<{
   canSend: boolean;
   runtimeAvailable: boolean;
   runtime: AgentRuntimeRef | null;
+  models: ModelConfig[];
+  selectedModelId: string;
+  thinkingLevel: ThinkingLevel;
   errorMessage: string | null;
   contextTitle: string;
   leftCollapsed: boolean;
@@ -23,6 +30,8 @@ const emit = defineEmits<{
   suggestion: [value: string];
   toggleLeft: [];
   toggleRight: [];
+  selectModel: [modelId: string];
+  selectThinking: [level: ThinkingLevel];
 }>();
 
 const scroller = ref<HTMLElement>();
@@ -57,9 +66,35 @@ const suggestions = ["验证实时文稿快照", "验证 Thinking 流", "验证�
 const hasStreamingAssistant = computed(() =>
   props.messages.some((message) => message.role === "assistant" && message.status === "streaming")
 );
-const modelLabel = computed(() =>
-  props.runtime?.mode === "provider" ? props.runtime.model : "DeepWrite Faux"
+const selectedModel = computed(() =>
+  props.models.find((model) => model.id === props.selectedModelId)
 );
+const modelLabel = computed(
+  () =>
+    selectedModel.value?.label ??
+    (props.runtime?.mode === "provider" ? props.runtime.model : "DeepWrite Faux")
+);
+const thinkingOptions: Array<{ value: ThinkingLevel; label: string }> = [
+  { value: "off", label: "关闭" },
+  { value: "minimal", label: "最低" },
+  { value: "low", label: "较低" },
+  { value: "medium", label: "标准" },
+  { value: "high", label: "深度" },
+  { value: "xhigh", label: "极高" }
+];
+const availableThinkingOptions = computed(() =>
+  selectedModel.value && !selectedModel.value.reasoning
+    ? thinkingOptions.slice(0, 1)
+    : thinkingOptions
+);
+
+function handleModelChange(event: Event): void {
+  emit("selectModel", (event.target as HTMLSelectElement).value);
+}
+
+function handleThinkingChange(event: Event): void {
+  emit("selectThinking", (event.target as HTMLSelectElement).value as ThinkingLevel);
+}
 
 function formatTime(value: string): string {
   const timestamp = Date.parse(value);
@@ -210,16 +245,37 @@ function formatTime(value: string): string {
             >
               <AppIcon name="plus" :size="18" />
             </button>
-            <button class="composer-select" type="button">
+            <label class="composer-select">
               <AppIcon name="model" :size="14" />
-              {{ modelLabel }}
+              <select
+                :value="selectedModelId"
+                aria-label="选择模型"
+                @change="handleModelChange"
+              >
+                <option value="">DeepWrite Faux</option>
+                <option v-for="model in models" :key="model.id" :value="model.id">
+                  {{ model.label }}
+                </option>
+              </select>
               <AppIcon name="chevron" :size="11" />
-            </button>
-            <button class="composer-select" type="button">
+            </label>
+            <label class="composer-select">
               <AppIcon name="brain" :size="14" />
-              标准
+              <select
+                :value="thinkingLevel"
+                aria-label="选择思考等级"
+                @change="handleThinkingChange"
+              >
+                <option
+                  v-for="option in availableThinkingOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
               <AppIcon name="chevron" :size="11" />
-            </button>
+            </label>
           </div>
           <div class="composer-actions">
             <button class="round-tool-button" type="button" aria-label="语音输入">

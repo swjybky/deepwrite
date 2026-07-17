@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type {
   DialogMode,
+  IconName,
   ResourceTreeNode,
   ResourceTreeSection
 } from "../types/workspace";
@@ -10,28 +12,39 @@ import TreeSection from "./TreeSection.vue";
 defineProps<{
   sections: ResourceTreeSection[];
   selectedId: string;
-  runtimeLabel: string;
-  runtimeTone: "ok" | "preview" | "degraded";
 }>();
 
 const emit = defineEmits<{
   collapse: [];
   newConversation: [];
   openDialog: [mode: DialogMode];
+  openSettings: [];
   selectResource: [node: ResourceTreeNode];
 }>();
 
 const navItems: Array<{
   id: "new" | DialogMode;
   label: string;
-  icon: "plus" | "directory" | "model" | "wand" | "more";
+  icon: "plus" | "directory" | "model" | "wand";
   shortcut?: string;
 }> = [
   { id: "new", label: "新建对话", icon: "plus", shortcut: "Ctrl N" },
   { id: "directory", label: "工作目录", icon: "directory" },
   { id: "models", label: "模型配置", icon: "model" },
-  { id: "imitation", label: "学习仿写", icon: "wand" },
-  { id: "more", label: "更多功能", icon: "more" }
+  { id: "imitation", label: "学习仿写", icon: "wand" }
+];
+
+const moreExpanded = ref(false);
+const moreFeatures: Array<{
+  id: string;
+  label: string;
+  description: string;
+  icon: IconName;
+}> = [
+  { id: "history", label: "版本历史", description: "查看文稿修改记录", icon: "history" },
+  { id: "search", label: "全局检索", description: "搜索创作空间内容", icon: "search" },
+  { id: "transfer", label: "导入与导出", description: "迁移旧项目和文稿", icon: "archive" },
+  { id: "runtime", label: "运行设置", description: "智能体与工具边界", icon: "model" }
 ];
 
 function activateNav(id: "new" | DialogMode): void {
@@ -69,6 +82,37 @@ function activateNav(id: "new" | DialogMode): void {
         <span>{{ item.label }}</span>
         <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
       </button>
+
+      <button
+        class="nav-row more-toggle"
+        :class="{ 'is-expanded': moreExpanded }"
+        type="button"
+        data-nav-id="more"
+        :aria-expanded="moreExpanded"
+        aria-controls="more-feature-list"
+        @click="moreExpanded = !moreExpanded"
+      >
+        <AppIcon name="more" :size="17" />
+        <span>更多功能</span>
+        <AppIcon class="more-toggle-chevron" name="chevron" :size="13" />
+      </button>
+
+      <div v-if="moreExpanded" id="more-feature-list" class="more-feature-list">
+        <button
+          v-for="feature in moreFeatures"
+          :key="feature.id"
+          class="more-feature-row"
+          type="button"
+          :data-feature-id="feature.id"
+          :title="feature.description"
+        >
+          <span class="more-feature-icon"><AppIcon :name="feature.icon" :size="15" /></span>
+          <span class="more-feature-copy">
+            <strong>{{ feature.label }}</strong>
+            <small>{{ feature.description }}</small>
+          </span>
+        </button>
+      </div>
     </nav>
 
     <div class="sidebar-divider" />
@@ -84,13 +128,12 @@ function activateNav(id: "new" | DialogMode): void {
     </div>
 
     <footer class="sidebar-footer">
-      <button class="account-row" type="button">
-        <span class="avatar">沈</span>
+      <button class="account-row" type="button" @click="emit('openSettings')">
+        <span class="avatar">作</span>
         <span class="account-copy">
-          <strong>文佳 沈</strong>
-          <small><span class="runtime-dot" :class="`is-${runtimeTone}`" />{{ runtimeLabel }}</small>
+          <strong>作者</strong>
         </span>
-        <AppIcon name="more" :size="16" />
+        <AppIcon name="settings" :size="16" />
       </button>
     </footer>
   </aside>

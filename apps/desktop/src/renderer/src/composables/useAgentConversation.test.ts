@@ -50,6 +50,35 @@ function createDeferredApi(): {
         });
       }
     },
+    models: {
+      async list() {
+        return { models: [], defaultModelId: "" };
+      },
+      async save(settings) {
+        return {
+          defaultModelId: settings.defaultModelId,
+          models: settings.models.map((model) => ({
+            id: model.id,
+            label: model.label,
+            provider: model.provider,
+            modelId: model.modelId,
+            api: model.api,
+            baseUrl: model.baseUrl,
+            reasoning: model.reasoning,
+            defaultThinkingLevel: model.defaultThinkingLevel,
+            hasApiKey: Boolean(model.apiKey)
+          }))
+        };
+      },
+      async test(modelId) {
+        return {
+          modelId,
+          ok: true,
+          message: "连接成功",
+          testedAt: new Date().toISOString()
+        };
+      }
+    },
     events: {
       subscribe() {
         return () => undefined;
@@ -81,6 +110,46 @@ afterEach(() => {
 });
 
 describe("agent conversation controller", () => {
+  it("uses the configured default model thinking level and carries model identity", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    controller.applyModelSettings({
+      defaultModelId: "writer",
+      models: [
+        {
+          id: "writer",
+          label: "Writer",
+          provider: "openai",
+          modelId: "writer-model",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "high",
+          hasApiKey: true
+        }
+      ]
+    });
+
+    expect(controller.selectedModelId.value).toBe("writer");
+    expect(controller.thinkingLevel.value).toBe("high");
+    controller.draft.value = "按默认配置运行";
+    const sending = controller.sendMessage(document);
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_model",
+      acceptedAt: new Date().toISOString(),
+      runtime: { provider: "openai", model: "writer-model", mode: "provider" }
+    });
+    await sending;
+
+    expect(deferred.prompts[0]).toMatchObject({
+      modelId: "writer",
+      thinkingLevel: "high"
+    });
+    controller.dispose();
+  });
+
   it("accepts events before prompt accepted and prevents duplicate sends", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });

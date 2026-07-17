@@ -2,13 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { NConfigProvider } from "naive-ui";
 import type {
+  ModelSettings,
+  ModelSettingsInput,
   SystemEventEnvelope,
-  SystemHealthPayload,
-  UtilityWorkerName
+  ThinkingLevel
 } from "@deepwrite/contracts";
 import AgentConversation from "./components/AgentConversation.vue";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import RightEditorPane from "./components/RightEditorPane.vue";
+import SettingsPage from "./components/SettingsPage.vue";
 import WorkspaceDialog from "./components/WorkspaceDialog.vue";
 import { useAgentConversation } from "./composables/useAgentConversation";
 import {
@@ -36,14 +38,24 @@ const themeOverrides = {
 
 const leftCollapsed = ref(false);
 const rightCollapsed = ref(false);
+const desktopShell = ref<HTMLElement | null>(null);
+const leftPaneWidth = ref(window.innerWidth <= 1220 ? 262 : 286);
+const rightPaneWidth = ref(
+  window.innerWidth <= 1220 ? 395 : Math.min(650, Math.max(410, window.innerWidth * 0.34))
+);
+const resizingPane = ref<"left" | "right" | null>(null);
 const selectedResourceId = ref("chapter-3");
 const activeCreationResourceId = ref("chapter-3");
 const documents = ref<WorkspaceDocument[]>(workspaceDocuments.map((document) => ({ ...document })));
 const editorDrafts = ref<Record<string, EditorDraftState>>({});
 const dialogMode = ref<DialogMode | null>(null);
-const runtimeHealth = ref<SystemHealthPayload | null>(null);
-const runtimeError = ref(false);
-const restartingWorkers = ref<Set<UtilityWorkerName>>(new Set());
+const currentView = ref<"workspace" | "settings">("workspace");
+const modelSettings = ref<ModelSettings | null>(null);
+const modelLoading = ref(false);
+const modelSaving = ref(false);
+const modelError = ref<string | null>(null);
+const modelTestMessage = ref<string | null>(null);
+const testingModelId = ref<string | null>(null);
 let removeSystemListener: (() => void) | undefined;
 const conversation = useAgentConversation({
   api: () => window.deepwrite,
@@ -53,6 +65,9 @@ const {
   messages,
   draft: composerDraft,
   runtime: agentRuntime,
+  thinkingLevel,
+  configuredModels,
+  selectedModelId,
   conversationError,
   isBusy: responding,
   canSend
@@ -79,35 +94,79 @@ const activePromptDocument = computed<WorkspaceDocument>(() => {
 
 const shellClasses = computed(() => ({
   "is-left-collapsed": leftCollapsed.value,
-  "is-right-collapsed": rightCollapsed.value
+  "is-right-collapsed": rightCollapsed.value,
+  "is-resizing": resizingPane.value !== null
+}));
+const shellStyle = computed(() => ({
+  "--left-pane-width": `${leftPaneWidth.value}px`,
+  "--right-pane-width": `${rightPaneWidth.value}px`
 }));
 const hasDesktopRuntime = computed(() => Boolean(window.deepwrite));
 
-const runtimeTone = computed<"ok" | "preview" | "degraded">(() => {
-  if (runtimeError.value || restartingWorkers.value.size > 0) {
-    return "degraded";
-  }
-  if (!window.deepwrite) {
-    return "preview";
-  }
-  return runtimeHealth.value?.status === "ok" ? "ok" : "preview";
-});
+const LEFT_PANE_MIN = 220;
+const LEFT_PANE_MAX = 480;
+const RIGHT_PANE_MIN = 320;
+const RIGHT_PANE_MAX = 760;
+const CENTER_PANE_MIN = 390;
 
-const runtimeLabel = computed(() => {
-  if (restartingWorkers.value.size > 0) {
-    return "正在重启桌面运行时";
+function clampPaneWidth(side: "left" | "right", width: number): number {
+  const shellWidth = desktopShell.value?.getBoundingClientRect().width ?? window.innerWidth;
+  const otherWidth =
+    side === "left"
+      ? rightCollapsed.value
+        ? 0
+        : rightPaneWidth.value
+      : leftCollapsed.value
+        ? 0
+        : leftPaneWidth.value;
+  const paneMin = side === "left" ? LEFT_PANE_MIN : RIGHT_PANE_MIN;
+  const paneMax = side === "left" ? LEFT_PANE_MAX : RIGHT_PANE_MAX;
+  const availableMax = Math.max(paneMin, shellWidth - otherWidth - CENTER_PANE_MIN);
+  return Math.round(Math.min(Math.max(width, paneMin), paneMax, availableMax));
+}
+
+function setPaneWidth(side: "left" | "right", width: number): void {
+  if (side === "left") {
+    leftPaneWidth.value = clampPaneWidth(side, width);
+    return;
   }
-  if (runtimeError.value) {
-    return "运行时异常";
+  rightPaneWidth.value = clampPaneWidth(side, width);
+}
+
+function handleResizeMove(event: PointerEvent): void {
+  if (!resizingPane.value || !desktopShell.value) {
+    return;
   }
-  if (!window.deepwrite) {
-    return "浏览器预览模式";
+  const bounds = desktopShell.value.getBoundingClientRect();
+  const width =
+    resizingPane.value === "left" ? event.clientX - bounds.left : bounds.right - event.clientX;
+  setPaneWidth(resizingPane.value, width);
+}
+
+function stopPaneResize(): void {
+  resizingPane.value = null;
+  window.removeEventListener("pointermove", handleResizeMove);
+  window.removeEventListener("pointerup", stopPaneResize);
+  window.removeEventListener("pointercancel", stopPaneResize);
+}
+
+function startPaneResize(side: "left" | "right", event: PointerEvent): void {
+  event.preventDefault();
+  resizingPane.value = side;
+  window.addEventListener("pointermove", handleResizeMove);
+  window.addEventListener("pointerup", stopPaneResize);
+  window.addEventListener("pointercancel", stopPaneResize);
+}
+
+function handleResizeKeydown(side: "left" | "right", event: KeyboardEvent): void {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
   }
-  if (!runtimeHealth.value) {
-    return "正在连接运行时";
-  }
-  return runtimeHealth.value.status === "ok" ? "桌面运行时就绪" : "运行时启动中";
-});
+  event.preventDefault();
+  const direction = event.key === "ArrowLeft" ? -1 : 1;
+  const currentWidth = side === "left" ? leftPaneWidth.value : rightPaneWidth.value;
+  setPaneWidth(side, currentWidth + direction * (side === "left" ? 12 : -12));
+}
 
 function selectResource(node: ResourceTreeNode): void {
   const document = findWorkspaceDocument(node.id);
@@ -158,37 +217,73 @@ function seedPrompt(value: string): void {
   dialogMode.value = null;
 }
 
+function openSettings(): void {
+  currentView.value = "settings";
+}
+
+function closeSettings(): void {
+  currentView.value = "workspace";
+}
+
 function handleSystemEvent(event: SystemEventEnvelope): void {
-  if (event.type === "system.ready") {
-    runtimeHealth.value = event.payload;
-    runtimeError.value = false;
-    restartingWorkers.value = new Set();
-  }
-  if (event.type === "system.worker_restarting") {
-    restartingWorkers.value = new Set([...restartingWorkers.value, event.payload.worker]);
-    runtimeHealth.value = null;
-  }
-  if (event.type === "system.worker_restarted") {
-    const next = new Set(restartingWorkers.value);
-    next.delete(event.payload.worker);
-    restartingWorkers.value = next;
-    if (next.size === 0) {
-      void refreshRuntimeHealth();
-    }
-  }
   conversation.handleEvent(event);
 }
 
-async function refreshRuntimeHealth(): Promise<void> {
+async function loadModelSettings(): Promise<void> {
   if (!window.deepwrite) {
     return;
   }
+  modelLoading.value = true;
+  modelError.value = null;
   try {
-    runtimeHealth.value = await window.deepwrite.system.health();
-    runtimeError.value = false;
-  } catch {
-    runtimeError.value = true;
+    const settings = await window.deepwrite.models.list();
+    modelSettings.value = settings;
+    conversation.applyModelSettings(settings);
+  } catch (error: unknown) {
+    modelError.value = error instanceof Error ? error.message : "加载模型配置失败。";
+  } finally {
+    modelLoading.value = false;
   }
+}
+
+async function saveModelSettings(settings: ModelSettingsInput): Promise<void> {
+  if (!window.deepwrite || modelSaving.value) {
+    return;
+  }
+  modelSaving.value = true;
+  modelError.value = null;
+  modelTestMessage.value = null;
+  try {
+    const saved = await window.deepwrite.models.save(settings);
+    modelSettings.value = saved;
+    conversation.applyModelSettings(saved);
+    modelTestMessage.value = "模型配置已保存，并已同步到后续对话。";
+  } catch (error: unknown) {
+    modelError.value = error instanceof Error ? error.message : "保存模型配置失败。";
+  } finally {
+    modelSaving.value = false;
+  }
+}
+
+async function testModel(modelId: string): Promise<void> {
+  if (!window.deepwrite || testingModelId.value) {
+    return;
+  }
+  testingModelId.value = modelId;
+  modelError.value = null;
+  modelTestMessage.value = null;
+  try {
+    const result = await window.deepwrite.models.test(modelId);
+    modelTestMessage.value = result.message;
+  } catch (error: unknown) {
+    modelError.value = error instanceof Error ? error.message : "模型连接测试失败。";
+  } finally {
+    testingModelId.value = null;
+  }
+}
+
+function selectThinking(level: ThinkingLevel): void {
+  conversation.selectThinkingLevel(level);
 }
 
 function handleGlobalKeydown(event: KeyboardEvent): void {
@@ -198,6 +293,9 @@ function handleGlobalKeydown(event: KeyboardEvent): void {
   }
   if (event.key === "Escape") {
     dialogMode.value = null;
+    if (currentView.value === "settings") {
+      closeSettings();
+    }
   }
 }
 
@@ -208,11 +306,12 @@ onMounted(async () => {
   }
 
   removeSystemListener = window.deepwrite.events.subscribe(handleSystemEvent);
-  await refreshRuntimeHealth();
+  await loadModelSettings();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
+  stopPaneResize();
   removeSystemListener?.();
   conversation.dispose();
 });
@@ -220,16 +319,24 @@ onBeforeUnmount(() => {
 
 <template>
   <NConfigProvider :theme-overrides="themeOverrides">
-    <div class="desktop-shell" :class="shellClasses" data-testid="desktop-shell">
+    <SettingsPage v-if="currentView === 'settings'" @back="closeSettings" />
+
+    <div
+      v-else
+      ref="desktopShell"
+      class="desktop-shell"
+      :class="shellClasses"
+      :style="shellStyle"
+      data-testid="desktop-shell"
+    >
       <LeftSidebar
         v-if="!leftCollapsed"
         :sections="resourceSections"
         :selected-id="selectedResourceId"
-        :runtime-label="runtimeLabel"
-        :runtime-tone="runtimeTone"
         @collapse="leftCollapsed = true"
         @new-conversation="newConversation"
         @open-dialog="dialogMode = $event"
+        @open-settings="openSettings"
         @select-resource="selectResource"
       />
 
@@ -240,6 +347,9 @@ onBeforeUnmount(() => {
         :can-send="canSend"
         :runtime-available="hasDesktopRuntime"
         :runtime="agentRuntime"
+        :models="configuredModels"
+        :selected-model-id="selectedModelId"
+        :thinking-level="thinkingLevel"
         :error-message="conversationError"
         :context-title="activePromptDocument.title"
         :left-collapsed="leftCollapsed"
@@ -248,6 +358,8 @@ onBeforeUnmount(() => {
         @suggestion="useSuggestion"
         @toggle-left="leftCollapsed = !leftCollapsed"
         @toggle-right="rightCollapsed = !rightCollapsed"
+        @select-model="conversation.selectModel"
+        @select-thinking="selectThinking"
       />
 
       <RightEditorPane
@@ -258,12 +370,48 @@ onBeforeUnmount(() => {
         @save="applyDocument"
         @live-change="handleLiveDocumentChange"
       />
+
+      <div
+        v-if="!leftCollapsed"
+        class="pane-resizer pane-resizer-left"
+        role="separator"
+        aria-label="调整左侧栏宽度"
+        aria-orientation="vertical"
+        :aria-valuemin="LEFT_PANE_MIN"
+        :aria-valuemax="LEFT_PANE_MAX"
+        :aria-valuenow="leftPaneWidth"
+        tabindex="0"
+        @pointerdown="startPaneResize('left', $event)"
+        @keydown="handleResizeKeydown('left', $event)"
+      />
+
+      <div
+        v-if="!rightCollapsed"
+        class="pane-resizer pane-resizer-right"
+        role="separator"
+        aria-label="调整右侧栏宽度"
+        aria-orientation="vertical"
+        :aria-valuemin="RIGHT_PANE_MIN"
+        :aria-valuemax="RIGHT_PANE_MAX"
+        :aria-valuenow="rightPaneWidth"
+        tabindex="0"
+        @pointerdown="startPaneResize('right', $event)"
+        @keydown="handleResizeKeydown('right', $event)"
+      />
     </div>
 
     <WorkspaceDialog
       :mode="dialogMode"
+      :model-settings="modelSettings"
+      :model-loading="modelLoading"
+      :model-saving="modelSaving"
+      :model-error="modelError"
+      :model-test-message="modelTestMessage"
+      :testing-model-id="testingModelId"
       @close="dialogMode = null"
       @seed-prompt="seedPrompt"
+      @save-models="saveModelSettings"
+      @test-model="testModel"
     />
   </NConfigProvider>
 </template>

@@ -2,6 +2,8 @@ import { computed, ref, type Ref } from "vue";
 import type {
   AgentRuntimeRef,
   DeepWriteApi,
+  ModelConfig,
+  ModelSettings,
   SystemEventEnvelope,
   ThinkingLevel
 } from "@deepwrite/contracts";
@@ -19,6 +21,8 @@ export interface AgentConversationController {
   draft: Ref<string>;
   sessionId: Ref<string>;
   thinkingLevel: Ref<ThinkingLevel>;
+  configuredModels: Ref<ModelConfig[]>;
+  selectedModelId: Ref<string>;
   runtime: Ref<AgentRuntimeRef | null>;
   conversationError: Ref<string | null>;
   isBusy: Readonly<Ref<boolean>>;
@@ -26,6 +30,9 @@ export interface AgentConversationController {
   handleEvent(event: SystemEventEnvelope): void;
   sendMessage(activeDocument: WorkspaceDocument): Promise<void>;
   newConversation(): void;
+  applyModelSettings(settings: ModelSettings): void;
+  selectModel(modelId: string): void;
+  selectThinkingLevel(level: ThinkingLevel): void;
   useSuggestion(value: string): void;
   dispose(): void;
 }
@@ -56,6 +63,9 @@ export function useAgentConversation(
   const draft = ref("");
   const sessionId = ref(id("session"));
   const thinkingLevel = ref<ThinkingLevel>("medium");
+  const configuredModels = ref<ModelConfig[]>([]);
+  const defaultModelId = ref("");
+  const selectedModelId = ref("");
   const runtime = ref<AgentRuntimeRef | null>(null);
   const conversationError = ref<string | null>(null);
   const submitting = ref(false);
@@ -352,6 +362,7 @@ export function useAgentConversation(
       const accepted = await api.session.prompt({
         sessionId: sendSessionId,
         message: content,
+        ...(selectedModelId.value ? { modelId: selectedModelId.value } : {}),
         thinkingLevel: thinkingLevel.value,
         workspaceContext: contextSnapshot
       });
@@ -436,6 +447,38 @@ export function useAgentConversation(
     finishedRunIds.clear();
     runMessageIds.clear();
     observedRunByAttempt.clear();
+    const selected =
+      configuredModels.value.find((model) => model.id === defaultModelId.value) ??
+      configuredModels.value[0];
+    selectedModelId.value = selected?.id ?? "";
+    thinkingLevel.value = selected?.defaultThinkingLevel ?? "medium";
+  }
+
+  function applyModelSettings(settings: ModelSettings): void {
+    configuredModels.value = settings.models;
+    defaultModelId.value = settings.defaultModelId;
+    const selected =
+      settings.models.find((model) => model.id === selectedModelId.value) ??
+      settings.models.find((model) => model.id === settings.defaultModelId) ??
+      settings.models[0];
+    selectedModelId.value = selected?.id ?? "";
+    thinkingLevel.value = selected?.defaultThinkingLevel ?? "medium";
+  }
+
+  function selectModel(modelId: string): void {
+    const selected = configuredModels.value.find((model) => model.id === modelId);
+    if (!selected) {
+      return;
+    }
+    selectedModelId.value = selected.id;
+    thinkingLevel.value = selected.reasoning ? selected.defaultThinkingLevel : "off";
+  }
+
+  function selectThinkingLevel(level: ThinkingLevel): void {
+    const selected = configuredModels.value.find(
+      (model) => model.id === selectedModelId.value
+    );
+    thinkingLevel.value = selected && !selected.reasoning ? "off" : level;
   }
 
   return {
@@ -443,6 +486,8 @@ export function useAgentConversation(
     draft,
     sessionId,
     thinkingLevel,
+    configuredModels,
+    selectedModelId,
     runtime,
     conversationError,
     isBusy,
@@ -450,6 +495,9 @@ export function useAgentConversation(
     handleEvent,
     sendMessage,
     newConversation,
+    applyModelSettings,
+    selectModel,
+    selectThinkingLevel,
     useSuggestion(value: string): void {
       draft.value = value;
     },

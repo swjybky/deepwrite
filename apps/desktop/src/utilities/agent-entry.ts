@@ -1,4 +1,5 @@
 import {
+  ModelConnectionTestResultSchema,
   SessionPromptAcceptedPayloadSchema,
   createEnvelope,
   type CommandResult,
@@ -117,7 +118,7 @@ function streamPrompt(
               code: "agent.stream_failed",
               message: error instanceof Error ? error.message : "Agent stream failed.",
               details: { kind: error instanceof Error ? error.name : "unknown" },
-              runtime: runtime.describe()
+              runtime: runtime.describe(input.runtimeConfig)
             },
             {
               id: createId("evt"),
@@ -147,9 +148,20 @@ function streamPrompt(
 }
 
 bootUtility("agent", {
-  mode: "pi-agent-faux",
-  commandHandler(command, emitEvent): CommandResult {
-    if (command.type !== "session.prompt") {
+  mode: "pi-agent-provider",
+  async commandHandler(command, emitEvent): Promise<CommandResult> {
+    if (command.type === "agent.model_test") {
+      const result = ModelConnectionTestResultSchema.parse(
+        await runtime.testConnection(command.payload.runtimeConfig)
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: result
+      };
+    }
+
+    if (command.type !== "agent.prompt") {
       return {
         status: "rejected",
         requestId: command.id,
@@ -185,7 +197,7 @@ bootUtility("agent", {
 
     const runId = createId("run");
     const correlationId = command.context.correlationId;
-    const runtimeRef = runtime.describe();
+    const runtimeRef = runtime.describe(command.payload.runtimeConfig);
     const accepted = SessionPromptAcceptedPayloadSchema.parse({
       sessionId: command.payload.sessionId,
       runId,
@@ -203,6 +215,9 @@ bootUtility("agent", {
         prompt: command.payload.message,
         ...(command.payload.thinkingLevel
           ? { thinkingLevel: command.payload.thinkingLevel }
+          : {}),
+        ...(command.payload.runtimeConfig
+          ? { runtimeConfig: command.payload.runtimeConfig }
           : {}),
         ...(command.payload.workspaceContext
           ? { workspaceContext: command.payload.workspaceContext }

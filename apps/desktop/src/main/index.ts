@@ -4,6 +4,8 @@ import {
   CommandEnvelopeSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
+  ModelConnectionTestResultSchema,
+  ModelSettingsSchema,
   SessionPromptAcceptedPayloadSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
@@ -15,6 +17,7 @@ import {
   type UtilityWorkerName
 } from "@deepwrite/contracts";
 import { createId, nowIso } from "@deepwrite/shared";
+import { ModelConfigStore } from "./model-config-store";
 import { UtilitySupervisor } from "./supervisor";
 
 interface ActiveRun {
@@ -27,6 +30,7 @@ const activeRuns = new Map<string, ActiveRun>();
 const terminalRuns = new Set<string>();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
+let modelConfigStore: ModelConfigStore | undefined;
 let quitting = false;
 let shutdownComplete = false;
 
@@ -173,6 +177,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     backgroundColor: "#ffffff",
     title: "DeepWrite",
+    icon: join(__dirname, "../../build/icon.png"),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -218,6 +223,13 @@ function safeErrorDetails(error: unknown): Record<string, unknown> {
   return { kind: error instanceof Error ? error.name : "unknown" };
 }
 
+function requireModelConfigStore(): ModelConfigStore {
+  if (!modelConfigStore) {
+    throw new Error("模型配置存储尚未初始化。");
+  }
+  return modelConfigStore;
+}
+
 function registerIpc(): void {
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,
@@ -236,6 +248,16 @@ function registerIpc(): void {
       }
 
       const command = parsed.data;
+      if (command.type === "agent.prompt" || command.type === "agent.model_test") {
+        return {
+          status: "rejected",
+          requestId: command.id,
+          error: {
+            code: "ipc.forbidden_internal_command",
+            message: "Renderer cannot invoke internal Agent commands."
+          }
+        };
+      }
       if (command.type === "system.health") {
         return {
           status: "accepted",
@@ -244,9 +266,100 @@ function registerIpc(): void {
         };
       }
 
+      if (command.type === "models.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ModelSettingsSchema.parse(await requireModelConfigStore().list())
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.list_failed",
+              message: error instanceof Error ? error.message : "加载模型配置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "models.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ModelSettingsSchema.parse(
+              await requireModelConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.save_failed",
+              message: error instanceof Error ? error.message : "保存模型配置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "models.test") {
+        try {
+          const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
+          if (!runtimeConfig) {
+            throw new Error("所选模型不存在。");
+          }
+          const internalCommand = CommandEnvelopeSchema.parse(
+            createEnvelope(
+              "agent.model_test",
+              { runtimeConfig },
+              { id: command.id, context: command.context }
+            )
+          );
+          const result = await supervisor.requestCommand("agent", internalCommand, 20_000);
+          if (result.status === "accepted") {
+            return {
+              status: "accepted",
+              requestId: command.id,
+              payload: ModelConnectionTestResultSchema.parse(result.payload)
+            };
+          }
+          return result;
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.test_failed",
+              message: error instanceof Error ? error.message : "模型连接测试失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "session.prompt") {
         try {
-          const result = await supervisor.requestCommand("agent", command, 10_000);
+          const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
+          const thinkingLevel =
+            command.payload.thinkingLevel ?? runtimeConfig?.defaultThinkingLevel;
+          const internalCommand = CommandEnvelopeSchema.parse(
+            createEnvelope(
+              "agent.prompt",
+              {
+                ...command.payload,
+                ...(thinkingLevel ? { thinkingLevel } : {}),
+                ...(runtimeConfig ? { runtimeConfig } : {})
+              },
+              { id: command.id, context: command.context }
+            )
+          );
+          const result = await supervisor.requestCommand("agent", internalCommand, 10_000);
           if (result.status === "accepted") {
             const accepted = SessionPromptAcceptedPayloadSchema.parse(result.payload);
             if (accepted.sessionId !== command.payload.sessionId) {
@@ -321,7 +434,7 @@ async function runAgentSmoke(health: ReturnType<typeof SystemHealthPayloadSchema
   try {
     const command = CommandEnvelopeSchema.parse(
       createEnvelope(
-        "session.prompt",
+        "agent.prompt",
         {
           sessionId,
           message: "验证 DeepWrite Electron Faux 流式链路",
@@ -415,6 +528,7 @@ async function announceReady(window: BrowserWindow): Promise<void> {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  modelConfigStore = new ModelConfigStore(app.getPath("userData"));
   registerIpc();
   supervisor.startAll();
   mainWindow = createMainWindow();

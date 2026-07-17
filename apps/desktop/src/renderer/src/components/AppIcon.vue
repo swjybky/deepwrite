@@ -17,9 +17,7 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     aria-hidden="true"
   >
     <template v-if="name === 'logo'">
-      <path d="M6 3.8h8.2L18 7.6V20H6z" />
-      <path d="M14 3.8v4h4" />
-      <path d="m8.7 15.2 6.8-4.7-3.2 6.8-1-2.2z" />
+      <image href="/app-icon.png" x="0" y="0" width="24" height="24" />
     </template>
     <template v-else-if="name === 'plus'">
       <path d="M12 5v14M5 12h14" />
@@ -102,6 +100,10 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
       <circle cx="10.5" cy="10.5" r="6.5" />
       <path d="m15.5 15.5 4 4" />
     </template>
+    <template v-else-if="name === 'settings'">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </template>
     <template v-else-if="name === 'save'">
       <path d="M5 3.5h12l2 2V20H5zM8 3.5v6h8v-6M8 20v-6h8v6" />
     </template>
@@ -110,6 +112,10 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     </template>
     <template v-else-if="name === 'italic'">
       <path d="M10 4h8M6 20h8M14 4 10 20" />
+    </template>
+    <template v-else-if="name === 'keyboard'">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
     </template>
     <template v-else-if="name === 'quote'">
       <path d="M5 8h5v5H6a4 4 0 0 1 4-4M14 8h5v5h-4a4 4 0 0 1 4-4" />
