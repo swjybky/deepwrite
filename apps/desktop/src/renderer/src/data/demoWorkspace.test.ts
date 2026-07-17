@@ -10,6 +10,25 @@ describe("demo workspace contract", () => {
     ]);
   });
 
+  it("keeps books and libraries below the three top-level sections", () => {
+    expect(resourceSections[0]?.nodes.map((node) => node.label)).toEqual(["雾港来信"]);
+    expect(resourceSections[0]?.nodes[0]?.children?.map((node) => node.label)).toEqual([
+      "世界观",
+      "人物",
+      "剧情",
+      "长篇正文",
+      "状态账本"
+    ]);
+    expect(resourceSections[1]?.nodes.map((node) => node.label)).toEqual([
+      "官方通用技能库",
+      "我的技能库"
+    ]);
+    expect(resourceSections[2]?.nodes.map((node) => node.label)).toEqual([
+      "雾港素材库",
+      "写作摘录"
+    ]);
+  });
+
   it("resolves selected tree leaves to right-pane content", () => {
     expect(findWorkspaceDocument("chapter-3")).toMatchObject({
       title: "第三章 雨夜回声",

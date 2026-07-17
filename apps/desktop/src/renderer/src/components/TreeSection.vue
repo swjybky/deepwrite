@@ -35,7 +35,11 @@ const collapsed = ref(false);
       </button>
     </div>
 
-    <ul v-if="!collapsed" class="resource-tree" :aria-label="section.label">
+    <ul
+      v-if="!collapsed"
+      class="resource-tree"
+      :aria-label="`${section.label}下的内容`"
+    >
       <TreeNodeItem
         v-for="node in section.nodes"
         :key="node.id"

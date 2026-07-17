@@ -33,6 +33,7 @@ function activate(): void {
       class="tree-row"
       :class="{ 'is-selected': selectedId === node.id, 'is-muted': node.muted }"
       :style="{ '--tree-depth': depth }"
+      :data-tree-depth="depth"
       type="button"
       :title="node.label"
       :data-resource-id="node.id"
