@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type {
+  ShortWorkspaceAgentSettings,
+  ShortWorkspaceAgentSettingsInput
+} from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
+import ShortAgentSettingsPanel from "./ShortAgentSettingsPanel.vue";
 
 interface SettingsCategory {
   id: string;
@@ -14,11 +19,28 @@ interface SettingsSection {
   categories: SettingsCategory[];
 }
 
+defineProps<{
+  workspaceAgentSettings: ShortWorkspaceAgentSettings | null;
+  workspaceAgentLoading: boolean;
+  workspaceAgentSaving: boolean;
+  workspaceAgentError: string | null;
+  workspaceAgentStatus: string | null;
+  runtimeAvailable: boolean;
+}>();
+
 const emit = defineEmits<{
   back: [];
+  saveWorkspaceAgents: [settings: ShortWorkspaceAgentSettingsInput];
 }>();
 
 const sections: SettingsSection[] = [
+  {
+    id: "creation",
+    label: "创作",
+    categories: [
+      { id: "short-agents", label: "创作空间", icon: "brain" }
+    ]
+  },
   {
     id: "personal",
     label: "个人",
@@ -110,7 +132,18 @@ function selectCategory(id: string): void {
     <main class="settings-content">
       <h1 class="settings-title">{{ activeLabel }}</h1>
 
-      <section v-if="activeCategory === 'general'" class="settings-group">
+      <ShortAgentSettingsPanel
+        v-if="activeCategory === 'short-agents'"
+        :settings="workspaceAgentSettings"
+        :loading="workspaceAgentLoading"
+        :saving="workspaceAgentSaving"
+        :error-message="workspaceAgentError"
+        :status-message="workspaceAgentStatus"
+        :runtime-available="runtimeAvailable"
+        @save="emit('saveWorkspaceAgents', $event)"
+      />
+
+      <section v-else-if="activeCategory === 'general'" class="settings-group">
         <h2 class="settings-group-title">权限</h2>
         <div class="settings-card">
           <label class="settings-item">

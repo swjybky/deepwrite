@@ -7,6 +7,7 @@ import {
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
   SessionPromptAcceptedPayloadSchema,
+  ShortWorkspaceAgentSettingsSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
   SystemReadyEventEnvelopeSchema,
@@ -19,6 +20,7 @@ import {
 import { createId, nowIso } from "@deepwrite/shared";
 import { ModelConfigStore } from "./model-config-store";
 import { UtilitySupervisor } from "./supervisor";
+import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
 
 interface ActiveRun {
   sessionId: string;
@@ -31,6 +33,7 @@ const terminalRuns = new Set<string>();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
+let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let quitting = false;
 let shutdownComplete = false;
 
@@ -51,7 +54,9 @@ type AgentEventEnvelope = Extract<
       | "agent.message_completed"
       | "agent.error"
       | "tool.call_requested"
-      | "tool.execution_completed";
+      | "tool.execution_completed"
+      | "workspace.editor_mutation"
+      | "workspace.stage_selection";
   }
 >;
 
@@ -62,7 +67,9 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "agent.message_completed" ||
     event.type === "agent.error" ||
     event.type === "tool.call_requested" ||
-    event.type === "tool.execution_completed"
+    event.type === "tool.execution_completed" ||
+    event.type === "workspace.editor_mutation" ||
+    event.type === "workspace.stage_selection"
   );
 }
 
@@ -230,6 +237,13 @@ function requireModelConfigStore(): ModelConfigStore {
   return modelConfigStore;
 }
 
+function requireWorkspaceAgentConfigStore(): WorkspaceAgentConfigStore {
+  if (!workspaceAgentConfigStore) {
+    throw new Error("创作空间智能体设置存储尚未初始化。");
+  }
+  return workspaceAgentConfigStore;
+}
+
 function registerIpc(): void {
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,
@@ -343,9 +357,81 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "workspaceAgents.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ShortWorkspaceAgentSettingsSchema.parse(
+              await requireWorkspaceAgentConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "workspace_agents.list_failed",
+              message: error instanceof Error ? error.message : "加载创作空间智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "workspaceAgents.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ShortWorkspaceAgentSettingsSchema.parse(
+              await requireWorkspaceAgentConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "workspace_agents.save_failed",
+              message: error instanceof Error ? error.message : "保存创作空间智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "workspaceAgents.reset") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ShortWorkspaceAgentSettingsSchema.parse(
+              await requireWorkspaceAgentConfigStore().reset(command.payload.agentId)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "workspace_agents.reset_failed",
+              message: error instanceof Error ? error.message : "恢复创作空间默认设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "session.prompt") {
         try {
           const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
+          const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
+          const agentProfile = shortWorkspace
+            ? await requireWorkspaceAgentConfigStore().resolveForStage(
+                shortWorkspace.activeStageId
+              )
+            : undefined;
           const thinkingLevel =
             command.payload.thinkingLevel ?? runtimeConfig?.defaultThinkingLevel;
           const internalCommand = CommandEnvelopeSchema.parse(
@@ -354,7 +440,8 @@ function registerIpc(): void {
               {
                 ...command.payload,
                 ...(thinkingLevel ? { thinkingLevel } : {}),
-                ...(runtimeConfig ? { runtimeConfig } : {})
+                ...(runtimeConfig ? { runtimeConfig } : {}),
+                ...(agentProfile ? { agentProfile } : {})
               },
               { id: command.id, context: command.context }
             )
@@ -529,6 +616,7 @@ async function announceReady(window: BrowserWindow): Promise<void> {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   modelConfigStore = new ModelConfigStore(app.getPath("userData"));
+  workspaceAgentConfigStore = new WorkspaceAgentConfigStore(app.getPath("userData"));
   registerIpc();
   supervisor.startAll();
   mainWindow = createMainWindow();

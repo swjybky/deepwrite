@@ -120,15 +120,12 @@ export class ModelConfigStore {
   async save(rawInput: ModelSettingsInput): Promise<ModelSettings> {
     const input = ModelSettingsInputSchema.parse(rawInput);
     let saved: ModelSettings | undefined;
-    this.writeChain = this.writeChain.then(async () => {
+    const operation = this.writeChain.then(async () => {
       const [, existingSecrets] = await this.readState();
       const encryptedApiKeys: Record<string, string> = {};
 
       for (const model of input.models) {
         const apiKey = model.apiKey?.trim();
-        if (model.clearApiKey) {
-          continue;
-        }
         if (apiKey) {
           if (!safeStorage.isEncryptionAvailable()) {
             throw new Error(
@@ -136,6 +133,9 @@ export class ModelConfigStore {
             );
           }
           encryptedApiKeys[model.id] = safeStorage.encryptString(apiKey).toString("base64");
+          continue;
+        }
+        if (model.clearApiKey) {
           continue;
         }
         const previous = existingSecrets.encryptedApiKeys[model.id];
@@ -156,7 +156,11 @@ export class ModelConfigStore {
       await atomicWriteJson(this.settingsPath, nextSettings);
       saved = this.toPublicSettings(nextSettings, nextSecrets);
     });
-    await this.writeChain;
+    this.writeChain = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    await operation;
     return saved!;
   }
 

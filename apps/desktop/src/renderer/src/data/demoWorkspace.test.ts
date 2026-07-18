@@ -11,8 +11,17 @@ describe("demo workspace contract", () => {
   });
 
   it("keeps books and libraries below the three top-level sections", () => {
-    expect(resourceSections[0]?.nodes.map((node) => node.label)).toEqual(["雾港来信"]);
+    expect(resourceSections[0]?.nodes.map((node) => node.label)).toEqual([
+      "雾港回声 · 短篇",
+      "雾港来信"
+    ]);
     expect(resourceSections[0]?.nodes[0]?.children?.map((node) => node.label)).toEqual([
+      "人物",
+      "剧情",
+      "大纲",
+      "正文"
+    ]);
+    expect(resourceSections[0]?.nodes[1]?.children?.map((node) => node.label)).toEqual([
       "世界观",
       "人物",
       "剧情",
@@ -30,6 +39,12 @@ describe("demo workspace contract", () => {
   });
 
   it("resolves selected tree leaves to right-pane content", () => {
+    expect(findWorkspaceDocument("short-mist:draft")).toMatchObject({
+      title: "正文",
+      domain: "creation",
+      workspaceType: "short",
+      stageId: "draft"
+    });
     expect(findWorkspaceDocument("chapter-3")).toMatchObject({
       title: "第三章 雨夜回声",
       domain: "creation"

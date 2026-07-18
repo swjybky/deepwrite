@@ -8,13 +8,17 @@ import {
   AgentPromptCommandEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
+  WorkspaceEditorMutationEventEnvelopeSchema,
+  WorkspaceStageSelectionEventEnvelopeSchema,
   SessionPromptCommandEnvelopeSchema,
   type AgentErrorEventEnvelope,
   type AgentMessageCompletedEventEnvelope,
   type AgentMessageDeltaEventEnvelope,
   type AgentThinkingDeltaEventEnvelope,
   type AgentToolCompletedEventEnvelope,
-  type AgentToolRequestedEventEnvelope
+  type AgentToolRequestedEventEnvelope,
+  type WorkspaceEditorMutationEventEnvelope,
+  type WorkspaceStageSelectionEventEnvelope
 } from "./session";
 import {
   AgentModelTestCommandEnvelopeSchema,
@@ -22,6 +26,11 @@ import {
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema
 } from "./models";
+import {
+  WorkspaceAgentsListCommandEnvelopeSchema,
+  WorkspaceAgentsResetCommandEnvelopeSchema,
+  WorkspaceAgentsSaveCommandEnvelopeSchema
+} from "./workspace";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
 export const IPC_EVENT_CHANNEL = "deepwrite:event";
@@ -57,6 +66,9 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ModelsListCommandEnvelopeSchema,
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema,
+  WorkspaceAgentsListCommandEnvelopeSchema,
+  WorkspaceAgentsSaveCommandEnvelopeSchema,
+  WorkspaceAgentsResetCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema
 ]);
@@ -118,6 +130,8 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentMessageCompletedEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
+  WorkspaceEditorMutationEventEnvelopeSchema,
+  WorkspaceStageSelectionEventEnvelopeSchema,
   AgentErrorEventEnvelopeSchema
 ]);
 
@@ -139,4 +153,6 @@ export type SystemEventEnvelope =
   | AgentMessageCompletedEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope
+  | WorkspaceEditorMutationEventEnvelope
+  | WorkspaceStageSelectionEventEnvelope
   | AgentErrorEventEnvelope;

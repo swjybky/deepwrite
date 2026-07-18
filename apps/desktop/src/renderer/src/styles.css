@@ -961,6 +961,84 @@ ol {
   white-space: pre-wrap;
 }
 
+.tool-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 9px;
+}
+
+.tool-activity {
+  max-width: 620px;
+  border: 1px solid #e5e7e9;
+  border-radius: 8px;
+  background: #fafaf9;
+  color: #4e5358;
+}
+
+.tool-activity summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 9px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11.5px;
+}
+
+.tool-activity summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-activity summary strong {
+  color: #31353a;
+  font-size: 12px;
+  font-weight: 590;
+}
+
+.tool-activity summary > span:not(.tool-status-dot) {
+  margin-left: auto;
+  color: #858a90;
+}
+
+.tool-activity summary > svg {
+  transition: transform 140ms ease;
+}
+
+.tool-activity[open] summary > svg {
+  transform: rotate(90deg);
+}
+
+.tool-activity p {
+  margin: 0;
+  padding: 0 10px 9px 27px;
+  color: #666b70;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.tool-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8b9197;
+}
+
+.tool-status-dot.is-running {
+  background: #c28b35;
+  box-shadow: 0 0 0 3px rgba(194, 139, 53, 0.14);
+}
+
+.tool-status-dot.is-completed {
+  background: #4f9a69;
+}
+
+.tool-status-dot.is-error {
+  background: #b9554f;
+}
+
 .message.is-user {
   justify-content: flex-end;
 }

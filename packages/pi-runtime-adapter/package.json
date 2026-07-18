@@ -9,6 +9,7 @@
   "dependencies": {
     "@deepwrite/contracts": "workspace:*",
     "@earendil-works/pi-agent-core": "0.80.3",
-    "@earendil-works/pi-ai": "0.80.3"
+    "@earendil-works/pi-ai": "0.80.3",
+    "typebox": "1.1.38"
   }
 }

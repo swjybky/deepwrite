@@ -32,6 +32,8 @@ export type IconName =
   | "user"
   | "wand";
 
+import type { ShortWorkspaceStageId } from "@deepwrite/contracts";
+
 export type ResourceDomain = "creation" | "skill" | "material";
 
 export interface ResourceTreeNode {
@@ -60,6 +62,11 @@ export interface WorkspaceDocument {
   content: string;
   readOnly?: boolean;
   format?: "正文" | "设定" | "技能" | "素材" | "账本";
+  workspaceId?: string;
+  workspaceType?: "short" | "long";
+  workspaceTitle?: string;
+  workspaceCategories?: string[];
+  stageId?: ShortWorkspaceStageId;
 }
 
 export interface EditorDraftState {

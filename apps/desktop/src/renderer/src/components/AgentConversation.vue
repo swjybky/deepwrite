@@ -20,6 +20,7 @@ const props = defineProps<{
   thinkingLevel: ThinkingLevel;
   errorMessage: string | null;
   contextTitle: string;
+  agentLabel: string;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
 }>();
@@ -106,6 +107,21 @@ function formatTime(value: string): string {
     minute: "2-digit"
   });
 }
+
+function toolLabel(name: string): string {
+  const labels: Record<string, string> = {
+    read_workspace_content: "读取工作区内容",
+    search_workspace_text: "搜索工作区文本",
+    query_linked_material_entries: "查询关联素材",
+    load_skill: "加载技能",
+    switch_storyline_stage: "切换剧情方向",
+    write_workspace_editor: "写入阶段编辑器",
+    replace_current_stage_text: "替换阶段文本",
+    initialize_expert_draft: "初始化正文",
+    edit_expert_draft_section: "编辑正文"
+  };
+  return labels[name] ?? name;
+}
 </script>
 
 <template>
@@ -122,7 +138,7 @@ function formatTime(value: string): string {
           <AppIcon name="panel-left" :size="18" />
         </button>
         <div>
-          <strong>智能体对话</strong>
+          <strong>{{ agentLabel }}</strong>
           <span class="context-caption">主上下文：{{ contextTitle }}</span>
         </div>
       </div>
@@ -192,6 +208,24 @@ function formatTime(value: string): string {
               </summary>
               <p>{{ message.thinking }}</p>
             </details>
+            <div
+              v-if="message.role === 'assistant' && message.tools?.length"
+              class="tool-activity-list"
+            >
+              <details
+                v-for="tool in message.tools"
+                :key="tool.id"
+                class="tool-activity"
+              >
+                <summary>
+                  <span class="tool-status-dot" :class="`is-${tool.status}`" />
+                  <strong>{{ toolLabel(tool.name) }}</strong>
+                  <span>{{ tool.status === "running" ? "执行中" : tool.status === "error" ? "失败" : "已完成" }}</span>
+                  <AppIcon name="chevron" :size="12" />
+                </summary>
+                <p v-if="tool.summary">{{ tool.summary }}</p>
+              </details>
+            </div>
             <div
               v-if="message.content"
               class="message-copy"

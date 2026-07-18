@@ -5,7 +5,12 @@ import type {
   ModelConfig,
   ModelSettings,
   SystemEventEnvelope,
-  ThinkingLevel
+  ThinkingLevel,
+  WorkspaceRuntimeContext
+} from "@deepwrite/contracts";
+import {
+  SHORT_WORKSPACE_STAGE_IDS,
+  createShortWorkspaceContentRevision
 } from "@deepwrite/contracts";
 import type { ChatMessage } from "../types/conversation";
 import type { WorkspaceDocument } from "../types/workspace";
@@ -27,8 +32,13 @@ export interface AgentConversationController {
   conversationError: Ref<string | null>;
   isBusy: Readonly<Ref<boolean>>;
   canSend: Readonly<Ref<boolean>>;
+  acceptsRunEvent(sessionId: string, runId: string): boolean;
+  markToolConflict(runId: string, toolCallId: string, summary: string): void;
   handleEvent(event: SystemEventEnvelope): void;
-  sendMessage(activeDocument: WorkspaceDocument): Promise<void>;
+  sendMessage(
+    activeDocument: WorkspaceDocument,
+    workspaceDocuments?: WorkspaceDocument[]
+  ): Promise<void>;
   newConversation(): void;
   applyModelSettings(settings: ModelSettings): void;
   selectModel(modelId: string): void;
@@ -226,6 +236,38 @@ export function useAgentConversation(
     clearIdleTimer();
   }
 
+  function acceptsRunEvent(eventSessionId: string, runId: string): boolean {
+    if (eventSessionId !== sessionId.value || finishedRunIds.has(runId)) {
+      return false;
+    }
+    if (activeRunId.value) {
+      return activeRunId.value === runId;
+    }
+    if (pendingAttemptId.value === null) {
+      return false;
+    }
+    const observedRunId = observedRunByAttempt.get(pendingAttemptId.value);
+    return observedRunId === undefined || observedRunId === runId;
+  }
+
+  function markToolConflict(
+    runId: string,
+    toolCallId: string,
+    summary: string
+  ): void {
+    const messageId = runMessageIds.get(runId) ?? `${runId}_assistant`;
+    const message = messages.value.find(
+      (candidate) =>
+        candidate.id === messageId &&
+        candidate.role === "assistant" &&
+        candidate.runId === runId
+    );
+    const tool = message?.tools?.find((candidate) => candidate.id === toolCallId);
+    if (!tool) return;
+    tool.status = "error";
+    tool.summary = summary;
+  }
+
   function handleEvent(event: SystemEventEnvelope): void {
     if (!isAgentEvent(event) || event.payload.sessionId !== sessionId.value) {
       return;
@@ -271,6 +313,52 @@ export function useAgentConversation(
       return;
     }
 
+    if (event.type === "tool.call_requested") {
+      const message = ensureAssistantMessage(
+        runId,
+        `${runId}_assistant`,
+        event.payload.runtime
+      );
+      if (message && !message.tools?.some((tool) => tool.id === event.payload.toolCallId)) {
+        message.tools = [
+          ...(message.tools ?? []),
+          {
+            id: event.payload.toolCallId,
+            name: event.payload.toolName,
+            status: "running"
+          }
+        ];
+      }
+      return;
+    }
+
+    if (event.type === "tool.execution_completed") {
+      const message = ensureAssistantMessage(
+        runId,
+        `${runId}_assistant`,
+        event.payload.runtime
+      );
+      if (message) {
+        const tools = message.tools ?? [];
+        const existing = tools.find((tool) => tool.id === event.payload.toolCallId);
+        if (existing) {
+          existing.status = event.payload.isError ? "error" : "completed";
+          existing.summary = event.payload.resultSummary;
+        } else {
+          message.tools = [
+            ...tools,
+            {
+              id: event.payload.toolCallId,
+              name: event.payload.toolName,
+              status: event.payload.isError ? "error" : "completed",
+              summary: event.payload.resultSummary
+            }
+          ];
+        }
+      }
+      return;
+    }
+
     if (event.type === "agent.thinking_delta") {
       const message = ensureAssistantMessage(
         runId,
@@ -310,7 +398,10 @@ export function useAgentConversation(
     finishRun(runId);
   }
 
-  async function sendMessage(activeDocument: WorkspaceDocument): Promise<void> {
+  async function sendMessage(
+    activeDocument: WorkspaceDocument,
+    workspaceDocuments: WorkspaceDocument[] = []
+  ): Promise<void> {
     const api = options.api();
     const content = draft.value.trim();
     if (!api) {
@@ -326,7 +417,7 @@ export function useAgentConversation(
     const attemptId = ++attemptSequence;
     const originalLength = activeDocument.content.length;
     const snapshotContent = activeDocument.content.slice(0, 20_000);
-    const contextSnapshot = {
+    const contextSnapshot: WorkspaceRuntimeContext = {
       activeResource: {
         id: activeDocument.id,
         domain: activeDocument.domain,
@@ -340,6 +431,46 @@ export function useAgentConversation(
           : {})
       }
     };
+    if (
+      activeDocument.workspaceType === "short" &&
+      activeDocument.workspaceId &&
+      activeDocument.workspaceTitle &&
+      activeDocument.stageId
+    ) {
+      const liveStages = workspaceDocuments.filter(
+        (document) =>
+          document.workspaceType === "short" &&
+          document.workspaceId === activeDocument.workspaceId &&
+          document.stageId
+      );
+      const stages = SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
+        const document = liveStages.find((candidate) => candidate.stageId === stageId);
+        if (!document) return undefined;
+        const originalLength = document.content.length;
+        const stageContent = document.content.slice(0, 20_000);
+        return {
+          stageId,
+          title: document.title,
+          content: stageContent,
+          revision: createShortWorkspaceContentRevision(document.content),
+          ...(originalLength > stageContent.length
+            ? { truncated: true as const, originalLength }
+            : {})
+        };
+      });
+      const completeStages = stages.filter(
+        (stage): stage is NonNullable<typeof stage> => stage !== undefined
+      );
+      if (completeStages.length === SHORT_WORKSPACE_STAGE_IDS.length) {
+        contextSnapshot.shortWorkspace = {
+          id: activeDocument.workspaceId,
+          title: activeDocument.workspaceTitle,
+          categories: [...(activeDocument.workspaceCategories ?? [])],
+          activeStageId: activeDocument.stageId,
+          stages: completeStages
+        };
+      }
+    }
 
     messages.value.push({
       id: id("user"),
@@ -492,6 +623,8 @@ export function useAgentConversation(
     conversationError,
     isBusy,
     canSend,
+    acceptsRunEvent,
+    markToolConflict,
     handleEvent,
     sendMessage,
     newConversation,
@@ -519,13 +652,17 @@ function isAgentEvent(
       | "agent.message_delta"
       | "agent.thinking_delta"
       | "agent.message_completed"
-      | "agent.error";
+      | "agent.error"
+      | "tool.call_requested"
+      | "tool.execution_completed";
   }
 > {
   return (
     event.type === "agent.message_delta" ||
     event.type === "agent.thinking_delta" ||
     event.type === "agent.message_completed" ||
-    event.type === "agent.error"
+    event.type === "agent.error" ||
+    event.type === "tool.call_requested" ||
+    event.type === "tool.execution_completed"
   );
 }

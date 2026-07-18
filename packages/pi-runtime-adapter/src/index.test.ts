@@ -74,6 +74,54 @@ describe("DeepWrite Pi runtime adapter", () => {
     expect(events.filter((event) => event.type === "agent.completed")).toHaveLength(1);
   });
 
+  it("keeps multi-turn history but removes per-run context wrappers", async () => {
+    const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
+
+    for (const [index, prompt] of ["先检查人物", "再检查剧情"].entries()) {
+      for await (const _event of runtime.start({
+        runId: `run_history_${index}`,
+        sessionId: "session_history",
+        prompt,
+        thinkingLevel: "off",
+        workspaceContext: {
+          activeResource: {
+            id: "chapter_history",
+            domain: "creation",
+            title: "历史测试",
+            path: ["历史测试"],
+            source: "live-editor",
+            content: `第 ${index + 1} 轮快照`
+          }
+        }
+      })) {
+        // Consume the complete run before inspecting the cached transcript.
+      }
+    }
+
+    const cache = (
+      runtime as unknown as {
+        conversationAgents: Map<
+          string,
+          { state: { messages: Array<{ role?: string; content?: unknown }> } }
+        >;
+      }
+    ).conversationAgents;
+    const agent = cache.get("session_history:default");
+    const userMessages = agent?.state.messages.filter(
+      (message) => message.role === "user"
+    );
+
+    expect(userMessages?.map((message) => message.content)).toEqual([
+      "先检查人物",
+      "再检查剧情"
+    ]);
+    expect(
+      agent?.state.messages.some((message) =>
+        String(message.content).includes("run_history_")
+      )
+    ).toBe(false);
+  });
+
   it("aborts an active run through the caller signal", async () => {
     const controller = new AbortController();
     controller.abort();

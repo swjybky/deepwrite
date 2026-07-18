@@ -6,6 +6,7 @@ import AppIcon from "./AppIcon.vue";
 const props = defineProps<{
   document: WorkspaceDocument;
   draftState: EditorDraftState | undefined;
+  locked: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -29,10 +30,22 @@ watch(
   }
 );
 
+watch(
+  () => [props.draftState?.title, props.draftState?.content, props.draftState?.dirty] as const,
+  ([nextTitle, nextContent, nextDirty]) => {
+    const resolvedTitle = nextTitle ?? props.document.title;
+    const resolvedContent = nextContent ?? props.document.content;
+    if (title.value !== resolvedTitle) title.value = resolvedTitle;
+    if (content.value !== resolvedContent) content.value = resolvedContent;
+    dirty.value = nextDirty ?? false;
+  }
+);
+
 const characterCount = computed(() => content.value.replace(/\s/g, "").length);
 const paragraphs = computed(() => content.value.split(/\n{2,}/).filter(Boolean));
 
 function markDirty(): void {
+  if (props.document.readOnly || props.locked) return;
   dirty.value = true;
   emit("liveChange", {
     id: props.document.id,
@@ -42,7 +55,7 @@ function markDirty(): void {
 }
 
 function save(): void {
-  if (props.document.readOnly) {
+  if (props.document.readOnly || props.locked) {
     return;
   }
   emit("save", { id: props.document.id, title: title.value, content: content.value });
@@ -61,7 +74,7 @@ function save(): void {
       <div class="editor-header-actions">
         <span class="save-state" :class="{ 'is-dirty': dirty }">
           <AppIcon :name="dirty ? 'save' : 'check'" :size="13" />
-          {{ document.readOnly ? "只读" : dirty ? "有未应用修改" : "本次运行已应用" }}
+          {{ document.readOnly ? "只读" : locked ? "智能体运行中 · 暂停编辑" : dirty ? "有未应用修改" : "本次运行已应用" }}
         </span>
         <button
           class="icon-button"
@@ -103,7 +116,7 @@ function save(): void {
       <button class="format-button" type="button" aria-label="更多格式"><AppIcon name="more" :size="16" /></button>
     </div>
 
-    <div class="editor-document" :class="{ 'is-readonly': document.readOnly }">
+    <div class="editor-document" :class="{ 'is-readonly': document.readOnly || locked }">
       <div class="document-meta-row">
         <span>{{ document.eyebrow }}</span>
         <span v-if="document.format" class="document-format">{{ document.format }}</span>
@@ -114,7 +127,7 @@ function save(): void {
       <input
         v-model="title"
         class="document-title-input"
-        :readonly="document.readOnly"
+        :readonly="document.readOnly || locked"
         aria-label="文档标题"
         @input="markDirty"
       />
@@ -123,7 +136,7 @@ function save(): void {
         v-if="viewMode === 'edit'"
         v-model="content"
         class="document-editor"
-        :readonly="document.readOnly"
+        :readonly="document.readOnly || locked"
         aria-label="文本内容编辑器"
         spellcheck="false"
         @input="markDirty"
@@ -135,12 +148,12 @@ function save(): void {
 
     <footer class="editor-footer">
       <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
-      <span>内存草稿 · 重启后不保留</span>
+      <span>{{ locked ? "智能体运行中 · 防止版本冲突" : "内存草稿 · 重启后不保留" }}</span>
       <span class="footer-spacer" />
       <button
         class="save-button"
         type="button"
-        :disabled="document.readOnly || !dirty"
+        :disabled="document.readOnly || locked || !dirty"
         @click="save"
       >
         <AppIcon name="save" :size="14" />

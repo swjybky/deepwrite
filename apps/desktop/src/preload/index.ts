@@ -8,6 +8,9 @@ import {
   ModelSettingsSchema,
   SessionPromptAcceptedPayloadSchema,
   SessionPromptCommandPayloadSchema,
+  ShortWorkspaceAgentIdSchema,
+  ShortWorkspaceAgentSettingsInputSchema,
+  ShortWorkspaceAgentSettingsSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
   createEnvelope,
@@ -18,6 +21,9 @@ import {
   type ModelSettingsInput,
   type SessionPromptAcceptedPayload,
   type SessionPromptCommandPayload,
+  type ShortWorkspaceAgentId,
+  type ShortWorkspaceAgentSettings,
+  type ShortWorkspaceAgentSettingsInput,
   type SystemEventEnvelope,
   type SystemHealthPayload
 } from "@deepwrite/contracts";
@@ -100,6 +106,52 @@ async function testModel(modelId: string): Promise<ModelConnectionTestResult> {
   );
 }
 
+async function listWorkspaceAgents(
+  workspaceType: "short"
+): Promise<ShortWorkspaceAgentSettings> {
+  const id = browserId("cmd_workspace_agents_list");
+  return ShortWorkspaceAgentSettingsSchema.parse(
+    await invokeCommand<ShortWorkspaceAgentSettings>(
+      createEnvelope(
+        "workspaceAgents.list",
+        { workspaceType },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
+async function saveWorkspaceAgents(
+  rawSettings: ShortWorkspaceAgentSettingsInput
+): Promise<ShortWorkspaceAgentSettings> {
+  const settings = ShortWorkspaceAgentSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_workspace_agents_save");
+  return ShortWorkspaceAgentSettingsSchema.parse(
+    await invokeCommand<ShortWorkspaceAgentSettings>(
+      createEnvelope("workspaceAgents.save", settings, { id, correlationId: id })
+    )
+  );
+}
+
+async function resetWorkspaceAgents(
+  workspaceType: "short",
+  rawAgentId?: ShortWorkspaceAgentId
+): Promise<ShortWorkspaceAgentSettings> {
+  const agentId = rawAgentId
+    ? ShortWorkspaceAgentIdSchema.parse(rawAgentId)
+    : undefined;
+  const id = browserId("cmd_workspace_agents_reset");
+  return ShortWorkspaceAgentSettingsSchema.parse(
+    await invokeCommand<ShortWorkspaceAgentSettings>(
+      createEnvelope(
+        "workspaceAgents.reset",
+        { workspaceType, ...(agentId ? { agentId } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
 const api: DeepWriteApi = {
   system: {
     health: getHealth
@@ -111,6 +163,11 @@ const api: DeepWriteApi = {
     list: listModels,
     save: saveModels,
     test: testModel
+  },
+  workspaceAgents: {
+    list: listWorkspaceAgents,
+    save: saveWorkspaceAgents,
+    reset: resetWorkspaceAgents
   },
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void {

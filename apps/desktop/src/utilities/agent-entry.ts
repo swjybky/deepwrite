@@ -75,6 +75,70 @@ function toEventEnvelope(
     );
   }
 
+  if (event.type === "agent.tool_requested") {
+    return createEnvelope(
+      "tool.call_requested",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        toolName: event.payload.toolName,
+        args: event.payload.args,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "agent.tool_completed") {
+    return createEnvelope(
+      "tool.execution_completed",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        toolName: event.payload.toolName,
+        resultSummary: event.payload.resultSummary,
+        isError: event.payload.isError,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "workspace.editor_mutation") {
+    return createEnvelope(
+      "workspace.editor_mutation",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        workspaceId: event.payload.workspaceId,
+        stageId: event.payload.stageId,
+        text: event.payload.text,
+        baseRevision: event.payload.baseRevision,
+        summary: event.payload.summary,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "workspace.stage_selection") {
+    return createEnvelope(
+      "workspace.stage_selection",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        workspaceId: event.payload.workspaceId,
+        stageId: event.payload.stageId,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   return createEnvelope(
     "agent.error",
     {
@@ -218,6 +282,9 @@ bootUtility("agent", {
           : {}),
         ...(command.payload.runtimeConfig
           ? { runtimeConfig: command.payload.runtimeConfig }
+          : {}),
+        ...(command.payload.agentProfile
+          ? { agentProfile: command.payload.agentProfile }
           : {}),
         ...(command.payload.workspaceContext
           ? { workspaceContext: command.payload.workspaceContext }

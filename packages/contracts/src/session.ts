@@ -5,6 +5,13 @@ import {
   ThinkingLevelSchema
 } from "./models";
 import type { ThinkingLevel } from "./models";
+import {
+  ShortMaterialKindSchema,
+  ShortSkillKindSchema,
+  ShortWorkspaceStageIdSchema,
+  ShortWorkspaceAgentProfileSchema,
+  ShortWorkspaceSnapshotSchema
+} from "./workspace";
 
 export type { ThinkingLevel } from "./models";
 
@@ -46,11 +53,13 @@ const AttachedContextSnapshotBaseSchema = z.object({
 });
 
 export const AttachedSkillSnapshotSchema = AttachedContextSnapshotBaseSchema.extend({
-  source: z.literal("attached-skill")
+  source: z.literal("attached-skill"),
+  kind: ShortSkillKindSchema.optional()
 });
 
 export const AttachedMaterialSnapshotSchema = AttachedContextSnapshotBaseSchema.extend({
-  source: z.literal("attached-material")
+  source: z.literal("attached-material"),
+  kind: ShortMaterialKindSchema.optional()
 });
 
 export const AttachedContextSnapshotSchema = z.discriminatedUnion("source", [
@@ -61,8 +70,26 @@ export type AttachedContextSnapshot = z.infer<typeof AttachedContextSnapshotSche
 
 export const WorkspaceRuntimeContextSchema = z.object({
   activeResource: ActiveResourceSnapshotSchema.optional(),
+  shortWorkspace: ShortWorkspaceSnapshotSchema.optional(),
   attachedSkills: z.array(AttachedSkillSnapshotSchema).max(12).optional(),
   attachedMaterials: z.array(AttachedMaterialSnapshotSchema).max(12).optional()
+}).superRefine((value, context) => {
+  const shortWorkspace = value.shortWorkspace;
+  const active = value.activeResource;
+  if (
+    shortWorkspace &&
+    active &&
+    !shortWorkspace.stages.some(
+      (stage) =>
+        stage.stageId === shortWorkspace.activeStageId && stage.content === active.content
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["shortWorkspace", "activeStageId"],
+      message: "The active short stage must match the live active resource snapshot."
+    });
+  }
 });
 export type WorkspaceRuntimeContext = z.infer<typeof WorkspaceRuntimeContextSchema>;
 
@@ -105,7 +132,8 @@ export const SessionPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 });
 
 export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
-  runtimeConfig: AgentProviderRuntimeConfigSchema.optional()
+  runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
+  agentProfile: ShortWorkspaceAgentProfileSchema.optional()
 });
 export type AgentPromptCommandPayload = z.infer<typeof AgentPromptCommandPayloadSchema>;
 
@@ -186,6 +214,33 @@ export const AgentToolCompletedPayloadSchema = z.object({
 });
 export type AgentToolCompletedPayload = z.infer<typeof AgentToolCompletedPayloadSchema>;
 
+export const WorkspaceEditorMutationPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  workspaceId: z.string().min(1).max(240),
+  stageId: ShortWorkspaceStageIdSchema,
+  text: z.string().max(10_000_000),
+  baseRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
+  summary: z.string().min(1).max(1_000),
+  runtime: AgentRuntimeRefSchema
+});
+export type WorkspaceEditorMutationPayload = z.infer<
+  typeof WorkspaceEditorMutationPayloadSchema
+>;
+
+export const WorkspaceStageSelectionPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  workspaceId: z.string().min(1).max(240),
+  stageId: ShortWorkspaceStageIdSchema,
+  runtime: AgentRuntimeRefSchema
+});
+export type WorkspaceStageSelectionPayload = z.infer<
+  typeof WorkspaceStageSelectionPayloadSchema
+>;
+
 export const AgentErrorPayloadSchema = z.object({
   sessionId: z.string().min(1),
   runId: z.string().min(1),
@@ -221,6 +276,16 @@ export const AgentToolCompletedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   payload: AgentToolCompletedPayloadSchema
 }).superRefine(validateAgentEventContext);
 
+export const WorkspaceEditorMutationEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("workspace.editor_mutation"),
+  payload: WorkspaceEditorMutationPayloadSchema
+}).superRefine(validateAgentEventContext);
+
+export const WorkspaceStageSelectionEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("workspace.stage_selection"),
+  payload: WorkspaceStageSelectionPayloadSchema
+}).superRefine(validateAgentEventContext);
+
 export const AgentErrorEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agent.error"),
   payload: AgentErrorPayloadSchema
@@ -254,4 +319,12 @@ export type AgentThinkingDeltaEventEnvelope = Envelope<AgentThinkingDeltaPayload
 export type AgentMessageCompletedEventEnvelope = Envelope<AgentMessageCompletedPayload, "agent.message_completed">;
 export type AgentToolRequestedEventEnvelope = Envelope<AgentToolRequestedPayload, "tool.call_requested">;
 export type AgentToolCompletedEventEnvelope = Envelope<AgentToolCompletedPayload, "tool.execution_completed">;
+export type WorkspaceEditorMutationEventEnvelope = Envelope<
+  WorkspaceEditorMutationPayload,
+  "workspace.editor_mutation"
+>;
+export type WorkspaceStageSelectionEventEnvelope = Envelope<
+  WorkspaceStageSelectionPayload,
+  "workspace.stage_selection"
+>;
 export type AgentErrorEventEnvelope = Envelope<AgentErrorPayload, "agent.error">;

@@ -8,6 +8,29 @@ export const resourceSections: ResourceTreeSection[] = [
     icon: "book",
     nodes: [
       {
+        id: "short-mist",
+        label: "雾港回声 · 短篇",
+        icon: "book",
+        badge: "短篇",
+        defaultExpanded: true,
+        children: [
+          { id: "short-mist:character_design", label: "人物", icon: "user" },
+          {
+            id: "short-mist:plot",
+            label: "剧情",
+            icon: "sparkles",
+            defaultExpanded: true,
+            children: [
+              { id: "short-mist:plot_design", label: "剧情设计", icon: "file" },
+              { id: "short-mist:intro_design", label: "导语设计", icon: "file" },
+              { id: "short-mist:plot_refine", label: "剧情细化", icon: "file" }
+            ]
+          },
+          { id: "short-mist:outline", label: "大纲", icon: "file" },
+          { id: "short-mist:draft", label: "正文", icon: "file" }
+        ]
+      },
+      {
         id: "book-mist-harbor",
         label: "雾港来信",
         icon: "book",
@@ -118,6 +141,95 @@ export const resourceSections: ResourceTreeSection[] = [
 ];
 
 export const workspaceDocuments: WorkspaceDocument[] = [
+  {
+    id: "short-mist:character_design",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "character_design",
+    title: "人物设计",
+    eyebrow: "短篇 · 人物",
+    path: ["雾港回声", "人物"],
+    format: "设定",
+    content:
+      "林默，29 岁，灯塔临时记录员。习惯把重要信息抄写两遍，对七年前姐姐的失踪保持沉默。核心欲望是确认姐姐的下落，恐惧是发现自己曾亲手参与掩盖真相。\n\n苏遥，27 岁，地方报纸摄影记者。熟悉港区旧建筑，随身携带一台无法正常显影的胶片相机。她知道旧港地下通道入口，却没有告诉林默自己见过名单上的第十八个名字。"
+  },
+  {
+    id: "short-mist:plot_design",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "plot_design",
+    title: "剧情设计",
+    eyebrow: "短篇 · 剧情",
+    path: ["雾港回声", "剧情", "剧情设计"],
+    format: "设定",
+    content:
+      "灰潮到来前夜，林默在灯塔值守日志中发现一份失踪名单，最后一个名字是自己。名单上的时间都比真实事件早七分钟。苏遥带他进入旧港地下通道，两人逐渐发现灯塔并非预警灰潮，而是在每轮灰潮中选择一个人替整座城市承受被遗忘的代价。结局中林默必须在保留姐姐记忆与阻止下一轮献祭之间作出选择。"
+  },
+  {
+    id: "short-mist:intro_design",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "intro_design",
+    title: "导语设计",
+    eyebrow: "短篇 · 剧情",
+    path: ["雾港回声", "剧情", "导语设计"],
+    format: "设定",
+    content: "第七声汽笛响起前，林默在失踪名单的最后一行看见了自己的名字。落款日期，是明天。"
+  },
+  {
+    id: "short-mist:plot_refine",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "plot_refine",
+    title: "剧情细化",
+    eyebrow: "短篇 · 剧情",
+    path: ["雾港回声", "剧情", "剧情细化"],
+    format: "设定",
+    content:
+      "场景一：午夜灯塔。林默发现名单与迟到七分钟的汽笛，楼梯间出现不属于守塔人的脚步。\n\n场景二：旧报社暗房。苏遥冲洗出一张尚未拍摄的照片，照片里林默站在灰潮中央。\n\n场景三：地下通道。两人因苏遥隐瞒第十八个名字爆发冲突，随后从墙上旧刻痕确认姐姐仍以记忆形式维持灯塔。\n\n场景四：灯室抉择。林默破坏名单机制，代价是姐姐从所有人的记忆中彻底消失；城市第一次准时听见汽笛。"
+  },
+  {
+    id: "short-mist:outline",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "outline",
+    title: "短篇大纲",
+    eyebrow: "短篇 · 大纲",
+    path: ["雾港回声", "大纲"],
+    format: "设定",
+    content:
+      "全文约 7000 字，分为导语与四节。\n\n导语（150 字）：名单最后一行出现林默的名字，日期是明天。\n\n第一节·迟到的汽笛（1400 字）：灯塔异常与陌生脚步，建立七分钟规则。\n\n第二节·尚未拍摄的照片（1600 字）：苏遥带来预见死亡的底片，两人决定调查。\n\n第三节·第十八个名字（1900 字）：地下通道揭露隐瞒与献祭机制，关系破裂后重新结盟。\n\n第四节·准时的回声（1950 字）：林默面对姐姐的记忆并破坏名单，完成选择与代价。"
+  },
+  {
+    id: "short-mist:draft",
+    domain: "creation",
+    workspaceId: "short-mist",
+    workspaceType: "short",
+    workspaceTitle: "雾港回声",
+    workspaceCategories: ["悬疑"],
+    stageId: "draft",
+    title: "正文",
+    eyebrow: "短篇 · 正文",
+    path: ["雾港回声", "正文"],
+    format: "正文",
+    content:
+      "雨是在午夜以后落下来的。\n\n林默把灯塔最上层的窗推开一条缝，潮湿的风立刻钻进来，带着铁锈和海盐的气味。港区已经熄灯，只有旧码头尽头那盏信号灯仍在雾里明灭。\n\n第三次闪烁之后，他听见楼梯间传来脚步声。\n\n不是守塔人惯常拖沓的步子。那声音很轻，停在每一级台阶的边缘，像有人正沿着黑暗一层一层丈量这座塔。\n\n林默合上记录册，把那封没有署名的信压在掌心下面。窗外的汽笛迟到了整整七分钟，而信上写着：当第七声汽笛响起，不要回头。"
+  },
   {
     id: "chapter-3",
     domain: "creation",
@@ -301,7 +413,7 @@ export const initialMessages: ChatMessage[] = [
   {
     id: "assistant_welcome",
     role: "assistant",
-    content: "创作空间已准备好。当前阶段会把发送瞬间的主文稿快照交给本地 Faux Runtime，用于验证 Thinking 与回复流；技能和素材尚不会自动附加。",
+    content: "短篇创作空间已准备好。人物、剧情、大纲与正文会按当前阶段选择对应智能体；技能和素材仍需显式附加后才会进入工具读取范围。",
     createdAt: new Date().toISOString(),
     status: "completed"
   }

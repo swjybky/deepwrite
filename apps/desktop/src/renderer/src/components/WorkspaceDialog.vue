@@ -71,9 +71,9 @@ watch(
 );
 
 watch(
-  () => props.modelSettings,
-  (settings) => {
-    if (props.mode === "models" && !props.modelSaving) {
+  () => [props.modelSettings, props.modelSaving] as const,
+  ([settings, saving]) => {
+    if (props.mode === "models" && !saving) {
       resetModelDraft(settings);
     }
   }
@@ -356,6 +356,7 @@ function submitModelSettings(): void {
                     type="password"
                     :placeholder="modelEditor.hasApiKey ? '已安全保存；留空表示保持不变' : '请输入 API Key（本地服务可留空）'"
                     autocomplete="new-password"
+                    @input="modelEditor.clearApiKey = false"
                   />
                 </label>
                 <label class="model-reasoning-toggle">

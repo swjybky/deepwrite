@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
+  SHORT_WORKSPACE_STAGE_IDS,
+  createShortWorkspaceContentRevision,
   createEnvelope,
   type DeepWriteApi,
   type SessionPromptAcceptedPayload,
-  type SessionPromptCommandPayload
+  type SessionPromptCommandPayload,
+  type ShortWorkspaceStageId
 } from "@deepwrite/contracts";
 import { useAgentConversation } from "./useAgentConversation";
 import type { WorkspaceDocument } from "../types/workspace";
@@ -23,6 +27,32 @@ const runtime = {
   model: "deepwrite-writing-faux",
   mode: "local-faux" as const
 };
+
+const shortStageTitles: Record<ShortWorkspaceStageId, string> = {
+  character_design: "人物",
+  plot_design: "剧情设计",
+  intro_design: "导语设计",
+  plot_refine: "剧情细化",
+  outline: "大纲",
+  draft: "正文"
+};
+
+function createShortWorkspaceDocuments(): WorkspaceDocument[] {
+  return SHORT_WORKSPACE_STAGE_IDS.map((stageId) => ({
+    id: `short_${stageId}`,
+    domain: "creation",
+    title: shortStageTitles[stageId],
+    eyebrow: "短篇创作",
+    path: ["雨夜来信", shortStageTitles[stageId]],
+    format: stageId === "draft" ? "正文" : "设定",
+    content: `${stageId} 的实时内容`,
+    workspaceId: "short_story_1",
+    workspaceType: "short",
+    workspaceTitle: "雨夜来信",
+    workspaceCategories: ["都市", "悬疑"],
+    stageId
+  }));
+}
 
 function createDeferredApi(): {
   api: DeepWriteApi;
@@ -77,6 +107,17 @@ function createDeferredApi(): {
           message: "连接成功",
           testedAt: new Date().toISOString()
         };
+      }
+    },
+    workspaceAgents: {
+      async list() {
+        return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
+      },
+      async save() {
+        return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
+      },
+      async reset() {
+        return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
       }
     },
     events: {
@@ -426,6 +467,154 @@ describe("agent conversation controller", () => {
     expect(controller.conversationError.value).toContain("运行标识不一致");
     expect(controller.messages.value.at(-1)?.status).toBe("error");
     expect(controller.isBusy.value).toBe(false);
+    controller.dispose();
+  });
+
+  it("builds a complete six-stage short snapshot and maps every active stage", async () => {
+    for (const [index, activeStageId] of SHORT_WORKSPACE_STAGE_IDS.entries()) {
+      const deferred = createDeferredApi();
+      const controller = useAgentConversation({
+        api: () => deferred.api,
+        idleTimeoutMs: 10_000
+      });
+      const workspaceDocuments = createShortWorkspaceDocuments();
+      const activeDocument = workspaceDocuments.find(
+        (candidate) => candidate.stageId === activeStageId
+      );
+      if (!activeDocument) throw new Error(`Missing stage document: ${activeStageId}`);
+
+      controller.draft.value = `检查 ${activeStageId}`;
+      const sending = controller.sendMessage(
+        activeDocument,
+        [...workspaceDocuments].reverse()
+      );
+      const sessionId = controller.sessionId.value;
+      deferred.resolveAccepted(0, {
+        sessionId,
+        runId: `run_short_snapshot_${index}`,
+        acceptedAt: new Date().toISOString(),
+        runtime
+      });
+      await sending;
+
+      const context = deferred.prompts[0]?.workspaceContext;
+      expect(context?.shortWorkspace).toEqual({
+        id: "short_story_1",
+        title: "雨夜来信",
+        categories: ["都市", "悬疑"],
+        activeStageId,
+        stages: SHORT_WORKSPACE_STAGE_IDS.map((stageId) => ({
+          stageId,
+          title: shortStageTitles[stageId],
+          content: `${stageId} 的实时内容`,
+          revision: createShortWorkspaceContentRevision(
+            `${stageId} 的实时内容`
+          )
+        }))
+      });
+      expect(context?.activeResource?.content).toBe(
+        `${activeStageId} 的实时内容`
+      );
+      controller.dispose();
+    }
+  });
+
+  it("tracks a requested tool as running and updates it when completed", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({
+      api: () => deferred.api,
+      idleTimeoutMs: 10_000
+    });
+    controller.draft.value = "读取人物内容";
+    const sessionId = controller.sessionId.value;
+    const sending = controller.sendMessage(document);
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_tools",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    controller.handleEvent(
+      createEnvelope(
+        "tool.call_requested",
+        {
+          sessionId,
+          runId: "run_tools",
+          toolCallId: "tool_read_character",
+          toolName: "read_workspace_content",
+          args: { stage_ids: ["character_design"] },
+          runtime
+        },
+        eventOptions(sessionId, "run_tools", "evt_tool_requested")
+      )
+    );
+
+    expect(controller.messages.value.at(-1)).toMatchObject({
+      id: "run_tools_assistant",
+      role: "assistant",
+      status: "streaming",
+      tools: [
+        {
+          id: "tool_read_character",
+          name: "read_workspace_content",
+          status: "running"
+        }
+      ]
+    });
+
+    controller.handleEvent(
+      createEnvelope(
+        "tool.execution_completed",
+        {
+          sessionId,
+          runId: "run_tools",
+          toolCallId: "tool_read_character",
+          toolName: "read_workspace_content",
+          resultSummary: "已读取人物阶段",
+          isError: false,
+          runtime
+        },
+        eventOptions(sessionId, "run_tools", "evt_tool_completed")
+      )
+    );
+
+    expect(controller.messages.value.at(-1)?.tools).toEqual([
+      {
+        id: "tool_read_character",
+        name: "read_workspace_content",
+        status: "completed",
+        summary: "已读取人物阶段"
+      }
+    ]);
+    expect(controller.isBusy.value).toBe(true);
+    expect(controller.acceptsRunEvent(sessionId, "run_tools")).toBe(true);
+    controller.markToolConflict(
+      "run_tools",
+      "tool_read_character",
+      "文稿版本已变化，未应用。"
+    );
+    expect(controller.messages.value.at(-1)?.tools?.[0]).toMatchObject({
+      status: "error",
+      summary: "文稿版本已变化，未应用。"
+    });
+
+    controller.handleEvent(
+      createEnvelope(
+        "agent.message_completed",
+        {
+          sessionId,
+          runId: "run_tools",
+          messageId: "run_tools_assistant",
+          role: "assistant" as const,
+          content: "检查完成。",
+          runtime
+        },
+        eventOptions(sessionId, "run_tools", "evt_tools_completed")
+      )
+    );
+    expect(controller.acceptsRunEvent(sessionId, "run_tools")).toBe(false);
     controller.dispose();
   });
 
