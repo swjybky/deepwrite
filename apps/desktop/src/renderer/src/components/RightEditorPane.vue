@@ -7,12 +7,18 @@ const props = defineProps<{
   document: WorkspaceDocument;
   draftState: EditorDraftState | undefined;
   locked: boolean;
+  lockedLabel?: string | undefined;
+  saving?: boolean;
+  boundToCurrentBook?: boolean;
+  sectionTabs?: readonly { id: string; title: string }[];
+  activeSectionId?: string | undefined;
 }>();
 
 const emit = defineEmits<{
   collapse: [];
   save: [payload: { id: string; title: string; content: string }];
   liveChange: [payload: { id: string; title: string; content: string }];
+  selectSection: [sectionId: string];
 }>();
 
 const title = ref(props.draftState?.title ?? props.document.title);
@@ -31,10 +37,16 @@ watch(
 );
 
 watch(
-  () => [props.draftState?.title, props.draftState?.content, props.draftState?.dirty] as const,
-  ([nextTitle, nextContent, nextDirty]) => {
-    const resolvedTitle = nextTitle ?? props.document.title;
-    const resolvedContent = nextContent ?? props.document.content;
+  () => [
+    props.draftState?.title,
+    props.draftState?.content,
+    props.draftState?.dirty,
+    props.document.title,
+    props.document.content
+  ] as const,
+  ([nextTitle, nextContent, nextDirty, documentTitle, documentContent]) => {
+    const resolvedTitle = nextTitle ?? documentTitle;
+    const resolvedContent = nextContent ?? documentContent;
     if (title.value !== resolvedTitle) title.value = resolvedTitle;
     if (content.value !== resolvedContent) content.value = resolvedContent;
     dirty.value = nextDirty ?? false;
@@ -43,6 +55,14 @@ watch(
 
 const characterCount = computed(() => content.value.replace(/\s/g, "").length);
 const paragraphs = computed(() => content.value.split(/\n{2,}/).filter(Boolean));
+const showSectionTabs = computed(() => Boolean(props.sectionTabs?.length));
+const persistedDocument = computed(() =>
+  Boolean(
+    props.document.catalogDocumentId ||
+      props.document.catalogEntryId ||
+      props.document.catalogProjectRevision !== undefined
+  )
+);
 
 function markDirty(): void {
   if (props.document.readOnly || props.locked) return;
@@ -55,16 +75,19 @@ function markDirty(): void {
 }
 
 function save(): void {
-  if (props.document.readOnly || props.locked) {
+  if (props.document.readOnly || props.locked || props.saving) {
     return;
   }
   emit("save", { id: props.document.id, title: title.value, content: content.value });
-  dirty.value = false;
 }
 </script>
 
 <template>
-  <aside class="editor-pane" aria-label="文本内容">
+  <aside
+    class="editor-pane"
+    :class="{ 'has-section-tabs': showSectionTabs }"
+    aria-label="文本内容"
+  >
     <header class="editor-header">
       <div class="editor-breadcrumbs" :title="document.path.join(' / ')">
         <span v-for="(part, index) in document.path" :key="`${part}-${index}`">
@@ -74,7 +97,7 @@ function save(): void {
       <div class="editor-header-actions">
         <span class="save-state" :class="{ 'is-dirty': dirty }">
           <AppIcon :name="dirty ? 'save' : 'check'" :size="13" />
-          {{ document.readOnly ? "只读" : locked ? "智能体运行中 · 暂停编辑" : dirty ? "有未应用修改" : "本次运行已应用" }}
+          {{ document.readOnly ? "只读" : locked ? (lockedLabel ?? "智能体运行中 · 暂停编辑") : saving ? "正在保存到本机" : dirty ? "有未应用修改" : persistedDocument ? "已保存到本机" : "本次运行已应用" }}
         </span>
         <button
           class="icon-button"
@@ -86,6 +109,28 @@ function save(): void {
         </button>
       </div>
     </header>
+
+    <nav
+      v-if="showSectionTabs"
+      class="section-tabs-bar"
+      aria-label="正文小节"
+    >
+      <div class="section-tabs-scroll" role="tablist">
+        <button
+          v-for="section in sectionTabs ?? []"
+          :key="section.id"
+          class="section-tab"
+          :class="{ 'is-active': section.id === activeSectionId }"
+          type="button"
+          role="tab"
+          :aria-selected="section.id === activeSectionId"
+          :title="section.title"
+          @click="emit('selectSection', section.id)"
+        >
+          {{ section.title }}
+        </button>
+      </div>
+    </nav>
 
     <div class="editor-toolbar">
       <div class="view-tabs" role="tablist" aria-label="文本视图">
@@ -121,7 +166,9 @@ function save(): void {
         <span>{{ document.eyebrow }}</span>
         <span v-if="document.format" class="document-format">{{ document.format }}</span>
         <span v-if="document.readOnly" class="readonly-badge">只读内容</span>
-        <span v-if="document.domain !== 'creation'" class="readonly-badge">仅浏览 · 未附加</span>
+        <span v-if="document.domain !== 'creation'" class="readonly-badge">
+          {{ boundToCurrentBook ? "已绑定到当前书籍" : "仅浏览 · 未绑定" }}
+        </span>
       </div>
 
       <input
@@ -148,16 +195,16 @@ function save(): void {
 
     <footer class="editor-footer">
       <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
-      <span>{{ locked ? "智能体运行中 · 防止版本冲突" : "内存草稿 · 重启后不保留" }}</span>
+      <span>{{ locked ? (lockedLabel ?? "智能体运行中 · 防止版本冲突") : saving ? "正在原子保存本机文稿" : persistedDocument ? "本机文稿 · 应用后持久保存" : "内存草稿 · 重启后不保留" }}</span>
       <span class="footer-spacer" />
       <button
         class="save-button"
         type="button"
-        :disabled="document.readOnly || locked || !dirty"
+        :disabled="document.readOnly || locked || saving || !dirty"
         @click="save"
       >
         <AppIcon name="save" :size="14" />
-        应用
+        {{ saving ? "保存中…" : "应用" }}
       </button>
     </footer>
   </aside>

@@ -1,21 +1,25 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
 import {
+  AgentAbortCommandEnvelopeSchema,
   AgentErrorEventEnvelopeSchema,
   AgentMessageCompletedEventEnvelopeSchema,
   AgentMessageDeltaEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
+  AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
+  SessionAbortCommandEnvelopeSchema,
   SessionPromptCommandEnvelopeSchema,
   type AgentErrorEventEnvelope,
   type AgentMessageCompletedEventEnvelope,
   type AgentMessageDeltaEventEnvelope,
   type AgentThinkingDeltaEventEnvelope,
   type AgentToolCompletedEventEnvelope,
+  type AgentToolCallStreamEventEnvelope,
   type AgentToolRequestedEventEnvelope,
   type WorkspaceEditorMutationEventEnvelope,
   type WorkspaceStageSelectionEventEnvelope
@@ -31,6 +35,30 @@ import {
   WorkspaceAgentsResetCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema
 } from "./workspace";
+import {
+  CatalogCreateLibraryAtPathCommandEnvelopeSchema,
+  CatalogCreateLibraryCommandEnvelopeSchema,
+  CatalogCreateLibraryEntryCommandEnvelopeSchema,
+  CatalogCreateShortBookAtPathCommandEnvelopeSchema,
+  CatalogCreateShortBookCommandEnvelopeSchema,
+  CatalogDeleteBookCommandEnvelopeSchema,
+  CatalogImportLegacyBookAtPathCommandEnvelopeSchema,
+  CatalogImportLegacyBookCommandEnvelopeSchema,
+  CatalogOpenProjectAtPathCommandEnvelopeSchema,
+  CatalogOpenProjectCommandEnvelopeSchema,
+  CatalogLoadDraftRecoveryCommandEnvelopeSchema,
+  CatalogSaveDraftRecoveryCommandEnvelopeSchema,
+  CatalogSaveDocumentCommandEnvelopeSchema,
+  CatalogSaveLibraryEntryCommandEnvelopeSchema,
+  CatalogRemoveLibraryEntryCommandEnvelopeSchema,
+  CatalogSnapshotCommandEnvelopeSchema,
+  CatalogUpdateBookCommandEnvelopeSchema,
+  CatalogUnregisterProjectCommandEnvelopeSchema
+} from "./catalog";
+import {
+  WorkspaceDirectoryChooseCommandEnvelopeSchema,
+  WorkspaceDirectoryListCommandEnvelopeSchema
+} from "./workspace-directory";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
 export const IPC_EVENT_CHANNEL = "deepwrite:event";
@@ -62,14 +90,36 @@ export const SystemHealthCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   SystemHealthCommandEnvelopeSchema,
+  CatalogSnapshotCommandEnvelopeSchema,
+  CatalogLoadDraftRecoveryCommandEnvelopeSchema,
+  CatalogSaveDraftRecoveryCommandEnvelopeSchema,
+  CatalogCreateShortBookCommandEnvelopeSchema,
+  CatalogCreateLibraryCommandEnvelopeSchema,
+  CatalogOpenProjectCommandEnvelopeSchema,
+  CatalogImportLegacyBookCommandEnvelopeSchema,
+  CatalogCreateShortBookAtPathCommandEnvelopeSchema,
+  CatalogCreateLibraryAtPathCommandEnvelopeSchema,
+  CatalogOpenProjectAtPathCommandEnvelopeSchema,
+  CatalogImportLegacyBookAtPathCommandEnvelopeSchema,
+  CatalogUpdateBookCommandEnvelopeSchema,
+  CatalogDeleteBookCommandEnvelopeSchema,
+  CatalogSaveDocumentCommandEnvelopeSchema,
+  CatalogSaveLibraryEntryCommandEnvelopeSchema,
+  CatalogCreateLibraryEntryCommandEnvelopeSchema,
+  CatalogRemoveLibraryEntryCommandEnvelopeSchema,
+  CatalogUnregisterProjectCommandEnvelopeSchema,
   SessionPromptCommandEnvelopeSchema,
+  SessionAbortCommandEnvelopeSchema,
   ModelsListCommandEnvelopeSchema,
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema,
   WorkspaceAgentsListCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
   WorkspaceAgentsResetCommandEnvelopeSchema,
+  WorkspaceDirectoryListCommandEnvelopeSchema,
+  WorkspaceDirectoryChooseCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
+  AgentAbortCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema
 ]);
 export type CommandEnvelope = z.infer<typeof CommandEnvelopeSchema>;
@@ -128,6 +178,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentMessageDeltaEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentMessageCompletedEventEnvelopeSchema,
+  AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
@@ -151,6 +202,7 @@ export type SystemEventEnvelope =
   | AgentMessageDeltaEventEnvelope
   | AgentThinkingDeltaEventEnvelope
   | AgentMessageCompletedEventEnvelope
+  | AgentToolCallStreamEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope
   | WorkspaceEditorMutationEventEnvelope

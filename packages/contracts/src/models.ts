@@ -1,15 +1,70 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 
-export const ThinkingLevelSchema = z.enum([
-  "off",
+export const BUILT_IN_REASONING_LEVELS = [
   "minimal",
   "low",
   "medium",
   "high",
-  "xhigh"
-]);
+  "xhigh",
+  "max"
+] as const;
+export type BuiltInReasoningLevel = (typeof BUILT_IN_REASONING_LEVELS)[number];
+
+export const ReasoningLevelSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9._-]*$/,
+    "Thinking levels may only contain English letters, numbers, dots, underscores, and hyphens."
+  )
+  .refine((value) => value !== "off", {
+    message: "The off value is reserved for models without reasoning."
+  });
+export type ReasoningLevel = z.infer<typeof ReasoningLevelSchema>;
+
+export const ThinkingLevelSchema = z.union([z.literal("off"), ReasoningLevelSchema]);
 export type ThinkingLevel = z.infer<typeof ThinkingLevelSchema>;
+
+export const ThinkingLevelOptionsSchema = z
+  .array(ReasoningLevelSchema)
+  .min(1)
+  .max(BUILT_IN_REASONING_LEVELS.length + 1)
+  .default([...BUILT_IN_REASONING_LEVELS])
+  .superRefine((value, context) => {
+    if (new Set(value).size !== value.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Thinking level options must be unique."
+      });
+    }
+    const builtInLevels = new Set<string>(BUILT_IN_REASONING_LEVELS);
+    if (value.filter((level) => !builtInLevels.has(level)).length > 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Only one custom thinking level may be configured."
+      });
+    }
+  });
+export type ThinkingLevelOptions = z.infer<typeof ThinkingLevelOptionsSchema>;
+
+export const TemperatureSchema = z.number().finite().min(0).max(2);
+export type Temperature = z.infer<typeof TemperatureSchema>;
+
+export const TemperatureOptionsSchema = z
+  .tuple([TemperatureSchema, TemperatureSchema, TemperatureSchema])
+  .default([0.1, 0.7, 1])
+  .superRefine((value, context) => {
+    if (new Set(value).size !== value.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Temperature options must be unique."
+      });
+    }
+  });
+export type TemperatureOptions = z.infer<typeof TemperatureOptionsSchema>;
 
 export const ModelApiSchema = z.enum([
   "openai-completions",
@@ -27,13 +82,25 @@ const ModelIdentitySchema = z.object({
   api: ModelApiSchema,
   baseUrl: z.union([z.literal(""), z.url().max(2_000)]),
   reasoning: z.boolean(),
-  defaultThinkingLevel: ThinkingLevelSchema
+  defaultThinkingLevel: ThinkingLevelSchema,
+  thinkingLevelOptions: ThinkingLevelOptionsSchema,
+  temperatureOptions: TemperatureOptionsSchema
 }).superRefine((value, context) => {
   if (!value.reasoning && value.defaultThinkingLevel !== "off") {
     context.addIssue({
       code: "custom",
       path: ["defaultThinkingLevel"],
       message: "A model without reasoning support must default thinking to off."
+    });
+  }
+  if (
+    value.reasoning &&
+    !value.thinkingLevelOptions.includes(value.defaultThinkingLevel as ReasoningLevel)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["defaultThinkingLevel"],
+      message: "Default thinking level must be one of the configured options."
     });
   }
 });
@@ -116,7 +183,7 @@ export const ModelsSaveCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const ModelsTestCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("models.test"),
-  payload: z.object({ modelId: z.string().min(1).max(120) })
+  payload: z.object({ model: ModelConfigInputSchema })
 });
 
 export const AgentModelTestCommandEnvelopeSchema = EnvelopeBaseSchema.extend({

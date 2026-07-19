@@ -64,6 +64,7 @@ describe("DeepWrite desktop contracts", () => {
         sessionId: "session_1",
         message: "续写这一段",
         thinkingLevel: "medium" as const,
+        writeApprovalMode: "auto-approve" as const,
         workspaceContext: {
           activeResource: {
             id: "chapter_1",
@@ -82,7 +83,10 @@ describe("DeepWrite desktop contracts", () => {
       }
     );
 
-    expect(CommandEnvelopeSchema.parse(envelope).type).toBe("session.prompt");
+    expect(CommandEnvelopeSchema.parse(envelope)).toMatchObject({
+      type: "session.prompt",
+      payload: { writeApprovalMode: "auto-approve" }
+    });
   });
 
   it("normalizes public model settings without exposing API keys", () => {
@@ -105,7 +109,39 @@ describe("DeepWrite desktop contracts", () => {
     });
 
     expect(settings.models[0]?.defaultThinkingLevel).toBe("xhigh");
+    expect(settings.models[0]?.thinkingLevelOptions).toEqual([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max"
+    ]);
+    expect(settings.models[0]?.temperatureOptions).toEqual([0.1, 0.7, 1]);
     expect("apiKey" in (settings.models[0] ?? {})).toBe(false);
+  });
+
+  it("accepts max and one custom provider thinking level", () => {
+    const settings = ModelSettingsInputSchema.parse({
+      defaultModelId: "writer",
+      models: [
+        {
+          id: "writer",
+          label: "Writer",
+          provider: "custom",
+          modelId: "writer-model",
+          api: "openai-responses",
+          baseUrl: "http://127.0.0.1:11434/v1",
+          reasoning: true,
+          defaultThinkingLevel: "ultra",
+          thinkingLevelOptions: ["low", "medium", "high", "xhigh", "max", "ultra"],
+          temperatureOptions: [0.1, 0.7, 1]
+        }
+      ]
+    });
+
+    expect(settings.models[0]?.thinkingLevelOptions).toContain("max");
+    expect(settings.models[0]?.defaultThinkingLevel).toBe("ultra");
   });
 
   it("rejects invalid model defaults and reasoning defaults", () => {
@@ -129,6 +165,53 @@ describe("DeepWrite desktop contracts", () => {
         defaultModelId: "missing"
       })
     ).toThrow();
+    expect(() =>
+      ModelSettingsInputSchema.parse({
+        models: [
+          {
+            ...model,
+            reasoning: true,
+            defaultThinkingLevel: "high",
+            thinkingLevelOptions: ["low", "medium"]
+          }
+        ],
+        defaultModelId: "plain"
+      })
+    ).toThrow();
+    expect(() =>
+      ModelSettingsInputSchema.parse({
+        models: [
+          {
+            ...model,
+            defaultThinkingLevel: "off",
+            temperatureOptions: [0.7, 0.7, 1]
+          }
+        ],
+        defaultModelId: "plain"
+      })
+    ).toThrow();
+  });
+
+  it("accepts an unsaved model draft for a connection test", () => {
+    const envelope = createEnvelope(
+      "models.test",
+      {
+        model: {
+          id: "draft-model",
+          label: "Draft model",
+          provider: "custom",
+          modelId: "draft-v1",
+          api: "openai-completions" as const,
+          baseUrl: "http://127.0.0.1:11434/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off" as const,
+          apiKey: "not-yet-saved"
+        }
+      },
+      { id: "cmd_test_draft" }
+    );
+
+    expect(CommandEnvelopeSchema.parse(envelope).type).toBe("models.test");
   });
 
   it("rejects blank prompts and mismatched session context", () => {
@@ -144,6 +227,28 @@ describe("DeepWrite desktop contracts", () => {
     );
 
     expect(() => CommandEnvelopeSchema.parse(blank)).toThrow();
+    expect(() => CommandEnvelopeSchema.parse(mismatch)).toThrow();
+  });
+
+  it("validates a session abort against its session and run context", () => {
+    const abort = createEnvelope(
+      "session.abort",
+      { sessionId: "session_1", runId: "run_1" },
+      {
+        id: "cmd_abort",
+        context: { sessionId: "session_1", runId: "run_1" }
+      }
+    );
+    const mismatch = createEnvelope(
+      "session.abort",
+      { sessionId: "session_1", runId: "run_1" },
+      {
+        id: "cmd_abort_mismatch",
+        context: { sessionId: "session_1", runId: "run_2" }
+      }
+    );
+
+    expect(CommandEnvelopeSchema.parse(abort).type).toBe("session.abort");
     expect(() => CommandEnvelopeSchema.parse(mismatch)).toThrow();
   });
 
@@ -253,6 +358,28 @@ describe("DeepWrite desktop contracts", () => {
         event
       }).kind
     ).toBe("utility.command.event");
+  });
+
+  it("validates streamed tool arguments before tool execution", () => {
+    const event = createEnvelope(
+      "tool.call_stream",
+      {
+        sessionId: "session_tool_stream",
+        runId: "run_tool_stream",
+        streamId: "message_tool_stream:0",
+        toolCallId: "tool_write_1",
+        toolName: "write_workspace_editor",
+        phase: "delta" as const,
+        argumentsDelta: '{"text":"开场',
+        runtime
+      },
+      {
+        id: "event_tool_stream",
+        context: { sessionId: "session_tool_stream", runId: "run_tool_stream" }
+      }
+    );
+
+    expect(SystemEventEnvelopeSchema.parse(event).type).toBe("tool.call_stream");
   });
 
   it("requires truthful truncation metadata for a shortened live snapshot", () => {

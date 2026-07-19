@@ -1,7 +1,134 @@
 import { describe, expect, it } from "vitest";
-import { PiAgentRuntimeAdapter, type AgentRuntimeEvent } from "./index";
+import {
+  createAssistantMessageEventStream,
+  type AssistantMessage
+} from "@earendil-works/pi-ai";
+import {
+  interceptToolCallStream,
+  PiAgentRuntimeAdapter,
+  toToolStreamRuntimeEvent,
+  type AgentRuntimeEvent
+} from "./index";
+
+const providerRuntime = {
+  provider: "deepseek",
+  model: "deepseek-chat",
+  mode: "provider" as const
+};
+
+function toolCallMessage(id: string, name: string): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "toolCall", id, name, arguments: {} }],
+    api: "openai-completions",
+    provider: "deepseek",
+    model: "deepseek-chat",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
+    stopReason: "toolUse",
+    timestamp: Date.now()
+  };
+}
 
 describe("DeepWrite Pi runtime adapter", () => {
+  it("observes raw tool chunks while forwarding them to pi-agent-core", async () => {
+    const source = createAssistantMessageEventStream();
+    const observed: Array<{ type: string; turn: number }> = [];
+    const intercepted = interceptToolCallStream(
+      async () => source,
+      (event, turn) => observed.push({ type: event.type, turn })
+    );
+    const message = toolCallMessage("tool_write", "write_workspace_editor");
+    const forwarded = await intercepted(
+      {} as Parameters<typeof intercepted>[0],
+      { messages: [] },
+      undefined
+    );
+    const received: string[] = [];
+    const consume = (async () => {
+      for await (const event of forwarded) received.push(event.type);
+    })();
+
+    source.push({ type: "start", partial: message });
+    source.push({ type: "toolcall_start", contentIndex: 0, partial: message });
+    source.push({
+      type: "toolcall_delta",
+      contentIndex: 0,
+      delta: '{"text":"第一段',
+      partial: message
+    });
+    source.push({
+      type: "toolcall_end",
+      contentIndex: 0,
+      toolCall: message.content[0] as Extract<AssistantMessage["content"][number], { type: "toolCall" }>,
+      partial: message
+    });
+    source.push({ type: "done", reason: "toolUse", message });
+    await consume;
+
+    expect(observed).toEqual([
+      { type: "toolcall_start", turn: 0 },
+      { type: "toolcall_delta", turn: 0 },
+      { type: "toolcall_end", turn: 0 }
+    ]);
+    expect(received).toEqual([
+      "start",
+      "toolcall_start",
+      "toolcall_delta",
+      "toolcall_end",
+      "done"
+    ]);
+  });
+
+  it("assigns unique tool stream ids when content indexes repeat across model turns", () => {
+    const input = {
+      runId: "run_repeated_content_index",
+      sessionId: "session_repeated_content_index",
+      prompt: "先读取再写入"
+    };
+    const messageId = "run_repeated_content_index_assistant";
+    const firstMessage = toolCallMessage("tool_read", "read_workspace_content");
+    const secondMessage = toolCallMessage("tool_write", "write_workspace_editor");
+
+    const first = toToolStreamRuntimeEvent(
+      {
+        type: "toolcall_start",
+        contentIndex: 0,
+        partial: firstMessage
+      },
+      input,
+      providerRuntime,
+      messageId,
+      0
+    );
+    const second = toToolStreamRuntimeEvent(
+      {
+        type: "toolcall_start",
+        contentIndex: 0,
+        partial: secondMessage
+      },
+      input,
+      providerRuntime,
+      messageId,
+      1
+    );
+
+    expect(first).toMatchObject({
+      type: "agent.tool_stream",
+      payload: { streamId: `${messageId}:0:0`, toolCallId: "tool_read" }
+    });
+    expect(second).toMatchObject({
+      type: "agent.tool_stream",
+      payload: { streamId: `${messageId}:1:0`, toolCallId: "tool_write" }
+    });
+  });
+
   it("streams thinking and text through pi-agent-core without an API key", async () => {
     const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
     const events: AgentRuntimeEvent[] = [];
@@ -41,8 +168,8 @@ describe("DeepWrite Pi runtime adapter", () => {
     expect(events.every((event) => event.runId === "run_1" && event.sessionId === "session_1")).toBe(true);
   });
 
-  it("emits one error terminal when the run times out", async () => {
-    const runtime = new PiAgentRuntimeAdapter({ requestTimeoutMs: 1, tokensPerSecond: 0.01 });
+  it("emits one error terminal when the run stays idle", async () => {
+    const runtime = new PiAgentRuntimeAdapter({ idleTimeoutMs: 1, tokensPerSecond: 0.01 });
     const events: AgentRuntimeEvent[] = [];
 
     for await (const event of runtime.start({
@@ -55,6 +182,23 @@ describe("DeepWrite Pi runtime adapter", () => {
 
     expect(events.filter((event) => event.type === "agent.error")).toHaveLength(1);
     expect(events.some((event) => event.type === "agent.completed")).toBe(false);
+  });
+
+  it("keeps a run alive while streamed events continue", async () => {
+    const runtime = new PiAgentRuntimeAdapter({ idleTimeoutMs: 100, tokensPerSecond: 200 });
+    const events: AgentRuntimeEvent[] = [];
+
+    for await (const event of runtime.start({
+      runId: "run_active_stream",
+      sessionId: "session_active_stream",
+      prompt: "验证持续流式事件",
+      thinkingLevel: "off"
+    })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === "agent.error")).toBe(false);
+    expect(events.filter((event) => event.type === "agent.completed")).toHaveLength(1);
   });
 
   it("does not emit thinking when thinking is disabled", async () => {

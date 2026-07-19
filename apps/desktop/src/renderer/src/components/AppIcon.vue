@@ -22,9 +22,15 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'plus'">
       <path d="M12 5v14M5 12h14" />
     </template>
+    <template v-else-if="name === 'close'">
+      <path d="m6 6 12 12M18 6 6 18" />
+    </template>
     <template v-else-if="name === 'directory'">
       <path d="M3.5 6.5h6l2 2h9v9.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
       <path d="M3.5 9h17" />
+    </template>
+    <template v-else-if="name === 'edit'">
+      <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4M4 16l4 4" />
     </template>
     <template v-else-if="name === 'model'">
       <path d="m12 3 7 4v10l-7 4-7-4V7z" />
@@ -46,6 +52,9 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'panel-right'">
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="M15 4v16" />
+    </template>
+    <template v-else-if="name === 'pin'">
+      <path d="m8 3 8 8M14.5 4.5l5 5-3 1-4.5 4.5-1 4-6-6 4-1 4.5-4.5zM9 17l-5 5" />
     </template>
     <template v-else-if="name === 'chevron'">
       <path d="m9 6 6 6-6 6" />
@@ -83,11 +92,18 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
       <path d="M4 6v5h5M4.8 10A8 8 0 1 1 6 17.5" />
       <path d="M12 8v5l3 2" />
     </template>
+    <template v-else-if="name === 'message'">
+      <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-1-2V7a2 2 0 0 1 2-2Z" />
+    </template>
     <template v-else-if="name === 'attach'">
       <path d="m8.5 12.5 5.7-5.7a3 3 0 0 1 4.2 4.2l-7.8 7.8a5 5 0 0 1-7.1-7.1l7.8-7.8" />
     </template>
     <template v-else-if="name === 'brain'">
       <path d="M9.5 5.5A3 3 0 0 0 4.8 8a3.2 3.2 0 0 0 .2 6 3 3 0 0 0 4.5 3.5M14.5 5.5A3 3 0 0 1 19.2 8a3.2 3.2 0 0 1-.2 6 3 3 0 0 1-4.5 3.5M12 4v16M8 10h4M12 14h4" />
+    </template>
+    <template v-else-if="name === 'temperature'">
+      <path d="M10 14.8V5a2 2 0 0 1 4 0v9.8a4 4 0 1 1-4 0Z" />
+      <path d="M12 8v8" />
     </template>
     <template v-else-if="name === 'mic'">
       <rect x="9" y="3" width="6" height="12" rx="3" />
@@ -95,6 +111,9 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     </template>
     <template v-else-if="name === 'arrow-up'">
       <path d="m7 11 5-5 5 5M12 6v12" />
+    </template>
+    <template v-else-if="name === 'stop'">
+      <rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none" />
     </template>
     <template v-else-if="name === 'search'">
       <circle cx="10.5" cy="10.5" r="6.5" />
@@ -126,6 +145,13 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'copy'">
       <rect x="8" y="8" width="11" height="12" rx="2" />
       <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3" />
+    </template>
+    <template v-else-if="name === 'terminal'">
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="m7 9 3 3-3 3M12.5 15H17" />
+    </template>
+    <template v-else-if="name === 'trash'">
+      <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" />
     </template>
   </svg>
 </template>

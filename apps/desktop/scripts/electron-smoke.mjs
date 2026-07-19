@@ -1,12 +1,19 @@
-import { access } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { spawn, spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 const workspaceRoot = resolve(appDir, "../..");
-const electronBinary = resolve(workspaceRoot, "node_modules/electron/dist/electron");
+const electronDist = resolve(workspaceRoot, "node_modules/electron/dist");
+const electronBinary =
+  process.platform === "darwin"
+    ? resolve(electronDist, "Electron.app/Contents/MacOS/Electron")
+    : process.platform === "win32"
+      ? resolve(electronDist, "electron.exe")
+      : resolve(electronDist, "electron");
 
 try {
   await access(resolve(appDir, "out/main/index.js"));
@@ -18,10 +25,11 @@ try {
 
 const hasDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
 const hasXvfb = spawnSync("sh", ["-c", "command -v xvfb-run"], { encoding: "utf8" }).status === 0;
+const smokeUserData = await mkdtemp(join(tmpdir(), "deepwrite-electron-smoke-"));
 const command = !hasDisplay && hasXvfb ? "xvfb-run" : electronBinary;
 const args = !hasDisplay && hasXvfb
-  ? ["-a", electronBinary, ".", "--no-sandbox"]
-  : [".", "--no-sandbox"];
+  ? ["-a", electronBinary, ".", "--no-sandbox", `--user-data-dir=${smokeUserData}`]
+  : [".", "--no-sandbox", `--user-data-dir=${smokeUserData}`];
 
 const child = spawn(command, args, {
   cwd: appDir,
@@ -45,8 +53,9 @@ const timeout = setTimeout(() => {
   child.kill("SIGKILL");
 }, 20_000);
 
-child.on("close", (code) => {
+child.on("close", async (code) => {
   clearTimeout(timeout);
+  await rm(smokeUserData, { recursive: true, force: true });
   const marker = output
     .split(/\r?\n/)
     .find((line) => line.startsWith("DEEPWRITE_SMOKE_OK "));

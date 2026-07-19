@@ -3,10 +3,12 @@ import { dirname, join } from "node:path";
 import { safeStorage } from "electron";
 import {
   AgentProviderRuntimeConfigSchema,
+  ModelConfigInputSchema,
   ModelSettingsInputSchema,
   ModelSettingsSchema,
   type AgentProviderRuntimeConfig,
   type ModelConfig,
+  type ModelConfigInput,
   type ModelSettings,
   type ModelSettingsInput
 } from "@deepwrite/contracts";
@@ -20,6 +22,8 @@ interface DiskModelConfig {
   baseUrl: string;
   reasoning: boolean;
   defaultThinkingLevel: ModelConfig["defaultThinkingLevel"];
+  thinkingLevelOptions: ModelConfig["thinkingLevelOptions"];
+  temperatureOptions: ModelConfig["temperatureOptions"];
 }
 
 interface DiskModelSettings {
@@ -194,6 +198,30 @@ export class ModelConfigStore {
     }
 
     return AgentProviderRuntimeConfigSchema.parse({ ...model, apiKey });
+  }
+
+  async resolveDraft(rawModel: ModelConfigInput): Promise<AgentProviderRuntimeConfig> {
+    const model = ModelConfigInputSchema.parse(rawModel);
+    await this.writeChain;
+
+    let apiKey = model.apiKey ?? "";
+    if (!apiKey && !model.clearApiKey) {
+      const [, secrets] = await this.readState();
+      const encrypted = secrets.encryptedApiKeys[model.id];
+      if (encrypted) {
+        if (!safeStorage.isEncryptionAvailable()) {
+          throw new Error("系统安全存储当前不可用，无法解密这个模型的 API Key。");
+        }
+        try {
+          apiKey = safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+        } catch {
+          throw new Error("模型 API Key 解密失败，请在模型配置中重新填写并保存。");
+        }
+      }
+    }
+
+    const { apiKey: _apiKey, clearApiKey: _clearApiKey, ...identity } = model;
+    return AgentProviderRuntimeConfigSchema.parse({ ...identity, apiKey });
   }
 
   private async readState(): Promise<[DiskModelSettings, DiskModelSecrets]> {

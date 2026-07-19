@@ -21,7 +21,7 @@ interface PendingCommand {
   commandId: string;
   resolve(result: CommandResult): void;
   reject(error: Error): void;
-  timer: NodeJS.Timeout;
+  timer: NodeJS.Timeout | undefined;
 }
 
 interface PendingShutdown {
@@ -137,10 +137,13 @@ class UtilityWorker {
     }
 
     return new Promise<CommandResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingCommands.delete(command.id);
-        reject(new Error(`${this.name} utility command timed out: ${command.type}`));
-      }, timeoutMs);
+      const timer =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              this.pendingCommands.delete(command.id);
+              reject(new Error(`${this.name} utility command timed out: ${command.type}`));
+            }, timeoutMs)
+          : undefined;
       this.pendingCommands.set(command.id, {
         commandId: command.id,
         resolve,
@@ -382,7 +385,11 @@ export class UtilitySupervisor {
     }
     this.restartTimers.clear();
     this.restartReasons.clear();
-    await Promise.all([...this.workers.values()].map((worker) => worker.shutdown()));
+    await Promise.all(
+      [...this.workers.entries()].map(([name, worker]) =>
+        worker.shutdown(name === "core" ? 30_000 : 1800)
+      )
+    );
   }
 
   private handleUnexpectedExit(worker: UtilityWorkerName, reason: string): void {

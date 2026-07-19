@@ -12,9 +12,12 @@ import {
   WorkspaceAgentsListCommandEnvelopeSchema,
   WorkspaceAgentsResetCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
+  createDefaultExpertDraft,
   createShortWorkspaceContentRevision,
   createEnvelope,
-  resolveShortWorkspaceAgentIdForStage
+  resolveShortWorkspaceAgentIdForStage,
+  serializeExpertDraftMarkdown,
+  updateExpertDraftSectionBody
 } from "./index";
 
 describe("short workspace contracts", () => {
@@ -142,13 +145,173 @@ describe("short workspace contracts", () => {
       }))
     };
 
-    expect(ShortWorkspaceSnapshotSchema.parse(snapshot).stages).toHaveLength(6);
+    const parsed = ShortWorkspaceSnapshotSchema.parse(snapshot);
+    expect(parsed.stages).toHaveLength(6);
+    expect(parsed).not.toHaveProperty("activeAgentId");
+    expect(parsed).not.toHaveProperty("activeSectionId");
     expect(() =>
       ShortWorkspaceSnapshotSchema.parse({
         ...snapshot,
         stages: snapshot.stages.map((stage, index) =>
           index === 1 ? { ...stage, stageId: "character_design" } : stage
         )
+      })
+    ).toThrow();
+  });
+
+  it("validates active agents and draft section targets", () => {
+    const draftContent = serializeExpertDraftMarkdown(
+      updateExpertDraftSectionBody(
+        createDefaultExpertDraft(),
+        "section-1",
+        "雨夜留下了一枚钥匙。"
+      )
+    );
+    const stages = SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
+      const content = stageId === "draft" ? draftContent : "";
+      return {
+        stageId,
+        title: stageId,
+        content,
+        revision: createShortWorkspaceContentRevision(content)
+      };
+    });
+    const base = {
+      id: "book_1",
+      title: "测试短篇",
+      categories: ["悬疑"],
+      stages
+    };
+
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "plot_refine",
+        activeAgentId: "plot_design"
+      })
+    ).not.toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "plot_refine",
+        activeAgentId: "outline"
+      })
+    ).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "plot_refine",
+        activeAgentId: "plot_design",
+        activeSectionId: "section-1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft"
+      })
+    ).not.toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeSectionId: "section-1"
+      })
+    ).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "expert_draft_coordinator"
+      })
+    ).not.toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "expert_draft_coordinator",
+        activeSectionId: "section-1"
+      })
+    ).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "expert_section_writer",
+        activeSectionId: "section-1"
+      })
+    ).not.toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "expert_section_writer"
+      })
+    ).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "expert_section_writer",
+        activeSectionId: "section-404"
+      })
+    ).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        activeStageId: "draft",
+        activeAgentId: "outline"
+      })
+    ).toThrow();
+
+    const longDraft = serializeExpertDraftMarkdown({
+      sections: [
+        {
+          id: "section-1",
+          title: "第一节",
+          wordCountRequirement: "",
+          body: "雨".repeat(20_100),
+          characterState: ""
+        },
+        {
+          id: "section-2",
+          title: "第二节",
+          wordCountRequirement: "",
+          body: "天亮了。",
+          characterState: ""
+        }
+      ]
+    });
+    const truncatedStages = stages.map((stage) =>
+      stage.stageId === "draft"
+        ? {
+            ...stage,
+            content: longDraft.slice(0, 20_000),
+            revision: createShortWorkspaceContentRevision(longDraft),
+            truncated: true,
+            originalLength: longDraft.length
+          }
+        : stage
+    );
+    const truncatedTarget = {
+      ...base,
+      stages: truncatedStages,
+      activeStageId: "draft",
+      activeAgentId: "expert_section_writer",
+      activeSectionId: "section-2"
+    };
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...truncatedTarget,
+        expertDraftSectionIds: ["section-1", "section-2"]
+      })
+    ).not.toThrow();
+    expect(() => ShortWorkspaceSnapshotSchema.parse(truncatedTarget)).toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...truncatedTarget,
+        expertDraftSectionIds: ["section-1", "section-404"]
       })
     ).toThrow();
   });

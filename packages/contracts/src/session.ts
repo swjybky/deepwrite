@@ -2,6 +2,7 @@ import { z } from "zod";
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
 import {
   AgentProviderRuntimeConfigSchema,
+  TemperatureSchema,
   ThinkingLevelSchema
 } from "./models";
 import type { ThinkingLevel } from "./models";
@@ -14,6 +15,12 @@ import {
 } from "./workspace";
 
 export type { ThinkingLevel } from "./models";
+
+export const AgentWriteApprovalModeSchema = z.enum([
+  "request-approval",
+  "auto-approve"
+]);
+export type AgentWriteApprovalMode = z.infer<typeof AgentWriteApprovalModeSchema>;
 
 export const AgentRuntimeRefSchema = z.object({
   provider: z.string().min(1),
@@ -46,10 +53,13 @@ export const ActiveResourceSnapshotSchema = z.object({
 });
 export type ActiveResourceSnapshot = z.infer<typeof ActiveResourceSnapshotSchema>;
 
+export const ATTACHED_CONTEXT_MAX_ITEMS = 64;
+export const ATTACHED_CONTEXT_MAX_CONTENT_LENGTH = 20_000;
+
 const AttachedContextSnapshotBaseSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1).max(240),
-  content: z.string().max(12_000)
+  content: z.string().max(ATTACHED_CONTEXT_MAX_CONTENT_LENGTH)
 });
 
 export const AttachedSkillSnapshotSchema = AttachedContextSnapshotBaseSchema.extend({
@@ -71,8 +81,14 @@ export type AttachedContextSnapshot = z.infer<typeof AttachedContextSnapshotSche
 export const WorkspaceRuntimeContextSchema = z.object({
   activeResource: ActiveResourceSnapshotSchema.optional(),
   shortWorkspace: ShortWorkspaceSnapshotSchema.optional(),
-  attachedSkills: z.array(AttachedSkillSnapshotSchema).max(12).optional(),
-  attachedMaterials: z.array(AttachedMaterialSnapshotSchema).max(12).optional()
+  attachedSkills: z
+    .array(AttachedSkillSnapshotSchema)
+    .max(ATTACHED_CONTEXT_MAX_ITEMS)
+    .optional(),
+  attachedMaterials: z
+    .array(AttachedMaterialSnapshotSchema)
+    .max(ATTACHED_CONTEXT_MAX_ITEMS)
+    .optional()
 }).superRefine((value, context) => {
   const shortWorkspace = value.shortWorkspace;
   const active = value.activeResource;
@@ -98,6 +114,8 @@ export const SessionPromptCommandPayloadSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
   modelId: z.string().min(1).max(120).optional(),
   thinkingLevel: ThinkingLevelSchema.optional(),
+  temperature: TemperatureSchema.optional(),
+  writeApprovalMode: AgentWriteApprovalModeSchema.optional(),
   workspaceContext: WorkspaceRuntimeContextSchema.optional()
 });
 export type SessionPromptCommandPayload = z.infer<typeof SessionPromptCommandPayloadSchema>;
@@ -131,6 +149,45 @@ export const SessionPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   }
 });
 
+export const SessionAbortCommandPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1)
+});
+export type SessionAbortCommandPayload = z.infer<typeof SessionAbortCommandPayloadSchema>;
+
+export const SessionAbortAcceptedPayloadSchema = SessionAbortCommandPayloadSchema.extend({
+  abortedAt: z.string().datetime()
+});
+export type SessionAbortAcceptedPayload = z.infer<typeof SessionAbortAcceptedPayloadSchema>;
+
+function validateAbortCommandContext(
+  value: {
+    context: { sessionId?: string | undefined; runId?: string | undefined };
+    payload: SessionAbortCommandPayload;
+  },
+  context: z.core.$RefinementCtx<any>
+): void {
+  if (value.context.sessionId !== value.payload.sessionId) {
+    context.addIssue({
+      code: "custom",
+      path: ["context", "sessionId"],
+      message: "Envelope sessionId must match abort payload."
+    });
+  }
+  if (value.context.runId !== value.payload.runId) {
+    context.addIssue({
+      code: "custom",
+      path: ["context", "runId"],
+      message: "Envelope runId must match abort payload."
+    });
+  }
+}
+
+export const SessionAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("session.abort"),
+  payload: SessionAbortCommandPayloadSchema
+}).superRefine(validateAbortCommandContext);
+
 export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
   runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
   agentProfile: ShortWorkspaceAgentProfileSchema.optional()
@@ -157,6 +214,11 @@ export const AgentPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
     });
   }
 });
+
+export const AgentAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("agent.abort"),
+  payload: SessionAbortCommandPayloadSchema
+}).superRefine(validateAbortCommandContext);
 
 const AgentEventIdentitySchema = z.object({
   sessionId: z.string().min(1),
@@ -202,6 +264,19 @@ export const AgentToolRequestedPayloadSchema = z.object({
   runtime: AgentRuntimeRefSchema
 });
 export type AgentToolRequestedPayload = z.infer<typeof AgentToolRequestedPayloadSchema>;
+
+export const AgentToolCallStreamPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  streamId: z.string().min(1),
+  toolCallId: z.string().min(1).optional(),
+  toolName: z.string().min(1).optional(),
+  phase: z.enum(["start", "delta", "end"]),
+  argumentsDelta: z.string(),
+  args: z.unknown().optional(),
+  runtime: AgentRuntimeRefSchema
+});
+export type AgentToolCallStreamPayload = z.infer<typeof AgentToolCallStreamPayloadSchema>;
 
 export const AgentToolCompletedPayloadSchema = z.object({
   sessionId: z.string().min(1),
@@ -271,6 +346,11 @@ export const AgentToolRequestedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   payload: AgentToolRequestedPayloadSchema
 }).superRefine(validateAgentEventContext);
 
+export const AgentToolCallStreamEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("tool.call_stream"),
+  payload: AgentToolCallStreamPayloadSchema
+}).superRefine(validateAgentEventContext);
+
 export const AgentToolCompletedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("tool.execution_completed"),
   payload: AgentToolCompletedPayloadSchema
@@ -318,6 +398,10 @@ export type AgentMessageDeltaEventEnvelope = Envelope<AgentMessageDeltaPayload, 
 export type AgentThinkingDeltaEventEnvelope = Envelope<AgentThinkingDeltaPayload, "agent.thinking_delta">;
 export type AgentMessageCompletedEventEnvelope = Envelope<AgentMessageCompletedPayload, "agent.message_completed">;
 export type AgentToolRequestedEventEnvelope = Envelope<AgentToolRequestedPayload, "tool.call_requested">;
+export type AgentToolCallStreamEventEnvelope = Envelope<
+  AgentToolCallStreamPayload,
+  "tool.call_stream"
+>;
 export type AgentToolCompletedEventEnvelope = Envelope<AgentToolCompletedPayload, "tool.execution_completed">;
 export type WorkspaceEditorMutationEventEnvelope = Envelope<
   WorkspaceEditorMutationPayload,

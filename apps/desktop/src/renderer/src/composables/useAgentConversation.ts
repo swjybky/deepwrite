@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import type {
   AgentRuntimeRef,
   DeepWriteApi,
@@ -10,49 +10,511 @@ import type {
 } from "@deepwrite/contracts";
 import {
   SHORT_WORKSPACE_STAGE_IDS,
-  createShortWorkspaceContentRevision
+  createShortWorkspaceContentRevision,
+  parseExpertDraftMarkdown
 } from "@deepwrite/contracts";
-import type { ChatMessage } from "../types/conversation";
+import type {
+  AgentApprovalMode,
+  AgentEditProposal,
+  AgentTextDiffHunk,
+  AgentTextDiffLine,
+  ChatMessage,
+  ConversationHistoryItem
+} from "../types/conversation";
 import type { WorkspaceDocument } from "../types/workspace";
+
+interface ConversationStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
 
 interface UseAgentConversationOptions {
   api: () => DeepWriteApi | undefined;
   initialMessages?: ChatMessage[];
   idleTimeoutMs?: number;
+  persistenceKey?: string;
+  storage?: ConversationStorage;
+  onPersistenceError?: () => void;
 }
+
+interface StoredConversation {
+  sessionId: string;
+  messages: ChatMessage[];
+  draft: string;
+  approvalMode: AgentApprovalMode;
+  createdAt: string;
+  updatedAt: string;
+  selectedModelId: string;
+  thinkingLevel: ThinkingLevel;
+  temperature: number;
+}
+
+interface StoredConversationEnvelope {
+  version: 1;
+  activeSessionId: string;
+  conversations: StoredConversation[];
+}
+
+const MAX_STORED_CONVERSATIONS = 20;
+const PERSISTENCE_DEBOUNCE_MS = 180;
 
 export interface AgentConversationController {
   messages: Ref<ChatMessage[]>;
   draft: Ref<string>;
   sessionId: Ref<string>;
+  approvalMode: Ref<AgentApprovalMode>;
   thinkingLevel: Ref<ThinkingLevel>;
+  temperature: Ref<number>;
   configuredModels: Ref<ModelConfig[]>;
   selectedModelId: Ref<string>;
   runtime: Ref<AgentRuntimeRef | null>;
   conversationError: Ref<string | null>;
+  history: Readonly<Ref<ConversationHistoryItem[]>>;
   isBusy: Readonly<Ref<boolean>>;
+  hasPendingEditReview: Readonly<Ref<boolean>>;
   canSend: Readonly<Ref<boolean>>;
+  canStop: Readonly<Ref<boolean>>;
   acceptsRunEvent(sessionId: string, runId: string): boolean;
+  approvalModeForRun(sessionId: string, runId: string): AgentApprovalMode | undefined;
   markToolConflict(runId: string, toolCallId: string, summary: string): void;
+  getEditProposal(runId: string, proposalId: string): AgentEditProposal | undefined;
+  upsertEditProposal(runId: string, proposal: AgentEditProposal): AgentEditProposal;
+  updateEditProposal(
+    runId: string,
+    proposalId: string,
+    patch: Partial<AgentEditProposal>
+  ): AgentEditProposal | undefined;
   handleEvent(event: SystemEventEnvelope): void;
   sendMessage(
     activeDocument: WorkspaceDocument,
-    workspaceDocuments?: WorkspaceDocument[]
+    workspaceDocuments?: WorkspaceDocument[],
+    attachments?: WorkspaceContextAttachments
   ): Promise<void>;
+  stopGeneration(): Promise<boolean>;
   newConversation(): void;
+  selectConversation(sessionId: string): boolean;
   applyModelSettings(settings: ModelSettings): void;
   selectModel(modelId: string): void;
   selectThinkingLevel(level: ThinkingLevel): void;
+  selectTemperature(temperature: number): void;
+  selectApprovalMode(mode: AgentApprovalMode): void;
   useSuggestion(value: string): void;
   dispose(): void;
 }
+
+export type WorkspaceContextAttachments = Pick<
+  WorkspaceRuntimeContext,
+  "attachedSkills" | "attachedMaterials"
+>;
 
 function id(prefix: string): string {
   return `${prefix}_${globalThis.crypto.randomUUID()}`;
 }
 
+function cloneTextDiffLine(line: AgentTextDiffLine): AgentTextDiffLine {
+  return { ...line };
+}
+
+function cloneTextDiffHunk(hunk: AgentTextDiffHunk): AgentTextDiffHunk {
+  return {
+    ...hunk,
+    lines: hunk.lines.map(cloneTextDiffLine)
+  };
+}
+
+function cloneEditProposal(proposal: AgentEditProposal): AgentEditProposal {
+  return {
+    ...proposal,
+    toolCallIds: [...proposal.toolCallIds],
+    hunks: proposal.hunks.map(cloneTextDiffHunk)
+  };
+}
+
 function cloneMessage(message: ChatMessage): ChatMessage {
-  return { ...message };
+  return {
+    ...message,
+    ...(message.tools
+      ? { tools: message.tools.map((tool) => ({ ...tool })) }
+      : {}),
+    ...(message.toolCalls
+      ? { toolCalls: message.toolCalls.map((toolCall) => ({ ...toolCall })) }
+      : {}),
+    ...(message.processingSteps
+      ? { processingSteps: message.processingSteps.map((step) => ({ ...step })) }
+      : {}),
+    ...(message.editProposals
+      ? { editProposals: message.editProposals.map(cloneEditProposal) }
+      : {})
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function validDate(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function nonnegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function parseStoredTextDiffLine(value: unknown): AgentTextDiffLine | undefined {
+  if (
+    !isRecord(value) ||
+    !["context", "addition", "deletion"].includes(String(value.type)) ||
+    typeof value.text !== "string" ||
+    (value.oldLineNumber !== undefined && !nonnegativeInteger(value.oldLineNumber)) ||
+    (value.newLineNumber !== undefined && !nonnegativeInteger(value.newLineNumber))
+  ) {
+    return undefined;
+  }
+  return {
+    type: value.type as AgentTextDiffLine["type"],
+    text: value.text,
+    ...(value.oldLineNumber === undefined
+      ? {}
+      : { oldLineNumber: value.oldLineNumber as number }),
+    ...(value.newLineNumber === undefined
+      ? {}
+      : { newLineNumber: value.newLineNumber as number })
+  };
+}
+
+function parseStoredTextDiffHunk(value: unknown): AgentTextDiffHunk | undefined {
+  if (
+    !isRecord(value) ||
+    !nonnegativeInteger(value.oldStart) ||
+    !nonnegativeInteger(value.oldLines) ||
+    !nonnegativeInteger(value.newStart) ||
+    !nonnegativeInteger(value.newLines) ||
+    !Array.isArray(value.lines)
+  ) {
+    return undefined;
+  }
+  const lines = value.lines
+    .map(parseStoredTextDiffLine)
+    .filter((line): line is AgentTextDiffLine => line !== undefined);
+  if (lines.length !== value.lines.length) return undefined;
+  return {
+    oldStart: value.oldStart,
+    oldLines: value.oldLines,
+    newStart: value.newStart,
+    newLines: value.newLines,
+    lines
+  };
+}
+
+function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.runId !== "string" ||
+    typeof value.workspaceId !== "string" ||
+    !SHORT_WORKSPACE_STAGE_IDS.includes(
+      value.stageId as (typeof SHORT_WORKSPACE_STAGE_IDS)[number]
+    ) ||
+    typeof value.documentId !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.summary !== "string" ||
+    !["pending", "accepting", "accepted", "rejected", "conflict", "error"].includes(
+      String(value.status)
+    ) ||
+    typeof value.baseRevision !== "string" ||
+    typeof value.proposedRevision !== "string" ||
+    (value.proposedText !== undefined && typeof value.proposedText !== "string") ||
+    !Array.isArray(value.toolCallIds) ||
+    !value.toolCallIds.every((toolCallId) => typeof toolCallId === "string") ||
+    !nonnegativeInteger(value.additions) ||
+    !nonnegativeInteger(value.deletions) ||
+    !Array.isArray(value.hunks) ||
+    (value.truncated !== undefined && typeof value.truncated !== "boolean") ||
+    (value.statusMessage !== undefined && typeof value.statusMessage !== "string") ||
+    !validDate(value.createdAt) ||
+    !validDate(value.updatedAt)
+  ) {
+    return undefined;
+  }
+  const hunks = value.hunks
+    .map(parseStoredTextDiffHunk)
+    .filter((hunk): hunk is AgentTextDiffHunk => hunk !== undefined);
+  if (hunks.length !== value.hunks.length) return undefined;
+  return {
+    id: value.id,
+    runId: value.runId,
+    workspaceId: value.workspaceId,
+    stageId: value.stageId as AgentEditProposal["stageId"],
+    documentId: value.documentId,
+    title: value.title,
+    summary: value.summary,
+    status: value.status === "accepting"
+      ? "pending"
+      : value.status as AgentEditProposal["status"],
+    baseRevision: value.baseRevision,
+    proposedRevision: value.proposedRevision,
+    ...(value.proposedText === undefined ? {} : { proposedText: value.proposedText }),
+    toolCallIds: [...value.toolCallIds] as string[],
+    additions: value.additions,
+    deletions: value.deletions,
+    hunks,
+    ...(value.truncated === undefined ? {} : { truncated: value.truncated }),
+    ...(value.statusMessage === undefined ? {} : { statusMessage: value.statusMessage }),
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt
+  };
+}
+
+function parseStoredMessage(value: unknown): ChatMessage | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    typeof value.id !== "string" ||
+    (value.role !== "user" && value.role !== "assistant") ||
+    typeof value.content !== "string" ||
+    !validDate(value.createdAt)
+  ) {
+    return undefined;
+  }
+
+  const status = ["streaming", "completed", "stopped", "error"].includes(
+    String(value.status)
+  )
+    ? (value.status as ChatMessage["status"])
+    : undefined;
+  const message: ChatMessage = {
+    id: value.id,
+    role: value.role,
+    content: value.content,
+    createdAt: value.createdAt,
+    ...(status ? { status: status === "streaming" ? "stopped" : status } : {})
+  };
+
+  for (const key of [
+    "runId",
+    "thinking",
+    "processingStartedAt",
+    "processingCompletedAt",
+    "errorMessage"
+  ] as const) {
+    if (typeof value[key] === "string") {
+      message[key] = value[key];
+    }
+  }
+  if (value.activityOnly === true) message.activityOnly = true;
+
+  if (Array.isArray(value.tools)) {
+    message.tools = value.tools.flatMap((tool) => {
+      if (
+        !isRecord(tool) ||
+        typeof tool.id !== "string" ||
+        typeof tool.name !== "string" ||
+        !["running", "completed", "error"].includes(String(tool.status))
+      ) {
+        return [];
+      }
+      return [{
+        id: tool.id,
+        name: tool.name,
+        status: tool.status as "running" | "completed" | "error",
+        ...(typeof tool.summary === "string" ? { summary: tool.summary } : {})
+      }];
+    });
+  }
+
+  if (Array.isArray(value.toolCalls)) {
+    message.toolCalls = value.toolCalls.flatMap((toolCall) => {
+      if (
+        !isRecord(toolCall) ||
+        typeof toolCall.id !== "string" ||
+        typeof toolCall.name !== "string" ||
+        !["preparing", "running", "completed", "error"].includes(String(toolCall.status)) ||
+        typeof toolCall.requestedAt !== "string"
+      ) {
+        return [];
+      }
+      return [{
+        id: toolCall.id,
+        ...(typeof toolCall.streamId === "string" ? { streamId: toolCall.streamId } : {}),
+        name: toolCall.name,
+        args: toolCall.args,
+        ...(typeof toolCall.argumentsText === "string"
+          ? { argumentsText: toolCall.argumentsText }
+          : {}),
+        ...(typeof toolCall.argumentsComplete === "boolean"
+          ? { argumentsComplete: toolCall.argumentsComplete }
+          : {}),
+        status: toolCall.status as "preparing" | "running" | "completed" | "error",
+        requestedAt: toolCall.requestedAt,
+        ...(typeof toolCall.completedAt === "string"
+          ? { completedAt: toolCall.completedAt }
+          : {}),
+        ...(typeof toolCall.resultSummary === "string"
+          ? { resultSummary: toolCall.resultSummary }
+          : {}),
+        ...(typeof toolCall.isError === "boolean" ? { isError: toolCall.isError } : {})
+      }];
+    });
+  }
+
+  if (Array.isArray(value.processingSteps)) {
+    const processingSteps: NonNullable<ChatMessage["processingSteps"]> = [];
+    for (const step of value.processingSteps) {
+      if (
+        !isRecord(step) ||
+        typeof step.id !== "string" ||
+        typeof step.createdAt !== "string"
+      ) {
+        continue;
+      }
+      if (step.type === "thinking" && typeof step.content === "string") {
+        processingSteps.push({
+          id: step.id,
+          type: "thinking",
+          content: step.content,
+          createdAt: step.createdAt
+        });
+        continue;
+      }
+      if (step.type === "response" && typeof step.content === "string") {
+        processingSteps.push({
+          id: step.id,
+          type: "response",
+          content: step.content,
+          createdAt: step.createdAt
+        });
+        continue;
+      }
+      if (step.type === "tool" && typeof step.toolCallId === "string") {
+        processingSteps.push({
+          id: step.id,
+          type: "tool",
+          toolCallId: step.toolCallId,
+          createdAt: step.createdAt
+        });
+      }
+    }
+    message.processingSteps = processingSteps;
+  }
+
+  if (Array.isArray(value.editProposals)) {
+    const editProposals = value.editProposals
+      .map(parseStoredEditProposal)
+      .filter((proposal): proposal is AgentEditProposal => proposal !== undefined);
+    if (
+      editProposals.length !== value.editProposals.length ||
+      editProposals.some((proposal) => proposal.runId !== message.runId)
+    ) {
+      return undefined;
+    }
+    message.editProposals = editProposals;
+  }
+
+  if (message.status === "stopped" && message.processingStartedAt && !message.processingCompletedAt) {
+    message.processingCompletedAt = new Date().toISOString();
+  }
+  return message;
+}
+
+function parseStoredConversation(value: unknown): StoredConversation | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.sessionId !== "string" ||
+    !Array.isArray(value.messages) ||
+    typeof value.draft !== "string" ||
+    !validDate(value.createdAt) ||
+    !validDate(value.updatedAt) ||
+    typeof value.selectedModelId !== "string" ||
+    (value.approvalMode !== undefined &&
+      value.approvalMode !== "request-approval" &&
+      value.approvalMode !== "auto-approve") ||
+    typeof value.thinkingLevel !== "string" ||
+    typeof value.temperature !== "number" ||
+    !Number.isFinite(value.temperature)
+  ) {
+    return undefined;
+  }
+  const messages = value.messages
+    .map(parseStoredMessage)
+    .filter((message): message is ChatMessage => message !== undefined);
+  if (messages.length !== value.messages.length) return undefined;
+  return {
+    sessionId: value.sessionId,
+    messages,
+    draft: value.draft,
+    approvalMode:
+      value.approvalMode === "auto-approve" ? "auto-approve" : "request-approval",
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    selectedModelId: value.selectedModelId,
+    thinkingLevel: value.thinkingLevel,
+    temperature: value.temperature
+  };
+}
+
+function loadStoredEnvelope(
+  storage: ConversationStorage | undefined,
+  key: string | undefined
+): StoredConversationEnvelope | undefined {
+  if (!storage || !key) return undefined;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return undefined;
+    const value: unknown = JSON.parse(raw);
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      typeof value.activeSessionId !== "string" ||
+      !Array.isArray(value.conversations)
+    ) {
+      return undefined;
+    }
+    const conversations = value.conversations
+      .map(parseStoredConversation)
+      .filter((conversation): conversation is StoredConversation => conversation !== undefined);
+    return {
+      version: 1,
+      activeSessionId: value.activeSessionId,
+      conversations: conversations.slice(0, MAX_STORED_CONVERSATIONS)
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveConversationStorage(
+  preferred: ConversationStorage | undefined
+): ConversationStorage | undefined {
+  if (preferred) return preferred;
+  try {
+    return typeof localStorage === "undefined" ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function compactConversationText(value: string, limit: number): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > limit ? `${compact.slice(0, limit - 1)}…` : compact;
+}
+
+function historyItemFor(
+  conversation: StoredConversation,
+  currentSessionId: string
+): ConversationHistoryItem {
+  const firstUserMessage = conversation.messages.find((message) => message.role === "user");
+  const lastVisibleMessage = [...conversation.messages]
+    .reverse()
+    .find((message) => message.content.trim());
+  return {
+    sessionId: conversation.sessionId,
+    title: compactConversationText(firstUserMessage?.content ?? "未命名对话", 42),
+    preview: compactConversationText(lastVisibleMessage?.content ?? conversation.draft, 76),
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+    messageCount: conversation.messages.length,
+    turnCount: conversation.messages.filter((message) => message.role === "user").length,
+    current: conversation.sessionId === currentSessionId
+  };
 }
 
 function rememberBounded(set: Set<string>, value: string, limit = 2_000): void {
@@ -69,31 +531,170 @@ function rememberBounded(set: Set<string>, value: string, limit = 2_000): void {
 export function useAgentConversation(
   options: UseAgentConversationOptions
 ): AgentConversationController {
-  const messages = ref<ChatMessage[]>((options.initialMessages ?? []).map(cloneMessage));
-  const draft = ref("");
-  const sessionId = ref(id("session"));
-  const thinkingLevel = ref<ThinkingLevel>("medium");
+  const persistenceStorage = resolveConversationStorage(options.storage);
+  const storedEnvelope = loadStoredEnvelope(persistenceStorage, options.persistenceKey);
+  const storedActive = storedEnvelope?.conversations.find(
+    (conversation) => conversation.sessionId === storedEnvelope.activeSessionId
+  );
+  let conversationClock = Math.max(
+    Date.now(),
+    ...(storedEnvelope?.conversations.map((conversation) => Date.parse(conversation.updatedAt)) ?? [])
+  );
+  function nextConversationTimestamp(): string {
+    conversationClock = Math.max(Date.now(), conversationClock + 1);
+    return new Date(conversationClock).toISOString();
+  }
+  const initialTimestamp = new Date(conversationClock).toISOString();
+  const messages = ref<ChatMessage[]>(
+    (storedActive?.messages ?? options.initialMessages ?? []).map(cloneMessage)
+  );
+  const draft = ref(storedActive?.draft ?? "");
+  const sessionId = ref(storedActive?.sessionId ?? id("session"));
+  const approvalMode = ref<AgentApprovalMode>(
+    storedActive?.approvalMode ?? "request-approval"
+  );
+  const thinkingLevel = ref<ThinkingLevel>(storedActive?.thinkingLevel ?? "medium");
+  const temperature = ref(storedActive?.temperature ?? 0.7);
   const configuredModels = ref<ModelConfig[]>([]);
   const defaultModelId = ref("");
-  const selectedModelId = ref("");
+  const selectedModelId = ref(storedActive?.selectedModelId ?? "");
   const runtime = ref<AgentRuntimeRef | null>(null);
   const conversationError = ref<string | null>(null);
+  const storedConversations = ref<StoredConversation[]>(
+    (storedEnvelope?.conversations ?? []).map((conversation) => ({
+      ...conversation,
+      messages: conversation.messages.map(cloneMessage)
+    }))
+  );
+  const currentCreatedAt = ref(
+    storedActive?.createdAt ?? messages.value[0]?.createdAt ?? initialTimestamp
+  );
+  const currentUpdatedAt = ref(storedActive?.updatedAt ?? initialTimestamp);
   const submitting = ref(false);
+  const stopping = ref(false);
   const activeRunId = ref<string | null>(null);
   const handledEventIds = new Set<string>();
   const finishedRunIds = new Set<string>();
   const runMessageIds = new Map<string, string>();
   const observedRunByAttempt = new Map<number, string>();
+  const approvalModeByAttempt = new Map<number, AgentApprovalMode>();
+  const approvalModeByRun = new Map<string, AgentApprovalMode>();
   let epoch = 0;
   let attemptSequence = 0;
   const pendingAttemptId = ref<number | null>(null);
   let idleTimer: number | undefined;
+  let persistenceTimer: number | undefined;
+  let persistenceErrorReported = false;
 
   const isBusy = computed(
     () => pendingAttemptId.value !== null || submitting.value || activeRunId.value !== null
   );
+  const hasPendingEditReview = computed(() =>
+    messages.value.some((message) =>
+      message.editProposals?.some(
+        (proposal) => proposal.status === "pending" || proposal.status === "accepting"
+      )
+    )
+  );
   const canSend = computed(
-    () => Boolean(options.api()) && !isBusy.value && draft.value.trim().length > 0
+    () =>
+      Boolean(options.api()) &&
+      !isBusy.value &&
+      !hasPendingEditReview.value &&
+      draft.value.trim().length > 0
+  );
+  const canStop = computed(
+    () => Boolean(options.api()) && activeRunId.value !== null && !stopping.value
+  );
+  const history = computed<ConversationHistoryItem[]>(() => {
+    const activeSnapshot = currentStoredConversation();
+    const conversations = storedConversations.value.filter(
+      (conversation) => conversation.sessionId !== sessionId.value
+    );
+    if (hasConversationContent(activeSnapshot)) {
+      conversations.push(activeSnapshot);
+    }
+    return conversations
+      .map((conversation) => historyItemFor(conversation, sessionId.value))
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  });
+
+  function currentStoredConversation(): StoredConversation {
+    return {
+      sessionId: sessionId.value,
+      messages: messages.value.map(cloneMessage),
+      draft: draft.value,
+      approvalMode: approvalMode.value,
+      createdAt: currentCreatedAt.value,
+      updatedAt: currentUpdatedAt.value,
+      selectedModelId: selectedModelId.value,
+      thinkingLevel: thinkingLevel.value,
+      temperature: temperature.value
+    };
+  }
+
+  function hasConversationContent(conversation: StoredConversation): boolean {
+    return conversation.messages.length > 0 || conversation.draft.trim().length > 0;
+  }
+
+  function storeCurrentConversation(): void {
+    const current = currentStoredConversation();
+    const next = storedConversations.value.filter(
+      (conversation) => conversation.sessionId !== current.sessionId
+    );
+    if (hasConversationContent(current)) {
+      next.push(current);
+    }
+    storedConversations.value = next
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .slice(0, MAX_STORED_CONVERSATIONS);
+  }
+
+  function persistConversations(): void {
+    if (!persistenceStorage || !options.persistenceKey) return;
+    storeCurrentConversation();
+    const envelope: StoredConversationEnvelope = {
+      version: 1,
+      activeSessionId: sessionId.value,
+      conversations: storedConversations.value
+    };
+    try {
+      persistenceStorage.setItem(options.persistenceKey, JSON.stringify(envelope));
+      persistenceErrorReported = false;
+    } catch {
+      if (!persistenceErrorReported) {
+        persistenceErrorReported = true;
+        options.onPersistenceError?.();
+      }
+    }
+  }
+
+  function scheduleConversationPersistence(): void {
+    if (!persistenceStorage || !options.persistenceKey) return;
+    if (persistenceTimer !== undefined) {
+      globalThis.clearTimeout(persistenceTimer);
+    }
+    persistenceTimer = globalThis.setTimeout(() => {
+      persistenceTimer = undefined;
+      persistConversations();
+    }, PERSISTENCE_DEBOUNCE_MS);
+  }
+
+  function flushConversationPersistence(): void {
+    if (persistenceTimer !== undefined) {
+      globalThis.clearTimeout(persistenceTimer);
+      persistenceTimer = undefined;
+    }
+    persistConversations();
+  }
+
+  watch(
+    [messages, draft, approvalMode, selectedModelId, thinkingLevel, temperature],
+    () => {
+      currentUpdatedAt.value = nextConversationTimestamp();
+      scheduleConversationPersistence();
+    },
+    { deep: true, flush: "sync" }
   );
 
   function clearIdleTimer(): void {
@@ -130,6 +731,36 @@ export function useAgentConversation(
     }
     message.status = "error";
     message.errorMessage = messageText;
+    if (message.processingStartedAt) {
+      message.processingCompletedAt = new Date().toISOString();
+    }
+    rememberBounded(finishedRunIds, runId);
+  }
+
+  function markRunStopped(runId: string, eventRuntime?: AgentRuntimeRef): void {
+    const messageId = runMessageIds.get(runId) ?? `${runId}_assistant`;
+    let message = messages.value.find(
+      (item) => item.id === messageId && item.role === "assistant" && item.runId === runId
+    );
+    if (!message) {
+      message = {
+        id: messages.value.some((item) => item.id === messageId)
+          ? `${messageId}_${id("stopped")}`
+          : messageId,
+        role: "assistant",
+        content: "",
+        createdAt: new Date().toISOString(),
+        runId,
+        status: "stopped",
+        ...(eventRuntime ? { runtime: eventRuntime } : {})
+      };
+      messages.value.push(message);
+      runMessageIds.set(runId, message.id);
+    }
+    message.status = "stopped";
+    if (message.processingStartedAt) {
+      message.processingCompletedAt = new Date().toISOString();
+    }
     rememberBounded(finishedRunIds, runId);
   }
 
@@ -139,6 +770,7 @@ export function useAgentConversation(
         continue;
       }
       observedRunByAttempt.delete(attemptId);
+      approvalModeByAttempt.delete(attemptId);
       if (pendingAttemptId.value === attemptId) {
         pendingAttemptId.value = null;
       }
@@ -174,11 +806,13 @@ export function useAgentConversation(
       if (scope.attemptId !== undefined && pendingAttemptId.value === scope.attemptId) {
         pendingAttemptId.value = null;
         observedRunByAttempt.delete(scope.attemptId);
+        approvalModeByAttempt.delete(scope.attemptId);
       }
       submitting.value = false;
+      stopping.value = false;
       conversationError.value = messageText;
       idleTimer = undefined;
-    }, options.idleTimeoutMs ?? 55_000);
+    }, options.idleTimeoutMs ?? 5 * 60_000);
   }
 
   function failProtocol(runId: string, messageText: string, eventRuntime?: AgentRuntimeRef): void {
@@ -188,6 +822,7 @@ export function useAgentConversation(
       activeRunId.value = null;
     }
     submitting.value = false;
+    stopping.value = false;
     conversationError.value = messageText;
     clearIdleTimer();
   }
@@ -195,12 +830,29 @@ export function useAgentConversation(
   function ensureAssistantMessage(
     runId: string,
     messageId: string,
-    eventRuntime?: AgentRuntimeRef
+    eventRuntime?: AgentRuntimeRef,
+    createdAt = new Date().toISOString()
   ): ChatMessage | undefined {
     const mappedMessageId = runMessageIds.get(runId);
     if (mappedMessageId && mappedMessageId !== messageId) {
-      failProtocol(runId, "智能体为同一运行返回了不一致的消息标识。", eventRuntime);
-      return undefined;
+      const placeholder = messages.value.find(
+        (message) =>
+          message.id === mappedMessageId &&
+          message.role === "assistant" &&
+          message.runId === runId &&
+          message.activityOnly
+      );
+      if (!placeholder || messages.value.some((message) => message.id === messageId)) {
+        failProtocol(runId, "智能体为同一运行返回了不一致的消息标识。", eventRuntime);
+        return undefined;
+      }
+      placeholder.id = messageId;
+      placeholder.activityOnly = false;
+      if (eventRuntime) {
+        placeholder.runtime = eventRuntime;
+      }
+      runMessageIds.set(runId, messageId);
+      return placeholder;
     }
 
     const existing = messages.value.find((message) => message.id === messageId);
@@ -210,6 +862,10 @@ export function useAgentConversation(
         return undefined;
       }
       runMessageIds.set(runId, messageId);
+      existing.activityOnly = false;
+      if (eventRuntime) {
+        existing.runtime = eventRuntime;
+      }
       return existing;
     }
 
@@ -217,12 +873,48 @@ export function useAgentConversation(
       id: messageId,
       role: "assistant",
       content: "",
-      createdAt: new Date().toISOString(),
+      createdAt,
       runId,
       status: "streaming",
       ...(eventRuntime ? { runtime: eventRuntime } : {})
     };
     runMessageIds.set(runId, messageId);
+    messages.value.push(message);
+    return message;
+  }
+
+  function ensureActivityMessage(
+    runId: string,
+    eventRuntime: AgentRuntimeRef,
+    createdAt: string
+  ): ChatMessage {
+    const mappedMessageId = runMessageIds.get(runId);
+    const existing = mappedMessageId
+      ? messages.value.find(
+          (message) =>
+            message.id === mappedMessageId &&
+            message.role === "assistant" &&
+            message.runId === runId
+        )
+      : undefined;
+    if (existing) {
+      existing.runtime = eventRuntime;
+      return existing;
+    }
+
+    const message: ChatMessage = {
+      id: `${runId}_assistant`,
+      role: "assistant",
+      content: "",
+      createdAt,
+      runId,
+      status: "streaming",
+      runtime: eventRuntime,
+      activityOnly: true,
+      toolCalls: [],
+      processingSteps: []
+    };
+    runMessageIds.set(runId, message.id);
     messages.value.push(message);
     return message;
   }
@@ -233,6 +925,7 @@ export function useAgentConversation(
       activeRunId.value = null;
     }
     submitting.value = false;
+    stopping.value = false;
     clearIdleTimer();
   }
 
@@ -250,6 +943,31 @@ export function useAgentConversation(
     return observedRunId === undefined || observedRunId === runId;
   }
 
+  function rememberRunApprovalMode(runId: string, mode: AgentApprovalMode): void {
+    approvalModeByRun.set(runId, mode);
+    while (approvalModeByRun.size > 2_000) {
+      const oldest = approvalModeByRun.keys().next().value as string | undefined;
+      if (!oldest) break;
+      approvalModeByRun.delete(oldest);
+    }
+  }
+
+  function approvalModeForRun(
+    eventSessionId: string,
+    runId: string
+  ): AgentApprovalMode | undefined {
+    if (eventSessionId !== sessionId.value) return undefined;
+    const knownMode = approvalModeByRun.get(runId);
+    if (knownMode) return knownMode;
+    const attemptId = pendingAttemptId.value;
+    if (attemptId === null) return undefined;
+    const observedRunId = observedRunByAttempt.get(attemptId);
+    if (observedRunId && observedRunId !== runId) return undefined;
+    const pendingMode = approvalModeByAttempt.get(attemptId);
+    if (pendingMode) rememberRunApprovalMode(runId, pendingMode);
+    return pendingMode;
+  }
+
   function markToolConflict(
     runId: string,
     toolCallId: string,
@@ -263,9 +981,105 @@ export function useAgentConversation(
         candidate.runId === runId
     );
     const tool = message?.tools?.find((candidate) => candidate.id === toolCallId);
-    if (!tool) return;
-    tool.status = "error";
-    tool.summary = summary;
+    if (tool) {
+      tool.status = "error";
+      tool.summary = summary;
+    }
+    const toolCall = message?.toolCalls?.find(
+      (candidate) => candidate.id === toolCallId
+    );
+    if (toolCall) {
+      toolCall.status = "error";
+      toolCall.resultSummary = summary;
+      toolCall.isError = true;
+    }
+  }
+
+  function messageForEditProposal(runId: string): ChatMessage | undefined {
+    const mappedMessageId = runMessageIds.get(runId);
+    const mapped = mappedMessageId
+      ? messages.value.find(
+          (message) =>
+            message.id === mappedMessageId &&
+            message.role === "assistant" &&
+            message.runId === runId
+        )
+      : undefined;
+    return mapped ?? messages.value.find(
+      (message) => message.role === "assistant" && message.runId === runId
+    );
+  }
+
+  function ensureEditProposalMessage(runId: string, createdAt: string): ChatMessage {
+    const existing = messageForEditProposal(runId);
+    if (existing) return existing;
+
+    const preferredId = `${runId}_assistant`;
+    const message: ChatMessage = {
+      id: messages.value.some((candidate) => candidate.id === preferredId)
+        ? `${preferredId}_${id("proposal")}`
+        : preferredId,
+      role: "assistant",
+      content: "",
+      createdAt,
+      runId,
+      status: activeRunId.value === runId ? "streaming" : "completed",
+      activityOnly: true,
+      editProposals: []
+    };
+    messages.value.push(message);
+    runMessageIds.set(runId, message.id);
+    return message;
+  }
+
+  function getEditProposal(
+    runId: string,
+    proposalId: string
+  ): AgentEditProposal | undefined {
+    const proposal = messageForEditProposal(runId)?.editProposals?.find(
+      (candidate) => candidate.id === proposalId
+    );
+    return proposal ? cloneEditProposal(proposal) : undefined;
+  }
+
+  function upsertEditProposal(
+    runId: string,
+    proposal: AgentEditProposal
+  ): AgentEditProposal {
+    const normalized = cloneEditProposal({ ...proposal, runId });
+    const message = ensureEditProposalMessage(runId, normalized.createdAt);
+    const proposals = message.editProposals ?? [];
+    const existingIndex = proposals.findIndex((candidate) => candidate.id === normalized.id);
+    if (existingIndex >= 0) {
+      proposals[existingIndex] = normalized;
+      message.editProposals = proposals;
+    } else {
+      message.editProposals = [...proposals, normalized];
+    }
+    return cloneEditProposal(normalized);
+  }
+
+  function updateEditProposal(
+    runId: string,
+    proposalId: string,
+    patch: Partial<AgentEditProposal>
+  ): AgentEditProposal | undefined {
+    const message = messageForEditProposal(runId);
+    const proposalIndex = message?.editProposals?.findIndex(
+      (candidate) => candidate.id === proposalId
+    ) ?? -1;
+    if (!message?.editProposals || proposalIndex < 0) return undefined;
+
+    const existing = message.editProposals[proposalIndex]!;
+    const next = cloneEditProposal({
+      ...existing,
+      ...patch,
+      id: existing.id,
+      runId: existing.runId,
+      updatedAt: patch.updatedAt ?? new Date().toISOString()
+    });
+    message.editProposals[proposalIndex] = next;
+    return cloneEditProposal(next);
   }
 
   function handleEvent(event: SystemEventEnvelope): void {
@@ -290,6 +1104,8 @@ export function useAgentConversation(
         return;
       }
       observedRunByAttempt.set(pendingAttemptId.value, runId);
+      const pendingMode = approvalModeByAttempt.get(pendingAttemptId.value);
+      if (pendingMode) rememberRunApprovalMode(runId, pendingMode);
       activeRunId.value = runId;
     }
 
@@ -305,55 +1121,22 @@ export function useAgentConversation(
       const message = ensureAssistantMessage(
         runId,
         event.payload.messageId,
-        event.payload.runtime
+        event.payload.runtime,
+        event.timestamp
       );
       if (message) {
         message.content += event.payload.delta;
-      }
-      return;
-    }
-
-    if (event.type === "tool.call_requested") {
-      const message = ensureAssistantMessage(
-        runId,
-        `${runId}_assistant`,
-        event.payload.runtime
-      );
-      if (message && !message.tools?.some((tool) => tool.id === event.payload.toolCallId)) {
-        message.tools = [
-          ...(message.tools ?? []),
-          {
-            id: event.payload.toolCallId,
-            name: event.payload.toolName,
-            status: "running"
-          }
-        ];
-      }
-      return;
-    }
-
-    if (event.type === "tool.execution_completed") {
-      const message = ensureAssistantMessage(
-        runId,
-        `${runId}_assistant`,
-        event.payload.runtime
-      );
-      if (message) {
-        const tools = message.tools ?? [];
-        const existing = tools.find((tool) => tool.id === event.payload.toolCallId);
-        if (existing) {
-          existing.status = event.payload.isError ? "error" : "completed";
-          existing.summary = event.payload.resultSummary;
+        message.processingStartedAt ??= event.timestamp;
+        const lastStep = message.processingSteps?.at(-1);
+        if (lastStep?.type === "response") {
+          lastStep.content += event.payload.delta;
         } else {
-          message.tools = [
-            ...tools,
-            {
-              id: event.payload.toolCallId,
-              name: event.payload.toolName,
-              status: event.payload.isError ? "error" : "completed",
-              summary: event.payload.resultSummary
-            }
-          ];
+          (message.processingSteps ??= []).push({
+            id: event.id,
+            type: "response",
+            content: event.payload.delta,
+            createdAt: event.timestamp
+          });
         }
       }
       return;
@@ -363,11 +1146,197 @@ export function useAgentConversation(
       const message = ensureAssistantMessage(
         runId,
         event.payload.messageId,
-        event.payload.runtime
+        event.payload.runtime,
+        event.timestamp
       );
       if (message) {
-        message.thinking = `${message.thinking ?? ""}${event.payload.delta}`;
+        message.processingStartedAt ??= event.timestamp;
+        const lastStep = message.processingSteps?.at(-1);
+        if (lastStep?.type === "thinking") {
+          lastStep.content += event.payload.delta;
+          message.thinking = `${message.thinking ?? ""}${event.payload.delta}`;
+        } else {
+          (message.processingSteps ??= []).push({
+            id: event.id,
+            type: "thinking",
+            content: event.payload.delta,
+            createdAt: event.timestamp
+          });
+          message.thinking = message.thinking
+            ? `${message.thinking}\n\n${event.payload.delta}`
+            : event.payload.delta;
+        }
       }
+      return;
+    }
+
+    if (event.type === "tool.call_stream") {
+      const message = ensureActivityMessage(runId, event.payload.runtime, event.timestamp);
+      message.processingStartedAt ??= event.timestamp;
+      let toolCall = event.payload.toolCallId
+        ? message.toolCalls?.find((candidate) => candidate.id === event.payload.toolCallId)
+        : undefined;
+      if (!toolCall) {
+        const streamCandidate = message.toolCalls?.find(
+          (candidate) => candidate.streamId === event.payload.streamId
+        );
+        const hasCompatibleIdentity =
+          !event.payload.toolCallId ||
+          streamCandidate?.id === event.payload.toolCallId ||
+          streamCandidate?.id === event.payload.streamId;
+        if (streamCandidate && hasCompatibleIdentity) {
+          toolCall = streamCandidate;
+        }
+      }
+      if (!toolCall) {
+        toolCall = {
+          id: event.payload.toolCallId ?? event.payload.streamId,
+          streamId: event.payload.streamId,
+          name: event.payload.toolName ?? "tool_call",
+          args: event.payload.args,
+          argumentsText: event.payload.argumentsDelta,
+          argumentsComplete: event.payload.phase === "end",
+          status: "preparing",
+          requestedAt: event.timestamp
+        };
+        (message.toolCalls ??= []).push(toolCall);
+        (message.processingSteps ??= []).push({
+          id: event.id,
+          type: "tool",
+          toolCallId: toolCall.id,
+          createdAt: event.timestamp
+        });
+      } else {
+        const previousId = toolCall.id;
+        toolCall.streamId = event.payload.streamId;
+        toolCall.name = event.payload.toolName ?? toolCall.name;
+        toolCall.argumentsText = `${toolCall.argumentsText ?? ""}${event.payload.argumentsDelta}`;
+        toolCall.argumentsComplete = event.payload.phase === "end";
+        if (event.payload.args !== undefined) {
+          toolCall.args = event.payload.args;
+        }
+        if (event.payload.toolCallId && previousId !== event.payload.toolCallId) {
+          toolCall.id = event.payload.toolCallId;
+          for (const step of message.processingSteps ?? []) {
+            if (step.type === "tool" && step.toolCallId === previousId) {
+              step.toolCallId = event.payload.toolCallId;
+            }
+          }
+        }
+      }
+      if (!message.tools?.some((tool) => tool.id === toolCall.id)) {
+        message.tools = [
+          ...(message.tools ?? []),
+          {
+            id: toolCall.id,
+            name: toolCall.name,
+            status: "running"
+          }
+        ];
+      }
+      return;
+    }
+
+    if (event.type === "tool.call_requested") {
+      const message = ensureActivityMessage(runId, event.payload.runtime, event.timestamp);
+      if (!message.tools?.some((tool) => tool.id === event.payload.toolCallId)) {
+        message.tools = [
+          ...(message.tools ?? []),
+          {
+            id: event.payload.toolCallId,
+            name: event.payload.toolName,
+            status: "running"
+          }
+        ];
+      }
+      message.processingStartedAt ??= event.timestamp;
+      const existing = message.toolCalls?.find(
+        (toolCall) => toolCall.id === event.payload.toolCallId
+      ) ?? [...(message.toolCalls ?? [])].reverse().find(
+        (toolCall) =>
+          toolCall.status === "preparing" && toolCall.name === event.payload.toolName
+      );
+      if (existing) {
+        const previousId = existing.id;
+        existing.id = event.payload.toolCallId;
+        existing.name = event.payload.toolName;
+        existing.args = event.payload.args;
+        existing.status = "running";
+        existing.argumentsComplete = true;
+        for (const step of message.processingSteps ?? []) {
+          if (step.type === "tool" && step.toolCallId === previousId) {
+            step.toolCallId = event.payload.toolCallId;
+          }
+        }
+      } else {
+        (message.toolCalls ??= []).push({
+          id: event.payload.toolCallId,
+          name: event.payload.toolName,
+          args: event.payload.args,
+          status: "running",
+          requestedAt: event.timestamp
+        });
+      }
+      if (!message.processingSteps?.some(
+        (step) => step.type === "tool" && step.toolCallId === event.payload.toolCallId
+      )) {
+        (message.processingSteps ??= []).push({
+          id: event.id,
+          type: "tool",
+          toolCallId: event.payload.toolCallId,
+          createdAt: event.timestamp
+        });
+      }
+      return;
+    }
+
+    if (event.type === "tool.execution_completed") {
+      const message = ensureActivityMessage(runId, event.payload.runtime, event.timestamp);
+      const tools = message.tools ?? [];
+      const existingTool = tools.find((tool) => tool.id === event.payload.toolCallId);
+      if (existingTool) {
+        existingTool.status = event.payload.isError ? "error" : "completed";
+        existingTool.summary = event.payload.resultSummary;
+      } else {
+        message.tools = [
+          ...tools,
+          {
+            id: event.payload.toolCallId,
+            name: event.payload.toolName,
+            status: event.payload.isError ? "error" : "completed",
+            summary: event.payload.resultSummary
+          }
+        ];
+      }
+      message.processingStartedAt ??= event.timestamp;
+      let toolCall = message.toolCalls?.find(
+        (item) => item.id === event.payload.toolCallId
+      );
+      if (!toolCall) {
+        toolCall = {
+          id: event.payload.toolCallId,
+          name: event.payload.toolName,
+          args: undefined,
+          status: event.payload.isError ? "error" : "completed",
+          requestedAt: event.timestamp
+        };
+        (message.toolCalls ??= []).push(toolCall);
+      }
+      if (!message.processingSteps?.some(
+        (step) => step.type === "tool" && step.toolCallId === event.payload.toolCallId
+      )) {
+        (message.processingSteps ??= []).push({
+          id: event.id,
+          type: "tool",
+          toolCallId: event.payload.toolCallId,
+          createdAt: event.timestamp
+        });
+      }
+      toolCall.name = event.payload.toolName;
+      toolCall.status = event.payload.isError ? "error" : "completed";
+      toolCall.completedAt = event.timestamp;
+      toolCall.resultSummary = event.payload.resultSummary;
+      toolCall.isError = event.payload.isError;
       return;
     }
 
@@ -375,20 +1344,58 @@ export function useAgentConversation(
       const message = ensureAssistantMessage(
         runId,
         event.payload.messageId,
-        event.payload.runtime
+        event.payload.runtime,
+        event.timestamp
       );
       if (!message) {
         return;
       }
       message.content = event.payload.content;
-      if (event.payload.thinking !== undefined) {
+      if (event.payload.thinking?.trim() && !message.thinking) {
         message.thinking = event.payload.thinking;
+        (message.processingSteps ??= []).push({
+          id: `${event.id}_thinking`,
+          type: "thinking",
+          content: event.payload.thinking,
+          createdAt: event.timestamp
+        });
+      }
+      const lastStep = message.processingSteps?.at(-1);
+      if (event.payload.content) {
+        if (lastStep?.type === "response") {
+          // The terminal payload contains the final assistant turn only. Earlier
+          // response turns may have been followed by tools, so keep them as
+          // separate chronological steps and replace only the final turn.
+          lastStep.content = event.payload.content;
+        } else {
+          (message.processingSteps ??= []).push({
+            id: `${event.id}_response`,
+            type: "response",
+            content: event.payload.content,
+            createdAt: event.timestamp
+          });
+        }
       }
       message.status = "completed";
+      message.activityOnly = false;
+      if (message.processingStartedAt) {
+        message.processingCompletedAt = event.timestamp;
+      }
       message.runtime = event.payload.runtime;
       if (event.payload.usage !== undefined) {
         message.usage = event.payload.usage;
       }
+      finishRun(runId);
+      return;
+    }
+
+    if (event.type !== "agent.error") {
+      return;
+    }
+
+    if (event.payload.code === "pi_agent.aborted") {
+      markRunStopped(runId, event.payload.runtime);
+      conversationError.value = null;
       finishRun(runId);
       return;
     }
@@ -400,7 +1407,8 @@ export function useAgentConversation(
 
   async function sendMessage(
     activeDocument: WorkspaceDocument,
-    workspaceDocuments: WorkspaceDocument[] = []
+    workspaceDocuments: WorkspaceDocument[] = [],
+    attachments: WorkspaceContextAttachments = {}
   ): Promise<void> {
     const api = options.api();
     const content = draft.value.trim();
@@ -408,7 +1416,7 @@ export function useAgentConversation(
       conversationError.value = "浏览器预览没有桌面 Agent Runtime，请使用 pnpm dev 启动客户端。";
       return;
     }
-    if (!content || isBusy.value) {
+    if (!content || isBusy.value || hasPendingEditReview.value) {
       return;
     }
 
@@ -431,6 +1439,16 @@ export function useAgentConversation(
           : {})
       }
     };
+    if (attachments.attachedSkills?.length) {
+      contextSnapshot.attachedSkills = attachments.attachedSkills.map((skill) => ({
+        ...skill
+      }));
+    }
+    if (attachments.attachedMaterials?.length) {
+      contextSnapshot.attachedMaterials = attachments.attachedMaterials.map((material) => ({
+        ...material
+      }));
+    }
     if (
       activeDocument.workspaceType === "short" &&
       activeDocument.workspaceId &&
@@ -462,11 +1480,25 @@ export function useAgentConversation(
         (stage): stage is NonNullable<typeof stage> => stage !== undefined
       );
       if (completeStages.length === SHORT_WORKSPACE_STAGE_IDS.length) {
+        const expertDraftSectionIds = activeDocument.expertSectionId
+          ? parseExpertDraftMarkdown(
+              liveStages.find((candidate) => candidate.stageId === "draft")?.content ?? ""
+            ).sections.map((section) => section.id)
+          : undefined;
         contextSnapshot.shortWorkspace = {
           id: activeDocument.workspaceId,
           title: activeDocument.workspaceTitle,
           categories: [...(activeDocument.workspaceCategories ?? [])],
           activeStageId: activeDocument.stageId,
+          ...(activeDocument.shortAgentId
+            ? { activeAgentId: activeDocument.shortAgentId }
+            : {}),
+          ...(activeDocument.expertSectionId
+            ? {
+                activeSectionId: activeDocument.expertSectionId,
+                expertDraftSectionIds
+              }
+            : {}),
           stages: completeStages
         };
       }
@@ -482,6 +1514,7 @@ export function useAgentConversation(
     draft.value = "";
     conversationError.value = null;
     pendingAttemptId.value = attemptId;
+    approvalModeByAttempt.set(attemptId, approvalMode.value);
     submitting.value = true;
     scheduleIdleTimeout({
       expectedEpoch: sendEpoch,
@@ -490,11 +1523,22 @@ export function useAgentConversation(
     });
 
     try {
+      const selectedModel = configuredModels.value.find(
+        (model) => model.id === selectedModelId.value
+      );
       const accepted = await api.session.prompt({
         sessionId: sendSessionId,
         message: content,
+        writeApprovalMode: approvalModeByAttempt.get(attemptId),
         ...(selectedModelId.value ? { modelId: selectedModelId.value } : {}),
-        thinkingLevel: thinkingLevel.value,
+        ...(selectedModel
+          ? thinkingLevel.value === "off"
+            ? {
+                ...(selectedModel.reasoning ? { thinkingLevel: "off" as const } : {}),
+                temperature: temperature.value
+              }
+            : { thinkingLevel: thinkingLevel.value }
+          : { thinkingLevel: thinkingLevel.value }),
         workspaceContext: contextSnapshot
       });
       if (
@@ -510,6 +1554,7 @@ export function useAgentConversation(
           failProtocol(observedRunId, "智能体受理结果返回了错误的会话标识。", accepted.runtime);
         }
         pendingAttemptId.value = null;
+        approvalModeByAttempt.delete(attemptId);
         submitting.value = false;
         clearIdleTimer();
         conversationError.value = "智能体受理结果返回了错误的会话标识。";
@@ -521,13 +1566,19 @@ export function useAgentConversation(
         failProtocol(observedRunId, "智能体受理结果与已到达事件的运行标识不一致。", accepted.runtime);
         pendingAttemptId.value = null;
         observedRunByAttempt.delete(attemptId);
+        approvalModeByAttempt.delete(attemptId);
         rememberBounded(finishedRunIds, accepted.runId);
         return;
       }
 
       runtime.value = accepted.runtime;
+      const acceptedApprovalMode = approvalModeByAttempt.get(attemptId);
+      if (acceptedApprovalMode) {
+        rememberRunApprovalMode(accepted.runId, acceptedApprovalMode);
+      }
       pendingAttemptId.value = null;
       observedRunByAttempt.delete(attemptId);
+      approvalModeByAttempt.delete(attemptId);
       submitting.value = false;
       if (!finishedRunIds.has(accepted.runId)) {
         activeRunId.value = accepted.runId;
@@ -557,19 +1608,53 @@ export function useAgentConversation(
       }
       pendingAttemptId.value = null;
       observedRunByAttempt.delete(attemptId);
+      approvalModeByAttempt.delete(attemptId);
       submitting.value = false;
       clearIdleTimer();
       conversationError.value = messageText;
     }
   }
 
-  function newConversation(): void {
+  async function stopGeneration(): Promise<boolean> {
+    const api = options.api();
+    const runId = activeRunId.value;
+    if (!api || !runId || stopping.value) {
+      return false;
+    }
+
+    const stopEpoch = epoch;
+    const stopSessionId = sessionId.value;
+    stopping.value = true;
+    try {
+      const accepted = await api.session.abort({
+        sessionId: stopSessionId,
+        runId
+      });
+      if (
+        accepted.sessionId !== stopSessionId ||
+        accepted.runId !== runId
+      ) {
+        throw new Error("智能体停止结果与当前运行不一致。");
+      }
+      return true;
+    } catch (error: unknown) {
+      if (
+        epoch !== stopEpoch ||
+        sessionId.value !== stopSessionId ||
+        activeRunId.value !== runId
+      ) {
+        return false;
+      }
+      stopping.value = false;
+      throw error;
+    }
+  }
+
+  function resetTransientConversationState(): void {
     epoch += 1;
     clearIdleTimer();
-    sessionId.value = id("session");
-    messages.value = [];
-    draft.value = "";
     submitting.value = false;
+    stopping.value = false;
     pendingAttemptId.value = null;
     activeRunId.value = null;
     runtime.value = null;
@@ -578,11 +1663,70 @@ export function useAgentConversation(
     finishedRunIds.clear();
     runMessageIds.clear();
     observedRunByAttempt.clear();
+    approvalModeByAttempt.clear();
+    approvalModeByRun.clear();
+  }
+
+  function stopStreamingMessages(): void {
+    const completedAt = new Date().toISOString();
+    for (const message of messages.value) {
+      if (message.status !== "streaming") continue;
+      message.status = "stopped";
+      if (message.processingStartedAt && !message.processingCompletedAt) {
+        message.processingCompletedAt = completedAt;
+      }
+    }
+  }
+
+  function resetModelSelection(): void {
     const selected =
       configuredModels.value.find((model) => model.id === defaultModelId.value) ??
       configuredModels.value[0];
     selectedModelId.value = selected?.id ?? "";
-    thinkingLevel.value = selected?.defaultThinkingLevel ?? "medium";
+    thinkingLevel.value = selected
+      ? selected.reasoning
+        ? selected.defaultThinkingLevel
+        : "off"
+      : "medium";
+    temperature.value = selected?.temperatureOptions[1] ?? 0.7;
+  }
+
+  function newConversation(): void {
+    stopStreamingMessages();
+    flushConversationPersistence();
+    resetTransientConversationState();
+    const timestamp = nextConversationTimestamp();
+    sessionId.value = id("session");
+    messages.value = [];
+    draft.value = "";
+    currentCreatedAt.value = timestamp;
+    currentUpdatedAt.value = timestamp;
+    resetModelSelection();
+    flushConversationPersistence();
+  }
+
+  function selectConversation(nextSessionId: string): boolean {
+    if (nextSessionId === sessionId.value) return true;
+    if (isBusy.value) return false;
+
+    flushConversationPersistence();
+    const selectedConversation = storedConversations.value.find(
+      (conversation) => conversation.sessionId === nextSessionId
+    );
+    if (!selectedConversation) return false;
+
+    resetTransientConversationState();
+    sessionId.value = selectedConversation.sessionId;
+    messages.value = selectedConversation.messages.map(cloneMessage);
+    draft.value = selectedConversation.draft;
+    approvalMode.value = selectedConversation.approvalMode;
+    currentCreatedAt.value = selectedConversation.createdAt;
+    currentUpdatedAt.value = nextConversationTimestamp();
+    selectedModelId.value = selectedConversation.selectedModelId;
+    thinkingLevel.value = selectedConversation.thinkingLevel;
+    temperature.value = selectedConversation.temperature;
+    flushConversationPersistence();
+    return true;
   }
 
   function applyModelSettings(settings: ModelSettings): void {
@@ -593,7 +1737,12 @@ export function useAgentConversation(
       settings.models.find((model) => model.id === settings.defaultModelId) ??
       settings.models[0];
     selectedModelId.value = selected?.id ?? "";
-    thinkingLevel.value = selected?.defaultThinkingLevel ?? "medium";
+    thinkingLevel.value = selected
+      ? selected.reasoning
+        ? selected.defaultThinkingLevel
+        : "off"
+      : "medium";
+    temperature.value = selected?.temperatureOptions[1] ?? 0.7;
   }
 
   function selectModel(modelId: string): void {
@@ -603,41 +1752,89 @@ export function useAgentConversation(
     }
     selectedModelId.value = selected.id;
     thinkingLevel.value = selected.reasoning ? selected.defaultThinkingLevel : "off";
+    temperature.value = selected.temperatureOptions[1];
   }
 
   function selectThinkingLevel(level: ThinkingLevel): void {
     const selected = configuredModels.value.find(
       (model) => model.id === selectedModelId.value
     );
-    thinkingLevel.value = selected && !selected.reasoning ? "off" : level;
+    if (!selected) {
+      thinkingLevel.value = level;
+      return;
+    }
+    if (!selected.reasoning && level !== "off") {
+      return;
+    }
+    if (level !== "off" && !selected.thinkingLevelOptions.includes(level)) {
+      return;
+    }
+    thinkingLevel.value = level;
+  }
+
+  function selectTemperature(value: number): void {
+    const selected = configuredModels.value.find(
+      (model) => model.id === selectedModelId.value
+    );
+    if (
+      !selected ||
+      thinkingLevel.value !== "off" ||
+      !selected.temperatureOptions.includes(value)
+    ) {
+      return;
+    }
+    temperature.value = value;
+  }
+
+  function selectApprovalMode(mode: AgentApprovalMode): void {
+    if (mode === "request-approval" || mode === "auto-approve") {
+      approvalMode.value = mode;
+    }
   }
 
   return {
     messages,
     draft,
     sessionId,
+    approvalMode,
     thinkingLevel,
+    temperature,
     configuredModels,
     selectedModelId,
     runtime,
     conversationError,
+    history,
     isBusy,
+    hasPendingEditReview,
     canSend,
+    canStop,
     acceptsRunEvent,
+    approvalModeForRun,
     markToolConflict,
+    getEditProposal,
+    upsertEditProposal,
+    updateEditProposal,
     handleEvent,
     sendMessage,
+    stopGeneration,
     newConversation,
+    selectConversation,
     applyModelSettings,
     selectModel,
     selectThinkingLevel,
+    selectTemperature,
+    selectApprovalMode,
     useSuggestion(value: string): void {
       draft.value = value;
     },
     dispose(): void {
+      flushConversationPersistence();
       epoch += 1;
       pendingAttemptId.value = null;
       activeRunId.value = null;
+      approvalModeByAttempt.clear();
+      approvalModeByRun.clear();
+      stopping.value = false;
       clearIdleTimer();
     }
   };
@@ -653,6 +1850,7 @@ function isAgentEvent(
       | "agent.thinking_delta"
       | "agent.message_completed"
       | "agent.error"
+      | "tool.call_stream"
       | "tool.call_requested"
       | "tool.execution_completed";
   }
@@ -662,6 +1860,7 @@ function isAgentEvent(
     event.type === "agent.thinking_delta" ||
     event.type === "agent.message_completed" ||
     event.type === "agent.error" ||
+    event.type === "tool.call_stream" ||
     event.type === "tool.call_requested" ||
     event.type === "tool.execution_completed"
   );

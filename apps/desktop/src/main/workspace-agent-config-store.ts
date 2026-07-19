@@ -5,12 +5,14 @@ import {
   SHORT_WORKSPACE_AGENT_IDS,
   ShortWorkspaceAgentSettingsInputSchema,
   ShortWorkspaceAgentSettingsSchema,
+  ShortWorkspaceSnapshotSchema,
   resolveShortWorkspaceAgentIdForStage,
   type ShortAgentReadAccess,
   type ShortWorkspaceAgentId,
   type ShortWorkspaceAgentProfile,
   type ShortWorkspaceAgentSettings,
   type ShortWorkspaceAgentSettingsInput,
+  type ShortWorkspaceSnapshot,
   type ShortWorkspaceStageId
 } from "@deepwrite/contracts";
 
@@ -193,6 +195,16 @@ export class WorkspaceAgentConfigStore {
     stageId: ShortWorkspaceStageId
   ): Promise<ShortWorkspaceAgentProfile> {
     return await this.resolve(resolveShortWorkspaceAgentIdForStage(stageId));
+  }
+
+  async resolveForWorkspace(
+    rawWorkspace: ShortWorkspaceSnapshot
+  ): Promise<ShortWorkspaceAgentProfile> {
+    const workspace = ShortWorkspaceSnapshotSchema.parse(rawWorkspace);
+    return await this.resolve(
+      workspace.activeAgentId ??
+        resolveShortWorkspaceAgentIdForStage(workspace.activeStageId)
+    );
   }
 
   async resolve(agentId: ShortWorkspaceAgentId): Promise<ShortWorkspaceAgentProfile> {

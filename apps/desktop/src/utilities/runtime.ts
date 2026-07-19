@@ -45,6 +45,7 @@ export function bootUtility(
   const startedAt = nowIso();
   let lastHeartbeatAt = startedAt;
   let shuttingDown = false;
+  const activeCommands = new Set<Promise<void>>();
 
   const post = (message: unknown): void => {
     port.postMessage(UtilityOutboundMessageSchema.parse(message));
@@ -158,6 +159,7 @@ export function bootUtility(
     shuttingDown = true;
     clearInterval(heartbeat);
     try {
+      await Promise.allSettled([...activeCommands]);
       await options.onShutdown?.();
     } finally {
       post({
@@ -207,7 +209,9 @@ export function bootUtility(
     }
 
     if (inbound.kind === "utility.command.request") {
-      void handleCommand(inbound.requestId, inbound.command);
+      const active = handleCommand(inbound.requestId, inbound.command);
+      activeCommands.add(active);
+      void active.finally(() => activeCommands.delete(active));
       return;
     }
 

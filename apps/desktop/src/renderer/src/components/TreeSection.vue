@@ -1,23 +1,42 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import type { ResourceTreeNode, ResourceTreeSection } from "../types/workspace";
+import type {
+  BookResourceDialogMode,
+  CatalogResourceNodeActionPayload,
+  IconName,
+  ResourceSectionAction,
+  ResourceSectionActionPayload,
+  ResourceTreeNode,
+  ResourceTreeSection
+} from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
 import TreeNodeItem from "./TreeNodeItem.vue";
 
 const props = defineProps<{
   section: ResourceTreeSection;
   selectedId: string;
+  pinnedIds?: string[];
 }>();
 
 const emit = defineEmits<{
   select: [node: ResourceTreeNode];
+  togglePin: [node: ResourceTreeNode];
+  bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
+  resourceAction: [payload: ResourceSectionActionPayload];
+  resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
+  createExpertSection: [node: ResourceTreeNode];
+  removeExpertSection: [node: ResourceTreeNode];
 }>();
 
 const collapsed = ref(false);
 const actionMenuOpen = ref(false);
 const actionArea = ref<HTMLElement | null>(null);
 
-const actionItems = computed(() => {
+const actionItems = computed<Array<{
+  id: ResourceSectionAction;
+  label: string;
+  icon: IconName;
+}>>(() => {
   const resourceName =
     props.section.id === "creation"
       ? "书籍"
@@ -25,10 +44,24 @@ const actionItems = computed(() => {
         ? "技能库"
         : "素材库";
   return [
-    { id: "create", label: `新建${resourceName}`, icon: "plus" as const },
-    { id: "import", label: `导入已有${resourceName}`, icon: "folder" as const }
+    { id: "create", label: `新建${resourceName}`, icon: "plus" },
+    { id: "import", label: `打开已存在${resourceName}`, icon: "folder" },
+    ...(props.section.id === "creation"
+      ? ([
+          {
+            id: "import-legacy-book",
+            label: "导入旧版书籍",
+            icon: "archive"
+          }
+        ] as const)
+      : [])
   ];
 });
+
+function activateResourceAction(action: ResourceSectionAction): void {
+  actionMenuOpen.value = false;
+  emit("resourceAction", { domain: props.section.id, action });
+}
 
 function handleDocumentPointerDown(event: PointerEvent): void {
   if (actionArea.value?.contains(event.target as Node)) {
@@ -64,9 +97,9 @@ onBeforeUnmount(() => {
         :aria-label="collapsed ? `展开${section.label}` : `折叠${section.label}`"
         @click="collapsed = !collapsed"
       >
-        <AppIcon name="chevron" :size="13" />
         <AppIcon :name="section.icon" :size="15" />
         <span>{{ section.label }}</span>
+        <AppIcon class="section-toggle-chevron" name="chevron" :size="13" />
       </button>
       <div ref="actionArea" class="section-action-area">
         <button
@@ -89,7 +122,7 @@ onBeforeUnmount(() => {
             type="button"
             role="menuitem"
             :data-resource-action="`${section.id}-${item.id}`"
-            @click="actionMenuOpen = false"
+            @click="activateResourceAction(item.id)"
           >
             <AppIcon :name="item.icon" :size="17" />
             <span>{{ item.label }}</span>
@@ -109,7 +142,20 @@ onBeforeUnmount(() => {
         :node="node"
         :depth="0"
         :selected-id="selectedId"
+        :pinnable="
+          !node.unavailable &&
+          !node.missing &&
+          (node.catalogNodeType === 'book' || node.catalogNodeType === 'library')
+        "
+        :pinned="pinnedIds?.includes(node.id) ?? false"
+        :pinned-ids="pinnedIds"
+        :resource-domain="section.id"
         @select="emit('select', $event)"
+        @toggle-pin="emit('togglePin', $event)"
+        @book-action="(mode, book) => emit('bookAction', mode, book)"
+        @resource-node-action="emit('resourceNodeAction', $event)"
+        @create-expert-section="emit('createExpertSection', $event)"
+        @remove-expert-section="emit('removeExpertSection', $event)"
       />
     </ul>
   </section>

@@ -1,6 +1,7 @@
 {
   "name": "@deepwrite/desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "DeepWrite local desktop writing client",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
@@ -27,22 +28,5 @@
     "typescript": "6.0.3",
     "vite": "8.1.0",
     "vue-tsc": "3.3.5"
-  },
-  "build": {
-    "appId": "cn.deepwrite.desktop",
-    "productName": "DeepWrite",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "out/**/*",
-      "package.json"
-    ],
-    "mac": {
-      "category": "public.app-category.productivity"
-    },
-    "linux": {
-      "category": "Office"
-    }
   }
 }

@@ -493,7 +493,7 @@ function saveSettings(): void {
 .panel-kicker,
 .agent-header > span {
   color: #767a7f;
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -502,7 +502,7 @@ function saveSettings(): void {
 .panel-header h2 {
   margin: 4px 0 5px;
   color: #17191c;
-  font-size: 22px;
+  font-size: 1.57143rem;
   font-weight: 650;
 }
 
@@ -511,7 +511,7 @@ function saveSettings(): void {
 .section-heading p {
   margin: 0;
   color: #6a6e73;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   line-height: 1.55;
 }
 
@@ -546,7 +546,7 @@ function saveSettings(): void {
   background: #f2faf4;
   box-shadow: 0 8px 24px rgba(22, 24, 27, 0.14);
   color: #387b4d;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   font-weight: 560;
   line-height: 1.5;
 }
@@ -563,7 +563,7 @@ function saveSettings(): void {
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(22, 24, 27, 0.04);
   color: #6a6e73;
-  font-size: 13px;
+  font-size: 0.928571rem;
   text-align: center;
 }
 
@@ -614,11 +614,11 @@ function saveSettings(): void {
 
 .agent-nav-item small {
   color: #85888d;
-  font-size: 10.5px;
+  font-size: 0.75rem;
 }
 
 .agent-nav-item strong {
-  font-size: 13.5px;
+  font-size: 0.964286rem;
   font-weight: 590;
 }
 
@@ -634,7 +634,7 @@ function saveSettings(): void {
 .agent-header h3 {
   margin: 3px 0 4px;
   color: #17191c;
-  font-size: 18px;
+  font-size: 1.28571rem;
   font-weight: 640;
 }
 
@@ -658,14 +658,14 @@ function saveSettings(): void {
 
 .section-heading h4 {
   margin: 0 0 3px;
-  font-size: 14px;
+  font-size: 1rem;
   font-weight: 620;
 }
 
 .section-heading > span {
   flex: none;
   color: #8b8e92;
-  font-size: 11.5px;
+  font-size: 0.821429rem;
 }
 
 .prompt-card textarea {
@@ -677,8 +677,8 @@ function saveSettings(): void {
   border: 0;
   background: #fdfdfc;
   color: #292c30;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 12.5px;
+  font-family: var(--code-font);
+  font-size: var(--code-font-size);
   line-height: 1.65;
   outline: none;
   box-sizing: border-box;
@@ -707,7 +707,7 @@ function saveSettings(): void {
 .access-card legend {
   padding: 0;
   color: #4a4e53;
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-weight: 620;
 }
 
@@ -762,13 +762,13 @@ function saveSettings(): void {
 
 .option-copy strong {
   color: #303338;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   font-weight: 590;
 }
 
 .option-copy small {
   color: #85888d;
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.4;
 }
 
@@ -779,7 +779,7 @@ function saveSettings(): void {
   border-radius: 999px;
   background: #e5eee8;
   color: #477457;
-  font-size: 9.5px;
+  font-size: 0.678571rem;
   font-style: normal;
   font-weight: 600;
   vertical-align: 1px;
@@ -797,7 +797,7 @@ function saveSettings(): void {
   min-height: 34px;
   padding: 7px 13px;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   font-weight: 570;
   cursor: pointer;
 }

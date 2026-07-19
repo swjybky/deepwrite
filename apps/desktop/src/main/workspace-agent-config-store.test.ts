@@ -12,6 +12,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
+  SHORT_WORKSPACE_STAGE_IDS,
+  createShortWorkspaceContentRevision,
+  serializeExpertDraftMarkdown,
   type ShortWorkspaceAgentId,
   type ShortWorkspaceAgentSettingsInput,
   type ShortWorkspaceStageId
@@ -149,6 +152,45 @@ describe("WorkspaceAgentConfigStore", () => {
 
     expect(reset).toEqual(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
     expect(await store.list()).toEqual(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
+  });
+
+  it("resolves a validated draft section target to the section writer", async () => {
+    const store = new WorkspaceAgentConfigStore(await makeTemporaryRoot());
+    const draft = serializeExpertDraftMarkdown({
+      sections: [
+        {
+          id: "section-1",
+          title: "第一节",
+          wordCountRequirement: "1000 字",
+          body: "",
+          characterState: ""
+        }
+      ]
+    });
+    const workspace = {
+      id: "short-1",
+      title: "雨夜来信",
+      categories: ["悬疑"],
+      activeStageId: "draft" as const,
+      activeAgentId: "expert_section_writer" as const,
+      activeSectionId: "section-1",
+      stages: SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
+        const content = stageId === "draft" ? draft : "";
+        return {
+          stageId,
+          title: stageId,
+          content,
+          revision: createShortWorkspaceContentRevision(content)
+        };
+      })
+    };
+
+    await expect(store.resolveForWorkspace(workspace)).resolves.toMatchObject({
+      id: "expert_section_writer"
+    });
+    await expect(
+      store.resolveForWorkspace({ ...workspace, activeSectionId: "missing" })
+    ).rejects.toThrow(/Unknown expert draft section/u);
   });
 
   it("continues the write queue after a failed persistence operation", async () => {

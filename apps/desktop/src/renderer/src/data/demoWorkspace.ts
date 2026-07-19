@@ -1,4 +1,3 @@
-import type { ChatMessage } from "../types/conversation";
 import type { ResourceTreeSection, WorkspaceDocument } from "../types/workspace";
 
 export const resourceSections: ResourceTreeSection[] = [
@@ -12,14 +11,12 @@ export const resourceSections: ResourceTreeSection[] = [
         label: "雾港回声 · 短篇",
         icon: "book",
         badge: "短篇",
-        defaultExpanded: true,
         children: [
           { id: "short-mist:character_design", label: "人物", icon: "user" },
           {
             id: "short-mist:plot",
             label: "剧情",
             icon: "sparkles",
-            defaultExpanded: true,
             children: [
               { id: "short-mist:plot_design", label: "剧情设计", icon: "file" },
               { id: "short-mist:intro_design", label: "导语设计", icon: "file" },
@@ -34,13 +31,11 @@ export const resourceSections: ResourceTreeSection[] = [
         id: "book-mist-harbor",
         label: "雾港来信",
         icon: "book",
-        defaultExpanded: true,
         children: [
           {
             id: "worldbuilding",
             label: "世界观",
             icon: "globe",
-            defaultExpanded: false,
             children: [
               { id: "doc-harbor-geography", label: "雾港地理", icon: "file" },
               { id: "doc-gray-tide", label: "灰潮规则", icon: "file" }
@@ -65,13 +60,11 @@ export const resourceSections: ResourceTreeSection[] = [
             id: "draft",
             label: "长篇正文",
             icon: "folder",
-            defaultExpanded: true,
             children: [
               {
                 id: "volume-one",
                 label: "第一卷 · 潮声",
                 icon: "folder",
-                defaultExpanded: true,
                 children: [
                   { id: "chapter-1", label: "第一章 灯塔来客", icon: "file" },
                   { id: "chapter-2", label: "第二章 失踪名单", icon: "file" },
@@ -406,16 +399,6 @@ export const workspaceDocuments: WorkspaceDocument[] = [
     path: ["写作摘录", "对白", "对白片段"],
     format: "素材",
     content: "“你听见了吗？”\n“听见什么？”\n“那声还没有响起的钟。”"
-  }
-];
-
-export const initialMessages: ChatMessage[] = [
-  {
-    id: "assistant_welcome",
-    role: "assistant",
-    content: "短篇创作空间已准备好。人物、剧情、大纲与正文会按当前阶段选择对应智能体；技能和素材仍需显式附加后才会进入工具读取范围。",
-    createdAt: new Date().toISOString(),
-    status: "completed"
   }
 ];
 

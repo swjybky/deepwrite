@@ -1,9 +1,12 @@
 import type {
+  SessionAbortAcceptedPayload,
+  SessionAbortCommandPayload,
   SessionPromptAcceptedPayload,
   SessionPromptCommandPayload
 } from "./session";
 import type {
   ModelConnectionTestResult,
+  ModelConfigInput,
   ModelSettings,
   ModelSettingsInput
 } from "./models";
@@ -13,18 +16,59 @@ import type {
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput
 } from "./workspace";
+import type { WorkspaceDirectorySettings } from "./workspace-directory";
+import type {
+  CatalogDocument,
+  CatalogDraftRecovery,
+  CatalogLibrary,
+  CatalogLibraryEntry,
+  CatalogOpenProjectResult,
+  CatalogProjectDomain,
+  CatalogSnapshot,
+  CreateLibraryEntryInput,
+  CreateLibraryInput,
+  CreateShortBookInput,
+  DeleteBookResult,
+  RemoveLibraryEntryInput,
+  RemoveLibraryEntryResult,
+  SaveDocumentInput,
+  SaveLibraryEntryInput,
+  ShortBook,
+  UnregisterCatalogProjectInput,
+  UnregisterCatalogProjectResult,
+  UpdateBookInput
+} from "./catalog";
 
 export interface DeepWriteApi {
   system: {
     health(): Promise<SystemHealthPayload>;
   };
+  catalog: {
+    snapshot(): Promise<CatalogSnapshot>;
+    loadDraftRecovery(): Promise<CatalogDraftRecovery>;
+    saveDraftRecovery(drafts: CatalogDraftRecovery): Promise<void>;
+    createShortBook(input: CreateShortBookInput): Promise<ShortBook | null>;
+    createLibrary(input: CreateLibraryInput): Promise<CatalogLibrary | null>;
+    openProject(domain: CatalogProjectDomain): Promise<CatalogOpenProjectResult | null>;
+    importLegacyBook(): Promise<ShortBook | null>;
+    updateBook(input: UpdateBookInput): Promise<ShortBook>;
+    deleteBook(bookId: string): Promise<DeleteBookResult>;
+    saveDocument(input: SaveDocumentInput): Promise<CatalogDocument>;
+    saveLibraryEntry(input: SaveLibraryEntryInput): Promise<CatalogLibraryEntry>;
+    createLibraryEntry(input: CreateLibraryEntryInput): Promise<CatalogLibraryEntry>;
+    removeLibraryEntry(input: RemoveLibraryEntryInput): Promise<RemoveLibraryEntryResult>;
+    unregisterProject(
+      input: UnregisterCatalogProjectInput
+    ): Promise<UnregisterCatalogProjectResult>;
+  };
   session: {
     prompt(payload: SessionPromptCommandPayload): Promise<SessionPromptAcceptedPayload>;
+    abort(payload: SessionAbortCommandPayload): Promise<SessionAbortAcceptedPayload>;
   };
   models: {
     list(): Promise<ModelSettings>;
     save(settings: ModelSettingsInput): Promise<ModelSettings>;
-    test(modelId: string): Promise<ModelConnectionTestResult>;
+    test(model: ModelConfigInput): Promise<ModelConnectionTestResult>;
   };
   workspaceAgents: {
     list(workspaceType: "short"): Promise<ShortWorkspaceAgentSettings>;
@@ -33,6 +77,10 @@ export interface DeepWriteApi {
       workspaceType: "short",
       agentId?: ShortWorkspaceAgentId
     ): Promise<ShortWorkspaceAgentSettings>;
+  };
+  workspaceDirectory: {
+    list(): Promise<WorkspaceDirectorySettings>;
+    choose(): Promise<WorkspaceDirectorySettings | null>;
   };
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void;

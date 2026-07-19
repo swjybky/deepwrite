@@ -1,16 +1,30 @@
-import { app, BrowserWindow, Menu, ipcMain, shell } from "electron";
-import { join } from "node:path";
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import {
+  CatalogDocumentSchema,
+  CatalogDraftRecoverySaveResultSchema,
+  CatalogDraftRecoverySchema,
+  CatalogLibrarySchema,
+  CatalogLibraryEntrySchema,
+  CatalogOpenProjectResultSchema,
+  CatalogSnapshotSchema,
   CommandEnvelopeSchema,
+  DeleteBookResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
+  RemoveLibraryEntryResultSchema,
+  SessionAbortAcceptedPayloadSchema,
   SessionPromptAcceptedPayloadSchema,
+  ShortBookSchema,
   ShortWorkspaceAgentSettingsSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
   SystemReadyEventEnvelopeSchema,
+  UnregisterCatalogProjectResultSchema,
+  WorkspaceDirectorySettingsSchema,
   createEnvelope,
   type AgentRuntimeRef,
   type CommandResult,
@@ -21,6 +35,7 @@ import { createId, nowIso } from "@deepwrite/shared";
 import { ModelConfigStore } from "./model-config-store";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
+import { WorkspaceDirectoryStore } from "./workspace-directory-store";
 
 interface ActiveRun {
   sessionId: string;
@@ -34,8 +49,10 @@ let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
+let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
 let quitting = false;
 let shutdownComplete = false;
+const RENDERER_DRAFT_FLUSH_GRACE_MS = 500;
 
 function broadcastEvent(event: SystemEventEnvelope): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -53,6 +70,7 @@ type AgentEventEnvelope = Extract<
       | "agent.thinking_delta"
       | "agent.message_completed"
       | "agent.error"
+      | "tool.call_stream"
       | "tool.call_requested"
       | "tool.execution_completed"
       | "workspace.editor_mutation"
@@ -66,6 +84,7 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "agent.thinking_delta" ||
     event.type === "agent.message_completed" ||
     event.type === "agent.error" ||
+    event.type === "tool.call_stream" ||
     event.type === "tool.call_requested" ||
     event.type === "tool.execution_completed" ||
     event.type === "workspace.editor_mutation" ||
@@ -244,10 +263,99 @@ function requireWorkspaceAgentConfigStore(): WorkspaceAgentConfigStore {
   return workspaceAgentConfigStore;
 }
 
+function requireWorkspaceDirectoryStore(): WorkspaceDirectoryStore {
+  if (!workspaceDirectoryStore) {
+    throw new Error("工作目录配置存储尚未初始化。");
+  }
+  return workspaceDirectoryStore;
+}
+
+async function chooseWorkspaceDirectory(): Promise<
+  ReturnType<typeof WorkspaceDirectorySettingsSchema.parse> | null
+> {
+  const current = await requireWorkspaceDirectoryStore().list();
+  const selection = await dialog.showOpenDialog({
+    title: "选择 DeepWrite 工作目录",
+    defaultPath: current.path ?? app.getPath("documents"),
+    properties: ["openDirectory", "createDirectory"]
+  });
+  const selectedDirectory = selection.filePaths[0];
+  if (selection.canceled || !selectedDirectory) {
+    return null;
+  }
+  return WorkspaceDirectorySettingsSchema.parse(
+    await requireWorkspaceDirectoryStore().save(selectedDirectory)
+  );
+}
+
+async function requireSelectedWorkspaceDirectory(): Promise<string | null> {
+  const current = await requireWorkspaceDirectoryStore().list();
+  if (current.path) {
+    return current.path;
+  }
+  return (await chooseWorkspaceDirectory())?.path ?? null;
+}
+
+function workspaceResourceParent(
+  workspaceDirectory: string,
+  domain: "book" | "material" | "skill"
+): string {
+  return join(
+    workspaceDirectory,
+    domain === "book" ? "books" : domain === "material" ? "materials" : "skills"
+  );
+}
+
+function configureCatalogEnvironment(): string {
+  const userDataPath = app.getPath("userData");
+  process.env.DEEPWRITE_USER_DATA_PATH = userDataPath;
+
+  const currentLegacyRoot = join(
+    app.getPath("home"),
+    "Library",
+    "Application Support",
+    "DeepWrite",
+    ".data"
+  );
+  const configuredProjectRoot =
+    process.env.DEEPWRITE_LEGACY_PROJECT_DATA_ROOT?.trim();
+  const repositoryCandidates = [
+    ...(configuredProjectRoot ? [resolve(configuredProjectRoot)] : []),
+    join(app.getPath("home"), "project", "openwrite", "write-claw", ".data"),
+    resolve(process.cwd(), "../openwrite/write-claw/.data"),
+    resolve(app.getAppPath(), "../../../openwrite/write-claw/.data")
+  ];
+  const repositoryFallback =
+    repositoryCandidates.find((candidate) => existsSync(candidate)) ??
+    repositoryCandidates[0]!;
+  const legacyDataRoots = [
+    ...(existsSync(currentLegacyRoot) ? [currentLegacyRoot] : []),
+    ...(existsSync(repositoryFallback) ? [repositoryFallback] : [])
+  ].filter((root, index, roots) => roots.indexOf(root) === index);
+  if (legacyDataRoots.length > 0) {
+    process.env.DEEPWRITE_LEGACY_DATA_ROOT = legacyDataRoots[0];
+    process.env.DEEPWRITE_LEGACY_DATA_ROOTS = JSON.stringify(legacyDataRoots);
+  } else {
+    delete process.env.DEEPWRITE_LEGACY_DATA_ROOT;
+    delete process.env.DEEPWRITE_LEGACY_DATA_ROOTS;
+  }
+  return userDataPath;
+}
+
 function registerIpc(): void {
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,
-    async (_event, rawCommand: unknown): Promise<CommandResult> => {
+    async (event, rawCommand: unknown): Promise<CommandResult> => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) {
+        return {
+          status: "rejected",
+          requestId: "unknown",
+          error: {
+            code: "ipc.untrusted_sender",
+            message: "IPC command sender is not the active DeepWrite window."
+          }
+        };
+      }
       const parsed = CommandEnvelopeSchema.safeParse(rawCommand);
       if (!parsed.success) {
         return {
@@ -262,13 +370,21 @@ function registerIpc(): void {
       }
 
       const command = parsed.data;
-      if (command.type === "agent.prompt" || command.type === "agent.model_test") {
+      if (
+        command.type === "agent.prompt" ||
+        command.type === "agent.abort" ||
+        command.type === "agent.model_test" ||
+        command.type === "catalog.createShortBookAtPath" ||
+        command.type === "catalog.createLibraryAtPath" ||
+        command.type === "catalog.openProjectAtPath" ||
+        command.type === "catalog.importLegacyBookAtPath"
+      ) {
         return {
           status: "rejected",
           requestId: command.id,
           error: {
             code: "ipc.forbidden_internal_command",
-            message: "Renderer cannot invoke internal Agent commands."
+            message: "Renderer cannot invoke internal commands."
           }
         };
       }
@@ -278,6 +394,236 @@ function registerIpc(): void {
           requestId: command.id,
           payload: SystemHealthPayloadSchema.parse(await supervisor.collectHealth())
         };
+      }
+
+      if (command.type === "workspaceDirectory.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: WorkspaceDirectorySettingsSchema.parse(
+              await requireWorkspaceDirectoryStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "workspace_directory.list_failed",
+              message: error instanceof Error ? error.message : "加载工作目录失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "workspaceDirectory.choose") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: await chooseWorkspaceDirectory()
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "workspace_directory.choose_failed",
+              message: error instanceof Error ? error.message : "切换工作目录失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (
+        command.type === "catalog.createShortBook" ||
+        command.type === "catalog.createLibrary" ||
+        command.type === "catalog.openProject" ||
+        command.type === "catalog.importLegacyBook"
+      ) {
+        try {
+          const workspaceDirectory = await requireSelectedWorkspaceDirectory();
+          if (!workspaceDirectory) {
+            return {
+              status: "accepted",
+              requestId: command.id,
+              payload: null
+            };
+          }
+
+          const domain =
+            command.type === "catalog.createShortBook" ||
+            command.type === "catalog.importLegacyBook"
+              ? "book"
+              : command.payload.domain;
+          const defaultPath = workspaceResourceParent(workspaceDirectory, domain);
+          let selectedPath: string;
+          if (
+            command.type === "catalog.createShortBook" ||
+            command.type === "catalog.createLibrary"
+          ) {
+            selectedPath = defaultPath;
+          } else {
+            const selection = await dialog.showOpenDialog({
+              title:
+                command.type === "catalog.importLegacyBook"
+                  ? "导入旧版书籍压缩包"
+                  : domain === "book"
+                    ? "打开已有书籍"
+                    : domain === "material"
+                      ? "打开已有素材库"
+                      : "打开已有技能库",
+              defaultPath,
+              ...(command.type === "catalog.importLegacyBook"
+                ? {
+                    properties: ["openFile"] as const,
+                    filters: [
+                      { name: "旧版书籍压缩包", extensions: ["zip"] }
+                    ]
+                  }
+                : { properties: ["openDirectory"] as const })
+            });
+            const selected = selection.filePaths[0];
+            if (selection.canceled || !selected) {
+              return {
+                status: "accepted",
+                requestId: command.id,
+                payload: null
+              };
+            }
+            selectedPath = selected;
+          }
+
+          const internalCommand = CommandEnvelopeSchema.parse(
+            command.type === "catalog.createShortBook"
+              ? createEnvelope(
+                  "catalog.createShortBookAtPath",
+                  {
+                    parentDirectory: selectedPath,
+                    input: command.payload
+                  },
+                  { id: command.id, context: command.context }
+                )
+              : command.type === "catalog.createLibrary"
+                ? createEnvelope(
+                    "catalog.createLibraryAtPath",
+                    {
+                      ...command.payload,
+                      parentDirectory: selectedPath
+                    },
+                    { id: command.id, context: command.context }
+                  )
+                : command.type === "catalog.openProject"
+                  ? createEnvelope(
+                    "catalog.openProjectAtPath",
+                    {
+                      projectDirectory: selectedPath,
+                      domain: command.payload.domain
+                    },
+                    { id: command.id, context: command.context }
+                  )
+                  : createEnvelope(
+                      "catalog.importLegacyBookAtPath",
+                      {
+                        archivePath: selectedPath,
+                        parentDirectory: defaultPath
+                      },
+                      { id: command.id, context: command.context }
+                    )
+          );
+          const result = await supervisor.requestCommand(
+            "core",
+            internalCommand,
+            0
+          );
+          if (result.status === "rejected") {
+            return result;
+          }
+          const payload =
+            command.type === "catalog.createShortBook"
+              ? ShortBookSchema.parse(result.payload)
+              : command.type === "catalog.createLibrary"
+                ? CatalogLibrarySchema.parse(result.payload)
+                : command.type === "catalog.openProject"
+                  ? CatalogOpenProjectResultSchema.parse(result.payload)
+                  : ShortBookSchema.parse(result.payload);
+          return { status: "accepted", requestId: command.id, payload };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "catalog.forward_failed",
+              message: error instanceof Error ? error.message : "目录操作失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (
+        command.type === "catalog.snapshot" ||
+        command.type === "catalog.loadDraftRecovery" ||
+        command.type === "catalog.saveDraftRecovery" ||
+        command.type === "catalog.updateBook" ||
+        command.type === "catalog.deleteBook" ||
+        command.type === "catalog.saveDocument" ||
+        command.type === "catalog.saveLibraryEntry" ||
+        command.type === "catalog.createLibraryEntry" ||
+        command.type === "catalog.removeLibraryEntry" ||
+        command.type === "catalog.unregisterProject"
+      ) {
+        try {
+          const result = await supervisor.requestCommand("core", command, 0);
+          if (result.status === "rejected") {
+            return result;
+          }
+          let payload: unknown;
+          switch (command.type) {
+            case "catalog.snapshot":
+              payload = CatalogSnapshotSchema.parse(result.payload);
+              break;
+            case "catalog.loadDraftRecovery":
+              payload = CatalogDraftRecoverySchema.parse(result.payload);
+              break;
+            case "catalog.saveDraftRecovery":
+              payload = CatalogDraftRecoverySaveResultSchema.parse(result.payload);
+              break;
+            case "catalog.deleteBook":
+              payload = DeleteBookResultSchema.parse(result.payload);
+              break;
+            case "catalog.saveDocument":
+              payload = CatalogDocumentSchema.parse(result.payload);
+              break;
+            case "catalog.saveLibraryEntry":
+            case "catalog.createLibraryEntry":
+              payload = CatalogLibraryEntrySchema.parse(result.payload);
+              break;
+            case "catalog.removeLibraryEntry":
+              payload = RemoveLibraryEntryResultSchema.parse(result.payload);
+              break;
+            case "catalog.unregisterProject":
+              payload = UnregisterCatalogProjectResultSchema.parse(result.payload);
+              break;
+            case "catalog.updateBook":
+              payload = ShortBookSchema.parse(result.payload);
+              break;
+          }
+          return { status: "accepted", requestId: command.id, payload };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "catalog.forward_failed",
+              message: error instanceof Error ? error.message : "目录操作失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
       }
 
       if (command.type === "models.list") {
@@ -324,10 +670,9 @@ function registerIpc(): void {
 
       if (command.type === "models.test") {
         try {
-          const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
-          if (!runtimeConfig) {
-            throw new Error("所选模型不存在。");
-          }
+          const runtimeConfig = await requireModelConfigStore().resolveDraft(
+            command.payload.model
+          );
           const internalCommand = CommandEnvelopeSchema.parse(
             createEnvelope(
               "agent.model_test",
@@ -423,23 +768,76 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "session.abort") {
+        try {
+          const internalCommand = CommandEnvelopeSchema.parse(
+            createEnvelope(
+              "agent.abort",
+              command.payload,
+              { id: command.id, context: command.context }
+            )
+          );
+          const result = await supervisor.requestCommand("agent", internalCommand, 10_000);
+          if (result.status === "accepted") {
+            const accepted = SessionAbortAcceptedPayloadSchema.parse(result.payload);
+            if (
+              accepted.sessionId !== command.payload.sessionId ||
+              accepted.runId !== command.payload.runId
+            ) {
+              return {
+                status: "rejected",
+                requestId: command.id,
+                error: {
+                  code: "ipc.invalid_agent_abort_result",
+                  message: "Agent abort result does not match the requested run."
+                }
+              };
+            }
+            return { status: "accepted", requestId: command.id, payload: accepted };
+          }
+          return result;
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "ipc.agent_abort_failed",
+              message: error instanceof Error ? error.message : "Agent abort failed.",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "session.prompt") {
         try {
           const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
           const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
           const agentProfile = shortWorkspace
-            ? await requireWorkspaceAgentConfigStore().resolveForStage(
-                shortWorkspace.activeStageId
+            ? await requireWorkspaceAgentConfigStore().resolveForWorkspace(
+                shortWorkspace
               )
             : undefined;
           const thinkingLevel =
-            command.payload.thinkingLevel ?? runtimeConfig?.defaultThinkingLevel;
+            runtimeConfig?.reasoning === false
+              ? undefined
+              : command.payload.thinkingLevel ?? runtimeConfig?.defaultThinkingLevel;
+          const temperature =
+            runtimeConfig && (!runtimeConfig.reasoning || thinkingLevel === "off")
+              ? command.payload.temperature ?? runtimeConfig.temperatureOptions[1]
+              : undefined;
+          const {
+            thinkingLevel: _requestedThinkingLevel,
+            temperature: _requestedTemperature,
+            ...promptPayload
+          } = command.payload;
           const internalCommand = CommandEnvelopeSchema.parse(
             createEnvelope(
               "agent.prompt",
               {
-                ...command.payload,
+                ...promptPayload,
                 ...(thinkingLevel ? { thinkingLevel } : {}),
+                ...(temperature !== undefined ? { temperature } : {}),
                 ...(runtimeConfig ? { runtimeConfig } : {}),
                 ...(agentProfile ? { agentProfile } : {})
               },
@@ -613,20 +1011,40 @@ async function announceReady(window: BrowserWindow): Promise<void> {
   }
 }
 
-app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
-  modelConfigStore = new ModelConfigStore(app.getPath("userData"));
-  workspaceAgentConfigStore = new WorkspaceAgentConfigStore(app.getPath("userData"));
-  registerIpc();
-  supervisor.startAll();
-  mainWindow = createMainWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  shutdownComplete = true;
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
       mainWindow = createMainWindow();
+      return;
     }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
+    const userDataPath = configureCatalogEnvironment();
+    modelConfigStore = new ModelConfigStore(userDataPath);
+    workspaceAgentConfigStore = new WorkspaceAgentConfigStore(userDataPath);
+    workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
+    registerIpc();
+    supervisor.startAll();
+    mainWindow = createMainWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        mainWindow = createMainWindow();
+      }
+    });
+  });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -643,8 +1061,10 @@ app.on("before-quit", (event) => {
     return;
   }
   quitting = true;
-  void supervisor.shutdownAll().finally(() => {
-    shutdownComplete = true;
-    app.quit();
-  });
+  setTimeout(() => {
+    void supervisor.shutdownAll().finally(() => {
+      shutdownComplete = true;
+      app.quit();
+    });
+  }, RENDERER_DRAFT_FLUSH_GRACE_MS);
 });

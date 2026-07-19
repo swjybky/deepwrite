@@ -1,5 +1,6 @@
 import {
   ModelConnectionTestResultSchema,
+  SessionAbortAcceptedPayloadSchema,
   SessionPromptAcceptedPayloadSchema,
   createEnvelope,
   type CommandResult,
@@ -85,6 +86,24 @@ function toEventEnvelope(
         toolName: event.payload.toolName,
         args: event.payload.args,
         runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "agent.tool_stream") {
+    return createEnvelope(
+      "tool.call_stream",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        streamId: event.payload.streamId,
+        phase: event.payload.phase,
+        argumentsDelta: event.payload.argumentsDelta,
+        runtime: event.payload.runtime,
+        ...(event.payload.toolCallId ? { toolCallId: event.payload.toolCallId } : {}),
+        ...(event.payload.toolName ? { toolName: event.payload.toolName } : {}),
+        ...(event.payload.args !== undefined ? { args: event.payload.args } : {})
       },
       { id: createId("evt"), context }
     );
@@ -225,6 +244,31 @@ bootUtility("agent", {
       };
     }
 
+    if (command.type === "agent.abort") {
+      const activeRunId = activeSessionRuns.get(command.payload.sessionId);
+      const controller = abortControllers.get(command.payload.runId);
+      if (activeRunId !== command.payload.runId || !controller) {
+        return {
+          status: "rejected",
+          requestId: command.id,
+          error: {
+            code: "agent.run_not_active",
+            message: "要停止的智能体运行已结束或不存在。"
+          }
+        };
+      }
+      controller.abort();
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: SessionAbortAcceptedPayloadSchema.parse({
+          sessionId: command.payload.sessionId,
+          runId: command.payload.runId,
+          abortedAt: nowIso()
+        })
+      };
+    }
+
     if (command.type !== "agent.prompt") {
       return {
         status: "rejected",
@@ -277,8 +321,14 @@ bootUtility("agent", {
         runId,
         sessionId: command.payload.sessionId,
         prompt: command.payload.message,
+        ...(command.payload.writeApprovalMode
+          ? { writeApprovalMode: command.payload.writeApprovalMode }
+          : {}),
         ...(command.payload.thinkingLevel
           ? { thinkingLevel: command.payload.thinkingLevel }
+          : {}),
+        ...(command.payload.temperature !== undefined
+          ? { temperature: command.payload.temperature }
           : {}),
         ...(command.payload.runtimeConfig
           ? { runtimeConfig: command.payload.runtimeConfig }

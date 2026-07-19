@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
+import { parseExpertDraftMarkdown } from "./expert-draft";
 
 export const SHORT_WORKSPACE_STAGE_IDS = [
   "character_design",
@@ -345,6 +346,12 @@ export const ShortWorkspaceSnapshotSchema = z
     title: z.string().trim().min(1).max(240),
     categories: z.array(z.string().trim().min(1).max(120)).max(16),
     activeStageId: ShortWorkspaceStageIdSchema,
+    activeAgentId: ShortWorkspaceAgentIdSchema.optional(),
+    activeSectionId: z.string().trim().min(1).max(120).optional(),
+    expertDraftSectionIds: z
+      .array(z.string().trim().min(1).max(120))
+      .max(100)
+      .optional(),
     stages: z
       .array(ShortWorkspaceStageSnapshotSchema)
       .length(SHORT_WORKSPACE_STAGE_IDS.length)
@@ -365,6 +372,107 @@ export const ShortWorkspaceSnapshotSchema = z
         code: "custom",
         path: ["activeStageId"],
         message: "Active stage must be present in the workspace snapshot."
+      });
+    }
+    const indexedSectionIds = value.expertDraftSectionIds ?? [];
+    indexedSectionIds.forEach((sectionId, index) => {
+      if (indexedSectionIds.indexOf(sectionId) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["expertDraftSectionIds", index],
+          message: `Duplicate expert draft section id: ${sectionId}`
+        });
+      }
+    });
+
+    if (value.activeStageId !== "draft") {
+      const defaultAgentId = resolveShortWorkspaceAgentIdForStage(value.activeStageId);
+      if (
+        value.activeAgentId !== undefined &&
+        value.activeAgentId !== defaultAgentId
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["activeAgentId"],
+          message: `Stage ${value.activeStageId} must use its default agent ${defaultAgentId}.`
+        });
+      }
+      if (value.activeSectionId !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["activeSectionId"],
+          message: "Only the draft section writer may target a section."
+        });
+      }
+      return;
+    }
+
+    if (value.activeAgentId === undefined) {
+      if (value.activeSectionId !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["activeSectionId"],
+          message: "A draft section target requires the section writer agent."
+        });
+      }
+      return;
+    }
+
+    if (value.activeAgentId === "expert_draft_coordinator") {
+      if (value.activeSectionId !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["activeSectionId"],
+          message: "The draft coordinator cannot target an individual section."
+        });
+      }
+      return;
+    }
+
+    if (value.activeAgentId !== "expert_section_writer") {
+      context.addIssue({
+        code: "custom",
+        path: ["activeAgentId"],
+        message: "The draft stage must use the coordinator or section writer agent."
+      });
+      return;
+    }
+
+    if (value.activeSectionId === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeSectionId"],
+        message: "The section writer requires an active section id."
+      });
+      return;
+    }
+
+    const draftStage = value.stages.find((stage) => stage.stageId === "draft");
+    const parsedSectionIds = draftStage
+      ? parseExpertDraftMarkdown(draftStage.content).sections.map(
+          (section) => section.id
+        )
+      : [];
+    if (
+      draftStage?.truncated !== true &&
+      value.expertDraftSectionIds !== undefined &&
+      (indexedSectionIds.length !== parsedSectionIds.length ||
+        indexedSectionIds.some((sectionId, index) => sectionId !== parsedSectionIds[index]))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["expertDraftSectionIds"],
+        message: "The expert draft section index must match the complete draft snapshot."
+      });
+    }
+    const sectionExists = (
+      draftStage?.truncated === true ? indexedSectionIds : parsedSectionIds
+    ).includes(value.activeSectionId);
+    if (!sectionExists) {
+      context.addIssue({
+        code: "custom",
+        path: ["activeSectionId"],
+        message: `Unknown expert draft section: ${value.activeSectionId}`
       });
     }
   });

@@ -1,0 +1,36 @@
+appId: cn.deepwrite.desktop
+productName: DeepWrite
+artifactName: "${productName}-${version}-${os}-${arch}-test.${ext}"
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+beforeBuild: ./scripts/electron-builder-before-build.cjs
+
+mac:
+  target: dmg
+  icon: build/icon.png
+  category: public.app-category.productivity
+  identity: null
+  notarize: false
+
+win:
+  target: nsis
+  icon: build/icon.ico
+  requestedExecutionLevel: asInvoker
+  forceCodeSigning: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: DeepWrite
+  deleteAppDataOnUninstall: false

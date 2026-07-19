@@ -2,20 +2,24 @@ import {
   Agent,
   type AgentEvent,
   type AgentMessage,
-  type StreamFn
+  type StreamFn,
+  type ThinkingLevel as PiThinkingLevel
 } from "@earendil-works/pi-agent-core";
 import {
   createModels,
+  createAssistantMessageEventStream,
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
   fauxThinking,
   type Api,
   type AssistantMessage,
+  type AssistantMessageEvent,
   type Context,
   type Model,
   type ProviderStreams,
   type SimpleStreamOptions,
+  type ThinkingLevelMap,
   type Usage,
   type UserMessage
 } from "@earendil-works/pi-ai";
@@ -28,9 +32,10 @@ import type {
   AgentProviderRuntimeConfig,
   AgentRuntimeRef,
   AgentUsage,
+  AgentWriteApprovalMode,
   ShortWorkspaceAgentProfile,
   ModelConnectionTestResult,
-  ThinkingLevel,
+  ThinkingLevel as ConfiguredThinkingLevel,
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import {
@@ -42,7 +47,9 @@ export interface AgentRunInput {
   runId: string;
   sessionId: string;
   prompt: string;
-  thinkingLevel?: ThinkingLevel;
+  writeApprovalMode?: AgentWriteApprovalMode;
+  thinkingLevel?: ConfiguredThinkingLevel;
+  temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
   agentProfile?: ShortWorkspaceAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
@@ -80,6 +87,20 @@ export type AgentRuntimeEvent =
         thinking?: string;
         stopReason?: string;
         usage?: AgentUsage;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "agent.tool_stream";
+      runId: string;
+      sessionId: string;
+      payload: {
+        streamId: string;
+        toolCallId?: string;
+        toolName?: string;
+        phase: "start" | "delta" | "end";
+        argumentsDelta: string;
+        args?: unknown;
         runtime: AgentRuntimeRef;
       };
     }
@@ -149,7 +170,7 @@ export interface AgentRuntime {
 }
 
 export interface PiRuntimeAdapterOptions {
-  requestTimeoutMs?: number;
+  idleTimeoutMs?: number;
   tokensPerSecond?: number;
   systemPrompt?: string;
 }
@@ -197,20 +218,57 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
   }
 }
 
+type ToolCallAssistantEvent = Extract<
+  AssistantMessageEvent,
+  { type: "toolcall_start" | "toolcall_delta" | "toolcall_end" }
+>;
+
+/**
+ * Observes provider tool-call chunks before pi-agent-core processes or executes
+ * the completed tool. This keeps UI activity tied to the raw model stream.
+ */
+export function interceptToolCallStream(
+  sourceStreamFn: StreamFn,
+  onToolCallEvent: (event: ToolCallAssistantEvent, assistantTurnIndex: number) => void
+): StreamFn {
+  let assistantTurnIndex = 0;
+  return async (model, context, options) => {
+    const currentTurnIndex = assistantTurnIndex;
+    assistantTurnIndex += 1;
+    const source = await sourceStreamFn(model, context, options);
+    const forwarded = createAssistantMessageEventStream();
+    void (async () => {
+      for await (const event of source) {
+        if (
+          event.type === "toolcall_start" ||
+          event.type === "toolcall_delta" ||
+          event.type === "toolcall_end"
+        ) {
+          onToolCallEvent(event, currentTurnIndex);
+        }
+        forwarded.push(event);
+      }
+    })();
+    return forwarded;
+  };
+}
+
 const DEEPWRITE_FAUX_RUNTIME: AgentRuntimeRef = {
   provider: "deepwrite",
   model: "deepwrite-writing-faux",
   mode: "local-faux"
 };
 
+const TOOL_STREAM_DELTA_FLUSH_MS = 100;
+
 export class PiAgentRuntimeAdapter implements AgentRuntime {
-  private readonly requestTimeoutMs: number;
+  private readonly idleTimeoutMs: number;
   private readonly tokensPerSecond: number;
   private readonly systemPrompt: string;
   private readonly conversationAgents = new Map<string, Agent>();
 
   constructor(options: PiRuntimeAdapterOptions = {}) {
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 45_000;
+    this.idleTimeoutMs = options.idleTimeoutMs ?? 5 * 60_000;
     this.tokensPerSecond = options.tokensPerSecond ?? 90;
     this.systemPrompt = options.systemPrompt ?? buildDeepWriteSystemPrompt();
   }
@@ -261,15 +319,23 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     const messageId = `${input.runId}_assistant`;
     let model: Model<Api>;
     let streamFn: StreamFn;
-    let effectiveThinkingLevel: ThinkingLevel;
+    let effectiveThinkingLevel: PiThinkingLevel;
 
     if (input.runtimeConfig) {
-      const providerRuntime = buildProviderRuntime(input.runtimeConfig);
-      model = providerRuntime.model;
-      streamFn = providerRuntime.streamFn;
-      effectiveThinkingLevel = input.runtimeConfig.reasoning
+      const configuredThinkingLevel = input.runtimeConfig.reasoning
         ? input.thinkingLevel ?? input.runtimeConfig.defaultThinkingLevel
         : "off";
+      const effectiveTemperature = configuredThinkingLevel === "off"
+        ? input.temperature ?? input.runtimeConfig.temperatureOptions[1]
+        : undefined;
+      const providerRuntime = buildProviderRuntime(
+        input.runtimeConfig,
+        effectiveTemperature,
+        configuredThinkingLevel
+      );
+      model = providerRuntime.model;
+      streamFn = providerRuntime.streamFn;
+      effectiveThinkingLevel = toPiThinkingLevel(configuredThinkingLevel);
     } else {
       const models = createModels();
       const faux = fauxProvider({
@@ -293,7 +359,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       }
       model = fauxModel;
       streamFn = models.streamSimple.bind(models) as StreamFn;
-      effectiveThinkingLevel = input.thinkingLevel ?? "medium";
+      effectiveThinkingLevel = toPiThinkingLevel(input.thinkingLevel ?? "medium");
       faux.setResponses([
         fauxAssistantMessage(
           effectiveThinkingLevel === "off"
@@ -311,12 +377,21 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       ? buildShortWorkspaceTools({
           workspace: shortWorkspace,
           profile: input.agentProfile,
+          writeApprovalMode: input.writeApprovalMode ?? "request-approval",
           attachedSkills: input.workspaceContext?.attachedSkills,
           attachedMaterials: input.workspaceContext?.attachedMaterials
         })
       : [];
     const systemPrompt = buildEffectiveSystemPrompt(this.systemPrompt, input);
     const agentKey = `${input.sessionId}:${input.agentProfile?.id ?? "default"}`;
+    let emitToolCallEvent: (
+      event: ToolCallAssistantEvent,
+      assistantTurnIndex: number
+    ) => void = () => {};
+    const interceptedStreamFn = interceptToolCallStream(
+      streamFn,
+      (event, assistantTurnIndex) => emitToolCallEvent(event, assistantTurnIndex)
+    );
     let agent = this.conversationAgents.get(agentKey);
     if (agent) {
       if (agent.state.isStreaming) {
@@ -326,7 +401,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       agent.state.model = model;
       agent.state.thinkingLevel = effectiveThinkingLevel;
       agent.state.tools = tools;
-      agent.streamFn = streamFn;
+      agent.streamFn = interceptedStreamFn;
       agent.sessionId = input.sessionId;
       agent.toolExecution = "sequential";
       this.conversationAgents.delete(agentKey);
@@ -339,7 +414,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           thinkingLevel: effectiveThinkingLevel,
           tools
         },
-        streamFn,
+        streamFn: interceptedStreamFn,
         sessionId: input.sessionId,
         toolExecution: "sequential"
       });
@@ -349,8 +424,14 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
 
     let settled = false;
     let terminalEmitted = false;
-    let timeout: NodeJS.Timeout | undefined;
+    let idleTimeout: NodeJS.Timeout | undefined;
     let abortListener: (() => void) | undefined;
+    let scheduleIdleTimeout = (): void => {};
+    const pendingToolDeltas = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
+    >();
+    let toolDeltaTimer: NodeJS.Timeout | undefined;
 
     const emit = (event: AgentRuntimeEvent): void => {
       const terminal = event.type === "agent.completed" || event.type === "agent.error";
@@ -359,8 +440,52 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       }
       if (terminal) {
         terminalEmitted = true;
+        if (idleTimeout) {
+          clearTimeout(idleTimeout);
+          idleTimeout = undefined;
+        }
       }
       queue.push(event);
+      if (!terminal) {
+        scheduleIdleTimeout();
+      }
+    };
+
+    const flushToolDeltas = (): void => {
+      if (toolDeltaTimer) {
+        clearTimeout(toolDeltaTimer);
+        toolDeltaTimer = undefined;
+      }
+      for (const event of pendingToolDeltas.values()) emit(event);
+      pendingToolDeltas.clear();
+    };
+
+    const emitStreamedToolEvent = (
+      event: Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
+    ): void => {
+      if (event.payload.phase !== "delta") {
+        flushToolDeltas();
+        emit(event);
+        return;
+      }
+      const existing = pendingToolDeltas.get(event.payload.streamId);
+      if (existing) {
+        existing.payload.argumentsDelta += event.payload.argumentsDelta;
+        if (event.payload.toolCallId) existing.payload.toolCallId = event.payload.toolCallId;
+        if (event.payload.toolName) existing.payload.toolName = event.payload.toolName;
+      } else {
+        pendingToolDeltas.set(event.payload.streamId, event);
+      }
+      if (!toolDeltaTimer) {
+        toolDeltaTimer = setTimeout(flushToolDeltas, TOOL_STREAM_DELTA_FLUSH_MS);
+        toolDeltaTimer.unref();
+      }
+    };
+
+    emitToolCallEvent = (event, assistantTurnIndex) => {
+      emitStreamedToolEvent(
+        toToolStreamRuntimeEvent(event, input, runtime, messageId, assistantTurnIndex)
+      );
     };
 
     const unsubscribe = agent.subscribe((event) => {
@@ -374,9 +499,15 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         return;
       }
       settled = true;
-      if (timeout) {
-        clearTimeout(timeout);
+      if (idleTimeout) {
+        clearTimeout(idleTimeout);
+        idleTimeout = undefined;
       }
+      if (toolDeltaTimer) {
+        clearTimeout(toolDeltaTimer);
+        toolDeltaTimer = undefined;
+      }
+      pendingToolDeltas.clear();
       if (abortListener && input.signal) {
         input.signal.removeEventListener("abort", abortListener);
       }
@@ -404,25 +535,32 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       input.signal?.addEventListener("abort", abortListener, { once: true });
     }
 
-    if (!settled && this.requestTimeoutMs > 0) {
-      timeout = setTimeout(() => {
+    scheduleIdleTimeout = (): void => {
+      if (settled || terminalEmitted || this.idleTimeoutMs <= 0) {
+        return;
+      }
+      if (idleTimeout) {
+        clearTimeout(idleTimeout);
+      }
+      idleTimeout = setTimeout(() => {
         emit({
           type: "agent.error",
           runId: input.runId,
           sessionId: input.sessionId,
           payload: {
-            code: "pi_agent.prompt_timeout",
-            message: `智能体响应超时（${this.requestTimeoutMs}ms）。`,
+            code: "pi_agent.idle_timeout",
+            message: "智能体超过 5 分钟没有返回新事件，运行已中止。",
             runtime
           }
         });
         agent.abort();
         cleanup();
-      }, this.requestTimeoutMs);
-      timeout.unref();
-    }
+      }, this.idleTimeoutMs);
+      idleTimeout.unref();
+    };
 
     if (!settled) {
+      scheduleIdleTimeout();
       const runtimeUserMessage: UserMessage = {
         role: "user",
         content: buildRuntimeUserPrompt(input),
@@ -509,7 +647,27 @@ function findBuiltinModel(config: AgentProviderRuntimeConfig): Model<Api> | unde
   ) as Model<Api> | undefined;
 }
 
-function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
+function toPiThinkingLevel(level: ConfiguredThinkingLevel): PiThinkingLevel {
+  if (
+    level === "off" ||
+    level === "minimal" ||
+    level === "low" ||
+    level === "medium" ||
+    level === "high" ||
+    level === "xhigh"
+  ) {
+    return level;
+  }
+  // Pi exposes five reasoning carriers. The model-level map below rewrites the
+  // xhigh carrier to max or to the user's provider-specific custom value.
+  return "xhigh";
+}
+
+function buildProviderRuntime(
+  config: AgentProviderRuntimeConfig,
+  temperature?: number,
+  configuredThinkingLevel?: ConfiguredThinkingLevel
+): {
   model: Model<Api>;
   streamFn: StreamFn;
 } {
@@ -519,6 +677,12 @@ function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
     throw new Error("当前模型不在 Pi 内置目录中，请填写 API 地址后再试。");
   }
 
+  const thinkingLevelMap: ThinkingLevelMap = {
+    ...(builtin?.thinkingLevelMap ?? {})
+  };
+  if (configuredThinkingLevel && configuredThinkingLevel !== "off") {
+    thinkingLevelMap[toPiThinkingLevel(configuredThinkingLevel)] = configuredThinkingLevel;
+  }
   const model = {
     ...(builtin?.api === config.api ? builtin : {}),
     id: config.modelId,
@@ -532,7 +696,7 @@ function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
     contextWindow: builtin?.contextWindow ?? 128_000,
     maxTokens: builtin?.maxTokens ?? 8_192,
     ...(builtin?.headers ? { headers: builtin.headers } : {}),
-    ...(builtin?.thinkingLevelMap ? { thinkingLevelMap: builtin.thinkingLevelMap } : {}),
+    ...(Object.keys(thinkingLevelMap).length > 0 ? { thinkingLevelMap } : {}),
     ...(builtin?.compat && builtin.api === config.api ? { compat: builtin.compat } : {})
   } as Model<Api>;
   const streams = providerStreams(config.api);
@@ -542,6 +706,7 @@ function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
     options?: SimpleStreamOptions
   ) => streams.streamSimple(requestModel, context, {
     ...options,
+    ...(temperature !== undefined ? { temperature } : {}),
     ...(config.apiKey
       ? { apiKey: config.apiKey }
       : options?.apiKey
@@ -549,6 +714,39 @@ function buildProviderRuntime(config: AgentProviderRuntimeConfig): {
         : {})
   });
   return { model, streamFn: streamFn as StreamFn };
+}
+
+/** @internal Exported for protocol regression tests. */
+export function toToolStreamRuntimeEvent(
+  streamEvent: ToolCallAssistantEvent,
+  input: AgentRunInput,
+  runtime: AgentRuntimeRef,
+  messageId: string,
+  assistantTurnIndex: number
+): Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }> {
+  const content = streamEvent.partial.content[streamEvent.contentIndex];
+  const toolCall = content?.type === "toolCall" ? content : undefined;
+  const phase = streamEvent.type === "toolcall_start"
+    ? "start"
+    : streamEvent.type === "toolcall_delta"
+      ? "delta"
+      : "end";
+  return {
+    type: "agent.tool_stream",
+    runId: input.runId,
+    sessionId: input.sessionId,
+    payload: {
+      streamId: `${messageId}:${assistantTurnIndex}:${streamEvent.contentIndex}`,
+      ...(toolCall?.id ? { toolCallId: toolCall.id } : {}),
+      ...(toolCall?.name ? { toolName: toolCall.name } : {}),
+      phase,
+      argumentsDelta: streamEvent.type === "toolcall_delta" ? streamEvent.delta : "",
+      ...(streamEvent.type === "toolcall_end"
+        ? { args: streamEvent.toolCall.arguments }
+        : {}),
+      runtime
+    }
+  };
 }
 
 function toRuntimeEvents(
@@ -666,6 +864,10 @@ function toRuntimeEvents(
       }];
     }
 
+    if (event.message.content.some((item) => item.type === "toolCall")) {
+      return [];
+    }
+
     const thinking = readAssistantThinking(event.message);
     return [{
       type: "agent.completed",
@@ -685,24 +887,6 @@ function toRuntimeEvents(
   return [];
 }
 
-function summarizeToolResult(result: unknown): string {
-  if (!result || typeof result !== "object") return "工具执行完成。";
-  const content = (result as { content?: unknown }).content;
-  if (!Array.isArray(content)) return "工具执行完成。";
-  const text = content
-    .filter(
-      (item): item is { type: "text"; text: string } =>
-        Boolean(item) &&
-        typeof item === "object" &&
-        (item as { type?: unknown }).type === "text" &&
-        typeof (item as { text?: unknown }).text === "string"
-    )
-    .map((item) => item.text)
-    .join("\n")
-    .trim();
-  return text.slice(0, 4_000) || "工具执行完成。";
-}
-
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
   return typeof message === "object" && message !== null && message.role === "assistant";
 }
@@ -719,6 +903,38 @@ function readAssistantThinking(message: AssistantMessage): string {
     .filter((item) => item.type === "thinking")
     .map((item) => item.thinking)
     .join("\n\n");
+}
+
+function summarizeToolResult(result: unknown): string {
+  if (typeof result === "object" && result !== null && "content" in result) {
+    const content = (result as { content?: unknown }).content;
+    if (Array.isArray(content)) {
+      const text = content
+        .filter(
+          (item): item is { type: "text"; text: string } =>
+            typeof item === "object" &&
+            item !== null &&
+            "type" in item &&
+            item.type === "text" &&
+            "text" in item &&
+            typeof item.text === "string"
+        )
+        .map((item) => item.text)
+        .join("\n");
+      if (text) {
+        return text.slice(0, 4_000);
+      }
+    }
+  }
+  if (result === undefined || result === null) {
+    return "工具执行完成。";
+  }
+  try {
+    const summary = JSON.stringify(result);
+    return summary ? summary.slice(0, 4_000) : "工具执行完成。";
+  } catch {
+    return "工具已执行完成。";
+  }
 }
 
 function normalizeUsage(usage: Usage): AgentUsage {
@@ -761,6 +977,10 @@ function buildDeepWriteSystemPrompt(): string {
 function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): string {
   const profile = input.agentProfile;
   if (!profile) return basePrompt;
+  const writeBoundary =
+    input.writeApprovalMode === "auto-approve"
+      ? "写入工具只提交文本变更；客户端会在本轮完成后自动批准并尝试保存到本地 Markdown。当前回复可以说明已提交自动写入，但不得提前声称已经保存成功。"
+      : "写入工具提交待用户审阅的文本变更；用户接受后客户端才会自动持久化到本地 Markdown，当前回复不得提前声称已经保存。";
   return [
     basePrompt,
     "",
@@ -769,9 +989,11 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
     "",
     "【DeepWrite 当前工具边界】",
     "只使用本轮实际提供的工具；没有出现在工具列表中的能力尚未接通，不得声称已经执行。",
-    "写入工具只更新本次运行内的编辑草稿，不代表已经持久化到磁盘。",
+    writeBoundary,
     profile.id === "expert_draft_coordinator"
       ? "当前已接通正文骨架初始化与局部编辑；后台分节写手调度尚未接通，不能声称已启动后台写作。"
+      : profile.id === "expert_section_writer"
+        ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态写工具仍提交同一份待审阅 Markdown 变更。"
       : ""
   ].filter(Boolean).join("\n");
 }
@@ -827,6 +1049,9 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
       : "",
     input.workspaceContext?.shortWorkspace
       ? `当前阶段: ${input.workspaceContext.shortWorkspace.activeStageId}`
+      : "",
+    input.workspaceContext?.shortWorkspace?.activeSectionId
+      ? `当前小节: ${input.workspaceContext.shortWorkspace.activeSectionId}`
       : "",
     input.agentProfile
       ? `当前智能体: ${input.agentProfile.label} (${input.agentProfile.id})`

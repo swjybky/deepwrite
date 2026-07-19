@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type {
-  ModelConfig,
-  ModelConfigInput,
-  ModelSettings,
-  ModelSettingsInput,
-  ThinkingLevel
+import { computed, ref, watch } from "vue";
+import {
+  BUILT_IN_REASONING_LEVELS,
+  type BuiltInReasoningLevel,
+  type ModelApi,
+  type ModelConfig,
+  type ModelConfigInput,
+  type ModelSettings,
+  type ModelSettingsInput,
+  type ReasoningLevel,
+  type TemperatureOptions,
+  type ThinkingLevelOptions,
+  type ThinkingLevel
 } from "@deepwrite/contracts";
 import type { DialogMode } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
+import PopupSelect from "./PopupSelect.vue";
 
 interface DraftModel extends ModelConfig {
   apiKey?: string;
   clearApiKey?: boolean;
+  customThinkingLevel?: string;
 }
 
 const props = defineProps<{
@@ -24,38 +32,103 @@ const props = defineProps<{
   modelError: string | null;
   modelTestMessage: string | null;
   testingModelId: string | null;
+  workspaceDirectoryPath: string | null;
+  workspaceDirectoryLoading: boolean;
 }>();
 const emit = defineEmits<{
   close: [];
   seedPrompt: [value: string];
   saveModels: [settings: ModelSettingsInput];
-  testModel: [modelId: string];
+  testModel: [model: ModelConfigInput];
+  chooseWorkspaceDirectory: [];
 }>();
 
 const imitationSample = ref("");
 const draftModels = ref<DraftModel[]>([]);
 const draftDefaultModelId = ref("");
 const modelEditor = ref<DraftModel | null>(null);
-const modelDirty = ref(false);
 
-const thinkingOptions: Array<{ value: ThinkingLevel; label: string }> = [
-  { value: "off", label: "关闭" },
-  { value: "minimal", label: "最低" },
-  { value: "low", label: "较低" },
-  { value: "medium", label: "标准" },
-  { value: "high", label: "深度" },
-  { value: "xhigh", label: "极高" }
+const builtInThinkingLabels: Record<BuiltInReasoningLevel, string> = {
+  minimal: "最低",
+  low: "较低",
+  medium: "标准",
+  high: "深度",
+  xhigh: "极高",
+  max: "最高"
+};
+const reasoningOptions = BUILT_IN_REASONING_LEVELS.map((value) => ({
+  value,
+  label: builtInThinkingLabels[value]
+}));
+const providerOptions = [
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "google", label: "Google" },
+  { value: "custom", label: "其他兼容服务" }
+] as const;
+const apiOptions: ReadonlyArray<{ value: ModelApi; label: string }> = [
+  { value: "openai-completions", label: "OpenAI Completions" },
+  { value: "openai-responses", label: "OpenAI Responses" },
+  { value: "anthropic-messages", label: "Anthropic Messages" },
+  { value: "google-generative-ai", label: "Google Generative AI" }
 ];
+const modelModeOptions = [
+  { value: "reasoning", label: "思考模式" },
+  { value: "temperature", label: "不思考模式" }
+] as const;
+const defaultThinkingOptions = computed(() =>
+  (modelEditor.value?.thinkingLevelOptions ?? []).map((level) => ({
+    value: level,
+    label: thinkingLabel(level),
+    title: level
+  }))
+);
+const customThinkingLevelPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function isBuiltInThinkingLevel(level: string): level is BuiltInReasoningLevel {
+  return BUILT_IN_REASONING_LEVELS.some((candidate) => candidate === level);
+}
+
+function findCustomThinkingLevel(options: ThinkingLevelOptions): string {
+  return options.find((level) => !isBuiltInThinkingLevel(level)) ?? "";
+}
+
+function isValidCustomThinkingLevel(level: string): boolean {
+  return (
+    level.length <= 64 &&
+    level !== "off" &&
+    !isBuiltInThinkingLevel(level) &&
+    customThinkingLevelPattern.test(level)
+  );
+}
+
+function cloneTemperatureOptions(options: TemperatureOptions): TemperatureOptions {
+  return [options[0], options[1], options[2]];
+}
+
+function cloneThinkingLevelOptions(options: ThinkingLevelOptions): ThinkingLevelOptions {
+  return [...options];
+}
 
 function thinkingLabel(level: ThinkingLevel): string {
-  return thinkingOptions.find((option) => option.value === level)?.label ?? level;
+  if (level === "off") {
+    return "关闭";
+  }
+  return isBuiltInThinkingLevel(level)
+    ? builtInThinkingLabels[level]
+    : `自定义（${level}）`;
 }
 
 function resetModelDraft(settings: ModelSettings | null): void {
-  draftModels.value = (settings?.models ?? []).map((model) => ({ ...model }));
+  draftModels.value = (settings?.models ?? []).map((model) => ({
+    ...model,
+    thinkingLevelOptions: cloneThinkingLevelOptions(model.thinkingLevelOptions),
+    temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
+    customThinkingLevel: findCustomThinkingLevel(model.thinkingLevelOptions)
+  }));
   draftDefaultModelId.value = settings?.defaultModelId ?? "";
   modelEditor.value = null;
-  modelDirty.value = false;
 }
 
 watch(
@@ -117,13 +190,23 @@ function createModel(): void {
     baseUrl: "https://api.deepseek.com/v1",
     reasoning: true,
     defaultThinkingLevel: "medium",
+    thinkingLevelOptions: [...BUILT_IN_REASONING_LEVELS],
+    temperatureOptions: [0.1, 0.7, 1],
     hasApiKey: false,
-    apiKey: ""
+    apiKey: "",
+    customThinkingLevel: ""
   };
 }
 
 function editModel(model: DraftModel): void {
-  modelEditor.value = { ...model, apiKey: "", clearApiKey: false };
+  modelEditor.value = {
+    ...model,
+    thinkingLevelOptions: cloneThinkingLevelOptions(model.thinkingLevelOptions),
+    temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
+    apiKey: "",
+    clearApiKey: false,
+    customThinkingLevel: findCustomThinkingLevel(model.thinkingLevelOptions)
+  };
 }
 
 function applyProviderPreset(provider: string): void {
@@ -147,12 +230,83 @@ function applyProviderPreset(provider: string): void {
   }
 }
 
-function toggleReasoning(reasoning: boolean): void {
+function setModelApi(value: string | number): void {
+  if (modelEditor.value) {
+    modelEditor.value.api = String(value) as ModelApi;
+  }
+}
+
+function setDefaultThinkingLevel(value: string | number): void {
+  if (modelEditor.value) {
+    modelEditor.value.defaultThinkingLevel = String(value);
+  }
+}
+
+function setModelMode(mode: "reasoning" | "temperature"): void {
   if (!modelEditor.value) {
     return;
   }
+  const reasoning = mode === "reasoning";
   modelEditor.value.reasoning = reasoning;
-  modelEditor.value.defaultThinkingLevel = reasoning ? "medium" : "off";
+  modelEditor.value.defaultThinkingLevel = reasoning
+    ? modelEditor.value.thinkingLevelOptions.includes("medium")
+      ? "medium"
+      : modelEditor.value.thinkingLevelOptions[0] ?? "medium"
+    : "off";
+}
+
+function toggleThinkingLevelOption(level: BuiltInReasoningLevel, event: Event): void {
+  const editor = modelEditor.value;
+  if (!editor) {
+    return;
+  }
+  const input = event.target as HTMLInputElement;
+  const checked = input.checked;
+  if (!checked && editor.thinkingLevelOptions.length === 1) {
+    input.checked = true;
+    uiMessage.warning("思考模式至少需要保留一个思考等级。");
+    return;
+  }
+  const selected = new Set(editor.thinkingLevelOptions);
+  if (checked) {
+    selected.add(level);
+  } else {
+    selected.delete(level);
+  }
+  const customLevel = findCustomThinkingLevel(editor.thinkingLevelOptions);
+  editor.thinkingLevelOptions = reasoningOptions
+    .map((option) => option.value)
+    .filter((option) => selected.has(option)) as ThinkingLevelOptions;
+  if (customLevel) {
+    editor.thinkingLevelOptions.push(customLevel);
+  }
+  if (
+    editor.reasoning &&
+    !editor.thinkingLevelOptions.includes(editor.defaultThinkingLevel as ReasoningLevel)
+  ) {
+    editor.defaultThinkingLevel = editor.thinkingLevelOptions[0] ?? "medium";
+  }
+}
+
+function updateCustomThinkingLevel(event: Event): void {
+  const editor = modelEditor.value;
+  if (!editor) {
+    return;
+  }
+  const previousCustomLevel = findCustomThinkingLevel(editor.thinkingLevelOptions);
+  const customWasDefault = previousCustomLevel === editor.defaultThinkingLevel;
+  const rawValue = (event.target as HTMLInputElement).value;
+  const customLevel = rawValue.trim();
+  editor.customThinkingLevel = rawValue;
+  editor.thinkingLevelOptions = editor.thinkingLevelOptions.filter(isBuiltInThinkingLevel);
+  if (isValidCustomThinkingLevel(customLevel)) {
+    editor.thinkingLevelOptions.push(customLevel);
+  }
+  if (customWasDefault) {
+    editor.defaultThinkingLevel = isValidCustomThinkingLevel(customLevel)
+      ? customLevel
+      : editor.thinkingLevelOptions[0] ?? "medium";
+  }
 }
 
 function saveModelEditor(): void {
@@ -164,7 +318,36 @@ function saveModelEditor(): void {
     uiMessage.warning("请填写名称、Provider 和模型 ID。");
     return;
   }
-  const { apiKey, ...editorWithoutApiKey } = editor;
+  const customThinkingLevel = editor.customThinkingLevel?.trim() ?? "";
+  if (customThinkingLevel && !isValidCustomThinkingLevel(customThinkingLevel)) {
+    uiMessage.warning(
+      "自定义思考等级不能与内置等级重复，且只能包含英文字母、数字、点、下划线或连字符。"
+    );
+    return;
+  }
+  if (
+    !editor.reasoning &&
+    (editor.temperatureOptions.some(
+      (temperature) => !Number.isFinite(temperature) || temperature < 0 || temperature > 2
+    ) ||
+      new Set(editor.temperatureOptions).size !== editor.temperatureOptions.length)
+  ) {
+    uiMessage.warning("请填写 3 个不同的温度值，范围为 0 到 2。");
+    return;
+  }
+  if (
+    editor.reasoning &&
+    (!editor.thinkingLevelOptions.length ||
+      !editor.thinkingLevelOptions.includes(editor.defaultThinkingLevel as ReasoningLevel))
+  ) {
+    uiMessage.warning("请配置至少一个思考等级，并选择有效的默认等级。");
+    return;
+  }
+  const {
+    apiKey,
+    customThinkingLevel: _customThinkingLevel,
+    ...editorWithoutApiKey
+  } = editor;
   const normalized: DraftModel = {
     ...editorWithoutApiKey,
     label: editor.label.trim(),
@@ -172,6 +355,8 @@ function saveModelEditor(): void {
     modelId: editor.modelId.trim(),
     baseUrl: editor.baseUrl.trim(),
     defaultThinkingLevel: editor.reasoning ? editor.defaultThinkingLevel : "off",
+    thinkingLevelOptions: cloneThinkingLevelOptions(editor.thinkingLevelOptions),
+    temperatureOptions: cloneTemperatureOptions(editor.temperatureOptions),
     ...(apiKey?.trim() ? { apiKey: apiKey.trim() } : {})
   };
   const index = draftModels.value.findIndex((model) => model.id === normalized.id);
@@ -184,7 +369,31 @@ function saveModelEditor(): void {
     draftDefaultModelId.value = normalized.id;
   }
   modelEditor.value = null;
-  modelDirty.value = true;
+}
+
+function toModelInput(model: DraftModel): ModelConfigInput {
+  return {
+    id: model.id,
+    label: model.label.trim(),
+    provider: model.provider.trim().toLowerCase(),
+    modelId: model.modelId.trim(),
+    api: model.api,
+    baseUrl: model.baseUrl.trim(),
+    reasoning: model.reasoning,
+    defaultThinkingLevel: model.reasoning ? model.defaultThinkingLevel : "off",
+    thinkingLevelOptions: cloneThinkingLevelOptions(model.thinkingLevelOptions),
+    temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
+    ...(model.apiKey?.trim() ? { apiKey: model.apiKey.trim() } : {}),
+    ...(model.clearApiKey ? { clearApiKey: true } : {})
+  };
+}
+
+function testDraftModel(model: DraftModel): void {
+  if (!model.label.trim() || !model.provider.trim() || !model.modelId.trim()) {
+    uiMessage.warning("请先填写名称、Provider 和模型 ID，再测试连接。");
+    return;
+  }
+  emit("testModel", toModelInput(model));
 }
 
 function removeModel(modelId: string): void {
@@ -195,27 +404,14 @@ function removeModel(modelId: string): void {
   if (modelEditor.value?.id === modelId) {
     modelEditor.value = null;
   }
-  modelDirty.value = true;
 }
 
 function setDefaultModel(modelId: string): void {
   draftDefaultModelId.value = modelId;
-  modelDirty.value = true;
 }
 
 function submitModelSettings(): void {
-  const models: ModelConfigInput[] = draftModels.value.map((model) => ({
-    id: model.id,
-    label: model.label,
-    provider: model.provider,
-    modelId: model.modelId,
-    api: model.api,
-    baseUrl: model.baseUrl,
-    reasoning: model.reasoning,
-    defaultThinkingLevel: model.defaultThinkingLevel,
-    ...(model.apiKey ? { apiKey: model.apiKey } : {}),
-    ...(model.clearApiKey ? { clearApiKey: true } : {})
-  }));
+  const models: ModelConfigInput[] = draftModels.value.map(toModelInput);
   emit("saveModels", {
     models,
     defaultModelId: draftDefaultModelId.value || models[0]?.id || ""
@@ -249,16 +445,27 @@ function submitModelSettings(): void {
         </header>
 
         <div v-if="mode === 'directory'" class="dialog-content">
-          <p class="dialog-description">新客户端已为旧项目迁移预留独立工作目录边界。</p>
+          <p class="dialog-description">这里决定以后新建和导入项目的默认位置。切换目录不会移动或影响已经打开的书籍、素材库和技能库。</p>
           <div class="directory-card">
             <AppIcon name="directory" :size="20" />
             <div>
-              <strong>当前迁移来源</strong>
-              <code>/home/swj/project/swj/yonquan-write/write-claw</code>
+              <strong>{{ workspaceDirectoryPath ? "当前工作目录" : "尚未选择工作目录" }}</strong>
+              <code>{{ workspaceDirectoryPath ?? "首次创建或导入时也会提示选择" }}</code>
             </div>
-            <span>已识别</span>
+            <span>{{ workspaceDirectoryPath ? "已启用" : "待设置" }}</span>
           </div>
-          <div class="dialog-note">第一阶段仅建立界面与进程边界，不读取或改写旧项目数据。</div>
+          <div class="dialog-note">新书和旧版导入保存在 books，新素材库保存在 materials，新技能库保存在 skills。项目仍采用 deepwrite.json + Markdown 文件结构，可由 Git 或同步盘直接管理。</div>
+          <div class="dialog-actions">
+            <button class="dialog-secondary-button" type="button" @click="emit('close')">关闭</button>
+            <button
+              class="dialog-primary-button"
+              type="button"
+              :disabled="workspaceDirectoryLoading"
+              @click="emit('chooseWorkspaceDirectory')"
+            >
+              {{ workspaceDirectoryLoading ? "选择中…" : workspaceDirectoryPath ? "切换工作目录" : "选择工作目录" }}
+            </button>
+          </div>
         </div>
 
         <div v-else-if="mode === 'models'" class="dialog-content model-config-content">
@@ -284,7 +491,7 @@ function submitModelSettings(): void {
                 <strong>{{ model.label }}</strong>
                 <small>{{ model.provider }} · {{ model.modelId }} · {{ model.api }}</small>
                 <small>
-                  默认思考：{{ thinkingLabel(model.defaultThinkingLevel) }} ·
+                  {{ model.reasoning ? `思考：${model.thinkingLevelOptions.map(thinkingLabel).join(" / ")}（默认 ${thinkingLabel(model.defaultThinkingLevel)}）` : `温度：${model.temperatureOptions.join(" / ")}` }} ·
                   {{ model.hasApiKey || model.apiKey ? "密钥已配置" : "未配置密钥" }}
                 </small>
               </div>
@@ -299,9 +506,9 @@ function submitModelSettings(): void {
                 <button type="button" @click="editModel(model)">编辑</button>
                 <button
                   type="button"
-                  :disabled="modelDirty || testingModelId !== null"
-                  :title="modelDirty ? '请先保存配置再测试' : '使用实际对话链路测试连接'"
-                  @click="emit('testModel', model.id)"
+                  :disabled="testingModelId !== null"
+                  title="使用当前未保存的配置测试连接"
+                  @click="testDraftModel(model)"
                 >
                   {{ testingModelId === model.id ? "测试中…" : "测试连接" }}
                 </button>
@@ -321,16 +528,12 @@ function submitModelSettings(): void {
                 </label>
                 <label>
                   <span>Provider</span>
-                  <select
-                    :value="modelEditor.provider"
-                    @change="applyProviderPreset(($event.target as HTMLSelectElement).value)"
-                  >
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google</option>
-                    <option value="custom">其他兼容服务</option>
-                  </select>
+                  <PopupSelect
+                    :model-value="modelEditor.provider"
+                    :options="providerOptions"
+                    accessible-label="选择 Provider"
+                    @update:model-value="applyProviderPreset(String($event))"
+                  />
                 </label>
                 <label>
                   <span>模型 ID</span>
@@ -338,12 +541,13 @@ function submitModelSettings(): void {
                 </label>
                 <label>
                   <span>API 类型</span>
-                  <select v-model="modelEditor.api">
-                    <option value="openai-completions">OpenAI Completions</option>
-                    <option value="openai-responses">OpenAI Responses</option>
-                    <option value="anthropic-messages">Anthropic Messages</option>
-                    <option value="google-generative-ai">Google Generative AI</option>
-                  </select>
+                  <PopupSelect
+                    :model-value="modelEditor.api"
+                    :options="apiOptions"
+                    accessible-label="选择 API 类型"
+                    :menu-min-width="240"
+                    @update:model-value="setModelApi"
+                  />
                 </label>
                 <label class="is-wide">
                   <span>API 地址</span>
@@ -359,24 +563,81 @@ function submitModelSettings(): void {
                     @input="modelEditor.clearApiKey = false"
                   />
                 </label>
-                <label class="model-reasoning-toggle">
-                  <span>支持思考</span>
-                  <input
-                    :checked="modelEditor.reasoning"
-                    type="checkbox"
-                    @change="toggleReasoning(($event.target as HTMLInputElement).checked)"
+                <label>
+                  <span>模型模式</span>
+                  <PopupSelect
+                    :model-value="modelEditor.reasoning ? 'reasoning' : 'temperature'"
+                    :options="modelModeOptions"
+                    accessible-label="选择模型模式"
+                    @update:model-value="setModelMode(String($event) as 'reasoning' | 'temperature')"
                   />
                 </label>
-                <label>
+                <label v-if="modelEditor.reasoning">
                   <span>默认思考等级</span>
-                  <select
-                    v-model="modelEditor.defaultThinkingLevel"
-                    :disabled="!modelEditor.reasoning"
-                  >
-                    <option v-for="option in thinkingOptions" :key="option.value" :value="option.value">
-                      {{ option.label }}
-                    </option>
-                  </select>
+                  <PopupSelect
+                    :model-value="modelEditor.defaultThinkingLevel"
+                    :options="defaultThinkingOptions"
+                    accessible-label="选择默认思考等级"
+                    @update:model-value="setDefaultThinkingLevel"
+                  />
+                </label>
+                <label v-else>
+                  <span class="model-field-label">
+                    温度选项
+                    <span
+                      class="model-help-icon"
+                      tabindex="0"
+                      aria-label="温度说明：温度越低，输出越稳定和确定；温度越高，表达越多样和有创造性。可填写 0 到 2。"
+                      data-tooltip="温度越低，输出越稳定、确定；温度越高，表达越多样、有创造性。可填写 0–2。"
+                    >!</span>
+                  </span>
+                  <span class="model-temperature-options">
+                    <input
+                      v-for="(_, index) in modelEditor.temperatureOptions"
+                      :key="index"
+                      v-model.number="modelEditor.temperatureOptions[index]"
+                      type="number"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      :aria-label="`温度选项 ${index + 1}`"
+                    />
+                  </span>
+                </label>
+                <label v-if="modelEditor.reasoning" class="is-wide">
+                  <span>思考等级选项</span>
+                  <span class="model-thinking-options">
+                    <label
+                      v-for="option in reasoningOptions"
+                      :key="option.value"
+                      class="model-thinking-option"
+                      tabindex="0"
+                      :title="option.value"
+                      :data-tooltip="option.value"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="modelEditor.thinkingLevelOptions.includes(option.value)"
+                        @change="toggleThinkingLevelOption(option.value, $event)"
+                      />
+                      <span>{{ option.label }}</span>
+                    </label>
+                    <span
+                      class="model-custom-thinking"
+                      :title="modelEditor.customThinkingLevel?.trim() || 'custom'"
+                      :data-tooltip="modelEditor.customThinkingLevel?.trim() || 'custom'"
+                    >
+                      <span>自定义</span>
+                      <input
+                        :value="modelEditor.customThinkingLevel"
+                        type="text"
+                        maxlength="64"
+                        placeholder="例如 ultra"
+                        aria-label="自定义思考等级英文值"
+                        @input="updateCustomThinkingLevel"
+                      />
+                    </span>
+                  </span>
                 </label>
               </div>
               <div v-if="modelEditor.hasApiKey" class="model-key-row">
@@ -389,6 +650,14 @@ function submitModelSettings(): void {
                 </button>
               </div>
               <div class="dialog-actions">
+                <button
+                  class="dialog-secondary-button"
+                  type="button"
+                  :disabled="testingModelId !== null"
+                  @click="testDraftModel(modelEditor)"
+                >
+                  {{ testingModelId === modelEditor.id ? "测试中…" : "测试当前填写" }}
+                </button>
                 <button class="dialog-primary-button" type="button" @click="saveModelEditor">
                   应用到配置
                 </button>
