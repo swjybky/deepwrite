@@ -5,6 +5,7 @@ import {
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
   CatalogLibraryEntrySchema,
+  CatalogLibraryProjectDomainSchema,
   CatalogOpenProjectResultSchema,
   CatalogProjectDomainSchema,
   CatalogSnapshotSchema,
@@ -44,6 +45,7 @@ import {
   type CatalogDraftRecovery,
   type CatalogLibrary,
   type CatalogLibraryEntry,
+  type CatalogLibraryProjectDomain,
   type CatalogOpenProjectResult,
   type CatalogProjectDomain,
   type CatalogSnapshot,
@@ -186,6 +188,22 @@ async function importLegacyBook(): Promise<ShortBook | null> {
   return ShortBookSchema.nullable().parse(
     await invokeCommand<ShortBook | null>(
       createEnvelope("catalog.importLegacyBook", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function importLegacyLibrary(
+  rawDomain: CatalogLibraryProjectDomain
+): Promise<CatalogLibrary | null> {
+  const domain = CatalogLibraryProjectDomainSchema.parse(rawDomain);
+  const id = browserId("cmd_catalog_import_legacy_library");
+  return CatalogLibrarySchema.nullable().parse(
+    await invokeCommand<CatalogLibrary | null>(
+      createEnvelope(
+        "catalog.importLegacyLibrary",
+        { domain },
+        { id, correlationId: id }
+      )
     )
   );
 }
@@ -446,6 +464,7 @@ const api: DeepWriteApi = {
     createLibrary,
     openProject,
     importLegacyBook,
+    importLegacyLibrary,
     updateBook,
     deleteBook,
     saveDocument,

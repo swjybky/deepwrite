@@ -20,6 +20,7 @@ import {
   FolderCatalogStore
 } from "./folder-catalog-store";
 import { readLegacyBookArchive } from "./legacy-book-import";
+import { readLegacyLibraryArchive } from "./legacy-library-import";
 import { bootUtility } from "./runtime";
 
 const userDataPath = process.env.DEEPWRITE_USER_DATA_PATH?.trim();
@@ -142,6 +143,20 @@ async function handleCatalogCommand(
         status: "accepted",
         requestId: command.id,
         payload: ShortBookSchema.parse(imported.resource)
+      };
+    }
+    if (command.type === "catalog.importLegacyLibraryAtPath") {
+      const imported = await catalogStore.importLegacyLibrary(
+        await readLegacyLibraryArchive(
+          command.payload.archivePath,
+          command.payload.domain
+        ),
+        command.payload.parentDirectory
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CatalogLibrarySchema.parse(imported.resource)
       };
     }
     if (command.type === "catalog.createLibraryAtPath") {

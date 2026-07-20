@@ -60,6 +60,7 @@ import {
   type UpdateBookInput
 } from "@deepwrite/contracts";
 import type { ImportedLegacyBook } from "./legacy-book-import";
+import type { ImportedLegacyLibrary } from "./legacy-library-import";
 
 const MANIFEST_FILE = "deepwrite.json";
 const REGISTRY_FILE = "catalog-registry.json";
@@ -565,6 +566,78 @@ export class FolderCatalogStore {
         projectDirectory,
         "book"
       )) as OpenFolderCatalogProjectResult<ShortBook>;
+    });
+  }
+
+  async importLegacyLibrary(
+    input: Extract<ImportedLegacyLibrary, { domain: "material" }>,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary>>;
+  async importLegacyLibrary(
+    input: Extract<ImportedLegacyLibrary, { domain: "skill" }>,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<SkillLibrary>>;
+  async importLegacyLibrary(
+    input: ImportedLegacyLibrary,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>>;
+  async importLegacyLibrary(
+    input: ImportedLegacyLibrary,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>> {
+    const projectDomain = libraryProjectDomain(input.domain);
+    const parent =
+      parentDirectory?.trim() || this.defaultProjectParents[projectDomain];
+    return await this.mutate(async () => {
+      const now = this.now();
+      const resource: MaterialLibrary | SkillLibrary =
+        input.domain === "material"
+          ? {
+              ...input.library,
+              id: `material-${randomUUID()}`,
+              entries: input.library.entries.map((entry) => ({
+                ...entry,
+                id: `material-entry-${randomUUID()}`,
+                createdAt: now,
+                updatedAt: now
+              })),
+              createdAt: now,
+              updatedAt: now
+            }
+          : {
+              ...input.library,
+              id: `skill-${randomUUID()}`,
+              isBuiltin: false,
+              entries: input.library.entries.map((entry) => ({
+                ...entry,
+                id: `skill-entry-${randomUUID()}`,
+                createdAt: now,
+                updatedAt: now
+              })),
+              createdAt: now,
+              updatedAt: now
+            };
+      const projectDirectory = await this.writeNewResourceProject(
+        projectDomain,
+        parent,
+        resource
+      );
+      try {
+        const registry = await this.ensureRegistry();
+        await this.registerProject(registry, {
+          id: resource.id,
+          domain: projectDomain,
+          projectDirectory,
+          registeredAt: now
+        });
+      } catch (error: unknown) {
+        await cleanupNewProjectDirectories([projectDirectory]);
+        throw error;
+      }
+      return (await this.readProject(
+        projectDirectory,
+        projectDomain
+      )) as OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>;
     });
   }
 

@@ -52,7 +52,11 @@ import type {
 
 export type ResourceDomain = "creation" | "skill" | "material";
 
-export type ResourceSectionAction = "create" | "import" | "import-legacy-book";
+export type ResourceSectionAction =
+  | "create"
+  | "import"
+  | "import-legacy-book"
+  | "import-legacy-library";
 
 export interface ResourceSectionActionPayload {
   domain: ResourceDomain;

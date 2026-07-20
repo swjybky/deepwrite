@@ -123,6 +123,11 @@ describe("catalog contracts", () => {
         { id: "catalog-open" }
       ),
       createEnvelope(
+        "catalog.importLegacyLibrary",
+        { domain: "material" as const },
+        { id: "catalog-import-legacy-library" }
+      ),
+      createEnvelope(
         "catalog.createShortBookAtPath",
         {
           parentDirectory: "/Users/writer/Books",
@@ -146,6 +151,15 @@ describe("catalog contracts", () => {
           domain: "book" as const
         },
         { id: "catalog-open-at-path" }
+      ),
+      createEnvelope(
+        "catalog.importLegacyLibraryAtPath",
+        {
+          domain: "skill" as const,
+          archivePath: "/Users/writer/Exports/旧技能.zip",
+          parentDirectory: "/Users/writer/Skills"
+        },
+        { id: "catalog-import-legacy-library-at-path" }
       ),
       createEnvelope(
         "catalog.updateBook",
@@ -214,9 +228,11 @@ describe("catalog contracts", () => {
         "catalog.createShortBook",
         "catalog.createLibrary",
         "catalog.openProject",
+        "catalog.importLegacyLibrary",
         "catalog.createShortBookAtPath",
         "catalog.createLibraryAtPath",
         "catalog.openProjectAtPath",
+        "catalog.importLegacyLibraryAtPath",
         "catalog.updateBook",
         "catalog.deleteBook",
         "catalog.saveDocument",

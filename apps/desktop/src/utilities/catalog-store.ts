@@ -239,7 +239,7 @@ function normalizeMaterialEntries(
   return entries;
 }
 
-function normalizeMaterialLibrary(
+export function normalizeLegacyMaterialLibrary(
   raw: unknown,
   index: number,
   importedAt: string
@@ -378,7 +378,7 @@ function normalizeSkillEntries(
   return entries;
 }
 
-function normalizeSkillLibrary(
+export function normalizeLegacySkillLibrary(
   raw: unknown,
   index: number,
   importedAt: string
@@ -841,7 +841,7 @@ async function loadLegacySource(
   const materials = uniqueById(
     (Array.isArray(materialsPayload.materials) ? materialsPayload.materials : []).flatMap(
       (value, index) => {
-        const material = normalizeMaterialLibrary(value, index, importedAt);
+        const material = normalizeLegacyMaterialLibrary(value, index, importedAt);
         return material ? [material] : [];
       }
     )
@@ -849,7 +849,7 @@ async function loadLegacySource(
   const skills = uniqueById(
     (Array.isArray(skillsPayload.skills) ? skillsPayload.skills : []).flatMap(
       (value, index) => {
-        const skill = normalizeSkillLibrary(value, index, importedAt);
+        const skill = normalizeLegacySkillLibrary(value, index, importedAt);
         return skill ? [skill] : [];
       }
     )

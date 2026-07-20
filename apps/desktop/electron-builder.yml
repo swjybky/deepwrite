@@ -17,7 +17,8 @@ mac:
   target: dmg
   icon: build/icon.png
   category: public.app-category.productivity
-  identity: null
+  identity: "-"
+  hardenedRuntime: false
   notarize: false
 
 win:

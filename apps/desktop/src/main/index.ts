@@ -377,7 +377,8 @@ function registerIpc(): void {
         command.type === "catalog.createShortBookAtPath" ||
         command.type === "catalog.createLibraryAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
-        command.type === "catalog.importLegacyBookAtPath"
+        command.type === "catalog.importLegacyBookAtPath" ||
+        command.type === "catalog.importLegacyLibraryAtPath"
       ) {
         return {
           status: "rejected",
@@ -442,7 +443,8 @@ function registerIpc(): void {
         command.type === "catalog.createShortBook" ||
         command.type === "catalog.createLibrary" ||
         command.type === "catalog.openProject" ||
-        command.type === "catalog.importLegacyBook"
+        command.type === "catalog.importLegacyBook" ||
+        command.type === "catalog.importLegacyLibrary"
       ) {
         try {
           const workspaceDirectory = await requireSelectedWorkspaceDirectory();
@@ -471,20 +473,31 @@ function registerIpc(): void {
               title:
                 command.type === "catalog.importLegacyBook"
                   ? "导入旧版书籍压缩包"
+                  : command.type === "catalog.importLegacyLibrary"
+                    ? `导入旧版${domain === "material" ? "素材" : "技能"}库压缩包`
                   : domain === "book"
                     ? "打开已有书籍"
                     : domain === "material"
                       ? "打开已有素材库"
                       : "打开已有技能库",
               defaultPath,
-              ...(command.type === "catalog.importLegacyBook"
+              ...(
+                command.type === "catalog.importLegacyBook" ||
+                command.type === "catalog.importLegacyLibrary"
                 ? {
                     properties: ["openFile"] as const,
                     filters: [
-                      { name: "旧版书籍压缩包", extensions: ["zip"] }
+                      {
+                        name:
+                          command.type === "catalog.importLegacyBook"
+                            ? "旧版书籍压缩包"
+                            : `旧版${domain === "material" ? "素材" : "技能"}库压缩包`,
+                        extensions: ["zip"]
+                      }
                     ]
                   }
-                : { properties: ["openDirectory"] as const })
+                : { properties: ["openDirectory"] as const }
+              )
             });
             const selected = selection.filePaths[0];
             if (selection.canceled || !selected) {
@@ -525,14 +538,24 @@ function registerIpc(): void {
                     },
                     { id: command.id, context: command.context }
                   )
-                  : createEnvelope(
-                      "catalog.importLegacyBookAtPath",
-                      {
-                        archivePath: selectedPath,
-                        parentDirectory: defaultPath
-                      },
-                      { id: command.id, context: command.context }
-                    )
+                  : command.type === "catalog.importLegacyBook"
+                    ? createEnvelope(
+                        "catalog.importLegacyBookAtPath",
+                        {
+                          archivePath: selectedPath,
+                          parentDirectory: defaultPath
+                        },
+                        { id: command.id, context: command.context }
+                      )
+                    : createEnvelope(
+                        "catalog.importLegacyLibraryAtPath",
+                        {
+                          domain: command.payload.domain,
+                          archivePath: selectedPath,
+                          parentDirectory: defaultPath
+                        },
+                        { id: command.id, context: command.context }
+                      )
           );
           const result = await supervisor.requestCommand(
             "core",
@@ -549,7 +572,9 @@ function registerIpc(): void {
                 ? CatalogLibrarySchema.parse(result.payload)
                 : command.type === "catalog.openProject"
                   ? CatalogOpenProjectResultSchema.parse(result.payload)
-                  : ShortBookSchema.parse(result.payload);
+                  : command.type === "catalog.importLegacyBook"
+                    ? ShortBookSchema.parse(result.payload)
+                    : CatalogLibrarySchema.parse(result.payload);
           return { status: "accepted", requestId: command.id, payload };
         } catch (error: unknown) {
           return {

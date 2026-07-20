@@ -54,7 +54,13 @@ const actionItems = computed<Array<{
             icon: "archive"
           }
         ] as const)
-      : [])
+      : ([
+          {
+            id: "import-legacy-library",
+            label: `导入旧版${resourceName}`,
+            icon: "archive"
+          }
+        ] as const))
   ];
 });
 

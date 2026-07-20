@@ -12,6 +12,11 @@ export const CATALOG_PROJECT_DOMAINS = ["book", "material", "skill"] as const;
 export const CatalogProjectDomainSchema = z.enum(CATALOG_PROJECT_DOMAINS);
 export type CatalogProjectDomain = z.infer<typeof CatalogProjectDomainSchema>;
 
+export const CatalogLibraryProjectDomainSchema = z.enum(["material", "skill"]);
+export type CatalogLibraryProjectDomain = z.infer<
+  typeof CatalogLibraryProjectDomainSchema
+>;
+
 export const CATALOG_PROJECT_KINDS = [
   "deepwrite.book",
   "deepwrite.material-library",
@@ -528,6 +533,22 @@ export type ImportLegacyBookAtPathInput = z.infer<
   typeof ImportLegacyBookAtPathInputSchema
 >;
 
+export const ImportLegacyLibraryInputSchema = z.object({
+  domain: CatalogLibraryProjectDomainSchema
+});
+export type ImportLegacyLibraryInput = z.infer<
+  typeof ImportLegacyLibraryInputSchema
+>;
+
+export const ImportLegacyLibraryAtPathInputSchema =
+  ImportLegacyLibraryInputSchema.extend({
+    archivePath: z.string().trim().min(1),
+    parentDirectory: z.string().trim().min(1)
+  });
+export type ImportLegacyLibraryAtPathInput = z.infer<
+  typeof ImportLegacyLibraryAtPathInputSchema
+>;
+
 export const UpdateBookInputSchema = z
   .object({
     bookId: CatalogIdSchema,
@@ -572,11 +593,6 @@ export const SaveDocumentInputSchema = z.object({
   force: z.boolean().optional()
 });
 export type SaveDocumentInput = z.infer<typeof SaveDocumentInputSchema>;
-
-export const CatalogLibraryProjectDomainSchema = z.enum(["material", "skill"]);
-export type CatalogLibraryProjectDomain = z.infer<
-  typeof CatalogLibraryProjectDomainSchema
->;
 
 export const CatalogLibrarySchema = z.union([
   MaterialLibrarySchema,
@@ -723,6 +739,12 @@ export const CatalogImportLegacyBookCommandEnvelopeSchema =
     payload: z.object({})
   });
 
+export const CatalogImportLegacyLibraryCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.importLegacyLibrary"),
+    payload: ImportLegacyLibraryInputSchema
+  });
+
 export const CatalogCreateShortBookAtPathCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.createShortBookAtPath"),
@@ -745,6 +767,12 @@ export const CatalogImportLegacyBookAtPathCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.importLegacyBookAtPath"),
     payload: ImportLegacyBookAtPathInputSchema
+  });
+
+export const CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.importLegacyLibraryAtPath"),
+    payload: ImportLegacyLibraryAtPathInputSchema
   });
 
 export const CatalogUpdateBookCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
@@ -794,10 +822,12 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogCreateLibraryCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
   CatalogImportLegacyBookCommandEnvelopeSchema,
+  CatalogImportLegacyLibraryCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
   CatalogImportLegacyBookAtPathCommandEnvelopeSchema,
+  CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogDeleteBookCommandEnvelopeSchema,
   CatalogSaveDocumentCommandEnvelopeSchema,

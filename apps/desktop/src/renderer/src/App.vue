@@ -1438,6 +1438,47 @@ async function handleResourceAction(payload: ResourceSectionActionPayload): Prom
     return;
   }
 
+  if (
+    payload.action === "import-legacy-library" &&
+    (payload.domain === "material" || payload.domain === "skill")
+  ) {
+    if (!window.deepwrite) {
+      uiMessage.warning("浏览器预览不能导入旧版资料库，请使用桌面客户端。");
+      return;
+    }
+    if (catalogMutationPending.value) {
+      return;
+    }
+    catalogMutationPending.value = true;
+    try {
+      const imported = await window.deepwrite.catalog.importLegacyLibrary(
+        payload.domain
+      );
+      if (!imported) {
+        return;
+      }
+      await loadWorkspaceDirectory();
+      applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+      const target = documents.value.find(
+        (document) => document.libraryId === imported.id
+      );
+      if (target) {
+        selectedResourceId.value = target.id;
+        rightCollapsed.value = false;
+      }
+      uiMessage.success(
+        `已导入旧版${payload.domain === "material" ? "素材" : "技能"}库“${imported.title}”并新建资料库`
+      );
+    } catch (error: unknown) {
+      uiMessage.error(
+        error instanceof Error ? error.message : "导入旧版资料库失败。"
+      );
+    } finally {
+      catalogMutationPending.value = false;
+    }
+    return;
+  }
+
   if (payload.action === "import") {
     if (!window.deepwrite) {
       uiMessage.warning("浏览器预览不能打开本地文件夹，请使用桌面客户端。");

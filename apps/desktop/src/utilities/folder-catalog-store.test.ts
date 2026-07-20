@@ -417,6 +417,64 @@ describe("FolderCatalogStore", () => {
     ).resolves.toBe("旧正文");
   });
 
+  it("creates a new folder-backed library from legacy library data", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-import-library-");
+    const parentDirectory = join(root, "工作目录", "materials");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const imported = await store.importLegacyLibrary(
+      {
+        domain: "material",
+        library: {
+          id: "legacy-material-id",
+          title: "旧版人物素材库",
+          materialType: "short",
+          materialKind: "character",
+          parentGenre: "追妻",
+          subGenre: "剧情流",
+          overview: "旧素材说明",
+          entries: [
+            {
+              id: "legacy-entry-id",
+              stageId: "character",
+              title: "旧版女主",
+              body: "她记得每一场雨。",
+              createdAt: timestamp,
+              updatedAt: timestamp
+            }
+          ],
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }
+      },
+      parentDirectory
+    );
+
+    expect(imported.resource.id).not.toBe("legacy-material-id");
+    expect(imported.resource.entries[0]?.id).not.toBe("legacy-entry-id");
+    expect(imported.resource).toMatchObject({
+      title: "旧版人物素材库",
+      materialKind: "character",
+      overview: "旧素材说明",
+      entries: [
+        {
+          stageId: "character",
+          title: "旧版女主",
+          body: "她记得每一场雨。"
+        }
+      ]
+    });
+    const manifest = JSON.parse(
+      await readFile(join(imported.projectDirectory, "deepwrite.json"), "utf8")
+    ) as { kind: string; entries: Array<{ path: string }> };
+    expect(manifest.kind).toBe("deepwrite.material-library");
+    await expect(
+      readFile(join(imported.projectDirectory, manifest.entries[0]!.path), "utf8")
+    ).resolves.toBe("她记得每一场雨。");
+  });
+
   it("does not resurrect an unregistered legacy book when the app restarts", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-unregister-restart-");
     const userDataPath = join(root, "user-data");

@@ -25,6 +25,7 @@ import type {
   CatalogOpenProjectResult,
   CatalogProjectDomain,
   CatalogSnapshot,
+  CatalogLibraryProjectDomain,
   CreateLibraryEntryInput,
   CreateLibraryInput,
   CreateShortBookInput,
@@ -51,6 +52,7 @@ export interface DeepWriteApi {
     createLibrary(input: CreateLibraryInput): Promise<CatalogLibrary | null>;
     openProject(domain: CatalogProjectDomain): Promise<CatalogOpenProjectResult | null>;
     importLegacyBook(): Promise<ShortBook | null>;
+    importLegacyLibrary(domain: CatalogLibraryProjectDomain): Promise<CatalogLibrary | null>;
     updateBook(input: UpdateBookInput): Promise<ShortBook>;
     deleteBook(bookId: string): Promise<DeleteBookResult>;
     saveDocument(input: SaveDocumentInput): Promise<CatalogDocument>;

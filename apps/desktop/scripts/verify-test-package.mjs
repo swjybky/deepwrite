@@ -38,6 +38,36 @@ if (targetPlatform === "mac") {
   if (verification.status !== 0) {
     throw new Error(`DMG verification failed:\n${verification.stderr || verification.stdout}`);
   }
+
+  const appBundle = join(
+    releaseDir,
+    targetArch === "arm64" ? "mac-arm64" : "mac",
+    "DeepWrite.app"
+  );
+  await stat(appBundle);
+
+  const signatureVerification = spawnSync(
+    "codesign",
+    ["--verify", "--deep", "--strict", "--verbose=4", appBundle],
+    {
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024
+    }
+  );
+  if (signatureVerification.status !== 0) {
+    throw new Error(
+      `Ad-hoc signature verification failed:\n${signatureVerification.stderr || signatureVerification.stdout}`
+    );
+  }
+
+  const signatureDetails = spawnSync("codesign", ["-d", "--verbose=4", appBundle], {
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024
+  });
+  const signatureOutput = `${signatureDetails.stdout || ""}\n${signatureDetails.stderr || ""}`;
+  if (signatureDetails.status !== 0 || !signatureOutput.includes("Signature=adhoc")) {
+    throw new Error(`Expected an ad-hoc signed app bundle:\n${signatureOutput}`);
+  }
 }
 
 const hostCanRunTarget =

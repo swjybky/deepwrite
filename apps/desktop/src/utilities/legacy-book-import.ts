@@ -1,17 +1,11 @@
-import { readFile, stat } from "node:fs/promises";
-import { inflateRawSync } from "node:zlib";
 import type {
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   ShortBookGenre
 } from "@deepwrite/contracts";
+import { openLegacyZipArchive } from "./legacy-zip";
 
-const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
-const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
 const MAX_IMPORTED_CONTENT_BYTES = 128 * 1024 * 1024;
-const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
-const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
-const LOCAL_FILE_SIGNATURE = 0x04034b50;
 
 const CORE_DOCUMENTS = [
   ["character_design", "人物设计"],
@@ -37,15 +31,6 @@ const LEGACY_STAGE_TITLES: Readonly<Record<string, string>> = {
   format_conversion: "格式转换（旧版）",
   expert_draft_coordinator: "专家正文总控（旧版）"
 };
-
-interface ZipEntry {
-  name: string;
-  flags: number;
-  method: number;
-  compressedSize: number;
-  uncompressedSize: number;
-  localHeaderOffset: number;
-}
 
 export interface ImportedLegacyBookDocument {
   id: string;
@@ -134,159 +119,6 @@ function normalizeSkillLinks(book: Record<string, unknown>): LinkedSkillIdsByKin
     result.other.push(legacyId);
   }
   return result;
-}
-
-function checkedRange(buffer: Buffer, offset: number, length: number, label: string): void {
-  if (
-    !Number.isSafeInteger(offset) ||
-    !Number.isSafeInteger(length) ||
-    offset < 0 ||
-    length < 0 ||
-    offset + length > buffer.length
-  ) {
-    throw new Error(`旧版书籍压缩包中的${label}已损坏。`);
-  }
-}
-
-function normalizeArchivePath(rawName: string): string {
-  const name = rawName.replaceAll("\\", "/");
-  if (
-    !name ||
-    name.includes("\0") ||
-    name.startsWith("/") ||
-    /^[a-zA-Z]:\//u.test(name) ||
-    name.split("/").some((part) => part === "..")
-  ) {
-    throw new Error("旧版书籍压缩包包含不安全的文件路径。");
-  }
-  return name.replace(/^\.\//u, "");
-}
-
-function readZipEntries(archive: Buffer): ZipEntry[] {
-  const minimumOffset = Math.max(0, archive.length - 65_557);
-  let directoryOffset = -1;
-  let entryCount = 0;
-  let directorySize = 0;
-  for (let offset = archive.length - 22; offset >= minimumOffset; offset -= 1) {
-    if (archive.readUInt32LE(offset) !== END_OF_CENTRAL_DIRECTORY_SIGNATURE) {
-      continue;
-    }
-    checkedRange(archive, offset, 22, "目录结尾");
-    const commentLength = archive.readUInt16LE(offset + 20);
-    if (offset + 22 + commentLength !== archive.length) {
-      continue;
-    }
-    if (archive.readUInt16LE(offset + 4) !== 0 || archive.readUInt16LE(offset + 6) !== 0) {
-      throw new Error("暂不支持分卷旧版书籍压缩包。");
-    }
-    entryCount = archive.readUInt16LE(offset + 10);
-    directorySize = archive.readUInt32LE(offset + 12);
-    directoryOffset = archive.readUInt32LE(offset + 16);
-    if (
-      entryCount === 0xffff ||
-      directorySize === 0xffffffff ||
-      directoryOffset === 0xffffffff
-    ) {
-      throw new Error("旧版书籍压缩包过大，暂不支持 ZIP64 格式。");
-    }
-    break;
-  }
-  if (directoryOffset < 0) {
-    throw new Error("无效的 zip 文件：找不到压缩包目录。");
-  }
-  checkedRange(archive, directoryOffset, directorySize, "文件目录");
-  const entries: ZipEntry[] = [];
-  const entryNames = new Set<string>();
-  let cursor = directoryOffset;
-  for (let index = 0; index < entryCount; index += 1) {
-    checkedRange(archive, cursor, 46, "文件目录项");
-    if (archive.readUInt32LE(cursor) !== CENTRAL_DIRECTORY_SIGNATURE) {
-      throw new Error("旧版书籍压缩包的文件目录已损坏。");
-    }
-    const flags = archive.readUInt16LE(cursor + 8);
-    const method = archive.readUInt16LE(cursor + 10);
-    const compressedSize = archive.readUInt32LE(cursor + 20);
-    const uncompressedSize = archive.readUInt32LE(cursor + 24);
-    const nameLength = archive.readUInt16LE(cursor + 28);
-    const extraLength = archive.readUInt16LE(cursor + 30);
-    const commentLength = archive.readUInt16LE(cursor + 32);
-    const localHeaderOffset = archive.readUInt32LE(cursor + 42);
-    const recordLength = 46 + nameLength + extraLength + commentLength;
-    checkedRange(archive, cursor, recordLength, "文件目录项");
-    const name = normalizeArchivePath(
-      archive.subarray(cursor + 46, cursor + 46 + nameLength).toString("utf8")
-    );
-    if (!name.endsWith("/")) {
-      if (entryNames.has(name)) {
-        throw new Error(`旧版书籍压缩包包含重复文件：${name}。`);
-      }
-      if ((flags & 0x1) !== 0) {
-        throw new Error("旧版书籍压缩包已加密，无法导入。");
-      }
-      if (method !== 0 && method !== 8) {
-        throw new Error(`旧版书籍压缩包使用了不支持的压缩方式：${method}。`);
-      }
-      entries.push({
-        name,
-        flags,
-        method,
-        compressedSize,
-        uncompressedSize,
-        localHeaderOffset
-      });
-      entryNames.add(name);
-    }
-    cursor += recordLength;
-  }
-  return entries;
-}
-
-function readZipEntry(archive: Buffer, entry: ZipEntry): Buffer {
-  if (entry.uncompressedSize > MAX_ENTRY_BYTES) {
-    throw new Error(`压缩包文件“${entry.name}”超过 32 MB 安全上限。`);
-  }
-  checkedRange(archive, entry.localHeaderOffset, 30, `文件“${entry.name}”`);
-  if (archive.readUInt32LE(entry.localHeaderOffset) !== LOCAL_FILE_SIGNATURE) {
-    throw new Error(`压缩包文件“${entry.name}”的本地头已损坏。`);
-  }
-  const nameLength = archive.readUInt16LE(entry.localHeaderOffset + 26);
-  const extraLength = archive.readUInt16LE(entry.localHeaderOffset + 28);
-  checkedRange(
-    archive,
-    entry.localHeaderOffset + 30,
-    nameLength + extraLength,
-    `文件“${entry.name}”`
-  );
-  const localName = normalizeArchivePath(
-    archive
-      .subarray(
-        entry.localHeaderOffset + 30,
-        entry.localHeaderOffset + 30 + nameLength
-      )
-      .toString("utf8")
-  );
-  if (localName !== entry.name) {
-    throw new Error(`压缩包文件“${entry.name}”的目录名称不一致。`);
-  }
-  const contentOffset = entry.localHeaderOffset + 30 + nameLength + extraLength;
-  checkedRange(archive, contentOffset, entry.compressedSize, `文件“${entry.name}”`);
-  const compressed = archive.subarray(contentOffset, contentOffset + entry.compressedSize);
-  const content = entry.method === 0
-    ? Buffer.from(compressed)
-    : inflateRawSync(compressed, { maxOutputLength: MAX_ENTRY_BYTES });
-  if (content.length !== entry.uncompressedSize) {
-    throw new Error(`压缩包文件“${entry.name}”的长度校验失败。`);
-  }
-  return content;
-}
-
-function parseJsonObject(content: Buffer, label: string): Record<string, unknown> | undefined {
-  try {
-    const value = JSON.parse(content.toString("utf8").replace(/^\uFEFF/u, "")) as unknown;
-    return isRecord(value) ? value : undefined;
-  } catch {
-    throw new Error(`旧版书籍压缩包中的 ${label} 不是有效 JSON。`);
-  }
 }
 
 function extraDocumentId(stageId: string, index: number): string {
@@ -403,24 +235,10 @@ export function normalizeLegacyBook(
 }
 
 export async function readLegacyBookArchive(path: string): Promise<ImportedLegacyBook> {
-  const info = await stat(path);
-  if (!info.isFile()) {
-    throw new Error("选择的旧版书籍压缩包不是普通文件。");
-  }
-  if (info.size > MAX_ARCHIVE_BYTES) {
-    throw new Error("旧版书籍压缩包超过 256 MB 安全上限。");
-  }
-  const archive = await readFile(path);
-  const entries = readZipEntries(archive);
-  const byName = new Map(entries.map((entry) => [entry.name, entry] as const));
-  let book = byName.get("book.json")
-    ? parseJsonObject(readZipEntry(archive, byName.get("book.json")!), "book.json")
-    : undefined;
+  const archive = await openLegacyZipArchive(path, "旧版书籍压缩包");
+  let book = archive.readJsonObject("book.json");
   if (!book) {
-    const metadataEntry = byName.get("metadata.json");
-    const metadata = metadataEntry
-      ? parseJsonObject(readZipEntry(archive, metadataEntry), "metadata.json")
-      : undefined;
+    const metadata = archive.readJsonObject("metadata.json");
     if (
       metadata &&
       (metadata.library_type === "book" || metadata.library_type === "workspace") &&
@@ -433,10 +251,10 @@ export async function readLegacyBookArchive(path: string): Promise<ImportedLegac
     throw new Error("无效的旧版书籍压缩包：缺少 book.json。");
   }
   const stageFiles = new Map<string, string>();
-  for (const entry of entries) {
-    const match = /^stages\/([^/]+)\.txt$/u.exec(entry.name);
+  for (const entryName of archive.entryNames) {
+    const match = /^stages\/([^/]+)\.txt$/u.exec(entryName);
     if (match?.[1]) {
-      stageFiles.set(match[1], readZipEntry(archive, entry).toString("utf8"));
+      stageFiles.set(match[1], archive.read(entryName)!.toString("utf8"));
     }
   }
   return normalizeLegacyBook(book, stageFiles);

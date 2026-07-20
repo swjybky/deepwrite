@@ -84,6 +84,7 @@ function createDeferredApi(): {
       }),
       openProject: vi.fn(async () => null),
       importLegacyBook: vi.fn(async () => null),
+      importLegacyLibrary: vi.fn(async () => null),
       createShortBook: vi.fn(async () => {
         throw new Error("Catalog is not used by conversation tests.");
       }),
