@@ -1990,6 +1990,40 @@ html[data-theme="dark"] :where(
   white-space: pre-wrap;
 }
 
+.message-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+  white-space: normal;
+}
+
+.message-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 260px;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid rgba(90, 94, 99, 0.13);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #55595e;
+  font-size: 0.714286rem;
+  line-height: 1.3;
+}
+
+.message-attachment-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-attachment-chip small {
+  flex: 0 0 auto;
+  color: #9b7245;
+  font-size: 0.607143rem;
+}
+
 .message-actions {
   display: flex;
   align-items: center;
@@ -2364,6 +2398,84 @@ html[data-theme="dark"] :where(
 .composer:focus-within .composer-input-surface {
   border-color: #c5c6c3;
   box-shadow: 0 7px 22px rgba(25, 28, 31, 0.09), 0 1px 2px rgba(25, 28, 31, 0.04);
+}
+
+.composer-file-input {
+  display: none;
+}
+
+.composer-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px 0;
+}
+
+.composer-attachment-chip {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 24px;
+  align-items: center;
+  width: min(218px, 100%);
+  min-width: 0;
+  gap: 7px;
+  padding: 5px;
+  border: 1px solid #e1e1de;
+  border-radius: 10px;
+  background: #f8f8f6;
+}
+
+.composer-attachment-chip > img,
+.composer-attachment-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  background: #ececea;
+  color: #73777c;
+  object-fit: cover;
+}
+
+.composer-attachment-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.composer-attachment-copy strong,
+.composer-attachment-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-attachment-copy strong {
+  color: #35383c;
+  font-size: 0.714286rem;
+  font-weight: 580;
+}
+
+.composer-attachment-copy small,
+.composer-attachment-loading {
+  color: #8d9094;
+  font-size: 0.642857rem;
+}
+
+.composer-attachment-chip > button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  color: #8d9094;
+  cursor: pointer;
+}
+
+.composer-attachment-chip > button:hover:not(:disabled) {
+  background: #e8e8e5;
+  color: #44484d;
 }
 
 .composer.is-disabled {
@@ -2835,6 +2947,8 @@ html[data-theme="dark"] :where(
 }
 
 .workspace-dialog {
+  display: flex;
+  flex-direction: column;
   width: min(560px, calc(100vw - 48px));
   max-height: min(720px, calc(100vh - 60px));
   overflow: hidden;
@@ -2849,6 +2963,7 @@ html[data-theme="dark"] :where(
 }
 
 .workspace-dialog > header {
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -2892,6 +3007,7 @@ html[data-theme="dark"] :where(
 }
 
 .dialog-content {
+  min-height: 0;
   overflow-y: auto;
   padding: 20px 22px 23px;
 }
@@ -3080,6 +3196,35 @@ html[data-theme="dark"] :where(
   width: min(500px, calc(100vw - 48px));
 }
 
+.library-group-dialog {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.library-group-members {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+}
+
+.library-group-members legend {
+  margin-bottom: 10px;
+  color: #474b50;
+  font-size: 0.857143rem;
+  font-weight: 620;
+}
+
+.library-group-member-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.4fr);
+  align-items: center;
+  gap: 14px;
+  color: #5d6166;
+  font-size: 0.821429rem;
+  font-weight: 560;
+}
+
 .catalog-resource-form {
   display: grid;
 }
@@ -3264,6 +3409,12 @@ html[data-theme="dark"] :where(
 }
 
 .create-short-book-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(760px, calc(100vw - 48px));
+}
+
+.book-binding-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(760px, calc(100vw - 48px));
@@ -3553,7 +3704,18 @@ html[data-theme="dark"] :where(
 }
 
 .model-config-content {
-  max-height: calc(100vh - 150px);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.model-config-scroll-area {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 22px 23px;
+  scrollbar-gutter: stable;
 }
 
 .model-empty-state {
@@ -3676,6 +3838,22 @@ html[data-theme="dark"] :where(
 
 .model-form-grid input:focus {
   border-color: #aeb9c6;
+}
+
+.model-form-grid input[readonly] {
+  background: #f3f3f0;
+  color: #60646a;
+}
+
+.model-managed-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #f0f4f8;
+  color: #626a74;
+  font-size: 0.714286rem;
+  line-height: 1.5;
 }
 
 .model-temperature-options {
@@ -3820,8 +3998,11 @@ html[data-theme="dark"] :where(
 }
 
 .model-save-actions {
-  padding-top: 4px;
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 13px 22px 15px;
   border-top: 1px solid #eeeeeb;
+  background: var(--surface-raised, #ffffff);
 }
 
 /* Runtime appearance theme. This layer intentionally comes last so imported/custom
@@ -3956,6 +4137,7 @@ html[data-theme] :where(.nav-row.is-active, .tree-row.is-selected, .view-tabs bu
 
 html[data-theme] :where(
   .composer-input-surface,
+  .composer-attachment-chip,
   .empty-suggestions button,
   .workspace-dialog,
   .model-card,
@@ -3992,6 +4174,7 @@ html[data-theme] :where(
   .message-markdown pre,
   .message-markdown code,
   .user-message-copy,
+  .message-attachment-chip,
   .view-tabs,
   .readonly-badge,
   .model-empty-state

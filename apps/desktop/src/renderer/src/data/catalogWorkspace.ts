@@ -468,7 +468,7 @@ function createMaterialGroupNodes(snapshot: CatalogSnapshot): ResourceTreeNode[]
       const node = library
         ? createMaterialLibraryNode(library)
         : missingLibraryNode("material", libraryId);
-      return [{ ...node, categoryTag: MATERIAL_TREE_KIND_LABELS[kind] }];
+      return [{ ...node, categoryTag: MATERIAL_TREE_KIND_LABELS[kind], groupId: group.id }];
     });
     return {
       id: catalogNodeId("material-group", group.id),
@@ -476,6 +476,9 @@ function createMaterialGroupNodes(snapshot: CatalogSnapshot): ResourceTreeNode[]
       icon: "folder",
       catalogNodeType: "group",
       groupId: group.id,
+      ...(group.projectRevision === undefined
+        ? {}
+        : { projectRevision: group.projectRevision }),
       children: memberNodes
     };
   });
@@ -561,58 +564,62 @@ function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
   ];
 }
 
-function createSkillGroupRoot(snapshot: CatalogSnapshot): ResourceTreeNode | undefined {
-  if (!snapshot.skillGroups.length) {
-    return undefined;
-  }
+function createSkillGroupNodes(snapshot: CatalogSnapshot): ResourceTreeNode[] {
   const librariesById = new Map(snapshot.skills.map((library) => [library.id, library]));
-  return {
-    id: catalogNodeId("skill-groups"),
-    label: "技能库分组",
-    icon: "folder",
-    badge: String(snapshot.skillGroups.length),
-    catalogNodeType: "category",
-    children: snapshot.skillGroups.map((group) => {
-      const memberNodes = SKILL_KINDS.flatMap<ResourceTreeNode>((kind) => {
-        const libraryId = group.members[kind];
-        if (!libraryId) {
-          return [];
-        }
-        const library = librariesById.get(libraryId);
-        const node = library
-          ? createSkillLibraryNode(library)
-          : missingLibraryNode("skill", libraryId);
-        return [{ ...node, categoryTag: SKILL_KIND_TAG_LABELS[kind], groupId: group.id }];
-      });
-      return {
-        id: catalogNodeId("skill-group", group.id),
-        label: group.title,
-        icon: "folder",
-        catalogNodeType: "group",
-        groupId: group.id,
-        children: memberNodes
-      };
-    })
-  };
+  return snapshot.skillGroups.map((group) => {
+    const memberNodes = SKILL_KINDS.flatMap<ResourceTreeNode>((kind) => {
+      const libraryId = group.members[kind];
+      if (!libraryId) {
+        return [];
+      }
+      const library = librariesById.get(libraryId);
+      const node = library
+        ? createSkillLibraryNode(library)
+        : missingLibraryNode("skill", libraryId);
+      return [{ ...node, categoryTag: SKILL_KIND_TAG_LABELS[kind], groupId: group.id }];
+    });
+    return {
+      id: catalogNodeId("skill-group", group.id),
+      label: group.title,
+      icon: "folder",
+      catalogNodeType: "group",
+      groupId: group.id,
+      ...(group.projectRevision === undefined
+        ? {}
+        : { projectRevision: group.projectRevision }),
+      children: memberNodes
+    };
+  });
 }
 
 /**
  * Projects the persisted catalog into the renderer's generic resource trees and
- * editor documents. Group nodes are an additional view: their member libraries
- * also remain available under the canonical kind browse hierarchy.
+ * editor documents. A library owned by a group is shown only inside that group;
+ * dissolving or changing the group makes it return to its canonical kind.
  */
 export function projectCatalogWorkspace(snapshot: CatalogSnapshot): CatalogWorkspaceProjection {
   const bookProjections = snapshot.books.map(createBookProjection);
   const materialGroupNodes = createMaterialGroupNodes(snapshot);
+  const groupedMaterialLibraryIds = new Set(
+    snapshot.materialGroups.flatMap((group) =>
+      Object.values(group.members).filter((libraryId): libraryId is string => Boolean(libraryId))
+    )
+  );
   const materialKindNodes = MATERIAL_TREE_KIND_ORDER.flatMap<ResourceTreeNode>((kind) => {
     const libraries = snapshot.materials.filter(
       (library) =>
-        library.materialKind === kind ||
-        (kind === "other" && library.materialKind === "mixed")
+        !groupedMaterialLibraryIds.has(library.id) &&
+        (library.materialKind === kind ||
+          (kind === "other" && library.materialKind === "mixed"))
     );
     return libraries.length ? [createMaterialKindNode(kind, libraries)] : [];
   });
-  const skillGroupRoot = createSkillGroupRoot(snapshot);
+  const skillGroupNodes = createSkillGroupNodes(snapshot);
+  const groupedSkillLibraryIds = new Set(
+    snapshot.skillGroups.flatMap((group) =>
+      Object.values(group.members).filter((libraryId): libraryId is string => Boolean(libraryId))
+    )
+  );
   const diagnosticBookNodes: ResourceTreeNode[] = (snapshot.projectDiagnostics ?? [])
     .filter(({ kind }) => kind === "deepwrite.book")
     .map((diagnostic) => ({
@@ -649,7 +656,10 @@ export function projectCatalogWorkspace(snapshot: CatalogSnapshot): CatalogWorks
       libraryId: diagnostic.projectId
     }));
   const skillKindNodes = SKILL_KINDS.flatMap<ResourceTreeNode>((kind) => {
-    const libraries = snapshot.skills.filter((library) => library.skillKind === kind);
+    const libraries = snapshot.skills.filter(
+      (library) =>
+        library.skillKind === kind && !groupedSkillLibraryIds.has(library.id)
+    );
     return libraries.length
       ? [
           {
@@ -679,7 +689,7 @@ export function projectCatalogWorkspace(snapshot: CatalogSnapshot): CatalogWorks
         icon: "library",
         nodes: [
           ...diagnosticSkillNodes,
-          ...(skillGroupRoot ? [skillGroupRoot] : []),
+          ...skillGroupNodes,
           ...skillKindNodes
         ]
       },

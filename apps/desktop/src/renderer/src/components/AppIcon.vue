@@ -74,6 +74,11 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'file'">
       <path d="M6 3.5h8l4 4V20H6zM14 3.5V8h4" />
     </template>
+    <template v-else-if="name === 'image'">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9" r="1.5" />
+      <path d="m5 18 5-5 3 3 2-2 4 4" />
+    </template>
     <template v-else-if="name === 'globe'">
       <circle cx="12" cy="12" r="9" />
       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />

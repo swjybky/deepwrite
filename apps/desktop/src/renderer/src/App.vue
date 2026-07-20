@@ -5,7 +5,10 @@ import type {
   CatalogDocument,
   CatalogDraftRecovery,
   CatalogLibraryEntry,
+  CatalogLibraryGroup,
   CatalogSnapshot,
+  CreateLibraryInput,
+  CreateLibraryGroupInput,
   CreateLibraryEntryInput,
   CreateShortBookInput,
   LinkedMaterialIdsByKind,
@@ -21,6 +24,8 @@ import type {
   SkillKind,
   SystemEventEnvelope,
   ThinkingLevel,
+  UpdateLibraryGroupInput,
+  UserPromptAttachment,
   WorkspaceDirectorySettings
 } from "@deepwrite/contracts";
 import {
@@ -42,6 +47,7 @@ import BookResourceDialog from "./components/BookResourceDialog.vue";
 import CreateShortBookDialog from "./components/CreateShortBookDialog.vue";
 import DeleteExpertSectionDialog from "./components/DeleteExpertSectionDialog.vue";
 import LibraryProjectDialog from "./components/LibraryProjectDialog.vue";
+import LibraryGroupDialog from "./components/LibraryGroupDialog.vue";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import RightEditorPane from "./components/RightEditorPane.vue";
 import SaveConflictDialog from "./components/SaveConflictDialog.vue";
@@ -261,6 +267,20 @@ type CreateLibraryEntryDraft =
   | Omit<Extract<CreateLibraryEntryInput, { domain: "material" }>, "content">
   | Omit<Extract<CreateLibraryEntryInput, { domain: "skill" }>, "content">;
 const libraryProjectDialog = ref<LibraryProjectDialogState | null>(null);
+interface LibraryGroupDialogState {
+  domain: "material" | "skill";
+  groupId?: string;
+}
+const libraryGroupDialog = ref<LibraryGroupDialogState | null>(null);
+const activeLibraryGroup = computed<CatalogLibraryGroup | null>(() => {
+  const state = libraryGroupDialog.value;
+  if (!state?.groupId) return null;
+  const groups =
+    state.domain === "material"
+      ? catalogSnapshot.value?.materialGroups
+      : catalogSnapshot.value?.skillGroups;
+  return groups?.find((group) => group.id === state.groupId) ?? null;
+});
 interface PendingExpertSectionDeletion {
   documentId: string;
   sectionId: string;
@@ -451,30 +471,37 @@ watch(
 );
 const skillLibraries = computed<ResourceTreeNode[]>(() => {
   if (catalogSnapshot.value) {
-    return catalogSnapshot.value.skills.map((library) => ({
+    return catalogSnapshot.value.skills
+      .filter((library) => library.skillType === "short")
+      .map((library) => ({
       id: library.id,
       label: library.title,
       icon: "library",
+      ...(library.isBuiltin ? { badge: "官方" } : {}),
       catalogNodeType: "library",
       libraryId: library.id,
       skillKind: library.skillKind
-    }));
+      }));
   }
   return resourceTreeSections.value.find((section) => section.id === "skill")?.nodes ?? [];
 });
 const materialLibraries = computed<ResourceTreeNode[]>(() => {
   if (catalogSnapshot.value) {
-    return catalogSnapshot.value.materials.map((library) => ({
+    return catalogSnapshot.value.materials
+      .filter((library) => library.materialType === "short")
+      .map((library) => ({
       id: library.id,
       label: library.title,
       icon: "archive",
-      badge: [library.parentGenre, library.subGenre].filter(Boolean).join(" / ") || "短篇",
+      ...([library.parentGenre, library.subGenre].filter(Boolean).join(" / ")
+        ? { badge: [library.parentGenre, library.subGenre].filter(Boolean).join(" / ") }
+        : {}),
       catalogNodeType: "library",
       libraryId: library.id,
       materialKind: library.materialKind,
       ...(library.parentGenre ? { parentGenre: library.parentGenre } : {}),
       ...(library.subGenre ? { subGenre: library.subGenre } : {})
-    }));
+      }));
   }
   return resourceTreeSections.value.find((section) => section.id === "material")?.nodes ?? [];
 });
@@ -594,75 +621,6 @@ async function loadCatalogSnapshot(): Promise<void> {
   } finally {
     catalogLoading.value = false;
   }
-}
-
-function emptyMaterialLinks(): LinkedMaterialIdsByKind {
-  return { character: [], gimmick: [], plot: [], draft: [], other: [] };
-}
-
-function emptySkillLinks(): LinkedSkillIdsByKind {
-  return { general: [], plot: [], style: [], other: [] };
-}
-
-function materialLinksForLibraryIds(
-  libraryIds: readonly string[],
-  baseline: LinkedMaterialIdsByKind
-): LinkedMaterialIdsByKind {
-  const links = emptyMaterialLinks();
-  const selected = new Set(libraryIds);
-  const visibleLibraries = new Map(
-    (catalogSnapshot.value?.materials ?? []).map((library) => [library.id, library] as const)
-  );
-  for (const kind of MATERIAL_KINDS) {
-    for (const libraryId of baseline[kind]) {
-      if (!selected.has(libraryId)) continue;
-      const library = visibleLibraries.get(libraryId);
-      if (!library || library.materialKind === "mixed" || library.materialKind === kind) {
-        links[kind].push(libraryId);
-      }
-    }
-  }
-  const alreadyClassified = new Set(MATERIAL_KINDS.flatMap((kind) => links[kind]));
-  for (const libraryId of selected) {
-    if (alreadyClassified.has(libraryId)) continue;
-    const library = visibleLibraries.get(libraryId);
-    if (!library) continue;
-    if (library.materialKind === "mixed") {
-      for (const kind of MATERIAL_KINDS) {
-        links[kind].push(library.id);
-      }
-    } else {
-      links[library.materialKind].push(library.id);
-    }
-  }
-  return links;
-}
-
-function skillLinksForLibraryIds(
-  libraryIds: readonly string[],
-  baseline: LinkedSkillIdsByKind
-): LinkedSkillIdsByKind {
-  const links = emptySkillLinks();
-  const selected = new Set(libraryIds);
-  const visibleLibraries = new Map(
-    (catalogSnapshot.value?.skills ?? []).map((library) => [library.id, library] as const)
-  );
-  for (const kind of SKILL_KINDS) {
-    for (const libraryId of baseline[kind]) {
-      if (!selected.has(libraryId)) continue;
-      const library = visibleLibraries.get(libraryId);
-      if (!library || library.skillKind === kind) {
-        links[kind].push(libraryId);
-      }
-    }
-  }
-  const alreadyClassified = new Set(SKILL_KINDS.flatMap((kind) => links[kind]));
-  for (const libraryId of selected) {
-    if (alreadyClassified.has(libraryId)) continue;
-    const library = visibleLibraries.get(libraryId);
-    if (library) links[library.skillKind].push(library.id);
-  }
-  return links;
 }
 
 function conversationForKey(key: string): AgentConversationController {
@@ -865,6 +823,9 @@ const conversationError = computed(
 );
 const responding = computed(() => activeConversation.value.isBusy.value);
 const canSend = computed(() => activeConversation.value.canSend.value);
+const canSendAttachments = computed(
+  () => activeConversation.value.canSendAttachments.value
+);
 const canStop = computed(() => activeConversation.value.canStop.value);
 const editorLocked = computed(() => {
   const selectedDocument = promptDocumentForResourceId(selectedResourceId.value);
@@ -1268,11 +1229,9 @@ function removeBook(bookId: string): void {
 
 async function updateCatalogBookBindings(
   book: ResourceTreeNode,
-  payload: {
-    bookId: string;
-    domain: "skill" | "material";
-    libraryIds: string[];
-  }
+  payload:
+    | { bookId: string; domain: "skill"; linksByKind: LinkedSkillIdsByKind }
+    | { bookId: string; domain: "material"; linksByKind: LinkedMaterialIdsByKind }
 ): Promise<void> {
   if (!window.deepwrite || catalogMutationPending.value) return;
   catalogMutationPending.value = true;
@@ -1289,18 +1248,10 @@ async function updateCatalogBookBindings(
         : { baseProjectRevision }),
       ...(payload.domain === "skill"
         ? {
-            linkedSkillIdsByKind: skillLinksForLibraryIds(
-              payload.libraryIds,
-              book.boundSkillLibraryIdsByKind ??
-                persistedBook.linkedSkillIdsByKind
-            )
+            linkedSkillIdsByKind: payload.linksByKind
           }
         : {
-            linkedMaterialIdsByKind: materialLinksForLibraryIds(
-              payload.libraryIds,
-              book.boundMaterialLibraryIdsByKind ??
-                persistedBook.linkedMaterialIdsByKind
-            )
+            linkedMaterialIdsByKind: payload.linksByKind
           })
     });
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
@@ -1321,11 +1272,10 @@ async function updateCatalogBookBindings(
   }
 }
 
-function updateBookBindings(payload: {
-  bookId: string;
-  domain: "skill" | "material";
-  libraryIds: string[];
-}): void {
+function updateBookBindings(payload:
+  | { bookId: string; domain: "skill"; linksByKind: LinkedSkillIdsByKind }
+  | { bookId: string; domain: "material"; linksByKind: LinkedMaterialIdsByKind }
+): void {
   const book = findVisibleBook(payload.bookId);
   if (!book) {
     closeBookDialog();
@@ -1338,8 +1288,8 @@ function updateBookBindings(payload: {
   updateBookPreference(
     payload.bookId,
     payload.domain === "skill"
-      ? { skillLibraryIds: [...payload.libraryIds] }
-      : { materialLibraryIds: [...payload.libraryIds] }
+      ? { skillLibraryIds: [...new Set(Object.values(payload.linksByKind).flat())] }
+      : { materialLibraryIds: [...new Set(Object.values(payload.linksByKind).flat())] }
   );
   closeBookDialog();
   uiMessage.success(
@@ -1403,6 +1353,18 @@ async function handleResourceAction(payload: ResourceSectionActionPayload): Prom
     return;
   }
 
+  if (
+    payload.action === "create-group" &&
+    (payload.domain === "material" || payload.domain === "skill")
+  ) {
+    if (!window.deepwrite) {
+      uiMessage.warning("浏览器预览不能创建本地分组，请使用桌面客户端。");
+      return;
+    }
+    libraryGroupDialog.value = { domain: payload.domain };
+    return;
+  }
+
   if (payload.domain === "creation" && payload.action === "import-legacy-book") {
     if (!window.deepwrite) {
       uiMessage.warning("浏览器预览不能导入旧版书籍，请使用桌面客户端。");
@@ -1451,24 +1413,41 @@ async function handleResourceAction(payload: ResourceSectionActionPayload): Prom
     }
     catalogMutationPending.value = true;
     try {
-      const imported = await window.deepwrite.catalog.importLegacyLibrary(
+      const result = await window.deepwrite.catalog.importLegacyLibrary(
         payload.domain
       );
-      if (!imported) {
+      if (!result) {
         return;
       }
       await loadWorkspaceDirectory();
       applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+      const imported = result.imported.at(-1);
       const target = documents.value.find(
-        (document) => document.libraryId === imported.id
+        (document) => document.libraryId === imported?.id
       );
       if (target) {
         selectedResourceId.value = target.id;
         rightCollapsed.value = false;
       }
-      uiMessage.success(
-        `已导入旧版${payload.domain === "material" ? "素材" : "技能"}库“${imported.title}”并新建资料库`
-      );
+      const libraryLabel = payload.domain === "material" ? "素材" : "技能";
+      if (result.failures.length === 0) {
+        uiMessage.success(
+          result.imported.length === 1
+            ? `已导入旧版${libraryLabel}库“${result.imported[0]!.title}”并新建资料库`
+            : `已导入 ${result.imported.length} 个旧版${libraryLabel}库并新建资料库`
+        );
+      } else {
+        const failureSummary = result.failures
+          .map(({ fileName, message }) => `${fileName}：${message}`)
+          .join("；");
+        if (result.imported.length > 0) {
+          uiMessage.warning(
+            `已导入 ${result.imported.length} 个旧版${libraryLabel}库，${result.failures.length} 个失败：${failureSummary}`
+          );
+        } else {
+          uiMessage.error(`导入旧版${libraryLabel}库失败：${failureSummary}`);
+        }
+      }
     } catch (error: unknown) {
       uiMessage.error(
         error instanceof Error ? error.message : "导入旧版资料库失败。"
@@ -1570,10 +1549,7 @@ function advanceLibraryDraftProjectRevision(
   );
 }
 
-async function createCatalogLibrary(payload: {
-  domain: "material" | "skill";
-  name: string;
-}): Promise<void> {
+async function createCatalogLibrary(payload: CreateLibraryInput): Promise<void> {
   if (!window.deepwrite || catalogMutationPending.value) return;
   catalogMutationPending.value = true;
   try {
@@ -1594,6 +1570,57 @@ async function createCatalogLibrary(payload: {
     uiMessage.error(error instanceof Error ? error.message : "创建资料库失败。");
   } finally {
     catalogMutationPending.value = false;
+  }
+}
+
+async function createCatalogLibraryGroup(
+  payload: CreateLibraryGroupInput
+): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value) return;
+  catalogMutationPending.value = true;
+  try {
+    const created = await window.deepwrite.catalog.createLibraryGroup(payload);
+    if (!created) return;
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    libraryGroupDialog.value = null;
+    uiMessage.success(`已创建${payload.domain === "material" ? "素材" : "技能"}分组“${created.title}”`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "创建资料库分组失败。");
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
+async function updateCatalogLibraryGroup(
+  payload: UpdateLibraryGroupInput
+): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value) return;
+  catalogMutationPending.value = true;
+  try {
+    const updated = await window.deepwrite.catalog.updateLibraryGroup(payload);
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    libraryGroupDialog.value = null;
+    uiMessage.success(`已更新分组“${updated.title}”的绑定`);
+  } catch (error: unknown) {
+    if (isCatalogConflict(error)) {
+      await loadCatalogSnapshot();
+      libraryGroupDialog.value = null;
+      uiMessage.warning("分组配置已在外部更新，已重新加载；请确认后再次切换绑定");
+    } else {
+      uiMessage.error(error instanceof Error ? error.message : "更新分组绑定失败。");
+    }
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
+function saveCatalogLibraryGroup(
+  payload: CreateLibraryGroupInput | UpdateLibraryGroupInput
+): void {
+  if ("groupId" in payload) {
+    void updateCatalogLibraryGroup(payload);
+  } else {
+    void createCatalogLibraryGroup(payload);
   }
 }
 
@@ -1725,7 +1752,44 @@ async function unregisterCatalogLibrary(
   }
 }
 
+async function dissolveCatalogLibraryGroup(
+  payload: CatalogResourceNodeActionPayload
+): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value || !payload.node.groupId) return;
+  catalogMutationPending.value = true;
+  try {
+    const result = await window.deepwrite.catalog.unregisterProject({
+      domain: payload.domain === "material" ? "material-group" : "skill-group",
+      projectId: payload.node.groupId
+    });
+    if (!result.unregistered) {
+      throw new Error("分组已经不在当前目录中。");
+    }
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    uiMessage.success(`已解散分组“${payload.node.label}”，成员库已回到原分类`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "解散分组失败。");
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
 function handleResourceNodeAction(payload: CatalogResourceNodeActionPayload): void {
+  if (payload.action === "edit-group-bindings") {
+    if (!payload.node.groupId) {
+      uiMessage.error("未找到对应的分组");
+      return;
+    }
+    libraryGroupDialog.value = {
+      domain: payload.domain,
+      groupId: payload.node.groupId
+    };
+    return;
+  }
+  if (payload.action === "dissolve-group") {
+    void dissolveCatalogLibraryGroup(payload);
+    return;
+  }
   const libraryId = payload.node.libraryId;
   if (!libraryId) {
     uiMessage.error("未找到对应的本地资料库");
@@ -2491,7 +2555,7 @@ function useSuggestion(value: string): void {
   activeConversation.value.useSuggestion(value);
 }
 
-async function sendMessage(): Promise<void> {
+async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Promise<void> {
   const conversation = activeConversation.value;
   const sendSessionId = conversation.sessionId.value;
   const attachments = activeLibraryAttachments.value;
@@ -2511,7 +2575,8 @@ async function sendMessage(): Promise<void> {
           attachedSkills: attachments.attachedSkills,
           attachedMaterials: attachments.attachedMaterials
         }
-      : {}
+      : {},
+    promptAttachments
   );
   scheduleQueuedAutoAgentEdits(
     (queued) =>
@@ -2994,6 +3059,12 @@ async function loadModelSettings(): Promise<void> {
   }
 }
 
+watch(dialogMode, (mode) => {
+  if (mode === "models") {
+    void loadModelSettings();
+  }
+});
+
 async function saveModelSettings(settings: ModelSettingsInput): Promise<void> {
   if (!window.deepwrite || modelSaving.value) {
     return;
@@ -3099,6 +3170,7 @@ function handleGlobalKeydown(event: KeyboardEvent): void {
     dialogMode.value = null;
     createShortBookDialogOpen.value = false;
     libraryProjectDialog.value = null;
+    libraryGroupDialog.value = null;
     saveConflict.value = null;
     closeBookDialog();
     if (currentView.value === "settings") {
@@ -3220,7 +3292,9 @@ onMounted(async () => {
   await loadEditorDraftRecovery();
   if (!window.deepwrite) {
     if (recoveredEditorDraftCount > 0) {
-      uiMessage.info(`已恢复 ${recoveredEditorDraftCount} 份未保存草稿`);
+      uiMessage.info(`已恢复 ${recoveredEditorDraftCount} 份未保存草稿`, {
+        duration: 1500
+      });
     }
     return;
   }
@@ -3233,7 +3307,9 @@ onMounted(async () => {
     loadWorkspaceDirectory()
   ]);
   if (recoveredEditorDraftCount > 0) {
-    uiMessage.info(`已恢复 ${recoveredEditorDraftCount} 份未保存草稿`);
+    uiMessage.info(`已恢复 ${recoveredEditorDraftCount} 份未保存草稿`, {
+      duration: 1500
+    });
   }
 });
 
@@ -3304,6 +3380,7 @@ onBeforeUnmount(() => {
         :current-session-id="currentSessionId"
         :responding="responding"
         :can-send="canSend"
+        :can-send-attachments="canSendAttachments"
         :can-stop="canStop"
         :runtime-available="hasDesktopRuntime"
         :models="configuredModels"
@@ -3400,6 +3477,10 @@ onBeforeUnmount(() => {
       :book="activeBook"
       :skill-libraries="skillLibraries"
       :material-libraries="materialLibraries"
+      :material-groups="catalogSnapshot?.materialGroups ?? []"
+      :skill-groups="catalogSnapshot?.skillGroups ?? []"
+      :loading="catalogLoading"
+      :submitting="catalogMutationPending"
       @close="closeBookDialog"
       @rename="renameBook"
       @remove="removeBook"
@@ -3430,6 +3511,18 @@ onBeforeUnmount(() => {
       @create-library="createCatalogLibrary"
       @create-entry="createCatalogLibraryEntry"
       @remove-entry="removeCatalogLibraryEntry"
+    />
+    <LibraryGroupDialog
+      :open="Boolean(libraryGroupDialog)"
+      :domain="libraryGroupDialog?.domain ?? 'material'"
+      :group="activeLibraryGroup"
+      :materials="catalogSnapshot?.materials ?? []"
+      :material-groups="catalogSnapshot?.materialGroups ?? []"
+      :skills="catalogSnapshot?.skills ?? []"
+      :skill-groups="catalogSnapshot?.skillGroups ?? []"
+      :submitting="catalogMutationPending"
+      @close="libraryGroupDialog = null"
+      @submit="saveCatalogLibraryGroup"
     />
     <SaveConflictDialog
       :open="Boolean(saveConflict)"

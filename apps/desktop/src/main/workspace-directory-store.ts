@@ -46,6 +46,17 @@ export class WorkspaceDirectoryStore {
     }
   }
 
+  async initializeDefault(defaultPath: string): Promise<WorkspaceDirectorySettings> {
+    const current = await this.list();
+    if (current.path) {
+      return current;
+    }
+
+    const absoluteDefaultPath = resolve(defaultPath);
+    await mkdir(absoluteDefaultPath, { recursive: true });
+    return this.save(await realpath(absoluteDefaultPath));
+  }
+
   async save(rawPath: string): Promise<WorkspaceDirectorySettings> {
     const requestedPath = rawPath.trim();
     if (!requestedPath) {

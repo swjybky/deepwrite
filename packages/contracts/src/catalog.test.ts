@@ -4,16 +4,103 @@ import {
   CatalogProjectManifestSchema,
   CatalogSnapshotSchema,
   CommandEnvelopeSchema,
+  CreateLibraryInputSchema,
   CreateLibraryEntryInputSchema,
+  CreateLibraryGroupInputSchema,
+  ImportLegacyLibraryResultSchema,
   CreateShortBookInputSchema,
   MATERIAL_KINDS,
   SKILL_KINDS,
+  UpdateLibraryGroupInputSchema,
   createEnvelope
 } from "./index";
 
 const now = "2026-07-18T10:00:00.000Z";
 
 describe("catalog contracts", () => {
+  it("requires a classification when creating material and skill libraries", () => {
+    expect(
+      CreateLibraryInputSchema.parse({
+        domain: "material",
+        name: "人物素材",
+        materialKind: "character"
+      })
+    ).toMatchObject({ materialKind: "character" });
+    expect(
+      CreateLibraryInputSchema.parse({
+        domain: "skill",
+        name: "剧情技能",
+        skillKind: "plot"
+      })
+    ).toMatchObject({ skillKind: "plot" });
+    expect(() =>
+      CreateLibraryInputSchema.parse({ domain: "material", name: "未分类素材" })
+    ).toThrow();
+    expect(() =>
+      CreateLibraryInputSchema.parse({
+        domain: "material",
+        name: "综合素材",
+        materialKind: "mixed"
+      })
+    ).toThrow();
+  });
+
+  it("validates multi-archive legacy library import results", () => {
+    const result = ImportLegacyLibraryResultSchema.parse({
+      imported: [],
+      failures: [
+        { fileName: "损坏素材库.zip", message: "缺少 metadata.json。" }
+      ]
+    });
+
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]?.fileName).toBe("损坏素材库.zip");
+  });
+
+  it("accepts optional library selections when creating groups", () => {
+    expect(
+      CreateLibraryGroupInputSchema.parse({
+        domain: "material",
+        name: "空素材分组",
+        members: {}
+      }).members
+    ).toEqual({});
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope(
+          "catalog.createLibraryGroup",
+          {
+            domain: "skill",
+            name: "写作技能组",
+            members: { general: "skill-general" }
+          },
+          { id: "catalog-create-library-group" }
+        )
+      ).type
+    ).toBe("catalog.createLibraryGroup");
+    expect(
+      UpdateLibraryGroupInputSchema.parse({
+        domain: "skill",
+        groupId: "skill-group",
+        members: { plot: "skill-plot" },
+        baseProjectRevision: 2
+      })
+    ).toMatchObject({ groupId: "skill-group", baseProjectRevision: 2 });
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope(
+          "catalog.updateLibraryGroup",
+          {
+            domain: "material",
+            groupId: "material-group",
+            members: {}
+          },
+          { id: "catalog-update-library-group" }
+        )
+      ).type
+    ).toBe("catalog.updateLibraryGroup");
+  });
+
   it("validates a normalized catalog snapshot", () => {
     const snapshot = CatalogSnapshotSchema.parse({
       schemaVersion: 1,
@@ -114,7 +201,11 @@ describe("catalog contracts", () => {
       ),
       createEnvelope(
         "catalog.createLibrary",
-        { domain: "material" as const, name: "人物素材" },
+        {
+          domain: "material" as const,
+          name: "人物素材",
+          materialKind: "character" as const
+        },
         { id: "catalog-create-library" }
       ),
       createEnvelope(
@@ -140,6 +231,7 @@ describe("catalog contracts", () => {
         {
           domain: "skill" as const,
           name: "剧情技能",
+          skillKind: "plot" as const,
           parentDirectory: "/Users/writer/Skills"
         },
         { id: "catalog-create-library-at-path" }

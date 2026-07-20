@@ -6,6 +6,7 @@ import {
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
+  CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
   CatalogOpenProjectResultSchema,
   CatalogSnapshotSchema,
@@ -32,6 +33,10 @@ import {
   type UtilityWorkerName
 } from "@deepwrite/contracts";
 import { createId, nowIso } from "@deepwrite/shared";
+import {
+  LEGACY_LIBRARY_FILE_SELECTION_PROPERTIES,
+  importLegacyLibraryArchives
+} from "./legacy-library-import-batch";
 import { ModelConfigStore } from "./model-config-store";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
@@ -306,6 +311,16 @@ function workspaceResourceParent(
   );
 }
 
+function workspaceGroupParent(
+  workspaceDirectory: string,
+  domain: "material" | "skill"
+): string {
+  return join(
+    workspaceDirectory,
+    domain === "material" ? "material-groups" : "skill-groups"
+  );
+}
+
 function configureCatalogEnvironment(): string {
   const userDataPath = app.getPath("userData");
   process.env.DEEPWRITE_USER_DATA_PATH = userDataPath;
@@ -376,6 +391,7 @@ function registerIpc(): void {
         command.type === "agent.model_test" ||
         command.type === "catalog.createShortBookAtPath" ||
         command.type === "catalog.createLibraryAtPath" ||
+        command.type === "catalog.createLibraryGroupAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
         command.type === "catalog.importLegacyBookAtPath" ||
         command.type === "catalog.importLegacyLibraryAtPath"
@@ -442,6 +458,7 @@ function registerIpc(): void {
       if (
         command.type === "catalog.createShortBook" ||
         command.type === "catalog.createLibrary" ||
+        command.type === "catalog.createLibraryGroup" ||
         command.type === "catalog.openProject" ||
         command.type === "catalog.importLegacyBook" ||
         command.type === "catalog.importLegacyLibrary"
@@ -461,13 +478,17 @@ function registerIpc(): void {
             command.type === "catalog.importLegacyBook"
               ? "book"
               : command.payload.domain;
-          const defaultPath = workspaceResourceParent(workspaceDirectory, domain);
-          let selectedPath: string;
+          const defaultPath =
+            command.type === "catalog.createLibraryGroup"
+              ? workspaceGroupParent(workspaceDirectory, command.payload.domain)
+              : workspaceResourceParent(workspaceDirectory, domain);
+          let selectedPaths: string[];
           if (
             command.type === "catalog.createShortBook" ||
-            command.type === "catalog.createLibrary"
+            command.type === "catalog.createLibrary" ||
+            command.type === "catalog.createLibraryGroup"
           ) {
-            selectedPath = defaultPath;
+            selectedPaths = [defaultPath];
           } else {
             const selection = await dialog.showOpenDialog({
               title:
@@ -485,7 +506,10 @@ function registerIpc(): void {
                 command.type === "catalog.importLegacyBook" ||
                 command.type === "catalog.importLegacyLibrary"
                 ? {
-                    properties: ["openFile"] as const,
+                    properties:
+                      command.type === "catalog.importLegacyLibrary"
+                        ? LEGACY_LIBRARY_FILE_SELECTION_PROPERTIES
+                        : (["openFile"] as const),
                     filters: [
                       {
                         name:
@@ -499,16 +523,17 @@ function registerIpc(): void {
                 : { properties: ["openDirectory"] as const }
               )
             });
-            const selected = selection.filePaths[0];
-            if (selection.canceled || !selected) {
+            if (selection.canceled || selection.filePaths.length === 0) {
               return {
                 status: "accepted",
                 requestId: command.id,
                 payload: null
               };
             }
-            selectedPath = selected;
+            selectedPaths = selection.filePaths;
           }
+
+          const selectedPath = selectedPaths[0]!;
 
           const internalCommand = CommandEnvelopeSchema.parse(
             command.type === "catalog.createShortBook"
@@ -529,6 +554,15 @@ function registerIpc(): void {
                     },
                     { id: command.id, context: command.context }
                   )
+                : command.type === "catalog.createLibraryGroup"
+                  ? createEnvelope(
+                      "catalog.createLibraryGroupAtPath",
+                      {
+                        parentDirectory: selectedPath,
+                        input: command.payload
+                      },
+                      { id: command.id, context: command.context }
+                    )
                 : command.type === "catalog.openProject"
                   ? createEnvelope(
                     "catalog.openProjectAtPath",
@@ -557,6 +591,40 @@ function registerIpc(): void {
                         { id: command.id, context: command.context }
                       )
           );
+
+          if (command.type === "catalog.importLegacyLibrary") {
+            const payload = await importLegacyLibraryArchives(
+              selectedPaths,
+              async (archivePath, index) => {
+                const result = await supervisor.requestCommand(
+                  "core",
+                  createEnvelope(
+                    "catalog.importLegacyLibraryAtPath",
+                    {
+                      domain: command.payload.domain,
+                      archivePath,
+                      parentDirectory: defaultPath
+                    },
+                    {
+                      id: `${command.id}_${index + 1}`,
+                      context: command.context
+                    }
+                  ),
+                  0
+                );
+                if (result.status === "rejected") {
+                  throw new Error(result.error.message);
+                }
+                return result.payload;
+              }
+            );
+            return {
+              status: "accepted",
+              requestId: command.id,
+              payload
+            };
+          }
+
           const result = await supervisor.requestCommand(
             "core",
             internalCommand,
@@ -570,6 +638,8 @@ function registerIpc(): void {
               ? ShortBookSchema.parse(result.payload)
               : command.type === "catalog.createLibrary"
                 ? CatalogLibrarySchema.parse(result.payload)
+                : command.type === "catalog.createLibraryGroup"
+                  ? CatalogLibraryGroupSchema.parse(result.payload)
                 : command.type === "catalog.openProject"
                   ? CatalogOpenProjectResultSchema.parse(result.payload)
                   : command.type === "catalog.importLegacyBook"
@@ -594,6 +664,7 @@ function registerIpc(): void {
         command.type === "catalog.loadDraftRecovery" ||
         command.type === "catalog.saveDraftRecovery" ||
         command.type === "catalog.updateBook" ||
+        command.type === "catalog.updateLibraryGroup" ||
         command.type === "catalog.deleteBook" ||
         command.type === "catalog.saveDocument" ||
         command.type === "catalog.saveLibraryEntry" ||
@@ -635,6 +706,9 @@ function registerIpc(): void {
               break;
             case "catalog.updateBook":
               payload = ShortBookSchema.parse(result.payload);
+              break;
+            case "catalog.updateLibraryGroup":
+              payload = CatalogLibraryGroupSchema.parse(result.payload);
               break;
           }
           return { status: "accepted", requestId: command.id, payload };
@@ -1053,12 +1127,16 @@ if (!hasSingleInstanceLock) {
     mainWindow.focus();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     const userDataPath = configureCatalogEnvironment();
-    modelConfigStore = new ModelConfigStore(userDataPath);
+    modelConfigStore = new ModelConfigStore(userDataPath, {
+      appVersion: app.getVersion()
+    });
+    void modelConfigStore.initialize();
     workspaceAgentConfigStore = new WorkspaceAgentConfigStore(userDataPath);
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
+    await workspaceDirectoryStore.initializeDefault(app.getPath("documents"));
     registerIpc();
     supervisor.startAll();
     mainWindow = createMainWindow();

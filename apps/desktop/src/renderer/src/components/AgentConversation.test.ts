@@ -13,4 +13,10 @@ describe("AgentConversation edit proposal placement", () => {
     expect(proposalsStart).toBeGreaterThan(responseStart);
     expect(actionsStart).toBeGreaterThan(proposalsStart);
   });
+
+  it("only lists configured models in the composer model selector", () => {
+    expect(source).toContain("props.models.map");
+    expect(source).toContain('placeholder="选择模型"');
+    expect(source).not.toContain('{ value: "", label: "DeepWrite Faux" }');
+  });
 });

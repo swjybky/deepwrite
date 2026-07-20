@@ -56,6 +56,15 @@ export interface ChatToolActivity {
   summary?: string;
 }
 
+export interface ChatMessageAttachment {
+  id: string;
+  name: string;
+  kind: "text" | "image";
+  mediaType: string;
+  size: number;
+  truncated?: boolean;
+}
+
 export interface AgentToolTrace {
   id: string;
   streamId?: string;
@@ -95,6 +104,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  attachments?: ChatMessageAttachment[];
   runId?: string;
   thinking?: string;
   toolCalls?: AgentToolTrace[];

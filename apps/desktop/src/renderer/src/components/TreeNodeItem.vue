@@ -48,6 +48,12 @@ const hasLibraryAction = computed(
         Boolean(props.node.catalogEntryId) &&
         !props.node.readOnly))
 );
+const hasGroupAction = computed(
+  () =>
+    libraryDomain.value !== undefined &&
+    props.node.catalogNodeType === "group" &&
+    Boolean(props.node.groupId)
+);
 const hasBookAction = computed(
   () =>
     props.resourceDomain === "creation" &&
@@ -69,6 +75,7 @@ const hasActionMenu = computed(
   () =>
     Boolean(props.pinnable) ||
     hasLibraryAction.value ||
+    hasGroupAction.value ||
     hasBookAction.value ||
     isExpertDraftSection.value
 );
@@ -218,7 +225,12 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-else-if="hasActionMenu" ref="actionArea" class="tree-node-action-area">
+    <div
+      v-else-if="hasActionMenu"
+      ref="actionArea"
+      class="tree-node-action-area"
+      :class="{ 'is-menu-open': actionMenuOpen }"
+    >
       <button
         class="tree-node-action"
         :class="{ 'is-active': actionMenuOpen }"
@@ -316,6 +328,26 @@ onBeforeUnmount(() => {
             <span>从列表移除（保留文件夹）</span>
           </button>
         </template>
+        <template v-else-if="node.catalogNodeType === 'group' && libraryDomain">
+          <button
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('edit-group-bindings')"
+          >
+            <AppIcon name="edit" :size="16" />
+            <span>切换绑定</span>
+          </button>
+          <button
+            class="tree-node-action-menu-item is-danger"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('dissolve-group')"
+          >
+            <AppIcon name="trash" :size="16" />
+            <span>解散分组</span>
+          </button>
+        </template>
         <template
           v-else-if="node.catalogNodeType === 'document' && node.catalogEntryId && libraryDomain"
         >
@@ -349,6 +381,7 @@ onBeforeUnmount(() => {
         :pinned-ids="pinnedIds"
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
+        @book-action="(mode, book) => emit('bookAction', mode, book)"
         @resource-node-action="emit('resourceNodeAction', $event)"
         @create-expert-section="emit('createExpertSection', $event)"
         @remove-expert-section="emit('removeExpertSection', $event)"
@@ -356,3 +389,9 @@ onBeforeUnmount(() => {
     </ul>
   </li>
 </template>
+
+<style scoped>
+.tree-node-action-area.is-menu-open {
+  z-index: 30;
+}
+</style>

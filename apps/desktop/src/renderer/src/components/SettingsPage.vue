@@ -140,38 +140,56 @@ function updateTheme<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K])
   appearance.updateTheme(editingScheme.value, { [key]: value });
 }
 
-function updateColor(key: "accent" | "background" | "foreground", value: string): void {
-  if (!/^#[\da-f]{6}$/i.test(value)) {
-    uiMessage.warning("请输入 6 位十六进制颜色，例如 #339CFF");
-    return;
-  }
-  updateTheme(key, value.toUpperCase());
+type ThemeColorKey = "accent" | "background" | "foreground";
+type ThemeFontSizeKey = "uiFontSize" | "codeFontSize";
+
+function applyColor(key: ThemeColorKey, value: string): void {
+  updateTheme(key, value.trim().toUpperCase());
   appearance.updateTheme(editingScheme.value, { preset: "custom" });
 }
 
-function updateFontSize(
-  key: "uiFontSize" | "codeFontSize",
-  event: Event
-): void {
+function previewColor(key: ThemeColorKey, event: Event): void {
+  const value = (event.target as HTMLInputElement).value;
+  if (/^#[\da-f]{6}$/i.test(value.trim())) {
+    applyColor(key, value);
+  }
+}
+
+function commitColor(key: ThemeColorKey, event: Event): void {
   const input = event.target as HTMLInputElement;
+  if (!/^#[\da-f]{6}$/i.test(input.value.trim())) {
+    input.value = editingTheme.value[key];
+    uiMessage.warning("请输入 6 位十六进制颜色，例如 #339CFF");
+    return;
+  }
+  applyColor(key, input.value);
+}
+
+function parseFontSize(key: ThemeFontSizeKey, input: HTMLInputElement): number | null {
+  if (input.value.trim() === "") return null;
   const value = Number(input.value);
   const limits = FONT_SIZE_LIMITS[key];
-  if (!Number.isFinite(value) || value < limits.min || value > limits.max) {
+  return Number.isFinite(value) && value >= limits.min && value <= limits.max
+    ? Math.round(value * 2) / 2
+    : null;
+}
+
+function previewFontSize(key: ThemeFontSizeKey, event: Event): void {
+  const value = parseFontSize(key, event.target as HTMLInputElement);
+  if (value !== null) updateTheme(key, value);
+}
+
+function commitFontSize(key: ThemeFontSizeKey, event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const value = parseFontSize(key, input);
+  const limits = FONT_SIZE_LIMITS[key];
+  if (value === null) {
     input.value = String(editingTheme.value[key]);
     uiMessage.warning(`字号请输入 ${limits.min}–${limits.max} px 之间的数值`);
     return;
   }
-  updateTheme(key, Math.round(value * 2) / 2);
-}
-
-function restoreEmptyFontSize(
-  key: "uiFontSize" | "codeFontSize",
-  event: Event
-): void {
-  const input = event.target as HTMLInputElement;
-  if (input.value === "") {
-    input.value = String(editingTheme.value[key]);
-  }
+  updateTheme(key, value);
+  input.value = String(value);
 }
 
 async function writeClipboard(value: string): Promise<void> {
@@ -343,35 +361,35 @@ async function importThemeFile(event: Event): Promise<void> {
             <div class="theme-setting-row">
               <label for="accent-color">强调色</label>
               <div class="color-control" :style="{ backgroundColor: editingTheme.accent, color: '#fff' }">
-                <input id="accent-color" type="color" :value="editingTheme.accent" aria-label="选择强调色" @input="updateColor('accent', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.accent" aria-label="输入强调色" spellcheck="false" @change="updateColor('accent', ($event.target as HTMLInputElement).value)" />
+                <input id="accent-color" type="color" :value="editingTheme.accent" aria-label="选择强调色" @input="applyColor('accent', ($event.target as HTMLInputElement).value)" />
+                <input :value="editingTheme.accent" aria-label="输入强调色" spellcheck="false" @input="previewColor('accent', $event)" @change="commitColor('accent', $event)" />
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="background-color">背景</label>
               <div class="color-control" :class="{ 'is-light': editingScheme === 'light' }" :style="{ backgroundColor: editingTheme.background, color: editingTheme.foreground }">
-                <input id="background-color" type="color" :value="editingTheme.background" aria-label="选择背景色" @input="updateColor('background', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.background" aria-label="输入背景色" spellcheck="false" @change="updateColor('background', ($event.target as HTMLInputElement).value)" />
+                <input id="background-color" type="color" :value="editingTheme.background" aria-label="选择背景色" @input="applyColor('background', ($event.target as HTMLInputElement).value)" />
+                <input :value="editingTheme.background" aria-label="输入背景色" spellcheck="false" @input="previewColor('background', $event)" @change="commitColor('background', $event)" />
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="foreground-color">前景</label>
               <div class="color-control" :class="{ 'is-light': editingScheme === 'light' }" :style="{ backgroundColor: editingTheme.foreground, color: editingTheme.background }">
-                <input id="foreground-color" type="color" :value="editingTheme.foreground" aria-label="选择前景色" @input="updateColor('foreground', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.foreground" aria-label="输入前景色" spellcheck="false" @change="updateColor('foreground', ($event.target as HTMLInputElement).value)" />
+                <input id="foreground-color" type="color" :value="editingTheme.foreground" aria-label="选择前景色" @input="applyColor('foreground', ($event.target as HTMLInputElement).value)" />
+                <input :value="editingTheme.foreground" aria-label="输入前景色" spellcheck="false" @input="previewColor('foreground', $event)" @change="commitColor('foreground', $event)" />
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="ui-font-size">UI 字号</label>
               <div class="font-size-control">
-                <input id="ui-font-size" type="number" :min="FONT_SIZE_LIMITS.uiFontSize.min" :max="FONT_SIZE_LIMITS.uiFontSize.max" step="0.5" :value="editingTheme.uiFontSize" :placeholder="String(editingTheme.uiFontSize)" inputmode="decimal" required aria-label="UI 字号（像素）" @input="restoreEmptyFontSize('uiFontSize', $event)" @change="updateFontSize('uiFontSize', $event)" />
+                <input id="ui-font-size" type="number" :min="FONT_SIZE_LIMITS.uiFontSize.min" :max="FONT_SIZE_LIMITS.uiFontSize.max" step="0.5" :value="editingTheme.uiFontSize" :placeholder="String(editingTheme.uiFontSize)" inputmode="decimal" required aria-label="UI 字号（像素）" @input="previewFontSize('uiFontSize', $event)" @change="commitFontSize('uiFontSize', $event)" />
                 <span>px</span>
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="code-font-size">代码字号</label>
               <div class="font-size-control is-code">
-                <input id="code-font-size" type="number" :min="FONT_SIZE_LIMITS.codeFontSize.min" :max="FONT_SIZE_LIMITS.codeFontSize.max" step="0.5" :value="editingTheme.codeFontSize" :placeholder="String(editingTheme.codeFontSize)" inputmode="decimal" required aria-label="代码字号（像素）" @input="restoreEmptyFontSize('codeFontSize', $event)" @change="updateFontSize('codeFontSize', $event)" />
+                <input id="code-font-size" type="number" :min="FONT_SIZE_LIMITS.codeFontSize.min" :max="FONT_SIZE_LIMITS.codeFontSize.max" step="0.5" :value="editingTheme.codeFontSize" :placeholder="String(editingTheme.codeFontSize)" inputmode="decimal" required aria-label="代码字号（像素）" @input="previewFontSize('codeFontSize', $event)" @change="commitFontSize('codeFontSize', $event)" />
                 <span>px</span>
               </div>
             </div>

@@ -38,6 +38,8 @@ import {
 import {
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryCommandEnvelopeSchema,
+  CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
+  CatalogCreateLibraryGroupCommandEnvelopeSchema,
   CatalogCreateLibraryEntryCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateShortBookCommandEnvelopeSchema,
@@ -55,6 +57,7 @@ import {
   CatalogRemoveLibraryEntryCommandEnvelopeSchema,
   CatalogSnapshotCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
+  CatalogUpdateLibraryGroupCommandEnvelopeSchema,
   CatalogUnregisterProjectCommandEnvelopeSchema
 } from "./catalog";
 import {
@@ -97,15 +100,18 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogSaveDraftRecoveryCommandEnvelopeSchema,
   CatalogCreateShortBookCommandEnvelopeSchema,
   CatalogCreateLibraryCommandEnvelopeSchema,
+  CatalogCreateLibraryGroupCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
   CatalogImportLegacyBookCommandEnvelopeSchema,
   CatalogImportLegacyLibraryCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
+  CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
   CatalogImportLegacyBookAtPathCommandEnvelopeSchema,
   CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
+  CatalogUpdateLibraryGroupCommandEnvelopeSchema,
   CatalogDeleteBookCommandEnvelopeSchema,
   CatalogSaveDocumentCommandEnvelopeSchema,
   CatalogSaveLibraryEntryCommandEnvelopeSchema,

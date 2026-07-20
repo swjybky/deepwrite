@@ -13,6 +13,38 @@ afterEach(async () => {
 });
 
 describe("WorkspaceDirectoryStore", () => {
+  it("defaults a first-time user to the system documents directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "deepwrite-workspace-directory-default-"));
+    temporaryRoots.push(root);
+    const documents = join(root, "Documents");
+    const userData = join(root, "user-data");
+
+    const store = new WorkspaceDirectoryStore(userData);
+    const initialized = await store.initializeDefault(documents);
+    const canonicalDocuments = await realpath(documents);
+    expect(initialized).toEqual({ path: canonicalDocuments });
+
+    const reloaded = new WorkspaceDirectoryStore(userData);
+    await expect(reloaded.list()).resolves.toEqual({ path: canonicalDocuments });
+  });
+
+  it("keeps an existing workspace directory when initializing the default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "deepwrite-workspace-directory-existing-"));
+    temporaryRoots.push(root);
+    const existing = join(root, "已有工作区");
+    const documents = join(root, "Documents");
+    await Promise.all([mkdir(existing), mkdir(documents)]);
+
+    const store = new WorkspaceDirectoryStore(join(root, "user-data"));
+    const canonicalExisting = await realpath(existing);
+    await store.save(existing);
+
+    await expect(store.initializeDefault(documents)).resolves.toEqual({
+      path: canonicalExisting
+    });
+    await expect(store.list()).resolves.toEqual({ path: canonicalExisting });
+  });
+
   it("starts unset and persists freely switchable directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "deepwrite-workspace-directory-"));
     temporaryRoots.push(root);

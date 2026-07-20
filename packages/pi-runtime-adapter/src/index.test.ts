@@ -4,6 +4,7 @@ import {
   type AssistantMessage
 } from "@earendil-works/pi-ai";
 import {
+  buildRawUserMessage,
   interceptToolCallStream,
   PiAgentRuntimeAdapter,
   toToolStreamRuntimeEvent,
@@ -37,6 +38,64 @@ function toolCallMessage(id: string, name: string): AssistantMessage {
 }
 
 describe("DeepWrite Pi runtime adapter", () => {
+  it("keeps uploaded text and images as native user-message content", () => {
+    const message = buildRawUserMessage({
+      runId: "run_attachment",
+      sessionId: "session_attachment",
+      prompt: "结合附件分析场景",
+      attachments: [
+        {
+          id: "notes",
+          kind: "text",
+          name: "notes.md",
+          mediaType: "text/markdown",
+          size: 12,
+          content: "雨夜，旧站台。"
+        },
+        {
+          id: "reference",
+          kind: "image",
+          name: "reference.png",
+          mediaType: "image/png",
+          size: 3,
+          data: "AQID"
+        }
+      ]
+    }, 123);
+
+    expect(message.timestamp).toBe(123);
+    expect(message.content).toEqual([
+      {
+        type: "text",
+        text: expect.stringContaining("雨夜，旧站台。")
+      },
+      { type: "image", data: "AQID", mimeType: "image/png" }
+    ]);
+  });
+
+  it("does not silently ignore images on the local text-only runtime", async () => {
+    const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
+    const consume = async () => {
+      for await (const _event of runtime.start({
+        runId: "run_image_faux",
+        sessionId: "session_image_faux",
+        prompt: "分析图片",
+        attachments: [{
+          id: "reference",
+          kind: "image",
+          name: "reference.png",
+          mediaType: "image/png",
+          size: 3,
+          data: "AQID"
+        }]
+      })) {
+        // The capability check fails before a stream is created.
+      }
+    };
+
+    await expect(consume()).rejects.toThrow("Faux 不支持图片理解");
+  });
+
   it("observes raw tool chunks while forwarding them to pi-agent-core", async () => {
     const source = createAssistantMessageEventStream();
     const observed: Array<{ type: string; turn: number }> = [];

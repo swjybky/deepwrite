@@ -321,6 +321,9 @@ bootUtility("agent", {
         runId,
         sessionId: command.payload.sessionId,
         prompt: command.payload.message,
+        ...(command.payload.attachments?.length
+          ? { attachments: command.payload.attachments }
+          : {}),
         ...(command.payload.writeApprovalMode
           ? { writeApprovalMode: command.payload.writeApprovalMode }
           : {}),

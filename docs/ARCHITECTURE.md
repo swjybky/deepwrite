@@ -72,13 +72,15 @@ Renderer 不直接依赖 Pi SDK。`useAgentConversation.ts` 只消费 `window.de
 - 发送 Catalog 短篇消息时，Renderer 从当前 Catalog 快照解析真实条目并填充 `attachedSkills` / `attachedMaterials`。素材条目按阶段映射到 material kind，技能条目继承技能库 kind；Pi 工具随后根据当前 Agent 的读取范围再次过滤。
 - 资料库概述不进入附件；单域最多 64 条、单条最多 20,000 字符，容量遗漏和正文截断会产生结构化诊断并通过浮层提示用户。
 - 快照正文最多 20,000 字符；超限时必须同时发送 `truncated=true` 与 `originalLength`，Faux 回复会如实提示截断。
+- 对话输入框支持 TXT、Markdown、PDF 及 PNG / JPEG / WebP / GIF。Renderer 直接读取纯文本，使用 PDF.js worker 提取 PDF 文本；扫描版 PDF 没有文本层时通过浮层提示先做 OCR。单条消息最多 8 个附件，文本和图片分别执行单文件与总量上限，截断或拒绝都不会静默发生。
+- 用户文本附件会连同文件名和截断标记写入 User Message 文本上下文；图片以 Pi `image` 内容块携带 base64 和 MIME 类型进入模型多模态链路。自定义模型端点保留图片块，由 Provider 明确报告能力错误；Pi 内置目录标记为纯文本的模型和本地 Faux 会在请求前明确拒绝图片。
 - 普通短篇阶段已装配读取、搜索、素材查询、技能加载、阶段切换、整段写入和唯一片段替换工具；写工具提交待审阅变更，同一 run、同一阶段的连续写入会合并为一份最终提案。
 - 正文父节点与动态小节树节点指向同一份 draft Markdown，不复制第二份文稿。选择父节点时保留正文总控会话，选择左侧具体小节时携带经契约校验的稳定 section id 并进入分节写手；右侧横向 Tab 只切换编辑器内容，不反向改变树选择。父节点行末“＋”按现有最大编号追加空小节，小节行末“···”提供带确认的删除操作；增删结果先进入可恢复草稿，应用时确定性合并回源 Markdown。
 - draft Markdown 的显式 marker 保存小节 id、字数要求和人物状态；marker 不进入正文总览或编辑器，人物状态在审阅 diff 中以可读文本展示。分节写手的读取、正文写入 / 替换、人物状态写入 / 替换均锁定当前小节，结果继续走完整 draft 的 revision、diff、接受 / 拒绝与原子保存链。
 - 各阶段发送给 Agent Utility 的文本上限仍为 20,000 字符；分节路由另随快照携带完整 section id 索引，因此截断点之后的合法小节仍可通过 Main 校验。截断阶段允许读取和搜索已提供的前段内容，但禁止整段写入、正文骨架重建和局部替换，避免用不完整快照覆盖未见到的正文尾部。
 - 每部作品的人物、剧情、大纲和正文协调分别保留自己的内存会话；每个正文小节按稳定 id 隔离分节写手会话；剧情设计、导语设计和剧情细化共用该作品的 `plot_design` 会话，不跨作品复用。
 - 运行期间锁定当前智能体可写的编辑阶段，防止用户输入与工具写回竞争；mutation 携带 `baseRevision`，Renderer 在提案进入审阅和用户接受时各校验一次。接受期间同一作品的编辑与保存串行化；版本冲突只更新提案状态并用浮层提示，不覆盖最新草稿。
-- 传给模型的作品位置、runId 和附件目录只在本轮请求中临时注入；run 结束后 transcript 只保留原始用户消息，避免动态上下文污染多轮历史。
+- 传给模型的作品位置、runId 和资料库附件目录只在本轮请求中临时注入；run 结束后 transcript 保留原始用户消息及用户上传的文本 / 图片附件，但移除动态工作区包装，避免动态上下文污染多轮历史。
 
 ## 5. Core 文件夹项目与旧数据迁移
 
@@ -129,12 +131,12 @@ Renderer 不直接依赖 Pi SDK。`useAgentConversation.ts` 只消费 `window.de
 | 智能体对话 | `web/src/pages/bookEditor/WorkspaceAiPanel.tsx`、`web/src/components/WorkspaceAiChat.tsx` | 阶段会话与真实绑定附件已接通 |
 | 文本编辑 | `web/src/pages/bookEditor/WorkspaceEditorPane.tsx`、`web/src/workspaces/long/LongWorkspaceEditor.tsx` | 书籍阶段、素材与技能条目可显式保存；Agent 写回 diff、接受 / 拒绝和接受后自动保存已完成 |
 | 学习仿写 | `web/src/features/learningImitation/` | 尚未迁移 |
-| 技能库 | `web/src/pages/SkillEditor.tsx` 与 bridge 领域类型 | 文件夹新建 / 打开 / 解除注册及条目 CRUD 已完成；元数据和分组管理未完成 |
-| 素材库 | `web/src/pages/MaterialEditor.tsx` 与 bridge 领域类型 | 文件夹新建 / 打开 / 解除注册及条目 CRUD 已完成；元数据和分组管理未完成 |
+| 技能库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
+| 素材库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
 | 模型配置 | `web/src/bridge/aiModelConfig.ts` 的字段语义，不复制任何密钥或持久化实现 | 模型 CRUD 与安全密钥存储已落地；旧配置不自动导入 |
 
 旧项目的 `Home.tsx`、`BookEditor.tsx` 和 `WorkspaceAiChat.tsx` 高度耦合，不能直接成为新壳层依赖。旧配置中的硬编码密钥也绝不迁移；发布版模型密钥必须使用 Electron `safeStorage` 或系统 Keychain。
 
 ## 9. 下一切片
 
-下一批优先补齐素材 / 技能库元数据编辑与分组管理、手动迁移预览与来源选择，以及 `write_single_expert_section` / `start_expert_writing` 的后台顺序调度、子 run/job 协议和旧书籍迁移。
+下一批优先补齐素材 / 技能库元数据编辑与分组编辑 / 删除、手动迁移预览与来源选择，以及 `write_single_expert_section` / `start_expert_writing` 的后台顺序调度、子 run/job 协议和旧书籍迁移。

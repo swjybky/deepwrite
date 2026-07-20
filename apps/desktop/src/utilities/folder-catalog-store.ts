@@ -25,6 +25,8 @@ import {
   CatalogProjectManifestSchema,
   CatalogLegacyImportSchema,
   CatalogSnapshotSchema,
+  CreateLibraryInputSchema,
+  CreateLibraryGroupInputSchema,
   CreateShortBookInputSchema,
   SaveDocumentInputSchema,
   MaterialGroupProjectManifestSchema,
@@ -34,6 +36,7 @@ import {
   SkillLibraryProjectManifestSchema,
   ShortBookSchema,
   UpdateBookInputSchema,
+  UpdateLibraryGroupInputSchema,
   createShortWorkspaceContentRevision,
   type BookProjectDocumentManifest,
   type BookProjectManifest,
@@ -43,6 +46,8 @@ import {
   type CatalogDocument,
   type CatalogDraftRecovery,
   type CatalogSnapshot,
+  type CreateLibraryInput,
+  type CreateLibraryGroupInput,
   type CreateShortBookInput,
   type MaterialLibraryProjectManifest,
   type MaterialLibrary,
@@ -57,7 +62,8 @@ import {
   type SkillLibraryGroup,
   type SkillEntry,
   type SkillStageId,
-  type UpdateBookInput
+  type UpdateBookInput,
+  type UpdateLibraryGroupInput
 } from "@deepwrite/contracts";
 import type { ImportedLegacyBook } from "./legacy-book-import";
 import type { ImportedLegacyLibrary } from "./legacy-library-import";
@@ -151,11 +157,13 @@ export interface CreateShortBookAtDirectoryInput {
 
 export type FolderCatalogLibraryDomain = "material" | "skill";
 
-export interface CreateFolderLibraryInput {
-  domain: FolderCatalogLibraryDomain;
-  name: string;
+export type CreateFolderLibraryInput = CreateLibraryInput & {
   parentDirectory?: string | undefined;
-}
+};
+
+export type CreateFolderLibraryGroupInput = CreateLibraryGroupInput & {
+  parentDirectory?: string | undefined;
+};
 
 interface CreateFolderLibraryEntryInputBase {
   libraryId: string;
@@ -463,22 +471,21 @@ export class FolderCatalogStore {
   ): Promise<
     OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>
   > {
-    const domain = parseLibraryDomain(rawInput.domain);
-    const title = parseNonBlankString(rawInput.name, "library name");
+    const input = CreateLibraryInputSchema.parse(rawInput);
     const parentDirectory =
       rawInput.parentDirectory?.trim() ||
       this.defaultProjectParents[
-        domain === "material" ? "material-library" : "skill-library"
+        input.domain === "material" ? "material-library" : "skill-library"
       ];
     return await this.mutate(async () => {
       const now = this.now();
       const resource: MaterialLibrary | SkillLibrary =
-        domain === "material"
+        input.domain === "material"
           ? {
               id: `material-${randomUUID()}`,
-              title,
+              title: input.name,
               materialType: "short",
-              materialKind: "mixed",
+              materialKind: input.materialKind,
               parentGenre: "",
               subGenre: "",
               overview: "",
@@ -488,16 +495,16 @@ export class FolderCatalogStore {
             }
           : {
               id: `skill-${randomUUID()}`,
-              title,
+              title: input.name,
               skillType: "short",
-              skillKind: "general",
+              skillKind: input.skillKind,
               overview: "",
               isBuiltin: false,
               entries: [],
               createdAt: now,
               updatedAt: now
             };
-      const projectDomain = libraryProjectDomain(domain);
+      const projectDomain = libraryProjectDomain(input.domain);
       const projectDirectory = await this.writeNewResourceProject(
         projectDomain,
         parentDirectory,
@@ -519,6 +526,97 @@ export class FolderCatalogStore {
         projectDirectory,
         projectDomain
       )) as OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>;
+    });
+  }
+
+  async createLibraryGroup(
+    rawInput: CreateFolderLibraryGroupInput
+  ): Promise<OpenFolderCatalogProjectResult<MaterialLibraryGroup | SkillLibraryGroup>> {
+    const input = CreateLibraryGroupInputSchema.parse(rawInput);
+    const projectDomain =
+      input.domain === "material" ? "material-group" : "skill-group";
+    const parentDirectory =
+      rawInput.parentDirectory?.trim() || this.defaultProjectParents[projectDomain];
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const snapshot = await this.aggregateSnapshot(registry);
+      if (input.domain === "material") {
+        assertUniqueGroupMembers(Object.values(input.members));
+        const libraries = new Map(
+          snapshot.materials.map((library) => [library.id, library])
+        );
+        for (const [kind, libraryId] of Object.entries(input.members)) {
+          if (!libraryId) continue;
+          const library = libraries.get(libraryId);
+          if (!library) {
+            throw new Error(`新建素材分组引用了不存在的素材库：${libraryId}`);
+          }
+          if (library.materialKind !== "mixed" && library.materialKind !== kind) {
+            throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
+          }
+          assertLibraryNotInAnotherGroup(
+            snapshot.materialGroups,
+            libraryId,
+            "素材"
+          );
+        }
+      } else {
+        assertUniqueGroupMembers(Object.values(input.members));
+        const libraries = new Map(snapshot.skills.map((library) => [library.id, library]));
+        for (const [kind, libraryId] of Object.entries(input.members)) {
+          if (!libraryId) continue;
+          const library = libraries.get(libraryId);
+          if (!library) {
+            throw new Error(`新建技能分组引用了不存在的技能库：${libraryId}`);
+          }
+          if (library.skillKind !== kind) {
+            throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
+          }
+          assertLibraryNotInAnotherGroup(
+            snapshot.skillGroups,
+            libraryId,
+            "技能"
+          );
+        }
+      }
+
+      const now = this.now();
+      const resource: MaterialLibraryGroup | SkillLibraryGroup =
+        input.domain === "material"
+          ? {
+              id: `material-group-${randomUUID()}`,
+              title: input.name,
+              members: { ...input.members },
+              createdAt: now,
+              updatedAt: now
+            }
+          : {
+              id: `skill-group-${randomUUID()}`,
+              title: input.name,
+              members: { ...input.members },
+              createdAt: now,
+              updatedAt: now
+            };
+      const projectDirectory = await this.writeNewResourceProject(
+        projectDomain,
+        parentDirectory,
+        resource
+      );
+      try {
+        await this.registerProject(registry, {
+          id: resource.id,
+          domain: projectDomain,
+          projectDirectory,
+          registeredAt: now
+        });
+      } catch (error: unknown) {
+        await cleanupNewProjectDirectories([projectDirectory]);
+        throw error;
+      }
+      return (await this.readProject(
+        projectDirectory,
+        projectDomain
+      )) as OpenFolderCatalogProjectResult<MaterialLibraryGroup | SkillLibraryGroup>;
     });
   }
 
@@ -754,6 +852,99 @@ export class FolderCatalogStore {
       );
       await this.bumpRegistry(registry, now);
       return (await this.readProject(opened.projectDirectory, "book")).resource as ShortBook;
+    });
+  }
+
+  async updateLibraryGroup(
+    rawInput: UpdateLibraryGroupInput
+  ): Promise<MaterialLibraryGroup | SkillLibraryGroup> {
+    const input = UpdateLibraryGroupInputSchema.parse(rawInput);
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const projectDomain =
+        input.domain === "material" ? "material-group" : "skill-group";
+      const registration = findRegistration(
+        registry,
+        input.groupId,
+        projectDomain
+      );
+      const opened = await this.readProject(
+        registration.projectDirectory,
+        projectDomain,
+        input.groupId
+      );
+      const manifest = await this.readManifest(
+        opened.projectDirectory,
+        input.domain === "material"
+          ? "deepwrite.material-group"
+          : "deepwrite.skill-group",
+        input.groupId
+      );
+      if (!input.force) {
+        assertBaseRevision(input.baseProjectRevision, manifest.revision);
+      }
+
+      const snapshot = await this.aggregateSnapshot(registry);
+      assertUniqueGroupMembers(Object.values(input.members));
+      if (input.domain === "material") {
+        const libraries = new Map(
+          snapshot.materials.map((library) => [library.id, library])
+        );
+        for (const [kind, libraryId] of Object.entries(input.members)) {
+          if (!libraryId) continue;
+          const library = libraries.get(libraryId);
+          if (!library) {
+            throw new Error(`素材分组引用了不存在的素材库：${libraryId}`);
+          }
+          if (library.materialKind !== "mixed" && library.materialKind !== kind) {
+            throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
+          }
+          assertLibraryNotInAnotherGroup(
+            snapshot.materialGroups,
+            libraryId,
+            "素材",
+            input.groupId
+          );
+        }
+      } else {
+        const libraries = new Map(snapshot.skills.map((library) => [library.id, library]));
+        for (const [kind, libraryId] of Object.entries(input.members)) {
+          if (!libraryId) continue;
+          const library = libraries.get(libraryId);
+          if (!library) {
+            throw new Error(`技能分组引用了不存在的技能库：${libraryId}`);
+          }
+          if (library.skillKind !== kind) {
+            throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
+          }
+          assertLibraryNotInAnotherGroup(
+            snapshot.skillGroups,
+            libraryId,
+            "技能",
+            input.groupId
+          );
+        }
+      }
+
+      const now = this.now();
+      const next = {
+        ...manifest,
+        revision: manifest.revision + 1,
+        members: { ...input.members },
+        updatedAt: now
+      };
+      const validated =
+        input.domain === "material"
+          ? FolderMaterialGroupProjectManifestSchema.parse(next)
+          : FolderSkillGroupProjectManifestSchema.parse(next);
+      await atomicWriteJson(
+        join(opened.projectDirectory, MANIFEST_FILE),
+        validated,
+        this.maxManifestBytes
+      );
+      await this.bumpRegistry(registry, now);
+      return (await this.readProject(opened.projectDirectory, projectDomain))
+        .resource as MaterialLibraryGroup | SkillLibraryGroup;
     });
   }
 
@@ -1926,6 +2117,34 @@ function assertBaseRevision(
 ): void {
   if (expected !== undefined && expected !== actual) {
     throw new FolderCatalogConflictError(expected, actual);
+  }
+}
+
+function assertUniqueGroupMembers(libraryIds: Array<string | undefined>): void {
+  const selected = libraryIds.filter((libraryId): libraryId is string => Boolean(libraryId));
+  if (new Set(selected).size !== selected.length) {
+    throw new Error("同一个资料库不能在一个分组中绑定到多个分类。");
+  }
+}
+
+function assertLibraryNotInAnotherGroup(
+  groups: ReadonlyArray<{
+    id: string;
+    title: string;
+    members: Record<string, string | undefined>;
+  }>,
+  libraryId: string,
+  domainLabel: "素材" | "技能",
+  currentGroupId?: string
+): void {
+  const existing = groups.find(
+    (group) =>
+      group.id !== currentGroupId && Object.values(group.members).includes(libraryId)
+  );
+  if (existing) {
+    throw new Error(
+      `${domainLabel}库已经属于分组“${existing.title}”，请先在原分组中切换绑定。`
+    );
   }
 }
 

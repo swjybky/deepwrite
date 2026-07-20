@@ -102,6 +102,17 @@ function fixture(): CatalogSnapshot {
         ],
         createdAt: NOW,
         updatedAt: NOW
+      },
+      {
+        id: "skill-plot",
+        title: "剧情设计方法",
+        skillType: "short",
+        skillKind: "plot",
+        overview: "剧情技能说明",
+        isBuiltin: false,
+        entries: [],
+        createdAt: NOW,
+        updatedAt: NOW
       }
     ],
     skillGroups: [
@@ -260,7 +271,7 @@ describe("catalog workspace projection", () => {
     ]);
   });
 
-  it("shows custom groups and purpose categories without genre hierarchy", () => {
+  it("moves grouped material libraries out of their purpose categories", () => {
     const source = fixture();
     const projection = projectCatalogWorkspace(source);
     const materialSection = projection.resourceSections.find(
@@ -268,11 +279,7 @@ describe("catalog workspace projection", () => {
     )!;
     const nodes = flattenNodes(materialSection.nodes);
 
-    expect(materialSection.nodes.map((node) => node.label)).toEqual([
-      "追妻素材套装",
-      "剧情",
-      "其他"
-    ]);
+    expect(materialSection.nodes.map((node) => node.label)).toEqual(["追妻素材套装"]);
 
     const materialGroup = materialSection.nodes[0];
     expect(materialGroup).toMatchObject({
@@ -293,22 +300,10 @@ describe("catalog workspace projection", () => {
 
     const plotCategory = materialSection.nodes.find((node) => node.label === "剧情");
     const otherCategory = materialSection.nodes.find((node) => node.label === "其他");
-    expect(plotCategory?.children?.map((node) => node.label)).toEqual(["世情剧情素材"]);
-    expect(otherCategory?.children?.map((node) => node.label)).toEqual(["综合素材"]);
-    expect(plotCategory?.children?.[0]?.children?.map((node) => node.label)).toEqual([
-      "库介绍",
-      "剧情节拍",
-      "导语钩子"
-    ]);
-    expect(otherCategory?.children?.[0]?.children?.map((node) => node.label)).toEqual([
-      "库介绍",
-      "人物反差",
-      "正文片段"
-    ]);
-    expect(plotCategory?.children?.[0]?.badge).toBeUndefined();
-    expect(otherCategory?.children?.[0]?.badge).toBeUndefined();
-    expect(plotCategory?.children?.[0]?.categoryTag).toBeUndefined();
-    expect(otherCategory?.children?.[0]?.categoryTag).toBeUndefined();
+    expect(plotCategory).toBeUndefined();
+    expect(otherCategory).toBeUndefined();
+    expect(nodes.filter((node) => node.id === "material-plot")).toHaveLength(1);
+    expect(nodes.filter((node) => node.id === "material-mixed")).toHaveLength(1);
     expect(nodes.some((node) => node.label === "世情")).toBe(false);
     expect(nodes.some((node) => node.label === "家庭")).toBe(false);
     expect(nodes.some((node) => node.label === "综合素材库")).toBe(false);
@@ -335,15 +330,19 @@ describe("catalog workspace projection", () => {
     ).toContain("家庭");
   });
 
-  it("keeps skill kinds and groups visible while listing entries directly under libraries", () => {
+  it("shows skill groups directly and moves their libraries out of kind categories", () => {
     const source = fixture();
     const projection = projectCatalogWorkspace(source);
     const skillSection = projection.resourceSections.find((section) => section.id === "skill")!;
     const nodes = flattenNodes(skillSection.nodes);
 
-    expect(nodes.some((node) => node.label === "技能库分组")).toBe(true);
+    expect(skillSection.nodes.map((node) => node.label)).toEqual([
+      "短篇技能套装",
+      "剧情设计技能库"
+    ]);
+    expect(nodes.some((node) => node.label === "技能库分组")).toBe(false);
     expect(nodes.some((node) => node.label === "短篇技能套装" && node.catalogNodeType === "group")).toBe(true);
-    expect(nodes.some((node) => node.label === "通用技能库" && node.skillKind === "general")).toBe(true);
+    expect(nodes.some((node) => node.label === "通用技能库" && node.skillKind === "general")).toBe(false);
     expect(nodes.some((node) => node.label === "人物方法" && node.stageCategoryId === "character_design")).toBe(true);
     expect(nodes.some((node) => node.label === "正文方法" && node.stageCategoryId === "draft")).toBe(true);
     expect(nodes.some((node) => node.label.includes("missing-skill") && node.muted)).toBe(true);
@@ -359,8 +358,12 @@ describe("catalog workspace projection", () => {
     expect(skillGroup?.children?.map((node) => node.categoryTag)).toEqual(["通用", "文风"]);
 
     const generalKind = skillSection.nodes.find((node) => node.skillKind === "general");
-    const generalLibrary = generalKind?.children?.find((node) => node.id === "skill-general");
-    expect(generalLibrary?.categoryTag).toBeUndefined();
+    const plotKind = skillSection.nodes.find((node) => node.skillKind === "plot");
+    const generalLibrary = skillGroup?.children?.find((node) => node.id === "skill-general");
+    expect(generalKind).toBeUndefined();
+    expect(plotKind?.children?.map((node) => node.id)).toEqual(["skill-plot"]);
+    expect(nodes.filter((node) => node.id === "skill-general")).toHaveLength(1);
+    expect(generalLibrary?.categoryTag).toBe("通用");
     expect(generalLibrary?.badge).toBeUndefined();
     expect(generalLibrary?.children?.map((node) => node.label)).toEqual([
       "库说明",
@@ -372,7 +375,9 @@ describe("catalog workspace projection", () => {
     const skillDocuments = projection.workspaceDocuments.filter(
       (document) => document.domain === "skill" && document.catalogEntryId
     );
-    expect(skillDocuments).toHaveLength(source.skills[0]!.entries.length);
+    expect(skillDocuments).toHaveLength(
+      source.skills.reduce((count, library) => count + library.entries.length, 0)
+    );
     expect(skillDocuments[0]).toMatchObject({
       libraryId: "skill-general",
       skillKind: "general",

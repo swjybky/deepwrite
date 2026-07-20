@@ -688,11 +688,13 @@ describe("FolderCatalogStore", () => {
     const material = await store.createLibrary({
       domain: "material",
       name: "人物/素材",
+      materialKind: "character",
       parentDirectory
     });
     const skill = await store.createLibrary({
       domain: "skill",
       name: "悬念技能",
+      skillKind: "plot",
       parentDirectory
     });
 
@@ -702,7 +704,7 @@ describe("FolderCatalogStore", () => {
       resource: {
         title: "人物/素材",
         materialType: "short",
-        materialKind: "mixed",
+        materialKind: "character",
         parentGenre: "",
         subGenre: "",
         overview: "",
@@ -716,7 +718,7 @@ describe("FolderCatalogStore", () => {
       resource: {
         title: "悬念技能",
         skillType: "short",
-        skillKind: "general",
+        skillKind: "plot",
         overview: "",
         isBuiltin: false,
         entries: [],
@@ -759,16 +761,19 @@ describe("FolderCatalogStore", () => {
       await readFile(join(material.projectDirectory, "deepwrite.json"), "utf8")
     ) as {
       revision: number;
+      materialKind: string;
       entries: Array<{ id: string; stageId: string; path: string }>;
     };
     const skillManifest = JSON.parse(
       await readFile(join(skill.projectDirectory, "deepwrite.json"), "utf8")
     ) as {
       revision: number;
+      skillKind: string;
       entries: Array<{ id: string; stageId: string; path: string }>;
     };
     expect(materialManifest).toMatchObject({
       revision: 1,
+      materialKind: "character",
       entries: [
         {
           id: materialEntry.id,
@@ -778,6 +783,7 @@ describe("FolderCatalogStore", () => {
     });
     expect(skillManifest).toMatchObject({
       revision: 1,
+      skillKind: "plot",
       entries: [
         {
           id: skillEntry.id,
@@ -885,9 +891,119 @@ describe("FolderCatalogStore", () => {
     );
   });
 
+  it("creates persistent material and skill groups with optional members", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-library-groups-");
+    const userDataPath = join(root, "user-data");
+    const libraryParent = join(root, "libraries");
+    const groupParent = join(root, "groups");
+    const store = new FolderCatalogStore({ userDataPath, now: tickingClock() });
+    const material = await store.createLibrary({
+      domain: "material",
+      name: "剧情素材库",
+      materialKind: "plot",
+      parentDirectory: libraryParent
+    });
+    const replacementMaterial = await store.createLibrary({
+      domain: "material",
+      name: "替换剧情素材库",
+      materialKind: "plot",
+      parentDirectory: libraryParent
+    });
+    const skill = await store.createLibrary({
+      domain: "skill",
+      name: "通用技能库",
+      skillKind: "general",
+      parentDirectory: libraryParent
+    });
+
+    const emptyMaterialGroup = await store.createLibraryGroup({
+      domain: "material",
+      name: "待整理素材",
+      members: {},
+      parentDirectory: groupParent
+    });
+    const skillGroup = await store.createLibraryGroup({
+      domain: "skill",
+      name: "短篇技能组",
+      members: { general: skill.resource.id },
+      parentDirectory: groupParent
+    });
+    const materialGroup = await store.createLibraryGroup({
+      domain: "material",
+      name: "短篇素材组",
+      members: { plot: material.resource.id },
+      parentDirectory: groupParent
+    });
+
+    expect(emptyMaterialGroup).toMatchObject({
+      domain: "material-group",
+      resource: { title: "待整理素材", members: {}, projectRevision: 0 }
+    });
+    expect(skillGroup.resource.members).toEqual({ general: skill.resource.id });
+    expect(materialGroup.resource.members).toEqual({ plot: material.resource.id });
+    await expect(
+      access(join(skillGroup.projectDirectory, "deepwrite.json"))
+    ).resolves.toBeUndefined();
+
+    const restarted = await new FolderCatalogStore({ userDataPath }).snapshot();
+    expect(restarted.materialGroups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "待整理素材", members: {} }),
+        expect.objectContaining({
+          title: "短篇素材组",
+          members: { plot: material.resource.id }
+        })
+      ])
+    );
+    expect(restarted.skillGroups).toEqual([
+      expect.objectContaining({
+        title: "短篇技能组",
+        members: { general: skill.resource.id }
+      })
+    ]);
+    const updatedMaterialGroup = await store.updateLibraryGroup({
+      domain: "material",
+      groupId: materialGroup.resource.id,
+      members: { plot: replacementMaterial.resource.id },
+      baseProjectRevision: 0
+    });
+    expect(updatedMaterialGroup).toMatchObject({
+      id: materialGroup.resource.id,
+      members: { plot: replacementMaterial.resource.id },
+      projectRevision: 1
+    });
+    await expect(
+      store.updateLibraryGroup({
+        domain: "material",
+        groupId: materialGroup.resource.id,
+        members: { plot: material.resource.id },
+        baseProjectRevision: 0
+      })
+    ).rejects.toThrow(/当前版本 1/u);
+    await expect(
+      store.createLibraryGroup({
+        domain: "skill",
+        name: "重复技能组",
+        members: { general: skill.resource.id },
+        parentDirectory: groupParent
+      })
+    ).rejects.toThrow(/已经属于分组/u);
+    await expect(
+      store.createLibraryGroup({
+        domain: "skill",
+        name: "无效分组",
+        members: { plot: skill.resource.id },
+        parentDirectory: groupParent
+      })
+    ).rejects.toThrow(/不能放入plot分类/u);
+  });
+
   it("cleans a newly created project when registry registration cannot commit", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-create-rollback-");
-    const longParentName = "父目录".repeat(70);
+    const longParentName = Array.from(
+      { length: 70 },
+      (_, index) => `父目录-${index}`
+    ).join("/");
     const probeParent = join(root, longParentName, "probe");
     const probeStore = new FolderCatalogStore({
       userDataPath: join(root, "probe-user-data"),
@@ -896,6 +1012,7 @@ describe("FolderCatalogStore", () => {
     const probe = await probeStore.createLibrary({
       domain: "skill",
       name: "注册回滚",
+      skillKind: "general",
       parentDirectory: probeParent
     });
     const manifestBytes = Buffer.byteLength(
@@ -916,6 +1033,7 @@ describe("FolderCatalogStore", () => {
       limitedStore.createLibrary({
         domain: "skill",
         name: "注册回滚",
+        skillKind: "general",
         parentDirectory: limitedParent
       })
     ).rejects.toThrow(/JSON content exceeds/u);

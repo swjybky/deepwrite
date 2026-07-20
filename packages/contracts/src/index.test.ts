@@ -7,11 +7,13 @@ import {
   ModelSettingsInputSchema,
   ModelSettingsSchema,
   PROTOCOL_VERSION,
+  PROMPT_IMAGE_ATTACHMENT_MAX_BYTES,
   SessionPromptAcceptedPayloadSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
   UtilityInboundMessageSchema,
   UtilityOutboundMessageSchema,
+  UserPromptAttachmentsSchema,
   WorkspaceRuntimeContextSchema,
   createEnvelope
 } from "./index";
@@ -87,6 +89,53 @@ describe("DeepWrite desktop contracts", () => {
       type: "session.prompt",
       payload: { writeApprovalMode: "auto-approve" }
     });
+  });
+
+  it("accepts extracted text and base64 image prompt attachments", () => {
+    const attachments = UserPromptAttachmentsSchema.parse([
+      {
+        id: "attachment_notes",
+        kind: "text",
+        name: "notes.md",
+        mediaType: "text/markdown",
+        size: 18,
+        content: "雨夜场景需要更压抑。"
+      },
+      {
+        id: "attachment_reference",
+        kind: "image",
+        name: "reference.png",
+        mediaType: "image/png",
+        size: 3,
+        data: "AQID"
+      }
+    ]);
+
+    expect(attachments.map((attachment) => attachment.kind)).toEqual(["text", "image"]);
+    expect(() =>
+      UserPromptAttachmentsSchema.parse([
+        {
+          id: "too_large",
+          kind: "image",
+          name: "too-large.png",
+          mediaType: "image/png",
+          size: PROMPT_IMAGE_ATTACHMENT_MAX_BYTES + 1,
+          data: "AQID"
+        }
+      ])
+    ).toThrow();
+    expect(() =>
+      UserPromptAttachmentsSchema.parse([
+        {
+          id: "forged_size",
+          kind: "image",
+          name: "forged.png",
+          mediaType: "image/png",
+          size: 1,
+          data: "AQID"
+        }
+      ])
+    ).toThrow();
   });
 
   it("normalizes public model settings without exposing API keys", () => {

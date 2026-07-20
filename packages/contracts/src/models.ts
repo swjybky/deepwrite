@@ -84,7 +84,8 @@ const ModelIdentitySchema = z.object({
   reasoning: z.boolean(),
   defaultThinkingLevel: ThinkingLevelSchema,
   thinkingLevelOptions: ThinkingLevelOptionsSchema,
-  temperatureOptions: TemperatureOptionsSchema
+  temperatureOptions: TemperatureOptionsSchema,
+  managedBy: z.literal("deepwrite-free").optional()
 }).superRefine((value, context) => {
   if (!value.reasoning && value.defaultThinkingLevel !== "off") {
     context.addIssue({
@@ -118,7 +119,10 @@ export type ModelConfigInput = z.infer<typeof ModelConfigInputSchema>;
 
 export const ModelSettingsSchema = z.object({
   models: z.array(ModelConfigSchema).max(50),
-  defaultModelId: z.string().max(120)
+  defaultModelId: z.string().max(120),
+  deepwriteFreeModels: z.array(ModelConfigSchema).max(50).optional(),
+  deepwriteFreeDefaultModelId: z.string().max(120).optional(),
+  deepwriteFreeMessage: z.string().max(500).optional()
 }).superRefine((value, context) => {
   if (
     value.defaultModelId &&

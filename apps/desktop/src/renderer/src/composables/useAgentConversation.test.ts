@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { reactive } from "vue";
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   SHORT_WORKSPACE_STAGE_IDS,
@@ -91,7 +92,13 @@ function createDeferredApi(): {
       createLibrary: vi.fn(async () => {
         throw new Error("Catalog is not used by conversation tests.");
       }),
+      createLibraryGroup: vi.fn(async () => {
+        throw new Error("Catalog is not used by conversation tests.");
+      }),
       updateBook: vi.fn(async () => {
+        throw new Error("Catalog is not used by conversation tests.");
+      }),
+      updateLibraryGroup: vi.fn(async () => {
         throw new Error("Catalog is not used by conversation tests.");
       }),
       deleteBook: vi.fn(async () => {
@@ -564,6 +571,59 @@ describe("agent conversation controller", () => {
       modelId: "writer",
       thinkingLevel: "high"
     });
+    controller.dispose();
+  });
+
+  it("sends attachment-only prompts and stores only display metadata", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    expect(controller.canSend.value).toBe(false);
+    expect(controller.canSendAttachments.value).toBe(true);
+
+    const proxiedAttachments = reactive([
+      {
+        id: "notes",
+        kind: "text",
+        name: "notes.md",
+        mediaType: "text/markdown",
+        size: 12,
+        content: "雨夜，旧站台。"
+      },
+      {
+        id: "reference",
+        kind: "image",
+        name: "reference.png",
+        mediaType: "image/png",
+        size: 3,
+        data: "AQID"
+      }
+    ] as const);
+    const sending = controller.sendMessage(document, [], {}, [...proxiedAttachments]);
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_attachments",
+      acceptedAt: new Date().toISOString(),
+      runtime: { provider: "openai", model: "vision-model", mode: "provider" }
+    });
+    await sending;
+
+    expect(deferred.prompts[0]).toMatchObject({
+      message: "请阅读并分析我上传的附件。",
+      attachments: [
+        { kind: "text", content: "雨夜，旧站台。" },
+        { kind: "image", data: "AQID" }
+      ]
+    });
+    expect(() => structuredClone(deferred.prompts[0]?.attachments)).not.toThrow();
+    expect(controller.messages.value[0]).toMatchObject({
+      role: "user",
+      attachments: [
+        { kind: "text", name: "notes.md" },
+        { kind: "image", name: "reference.png" }
+      ]
+    });
+    expect(controller.messages.value[0]?.attachments?.[1]).not.toHaveProperty("data");
     controller.dispose();
   });
 

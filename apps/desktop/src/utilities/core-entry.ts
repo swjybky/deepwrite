@@ -3,6 +3,7 @@ import {
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
+  CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
   CatalogOpenProjectResultSchema,
   CatalogSnapshotSchema,
@@ -167,6 +168,25 @@ async function handleCatalogCommand(
         payload: CatalogLibrarySchema.parse(created.resource)
       };
     }
+    if (command.type === "catalog.createLibraryGroup") {
+      const created = await catalogStore.createLibraryGroup(command.payload);
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CatalogLibraryGroupSchema.parse(created.resource)
+      };
+    }
+    if (command.type === "catalog.createLibraryGroupAtPath") {
+      const created = await catalogStore.createLibraryGroup({
+        ...command.payload.input,
+        parentDirectory: command.payload.parentDirectory
+      });
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CatalogLibraryGroupSchema.parse(created.resource)
+      };
+    }
     if (command.type === "catalog.openProjectAtPath") {
       const opened =
         command.payload.domain === "book"
@@ -189,6 +209,15 @@ async function handleCatalogCommand(
         status: "accepted",
         requestId: command.id,
         payload: ShortBookSchema.parse(await catalogStore.updateBook(command.payload))
+      };
+    }
+    if (command.type === "catalog.updateLibraryGroup") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CatalogLibraryGroupSchema.parse(
+          await catalogStore.updateLibraryGroup(command.payload)
+        )
       };
     }
     if (command.type === "catalog.deleteBook") {

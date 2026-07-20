@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type {
+  CreateLibraryInput,
   CreateLibraryEntryInput,
+  MaterialKind,
   MaterialLibraryKind,
   MaterialStageId,
+  SkillKind,
   SkillStageId
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
@@ -33,7 +36,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  createLibrary: [payload: { domain: LibraryDomain; name: string }];
+  createLibrary: [payload: CreateLibraryInput];
   createEntry: [payload: CreateLibraryEntryDraft];
   removeEntry: [payload: {
     domain: LibraryDomain;
@@ -44,6 +47,7 @@ const emit = defineEmits<{
 
 const title = ref("");
 const stageId = ref<MaterialStageId | SkillStageId>("other");
+const libraryKind = ref<MaterialKind | SkillKind>("character");
 const titleInput = ref<HTMLInputElement | null>(null);
 const domainLabel = computed(() => (props.domain === "material" ? "素材" : "技能"));
 const heading = computed(() => {
@@ -51,6 +55,22 @@ const heading = computed(() => {
   if (props.operation === "create-entry") return `在“${props.libraryTitle ?? "资料库"}”中新建条目`;
   return `删除“${props.entryTitle ?? "条目"}”`;
 });
+const libraryKindOptions = computed(() =>
+  props.domain === "material"
+    ? [
+        { value: "character", label: "人设素材库" },
+        { value: "gimmick", label: "梗素材库" },
+        { value: "plot", label: "剧情素材库" },
+        { value: "draft", label: "正文素材库" },
+        { value: "other", label: "其他素材库" }
+      ]
+    : [
+        { value: "general", label: "通用技能库" },
+        { value: "plot", label: "剧情设计技能库" },
+        { value: "style", label: "文风写作技能库" },
+        { value: "other", label: "其他技能库" }
+      ]
+);
 const stageOptions = computed(() => {
   if (props.domain === "material") {
     const allOptions = [
@@ -109,7 +129,19 @@ function submit(): void {
     return;
   }
   if (props.operation === "create-library") {
-    emit("createLibrary", { domain: props.domain, name: normalizedTitle });
+    if (props.domain === "material") {
+      emit("createLibrary", {
+        domain: "material",
+        name: normalizedTitle,
+        materialKind: libraryKind.value as MaterialKind
+      });
+    } else {
+      emit("createLibrary", {
+        domain: "skill",
+        name: normalizedTitle,
+        skillKind: libraryKind.value as SkillKind
+      });
+    }
     return;
   }
   if (!props.libraryId) {
@@ -149,6 +181,7 @@ watch(
   ([open]) => {
     if (!open) return;
     title.value = "";
+    libraryKind.value = props.domain === "material" ? "character" : "general";
     stageId.value =
       (stageOptions.value[0]?.value as MaterialStageId | SkillStageId | undefined) ??
       (props.domain === "material" ? "other" : "draft");
@@ -191,7 +224,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
         <form class="dialog-content catalog-resource-form" @submit.prevent="submit">
           <template v-if="operation === 'create-library'">
             <p class="dialog-description">
-              下一步会选择保存位置，并创建一个可由 Finder、Git 或文本编辑器直接管理的文件夹。
+              新资料库会自动保存在当前工作目录中，无需再次选择目录。
             </p>
             <label class="book-resource-name-field">
               <span>{{ domainLabel }}库名称</span>
@@ -205,8 +238,20 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 :disabled="submitting"
               />
             </label>
+            <label class="book-resource-name-field catalog-resource-stage-field">
+              <span>{{ domainLabel }}库分类</span>
+              <PopupSelect
+                :model-value="libraryKind"
+                :options="libraryKindOptions"
+                :accessible-label="`${domainLabel}库分类`"
+                size="large"
+                :disabled="submitting"
+                :menu-min-width="220"
+                @update:model-value="libraryKind = String($event) as MaterialKind | SkillKind"
+              />
+            </label>
             <p class="book-resource-help">
-              文件夹中会保存 deepwrite.json，正文条目位于 entries/*.md。
+              文件夹中会保存 deepwrite.json，正文条目位于 entries/*.md；可由 Finder、Git 或文本编辑器直接管理。
             </p>
           </template>
 
@@ -267,7 +312,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 submitting
                   ? "处理中…"
                   : operation === "create-library"
-                    ? "选择位置并创建"
+                    ? `创建${domainLabel}库`
                     : operation === "create-entry"
                       ? "创建条目"
                       : "确认删除"

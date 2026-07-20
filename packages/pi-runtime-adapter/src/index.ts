@@ -36,6 +36,7 @@ import type {
   ShortWorkspaceAgentProfile,
   ModelConnectionTestResult,
   ThinkingLevel as ConfiguredThinkingLevel,
+  UserPromptAttachment,
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import {
@@ -47,6 +48,7 @@ export interface AgentRunInput {
   runId: string;
   sessionId: string;
   prompt: string;
+  attachments?: UserPromptAttachment[];
   writeApprovalMode?: AgentWriteApprovalMode;
   thinkingLevel?: ConfiguredThinkingLevel;
   temperature?: number;
@@ -373,6 +375,16 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     }
 
     const shortWorkspace = input.workspaceContext?.shortWorkspace;
+    const imageAttachments = input.attachments?.filter(
+      (attachment) => attachment.kind === "image"
+    ) ?? [];
+    if (imageAttachments.length && !model.input.includes("image")) {
+      throw new Error(
+        runtime.mode === "local-faux"
+          ? "DeepWrite Faux 不支持图片理解，请先选择支持多模态的真实模型。"
+          : `当前模型 ${runtime.model} 不支持图片输入，请更换支持多模态的模型。`
+      );
+    }
     const tools = shortWorkspace && input.agentProfile
       ? buildShortWorkspaceTools({
           workspace: shortWorkspace,
@@ -563,7 +575,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       scheduleIdleTimeout();
       const runtimeUserMessage: UserMessage = {
         role: "user",
-        content: buildRuntimeUserPrompt(input),
+        content: buildRuntimeUserMessageContent(input),
         timestamp: Date.now()
       };
       void agent
@@ -582,7 +594,11 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           });
         })
         .finally(() => {
-          replaceRuntimePromptInTranscript(agent, runtimeUserMessage, input.prompt);
+          replaceRuntimePromptInTranscript(
+            agent,
+            runtimeUserMessage,
+            buildRawUserMessage(input, runtimeUserMessage.timestamp)
+          );
           if (!terminalEmitted) {
             emit({
               type: "agent.error",
@@ -691,7 +707,10 @@ function buildProviderRuntime(
     provider: config.provider,
     baseUrl,
     reasoning: config.reasoning,
-    input: builtin?.input ?? ["text"],
+    // A custom endpoint has no Pi catalog metadata. Keep image blocks enabled
+    // and let that endpoint return an explicit capability error if its selected
+    // model is text-only; silently dropping a user image is never acceptable.
+    input: builtin?.input ?? ["text", "image"],
     cost: builtin?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: builtin?.contextWindow ?? 128_000,
     maxTokens: builtin?.maxTokens ?? 8_192,
@@ -950,16 +969,12 @@ function normalizeUsage(usage: Usage): AgentUsage {
 function replaceRuntimePromptInTranscript(
   agent: Agent,
   runtimeMessage: UserMessage,
-  rawUserPrompt: string
+  rawUserMessage: UserMessage
 ): void {
   const messages = [...agent.state.messages];
   const index = messages.findIndex((message) => message === runtimeMessage);
   if (index < 0) return;
-  messages[index] = {
-    role: "user",
-    content: rawUserPrompt,
-    timestamp: runtimeMessage.timestamp
-  };
+  messages[index] = rawUserMessage;
   agent.state.messages = messages;
 }
 
@@ -1064,10 +1079,71 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
     skillContext,
     materialContext,
     "",
-    "【用户消息】",
-    input.prompt
+    "【用户消息与上传附件】",
+    buildRawUserText(input)
   ];
   return lines.filter((line) => line !== "").join("\n");
+}
+
+function buildRawUserText(input: AgentRunInput): string {
+  const attachments = input.attachments ?? [];
+  const textAttachments = attachments.filter(
+    (attachment) => attachment.kind === "text"
+  );
+  const imageAttachments = attachments.filter(
+    (attachment) => attachment.kind === "image"
+  );
+  const lines = [input.prompt];
+  if (textAttachments.length) {
+    lines.push("", "【用户上传的文本附件】");
+    for (const attachment of textAttachments) {
+      lines.push(
+        "",
+        `--- ${attachment.name} (${attachment.mediaType}) ---`,
+        attachment.content,
+        attachment.truncated
+          ? `[DeepWrite：附件文本已截断；原文 ${attachment.originalLength?.toLocaleString("zh-CN") ?? "超过限制"} 个字符。]`
+          : ""
+      );
+    }
+  }
+  if (imageAttachments.length) {
+    lines.push(
+      "",
+      `【用户上传的图片】${imageAttachments.map((attachment) => attachment.name).join("、")}`
+    );
+  }
+  return lines.filter((line) => line !== "").join("\n");
+}
+
+function imageContentBlocks(input: AgentRunInput): Array<{
+  type: "image";
+  data: string;
+  mimeType: string;
+}> {
+  return (input.attachments ?? []).flatMap((attachment) =>
+    attachment.kind === "image"
+      ? [{ type: "image" as const, data: attachment.data, mimeType: attachment.mediaType }]
+      : []
+  );
+}
+
+function buildRuntimeUserMessageContent(input: AgentRunInput): UserMessage["content"] {
+  const images = imageContentBlocks(input);
+  return images.length
+    ? [{ type: "text", text: buildRuntimeUserPrompt(input) }, ...images]
+    : buildRuntimeUserPrompt(input);
+}
+
+/** @internal Exported for prompt-content regression tests. */
+export function buildRawUserMessage(input: AgentRunInput, timestamp = Date.now()): UserMessage {
+  const text = buildRawUserText(input);
+  const images = imageContentBlocks(input);
+  return {
+    role: "user",
+    content: images.length ? [{ type: "text", text }, ...images] : text,
+    timestamp
+  };
 }
 
 function buildLocalThinking(input: AgentRunInput): string {

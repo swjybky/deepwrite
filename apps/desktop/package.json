@@ -16,6 +16,7 @@
     "@deepwrite/pi-runtime-adapter": "workspace:*",
     "@deepwrite/shared": "workspace:*",
     "naive-ui": "2.44.1",
+    "pdfjs-dist": "6.1.200",
     "pinia": "3.0.4",
     "vue": "3.5.39"
   },

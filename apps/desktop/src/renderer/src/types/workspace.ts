@@ -15,6 +15,7 @@ export type IconName =
   | "folder"
   | "globe"
   | "history"
+  | "image"
   | "italic"
   | "keyboard"
   | "ledger"
@@ -54,6 +55,7 @@ export type ResourceDomain = "creation" | "skill" | "material";
 
 export type ResourceSectionAction =
   | "create"
+  | "create-group"
   | "import"
   | "import-legacy-book"
   | "import-legacy-library";
@@ -66,7 +68,9 @@ export interface ResourceSectionActionPayload {
 export type CatalogResourceNodeAction =
   | "create-entry"
   | "remove-entry"
-  | "unregister-library";
+  | "unregister-library"
+  | "edit-group-bindings"
+  | "dissolve-group";
 
 export interface CatalogResourceNodeActionPayload {
   domain: "skill" | "material";

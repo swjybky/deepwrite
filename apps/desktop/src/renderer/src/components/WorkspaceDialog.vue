@@ -22,6 +22,7 @@ interface DraftModel extends ModelConfig {
   apiKey?: string;
   clearApiKey?: boolean;
   customThinkingLevel?: string;
+  originalId?: string;
 }
 
 const props = defineProps<{
@@ -61,12 +62,25 @@ const reasoningOptions = BUILT_IN_REASONING_LEVELS.map((value) => ({
   label: builtInThinkingLabels[value]
 }));
 const providerOptions = [
+  { value: "deepwrite-free", label: "DeepWrite 免费模型" },
   { value: "deepseek", label: "DeepSeek" },
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic" },
   { value: "google", label: "Google" },
   { value: "custom", label: "其他兼容服务" }
 ] as const;
+const deepwriteFreeModels = computed(() => props.modelSettings?.deepwriteFreeModels ?? []);
+const deepwriteFreeModelOptions = computed(() =>
+  deepwriteFreeModels.value.map((model) => ({
+    value: model.id,
+    label: model.label,
+    description: model.modelId,
+    title: model.modelId
+  }))
+);
+const isDeepWriteFreeEditor = computed(
+  () => modelEditor.value?.managedBy === "deepwrite-free"
+);
 const apiOptions: ReadonlyArray<{ value: ModelApi; label: string }> = [
   { value: "openai-completions", label: "OpenAI Completions" },
   { value: "openai-responses", label: "OpenAI Responses" },
@@ -205,7 +219,27 @@ function editModel(model: DraftModel): void {
     temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
     apiKey: "",
     clearApiKey: false,
-    customThinkingLevel: findCustomThinkingLevel(model.thinkingLevelOptions)
+    customThinkingLevel: findCustomThinkingLevel(model.thinkingLevelOptions),
+    originalId: model.id
+  };
+}
+
+function applyDeepWriteFreeModel(modelId: string): void {
+  const editor = modelEditor.value;
+  const preset = deepwriteFreeModels.value.find((model) => model.id === modelId);
+  if (!editor || !preset) {
+    uiMessage.warning(
+      props.modelSettings?.deepwriteFreeMessage ||
+        "DeepWrite 免费模型配置暂时不可用，请稍后重试。"
+    );
+    return;
+  }
+  modelEditor.value = {
+    ...preset,
+    apiKey: "",
+    clearApiKey: false,
+    customThinkingLevel: findCustomThinkingLevel(preset.thinkingLevelOptions),
+    ...(editor.originalId ? { originalId: editor.originalId } : {})
   };
 }
 
@@ -213,6 +247,32 @@ function applyProviderPreset(provider: string): void {
   const editor = modelEditor.value;
   if (!editor) {
     return;
+  }
+  if (provider === "deepwrite-free") {
+    const defaultModelId =
+      props.modelSettings?.deepwriteFreeDefaultModelId ??
+      deepwriteFreeModels.value[0]?.id;
+    if (defaultModelId) {
+      applyDeepWriteFreeModel(defaultModelId);
+    } else {
+      uiMessage.warning(
+        props.modelSettings?.deepwriteFreeMessage ||
+          "DeepWrite 免费模型配置暂时不可用，请稍后重试。"
+      );
+    }
+    return;
+  }
+  const wasManaged = editor.managedBy === "deepwrite-free";
+  delete editor.managedBy;
+  if (wasManaged && !editor.originalId) {
+    editor.id = `model_${globalThis.crypto.randomUUID()}`;
+  }
+  if (wasManaged) {
+    editor.label = "";
+    editor.modelId = "";
+    editor.hasApiKey = false;
+    editor.apiKey = "";
+    editor.clearApiKey = false;
   }
   editor.provider = provider;
   if (provider === "openai") {
@@ -346,6 +406,7 @@ function saveModelEditor(): void {
   const {
     apiKey,
     customThinkingLevel: _customThinkingLevel,
+    originalId,
     ...editorWithoutApiKey
   } = editor;
   const normalized: DraftModel = {
@@ -359,7 +420,16 @@ function saveModelEditor(): void {
     temperatureOptions: cloneTemperatureOptions(editor.temperatureOptions),
     ...(apiKey?.trim() ? { apiKey: apiKey.trim() } : {})
   };
-  const index = draftModels.value.findIndex((model) => model.id === normalized.id);
+  const index = draftModels.value.findIndex(
+    (model) => model.id === (originalId ?? normalized.id)
+  );
+  const duplicateIndex = draftModels.value.findIndex(
+    (model, candidateIndex) => model.id === normalized.id && candidateIndex !== index
+  );
+  if (duplicateIndex >= 0) {
+    uiMessage.warning("这个 DeepWrite 免费模型已经添加过了。");
+    return;
+  }
   if (index >= 0) {
     draftModels.value[index] = normalized;
   } else {
@@ -383,6 +453,7 @@ function toModelInput(model: DraftModel): ModelConfigInput {
     defaultThinkingLevel: model.reasoning ? model.defaultThinkingLevel : "off",
     thinkingLevelOptions: cloneThinkingLevelOptions(model.thinkingLevelOptions),
     temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
+    ...(model.managedBy ? { managedBy: model.managedBy } : {}),
     ...(model.apiKey?.trim() ? { apiKey: model.apiKey.trim() } : {}),
     ...(model.clearApiKey ? { clearApiKey: true } : {})
   };
@@ -469,27 +540,28 @@ function submitModelSettings(): void {
         </div>
 
         <div v-else-if="mode === 'models'" class="dialog-content model-config-content">
-          <p class="dialog-description">
-            配置会同时用于连接测试与实际对话。API Key 仅由 Main 进程通过系统安全存储加密保存，Renderer 不会读回明文。
-          </p>
+          <div class="model-config-scroll-area">
+            <p class="dialog-description">
+              配置会同时用于连接测试与实际对话。API Key 仅由 Main 进程通过系统安全存储加密保存，Renderer 不会读回明文。
+            </p>
 
-          <div v-if="modelLoading" class="dialog-note">正在读取模型配置…</div>
-          <template v-else>
-            <div v-if="draftModels.length === 0" class="model-empty-state">
-              <strong>尚未配置真实模型</strong>
-              <span>当前对话继续使用 DeepWrite Faux。添加模型并设为默认后，新的请求会走真实 Provider。</span>
-            </div>
+            <div v-if="modelLoading" class="dialog-note">正在读取模型配置…</div>
+            <template v-else>
+              <div v-if="draftModels.length === 0" class="model-empty-state">
+                <strong>尚未配置真实模型</strong>
+                <span>当前对话继续使用 DeepWrite Faux。添加模型并设为默认后，新的请求会走真实 Provider。</span>
+              </div>
 
-            <article
-              v-for="model in draftModels"
-              :key="model.id"
-              class="model-card model-config-card"
-              :class="{ 'is-default': draftDefaultModelId === model.id }"
-            >
+              <article
+                v-for="model in draftModels"
+                :key="model.id"
+                class="model-card model-config-card"
+                :class="{ 'is-default': draftDefaultModelId === model.id }"
+              >
               <span class="model-logo">{{ model.label.slice(0, 1).toUpperCase() }}</span>
               <div>
                 <strong>{{ model.label }}</strong>
-                <small>{{ model.provider }} · {{ model.modelId }} · {{ model.api }}</small>
+                <small>{{ model.managedBy === "deepwrite-free" ? "DeepWrite 免费模型" : model.provider }} · {{ model.modelId }} · {{ model.api }}</small>
                 <small>
                   {{ model.reasoning ? `思考：${model.thinkingLevelOptions.map(thinkingLabel).join(" / ")}（默认 ${thinkingLabel(model.defaultThinkingLevel)}）` : `温度：${model.temperatureOptions.join(" / ")}` }} ·
                   {{ model.hasApiKey || model.apiKey ? "密钥已配置" : "未配置密钥" }}
@@ -514,22 +586,27 @@ function submitModelSettings(): void {
                 </button>
                 <button class="is-danger" type="button" @click="removeModel(model.id)">删除</button>
               </div>
-            </article>
+              </article>
 
-            <section v-if="modelEditor" class="model-editor">
+              <section v-if="modelEditor" class="model-editor">
               <div class="model-editor-heading">
-                <strong>{{ draftModels.some((model) => model.id === modelEditor?.id) ? "编辑模型" : "添加模型" }}</strong>
+                <strong>{{ draftModels.some((model) => model.id === (modelEditor?.originalId ?? modelEditor?.id)) ? "编辑模型" : "添加模型" }}</strong>
                 <button type="button" @click="modelEditor = null">取消</button>
               </div>
               <div class="model-form-grid">
                 <label>
                   <span>名称</span>
-                  <input v-model="modelEditor.label" type="text" placeholder="例如：DeepSeek 写作" />
+                  <input
+                    v-model="modelEditor.label"
+                    type="text"
+                    placeholder="例如：DeepSeek 写作"
+                    :readonly="isDeepWriteFreeEditor"
+                  />
                 </label>
                 <label>
                   <span>Provider</span>
                   <PopupSelect
-                    :model-value="modelEditor.provider"
+                    :model-value="isDeepWriteFreeEditor ? 'deepwrite-free' : modelEditor.provider"
                     :options="providerOptions"
                     accessible-label="选择 Provider"
                     @update:model-value="applyProviderPreset(String($event))"
@@ -537,9 +614,22 @@ function submitModelSettings(): void {
                 </label>
                 <label>
                   <span>模型 ID</span>
-                  <input v-model="modelEditor.modelId" type="text" placeholder="服务商提供的模型 ID" />
+                  <PopupSelect
+                    v-if="isDeepWriteFreeEditor"
+                    :model-value="modelEditor.id"
+                    :options="deepwriteFreeModelOptions"
+                    accessible-label="选择 DeepWrite 免费模型"
+                    :menu-min-width="300"
+                    @update:model-value="applyDeepWriteFreeModel(String($event))"
+                  />
+                  <input
+                    v-else
+                    v-model="modelEditor.modelId"
+                    type="text"
+                    placeholder="服务商提供的模型 ID"
+                  />
                 </label>
-                <label>
+                <label v-if="!isDeepWriteFreeEditor">
                   <span>API 类型</span>
                   <PopupSelect
                     :model-value="modelEditor.api"
@@ -549,11 +639,11 @@ function submitModelSettings(): void {
                     @update:model-value="setModelApi"
                   />
                 </label>
-                <label class="is-wide">
+                <label v-if="!isDeepWriteFreeEditor" class="is-wide">
                   <span>API 地址</span>
                   <input v-model="modelEditor.baseUrl" type="url" placeholder="内置模型可留空，自定义服务请填写" />
                 </label>
-                <label class="is-wide">
+                <label v-if="!isDeepWriteFreeEditor" class="is-wide">
                   <span>API Key</span>
                   <input
                     v-model="modelEditor.apiKey"
@@ -563,7 +653,7 @@ function submitModelSettings(): void {
                     @input="modelEditor.clearApiKey = false"
                   />
                 </label>
-                <label>
+                <label v-if="!isDeepWriteFreeEditor">
                   <span>模型模式</span>
                   <PopupSelect
                     :model-value="modelEditor.reasoning ? 'reasoning' : 'temperature'"
@@ -572,7 +662,7 @@ function submitModelSettings(): void {
                     @update:model-value="setModelMode(String($event) as 'reasoning' | 'temperature')"
                   />
                 </label>
-                <label v-if="modelEditor.reasoning">
+                <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning">
                   <span>默认思考等级</span>
                   <PopupSelect
                     :model-value="modelEditor.defaultThinkingLevel"
@@ -581,7 +671,7 @@ function submitModelSettings(): void {
                     @update:model-value="setDefaultThinkingLevel"
                   />
                 </label>
-                <label v-else>
+                <label v-else-if="!isDeepWriteFreeEditor">
                   <span class="model-field-label">
                     温度选项
                     <span
@@ -604,7 +694,7 @@ function submitModelSettings(): void {
                     />
                   </span>
                 </label>
-                <label v-if="modelEditor.reasoning" class="is-wide">
+                <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning" class="is-wide">
                   <span>思考等级选项</span>
                   <span class="model-thinking-options">
                     <label
@@ -639,8 +729,14 @@ function submitModelSettings(): void {
                     </span>
                   </span>
                 </label>
+                <p v-if="isDeepWriteFreeEditor" class="model-managed-note is-wide">
+                  模型名称和参数由 DeepWrite 远程配置自动维护；运行环境提供密钥，无需在此填写。
+                </p>
               </div>
-              <div v-if="modelEditor.hasApiKey" class="model-key-row">
+              <div
+                v-if="modelEditor.hasApiKey && !isDeepWriteFreeEditor"
+                class="model-key-row"
+              >
                 <span>已有密钥会保持不变。</span>
                 <button
                   type="button"
@@ -662,29 +758,30 @@ function submitModelSettings(): void {
                   应用到配置
                 </button>
               </div>
-            </section>
+              </section>
 
-            <button
-              v-else
-              class="dialog-secondary-button model-add-button"
-              type="button"
-              @click="createModel"
-            >
-              <AppIcon name="plus" :size="15" />添加模型
-            </button>
-
-            <div class="dialog-actions model-save-actions">
-              <button class="dialog-secondary-button" type="button" @click="emit('close')">取消</button>
               <button
-                class="dialog-primary-button"
+                v-else
+                class="dialog-secondary-button model-add-button"
                 type="button"
-                :disabled="modelSaving || Boolean(modelEditor)"
-                @click="submitModelSettings"
+                @click="createModel"
               >
-                {{ modelSaving ? "保存中…" : "保存模型配置" }}
+                <AppIcon name="plus" :size="15" />添加模型
               </button>
-            </div>
-          </template>
+            </template>
+          </div>
+
+          <div v-if="!modelLoading" class="dialog-actions model-save-actions">
+            <button class="dialog-secondary-button" type="button" @click="emit('close')">取消</button>
+            <button
+              class="dialog-primary-button"
+              type="button"
+              :disabled="modelSaving || Boolean(modelEditor)"
+              @click="submitModelSettings"
+            >
+              {{ modelSaving ? "保存中…" : "保存模型配置" }}
+            </button>
+          </div>
         </div>
 
         <div v-else-if="mode === 'imitation'" class="dialog-content">

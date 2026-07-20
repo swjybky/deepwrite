@@ -45,6 +45,9 @@ const actionItems = computed<Array<{
         : "素材库";
   return [
     { id: "create", label: `新建${resourceName}`, icon: "plus" },
+    ...(props.section.id === "creation"
+      ? []
+      : ([{ id: "create-group", label: "新建分组", icon: "folder" }] as const)),
     { id: "import", label: `打开已存在${resourceName}`, icon: "folder" },
     ...(props.section.id === "creation"
       ? ([

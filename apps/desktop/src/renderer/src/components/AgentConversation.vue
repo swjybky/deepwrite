@@ -2,10 +2,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   BUILT_IN_REASONING_LEVELS,
+  PROMPT_ATTACHMENT_MAX_ITEMS,
+  PROMPT_IMAGE_ATTACHMENTS_MAX_BYTES,
+  PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH,
   type BuiltInReasoningLevel,
   type ModelConfig,
   type ShortWorkspaceAgentId,
-  type ThinkingLevel
+  type ThinkingLevel,
+  type UserPromptAttachment
 } from "@deepwrite/contracts";
 import { resolveAgentWelcome } from "../data/agentWelcome";
 import type {
@@ -18,6 +22,10 @@ import type {
 } from "../types/conversation";
 import type { IconName } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
+import {
+  PROMPT_ATTACHMENT_ACCEPT,
+  readPromptAttachment
+} from "../utils/promptAttachments";
 import {
   findComposerReferenceMatch,
   insertComposerReference,
@@ -34,6 +42,7 @@ const props = defineProps<{
   draft: string;
   responding: boolean;
   canSend: boolean;
+  canSendAttachments: boolean;
   canStop: boolean;
   runtimeAvailable: boolean;
   models: ModelConfig[];
@@ -56,7 +65,7 @@ const emit = defineEmits<{
   "update:draft": [value: string];
   newConversation: [];
   selectConversation: [sessionId: string];
-  send: [];
+  send: [attachments: UserPromptAttachment[]];
   stop: [];
   suggestion: [value: string];
   toggleLeft: [];
@@ -74,6 +83,9 @@ const emit = defineEmits<{
 
 const scroller = ref<HTMLElement>();
 const composerInput = ref<HTMLTextAreaElement>();
+const attachmentInput = ref<HTMLInputElement>();
+const pendingAttachments = ref<UserPromptAttachment[]>([]);
+const readingAttachments = ref(false);
 const clock = ref(Date.now());
 const copiedMessageId = ref<string | null>(null);
 const historyOpen = ref(false);
@@ -82,6 +94,7 @@ const activeReferenceIndex = ref(0);
 let clockTimer: number | undefined;
 let copiedTimer: number | undefined;
 let scrollFrame: number | undefined;
+let attachmentReadEpoch = 0;
 const followsConversationTail = ref(true);
 
 const TAIL_FOLLOW_THRESHOLD = 72;
@@ -160,12 +173,136 @@ watch(
   () => props.currentSessionId,
   () => {
     historyOpen.value = false;
+    attachmentReadEpoch += 1;
+    readingAttachments.value = false;
+    pendingAttachments.value = [];
     followsConversationTail.value = true;
     void nextTick(scheduleConversationTailFollow);
   }
 );
 
+const canSubmit = computed(
+  () =>
+    !readingAttachments.value &&
+    (props.canSend ||
+      (props.canSendAttachments && pendingAttachments.value.length > 0))
+);
+
+function openAttachmentPicker(): void {
+  attachmentInput.value?.click();
+}
+
+function attachmentKey(file: File): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
+}
+
+function pendingAttachmentKey(attachment: UserPromptAttachment): string {
+  return `${attachment.name}\u0000${attachment.size}`;
+}
+
+function validateAttachmentCapacity(attachment: UserPromptAttachment): string | undefined {
+  if (pendingAttachments.value.length >= PROMPT_ATTACHMENT_MAX_ITEMS) {
+    return `每条消息最多上传 ${PROMPT_ATTACHMENT_MAX_ITEMS} 个附件。`;
+  }
+  if (attachment.kind === "text") {
+    const textLength = pendingAttachments.value.reduce(
+      (total, item) => total + (item.kind === "text" ? item.content.length : 0),
+      attachment.content.length
+    );
+    if (textLength > PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH) {
+      return `文本附件合计最多携带 ${PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH.toLocaleString("zh-CN")} 个字符。`;
+    }
+  } else {
+    const imageBytes = pendingAttachments.value.reduce(
+      (total, item) => total + (item.kind === "image" ? item.size : 0),
+      attachment.size
+    );
+    if (imageBytes > PROMPT_IMAGE_ATTACHMENTS_MAX_BYTES) {
+      return "图片附件合计不能超过 25 MB。";
+    }
+  }
+  return undefined;
+}
+
+async function addAttachmentFiles(files: File[]): Promise<void> {
+  if (!files.length || readingAttachments.value) return;
+  const readEpoch = ++attachmentReadEpoch;
+  readingAttachments.value = true;
+  const failures: string[] = [];
+  let added = 0;
+  try {
+    const existing = new Set(pendingAttachments.value.map(pendingAttachmentKey));
+    const seenFiles = new Set<string>();
+    for (const file of files) {
+      const fileKey = attachmentKey(file);
+      const duplicateKey = `${file.name}\u0000${file.size}`;
+      if (seenFiles.has(fileKey) || existing.has(duplicateKey)) continue;
+      seenFiles.add(fileKey);
+      try {
+        const result = await readPromptAttachment(file);
+        if (readEpoch !== attachmentReadEpoch) return;
+        const capacityError = validateAttachmentCapacity(result.attachment);
+        if (capacityError) {
+          failures.push(capacityError);
+          continue;
+        }
+        pendingAttachments.value.push(result.attachment);
+        existing.add(duplicateKey);
+        added += 1;
+        if (result.warning) uiMessage.warning(result.warning);
+      } catch (error: unknown) {
+        failures.push(error instanceof Error ? error.message : `读取“${file.name}”失败。`);
+      }
+    }
+  } finally {
+    if (readEpoch === attachmentReadEpoch) {
+      readingAttachments.value = false;
+    }
+  }
+  if (readEpoch !== attachmentReadEpoch) return;
+  if (failures.length) {
+    uiMessage.error(
+      failures.length === 1 ? failures[0]! : `${failures[0]}（另有 ${failures.length - 1} 个附件未添加）`
+    );
+  } else if (added > 0) {
+    uiMessage.success(`已添加 ${added} 个附件`);
+  }
+}
+
+function handleAttachmentChange(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  input.value = "";
+  void addAttachmentFiles(files);
+}
+
+function removePendingAttachment(id: string): void {
+  pendingAttachments.value = pendingAttachments.value.filter(
+    (attachment) => attachment.id !== id
+  );
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1_024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function attachmentPreview(attachment: UserPromptAttachment): string | undefined {
+  return attachment.kind === "image"
+    ? `data:${attachment.mediaType};base64,${attachment.data}`
+    : undefined;
+}
+
+function submitMessage(): void {
+  if (!canSubmit.value) return;
+  const attachments = pendingAttachments.value.map((attachment) => ({ ...attachment }));
+  pendingAttachments.value = [];
+  emit("send", attachments);
+}
+
 onBeforeUnmount(() => {
+  attachmentReadEpoch += 1;
   if (clockTimer !== undefined) {
     globalThis.clearInterval(clockTimer);
   }
@@ -280,8 +417,8 @@ function handleKeydown(event: KeyboardEvent): void {
     return;
   }
   event.preventDefault();
-  if (props.canSend) {
-    emit("send");
+  if (canSubmit.value) {
+    submitMessage();
   }
 }
 
@@ -330,10 +467,9 @@ const availableThinkingOptions = computed(() =>
       : [{ value: "off" as const, label: thinkingLabel("off") }]
     : fallbackThinkingOptions
 );
-const modelOptions = computed(() => [
-  { value: "", label: "DeepWrite Faux" },
-  ...props.models.map((model) => ({ value: model.id, label: model.label }))
-]);
+const modelOptions = computed(() =>
+  props.models.map((model) => ({ value: model.id, label: model.label }))
+);
 const showsTemperature = computed(
   () => Boolean(selectedModel.value) && props.thinkingLevel === "off"
 );
@@ -1237,6 +1373,22 @@ async function copyMessage(message: ChatMessage): Promise<void> {
               v-if="message.role === 'user'"
               class="message-copy user-message-copy"
             >
+              <div
+                v-if="message.attachments?.length"
+                class="message-attachment-list"
+                aria-label="本条消息的附件"
+              >
+                <span
+                  v-for="attachment in message.attachments"
+                  :key="attachment.id"
+                  class="message-attachment-chip"
+                  :title="`${attachment.name} · ${formatFileSize(attachment.size)}`"
+                >
+                  <AppIcon :name="attachment.kind === 'image' ? 'image' : 'file'" :size="14" />
+                  <span>{{ attachment.name }}</span>
+                  <small v-if="attachment.truncated">已截断</small>
+                </span>
+              </div>
               {{ message.content }}
             </div>
             <div
@@ -1438,6 +1590,55 @@ async function copyMessage(message: ChatMessage): Promise<void> {
             </div>
           </div>
           <div class="composer-input-surface">
+            <input
+              ref="attachmentInput"
+              class="composer-file-input"
+              type="file"
+              multiple
+              :accept="PROMPT_ATTACHMENT_ACCEPT"
+              tabindex="-1"
+              aria-hidden="true"
+              @change="handleAttachmentChange"
+            />
+            <div
+              v-if="pendingAttachments.length || readingAttachments"
+              class="composer-attachment-list"
+              aria-label="待发送附件"
+            >
+              <article
+                v-for="attachment in pendingAttachments"
+                :key="attachment.id"
+                class="composer-attachment-chip"
+              >
+                <img
+                  v-if="attachmentPreview(attachment)"
+                  :src="attachmentPreview(attachment)"
+                  alt=""
+                />
+                <span v-else class="composer-attachment-icon" aria-hidden="true">
+                  <AppIcon name="file" :size="16" />
+                </span>
+                <span class="composer-attachment-copy">
+                  <strong>{{ attachment.name }}</strong>
+                  <small>
+                    {{ attachment.kind === 'image' ? '图片' : attachment.mediaType === 'application/pdf' ? 'PDF 文本' : '文本' }}
+                    · {{ formatFileSize(attachment.size) }}
+                    <template v-if="attachment.kind === 'text' && attachment.truncated"> · 已截断</template>
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  :aria-label="`移除附件 ${attachment.name}`"
+                  :disabled="responding"
+                  @click="removePendingAttachment(attachment.id)"
+                >
+                  <AppIcon name="close" :size="13" />
+                </button>
+              </article>
+              <span v-if="readingAttachments" class="composer-attachment-loading">
+                正在读取附件…
+              </span>
+            </div>
             <textarea
               ref="composerInput"
               :value="draft"
@@ -1459,9 +1660,10 @@ async function copyMessage(message: ChatMessage): Promise<void> {
                 <button
                   class="round-tool-button"
                   type="button"
-                  aria-label="添加上下文"
-                  title="在输入框输入 / 调用技能，输入 @ 引用素材"
-                  disabled
+                  aria-label="上传附件"
+                  title="上传 TXT、MD、PDF 或图片"
+                  :disabled="responding || !runtimeAvailable || readingAttachments"
+                  @click="openAttachmentPicker"
                 >
                   <AppIcon name="plus" :size="18" />
                 </button>
@@ -1469,6 +1671,7 @@ async function copyMessage(message: ChatMessage): Promise<void> {
                   :model-value="selectedModelId"
                   :options="modelOptions"
                   accessible-label="选择模型"
+                  placeholder="选择模型"
                   variant="compact"
                   :menu-min-width="210"
                   @update:model-value="handleModelChange"
@@ -1517,8 +1720,8 @@ async function copyMessage(message: ChatMessage): Promise<void> {
                   class="send-button"
                   type="button"
                   aria-label="发送消息"
-                  :disabled="!canSend"
-                  @click="emit('send')"
+                  :disabled="!canSubmit"
+                  @click="submitMessage"
                 >
                   <AppIcon name="arrow-up" :size="18" />
                 </button>
@@ -1538,7 +1741,7 @@ async function copyMessage(message: ChatMessage): Promise<void> {
           </div>
         </div>
       </div>
-      <p class="composer-note">Enter 发送 · Shift + Enter 换行 · / 技能 · @ 素材</p>
+      <p class="composer-note">Enter 发送 · Shift + Enter 换行 · + 附件 · / 技能 · @ 素材</p>
     </footer>
   </main>
 </template>

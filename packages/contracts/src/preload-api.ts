@@ -21,12 +21,14 @@ import type {
   CatalogDocument,
   CatalogDraftRecovery,
   CatalogLibrary,
+  CatalogLibraryGroup,
   CatalogLibraryEntry,
   CatalogOpenProjectResult,
   CatalogProjectDomain,
   CatalogSnapshot,
   CatalogLibraryProjectDomain,
   CreateLibraryEntryInput,
+  CreateLibraryGroupInput,
   CreateLibraryInput,
   CreateShortBookInput,
   DeleteBookResult,
@@ -35,9 +37,11 @@ import type {
   SaveDocumentInput,
   SaveLibraryEntryInput,
   ShortBook,
+  ImportLegacyLibraryResult,
   UnregisterCatalogProjectInput,
   UnregisterCatalogProjectResult,
-  UpdateBookInput
+  UpdateBookInput,
+  UpdateLibraryGroupInput
 } from "./catalog";
 
 export interface DeepWriteApi {
@@ -50,10 +54,14 @@ export interface DeepWriteApi {
     saveDraftRecovery(drafts: CatalogDraftRecovery): Promise<void>;
     createShortBook(input: CreateShortBookInput): Promise<ShortBook | null>;
     createLibrary(input: CreateLibraryInput): Promise<CatalogLibrary | null>;
+    createLibraryGroup(input: CreateLibraryGroupInput): Promise<CatalogLibraryGroup | null>;
     openProject(domain: CatalogProjectDomain): Promise<CatalogOpenProjectResult | null>;
     importLegacyBook(): Promise<ShortBook | null>;
-    importLegacyLibrary(domain: CatalogLibraryProjectDomain): Promise<CatalogLibrary | null>;
+    importLegacyLibrary(
+      domain: CatalogLibraryProjectDomain
+    ): Promise<ImportLegacyLibraryResult | null>;
     updateBook(input: UpdateBookInput): Promise<ShortBook>;
+    updateLibraryGroup(input: UpdateLibraryGroupInput): Promise<CatalogLibraryGroup>;
     deleteBook(bookId: string): Promise<DeleteBookResult>;
     saveDocument(input: SaveDocumentInput): Promise<CatalogDocument>;
     saveLibraryEntry(input: SaveLibraryEntryInput): Promise<CatalogLibraryEntry>;

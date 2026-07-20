@@ -6,6 +6,7 @@ import type {
   ModelSettings,
   SystemEventEnvelope,
   ThinkingLevel,
+  UserPromptAttachment,
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import {
@@ -73,6 +74,7 @@ export interface AgentConversationController {
   isBusy: Readonly<Ref<boolean>>;
   hasPendingEditReview: Readonly<Ref<boolean>>;
   canSend: Readonly<Ref<boolean>>;
+  canSendAttachments: Readonly<Ref<boolean>>;
   canStop: Readonly<Ref<boolean>>;
   acceptsRunEvent(sessionId: string, runId: string): boolean;
   approvalModeForRun(sessionId: string, runId: string): AgentApprovalMode | undefined;
@@ -88,7 +90,8 @@ export interface AgentConversationController {
   sendMessage(
     activeDocument: WorkspaceDocument,
     workspaceDocuments?: WorkspaceDocument[],
-    attachments?: WorkspaceContextAttachments
+    attachments?: WorkspaceContextAttachments,
+    promptAttachments?: UserPromptAttachment[]
   ): Promise<void>;
   stopGeneration(): Promise<boolean>;
   newConversation(): void;
@@ -133,6 +136,9 @@ function cloneEditProposal(proposal: AgentEditProposal): AgentEditProposal {
 function cloneMessage(message: ChatMessage): ChatMessage {
   return {
     ...message,
+    ...(message.attachments
+      ? { attachments: message.attachments.map((attachment) => ({ ...attachment })) }
+      : {}),
     ...(message.tools
       ? { tools: message.tools.map((tool) => ({ ...tool })) }
       : {}),
@@ -288,6 +294,29 @@ function parseStoredMessage(value: unknown): ChatMessage | undefined {
     createdAt: value.createdAt,
     ...(status ? { status: status === "streaming" ? "stopped" : status } : {})
   };
+
+  if (Array.isArray(value.attachments)) {
+    message.attachments = value.attachments.flatMap((attachment) => {
+      if (
+        !isRecord(attachment) ||
+        typeof attachment.id !== "string" ||
+        typeof attachment.name !== "string" ||
+        (attachment.kind !== "text" && attachment.kind !== "image") ||
+        typeof attachment.mediaType !== "string" ||
+        !nonnegativeInteger(attachment.size)
+      ) {
+        return [];
+      }
+      return [{
+        id: attachment.id,
+        name: attachment.name,
+        kind: attachment.kind,
+        mediaType: attachment.mediaType,
+        size: attachment.size,
+        ...(attachment.truncated === true ? { truncated: true } : {})
+      }];
+    });
+  }
 
   for (const key of [
     "runId",
@@ -602,6 +631,12 @@ export function useAgentConversation(
       !isBusy.value &&
       !hasPendingEditReview.value &&
       draft.value.trim().length > 0
+  );
+  const canSendAttachments = computed(
+    () =>
+      Boolean(options.api()) &&
+      !isBusy.value &&
+      !hasPendingEditReview.value
   );
   const canStop = computed(
     () => Boolean(options.api()) && activeRunId.value !== null && !stopping.value
@@ -1408,10 +1443,14 @@ export function useAgentConversation(
   async function sendMessage(
     activeDocument: WorkspaceDocument,
     workspaceDocuments: WorkspaceDocument[] = [],
-    attachments: WorkspaceContextAttachments = {}
+    attachments: WorkspaceContextAttachments = {},
+    promptAttachments: UserPromptAttachment[] = []
   ): Promise<void> {
     const api = options.api();
-    const content = draft.value.trim();
+    // Vue refs wrap objects in proxies, which Electron IPC cannot structured-clone.
+    // Normalize at the API boundary so callers cannot accidentally leak proxies.
+    const requestAttachments = promptAttachments.map((attachment) => ({ ...attachment }));
+    const content = draft.value.trim() || (requestAttachments.length ? "请阅读并分析我上传的附件。" : "");
     if (!api) {
       conversationError.value = "浏览器预览没有桌面 Agent Runtime，请使用 pnpm dev 启动客户端。";
       return;
@@ -1509,6 +1548,20 @@ export function useAgentConversation(
       role: "user",
       content,
       createdAt: new Date().toISOString(),
+      ...(requestAttachments.length
+        ? {
+            attachments: requestAttachments.map((attachment) => ({
+              id: attachment.id,
+              name: attachment.name,
+              kind: attachment.kind,
+              mediaType: attachment.mediaType,
+              size: attachment.size,
+              ...(attachment.kind === "text" && attachment.truncated
+                ? { truncated: true }
+                : {})
+            }))
+          }
+        : {}),
       status: "completed"
     });
     draft.value = "";
@@ -1529,6 +1582,7 @@ export function useAgentConversation(
       const accepted = await api.session.prompt({
         sessionId: sendSessionId,
         message: content,
+        ...(requestAttachments.length ? { attachments: requestAttachments } : {}),
         writeApprovalMode: approvalModeByAttempt.get(attemptId),
         ...(selectedModelId.value ? { modelId: selectedModelId.value } : {}),
         ...(selectedModel
@@ -1807,6 +1861,7 @@ export function useAgentConversation(
     isBusy,
     hasPendingEditReview,
     canSend,
+    canSendAttachments,
     canStop,
     acceptsRunEvent,
     approvalModeForRun,

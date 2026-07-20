@@ -4,6 +4,7 @@ import {
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
+  CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
   CatalogLibraryProjectDomainSchema,
   CatalogOpenProjectResultSchema,
@@ -11,10 +12,12 @@ import {
   CatalogSnapshotSchema,
   CommandResultSchema,
   CreateLibraryEntryInputSchema,
+  CreateLibraryGroupInputSchema,
   CreateLibraryInputSchema,
   CreateShortBookInputSchema,
   DeleteBookInputSchema,
   DeleteBookResultSchema,
+  ImportLegacyLibraryResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
   ModelConnectionTestResultSchema,
@@ -39,22 +42,26 @@ import {
   UnregisterCatalogProjectResultSchema,
   WorkspaceDirectorySettingsSchema,
   UpdateBookInputSchema,
+  UpdateLibraryGroupInputSchema,
   createEnvelope,
   type CommandEnvelope,
   type CatalogDocument,
   type CatalogDraftRecovery,
   type CatalogLibrary,
+  type CatalogLibraryGroup,
   type CatalogLibraryEntry,
   type CatalogLibraryProjectDomain,
   type CatalogOpenProjectResult,
   type CatalogProjectDomain,
   type CatalogSnapshot,
   type CreateLibraryEntryInput,
+  type CreateLibraryGroupInput,
   type CreateLibraryInput,
   type CreateShortBookInput,
   type DeepWriteApi,
   type DeleteBookResult,
   type ModelConnectionTestResult,
+  type ImportLegacyLibraryResult,
   type ModelConfigInput,
   type ModelSettings,
   type ModelSettingsInput,
@@ -75,6 +82,7 @@ import {
   type UnregisterCatalogProjectInput,
   type UnregisterCatalogProjectResult,
   type UpdateBookInput,
+  type UpdateLibraryGroupInput,
   type WorkspaceDirectorySettings
 } from "@deepwrite/contracts";
 
@@ -168,6 +176,21 @@ async function createLibrary(
   );
 }
 
+async function createLibraryGroup(
+  rawInput: CreateLibraryGroupInput
+): Promise<CatalogLibraryGroup | null> {
+  const input = CreateLibraryGroupInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_create_library_group");
+  return CatalogLibraryGroupSchema.nullable().parse(
+    await invokeCommand<CatalogLibraryGroup | null>(
+      createEnvelope("catalog.createLibraryGroup", input, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
 async function openProject(
   rawDomain: CatalogProjectDomain
 ): Promise<CatalogOpenProjectResult | null> {
@@ -194,11 +217,11 @@ async function importLegacyBook(): Promise<ShortBook | null> {
 
 async function importLegacyLibrary(
   rawDomain: CatalogLibraryProjectDomain
-): Promise<CatalogLibrary | null> {
+): Promise<ImportLegacyLibraryResult | null> {
   const domain = CatalogLibraryProjectDomainSchema.parse(rawDomain);
   const id = browserId("cmd_catalog_import_legacy_library");
-  return CatalogLibrarySchema.nullable().parse(
-    await invokeCommand<CatalogLibrary | null>(
+  return ImportLegacyLibraryResultSchema.nullable().parse(
+    await invokeCommand<ImportLegacyLibraryResult | null>(
       createEnvelope(
         "catalog.importLegacyLibrary",
         { domain },
@@ -217,6 +240,22 @@ async function updateBook(rawInput: UpdateBookInput): Promise<ShortBook> {
         id,
         correlationId: id,
         context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function updateLibraryGroup(
+  rawInput: UpdateLibraryGroupInput
+): Promise<CatalogLibraryGroup> {
+  const input = UpdateLibraryGroupInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_update_library_group");
+  return CatalogLibraryGroupSchema.parse(
+    await invokeCommand<CatalogLibraryGroup>(
+      createEnvelope("catalog.updateLibraryGroup", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.groupId }
       })
     )
   );
@@ -462,10 +501,12 @@ const api: DeepWriteApi = {
     saveDraftRecovery,
     createShortBook,
     createLibrary,
+    createLibraryGroup,
     openProject,
     importLegacyBook,
     importLegacyLibrary,
     updateBook,
+    updateLibraryGroup,
     deleteBook,
     saveDocument,
     saveLibraryEntry,
