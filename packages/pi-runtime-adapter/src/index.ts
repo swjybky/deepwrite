@@ -138,6 +138,11 @@ export type AgentRuntimeEvent =
         workspaceId: string;
         stageId: import("@deepwrite/contracts").ShortWorkspaceStageId;
         text: string;
+        mutationTarget?: {
+          kind: "expert-draft-section";
+          sectionId: string;
+          field: "body" | "characterState";
+        };
         baseRevision: string;
         summary: string;
         runtime: AgentRuntimeRef;
@@ -803,7 +808,10 @@ function toRuntimeEvents(
     }];
     const details = (event.result as { details?: unknown } | undefined)?.details;
     if (isShortWorkspaceToolDetails(details)) {
-      if (details.kind === "workspace-editor-mutation") {
+      if (
+        details.kind === "workspace-editor-mutation" ||
+        details.kind === "workspace-expert-section-mutation"
+      ) {
         events.push({
           type: "workspace.editor_mutation",
           runId: input.runId,
@@ -813,6 +821,15 @@ function toRuntimeEvents(
             workspaceId: details.workspaceId,
             stageId: details.stageId,
             text: details.text,
+            ...(details.kind === "workspace-expert-section-mutation"
+              ? {
+                  mutationTarget: {
+                    kind: "expert-draft-section" as const,
+                    sectionId: details.sectionId,
+                    field: details.field
+                  }
+                }
+              : {}),
             baseRevision: details.baseRevision,
             summary: details.summary,
             runtime
@@ -1008,8 +1025,8 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
     profile.id === "expert_draft_coordinator"
       ? "当前已接通正文骨架初始化与局部编辑；后台分节写手调度尚未接通，不能声称已启动后台写作。"
       : profile.id === "expert_section_writer"
-        ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态写工具仍提交同一份待审阅 Markdown 变更。"
-      : ""
+        ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态写工具提交定向分节变更，由客户端合并为待审阅 Markdown。"
+        : ""
   ].filter(Boolean).join("\n");
 }
 
@@ -1067,6 +1084,11 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
       : "",
     input.workspaceContext?.shortWorkspace?.activeSectionId
       ? `当前小节: ${input.workspaceContext.shortWorkspace.activeSectionId}`
+      : "",
+    input.workspaceContext?.shortWorkspace?.expertDraftSections?.length
+      ? `本轮可读取小节（由早到晚）: ${input.workspaceContext.shortWorkspace.expertDraftSections
+          .map((section) => `${section.title} (${section.id})`)
+          .join("、")}`
       : "",
     input.agentProfile
       ? `当前智能体: ${input.agentProfile.label} (${input.agentProfile.id})`

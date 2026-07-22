@@ -1,6 +1,6 @@
 {
   "name": "deepwrite",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @deepwrite/desktop dev",
+    "electron:ensure": "node tools/ensure-electron-runtime.mjs",
     "build": "pnpm --filter @deepwrite/desktop build",
     "typecheck": "vue-tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/shared/tsconfig.json && tsc --noEmit -p packages/pi-runtime-adapter/tsconfig.json",
     "lint": "node tools/check-renderer-boundary.mjs",
@@ -17,11 +18,11 @@
     "smoke": "pnpm --filter @deepwrite/desktop smoke",
     "smoke:renderer": "node tools/check-renderer-build.mjs",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "pack:test": "pnpm pack:test:mac && pnpm pack:test:win",
-    "pack:test:win": "pnpm verify && pnpm --filter @deepwrite/desktop exec electron-builder --config electron-builder.yml --win nsis --x64 --publish never && pnpm --filter @deepwrite/desktop exec node scripts/verify-test-package.mjs win x64",
-    "pack:test:mac:arm64": "pnpm verify && pnpm --filter @deepwrite/desktop exec electron-builder --config electron-builder.yml --mac dmg --arm64 --publish never && pnpm --filter @deepwrite/desktop exec node scripts/verify-test-package.mjs mac arm64",
-    "pack:test:mac:x64": "pnpm verify && pnpm --filter @deepwrite/desktop exec electron-builder --config electron-builder.yml --mac dmg --x64 --publish never && pnpm --filter @deepwrite/desktop exec node scripts/verify-test-package.mjs mac x64",
-    "pack:test:mac": "pnpm verify && pnpm --filter @deepwrite/desktop exec electron-builder --config electron-builder.yml --mac dmg --arm64 --x64 --publish never && pnpm --filter @deepwrite/desktop exec node scripts/verify-test-package.mjs mac arm64 && pnpm --filter @deepwrite/desktop exec node scripts/verify-test-package.mjs mac x64"
+    "pack:test": "node tools/run-test-package.mjs all",
+    "pack:test:win": "node tools/run-test-package.mjs win x64",
+    "pack:test:mac:arm64": "node tools/run-test-package.mjs mac arm64",
+    "pack:test:mac:x64": "node tools/run-test-package.mjs mac x64",
+    "pack:test:mac": "node tools/run-test-package.mjs mac all"
   },
   "devDependencies": {
     "@types/node": "26.0.1",

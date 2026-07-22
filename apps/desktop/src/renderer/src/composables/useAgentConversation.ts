@@ -1519,11 +1519,21 @@ export function useAgentConversation(
         (stage): stage is NonNullable<typeof stage> => stage !== undefined
       );
       if (completeStages.length === SHORT_WORKSPACE_STAGE_IDS.length) {
-        const expertDraftSectionIds = activeDocument.expertSectionId
+        const expertDraft = activeDocument.expertSectionId
           ? parseExpertDraftMarkdown(
               liveStages.find((candidate) => candidate.stageId === "draft")?.content ?? ""
-            ).sections.map((section) => section.id)
+            )
           : undefined;
+        const expertDraftSectionIds = expertDraft?.sections.map((section) => section.id);
+        const activeSectionIndex = expertDraft?.sections.findIndex(
+          (section) => section.id === activeDocument.expertSectionId
+        ) ?? -1;
+        const expertDraftSections =
+          expertDraft && activeSectionIndex >= 0
+            ? expertDraft.sections
+                .slice(Math.max(0, activeSectionIndex - 3), activeSectionIndex + 1)
+                .map((section) => ({ ...section }))
+            : undefined;
         contextSnapshot.shortWorkspace = {
           id: activeDocument.workspaceId,
           title: activeDocument.workspaceTitle,
@@ -1535,7 +1545,8 @@ export function useAgentConversation(
           ...(activeDocument.expertSectionId
             ? {
                 activeSectionId: activeDocument.expertSectionId,
-                expertDraftSectionIds
+                expertDraftSectionIds,
+                ...(expertDraftSections ? { expertDraftSections } : {})
               }
             : {}),
           stages: completeStages

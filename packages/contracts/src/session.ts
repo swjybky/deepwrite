@@ -403,17 +403,37 @@ export const AgentToolCompletedPayloadSchema = z.object({
 });
 export type AgentToolCompletedPayload = z.infer<typeof AgentToolCompletedPayloadSchema>;
 
-export const WorkspaceEditorMutationPayloadSchema = z.object({
-  sessionId: z.string().min(1),
-  runId: z.string().min(1),
-  toolCallId: z.string().min(1),
-  workspaceId: z.string().min(1).max(240),
-  stageId: ShortWorkspaceStageIdSchema,
-  text: z.string().max(10_000_000),
-  baseRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
-  summary: z.string().min(1).max(1_000),
-  runtime: AgentRuntimeRefSchema
+export const WorkspaceEditorMutationTargetSchema = z.object({
+  kind: z.literal("expert-draft-section"),
+  sectionId: z.string().trim().min(1).max(120),
+  field: z.enum(["body", "characterState"])
 });
+export type WorkspaceEditorMutationTarget = z.infer<
+  typeof WorkspaceEditorMutationTargetSchema
+>;
+
+export const WorkspaceEditorMutationPayloadSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    runId: z.string().min(1),
+    toolCallId: z.string().min(1),
+    workspaceId: z.string().min(1).max(240),
+    stageId: ShortWorkspaceStageIdSchema,
+    text: z.string().max(10_000_000),
+    mutationTarget: WorkspaceEditorMutationTargetSchema.optional(),
+    baseRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
+    summary: z.string().min(1).max(1_000),
+    runtime: AgentRuntimeRefSchema
+  })
+  .superRefine((value, context) => {
+    if (value.mutationTarget !== undefined && value.stageId !== "draft") {
+      context.addIssue({
+        code: "custom",
+        path: ["mutationTarget"],
+        message: "Expert draft section mutations must target the draft stage."
+      });
+    }
+  });
 export type WorkspaceEditorMutationPayload = z.infer<
   typeof WorkspaceEditorMutationPayloadSchema
 >;

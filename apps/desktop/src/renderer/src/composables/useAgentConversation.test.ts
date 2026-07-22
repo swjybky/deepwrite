@@ -5,6 +5,7 @@ import {
   SHORT_WORKSPACE_STAGE_IDS,
   createShortWorkspaceContentRevision,
   createEnvelope,
+  serializeExpertDraftMarkdown,
   type DeepWriteApi,
   type SessionAbortCommandPayload,
   type SessionPromptAcceptedPayload,
@@ -117,6 +118,9 @@ function createDeferredApi(): {
         throw new Error("Catalog is not used by conversation tests.");
       }),
       unregisterProject: vi.fn(async () => {
+        throw new Error("Catalog is not used by conversation tests.");
+      }),
+      deleteProject: vi.fn(async () => {
         throw new Error("Catalog is not used by conversation tests.");
       })
     },
@@ -1482,11 +1486,84 @@ describe("agent conversation controller", () => {
       activeStageId: "draft",
       activeAgentId: "expert_section_writer",
       activeSectionId: "section-1",
-      expertDraftSectionIds: ["intro", "section-1"]
+      expertDraftSectionIds: ["intro", "section-1"],
+      expertDraftSections: [
+        expect.objectContaining({ id: "intro", body: "" }),
+        expect.objectContaining({
+          id: "section-1",
+          body: "draft 的实时内容"
+        })
+      ]
     });
     expect(
       deferred.prompts[0]?.workspaceContext?.shortWorkspace?.stages
     ).toHaveLength(SHORT_WORKSPACE_STAGE_IDS.length);
+    controller.dispose();
+  });
+
+  it("sends complete current and preceding sections when the full draft snapshot is truncated", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({
+      api: () => deferred.api,
+      idleTimeoutMs: 10_000
+    });
+    const workspaceDocuments = createShortWorkspaceDocuments();
+    const longDraft = serializeExpertDraftMarkdown({
+      sections: Array.from({ length: 5 }, (_, index) => ({
+        id: `section-${index + 1}`,
+        title: `第${index + 1}节`,
+        wordCountRequirement: "1200 字",
+        body: index === 0
+          ? `第一节完整开头${"雨".repeat(20_100)}第一节完整结尾`
+          : `第${index + 1}节完整正文`,
+        characterState: `第${index + 1}节人物状态`
+      }))
+    });
+    const draftIndex = workspaceDocuments.findIndex(
+      (candidate) => candidate.stageId === "draft"
+    );
+    const draftDocument = {
+      ...workspaceDocuments[draftIndex]!,
+      content: longDraft
+    };
+    workspaceDocuments[draftIndex] = draftDocument;
+    const sectionDocument: WorkspaceDocument = {
+      ...draftDocument,
+      shortAgentId: "expert_section_writer",
+      expertSectionId: "section-5",
+      title: "第五节"
+    };
+
+    controller.draft.value = "继续编写第五节";
+    const sending = controller.sendMessage(sectionDocument, workspaceDocuments);
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_long_section_writer",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    const snapshot = deferred.prompts[0]?.workspaceContext?.shortWorkspace;
+    expect(snapshot?.stages.find((stage) => stage.stageId === "draft")).toMatchObject({
+      truncated: true,
+      originalLength: longDraft.length
+    });
+    expect(snapshot?.expertDraftSectionIds).toEqual([
+      "section-1",
+      "section-2",
+      "section-3",
+      "section-4",
+      "section-5"
+    ]);
+    expect(snapshot?.expertDraftSections?.map((section) => section.id)).toEqual([
+      "section-2",
+      "section-3",
+      "section-4",
+      "section-5"
+    ]);
+    expect(snapshot?.expertDraftSections?.at(-1)?.body).toBe("第5节完整正文");
     controller.dispose();
   });
 

@@ -5,12 +5,9 @@ import {
   SHORT_SKILL_KINDS,
   SHORT_WORKSPACE_STAGE_IDS,
   createShortWorkspaceContentRevision,
-  findExpertDraftSection,
   parseExpertDraftMarkdown,
   renderExpertDraftManuscript,
   serializeExpertDraftMarkdown,
-  updateExpertDraftSectionBody,
-  updateExpertDraftSectionCharacterState,
   type AgentWriteApprovalMode,
   type ShortWorkspaceAgentProfile,
   type ShortWorkspaceSnapshot,
@@ -24,6 +21,16 @@ export type ShortWorkspaceToolDetails =
       kind: "workspace-editor-mutation";
       workspaceId: string;
       stageId: ShortWorkspaceStageId;
+      text: string;
+      baseRevision: string;
+      summary: string;
+    }
+  | {
+      kind: "workspace-expert-section-mutation";
+      workspaceId: string;
+      stageId: "draft";
+      sectionId: string;
+      field: "body" | "characterState";
       text: string;
       baseRevision: string;
       summary: string;
@@ -426,6 +433,33 @@ function editorMutationResult(
   });
 }
 
+function expertSectionMutationResult(
+  input: BuildShortWorkspaceToolsInput,
+  stageRevisions: Map<ShortWorkspaceStageId, string>,
+  sectionId: string,
+  field: "body" | "characterState",
+  text: string,
+  summary: string
+): AgentToolResult<ShortWorkspaceToolDetails> {
+  const baseRevision = stageRevisions.get("draft");
+  if (!baseRevision) {
+    return textResult("未写入：缺少「正文」的基础版本标识。");
+  }
+  const resultSummary = input.writeApprovalMode === "auto-approve"
+    ? summary.replace("，等待用户审阅。", "，将在本轮完成后自动批准并保存。")
+    : summary;
+  return textResult(resultSummary, {
+    kind: "workspace-expert-section-mutation",
+    workspaceId: input.workspace.id,
+    stageId: "draft",
+    sectionId,
+    field,
+    text,
+    baseRevision,
+    summary: resultSummary
+  });
+}
+
 function buildWriteWorkspaceEditorTool(
   input: BuildShortWorkspaceToolsInput,
   stageBodies: Map<ShortWorkspaceStageId, string>,
@@ -648,41 +682,53 @@ function activeExpertSectionId(
     : undefined;
 }
 
-function expertDraftWriteBlocked(
-  input: BuildShortWorkspaceToolsInput
-): string | undefined {
-  const snapshot = input.workspace.stages.find(
+function buildExpertSectionBodies(
+  input: BuildShortWorkspaceToolsInput,
+  stageBodies: Map<ShortWorkspaceStageId, string>
+) {
+  const draftSnapshot = input.workspace.stages.find(
     (stage) => stage.stageId === "draft"
   );
-  return snapshot?.truncated
-    ? "正文超过本轮安全快照上限，不能在未读取完整正文时修改小节。"
-    : undefined;
+  const sections = input.workspace.expertDraftSections ?? (
+    draftSnapshot?.truncated === true
+      ? []
+      : parseExpertDraftMarkdown(stageBodies.get("draft") ?? "").sections
+  );
+  return new Map(sections.map((section) => [section.id, { ...section }] as const));
+}
+
+function expertSectionWriteBlocked(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ReturnType<typeof buildExpertSectionBodies>
+): string | undefined {
+  const sectionId = activeExpertSectionId(input);
+  if (!sectionId) return "未修改：当前没有选中可写的小节。";
+  return expertSections.has(sectionId)
+    ? undefined
+    : "未修改：本轮缺少当前小节的完整上下文，不能安全写入。";
 }
 
 function buildReadExpertDraftSectionTool(
   input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>
+  expertSections: ReturnType<typeof buildExpertSectionBodies>
 ): AgentTool {
   return defineTool({
     name: "read_expert_draft_section",
     label: "读取正文小节",
     description:
-      "按稳定小节 id 读取章节名、字数要求、正文和该节结束时的人物状态。可读取当前节及前置小节，但不会修改正文。",
+      "按稳定小节 id 读取章节名、字数要求、正文和该节结束时的人物状态。可读取当前节及其之前最近三个小节，但不会修改正文。",
     parameters: Type.Object({
       section_id: Type.String({ minLength: 1, maxLength: 120 })
     }),
     execute: async (_toolCallId, params) => {
       const sectionId = String(params.section_id ?? "").trim();
-      const draft = parseExpertDraftMarkdown(stageBodies.get("draft") ?? "");
-      const section = findExpertDraftSection(draft, sectionId);
+      const section = expertSections.get(sectionId);
       if (!section) {
-        const truncated = input.workspace.stages.some(
-          (stage) => stage.stageId === "draft" && stage.truncated
-        );
+        const knownSection = input.workspace.expertDraftSectionIds?.includes(sectionId);
         return textResult(
-          truncated
-            ? `本轮只收到正文前段快照，未能安全读取小节 ${sectionId}。`
-            : `没有找到正文小节 ${sectionId}。当前可用：${draft.sections
+          knownSection
+            ? `小节 ${sectionId} 不在本轮分节上下文中；仅可读取当前小节及其之前最近三个小节。`
+            : `没有找到正文小节 ${sectionId}。当前可用：${[...expertSections.values()]
                 .map((item) => `${item.title}（${item.id}）`)
                 .join("、")}`
         );
@@ -707,8 +753,8 @@ function buildReadExpertDraftSectionTool(
 
 function buildReplaceExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>,
   stageRevisions: Map<ShortWorkspaceStageId, string>,
+  expertSections: ReturnType<typeof buildExpertSectionBodies>,
   field: "body" | "characterState"
 ): AgentTool {
   const bodyField = field === "body";
@@ -730,13 +776,10 @@ function buildReplaceExpertSectionFieldTool(
       )
     }),
     execute: async (_toolCallId, params) => {
-      const blocked = expertDraftWriteBlocked(input);
+      const blocked = expertSectionWriteBlocked(input, expertSections);
       if (blocked) return textResult(blocked);
-      const sectionId = activeExpertSectionId(input);
-      if (!sectionId) return textResult("未修改：当前没有选中可写的小节。");
-      const draft = parseExpertDraftMarkdown(stageBodies.get("draft") ?? "");
-      const section = findExpertDraftSection(draft, sectionId);
-      if (!section) return textResult(`未修改：正文小节 ${sectionId} 已不存在。`);
+      const sectionId = activeExpertSectionId(input)!;
+      const section = expertSections.get(sectionId)!;
       const replacements = params.replacements as Array<{
         original_text: string;
         new_text: string;
@@ -748,15 +791,16 @@ function buildReplaceExpertSectionFieldTool(
       if (result.error || result.next === undefined) {
         return textResult(`未替换：${result.error ?? "未知错误"}`);
       }
-      const nextDraft = bodyField
-        ? updateExpertDraftSectionBody(draft, sectionId, result.next)
-        : updateExpertDraftSectionCharacterState(draft, sectionId, result.next);
-      return editorMutationResult(
+      expertSections.set(sectionId, {
+        ...section,
+        [field]: result.next
+      });
+      return expertSectionMutationResult(
         input,
-        stageBodies,
         stageRevisions,
-        "draft",
-        serializeExpertDraftMarkdown(nextDraft),
+        sectionId,
+        field,
+        result.next,
         `已生成「${section.title}」${bodyField ? "正文" : "人物状态"}的 ${result.count} 处文本变更，等待用户审阅。`
       );
     },
@@ -766,8 +810,8 @@ function buildReplaceExpertSectionFieldTool(
 
 function buildWriteExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>,
   stageRevisions: Map<ShortWorkspaceStageId, string>,
+  expertSections: ReturnType<typeof buildExpertSectionBodies>,
   field: "body" | "characterState"
 ): AgentTool {
   const bodyField = field === "body";
@@ -782,13 +826,10 @@ function buildWriteExpertSectionFieldTool(
       allow_overwrite_existing: Type.Optional(Type.Boolean())
     }),
     execute: async (_toolCallId, params) => {
-      const blocked = expertDraftWriteBlocked(input);
+      const blocked = expertSectionWriteBlocked(input, expertSections);
       if (blocked) return textResult(blocked);
-      const sectionId = activeExpertSectionId(input);
-      if (!sectionId) return textResult("未写入：当前没有选中可写的小节。");
-      const draft = parseExpertDraftMarkdown(stageBodies.get("draft") ?? "");
-      const section = findExpertDraftSection(draft, sectionId);
-      if (!section) return textResult(`未写入：正文小节 ${sectionId} 已不存在。`);
+      const sectionId = activeExpertSectionId(input)!;
+      const section = expertSections.get(sectionId)!;
       const current = bodyField ? section.body : section.characterState;
       if (current.trim() && params.allow_overwrite_existing !== true) {
         return textResult(
@@ -799,15 +840,16 @@ function buildWriteExpertSectionFieldTool(
       }
       const text = String(params.text ?? "").trim();
       if (!text) return textResult("未写入：文本为空。");
-      const nextDraft = bodyField
-        ? updateExpertDraftSectionBody(draft, sectionId, text)
-        : updateExpertDraftSectionCharacterState(draft, sectionId, text);
-      return editorMutationResult(
+      expertSections.set(sectionId, {
+        ...section,
+        [field]: text
+      });
+      return expertSectionMutationResult(
         input,
-        stageBodies,
         stageRevisions,
-        "draft",
-        serializeExpertDraftMarkdown(nextDraft),
+        sectionId,
+        field,
+        text,
         `已生成「${section.title}」的${bodyField ? "正文" : "人物状态"}变更，等待用户审阅。`
       );
     },
@@ -824,6 +866,7 @@ export function buildShortWorkspaceTools(
   const stageRevisions = new Map<ShortWorkspaceStageId, string>(
     input.workspace.stages.map((stage) => [stage.stageId, stage.revision])
   );
+  const expertSections = buildExpertSectionBodies(input, stageBodies);
   let activeStageId = input.workspace.activeStageId;
   const readTools = [
     buildReadWorkspaceContentTool(input, stageBodies),
@@ -846,29 +889,29 @@ export function buildShortWorkspaceTools(
   if (input.profile.id === "expert_section_writer") {
     return [
       ...readTools,
-      buildReadExpertDraftSectionTool(input, stageBodies),
+      buildReadExpertDraftSectionTool(input, expertSections),
       buildReplaceExpertSectionFieldTool(
         input,
-        stageBodies,
         stageRevisions,
+        expertSections,
         "body"
       ),
       buildWriteExpertSectionFieldTool(
         input,
-        stageBodies,
         stageRevisions,
+        expertSections,
         "body"
       ),
       buildReplaceExpertSectionFieldTool(
         input,
-        stageBodies,
         stageRevisions,
+        expertSections,
         "characterState"
       ),
       buildWriteExpertSectionFieldTool(
         input,
-        stageBodies,
         stageRevisions,
+        expertSections,
         "characterState"
       )
     ];
@@ -897,6 +940,7 @@ export function isShortWorkspaceToolDetails(
   return (
     kind === "none" ||
     kind === "workspace-editor-mutation" ||
+    kind === "workspace-expert-section-mutation" ||
     kind === "workspace-stage-selection"
   );
 }

@@ -537,6 +537,7 @@ ol {
 .resource-tree,
 .tree-children {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1px;
 }
 
@@ -552,6 +553,7 @@ ol {
   align-items: center;
   gap: 4px;
   width: 100%;
+  min-width: 0;
   min-height: 28px;
   padding: 2px 7px 2px calc(3px + var(--tree-depth) * 14px);
   border-radius: 6px;
@@ -568,6 +570,7 @@ ol {
 
 .tree-node {
   position: relative;
+  min-width: 0;
 }
 
 .tree-node-action-area {

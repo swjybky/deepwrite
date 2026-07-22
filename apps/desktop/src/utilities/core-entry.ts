@@ -7,6 +7,7 @@ import {
   CatalogLibraryEntrySchema,
   CatalogOpenProjectResultSchema,
   CatalogSnapshotSchema,
+  DeleteCatalogProjectResultSchema,
   DeleteBookResultSchema,
   RemoveLibraryEntryResultSchema,
   ShortBookSchema,
@@ -271,6 +272,15 @@ async function handleCatalogCommand(
         requestId: command.id,
         payload: UnregisterCatalogProjectResultSchema.parse(
           await catalogStore.unregisterProject(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.deleteProject") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: DeleteCatalogProjectResultSchema.parse(
+          await catalogStore.deleteProject(command.payload)
         )
       };
     }

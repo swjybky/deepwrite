@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
-import { parseExpertDraftMarkdown } from "./expert-draft";
+import {
+  ExpertDraftSectionSchema,
+  parseExpertDraftMarkdown
+} from "./expert-draft";
 
 export const SHORT_WORKSPACE_STAGE_IDS = [
   "character_design",
@@ -352,6 +355,11 @@ export const ShortWorkspaceSnapshotSchema = z
       .array(z.string().trim().min(1).max(120))
       .max(100)
       .optional(),
+    expertDraftSections: z
+      .array(ExpertDraftSectionSchema)
+      .min(1)
+      .max(4)
+      .optional(),
     stages: z
       .array(ShortWorkspaceStageSnapshotSchema)
       .length(SHORT_WORKSPACE_STAGE_IDS.length)
@@ -384,6 +392,17 @@ export const ShortWorkspaceSnapshotSchema = z
         });
       }
     });
+    const contextSectionIds =
+      value.expertDraftSections?.map((section) => section.id) ?? [];
+    contextSectionIds.forEach((sectionId, index) => {
+      if (contextSectionIds.indexOf(sectionId) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["expertDraftSections", index, "id"],
+          message: `Duplicate expert draft context section id: ${sectionId}`
+        });
+      }
+    });
 
     if (value.activeStageId !== "draft") {
       const defaultAgentId = resolveShortWorkspaceAgentIdForStage(value.activeStageId);
@@ -404,6 +423,13 @@ export const ShortWorkspaceSnapshotSchema = z
           message: "Only the draft section writer may target a section."
         });
       }
+      if (value.expertDraftSections !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["expertDraftSections"],
+          message: "Only the draft section writer may receive section context."
+        });
+      }
       return;
     }
 
@@ -415,6 +441,13 @@ export const ShortWorkspaceSnapshotSchema = z
           message: "A draft section target requires the section writer agent."
         });
       }
+      if (value.expertDraftSections !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["expertDraftSections"],
+          message: "Draft section context requires the section writer agent."
+        });
+      }
       return;
     }
 
@@ -424,6 +457,13 @@ export const ShortWorkspaceSnapshotSchema = z
           code: "custom",
           path: ["activeSectionId"],
           message: "The draft coordinator cannot target an individual section."
+        });
+      }
+      if (value.expertDraftSections !== undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["expertDraftSections"],
+          message: "The draft coordinator cannot receive individual section context."
         });
       }
       return;
@@ -473,6 +513,30 @@ export const ShortWorkspaceSnapshotSchema = z
         code: "custom",
         path: ["activeSectionId"],
         message: `Unknown expert draft section: ${value.activeSectionId}`
+      });
+    }
+    const completeSectionIds =
+      draftStage?.truncated === true ? indexedSectionIds : parsedSectionIds;
+    const activeSectionIndex = completeSectionIds.indexOf(value.activeSectionId);
+    const expectedContextIds = activeSectionIndex < 0
+      ? []
+      : completeSectionIds.slice(Math.max(0, activeSectionIndex - 3), activeSectionIndex + 1);
+    if (draftStage?.truncated === true && value.expertDraftSections === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["expertDraftSections"],
+        message: "A truncated expert draft requires complete current and preceding section context."
+      });
+    }
+    if (
+      value.expertDraftSections !== undefined &&
+      (contextSectionIds.length !== expectedContextIds.length ||
+        contextSectionIds.some((sectionId, index) => sectionId !== expectedContextIds[index]))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["expertDraftSections"],
+        message: "Expert draft context must contain the current section and up to three preceding sections in order."
       });
     }
   });

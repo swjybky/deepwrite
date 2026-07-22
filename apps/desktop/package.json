@@ -1,14 +1,17 @@
 {
   "name": "@deepwrite/desktop",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "DeepWrite local desktop writing client",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
+    "predev": "node ../../tools/ensure-electron-runtime.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "prepreview": "node ../../tools/ensure-electron-runtime.mjs",
     "preview": "electron-vite preview",
+    "presmoke": "node ../../tools/ensure-electron-runtime.mjs",
     "smoke": "node scripts/electron-smoke.mjs"
   },
   "dependencies": {

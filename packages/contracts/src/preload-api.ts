@@ -31,6 +31,8 @@ import type {
   CreateLibraryGroupInput,
   CreateLibraryInput,
   CreateShortBookInput,
+  DeleteCatalogProjectInput,
+  DeleteCatalogProjectResult,
   DeleteBookResult,
   RemoveLibraryEntryInput,
   RemoveLibraryEntryResult,
@@ -70,6 +72,9 @@ export interface DeepWriteApi {
     unregisterProject(
       input: UnregisterCatalogProjectInput
     ): Promise<UnregisterCatalogProjectResult>;
+    deleteProject(
+      input: DeleteCatalogProjectInput
+    ): Promise<DeleteCatalogProjectResult>;
   };
   session: {
     prompt(payload: SessionPromptCommandPayload): Promise<SessionPromptAcceptedPayload>;

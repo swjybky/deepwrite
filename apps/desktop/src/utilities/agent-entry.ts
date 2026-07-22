@@ -135,6 +135,9 @@ function toEventEnvelope(
         workspaceId: event.payload.workspaceId,
         stageId: event.payload.stageId,
         text: event.payload.text,
+        ...(event.payload.mutationTarget
+          ? { mutationTarget: event.payload.mutationTarget }
+          : {}),
         baseRevision: event.payload.baseRevision,
         summary: event.payload.summary,
         runtime: event.payload.runtime

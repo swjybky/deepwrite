@@ -40,6 +40,7 @@ const emit = defineEmits<{
   close: [];
   rename: [payload: { bookId: string; label: string }];
   remove: [bookId: string];
+  delete: [bookId: string];
   updateBindings: [payload: BindingPayload];
 }>();
 
@@ -76,6 +77,7 @@ const bindingDomain = computed<"skill" | "material" | null>(() => {
 const title = computed(() => {
   if (props.mode === "rename") return "修改书籍名称";
   if (props.mode === "remove") return "移除书籍";
+  if (props.mode === "delete") return "删除书籍";
   if (props.mode === "bind-skill") return "技能库绑定";
   return "素材库绑定";
 });
@@ -206,6 +208,10 @@ function submit(): void {
     emit("remove", props.book.id);
     return;
   }
+  if (props.mode === "delete") {
+    emit("delete", props.book.id);
+    return;
+  }
   if (bindingDomain.value === "material") {
     emit("updateBindings", {
       bookId: props.book.id,
@@ -264,12 +270,13 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             <p class="book-resource-help">侧栏和文稿显示路径会同步更新，本地文件夹名称不会被自动修改。</p>
           </template>
 
-          <template v-else-if="mode === 'remove'">
+          <template v-else-if="mode === 'remove' || mode === 'delete'">
             <div class="book-remove-warning">
               <AppIcon name="trash" :size="20" />
               <div>
-                <strong>确认移除“{{ book.label }}”？</strong>
-                <p>只会从当前创作空间解除注册，不会删除本地文件夹；之后可通过“打开已存在书籍”恢复。</p>
+                <strong>确认{{ mode === "delete" ? "删除" : "移除" }}“{{ book.label }}”？</strong>
+                <p v-if="mode === 'delete'">会从当前创作空间移除，并永久删除本地项目文件夹及其中所有文件。此操作无法撤销。</p>
+                <p v-else>只会从当前创作空间解除注册，不会删除本地文件夹；之后可通过“打开已存在书籍”恢复。</p>
               </div>
             </div>
           </template>
@@ -357,8 +364,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
           <div class="dialog-actions" :class="{ 'create-short-book-actions': bindingDomain }">
             <button class="dialog-secondary-button" type="button" :disabled="submitting" @click="requestClose">取消</button>
-            <button class="dialog-primary-button" :class="{ 'is-danger': mode === 'remove' }" type="submit" :disabled="loading || submitting">
-              {{ submitting ? "保存中…" : mode === "remove" ? "确认移除" : mode === "rename" ? "保存名称" : "保存绑定" }}
+            <button class="dialog-primary-button" :class="{ 'is-danger': mode === 'remove' || mode === 'delete' }" type="submit" :disabled="loading || submitting">
+              {{ submitting ? (mode === "remove" || mode === "delete" ? "处理中…" : "保存中…") : mode === "delete" ? "确认删除" : mode === "remove" ? "确认移除" : mode === "rename" ? "保存名称" : "保存绑定" }}
             </button>
           </div>
         </form>

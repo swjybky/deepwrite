@@ -91,7 +91,7 @@ Renderer 不直接依赖 Pi SDK。`useAgentConversation.ts` 只消费 `window.de
 - Core 对注册目录执行 realpath 去重、相对路径 containment、符号链接、UTF-8、文件大小和 Zod 校验；manifest 中指向同一 inode 的硬链接别名会被拒绝。自动分配 Markdown 路径时，会把 manifest 已使用路径和实际目录项都按 NFC 归一化、大小写折叠后视为已占用，避免覆盖大小写 / Unicode 规范化等价路径或 Cursor 创建的未跟踪文件。
 - 单个文件均通过临时文件 + rename 原子替换。Markdown 与 manifest 的组合更新采用串行提交，普通写入失败时恢复原 Markdown；但进程若恰好在两次 rename 之间崩溃，仍可能留下跨文件版本不一致，这不是严格的多文件事务，彻底消除该窗口需要事务 journal 与启动恢复。
 - 保存正文或资料条目时携带读取时的内容 revision。若 Cursor 等外部编辑器已经改动磁盘文件，Core 拒绝覆盖并保留 Renderer 草稿；窗口重新获得焦点时会重读项目快照。
-- “移除书籍 / 资料库”当前语义是从注册表解除注册，不删除用户文件夹。删除素材或技能条目则会在风险确认后删除对应 Markdown；Core 先暂存文件，并在 manifest 提交失败时恢复。文件夹名默认由标题生成，但稳定身份来自 manifest UUID，改书名不会隐式移动目录。
+- “移除书籍 / 资料库”只从注册表解除注册并保留用户文件夹；菜单中紧邻的“删除”会在风险确认后删除注册记录和完整项目文件夹。Core 删除项目前会校验目录、项目类型和 manifest ID，并先将目录暂存；注册表提交失败时恢复原目录。删除素材或技能条目同样会在风险确认后删除对应 Markdown，并在 manifest 提交失败时恢复。文件夹名默认由标题生成，但稳定身份来自 manifest UUID，改书名不会隐式移动目录。
 - 未保存编辑草稿防抖、原子地写入 `userData/draft-recovery.json`，典型浏览器配额不再限制恢复容量；`localStorage` 仅是窗口卸载期间的应急同步副本。Main 退出前保留 500 ms IPC 缓冲，Core shutdown 再等待在途命令排空。
 - 首次运行文件夹存储时，会兼容读取已有 `catalog.json`，或执行 Write Claw 自动引导迁移并一次性拆分完整快照。注册表建立后，后续启动不再把旧 Catalog 同步回来，避免已移除项目复活或旧正文覆盖 Markdown；旧 `catalog.json` 仅保留为兼容来源和备份。
 - `catalog.json` 不存在时仍会合并当前 Write Claw 运行时 `.data` 与可发现或显式配置的 `openwrite/write-claw/.data`；同 ID 内容合并，跨 ID 只对标题兼容的明确 recovered 恢复副本去重。
@@ -131,8 +131,8 @@ Renderer 不直接依赖 Pi SDK。`useAgentConversation.ts` 只消费 `window.de
 | 智能体对话 | `web/src/pages/bookEditor/WorkspaceAiPanel.tsx`、`web/src/components/WorkspaceAiChat.tsx` | 阶段会话与真实绑定附件已接通 |
 | 文本编辑 | `web/src/pages/bookEditor/WorkspaceEditorPane.tsx`、`web/src/workspaces/long/LongWorkspaceEditor.tsx` | 书籍阶段、素材与技能条目可显式保存；Agent 写回 diff、接受 / 拒绝和接受后自动保存已完成 |
 | 学习仿写 | `web/src/features/learningImitation/` | 尚未迁移 |
-| 技能库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
-| 素材库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
+| 技能库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册 / 整目录删除、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
+| 素材库 | Renderer 资料树、Catalog contracts 与 Core folder store | 文件夹新建 / 打开 / 解除注册 / 整目录删除、条目 CRUD 及按 kind 新建分组已完成；元数据和分组编辑 / 删除未完成 |
 | 模型配置 | `web/src/bridge/aiModelConfig.ts` 的字段语义，不复制任何密钥或持久化实现 | 模型 CRUD 与安全密钥存储已落地；旧配置不自动导入 |
 
 旧项目的 `Home.tsx`、`BookEditor.tsx` 和 `WorkspaceAiChat.tsx` 高度耦合，不能直接成为新壳层依赖。旧配置中的硬编码密钥也绝不迁移；发布版模型密钥必须使用 Electron `safeStorage` 或系统 Keychain。

@@ -1,10 +1,15 @@
-import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
+import {
+  createShortWorkspaceContentRevision,
+  parseExpertDraftMarkdown,
+  serializeExpertDraftMarkdown
+} from "@deepwrite/contracts";
 import { describe, expect, it } from "vitest";
 import type { AgentEditProposal } from "../types/conversation";
 import {
   agentEditProposalId,
   classifyAgentEditAcceptance,
-  expectedMutationBaseRevision
+  expectedMutationBaseRevision,
+  resolveAgentEditorMutationText
 } from "./agentEditReview";
 
 function proposal(
@@ -39,6 +44,14 @@ describe("agent edit review", () => {
     );
   });
 
+  it("keeps targeted section mutations on the original full-document revision", () => {
+    const existing = proposal("完整正文", "合并第一项分节修改后的正文");
+
+    expect(
+      expectedMutationBaseRevision(existing, "尚未应用的页面文本", true)
+    ).toBe(existing.baseRevision);
+  });
+
   it("classifies a proposal against its unchanged base as ready", () => {
     const edit = proposal("原文", "智能体修改稿");
 
@@ -65,5 +78,67 @@ describe("agent edit review", () => {
     expect(classifyAgentEditAcceptance(edit, "原文")).toBe(
       "missing-proposed-text"
     );
+  });
+
+  it("merges a targeted section field into the complete local draft", () => {
+    const original = serializeExpertDraftMarkdown({
+      sections: [
+        {
+          id: "section-1",
+          title: "第一节",
+          wordCountRequirement: "1000 字",
+          body: "第一节保持不变。",
+          characterState: "旧状态一"
+        },
+        {
+          id: "section-2",
+          title: "第二节",
+          wordCountRequirement: "1200 字",
+          body: "第二节旧正文。",
+          characterState: "旧状态二"
+        },
+        {
+          id: "section-3",
+          title: "第三节",
+          wordCountRequirement: "1500 字",
+          body: "第三节保持不变。",
+          characterState: "旧状态三"
+        }
+      ]
+    });
+
+    const resolved = resolveAgentEditorMutationText(original, {
+      stageId: "draft",
+      text: "第二节的新正文。",
+      mutationTarget: {
+        kind: "expert-draft-section",
+        sectionId: "section-2",
+        field: "body"
+      }
+    });
+    expect(resolved).not.toHaveProperty("error");
+    if (!("text" in resolved)) throw new Error("Expected resolved text.");
+    const draft = parseExpertDraftMarkdown(resolved.text);
+    expect(draft.sections.map((section) => section.body)).toEqual([
+      "第一节保持不变。",
+      "第二节的新正文。",
+      "第三节保持不变。"
+    ]);
+    expect(draft.sections[1]?.characterState).toBe("旧状态二");
+  });
+
+  it("refuses a targeted mutation when its section no longer exists", () => {
+    const resolved = resolveAgentEditorMutationText("## 第一节\n\n正文", {
+      stageId: "draft",
+      text: "新正文",
+      mutationTarget: {
+        kind: "expert-draft-section",
+        sectionId: "section-9",
+        field: "body"
+      }
+    });
+    expect(resolved).toEqual({
+      error: "正文小节 section-9 已不存在，本次修改未应用。"
+    });
   });
 });

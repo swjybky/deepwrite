@@ -15,6 +15,7 @@ import {
   createDefaultExpertDraft,
   createShortWorkspaceContentRevision,
   createEnvelope,
+  parseExpertDraftMarkdown,
   resolveShortWorkspaceAgentIdForStage,
   serializeExpertDraftMarkdown,
   updateExpertDraftSectionBody
@@ -304,9 +305,16 @@ describe("short workspace contracts", () => {
     expect(() =>
       ShortWorkspaceSnapshotSchema.parse({
         ...truncatedTarget,
-        expertDraftSectionIds: ["section-1", "section-2"]
+        expertDraftSectionIds: ["section-1", "section-2"],
+        expertDraftSections: parseExpertDraftMarkdown(longDraft).sections
       })
     ).not.toThrow();
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...truncatedTarget,
+        expertDraftSectionIds: ["section-1", "section-2"]
+      })
+    ).toThrow();
     expect(() => ShortWorkspaceSnapshotSchema.parse(truncatedTarget)).toThrow();
     expect(() =>
       ShortWorkspaceSnapshotSchema.parse({

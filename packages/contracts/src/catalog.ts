@@ -777,6 +777,23 @@ export type UnregisterCatalogProjectResult = z.infer<
   typeof UnregisterCatalogProjectResultSchema
 >;
 
+export const DeleteCatalogProjectInputSchema = z.object({
+  domain: CatalogProjectDomainSchema,
+  projectId: CatalogIdSchema
+});
+export type DeleteCatalogProjectInput = z.infer<
+  typeof DeleteCatalogProjectInputSchema
+>;
+
+export const DeleteCatalogProjectResultSchema = z.object({
+  domain: CatalogProjectDomainSchema,
+  projectId: CatalogIdSchema,
+  deleted: z.boolean()
+});
+export type DeleteCatalogProjectResult = z.infer<
+  typeof DeleteCatalogProjectResultSchema
+>;
+
 export const SaveLibraryEntryInputSchema = z.object({
   domain: CatalogLibraryProjectDomainSchema,
   libraryId: CatalogIdSchema,
@@ -930,6 +947,12 @@ export const CatalogUnregisterProjectCommandEnvelopeSchema =
     payload: UnregisterCatalogProjectInputSchema
   });
 
+export const CatalogDeleteProjectCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.deleteProject"),
+    payload: DeleteCatalogProjectInputSchema
+  });
+
 export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogSnapshotCommandEnvelopeSchema,
   CatalogLoadDraftRecoveryCommandEnvelopeSchema,
@@ -953,6 +976,7 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogSaveLibraryEntryCommandEnvelopeSchema,
   CatalogCreateLibraryEntryCommandEnvelopeSchema,
   CatalogRemoveLibraryEntryCommandEnvelopeSchema,
-  CatalogUnregisterProjectCommandEnvelopeSchema
+  CatalogUnregisterProjectCommandEnvelopeSchema,
+  CatalogDeleteProjectCommandEnvelopeSchema
 ]);
 export type CatalogCommandEnvelope = z.infer<typeof CatalogCommandEnvelopeSchema>;

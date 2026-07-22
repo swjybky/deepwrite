@@ -371,6 +371,50 @@ describe("DeepWrite desktop contracts", () => {
     expect(() => AgentMessageDeltaEventEnvelopeSchema.parse(event)).toThrow();
   });
 
+  it("validates targeted expert-section editor mutations", () => {
+    const event = createEnvelope(
+      "workspace.editor_mutation",
+      {
+        sessionId: "session_section_mutation",
+        runId: "run_section_mutation",
+        toolCallId: "tool_section_mutation",
+        workspaceId: "book-1",
+        stageId: "draft" as const,
+        text: "第三节的新正文。",
+        mutationTarget: {
+          kind: "expert-draft-section" as const,
+          sectionId: "section-3",
+          field: "body" as const
+        },
+        baseRevision: "v1:100:1234abcd",
+        summary: "已生成第三节正文变更。",
+        runtime
+      },
+      {
+        id: "event_section_mutation",
+        context: {
+          sessionId: "session_section_mutation",
+          runId: "run_section_mutation"
+        }
+      }
+    );
+
+    expect(SystemEventEnvelopeSchema.parse(event)).toMatchObject({
+      payload: {
+        mutationTarget: {
+          sectionId: "section-3",
+          field: "body"
+        }
+      }
+    });
+    expect(() =>
+      SystemEventEnvelopeSchema.parse({
+        ...event,
+        payload: { ...event.payload, stageId: "outline" }
+      })
+    ).toThrow();
+  });
+
   it("validates command and event messages at the Utility boundary", () => {
     const command = createEnvelope(
       "session.prompt",

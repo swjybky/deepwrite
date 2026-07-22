@@ -311,6 +311,11 @@ describe("catalog contracts", () => {
         "catalog.unregisterProject",
         { domain: "material" as const, projectId: "material-1" },
         { id: "catalog-unregister-project" }
+      ),
+      createEnvelope(
+        "catalog.deleteProject",
+        { domain: "skill" as const, projectId: "skill-1" },
+        { id: "catalog-delete-project" }
       )
     ];
 
@@ -331,7 +336,8 @@ describe("catalog contracts", () => {
         "catalog.saveLibraryEntry",
         "catalog.createLibraryEntry",
         "catalog.removeLibraryEntry",
-        "catalog.unregisterProject"
+        "catalog.unregisterProject",
+        "catalog.deleteProject"
       ]
     );
   });

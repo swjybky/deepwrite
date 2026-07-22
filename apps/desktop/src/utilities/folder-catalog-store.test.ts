@@ -368,6 +368,52 @@ describe("FolderCatalogStore", () => {
     expect((await store.snapshot()).books).toHaveLength(2);
   });
 
+  it("deletes registered book, material, and skill project folders", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-delete-projects-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const parentDirectory = join(root, "projects");
+    const book = await store.createShortBook(
+      { title: "待删除书籍", genre: "悬疑" },
+      parentDirectory
+    );
+    const material = await store.createLibrary({
+      domain: "material",
+      name: "待删除素材库",
+      materialKind: "plot",
+      parentDirectory
+    });
+    const skill = await store.createLibrary({
+      domain: "skill",
+      name: "待删除技能库",
+      skillKind: "plot",
+      parentDirectory
+    });
+
+    for (const project of [
+      { domain: "book" as const, id: book.resource.id, path: book.projectDirectory },
+      { domain: "material" as const, id: material.resource.id, path: material.projectDirectory },
+      { domain: "skill" as const, id: skill.resource.id, path: skill.projectDirectory }
+    ]) {
+      await expect(
+        store.deleteProject({ domain: project.domain, projectId: project.id })
+      ).resolves.toEqual({
+        domain: project.domain,
+        projectId: project.id,
+        deleted: true
+      });
+      await expect(access(project.path)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+
+    await expect(store.snapshot()).resolves.toMatchObject({
+      books: [],
+      materials: [],
+      skills: []
+    });
+  });
+
   it("initializes an imported legacy book as a current manifest and Markdown project", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-import-legacy-");
     const parentDirectory = join(root, "工作目录", "books");
@@ -1001,7 +1047,9 @@ describe("FolderCatalogStore", () => {
   it("cleans a newly created project when registry registration cannot commit", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-create-rollback-");
     const longParentName = Array.from(
-      { length: 70 },
+      // Keep the registry entry larger than the manifest without exhausting
+      // macOS's path limit once the implementation appends its staging name.
+      { length: 40 },
       (_, index) => `父目录-${index}`
     ).join("/");
     const probeParent = join(root, longParentName, "probe");

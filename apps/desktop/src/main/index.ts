@@ -11,6 +11,7 @@ import {
   CatalogOpenProjectResultSchema,
   CatalogSnapshotSchema,
   CommandEnvelopeSchema,
+  DeleteCatalogProjectResultSchema,
   DeleteBookResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
@@ -670,7 +671,8 @@ function registerIpc(): void {
         command.type === "catalog.saveLibraryEntry" ||
         command.type === "catalog.createLibraryEntry" ||
         command.type === "catalog.removeLibraryEntry" ||
-        command.type === "catalog.unregisterProject"
+        command.type === "catalog.unregisterProject" ||
+        command.type === "catalog.deleteProject"
       ) {
         try {
           const result = await supervisor.requestCommand("core", command, 0);
@@ -703,6 +705,9 @@ function registerIpc(): void {
               break;
             case "catalog.unregisterProject":
               payload = UnregisterCatalogProjectResultSchema.parse(result.payload);
+              break;
+            case "catalog.deleteProject":
+              payload = DeleteCatalogProjectResultSchema.parse(result.payload);
               break;
             case "catalog.updateBook":
               payload = ShortBookSchema.parse(result.payload);

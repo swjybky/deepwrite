@@ -15,6 +15,8 @@ import {
   CreateLibraryGroupInputSchema,
   CreateLibraryInputSchema,
   CreateShortBookInputSchema,
+  DeleteCatalogProjectInputSchema,
+  DeleteCatalogProjectResultSchema,
   DeleteBookInputSchema,
   DeleteBookResultSchema,
   ImportLegacyLibraryResultSchema,
@@ -59,6 +61,8 @@ import {
   type CreateLibraryInput,
   type CreateShortBookInput,
   type DeepWriteApi,
+  type DeleteCatalogProjectInput,
+  type DeleteCatalogProjectResult,
   type DeleteBookResult,
   type ModelConnectionTestResult,
   type ImportLegacyLibraryResult,
@@ -355,6 +359,22 @@ async function unregisterProject(
   );
 }
 
+async function deleteProject(
+  rawInput: DeleteCatalogProjectInput
+): Promise<DeleteCatalogProjectResult> {
+  const input = DeleteCatalogProjectInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_delete_project");
+  return DeleteCatalogProjectResultSchema.parse(
+    await invokeCommand<DeleteCatalogProjectResult>(
+      createEnvelope("catalog.deleteProject", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.projectId }
+      })
+    )
+  );
+}
+
 async function prompt(
   rawPayload: SessionPromptCommandPayload
 ): Promise<SessionPromptAcceptedPayload> {
@@ -512,7 +532,8 @@ const api: DeepWriteApi = {
     saveLibraryEntry,
     createLibraryEntry,
     removeLibraryEntry,
-    unregisterProject
+    unregisterProject,
+    deleteProject
   },
   session: {
     prompt,

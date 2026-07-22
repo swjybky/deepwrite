@@ -69,6 +69,7 @@ export type CatalogResourceNodeAction =
   | "create-entry"
   | "remove-entry"
   | "unregister-library"
+  | "delete-library"
   | "edit-group-bindings"
   | "dissolve-group";
 
@@ -78,7 +79,12 @@ export interface CatalogResourceNodeActionPayload {
   node: ResourceTreeNode;
 }
 
-export type BookResourceDialogMode = "rename" | "remove" | "bind-skill" | "bind-material";
+export type BookResourceDialogMode =
+  | "rename"
+  | "remove"
+  | "delete"
+  | "bind-skill"
+  | "bind-material";
 
 export interface ResourceTreeNode {
   id: string;

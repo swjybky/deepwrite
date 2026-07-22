@@ -305,6 +305,16 @@ onBeforeUnmount(() => {
             <AppIcon name="trash" :size="16" />
             <span>移除</span>
           </button>
+          <button
+            v-if="!node.unavailable"
+            class="tree-node-action-menu-item is-danger"
+            type="button"
+            role="menuitem"
+            @click.stop="openBookAction('delete')"
+          >
+            <AppIcon name="trash" :size="16" />
+            <span>删除</span>
+          </button>
         </template>
         <template v-else-if="node.catalogNodeType === 'library' && libraryDomain">
           <button
@@ -319,13 +329,23 @@ onBeforeUnmount(() => {
           </button>
           <div v-if="pinnable" class="tree-node-action-menu-divider" role="separator" />
           <button
-            class="tree-node-action-menu-item"
+            class="tree-node-action-menu-item is-danger"
             type="button"
             role="menuitem"
             @click.stop="activateResourceNodeAction('unregister-library')"
           >
-            <AppIcon name="archive" :size="16" />
-            <span>从列表移除（保留文件夹）</span>
+            <AppIcon name="trash" :size="16" />
+            <span>移除</span>
+          </button>
+          <button
+            v-if="!node.unavailable"
+            class="tree-node-action-menu-item is-danger"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('delete-library')"
+          >
+            <AppIcon name="trash" :size="16" />
+            <span>删除</span>
           </button>
         </template>
         <template v-else-if="node.catalogNodeType === 'group' && libraryDomain">

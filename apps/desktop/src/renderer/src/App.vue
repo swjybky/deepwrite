@@ -48,6 +48,7 @@ import CreateShortBookDialog from "./components/CreateShortBookDialog.vue";
 import DeleteExpertSectionDialog from "./components/DeleteExpertSectionDialog.vue";
 import LibraryProjectDialog from "./components/LibraryProjectDialog.vue";
 import LibraryGroupDialog from "./components/LibraryGroupDialog.vue";
+import LibraryRemovalDialog from "./components/LibraryRemovalDialog.vue";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import RightEditorPane from "./components/RightEditorPane.vue";
 import SaveConflictDialog from "./components/SaveConflictDialog.vue";
@@ -90,7 +91,8 @@ import { buildLibraryAttachments } from "./utils/libraryAttachments";
 import {
   agentEditProposalId,
   classifyAgentEditAcceptance,
-  expectedMutationBaseRevision
+  expectedMutationBaseRevision,
+  resolveAgentEditorMutationText
 } from "./utils/agentEditReview";
 import { buildAgentTextDiff } from "./utils/agentTextDiff";
 
@@ -272,6 +274,11 @@ interface LibraryGroupDialogState {
   groupId?: string;
 }
 const libraryGroupDialog = ref<LibraryGroupDialogState | null>(null);
+interface LibraryRemovalDialogState {
+  action: "remove" | "delete";
+  payload: CatalogResourceNodeActionPayload;
+}
+const libraryRemovalDialog = ref<LibraryRemovalDialogState | null>(null);
 const activeLibraryGroup = computed<CatalogLibraryGroup | null>(() => {
   const state = libraryGroupDialog.value;
   if (!state?.groupId) return null;
@@ -1144,9 +1151,12 @@ async function removeCatalogBook(book: ResourceTreeNode): Promise<void> {
   if (!window.deepwrite || catalogMutationPending.value) return;
   catalogMutationPending.value = true;
   try {
-    const result = await window.deepwrite.catalog.deleteBook(book.id);
-    if (!result.deleted) {
-      throw new Error("未找到要删除的书籍。");
+    const result = await window.deepwrite.catalog.unregisterProject({
+      domain: "book",
+      projectId: book.id
+    });
+    if (!result.unregistered) {
+      throw new Error("未找到要移除的书籍。");
     }
     const removedDocumentIds = new Set(collectResourceNodeIds(book));
     editorDrafts.value = Object.fromEntries(
@@ -1160,6 +1170,34 @@ async function removeCatalogBook(book: ResourceTreeNode): Promise<void> {
     uiMessage.success(`已移除“${book.label}”`);
   } catch (error: unknown) {
     uiMessage.error(error instanceof Error ? error.message : "移除书籍失败。");
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
+async function deleteCatalogBook(book: ResourceTreeNode): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value) return;
+  catalogMutationPending.value = true;
+  try {
+    const result = await window.deepwrite.catalog.deleteProject({
+      domain: "book",
+      projectId: book.id
+    });
+    if (!result.deleted) {
+      throw new Error("未找到要删除的书籍。");
+    }
+    const removedDocumentIds = new Set(collectResourceNodeIds(book));
+    editorDrafts.value = Object.fromEntries(
+      Object.entries(editorDrafts.value).filter(
+        ([documentId]) => !removedDocumentIds.has(documentId)
+      )
+    );
+    disposeBookConversations(book.id);
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    closeBookDialog();
+    uiMessage.success(`已删除“${book.label}”及其本地文件夹`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "删除书籍失败。");
   } finally {
     catalogMutationPending.value = false;
   }
@@ -1225,6 +1263,19 @@ function removeBook(bookId: string): void {
   updateBookPreference(bookId, { removed: true });
   closeBookDialog();
   uiMessage.success(`已移除“${book.label}”`);
+}
+
+function deleteBook(bookId: string): void {
+  const book = findVisibleBook(bookId);
+  if (!book) {
+    closeBookDialog();
+    return;
+  }
+  if (!catalogBook(bookId) || book.unavailable) {
+    uiMessage.error("该书籍没有可删除的本地项目文件夹。");
+    return;
+  }
+  void deleteCatalogBook(book);
 }
 
 async function updateCatalogBookBindings(
@@ -1744,11 +1795,51 @@ async function unregisterCatalogLibrary(
       throw new Error("资料库已经不在当前目录中。");
     }
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    libraryRemovalDialog.value = null;
     uiMessage.success(`已从列表移除“${payload.node.label}”，本地文件夹仍完整保留`);
   } catch (error: unknown) {
     uiMessage.error(error instanceof Error ? error.message : "移除资料库失败。");
   } finally {
     catalogMutationPending.value = false;
+  }
+}
+
+async function deleteCatalogLibrary(
+  payload: CatalogResourceNodeActionPayload
+): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value || !payload.node.libraryId) return;
+  catalogMutationPending.value = true;
+  try {
+    const result = await window.deepwrite.catalog.deleteProject({
+      domain: payload.domain,
+      projectId: payload.node.libraryId
+    });
+    if (!result.deleted) {
+      throw new Error("资料库已经不在当前目录中。");
+    }
+    const removedDocumentIds = new Set(collectResourceNodeIds(payload.node));
+    editorDrafts.value = Object.fromEntries(
+      Object.entries(editorDrafts.value).filter(
+        ([documentId]) => !removedDocumentIds.has(documentId)
+      )
+    );
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    libraryRemovalDialog.value = null;
+    uiMessage.success(`已删除“${payload.node.label}”及其本地文件夹`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "删除资料库失败。");
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
+function confirmLibraryRemoval(): void {
+  const dialog = libraryRemovalDialog.value;
+  if (!dialog) return;
+  if (dialog.action === "delete") {
+    void deleteCatalogLibrary(dialog.payload);
+  } else {
+    void unregisterCatalogLibrary(dialog.payload);
   }
 }
 
@@ -1803,7 +1894,11 @@ function handleResourceNodeAction(payload: CatalogResourceNodeActionPayload): vo
     return;
   }
   if (payload.action === "unregister-library") {
-    void unregisterCatalogLibrary(payload);
+    libraryRemovalDialog.value = { action: "remove", payload };
+    return;
+  }
+  if (payload.action === "delete-library") {
+    libraryRemovalDialog.value = { action: "delete", payload };
     return;
   }
   if (payload.action === "create-entry") {
@@ -2679,15 +2774,15 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
     event.payload.runId,
     proposalId
   );
-  const proposedRevision = createShortWorkspaceContentRevision(event.payload.text);
-  if (
-    existing?.toolCallIds.includes(event.payload.toolCallId) &&
-    existing.proposedRevision === proposedRevision
-  ) {
+  if (existing?.toolCallIds.includes(event.payload.toolCallId)) {
     return;
   }
   const currentRevision = createShortWorkspaceContentRevision(target.content);
-  const expectedBaseRevision = expectedMutationBaseRevision(existing, target.content);
+  const expectedBaseRevision = expectedMutationBaseRevision(
+    existing,
+    target.content,
+    event.payload.mutationTarget !== undefined
+  );
   if (
     event.payload.baseRevision !== expectedBaseRevision ||
     (existing !== undefined && currentRevision !== existing.baseRevision)
@@ -2710,13 +2805,38 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
     return;
   }
 
+  const resolvedMutation = resolveAgentEditorMutationText(
+    event.payload.mutationTarget && existing?.proposedText !== undefined
+      ? existing.proposedText
+      : target.content,
+    event.payload
+  );
+  if ("error" in resolvedMutation) {
+    if (existing) {
+      sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+        status: "conflict",
+        statusMessage: resolvedMutation.error,
+        updatedAt: event.timestamp
+      });
+    }
+    sourceConversation.markToolConflict(
+      event.payload.runId,
+      event.payload.toolCallId,
+      resolvedMutation.error
+    );
+    uiMessage.warning(resolvedMutation.error);
+    return;
+  }
+  const proposedText = resolvedMutation.text;
+  const proposedRevision = createShortWorkspaceContentRevision(proposedText);
+
   const diff = buildAgentTextDiff(
     target.workspaceType === "short" && event.payload.stageId === "draft"
       ? renderExpertDraftReview(parseExpertDraftMarkdown(target.content))
       : target.content,
     target.workspaceType === "short" && event.payload.stageId === "draft"
-      ? renderExpertDraftReview(parseExpertDraftMarkdown(event.payload.text))
-      : event.payload.text
+      ? renderExpertDraftReview(parseExpertDraftMarkdown(proposedText))
+      : proposedText
   );
   const noChanges = proposedRevision === (existing?.baseRevision ?? currentRevision);
   const proposal: AgentEditProposal = {
@@ -2730,7 +2850,7 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
     status: noChanges ? "accepted" : "pending",
     baseRevision: existing?.baseRevision ?? event.payload.baseRevision,
     proposedRevision,
-    ...(noChanges ? {} : { proposedText: event.payload.text }),
+    ...(noChanges ? {} : { proposedText }),
     toolCallIds: [
       ...new Set([...(existing?.toolCallIds ?? []), event.payload.toolCallId])
     ],
@@ -3484,7 +3604,17 @@ onBeforeUnmount(() => {
       @close="closeBookDialog"
       @rename="renameBook"
       @remove="removeBook"
+      @delete="deleteBook"
       @update-bindings="updateBookBindings"
+    />
+    <LibraryRemovalDialog
+      :open="Boolean(libraryRemovalDialog)"
+      :action="libraryRemovalDialog?.action ?? 'remove'"
+      :domain="libraryRemovalDialog?.payload.domain ?? 'material'"
+      :label="libraryRemovalDialog?.payload.node.label ?? ''"
+      :submitting="catalogMutationPending"
+      @close="libraryRemovalDialog = null"
+      @confirm="confirmLibraryRemoval"
     />
     <CreateShortBookDialog
       :open="createShortBookDialogOpen"
