@@ -2,8 +2,8 @@ import {
   MATERIAL_KINDS,
   SHORT_WORKSPACE_STAGE_IDS,
   SKILL_KINDS,
-  parseExpertDraftMarkdown,
   type CatalogDocument,
+  type CatalogDraftSection,
   type CatalogSnapshot,
   type MaterialKind,
   type MaterialLibrary,
@@ -118,6 +118,108 @@ const LIBRARY_TYPE_LABELS = {
 export interface CatalogWorkspaceProjection {
   resourceSections: ResourceTreeSection[];
   workspaceDocuments: WorkspaceDocument[];
+  draftDirectories: DraftDirectoryProjection[];
+}
+
+export interface DraftSectionProjection {
+  id: string;
+  title: string;
+  wordCountRequirement: string;
+  bodyDocumentId: string;
+  characterStateDocumentId: string;
+}
+
+export interface DraftDirectoryProjection {
+  id: string;
+  workspaceId: string;
+  title: string;
+  sections: DraftSectionProjection[];
+}
+
+export function resolvePreferredBookResourceId(
+  projection: CatalogWorkspaceProjection | undefined,
+  workspaceId: string
+): string | undefined {
+  return (
+    projection?.draftDirectories.find(
+      (directory) => directory.workspaceId === workspaceId
+    )?.id ??
+    projection?.workspaceDocuments.find(
+      (document) => document.workspaceId === workspaceId
+    )?.id
+  );
+}
+
+function findProjectedResourceNode(
+  nodes: readonly ResourceTreeNode[],
+  resourceId: string
+): ResourceTreeNode | undefined {
+  for (const node of nodes) {
+    if (node.id === resourceId) return node;
+    const nested = findProjectedResourceNode(node.children ?? [], resourceId);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+export function resolveBookWorkspaceId(
+  projection: CatalogWorkspaceProjection | undefined,
+  resourceId: string
+): string | undefined {
+  if (!projection) return undefined;
+  const directory = projection.draftDirectories.find(
+    (candidate) => candidate.id === resourceId
+  );
+  if (directory) return directory.workspaceId;
+
+  const directDocument = projection.workspaceDocuments.find(
+    (document) => document.id === resourceId
+  );
+  if (directDocument?.domain === "creation") return directDocument.workspaceId;
+
+  const creationNodes =
+    projection.resourceSections.find((section) => section.id === "creation")?.nodes ?? [];
+  const node = findProjectedResourceNode(creationNodes, resourceId);
+  if (!node) return undefined;
+  if (
+    node.catalogNodeType === "book" &&
+    projection.draftDirectories.some(
+      (candidate) => candidate.workspaceId === node.id
+    )
+  ) {
+    return node.id;
+  }
+  const target = node.targetDocumentId
+    ? projection.workspaceDocuments.find(
+        (document) => document.id === node.targetDocumentId
+      )
+    : undefined;
+  return target?.domain === "creation" ? target.workspaceId : undefined;
+}
+
+export function resolveDraftSectionResourceId(
+  directoryNode: ResourceTreeNode | undefined,
+  sectionId: string
+): string | undefined {
+  return directoryNode?.children?.find(
+    (child) => child.expertSectionId === sectionId
+  )?.id;
+}
+
+export function resolveDraftSectionProjection(
+  directory: DraftDirectoryProjection,
+  selectedSectionId?: string,
+  nodeSectionId?: string
+): DraftSectionProjection | undefined {
+  return (
+    (selectedSectionId
+      ? directory.sections.find((section) => section.id === selectedSectionId)
+      : undefined) ??
+    (nodeSectionId
+      ? directory.sections.find((section) => section.id === nodeSectionId)
+      : undefined) ??
+    directory.sections[0]
+  );
 }
 
 function catalogNodeId(...parts: string[]): string {
@@ -208,14 +310,52 @@ function createBookDocument(
   };
 }
 
+function createDraftFileDocument(
+  book: ShortBook,
+  section: CatalogDraftSection,
+  sectionOrder: number,
+  fileKind: "body" | "character-state"
+): WorkspaceDocument {
+  const source = fileKind === "body" ? section.body : section.characterState;
+  const fileLabel = fileKind === "body" ? "正文" : "人物状态";
+  return {
+    id: bookDocumentId(book.id, source.id),
+    domain: "creation",
+    title: fileKind === "body" ? section.title : source.title,
+    eyebrow: fileKind === "body" ? "短篇 · 小节正文" : "短篇 · 人物状态",
+    path: [book.title, book.draft.title, section.title, fileLabel],
+    content: source.content,
+    format: fileKind === "body" ? "正文" : "账本",
+    workspaceId: book.id,
+    workspaceType: "short",
+    workspaceTitle: book.title,
+    workspaceCategories: [book.genre],
+    stageId: "draft",
+    shortAgentId: "expert_section_writer",
+    expertSectionId: section.id,
+    expertSectionOrder: sectionOrder,
+    expertWordCountRequirement: section.wordCountRequirement,
+    draftDirectoryId: book.draft.id,
+    draftFileKind: fileKind,
+    catalogDocumentId: source.id,
+    ...(book.projectRevision === undefined
+      ? {}
+      : { catalogProjectRevision: book.projectRevision })
+  };
+}
+
 function createBookProjection(book: ShortBook): {
   node: ResourceTreeNode;
   documents: WorkspaceDocument[];
+  draftDirectory: DraftDirectoryProjection;
 } {
   const claimedStages = new Set<ShortWorkspaceStageId>();
   const projected = book.documents.map((document) => {
     const inferred = inferShortStageId(document);
-    const stageId = inferred && !claimedStages.has(inferred) ? inferred : undefined;
+    const stageId =
+      inferred && inferred !== "draft" && !claimedStages.has(inferred)
+        ? inferred
+        : undefined;
     if (stageId) {
       claimedStages.add(stageId);
     }
@@ -234,29 +374,6 @@ function createBookProjection(book: ShortBook): {
       icon: "file",
       catalogNodeType: "document",
       stageCategoryId: item.stageId ?? "other",
-      ...(item.stageId === "draft"
-        ? {
-            selectableBranch: true,
-            shortAgentId: "expert_draft_coordinator" as const,
-            children: parseExpertDraftMarkdown(item.source.content).sections.map(
-              (section) => ({
-                id: catalogNodeId(
-                  "book-expert-section",
-                  book.id,
-                  item.source.id,
-                  section.id
-                ),
-                label: section.title,
-                icon: "file" as const,
-                catalogNodeType: "document" as const,
-                stageCategoryId: "draft",
-                targetDocumentId: item.document.id,
-                shortAgentId: "expert_section_writer" as const,
-                expertSectionId: section.id
-              })
-            )
-          }
-        : {}),
       ...(item.stageId ? {} : { muted: false })
     };
     if (item.stageId) {
@@ -265,6 +382,55 @@ function createBookProjection(book: ShortBook): {
       otherNodes.push(node);
     }
   }
+
+  const draftDirectoryId = catalogNodeId(
+    "book-draft-directory",
+    book.id,
+    book.draft.id
+  );
+  const draftDocuments = book.draft.sections.flatMap((section, sectionOrder) => [
+    createDraftFileDocument(book, section, sectionOrder, "body"),
+    createDraftFileDocument(book, section, sectionOrder, "character-state")
+  ]);
+  const draftDirectory: DraftDirectoryProjection = {
+    id: draftDirectoryId,
+    workspaceId: book.id,
+    title: book.draft.title,
+    sections: book.draft.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      wordCountRequirement: section.wordCountRequirement,
+      bodyDocumentId: bookDocumentId(book.id, section.body.id),
+      characterStateDocumentId: bookDocumentId(book.id, section.characterState.id)
+    }))
+  };
+  stageNodes.set("draft", {
+    id: draftDirectoryId,
+    label: book.draft.title,
+    icon: "folder",
+    catalogNodeType: "category",
+    stageCategoryId: "draft",
+    selectableBranch: true,
+    shortAgentId: "expert_draft_coordinator",
+    draftDirectoryId: book.draft.id,
+    children: draftDirectory.sections.map((section) => ({
+      id: catalogNodeId(
+        "book-expert-section",
+        book.id,
+        book.draft.id,
+        section.id
+      ),
+      label: section.title,
+      icon: "file",
+      catalogNodeType: "document",
+      stageCategoryId: "draft",
+      targetDocumentId: section.bodyDocumentId,
+      characterStateDocumentId: section.characterStateDocumentId,
+      shortAgentId: "expert_section_writer",
+      expertSectionId: section.id,
+      draftDirectoryId: book.draft.id
+    }))
+  });
 
   const children: ResourceTreeNode[] = [];
   const character = stageNodes.get("character_design");
@@ -326,7 +492,8 @@ function createBookProjection(book: ShortBook): {
       },
       children
     },
-    documents: projected.map((item) => item.document)
+    documents: [...projected.map((item) => item.document), ...draftDocuments],
+    draftDirectory
   };
 }
 
@@ -704,7 +871,8 @@ export function projectCatalogWorkspace(snapshot: CatalogSnapshot): CatalogWorks
       ...bookProjections.flatMap(({ documents }) => documents),
       ...snapshot.skills.flatMap(createSkillDocuments),
       ...snapshot.materials.flatMap(createMaterialDocuments)
-    ]
+    ],
+    draftDirectories: bookProjections.map(({ draftDirectory }) => draftDirectory)
   };
 }
 

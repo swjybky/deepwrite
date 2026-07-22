@@ -4,10 +4,15 @@ import {
   AgentMessageDeltaEventEnvelopeSchema,
   ActiveResourceSnapshotSchema,
   CommandEnvelopeSchema,
+  ExpertDraftFileSnapshotSchema,
+  ExpertDraftSchema,
   ModelSettingsInputSchema,
   ModelSettingsSchema,
   PROTOCOL_VERSION,
   PROMPT_IMAGE_ATTACHMENT_MAX_BYTES,
+  SHORT_WORKSPACE_FILE_MAX_CHARACTERS,
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
+  ShortWorkspaceStageSnapshotSchema,
   SessionPromptAcceptedPayloadSchema,
   SystemEventEnvelopeSchema,
   SystemHealthPayloadSchema,
@@ -15,6 +20,8 @@ import {
   UtilityOutboundMessageSchema,
   UserPromptAttachmentsSchema,
   WorkspaceRuntimeContextSchema,
+  WorkspaceEditorMutationPayloadSchema,
+  createShortWorkspaceContentRevision,
   createEnvelope
 } from "./index";
 
@@ -23,6 +30,69 @@ const runtime = {
   model: "deepwrite-writing-faux",
   mode: "local-faux" as const
 };
+
+function shortWorkspaceRuntimeFixture() {
+  const contentRevision = (content: string): string =>
+    createShortWorkspaceContentRevision(content);
+
+  return {
+    id: "book_runtime",
+    title: "运行时正文",
+    categories: ["悬疑"],
+    activeStageId: "draft" as const,
+    activeAgentId: "expert_draft_coordinator" as const,
+    expertDraft: {
+      id: "draft" as const,
+      title: "正文",
+      revision: contentRevision("draft-directory"),
+      sections: [
+        {
+          id: "section-1",
+          title: "第一节",
+          wordCountRequirement: "1000 字",
+          body: {
+            documentId: "draft:section-1:body",
+            title: "第一节·正文",
+            content: "第一节正文。",
+            revision: contentRevision("第一节正文。")
+          },
+          characterState: {
+            documentId: "draft:section-1:state",
+            title: "第一节·人物状态",
+            content: "人物仍在雨中。",
+            revision: contentRevision("人物仍在雨中。")
+          }
+        },
+        {
+          id: "section-2",
+          title: "第二节",
+          wordCountRequirement: "1200 字",
+          body: {
+            documentId: "draft:section-2:body",
+            title: "第二节·正文",
+            content: "第二节正文。",
+            revision: contentRevision("第二节正文。")
+          },
+          characterState: {
+            documentId: "draft:section-2:state",
+            title: "第二节·人物状态",
+            content: "人物进入车站。",
+            revision: contentRevision("人物进入车站。")
+          }
+        }
+      ]
+    },
+    stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => {
+      const content = stageId === "outline" ? "第一节：雨夜。" : "";
+      return {
+        stageId,
+        title: stageId,
+        content,
+        revision: contentRevision(content)
+      };
+    })
+  };
+}
 
 describe("DeepWrite desktop contracts", () => {
   it("creates a versioned command envelope with a correlation id", () => {
@@ -371,7 +441,7 @@ describe("DeepWrite desktop contracts", () => {
     expect(() => AgentMessageDeltaEventEnvelopeSchema.parse(event)).toThrow();
   });
 
-  it("validates targeted expert-section editor mutations", () => {
+  it("validates targeted expert-draft file mutations", () => {
     const event = createEnvelope(
       "workspace.editor_mutation",
       {
@@ -382,9 +452,10 @@ describe("DeepWrite desktop contracts", () => {
         stageId: "draft" as const,
         text: "第三节的新正文。",
         mutationTarget: {
-          kind: "expert-draft-section" as const,
+          kind: "expert-draft-file" as const,
+          documentId: "draft:section-3:body",
           sectionId: "section-3",
-          field: "body" as const
+          fileKind: "body" as const
         },
         baseRevision: "v1:100:1234abcd",
         summary: "已生成第三节正文变更。",
@@ -402,8 +473,9 @@ describe("DeepWrite desktop contracts", () => {
     expect(SystemEventEnvelopeSchema.parse(event)).toMatchObject({
       payload: {
         mutationTarget: {
+          documentId: "draft:section-3:body",
           sectionId: "section-3",
-          field: "body"
+          fileKind: "body"
         }
       }
     });
@@ -411,6 +483,12 @@ describe("DeepWrite desktop contracts", () => {
       SystemEventEnvelopeSchema.parse({
         ...event,
         payload: { ...event.payload, stageId: "outline" }
+      })
+    ).toThrow();
+    expect(() =>
+      SystemEventEnvelopeSchema.parse({
+        ...event,
+        payload: { ...event.payload, mutationTarget: undefined }
       })
     ).toThrow();
   });
@@ -490,6 +568,199 @@ describe("DeepWrite desktop contracts", () => {
     expect(ActiveResourceSnapshotSchema.parse(snapshot).originalLength).toBe(20_010);
     expect(() =>
       ActiveResourceSnapshotSchema.parse({ ...snapshot, originalLength: 20_000 })
+    ).toThrow();
+  });
+
+  it("uses one 32 MiB character boundary across stored and runtime text files", () => {
+    const atLimit = "a".repeat(SHORT_WORKSPACE_FILE_MAX_CHARACTERS);
+    const overLimit = `${atLimit}a`;
+    const revision = "v1:0:811c9dc5";
+    const draftSection = {
+      id: "section-1",
+      title: "第一节",
+      wordCountRequirement: "",
+      body: atLimit,
+      characterState: ""
+    };
+    const draftFile = {
+      documentId: "d".repeat(4_096),
+      title: "第一节·正文",
+      content: atLimit,
+      revision
+    };
+    const activeResource = {
+      id: "draft:section-1:body",
+      domain: "creation" as const,
+      title: "第一节·正文",
+      path: ["正文", "第一节", "正文"],
+      source: "live-editor" as const,
+      content: atLimit
+    };
+    const stage = {
+      stageId: "outline" as const,
+      title: "大纲",
+      content: atLimit,
+      revision
+    };
+    const mutation = {
+      sessionId: "session-boundary",
+      runId: "run-boundary",
+      toolCallId: "tool-boundary",
+      workspaceId: "book-boundary",
+      stageId: "draft" as const,
+      text: atLimit,
+      mutationTarget: {
+        kind: "expert-draft-file" as const,
+        documentId: "d".repeat(4_096),
+        sectionId: "section-1",
+        fileKind: "body" as const
+      },
+      baseRevision: revision,
+      summary: "边界写入",
+      runtime
+    };
+
+    expect(ExpertDraftSchema.safeParse({ sections: [draftSection] }).success).toBe(true);
+    expect(ExpertDraftFileSnapshotSchema.safeParse(draftFile).success).toBe(true);
+    expect(
+      ExpertDraftFileSnapshotSchema.safeParse({
+        ...draftFile,
+        title: "节".repeat(256),
+        content: ""
+      }).success
+    ).toBe(true);
+    expect(ActiveResourceSnapshotSchema.safeParse(activeResource).success).toBe(true);
+    expect(
+      ActiveResourceSnapshotSchema.safeParse({
+        ...activeResource,
+        content: "",
+        truncated: true,
+        originalLength: SHORT_WORKSPACE_FILE_MAX_CHARACTERS
+      }).success
+    ).toBe(true);
+    expect(ShortWorkspaceStageSnapshotSchema.safeParse(stage).success).toBe(true);
+    expect(WorkspaceEditorMutationPayloadSchema.safeParse(mutation).success).toBe(true);
+
+    expect(
+      ExpertDraftSchema.safeParse({
+        sections: [{ ...draftSection, body: overLimit }]
+      }).success
+    ).toBe(false);
+    expect(
+      ExpertDraftFileSnapshotSchema.safeParse({
+        ...draftFile,
+        content: overLimit
+      }).success
+    ).toBe(false);
+    expect(
+      ExpertDraftFileSnapshotSchema.safeParse({
+        ...draftFile,
+        documentId: "d".repeat(4_097),
+        content: ""
+      }).success
+    ).toBe(false);
+    expect(
+      ExpertDraftFileSnapshotSchema.safeParse({
+        ...draftFile,
+        title: "节".repeat(257),
+        content: ""
+      }).success
+    ).toBe(false);
+    expect(
+      ActiveResourceSnapshotSchema.safeParse({
+        ...activeResource,
+        content: "",
+        originalLength: SHORT_WORKSPACE_FILE_MAX_CHARACTERS + 1
+      }).success
+    ).toBe(false);
+    expect(
+      ShortWorkspaceStageSnapshotSchema.safeParse({
+        ...stage,
+        content: overLimit
+      }).success
+    ).toBe(false);
+    expect(
+      WorkspaceEditorMutationPayloadSchema.safeParse({
+        ...mutation,
+        text: overLimit
+      }).success
+    ).toBe(false);
+    expect(
+      WorkspaceEditorMutationPayloadSchema.safeParse({
+        ...mutation,
+        text: "",
+        mutationTarget: {
+          ...mutation.mutationTarget,
+          documentId: "d".repeat(4_097)
+        }
+      }).success
+    ).toBe(false);
+  });
+
+  it("allows a draft coordinator to bind the virtual draft directory", () => {
+    const shortWorkspace = shortWorkspaceRuntimeFixture();
+
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        shortWorkspace,
+        activeResource: {
+          id: "draft",
+          domain: "creation",
+          title: "正文",
+          path: ["运行时正文", "正文"],
+          source: "live-editor",
+          content: ""
+        }
+      })
+    ).not.toThrow();
+  });
+
+  it("restricts a draft section writer to the active section's physical files", () => {
+    const base = shortWorkspaceRuntimeFixture();
+    const shortWorkspace = {
+      ...base,
+      activeAgentId: "expert_section_writer" as const,
+      activeSectionId: "section-1"
+    };
+
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        shortWorkspace,
+        activeResource: {
+          id: "draft:section-1:body",
+          domain: "creation",
+          title: "第一节·正文",
+          path: ["运行时正文", "正文", "第一节", "正文"],
+          source: "live-editor",
+          content: "第一节正文。"
+        }
+      })
+    ).not.toThrow();
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        shortWorkspace,
+        activeResource: {
+          id: "draft:section-2:body",
+          domain: "creation",
+          title: "第二节·正文",
+          path: ["运行时正文", "正文", "第二节", "正文"],
+          source: "live-editor",
+          content: "第二节正文。"
+        }
+      })
+    ).toThrow();
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        shortWorkspace,
+        activeResource: {
+          id: "draft",
+          domain: "creation",
+          title: "正文",
+          path: ["运行时正文", "正文"],
+          source: "live-editor",
+          content: ""
+        }
+      })
     ).toThrow();
   });
 

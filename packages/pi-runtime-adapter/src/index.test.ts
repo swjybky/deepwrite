@@ -3,10 +3,13 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage
 } from "@earendil-works/pi-ai";
+import type { AgentProviderRuntimeConfig } from "@deepwrite/contracts";
 import {
+  buildProviderRuntime,
   buildRawUserMessage,
   interceptToolCallStream,
   PiAgentRuntimeAdapter,
+  reconcileToolCallArguments,
   toToolStreamRuntimeEvent,
   type AgentRuntimeEvent
 } from "./index";
@@ -38,6 +41,71 @@ function toolCallMessage(id: string, name: string): AssistantMessage {
 }
 
 describe("DeepWrite Pi runtime adapter", () => {
+  it("enables Pi reasoning when a run selects thinking after non-thinking configuration", () => {
+    const config: AgentProviderRuntimeConfig = {
+      id: "writer",
+      label: "Writer",
+      provider: "custom",
+      modelId: "writer-model",
+      api: "openai-completions",
+      baseUrl: "http://127.0.0.1:11434/v1",
+      reasoning: false,
+      defaultThinkingLevel: "off",
+      thinkingLevelOptions: ["low", "high"],
+      temperatureOptions: [0.2, 0.6, 1.2],
+      apiKey: ""
+    };
+
+    expect(buildProviderRuntime(config, undefined, "high").model.reasoning).toBe(true);
+    expect(buildProviderRuntime(config, 0.6, "off").model.reasoning).toBe(false);
+    expect(
+      buildProviderRuntime({ ...config, reasoning: true }, 0.6, "off").model.reasoning
+    ).toBe(false);
+  });
+
+  it("preserves built-in thinking maps while carrying max and custom levels", () => {
+    const builtinConfig: AgentProviderRuntimeConfig = {
+      id: "deepseek-v4-flash",
+      label: "DeepSeek V4 Flash",
+      provider: "deepseek",
+      modelId: "deepseek-v4-flash",
+      api: "openai-completions",
+      baseUrl: "",
+      reasoning: false,
+      defaultThinkingLevel: "off",
+      thinkingLevelOptions: ["minimal", "low", "medium", "high", "xhigh", "max"],
+      temperatureOptions: [0.2, 0.6, 1.2],
+      apiKey: ""
+    };
+
+    expect(buildProviderRuntime(builtinConfig, undefined, "low").model.thinkingLevelMap)
+      .toMatchObject({ low: null, xhigh: "max" });
+    expect(buildProviderRuntime(builtinConfig, undefined, "xhigh").model.thinkingLevelMap)
+      .toMatchObject({ low: null, xhigh: "max" });
+    expect(buildProviderRuntime(builtinConfig, undefined, "max").model.thinkingLevelMap)
+      .toMatchObject({ low: null, xhigh: "max" });
+
+    const customConfig: AgentProviderRuntimeConfig = {
+      ...builtinConfig,
+      provider: "custom",
+      modelId: "custom-writer",
+      baseUrl: "http://127.0.0.1:11434/v1",
+      thinkingLevelOptions: [
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ]
+    };
+    expect(buildProviderRuntime(customConfig, undefined, "xhigh").model.thinkingLevelMap)
+      .toMatchObject({ xhigh: "xhigh" });
+    expect(buildProviderRuntime(customConfig, undefined, "ultra").model.thinkingLevelMap)
+      .toMatchObject({ xhigh: "ultra" });
+  });
+
   it("keeps uploaded text and images as native user-message content", () => {
     const message = buildRawUserMessage({
       runId: "run_attachment",
@@ -186,6 +254,64 @@ describe("DeepWrite Pi runtime adapter", () => {
       type: "agent.tool_stream",
       payload: { streamId: `${messageId}:1:0`, toolCallId: "tool_write" }
     });
+  });
+
+  it.each([
+    "write_section_body",
+    "write_expert_draft_section"
+  ])("captures an early argument snapshot for %s", (toolName) => {
+    const input = {
+      runId: `run_${toolName}`,
+      sessionId: `session_${toolName}`,
+      prompt: "写正文"
+    };
+    const message = toolCallMessage(`tool_${toolName}`, toolName);
+    const toolCall = message.content[0] as Extract<
+      AssistantMessage["content"][number],
+      { type: "toolCall" }
+    > & { partialJson?: string };
+    toolCall.partialJson = toolName === "write_section_body"
+      ? '{"text":"第一段'
+      : '{"section_id":"section-1","text":"第一段';
+
+    const event = toToolStreamRuntimeEvent(
+      { type: "toolcall_start", contentIndex: 0, partial: message },
+      input,
+      providerRuntime,
+      `${input.runId}_assistant`,
+      0
+    );
+
+    expect(event.payload).toMatchObject({
+      toolName,
+      phase: "start",
+      argumentsDelta: "",
+      argumentsSnapshot: toolCall.partialJson
+    });
+  });
+
+  it("reduces cumulative tool argument snapshots to non-duplicated deltas", () => {
+    const first = reconcileToolCallArguments("", "", '{"text":"第一');
+    const second = reconcileToolCallArguments(
+      first.next,
+      "段",
+      '{"text":"第一段'
+    );
+    const completed = reconcileToolCallArguments(
+      second.next,
+      "",
+      '{"text":"第一段正文"}'
+    );
+
+    expect(first).toEqual({ delta: '{"text":"第一', next: '{"text":"第一' });
+    expect(second).toEqual({ delta: "段", next: '{"text":"第一段' });
+    expect(completed).toEqual({
+      delta: '正文"}',
+      next: '{"text":"第一段正文"}'
+    });
+    expect(
+      reconcileToolCallArguments(completed.next, completed.next, completed.next)
+    ).toEqual({ delta: "", next: completed.next });
   });
 
   it("streams thinking and text through pi-agent-core without an API key", async () => {

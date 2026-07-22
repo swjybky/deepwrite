@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import {
-  ExpertDraftSectionSchema,
-  parseExpertDraftMarkdown
+  DraftSectionIdSchema,
+  DraftSectionTitleSchema,
+  SHORT_WORKSPACE_FILE_MAX_CHARACTERS
 } from "./expert-draft";
 
 export const SHORT_WORKSPACE_STAGE_IDS = [
@@ -14,8 +15,23 @@ export const SHORT_WORKSPACE_STAGE_IDS = [
   "draft"
 ] as const;
 
+/** Physical text stages. `draft` is a virtual directory route. */
+export const SHORT_WORKSPACE_TEXT_STAGE_IDS = [
+  "character_design",
+  "plot_design",
+  "intro_design",
+  "plot_refine",
+  "outline"
+] as const;
+
 export const ShortWorkspaceStageIdSchema = z.enum(SHORT_WORKSPACE_STAGE_IDS);
 export type ShortWorkspaceStageId = z.infer<typeof ShortWorkspaceStageIdSchema>;
+export const ShortWorkspaceTextStageIdSchema = z.enum(
+  SHORT_WORKSPACE_TEXT_STAGE_IDS
+);
+export type ShortWorkspaceTextStageId = z.infer<
+  typeof ShortWorkspaceTextStageIdSchema
+>;
 
 export const SHORT_WORKSPACE_AGENT_IDS = [
   "character_design",
@@ -150,30 +166,20 @@ export const DEFAULT_SHORT_OUTLINE_SYSTEM_PROMPT = `你是 DeepWrite 的短篇�
 - 写入编辑器的只能是最终大纲，不要写分析过程、读取记录或操作说明。
 `;
 
-export const DEFAULT_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT = `你是 DeepWrite 的短篇正文专家编写智能体，负责正文结构管理、分节任务调度和成稿后的处理。主要正文由分节写手完成，你不要在聊天中直接代写整章。
+export const DEFAULT_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT = `你是 DeepWrite 的短篇正文专家编写智能体，负责全文审阅、润色、去 AI 味、格式整理和局部修订。正文是一个虚拟目录，每个小节的正文和人物状态是两个独立文件，不存在可覆盖的合并正文文件。
 
-你负责四类任务：
-1. 初始化：读取 outline，根据完整大纲调用 initialize_expert_draft，一次性创建导语、全部正文小节及一一对应的人物状态槽位。
-2. 全部写作：用户明确要求“开始写正文”“自动写全部小节”或同义指令时，如果尚未完整初始化，先读取大纲并初始化，然后在同一轮调用 start_expert_writing，不要再要求用户二次确认。短篇默认跳过导语；用户明确要求写导语时才把 intro 加入 section_ids。
-3. 单节写作：用户指定一个已初始化小节时，调用 write_single_expert_section；目标不存在则先按大纲初始化完整结构。
-4. 后处理：正文审阅、润色、去 AI 味、格式整理、章节名修改和局部修订，都在当前智能体内完成。
+工作流程：
+1. 处理整篇正文前，必须调用 read_all_expert_draft 一次读取所有小节的完整正文。
+2. 只处理某一小节时，调用 read_expert_draft_section 按 section_id 读取该小节。
+3. 局部修改使用 replace_expert_draft_section_text；兼容旧提示词时也可使用 edit_expert_draft_section。
+4. 只有小节为空或用户明确要求整节重写时，才使用 write_expert_draft_section。
 
-初始化规则：
-- 初始化前必须读取 outline；大纲为空且用户没有明确授权你从零规划时，说明无法可靠初始化并引导用户先完成大纲。
-- 小节标题、顺序和数量必须与大纲一致。
-- 把大纲中的预估字数或字数规划填入 word_count_requirement。
-- 正文列表与人物状态列表必须一一对应。
-- 已有正文只做结构补全或改名时，不要清空已有小节正文。
-
-启动规则：
-- 用户提出的文风、情绪、节奏、爽点、人设表达或平台要求，必须整理进 user_writing_prompt。
-- start_expert_writing 和 write_single_expert_section 都是异步工具；调用成功后直接告知已经启动，不等待后台全部完成。
-- 局部修改已有正文时不得重新启动分节写作，除非用户明确要求重写该小节。
-
-后处理规则：
-- 先调用 read_workspace_content（stage_id=draft）读取当前合并正文。
-- 使用 edit_expert_draft_section 按原文片段修改章节名或正文；不要用初始化工具处理局部修改。
-- 总控不修改人物状态，不调用普通阶段写入工具，也不要求用户复制粘贴。
+工具规则：
+- read_workspace_content（stage_id=draft）只返回正文目录索引；读取正文必须使用正文专用读取工具。
+- 每次写入或替换都必须指定稳定 section_id，不得把多个小节拼成一份文本覆盖。
+- 总控只修改小节正文，不读写人物状态文件。
+- 正文目录的小节新建、删除、改名和排序由界面管理；当前不提供结构初始化工具，不要伪造大文件写入。
+- 写入的只能是正式小说正文，不要混入分析过程、操作说明或工具记录。
 - 需要技能时调用 load_skill；只有当前读取范围允许素材且确有必要时，才查询关联素材。
 `;
 
@@ -182,7 +188,7 @@ export const DEFAULT_SHORT_EXPERT_SECTION_WRITER_SYSTEM_PROMPT = `你是 DeepWri
 写作前必须完成：
 1. 调用 read_workspace_content 读取大纲；读取范围允许时，可补充读取剧情细化。
 2. 调用 read_expert_draft_section 读取当前小节之前最近三个已有正文的小节；正文为空的前置小节可跳过。
-3. 必须读取紧邻上一节的人物状态；修改当前已有正文时，还要先读取当前小节正文和人物状态。
+3. 必须调用 read_expert_character_state 读取紧邻上一节的人物状态；修改当前已有内容时，还要分别读取当前小节正文和人物状态。
 4. 用户点名技能或文风方法时调用 load_skill；确需参考正文素材时，调用 query_linked_material_entries 检索并读取相关条目。
 
 写作标准：
@@ -320,12 +326,17 @@ const ShortSystemPromptSchema = z
 
 export const ShortWorkspaceStageSnapshotSchema = z
   .object({
-    stageId: ShortWorkspaceStageIdSchema,
+    stageId: ShortWorkspaceTextStageIdSchema,
     title: z.string().trim().min(1).max(240),
-    content: z.string().max(10_000_000),
+    content: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
     revision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
     truncated: z.boolean().optional(),
-    originalLength: z.number().int().nonnegative().max(100_000_000).optional()
+    originalLength: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS)
+      .optional()
   })
   .superRefine((value, context) => {
     if (
@@ -343,6 +354,78 @@ export type ShortWorkspaceStageSnapshot = z.infer<
   typeof ShortWorkspaceStageSnapshotSchema
 >;
 
+export const ExpertDraftFileSnapshotSchema = z.object({
+  documentId: z.string().trim().min(1).max(4_096),
+  // Character-state titles append a suffix to a valid 240-character section
+  // title, so file snapshots follow CatalogDocument's 256-character limit.
+  title: z.string().trim().min(1).max(256),
+  content: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
+  revision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/)
+});
+export type ExpertDraftFileSnapshot = z.infer<
+  typeof ExpertDraftFileSnapshotSchema
+>;
+
+export const ExpertDraftSectionSnapshotSchema = z
+  .object({
+    id: DraftSectionIdSchema,
+    title: DraftSectionTitleSchema,
+    wordCountRequirement: z.string().max(1_000),
+    body: ExpertDraftFileSnapshotSchema,
+    characterState: ExpertDraftFileSnapshotSchema
+  })
+  .superRefine((value, context) => {
+    if (value.body.documentId === value.characterState.documentId) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "documentId"],
+        message: "Expert draft body and character state must use distinct files."
+      });
+    }
+  });
+export type ExpertDraftSectionSnapshot = z.infer<
+  typeof ExpertDraftSectionSnapshotSchema
+>;
+
+export const ExpertDraftDirectorySnapshotSchema = z
+  .object({
+    id: z.literal("draft"),
+    title: z.string().trim().min(1).max(240),
+    revision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
+    sections: z.array(ExpertDraftSectionSnapshotSchema).min(1).max(100)
+  })
+  .superRefine((value, context) => {
+    const sectionIds = value.sections.map((section) => section.id);
+    sectionIds.forEach((sectionId, index) => {
+      if (sectionIds.indexOf(sectionId) !== index) {
+        context.addIssue({
+          code: "custom",
+          path: ["sections", index, "id"],
+          message: `Duplicate expert draft section id: ${sectionId}`
+        });
+      }
+    });
+
+    const documentIds = value.sections.flatMap((section) => [
+      section.body.documentId,
+      section.characterState.documentId
+    ]);
+    documentIds.forEach((documentId, index) => {
+      if (documentIds.indexOf(documentId) !== index) {
+        const sectionIndex = Math.floor(index / 2);
+        const fileField = index % 2 === 0 ? "body" : "characterState";
+        context.addIssue({
+          code: "custom",
+          path: ["sections", sectionIndex, fileField, "documentId"],
+          message: `Duplicate expert draft document id: ${documentId}`
+        });
+      }
+    });
+  });
+export type ExpertDraftDirectorySnapshot = z.infer<
+  typeof ExpertDraftDirectorySnapshotSchema
+>;
+
 export const ShortWorkspaceSnapshotSchema = z
   .object({
     id: z.string().trim().min(1).max(240),
@@ -351,18 +434,10 @@ export const ShortWorkspaceSnapshotSchema = z
     activeStageId: ShortWorkspaceStageIdSchema,
     activeAgentId: ShortWorkspaceAgentIdSchema.optional(),
     activeSectionId: z.string().trim().min(1).max(120).optional(),
-    expertDraftSectionIds: z
-      .array(z.string().trim().min(1).max(120))
-      .max(100)
-      .optional(),
-    expertDraftSections: z
-      .array(ExpertDraftSectionSchema)
-      .min(1)
-      .max(4)
-      .optional(),
+    expertDraft: ExpertDraftDirectorySnapshotSchema,
     stages: z
       .array(ShortWorkspaceStageSnapshotSchema)
-      .length(SHORT_WORKSPACE_STAGE_IDS.length)
+      .length(SHORT_WORKSPACE_TEXT_STAGE_IDS.length)
   })
   .superRefine((value, context) => {
     const stageIds = value.stages.map((stage) => stage.stageId);
@@ -375,34 +450,16 @@ export const ShortWorkspaceSnapshotSchema = z
         });
       }
     });
-    if (!stageIds.includes(value.activeStageId)) {
+    if (
+      value.activeStageId !== "draft" &&
+      !stageIds.includes(value.activeStageId)
+    ) {
       context.addIssue({
         code: "custom",
         path: ["activeStageId"],
         message: "Active stage must be present in the workspace snapshot."
       });
     }
-    const indexedSectionIds = value.expertDraftSectionIds ?? [];
-    indexedSectionIds.forEach((sectionId, index) => {
-      if (indexedSectionIds.indexOf(sectionId) !== index) {
-        context.addIssue({
-          code: "custom",
-          path: ["expertDraftSectionIds", index],
-          message: `Duplicate expert draft section id: ${sectionId}`
-        });
-      }
-    });
-    const contextSectionIds =
-      value.expertDraftSections?.map((section) => section.id) ?? [];
-    contextSectionIds.forEach((sectionId, index) => {
-      if (contextSectionIds.indexOf(sectionId) !== index) {
-        context.addIssue({
-          code: "custom",
-          path: ["expertDraftSections", index, "id"],
-          message: `Duplicate expert draft context section id: ${sectionId}`
-        });
-      }
-    });
 
     if (value.activeStageId !== "draft") {
       const defaultAgentId = resolveShortWorkspaceAgentIdForStage(value.activeStageId);
@@ -423,13 +480,6 @@ export const ShortWorkspaceSnapshotSchema = z
           message: "Only the draft section writer may target a section."
         });
       }
-      if (value.expertDraftSections !== undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["expertDraftSections"],
-          message: "Only the draft section writer may receive section context."
-        });
-      }
       return;
     }
 
@@ -441,13 +491,6 @@ export const ShortWorkspaceSnapshotSchema = z
           message: "A draft section target requires the section writer agent."
         });
       }
-      if (value.expertDraftSections !== undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["expertDraftSections"],
-          message: "Draft section context requires the section writer agent."
-        });
-      }
       return;
     }
 
@@ -457,13 +500,6 @@ export const ShortWorkspaceSnapshotSchema = z
           code: "custom",
           path: ["activeSectionId"],
           message: "The draft coordinator cannot target an individual section."
-        });
-      }
-      if (value.expertDraftSections !== undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["expertDraftSections"],
-          message: "The draft coordinator cannot receive individual section context."
         });
       }
       return;
@@ -487,56 +523,14 @@ export const ShortWorkspaceSnapshotSchema = z
       return;
     }
 
-    const draftStage = value.stages.find((stage) => stage.stageId === "draft");
-    const parsedSectionIds = draftStage
-      ? parseExpertDraftMarkdown(draftStage.content).sections.map(
-          (section) => section.id
-        )
-      : [];
-    if (
-      draftStage?.truncated !== true &&
-      value.expertDraftSectionIds !== undefined &&
-      (indexedSectionIds.length !== parsedSectionIds.length ||
-        indexedSectionIds.some((sectionId, index) => sectionId !== parsedSectionIds[index]))
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["expertDraftSectionIds"],
-        message: "The expert draft section index must match the complete draft snapshot."
-      });
-    }
-    const sectionExists = (
-      draftStage?.truncated === true ? indexedSectionIds : parsedSectionIds
-    ).includes(value.activeSectionId);
+    const sectionExists = value.expertDraft.sections.some(
+      (section) => section.id === value.activeSectionId
+    );
     if (!sectionExists) {
       context.addIssue({
         code: "custom",
         path: ["activeSectionId"],
         message: `Unknown expert draft section: ${value.activeSectionId}`
-      });
-    }
-    const completeSectionIds =
-      draftStage?.truncated === true ? indexedSectionIds : parsedSectionIds;
-    const activeSectionIndex = completeSectionIds.indexOf(value.activeSectionId);
-    const expectedContextIds = activeSectionIndex < 0
-      ? []
-      : completeSectionIds.slice(Math.max(0, activeSectionIndex - 3), activeSectionIndex + 1);
-    if (draftStage?.truncated === true && value.expertDraftSections === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["expertDraftSections"],
-        message: "A truncated expert draft requires complete current and preceding section context."
-      });
-    }
-    if (
-      value.expertDraftSections !== undefined &&
-      (contextSectionIds.length !== expectedContextIds.length ||
-        contextSectionIds.some((sectionId, index) => sectionId !== expectedContextIds[index]))
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["expertDraftSections"],
-        message: "Expert draft context must contain the current section and up to three preceding sections in order."
       });
     }
   });

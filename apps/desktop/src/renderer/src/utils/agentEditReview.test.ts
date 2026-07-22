@@ -1,8 +1,4 @@
-import {
-  createShortWorkspaceContentRevision,
-  parseExpertDraftMarkdown,
-  serializeExpertDraftMarkdown
-} from "@deepwrite/contracts";
+import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
 import { describe, expect, it } from "vitest";
 import type { AgentEditProposal } from "../types/conversation";
 import {
@@ -24,9 +20,9 @@ function proposal(
 }
 
 describe("agent edit review", () => {
-  it("builds a stable proposal id from the run and target stage", () => {
-    expect(agentEditProposalId("run-1", "book-1", "outline")).toBe(
-      "run-1:book-1:outline"
+  it("builds a stable proposal id that separates physical target files", () => {
+    expect(agentEditProposalId("run-1", "book-1", "draft", "body:file/1")).toBe(
+      "run-1:book-1:draft:body%3Afile%2F1"
     );
   });
 
@@ -44,12 +40,12 @@ describe("agent edit review", () => {
     );
   });
 
-  it("keeps targeted section mutations on the original full-document revision", () => {
-    const existing = proposal("完整正文", "合并第一项分节修改后的正文");
+  it("chains repeated mutations for the same physical draft file", () => {
+    const existing = proposal("小节正文", "第一次修改");
 
-    expect(
-      expectedMutationBaseRevision(existing, "尚未应用的页面文本", true)
-    ).toBe(existing.baseRevision);
+    expect(expectedMutationBaseRevision(existing, "尚未应用的页面文本")).toBe(
+      existing.proposedRevision
+    );
   });
 
   it("classifies a proposal against its unchanged base as ready", () => {
@@ -80,65 +76,33 @@ describe("agent edit review", () => {
     );
   });
 
-  it("merges a targeted section field into the complete local draft", () => {
-    const original = serializeExpertDraftMarkdown({
-      sections: [
-        {
-          id: "section-1",
-          title: "第一节",
-          wordCountRequirement: "1000 字",
-          body: "第一节保持不变。",
-          characterState: "旧状态一"
-        },
-        {
-          id: "section-2",
-          title: "第二节",
-          wordCountRequirement: "1200 字",
-          body: "第二节旧正文。",
-          characterState: "旧状态二"
-        },
-        {
-          id: "section-3",
-          title: "第三节",
-          wordCountRequirement: "1500 字",
-          body: "第三节保持不变。",
-          characterState: "旧状态三"
-        }
-      ]
-    });
-
-    const resolved = resolveAgentEditorMutationText(original, {
+  it("treats a targeted mutation as the complete physical file content", () => {
+    const resolved = resolveAgentEditorMutationText("第二节旧正文。", {
       stageId: "draft",
       text: "第二节的新正文。",
       mutationTarget: {
-        kind: "expert-draft-section",
+        kind: "expert-draft-file",
+        documentId: "section-2-body",
         sectionId: "section-2",
-        field: "body"
+        fileKind: "body"
       }
     });
-    expect(resolved).not.toHaveProperty("error");
-    if (!("text" in resolved)) throw new Error("Expected resolved text.");
-    const draft = parseExpertDraftMarkdown(resolved.text);
-    expect(draft.sections.map((section) => section.body)).toEqual([
-      "第一节保持不变。",
-      "第二节的新正文。",
-      "第三节保持不变。"
-    ]);
-    expect(draft.sections[1]?.characterState).toBe("旧状态二");
+    expect(resolved).toEqual({ text: "第二节的新正文。" });
   });
 
-  it("refuses a targeted mutation when its section no longer exists", () => {
-    const resolved = resolveAgentEditorMutationText("## 第一节\n\n正文", {
-      stageId: "draft",
+  it("refuses a draft-file target outside the draft stage", () => {
+    const resolved = resolveAgentEditorMutationText("旧正文", {
+      stageId: "outline",
       text: "新正文",
       mutationTarget: {
-        kind: "expert-draft-section",
-        sectionId: "section-9",
-        field: "body"
+        kind: "expert-draft-file",
+        documentId: "section-1-body",
+        sectionId: "section-1",
+        fileKind: "body"
       }
     });
     expect(resolved).toEqual({
-      error: "正文小节 section-9 已不存在，本次修改未应用。"
+      error: "正文文件修改只能应用到正文目录。"
     });
   });
 });

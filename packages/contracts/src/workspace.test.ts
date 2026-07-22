@@ -6,20 +6,81 @@ import {
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   SHORT_WORKSPACE_AGENT_IDS,
   SHORT_WORKSPACE_STAGE_IDS,
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
   ShortWorkspaceAgentSettingsInputSchema,
   ShortWorkspaceAgentSettingsSchema,
   ShortWorkspaceSnapshotSchema,
   WorkspaceAgentsListCommandEnvelopeSchema,
   WorkspaceAgentsResetCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
-  createDefaultExpertDraft,
   createShortWorkspaceContentRevision,
   createEnvelope,
-  parseExpertDraftMarkdown,
   resolveShortWorkspaceAgentIdForStage,
-  serializeExpertDraftMarkdown,
-  updateExpertDraftSectionBody
 } from "./index";
+
+function expertDraftFile(documentId: string, title: string, content: string) {
+  return {
+    documentId,
+    title,
+    content,
+    revision: createShortWorkspaceContentRevision(content)
+  };
+}
+
+function workspaceSnapshot() {
+  return {
+    id: "book_1",
+    title: "测试短篇",
+    categories: ["悬疑"],
+    activeStageId: "plot_refine" as const,
+    expertDraft: {
+      id: "draft" as const,
+      title: "正文",
+      revision: createShortWorkspaceContentRevision("draft-directory"),
+      sections: [
+        {
+          id: "section-1",
+          title: "第一节",
+          wordCountRequirement: "1000 字",
+          body: expertDraftFile(
+            "draft:section-1:body",
+            "第一节·正文",
+            "雨夜留下了一枚钥匙。"
+          ),
+          characterState: expertDraftFile(
+            "draft:section-1:state",
+            "第一节·人物状态",
+            "林默拿到了钥匙。"
+          )
+        },
+        {
+          id: "section-2",
+          title: "第二节",
+          wordCountRequirement: "1200 字",
+          body: expertDraftFile(
+            "draft:section-2:body",
+            "第二节·正文",
+            "天亮了。"
+          ),
+          characterState: expertDraftFile(
+            "draft:section-2:state",
+            "第二节·人物状态",
+            ""
+          )
+        }
+      ]
+    },
+    stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => {
+      const content = stageId === "plot_refine" ? "雨夜留下了一枚钥匙。" : "";
+      return {
+        stageId,
+        title: stageId,
+        content,
+        revision: createShortWorkspaceContentRevision(content)
+      };
+    })
+  };
+}
 
 describe("short workspace contracts", () => {
   it("maps all six content stages to the five workspace agents", () => {
@@ -84,8 +145,8 @@ describe("short workspace contracts", () => {
       character_design: "d758185c",
       plot_design: "6ed0f6fe",
       outline: "2479c31a",
-      expert_draft_coordinator: "0292a648",
-      expert_section_writer: "f5b16bd2"
+      expert_draft_coordinator: "4ac36ffc",
+      expert_section_writer: "5a7065ff"
     });
   });
 
@@ -131,23 +192,14 @@ describe("short workspace contracts", () => {
   });
 
   it("validates a complete short workspace snapshot", () => {
-    const snapshot = {
-      id: "book_1",
-      title: "测试短篇",
-      categories: ["悬疑"],
-      activeStageId: "plot_refine" as const,
-      stages: SHORT_WORKSPACE_STAGE_IDS.map((stageId) => ({
-        stageId,
-        title: stageId,
-        content: stageId === "plot_refine" ? "雨夜留下了一枚钥匙。" : "",
-        revision: createShortWorkspaceContentRevision(
-          stageId === "plot_refine" ? "雨夜留下了一枚钥匙。" : ""
-        )
-      }))
-    };
+    const snapshot = workspaceSnapshot();
 
     const parsed = ShortWorkspaceSnapshotSchema.parse(snapshot);
-    expect(parsed.stages).toHaveLength(6);
+    expect(parsed.stages).toHaveLength(5);
+    expect(parsed.stages.map((stage) => stage.stageId)).toEqual(
+      SHORT_WORKSPACE_TEXT_STAGE_IDS
+    );
+    expect(parsed.expertDraft.sections).toHaveLength(2);
     expect(parsed).not.toHaveProperty("activeAgentId");
     expect(parsed).not.toHaveProperty("activeSectionId");
     expect(() =>
@@ -161,28 +213,7 @@ describe("short workspace contracts", () => {
   });
 
   it("validates active agents and draft section targets", () => {
-    const draftContent = serializeExpertDraftMarkdown(
-      updateExpertDraftSectionBody(
-        createDefaultExpertDraft(),
-        "section-1",
-        "雨夜留下了一枚钥匙。"
-      )
-    );
-    const stages = SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
-      const content = stageId === "draft" ? draftContent : "";
-      return {
-        stageId,
-        title: stageId,
-        content,
-        revision: createShortWorkspaceContentRevision(content)
-      };
-    });
-    const base = {
-      id: "book_1",
-      title: "测试短篇",
-      categories: ["悬疑"],
-      stages
-    };
+    const base = workspaceSnapshot();
 
     expect(() =>
       ShortWorkspaceSnapshotSchema.parse({
@@ -266,60 +297,22 @@ describe("short workspace contracts", () => {
       })
     ).toThrow();
 
-    const longDraft = serializeExpertDraftMarkdown({
-      sections: [
-        {
-          id: "section-1",
-          title: "第一节",
-          wordCountRequirement: "",
-          body: "雨".repeat(20_100),
-          characterState: ""
-        },
-        {
-          id: "section-2",
-          title: "第二节",
-          wordCountRequirement: "",
-          body: "天亮了。",
-          characterState: ""
+    expect(() =>
+      ShortWorkspaceSnapshotSchema.parse({
+        ...base,
+        expertDraft: {
+          ...base.expertDraft,
+          sections: [
+            base.expertDraft.sections[0],
+            {
+              ...base.expertDraft.sections[1],
+              body: {
+                ...base.expertDraft.sections[1]!.body,
+                documentId: base.expertDraft.sections[0]!.body.documentId
+              }
+            }
+          ]
         }
-      ]
-    });
-    const truncatedStages = stages.map((stage) =>
-      stage.stageId === "draft"
-        ? {
-            ...stage,
-            content: longDraft.slice(0, 20_000),
-            revision: createShortWorkspaceContentRevision(longDraft),
-            truncated: true,
-            originalLength: longDraft.length
-          }
-        : stage
-    );
-    const truncatedTarget = {
-      ...base,
-      stages: truncatedStages,
-      activeStageId: "draft",
-      activeAgentId: "expert_section_writer",
-      activeSectionId: "section-2"
-    };
-    expect(() =>
-      ShortWorkspaceSnapshotSchema.parse({
-        ...truncatedTarget,
-        expertDraftSectionIds: ["section-1", "section-2"],
-        expertDraftSections: parseExpertDraftMarkdown(longDraft).sections
-      })
-    ).not.toThrow();
-    expect(() =>
-      ShortWorkspaceSnapshotSchema.parse({
-        ...truncatedTarget,
-        expertDraftSectionIds: ["section-1", "section-2"]
-      })
-    ).toThrow();
-    expect(() => ShortWorkspaceSnapshotSchema.parse(truncatedTarget)).toThrow();
-    expect(() =>
-      ShortWorkspaceSnapshotSchema.parse({
-        ...truncatedTarget,
-        expertDraftSectionIds: ["section-1", "section-404"]
       })
     ).toThrow();
   });

@@ -109,10 +109,6 @@ const activeMeta = computed(
   () => AGENTS.find((agent) => agent.id === activeAgentId.value) ?? AGENTS[0]
 );
 
-const activeAgentPendingDispatch = computed(
-  () => activeAgentId.value === "expert_section_writer"
-);
-
 const formDisabled = computed(
   () => props.loading || props.saving || !props.runtimeAvailable
 );
@@ -346,9 +342,6 @@ function saveSettings(): void {
           <p>
             {{ activeSettingsAgent?.description ?? "配置当前智能体的职责和读取边界。" }}
           </p>
-          <p v-if="activeAgentPendingDispatch" class="availability-note">
-            当前版本可先配置此智能体；正文专家的分节调度与后台写作链路将在后续批次接通。
-          </p>
         </header>
 
         <section class="settings-card prompt-card">
@@ -517,11 +510,6 @@ function saveSettings(): void {
 
 .runtime-note {
   margin-top: 5px !important;
-  color: #8a6731 !important;
-}
-
-.availability-note {
-  margin-top: 6px !important;
   color: #8a6731 !important;
 }
 

@@ -136,3 +136,22 @@ export interface ComposerReferenceOption {
   label: string;
   detail: string;
 }
+
+export interface EditorTextReference {
+  id: string;
+  resourceId: string;
+  documentId: string;
+  documentTitle: string;
+  documentPath: string[];
+  text: string;
+  start: number;
+  end: number;
+  startLine: number;
+  endLine: number;
+  label: string;
+}
+
+export interface EditorTextReferenceNavigation {
+  requestId: number;
+  reference: EditorTextReference;
+}

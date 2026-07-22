@@ -1,5 +1,6 @@
 import {
   CatalogDocumentSchema,
+  CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
@@ -9,6 +10,7 @@ import {
   CatalogSnapshotSchema,
   DeleteCatalogProjectResultSchema,
   DeleteBookResultSchema,
+  DeleteDraftSectionResultSchema,
   RemoveLibraryEntryResultSchema,
   ShortBookSchema,
   UnregisterCatalogProjectResultSchema,
@@ -236,6 +238,24 @@ async function handleCatalogCommand(
         requestId: command.id,
         payload: CatalogDocumentSchema.parse(
           await catalogStore.saveDocument(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.createDraftSection") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CatalogDraftSectionSchema.parse(
+          await catalogStore.createDraftSection(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.deleteDraftSection") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: DeleteDraftSectionResultSchema.parse(
+          await catalogStore.deleteDraftSection(command.payload)
         )
       };
     }

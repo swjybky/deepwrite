@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { CatalogSnapshotSchema, type CatalogSnapshot } from "@deepwrite/contracts";
+import {
+  CatalogSnapshotSchema,
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
+  type CatalogSnapshot
+} from "@deepwrite/contracts";
 import type { ResourceTreeNode } from "../types/workspace";
-import { projectCatalogWorkspace } from "./catalogWorkspace";
+import {
+  projectCatalogWorkspace,
+  resolveBookWorkspaceId,
+  resolveDraftSectionResourceId,
+  resolvePreferredBookResourceId,
+  resolveDraftSectionProjection
+} from "./catalogWorkspace";
 
 const NOW = "2026-07-18T08:00:00.000Z";
 
@@ -36,9 +47,34 @@ function fixture(): CatalogSnapshot {
           { id: "intro_design", title: "导语设计", content: "导语", createdAt: NOW, updatedAt: NOW },
           { id: "plot_refine", title: "剧情细化", content: "细化", createdAt: NOW, updatedAt: NOW },
           { id: "outline", title: "大纲", content: "大纲", createdAt: NOW, updatedAt: NOW },
-          { id: "draft", title: "正文", content: "正文", createdAt: NOW, updatedAt: NOW },
           { id: "notes", title: "迁移备注", content: "备注", createdAt: NOW, updatedAt: NOW }
         ],
+        draft: {
+          id: "draft",
+          title: "正文",
+          sections: [
+            {
+              id: "intro",
+              title: "导语",
+              wordCountRequirement: "300 字",
+              body: { id: catalogDraftBodyDocumentId("intro"), title: "导语", content: "导语正文", createdAt: NOW, updatedAt: NOW },
+              characterState: { id: catalogDraftCharacterStateDocumentId("intro"), title: "导语 · 人物状态", content: "导语状态", createdAt: NOW, updatedAt: NOW },
+              createdAt: NOW,
+              updatedAt: NOW
+            },
+            {
+              id: "section-1",
+              title: "第一节",
+              wordCountRequirement: "1000 字",
+              body: { id: catalogDraftBodyDocumentId("section-1"), title: "第一节", content: "正文", createdAt: NOW, updatedAt: NOW },
+              characterState: { id: catalogDraftCharacterStateDocumentId("section-1"), title: "第一节 · 人物状态", content: "人物状态", createdAt: NOW, updatedAt: NOW },
+              createdAt: NOW,
+              updatedAt: NOW
+            }
+          ],
+          createdAt: NOW,
+          updatedAt: NOW
+        },
         createdAt: NOW,
         updatedAt: NOW
       }
@@ -132,6 +168,62 @@ function flattenNodes(nodes: readonly ResourceTreeNode[]): ResourceTreeNode[] {
 }
 
 describe("catalog workspace projection", () => {
+  it("prefers the virtual draft directory for a newly selected book", () => {
+    const projection = projectCatalogWorkspace(fixture());
+    const directory = projection.draftDirectories[0]!;
+
+    expect(resolvePreferredBookResourceId(projection, "book-short")).toBe(
+      directory.id
+    );
+    expect(resolvePreferredBookResourceId(projection, "missing-book")).toBeUndefined();
+  });
+
+  it("resolves a draft child back to its book and sibling section resource", () => {
+    const source = fixture();
+    source.books.push({
+      ...structuredClone(source.books[0]!),
+      id: "book-second",
+      title: "第二本书"
+    });
+    const projection = projectCatalogWorkspace(source);
+    const directory = projection.draftDirectories.find(
+      (candidate) => candidate.workspaceId === "book-second"
+    )!;
+    const book = projection.resourceSections[0]!.nodes.find(
+      (node) => node.id === "book-second"
+    )!;
+    const directoryNode = book.children!.find(
+      (node) => node.id === directory.id
+    )!;
+    const secondChild = directoryNode.children![1]!;
+
+    expect(resolveBookWorkspaceId(projection, secondChild.id)).toBe("book-second");
+    expect(resolvePreferredBookResourceId(projection, "book-second")).toBe(
+      directory.id
+    );
+    expect(
+      resolveDraftSectionResourceId(directoryNode, "section-1")
+    ).toBe(secondChild.id);
+  });
+
+  it("prefers the section selected from editor tabs over the tree node section", () => {
+    const source = projectCatalogWorkspace(fixture()).draftDirectories[0]!;
+    const directory = {
+      ...source,
+      sections: [
+        { ...source.sections[0]!, id: "section-1", bodyDocumentId: "body-1" },
+        { ...source.sections[1]!, id: "section-2", bodyDocumentId: "body-2" }
+      ]
+    };
+
+    expect(
+      resolveDraftSectionProjection(directory, "section-2", "section-1")
+    ).toMatchObject({
+      id: "section-2",
+      bodyDocumentId: "body-2"
+    });
+  });
+
   it("projects short books and keeps every migrated document", () => {
     const source = fixture();
     const projection = projectCatalogWorkspace(source);
@@ -167,28 +259,36 @@ describe("catalog workspace projection", () => {
     const bookDocuments = projection.workspaceDocuments.filter(
       (document) => document.workspaceId === "book-short"
     );
-    expect(bookDocuments).toHaveLength(source.books[0]!.documents.length);
+    expect(bookDocuments).toHaveLength(
+      source.books[0]!.documents.length + source.books[0]!.draft.sections.length * 2
+    );
     const draftDocuments = bookDocuments.filter((document) => document.stageId === "draft");
-    expect(draftDocuments).toHaveLength(1);
-    expect(draftDocuments[0]).toMatchObject({
-      content: "正文",
+    expect(draftDocuments).toHaveLength(4);
+    expect(draftDocuments.find((document) => document.draftFileKind === "body")).toMatchObject({
+      title: "导语",
+      content: "导语正文",
       format: "正文",
-      catalogDocumentId: "draft"
+      expertSectionId: "intro",
+      catalogDocumentId: catalogDraftBodyDocumentId("intro")
     });
     const draftNode = book?.children?.find((node) => node.stageCategoryId === "draft");
     expect(draftNode).toMatchObject({
-      id: draftDocuments[0]?.id,
       label: "正文",
-      catalogNodeType: "document",
+      catalogNodeType: "category",
       selectableBranch: true,
       shortAgentId: "expert_draft_coordinator"
     });
+    expect(draftNode?.id).not.toBe(draftDocuments[0]?.id);
     expect(draftNode?.children?.map((node) => node.label)).toEqual(["导语", "第一节"]);
     expect(draftNode?.children?.[1]).toMatchObject({
-      targetDocumentId: draftDocuments[0]?.id,
+      targetDocumentId: expect.any(String),
+      characterStateDocumentId: expect.any(String),
       shortAgentId: "expert_section_writer",
       expertSectionId: "section-1"
     });
+    expect(draftNode?.children?.[1]?.targetDocumentId).not.toBe(
+      draftNode?.children?.[1]?.characterStateDocumentId
+    );
     expect(bookDocuments.find((document) => document.catalogDocumentId === "notes")?.path).toEqual([
       "迁移短篇",
       "其他文稿",
@@ -196,27 +296,52 @@ describe("catalog workspace projection", () => {
     ]);
   });
 
-  it("projects expert draft headings as unique section-writer navigation nodes", () => {
+  it("projects catalog draft sections as unique physical file pairs", () => {
     const source = fixture();
-    const draft = source.books[0]!.documents.find((document) => document.id === "draft")!;
-    draft.content = [
-      "## 雨夜来客",
-      "",
-      "林默在灯塔听见脚步。",
-      "",
-      "## 失踪名单",
-      "",
-      "名单最后一行写着他的名字。"
-    ].join("\n");
+    source.books[0]!.draft.sections = [
+      {
+        ...source.books[0]!.draft.sections[0]!,
+        id: "rainy-guest",
+        title: "雨夜来客",
+        body: {
+          ...source.books[0]!.draft.sections[0]!.body,
+          id: "rainy-guest-body",
+          title: "雨夜来客",
+          content: "林默在灯塔听见脚步。"
+        },
+        characterState: {
+          ...source.books[0]!.draft.sections[0]!.characterState,
+          id: "rainy-guest-state",
+          title: "雨夜来客 · 人物状态"
+        }
+      },
+      {
+        ...source.books[0]!.draft.sections[1]!,
+        id: "missing-list",
+        title: "失踪名单",
+        body: {
+          ...source.books[0]!.draft.sections[1]!.body,
+          id: "missing-list-body",
+          title: "失踪名单",
+          content: "名单最后一行写着他的名字。"
+        },
+        characterState: {
+          ...source.books[0]!.draft.sections[1]!.characterState,
+          id: "missing-list-state",
+          title: "失踪名单 · 人物状态"
+        }
+      }
+    ];
 
     const projection = projectCatalogWorkspace(source);
     const book = projection.resourceSections[0]!.nodes[0]!;
     const draftNode = book.children!.find((node) => node.stageCategoryId === "draft")!;
-    const draftDocument = projection.workspaceDocuments.find(
+    const draftDocuments = projection.workspaceDocuments.filter(
       (document) => document.workspaceId === book.id && document.stageId === "draft"
-    )!;
+    );
 
-    expect(draftNode.id).toBe(draftDocument.id);
+    expect(draftDocuments).toHaveLength(4);
+    expect(draftDocuments.every((document) => document.content.length > 0)).toBe(true);
     expect(draftNode.children?.map((node) => node.label)).toEqual([
       "雨夜来客",
       "失踪名单"
@@ -225,49 +350,51 @@ describe("catalog workspace projection", () => {
     expect(draftNode.children).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          targetDocumentId: draftDocument.id,
+          targetDocumentId: expect.any(String),
+          characterStateDocumentId: expect.any(String),
           shortAgentId: "expert_section_writer",
           expertSectionId: expect.any(String)
         })
       ])
     );
-    expect(
-      projection.workspaceDocuments.filter(
-        (document) => document.workspaceId === book.id && document.stageId === "draft"
-      )
-    ).toHaveLength(1);
+    expect(projection.draftDirectories[0]?.sections).toHaveLength(2);
   });
 
-  it("uses intro and first-section navigation defaults for an empty expert draft", () => {
+  it("keeps an empty section as two independently addressable files", () => {
     const source = fixture();
-    const draft = source.books[0]!.documents.find((document) => document.id === "draft")!;
-    draft.content = "  \n\n";
+    source.books[0]!.draft.sections = [
+      {
+        ...source.books[0]!.draft.sections[0]!,
+        body: { ...source.books[0]!.draft.sections[0]!.body, content: "" },
+        characterState: {
+          ...source.books[0]!.draft.sections[0]!.characterState,
+          content: ""
+        }
+      }
+    ];
 
     const projection = projectCatalogWorkspace(source);
     const book = projection.resourceSections[0]!.nodes[0]!;
     const draftNode = book.children!.find((node) => node.stageCategoryId === "draft")!;
-    const draftDocument = projection.workspaceDocuments.find(
+    const draftDocuments = projection.workspaceDocuments.filter(
       (document) => document.workspaceId === book.id && document.stageId === "draft"
-    )!;
+    );
 
     expect(draftNode).toMatchObject({
-      id: draftDocument.id,
       selectableBranch: true,
       shortAgentId: "expert_draft_coordinator"
     });
     expect(draftNode.children).toMatchObject([
       {
         label: "导语",
-        targetDocumentId: draftDocument.id,
         shortAgentId: "expert_section_writer",
         expertSectionId: "intro"
-      },
-      {
-        label: "第一节",
-        targetDocumentId: draftDocument.id,
-        shortAgentId: "expert_section_writer",
-        expertSectionId: "section-1"
       }
+    ]);
+    expect(draftDocuments).toHaveLength(2);
+    expect(draftDocuments.map((document) => document.draftFileKind)).toEqual([
+      "body",
+      "character-state"
     ]);
   });
 

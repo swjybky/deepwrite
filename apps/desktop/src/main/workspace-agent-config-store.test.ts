@@ -6,20 +6,23 @@ import {
   unlink,
   writeFile
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
-  SHORT_WORKSPACE_STAGE_IDS,
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
   createShortWorkspaceContentRevision,
-  serializeExpertDraftMarkdown,
   type ShortWorkspaceAgentId,
   type ShortWorkspaceAgentSettingsInput,
   type ShortWorkspaceStageId
 } from "@deepwrite/contracts";
-import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
+import {
+  RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1,
+  WorkspaceAgentConfigStore
+} from "./workspace-agent-config-store";
 
 const temporaryRoots = new Set<string>();
 
@@ -91,6 +94,56 @@ describe("WorkspaceAgentConfigStore", () => {
     );
   });
 
+  it("upgrades only the retired builtin coordinator prompt to the file-based default", async () => {
+    const root = await makeTemporaryRoot();
+    const configDirectory = join(root, "config");
+    await mkdir(configDirectory);
+    const input = defaultInput();
+    expect(
+      createHash("sha256")
+        .update(RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1, "utf8")
+        .digest("hex")
+    ).toBe("9164c162be37db9e82eeb7c3d3caf2d3b242f1f426021c3ca619391b5aaa9d49");
+    byAgentId(input.agents, "expert_draft_coordinator").systemPrompt =
+      RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1;
+    await writeFile(
+      join(configDirectory, "workspace-agents.json"),
+      JSON.stringify({ version: 1, ...input }),
+      "utf8"
+    );
+
+    const settings = await new WorkspaceAgentConfigStore(root).list();
+
+    expect(
+      byAgentId(settings.agents, "expert_draft_coordinator").systemPrompt
+    ).toBe(
+      byAgentId(
+        DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
+        "expert_draft_coordinator"
+      ).systemPrompt
+    );
+  });
+
+  it("preserves a customized coordinator prompt even when it is based on the retired default", async () => {
+    const root = await makeTemporaryRoot();
+    const configDirectory = join(root, "config");
+    await mkdir(configDirectory);
+    const input = defaultInput();
+    const customized = `${RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1}\n自定义要求：保留我的审阅口径。`;
+    byAgentId(input.agents, "expert_draft_coordinator").systemPrompt = customized;
+    await writeFile(
+      join(configDirectory, "workspace-agents.json"),
+      JSON.stringify({ version: 1, ...input }),
+      "utf8"
+    );
+
+    const settings = await new WorkspaceAgentConfigStore(root).list();
+
+    expect(
+      byAgentId(settings.agents, "expert_draft_coordinator").systemPrompt
+    ).toBe(customized);
+  });
+
   it("restores each agent's required workspace stages before saving", async () => {
     const root = await makeTemporaryRoot();
     const store = new WorkspaceAgentConfigStore(root);
@@ -156,17 +209,7 @@ describe("WorkspaceAgentConfigStore", () => {
 
   it("resolves a validated draft section target to the section writer", async () => {
     const store = new WorkspaceAgentConfigStore(await makeTemporaryRoot());
-    const draft = serializeExpertDraftMarkdown({
-      sections: [
-        {
-          id: "section-1",
-          title: "第一节",
-          wordCountRequirement: "1000 字",
-          body: "",
-          characterState: ""
-        }
-      ]
-    });
+    const emptyRevision = createShortWorkspaceContentRevision("");
     const workspace = {
       id: "short-1",
       title: "雨夜来信",
@@ -174,15 +217,36 @@ describe("WorkspaceAgentConfigStore", () => {
       activeStageId: "draft" as const,
       activeAgentId: "expert_section_writer" as const,
       activeSectionId: "section-1",
-      stages: SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
-        const content = stageId === "draft" ? draft : "";
-        return {
-          stageId,
-          title: stageId,
-          content,
-          revision: createShortWorkspaceContentRevision(content)
-        };
-      })
+      expertDraft: {
+        id: "draft" as const,
+        title: "正文",
+        revision: emptyRevision,
+        sections: [
+          {
+            id: "section-1",
+            title: "第一节",
+            wordCountRequirement: "1000 字",
+            body: {
+              documentId: "draft:section-1:body",
+              title: "第一节",
+              content: "",
+              revision: emptyRevision
+            },
+            characterState: {
+              documentId: "draft:section-1:character-state",
+              title: "第一节 · 人物状态",
+              content: "",
+              revision: emptyRevision
+            }
+          }
+        ]
+      },
+      stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
+        stageId,
+        title: stageId,
+        content: "",
+        revision: emptyRevision
+      }))
     };
 
     await expect(store.resolveForWorkspace(workspace)).resolves.toMatchObject({

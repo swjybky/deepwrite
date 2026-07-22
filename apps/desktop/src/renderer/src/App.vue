@@ -32,15 +32,8 @@ import {
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   MATERIAL_KINDS,
   SKILL_KINDS,
-  appendExpertDraftSection,
   createShortWorkspaceContentRevision,
-  findExpertDraftSection,
-  parseExpertDraftMarkdown,
-  removeExpertDraftSection,
-  renderExpertDraftReview,
-  resolveShortWorkspaceAgentIdForStage,
-  serializeExpertDraftMarkdown,
-  updateExpertDraftSection
+  resolveShortWorkspaceAgentIdForStage
 } from "@deepwrite/contracts";
 import AgentConversation from "./components/AgentConversation.vue";
 import BookResourceDialog from "./components/BookResourceDialog.vue";
@@ -56,7 +49,8 @@ import SettingsPage from "./components/SettingsPage.vue";
 import WorkspaceDialog from "./components/WorkspaceDialog.vue";
 import {
   useAgentConversation,
-  type AgentConversationController
+  type AgentConversationController,
+  type AgentRunSettings
 } from "./composables/useAgentConversation";
 import { useAppearance } from "./composables/useAppearance";
 import { uiMessage } from "./ui-feedback";
@@ -64,11 +58,18 @@ import { resourceSections } from "./data/demoWorkspace";
 import {
   MATERIAL_KIND_LABELS,
   SKILL_KIND_LABELS,
-  projectCatalogWorkspace
+  projectCatalogWorkspace,
+  resolveBookWorkspaceId,
+  resolveDraftSectionResourceId,
+  resolveDraftSectionProjection,
+  resolvePreferredBookResourceId,
+  type DraftDirectoryProjection
 } from "./data/catalogWorkspace";
 import type {
   AgentEditProposal,
-  ComposerReferenceOption
+  ComposerReferenceOption,
+  EditorTextReference,
+  EditorTextReferenceNavigation
 } from "./types/conversation";
 import type {
   BookResourceDialogMode,
@@ -89,11 +90,25 @@ import {
 } from "./utils/bookResourcePreferences";
 import { buildLibraryAttachments } from "./utils/libraryAttachments";
 import {
+  captureWorkspaceDocumentBaselines,
+  rebaseDraftsForMatchingDocuments,
+  type WorkspaceDocumentBaseline
+} from "./utils/catalogSaveReconciliation";
+import { draftCharacterStateTitle } from "./utils/draftFileTitles";
+import { migrateLegacyDraftRecoveries } from "./utils/legacyDraftRecovery";
+import {
   agentEditProposalId,
   classifyAgentEditAcceptance,
   expectedMutationBaseRevision,
   resolveAgentEditorMutationText
 } from "./utils/agentEditReview";
+import {
+  AGENT_RUN_PREFERENCES_STORAGE_KEY,
+  agentConversationKeyForDocument as conversationKeyForDocument,
+  agentRunScopeForDocument,
+  parseAgentRunPreferences,
+  type AgentRunPreferencesByScope
+} from "./utils/agentRunPreferences";
 import { buildAgentTextDiff } from "./utils/agentTextDiff";
 
 const EMPTY_WORKSPACE_DOCUMENT: WorkspaceDocument = {
@@ -177,6 +192,16 @@ function loadEmergencyEditorDrafts(): Record<string, EditorDraftState> {
   }
 }
 
+function loadAgentRunPreferences(): AgentRunPreferencesByScope {
+  try {
+    return parseAgentRunPreferences(
+      localStorage.getItem(AGENT_RUN_PREFERENCES_STORAGE_KEY)
+    );
+  } catch {
+    return {};
+  }
+}
+
 function mergeRecoveredEditorDrafts(
   coreDrafts: CatalogDraftRecovery,
   emergencyDrafts: Record<string, EditorDraftState>,
@@ -244,6 +269,12 @@ const activeCreationResourceId = ref(EMPTY_WORKSPACE_DOCUMENT.id);
 const documents = ref<WorkspaceDocument[]>([{ ...EMPTY_WORKSPACE_DOCUMENT }]);
 const editorDrafts = ref<Record<string, EditorDraftState>>({});
 const selectedExpertSectionIds = ref<Record<string, string>>({});
+const selectedDraftFileKinds = ref<
+  Record<string, "body" | "character-state">
+>({});
+const pendingEditorReference = ref<EditorTextReference | null>(null);
+const editorReferenceNavigation = ref<EditorTextReferenceNavigation>();
+let editorReferenceNavigationClock = 0;
 const acceptingAgentEditDocumentIds = ref<Set<string>>(new Set());
 const acceptingAgentEditWorkspaceIds = ref<Set<string>>(new Set());
 const savingDocumentIds = ref<Set<string>>(new Set());
@@ -289,7 +320,8 @@ const activeLibraryGroup = computed<CatalogLibraryGroup | null>(() => {
   return groups?.find((group) => group.id === state.groupId) ?? null;
 });
 interface PendingExpertSectionDeletion {
-  documentId: string;
+  workspaceId: string;
+  draftDirectoryId: string;
   sectionId: string;
   sectionTitle: string;
   hasContent: boolean;
@@ -332,9 +364,15 @@ let workspaceAgentFeedbackTimer: number | undefined;
 let draftRecoveryTimer: number | undefined;
 let draftPersistenceWarningShown = false;
 let conversationPersistenceWarningShown = false;
+let agentRunPreferenceWarningShown = false;
 let removeSystemListener: (() => void) | undefined;
 const conversations = new Map<string, AgentConversationController>();
+const conversationScopes = new Map<string, string>();
+const agentRunPreferences = ref<AgentRunPreferencesByScope>(
+  loadAgentRunPreferences()
+);
 const seenCatalogDiagnosticKeys = new Set<string>();
+const warnedUnmappedLegacyRecoveryKeys = new Set<string>();
 const handledWorkspaceMutationEventIds = new Set<string>();
 interface QueuedAutoAgentEdit {
   conversation: AgentConversationController;
@@ -370,54 +408,8 @@ function loadBookResourcePreferences(): BookResourcePreferences {
 
 const bookResourcePreferences = ref<BookResourcePreferences>(loadBookResourcePreferences());
 
-function projectLiveExpertSectionNodes(
-  nodes: readonly ResourceTreeNode[]
-): ResourceTreeNode[] {
-  return nodes.map((node) => {
-    const children = projectLiveExpertSectionNodes(node.children ?? []);
-    if (
-      node.shortAgentId !== "expert_draft_coordinator" ||
-      node.stageCategoryId !== "draft"
-    ) {
-      return node.children ? { ...node, children } : node;
-    }
-    const sourceId = node.targetDocumentId ?? node.id;
-    const live = editorDrafts.value[sourceId];
-    if (!live) return node.children ? { ...node, children } : node;
-    const existingBySectionId = new Map(
-      children.flatMap((child) =>
-        child.expertSectionId ? [[child.expertSectionId, child] as const] : []
-      )
-    );
-    const expertChildren = parseExpertDraftMarkdown(live.content).sections.map((section) => {
-      const existing = existingBySectionId.get(section.id);
-      return existing
-        ? { ...existing, label: section.title }
-        : {
-            id: `local:expert-section:${encodeURIComponent(sourceId)}:${encodeURIComponent(section.id)}`,
-            label: section.title,
-            icon: "file" as const,
-            catalogNodeType: "document" as const,
-            stageCategoryId: "draft",
-            targetDocumentId: sourceId,
-            shortAgentId: "expert_section_writer" as const,
-            expertSectionId: section.id
-          };
-    });
-    return {
-      ...node,
-      children: [
-        ...children.filter((child) => !child.expertSectionId),
-        ...expertChildren
-      ]
-    };
-  });
-}
-
 const resourceTreeSections = computed(() =>
-  applyBookResourcePreferences(baseResourceSections.value, bookResourcePreferences.value).map(
-    (section) => ({ ...section, nodes: projectLiveExpertSectionNodes(section.nodes) })
-  )
+  applyBookResourcePreferences(baseResourceSections.value, bookResourcePreferences.value)
 );
 
 function resourceSelectionExists(
@@ -440,12 +432,13 @@ function fallbackCreationResourceId(
     (document) => document.id === previousTargetId
   )?.workspaceId;
   return (
-    documents.value.find(
-      (document) =>
-        document.domain === "creation" &&
-        document.workspaceId === previousWorkspaceId &&
-        document.stageId === "draft"
-    )?.id ??
+    (previousWorkspaceId
+      ? resolvePreferredBookResourceId(
+          catalogProjection.value ?? undefined,
+          previousWorkspaceId
+        )
+      : undefined) ??
+    catalogProjection.value?.draftDirectories[0]?.id ??
     documents.value.find((document) => document.domain === "creation")?.id ??
     documents.value[0]?.id ??
     ""
@@ -532,15 +525,48 @@ function findResourceNodeIn(
   return visit(sections.flatMap((section) => section.nodes));
 }
 
+function resourceIdForDocumentId(documentId: string): string | undefined {
+  const visit = (nodes: readonly ResourceTreeNode[]): string | undefined => {
+    for (const node of nodes) {
+      if (
+        node.id === documentId ||
+        node.targetDocumentId === documentId ||
+        node.characterStateDocumentId === documentId
+      ) {
+        return node.id;
+      }
+      const nested = visit(node.children ?? []);
+      if (nested) return nested;
+    }
+    return undefined;
+  };
+  return visit(resourceTreeSections.value.flatMap((section) => section.nodes));
+}
+
 function resourceTargetDocumentId(
   sections: readonly ResourceTreeSection[],
   resourceId: string
 ): string {
   const node = findResourceNodeIn(sections, resourceId);
-  return node?.targetDocumentId ?? resourceId;
+  return (
+    node?.targetDocumentId ??
+    (node?.shortAgentId === "expert_draft_coordinator"
+      ? node.children?.find((child) => child.targetDocumentId)?.targetDocumentId
+      : undefined) ??
+    resourceId
+  );
 }
 
 function applyCatalogSnapshot(snapshot: CatalogSnapshot): void {
+  const previousProjection = catalogProjection.value ?? undefined;
+  const selectedWorkspaceAnchor = resolveBookWorkspaceId(
+    previousProjection,
+    selectedResourceId.value
+  );
+  const activeWorkspaceAnchor = resolveBookWorkspaceId(
+    previousProjection,
+    activeCreationResourceId.value
+  );
   const diagnostics = snapshot.projectDiagnostics ?? [];
   const diagnosticKeys = new Set(
     diagnostics.map(
@@ -575,8 +601,34 @@ function applyCatalogSnapshot(snapshot: CatalogSnapshot): void {
   const projectedDocuments = new Map(
     projection.workspaceDocuments.map((document) => [document.id, document] as const)
   );
+  const recoveryMigration = migrateLegacyDraftRecoveries(
+    editorDrafts.value,
+    snapshot,
+    projection
+  );
+  const currentUnmappedLegacyKeys = new Set(recoveryMigration.unmappedLegacyKeys);
+  for (const key of warnedUnmappedLegacyRecoveryKeys) {
+    if (!currentUnmappedLegacyKeys.has(key)) {
+      warnedUnmappedLegacyRecoveryKeys.delete(key);
+    }
+  }
+  const newlyUnmappedLegacyKeys = recoveryMigration.unmappedLegacyKeys.filter(
+    (key) => !warnedUnmappedLegacyRecoveryKeys.has(key)
+  );
+  if (newlyUnmappedLegacyKeys.length) {
+    newlyUnmappedLegacyKeys.forEach((key) =>
+      warnedUnmappedLegacyRecoveryKeys.add(key)
+    );
+    uiMessage.warning(
+      `旧版恢复稿与当前正文的磁盘版本或小节结构不一致，原恢复稿已保留，请核对当前正文目录${
+        newlyUnmappedLegacyKeys.length > 1
+          ? `（共 ${newlyUnmappedLegacyKeys.length} 份）`
+          : ""
+      }`
+    );
+  }
   editorDrafts.value = Object.fromEntries(
-    Object.entries(editorDrafts.value).filter(([documentId, draft]) => {
+    Object.entries(recoveryMigration.drafts).filter(([documentId, draft]) => {
       if (!draft.dirty) return false;
       const persisted = projectedDocuments.get(documentId);
       return (
@@ -586,6 +638,9 @@ function applyCatalogSnapshot(snapshot: CatalogSnapshot): void {
       );
     })
   );
+  recoveredEditorDraftCount = Object.keys(editorDrafts.value).filter((documentId) =>
+    projectedDocuments.has(documentId)
+  ).length;
   catalogSnapshot.value = snapshot;
   documents.value = projection.workspaceDocuments.length
     ? projection.workspaceDocuments
@@ -597,9 +652,10 @@ function applyCatalogSnapshot(snapshot: CatalogSnapshot): void {
   );
   if (!documents.value.some((document) => document.id === selectedTargetId)) {
     selectedResourceId.value =
-      projection.workspaceDocuments.find(
-        (document) => document.domain === "creation" && document.stageId === "draft"
-      )?.id ??
+      (selectedWorkspaceAnchor
+        ? resolvePreferredBookResourceId(projection, selectedWorkspaceAnchor)
+        : undefined) ??
+      projection.draftDirectories[0]?.id ??
       documents.value.find((document) => document.domain === "creation")?.id ??
       documents.value[0]?.id ??
       "";
@@ -609,7 +665,20 @@ function applyCatalogSnapshot(snapshot: CatalogSnapshot): void {
     activeCreationResourceId.value
   );
   if (!documents.value.some((document) => document.id === activeCreationTargetId)) {
+    const selectedCreationTargetId = resourceTargetDocumentId(
+      projection.resourceSections,
+      selectedResourceId.value
+    );
     activeCreationResourceId.value =
+      (activeWorkspaceAnchor
+        ? resolvePreferredBookResourceId(projection, activeWorkspaceAnchor)
+        : undefined) ??
+      (documents.value.some(
+        (document) =>
+          document.id === selectedCreationTargetId && document.domain === "creation"
+      )
+        ? selectedResourceId.value
+        : undefined) ??
       documents.value.find((document) => document.domain === "creation")?.id ??
       documents.value[0]?.id ??
       "";
@@ -630,9 +699,79 @@ async function loadCatalogSnapshot(): Promise<void> {
   }
 }
 
-function conversationForKey(key: string): AgentConversationController {
+function captureAgentRunSettings(
+  conversation: AgentConversationController
+): AgentRunSettings {
+  return {
+    selectedModelId: conversation.selectedModelId.value,
+    thinkingLevel: conversation.thinkingLevel.value,
+    temperature: conversation.temperature.value,
+    approvalMode: conversation.approvalMode.value
+  };
+}
+
+function storeAgentRunPreferences(): void {
+  try {
+    localStorage.setItem(
+      AGENT_RUN_PREFERENCES_STORAGE_KEY,
+      JSON.stringify(agentRunPreferences.value)
+    );
+    agentRunPreferenceWarningShown = false;
+  } catch {
+    if (agentRunPreferenceWarningShown) return;
+    agentRunPreferenceWarningShown = true;
+    uiMessage.warning("当前书籍的智能体运行选项暂时无法保存到本机");
+  }
+}
+
+function persistAgentRunPreferences(
+  scope: string,
+  preferences: AgentRunSettings
+): void {
+  agentRunPreferences.value = {
+    ...agentRunPreferences.value,
+    [scope]: preferences
+  };
+  storeAgentRunPreferences();
+}
+
+function removeAgentRunPreferences(scope: string): void {
+  if (!(scope in agentRunPreferences.value)) return;
+  const next = { ...agentRunPreferences.value };
+  delete next[scope];
+  agentRunPreferences.value = next;
+  storeAgentRunPreferences();
+}
+
+function synchronizeAgentRunPreferences(
+  scope: string,
+  source: AgentConversationController
+): void {
+  const preferences = captureAgentRunSettings(source);
+  for (const [key, conversation] of conversations) {
+    if (conversationScopes.get(key) === scope && conversation !== source) {
+      conversation.applyRunSettings(preferences);
+    }
+  }
+  persistAgentRunPreferences(scope, preferences);
+}
+
+function conversationForKey(
+  key: string,
+  scope = "general"
+): AgentConversationController {
   const existing = conversations.get(key);
-  if (existing) return existing;
+  if (existing) {
+    const previousScope = conversationScopes.get(key);
+    conversationScopes.set(key, scope);
+    if (previousScope !== scope) {
+      const preferences = agentRunPreferences.value[scope];
+      if (preferences) {
+        existing.applyRunSettings(preferences);
+      }
+    }
+    return existing;
+  }
   const created = useAgentConversation({
     api: () => window.deepwrite,
     persistenceKey: `deepwrite:agent-conversations:v1:${encodeURIComponent(key)}`,
@@ -642,15 +781,43 @@ function conversationForKey(key: string): AgentConversationController {
       uiMessage.warning("历史对话暂时无法保存到本机，本次运行中仍可继续切换");
     }
   });
+  conversations.set(key, created);
+  conversationScopes.set(key, scope);
   if (modelSettings.value) {
     created.applyModelSettings(modelSettings.value);
   }
-  conversations.set(key, created);
+  const preferences = agentRunPreferences.value[scope];
+  if (preferences) {
+    created.applyRunSettings(preferences);
+  } else if (modelSettings.value) {
+    persistAgentRunPreferences(scope, captureAgentRunSettings(created));
+  }
   return created;
 }
 
 function allConversations(): AgentConversationController[] {
   return [...conversations.values()];
+}
+
+function applyModelSettingsToConversations(settings: ModelSettings): void {
+  for (const conversation of allConversations()) {
+    conversation.applyModelSettings(settings);
+  }
+
+  const representativeByScope = new Map<string, AgentConversationController>();
+  for (const [key, conversation] of conversations) {
+    const scope = conversationScopes.get(key) ?? "general";
+    if (!representativeByScope.has(scope)) {
+      representativeByScope.set(scope, conversation);
+    }
+  }
+  for (const [scope, representative] of representativeByScope) {
+    const preferences = agentRunPreferences.value[scope];
+    if (preferences) {
+      representative.applyRunSettings(preferences);
+    }
+    synchronizeAgentRunPreferences(scope, representative);
+  }
 }
 
 conversationForKey("general");
@@ -659,8 +826,65 @@ function resourceNode(resourceId: string): ResourceTreeNode | undefined {
   return findResourceNodeIn(resourceTreeSections.value, resourceId);
 }
 
+function draftDirectoryForResourceId(
+  resourceId: string
+): DraftDirectoryProjection | undefined {
+  const exact = catalogProjection.value?.draftDirectories.find(
+    (directory) => directory.id === resourceId
+  );
+  if (exact) return exact;
+  const node = resourceNode(resourceId);
+  const targetId = node?.targetDocumentId ?? resourceId;
+  const target = documents.value.find((document) => document.id === targetId);
+  if (
+    node?.shortAgentId !== "expert_section_writer" &&
+    target?.draftDirectoryId === undefined
+  ) {
+    return undefined;
+  }
+  return catalogProjection.value?.draftDirectories.find(
+    (directory) => directory.workspaceId === target?.workspaceId
+  );
+}
+
+function selectedDraftSection(
+  directory: DraftDirectoryProjection,
+  node?: ResourceTreeNode
+): DraftDirectoryProjection["sections"][number] | undefined {
+  return resolveDraftSectionProjection(
+    directory,
+    selectedExpertSectionIds.value[directory.id],
+    node?.expertSectionId
+  );
+}
+
+function draftFileDocument(
+  directory: DraftDirectoryProjection,
+  sectionId: string,
+  fileKind: "body" | "character-state"
+): WorkspaceDocument | undefined {
+  const section = directory.sections.find((candidate) => candidate.id === sectionId);
+  if (!section) return undefined;
+  const documentId =
+    fileKind === "body"
+      ? section.bodyDocumentId
+      : section.characterStateDocumentId;
+  return documents.value.find((document) => document.id === documentId);
+}
+
 function documentForResourceId(resourceId: string): WorkspaceDocument | undefined {
-  const targetId = resourceNode(resourceId)?.targetDocumentId ?? resourceId;
+  const node = resourceNode(resourceId);
+  const directory = draftDirectoryForResourceId(resourceId);
+  if (directory) {
+    const section = selectedDraftSection(directory, node);
+    if (!section) return undefined;
+    return draftFileDocument(
+      directory,
+      section.id,
+      selectedDraftFileKinds.value[directory.id] ?? "body"
+    );
+  }
+  const targetId = node?.targetDocumentId ?? resourceId;
   return documents.value.find((document) => document.id === targetId);
 }
 
@@ -669,45 +893,49 @@ function liveDocument(document: WorkspaceDocument): WorkspaceDocument {
   return live ? { ...document, title: live.title, content: live.content } : document;
 }
 
-function expertSectionIdForDocument(
-  document: WorkspaceDocument,
-  node?: ResourceTreeNode
-): string | undefined {
-  if (document.workspaceType !== "short" || document.stageId !== "draft") {
-    return undefined;
-  }
-  const draft = parseExpertDraftMarkdown(liveDocument(document).content);
-  const preferredId = selectedExpertSectionIds.value[document.id] ?? node?.expertSectionId;
-  return preferredId && findExpertDraftSection(draft, preferredId)
-    ? preferredId
-    : draft.sections[0]?.id;
-}
-
 function promptDocumentForResourceId(resourceId: string): WorkspaceDocument | undefined {
   const node = resourceNode(resourceId);
-  const document = documentForResourceId(resourceId);
+  const directory = draftDirectoryForResourceId(resourceId);
+  const promptSection = directory
+    ? selectedDraftSection(directory, node)
+    : undefined;
+  const document =
+    directory && promptSection
+      ? draftFileDocument(directory, promptSection.id, "body")
+      : documentForResourceId(resourceId);
   if (!document) return undefined;
   const resolved = liveDocument(document);
   if (!node?.shortAgentId) return resolved;
-  if (
-    node.expertSectionId &&
-    document.stageId === "draft" &&
-    !findExpertDraftSection(
-      parseExpertDraftMarkdown(resolved.content),
-      node.expertSectionId
-    )
-  ) {
-    return resolved;
+  if (node.shortAgentId === "expert_draft_coordinator" && directory) {
+    const {
+      catalogDocumentId: _catalogDocumentId,
+      draftFileKind: _draftFileKind,
+      expertSectionId: _expertSectionId,
+      ...contextDocument
+    } = resolved;
+    return {
+      ...contextDocument,
+      id: "draft",
+      title: directory.title,
+      eyebrow: "短篇 · 正文",
+      path: [resolved.workspaceTitle ?? resolved.path[0] ?? "短篇", directory.title],
+      content: "",
+      shortAgentId: "expert_draft_coordinator"
+    };
   }
   return {
     ...resolved,
     shortAgentId: node.shortAgentId,
-    ...(node.expertSectionId
+    ...(promptSection && node.shortAgentId === "expert_section_writer"
       ? {
-          expertSectionId: node.expertSectionId,
-          title: node.label,
+          expertSectionId: promptSection.id,
+          title: promptSection.title,
           eyebrow: "短篇 · 小节编写",
-          path: [...resolved.path, node.label]
+          path: [
+            resolved.workspaceTitle ?? resolved.path[0] ?? "短篇",
+            "正文",
+            promptSection.title
+          ]
         }
       : {})
   };
@@ -717,42 +945,14 @@ const activeDocument = computed<WorkspaceDocument>(() => {
   const source =
     documentForResourceId(selectedResourceId.value) ??
     documents.value[0]!;
-  const node = resourceNode(selectedResourceId.value);
-  const document = liveDocument(source);
-  const sectionId = expertSectionIdForDocument(source, node);
-  if (!sectionId) return document;
-  const section = findExpertDraftSection(
-    parseExpertDraftMarkdown(document.content),
-    sectionId
-  );
-  if (!section) return document;
-  return {
-    ...document,
-    title: section.title,
-    eyebrow: "短篇 · 小节编写",
-    path: [...document.path, section.title],
-    content: section.body,
-    shortAgentId: "expert_section_writer",
-    expertSectionId: section.id
-  };
+  return liveDocument(source);
 });
-const activeEditorDraft = computed<EditorDraftState | undefined>(() => {
-  const draft = editorDrafts.value[activeDocument.value.id];
-  const sectionId = activeDocument.value.expertSectionId;
-  if (!draft) return undefined;
-  if (!sectionId) return draft;
-  const section = findExpertDraftSection(
-    parseExpertDraftMarkdown(draft.content),
-    sectionId
-  );
-  return section
-    ? { ...draft, title: section.title, content: section.body }
-    : draft;
-});
+const activeEditorDraft = computed<EditorDraftState | undefined>(
+  () => editorDrafts.value[activeDocument.value.id]
+);
 const activeExpertSectionTabs = computed(() => {
-  const source = documentForResourceId(selectedResourceId.value);
-  if (source?.workspaceType !== "short" || source.stageId !== "draft") return [];
-  return parseExpertDraftMarkdown(liveDocument(source).content).sections.map((section) => ({
+  const directory = draftDirectoryForResourceId(selectedResourceId.value);
+  return (directory?.sections ?? []).map((section) => ({
     id: section.id,
     title: section.title
   }));
@@ -782,30 +982,14 @@ const activeLibraryBoundToBook = computed(() => {
     ? book?.boundSkillLibraryIds?.includes(document.libraryId) ?? false
     : book?.boundMaterialLibraryIds?.includes(document.libraryId) ?? false;
 });
-function conversationKeyForDocument(
-  document: WorkspaceDocument
-): string {
-  if (
-    document.workspaceType !== "short" ||
-    !document.workspaceId ||
-    !document.stageId
-  ) {
-    return "general";
-  }
-  const agentId =
-    document.shortAgentId ?? resolveShortWorkspaceAgentIdForStage(document.stageId);
-  return `${document.workspaceId}:${agentId}${
-    document.expertSectionId
-      ? `:${encodeURIComponent(document.expertSectionId)}`
-      : ""
-  }`;
-}
-
 const activeConversationKey = computed(() =>
   conversationKeyForDocument(activePromptDocument.value)
 );
-const activeConversation = computed(
-  () => conversationForKey(activeConversationKey.value)
+const activeConversation = computed(() =>
+  conversationForKey(
+    activeConversationKey.value,
+    agentRunScopeForDocument(activePromptDocument.value)
+  )
 );
 const messages = computed(() => activeConversation.value.messages.value);
 const conversationHistory = computed(() => activeConversation.value.history.value);
@@ -835,13 +1019,18 @@ const canSendAttachments = computed(
 );
 const canStop = computed(() => activeConversation.value.canStop.value);
 const editorLocked = computed(() => {
-  const selectedDocument = promptDocumentForResourceId(selectedResourceId.value);
-  const key = conversationKeyForDocument(selectedDocument ?? activeDocument.value);
+  const selectedDocument =
+    promptDocumentForResourceId(selectedResourceId.value) ?? activeDocument.value;
+  const key = conversationKeyForDocument(selectedDocument);
   return (
     acceptingAgentEditDocumentIds.value.has(activeDocument.value.id) ||
     (activeDocument.value.workspaceId !== undefined &&
       acceptingAgentEditWorkspaceIds.value.has(activeDocument.value.workspaceId)) ||
-    (key !== "general" && conversationForKey(key).isBusy.value)
+    (key !== "general" &&
+      conversationForKey(
+        key,
+        agentRunScopeForDocument(selectedDocument)
+      ).isBusy.value)
   );
 });
 const editorLockedLabel = computed(() =>
@@ -1007,21 +1196,24 @@ function handleResizeKeydown(side: "left" | "right", event: KeyboardEvent): void
 }
 
 function selectResource(node: ResourceTreeNode): void {
-  const document = documents.value.find(
-    (candidate) => candidate.id === (node.targetDocumentId ?? node.id)
-  );
+  const directory = draftDirectoryForResourceId(node.id);
+  if (directory && node.expertSectionId) {
+    selectedExpertSectionIds.value = {
+      ...selectedExpertSectionIds.value,
+      [directory.id]: node.expertSectionId
+    };
+    selectedDraftFileKinds.value = {
+      ...selectedDraftFileKinds.value,
+      [directory.id]: "body"
+    };
+  }
+  const document = documentForResourceId(node.id);
   if (!document) {
     return;
   }
   selectedResourceId.value = node.id;
   if (document.domain === "creation") {
     activeCreationResourceId.value = node.id;
-  }
-  if (node.expertSectionId) {
-    selectedExpertSectionIds.value = {
-      ...selectedExpertSectionIds.value,
-      [document.id]: node.expertSectionId
-    };
   }
   rightCollapsed.value = false;
 }
@@ -1144,7 +1336,9 @@ function disposeBookConversations(bookId: string, documentIds?: Set<string>): vo
   for (const key of conversationKeys) {
     conversations.get(key)?.dispose();
     conversations.delete(key);
+    conversationScopes.delete(key);
   }
+  removeAgentRunPreferences(`book:${bookId}`);
 }
 
 async function removeCatalogBook(book: ResourceTreeNode): Promise<void> {
@@ -1214,6 +1408,7 @@ async function removeUnavailableCatalogBook(book: ResourceTreeNode): Promise<voi
     if (!result.unregistered) {
       throw new Error("该书籍已经不在项目注册表中。");
     }
+    disposeBookConversations(book.id);
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     closeBookDialog();
     uiMessage.success(`已解除“${book.label}”的注册，本地文件夹未删除`);
@@ -1361,14 +1556,13 @@ async function createShortBook(input: CreateShortBookInput): Promise<void> {
     await loadWorkspaceDirectory();
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     createShortBookDialogOpen.value = false;
-    const draftDocument = documents.value.find(
-      (document) => document.workspaceId === book.id && document.stageId === "draft"
+    const targetResourceId = resolvePreferredBookResourceId(
+      catalogProjection.value ?? undefined,
+      book.id
     );
-    const firstDocument = documents.value.find((document) => document.workspaceId === book.id);
-    const target = draftDocument ?? firstDocument;
-    if (target) {
-      selectedResourceId.value = target.id;
-      activeCreationResourceId.value = target.id;
+    if (targetResourceId) {
+      selectedResourceId.value = targetResourceId;
+      activeCreationResourceId.value = targetResourceId;
       rightCollapsed.value = false;
     }
     uiMessage.success(`已创建短篇“${book.title}”，素材库和技能库绑定已保存`);
@@ -1432,14 +1626,13 @@ async function handleResourceAction(payload: ResourceSectionActionPayload): Prom
       }
       await loadWorkspaceDirectory();
       applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
-      const target =
-        documents.value.find(
-          (document) =>
-            document.workspaceId === imported.id && document.stageId === "draft"
-        ) ?? documents.value.find((document) => document.workspaceId === imported.id);
-      if (target) {
-        selectedResourceId.value = target.id;
-        activeCreationResourceId.value = target.id;
+      const targetResourceId = resolvePreferredBookResourceId(
+        catalogProjection.value ?? undefined,
+        imported.id
+      );
+      if (targetResourceId) {
+        selectedResourceId.value = targetResourceId;
+        activeCreationResourceId.value = targetResourceId;
         rightCollapsed.value = false;
       }
       uiMessage.success(`已导入旧版书籍“${imported.title}”并转换为新的文件结构`);
@@ -1531,16 +1724,17 @@ async function handleResourceAction(payload: ResourceSectionActionPayload): Prom
       }
       await loadWorkspaceDirectory();
       applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
-      const target =
+      const targetResourceId =
         opened.domain === "book"
-          ? documents.value.find(
-              (document) => document.workspaceId === opened.id && document.stageId === "draft"
-            ) ?? documents.value.find((document) => document.workspaceId === opened.id)
-          : documents.value.find((document) => document.libraryId === opened.id);
-      if (target) {
-        selectedResourceId.value = target.id;
+          ? resolvePreferredBookResourceId(
+              catalogProjection.value ?? undefined,
+              opened.id
+            )
+          : documents.value.find((document) => document.libraryId === opened.id)?.id;
+      if (targetResourceId) {
+        selectedResourceId.value = targetResourceId;
         if (opened.domain === "book") {
-          activeCreationResourceId.value = target.id;
+          activeCreationResourceId.value = targetResourceId;
         }
         rightCollapsed.value = false;
       }
@@ -1929,35 +2123,6 @@ function handleResourceNodeAction(payload: CatalogResourceNodeActionPayload): vo
   };
 }
 
-function sourcePayloadForSelectedSection(payload: {
-  id: string;
-  title: string;
-  content: string;
-}): { id: string; title: string; content: string } {
-  const sectionId = activeDocument.value.expertSectionId;
-  if (!sectionId) return payload;
-  const sourceId = documentForResourceId(selectedResourceId.value)?.id;
-  if (!sourceId) return payload;
-  if (payload.id !== sourceId) return payload;
-  const source = documents.value.find((document) => document.id === sourceId);
-  if (!source || source.workspaceType !== "short" || source.stageId !== "draft") {
-    return payload;
-  }
-  const currentContent = editorDrafts.value[sourceId]?.content ?? source.content;
-  const currentDraft = parseExpertDraftMarkdown(currentContent);
-  if (!findExpertDraftSection(currentDraft, sectionId)) return payload;
-  return {
-    id: source.id,
-    title: editorDrafts.value[sourceId]?.title ?? source.title,
-    content: serializeExpertDraftMarkdown(
-      updateExpertDraftSection(currentDraft, sectionId, {
-        title: payload.title,
-        body: payload.content
-      })
-    )
-  };
-}
-
 function stageEditorDraft(payload: { id: string; title: string; content: string }): void {
   const persisted = documents.value.find((document) => document.id === payload.id);
   const existingDraft = editorDrafts.value[payload.id];
@@ -1983,7 +2148,7 @@ function stageEditorDraft(payload: { id: string; title: string; content: string 
 }
 
 function handleLiveDocumentChange(rawPayload: { id: string; title: string; content: string }): void {
-  stageEditorDraft(sourcePayloadForSelectedSection(rawPayload));
+  stageEditorDraft(rawPayload);
 }
 
 function expertDraftMutationBlocked(source: WorkspaceDocument): boolean {
@@ -2003,122 +2168,269 @@ function expertDraftMutationBlocked(source: WorkspaceDocument): boolean {
 }
 
 function selectExpertSection(sectionId: string): void {
-  const source = documentForResourceId(selectedResourceId.value);
-  if (source?.workspaceType !== "short" || source.stageId !== "draft") return;
-  if (!findExpertDraftSection(parseExpertDraftMarkdown(liveDocument(source).content), sectionId)) {
+  const directory = draftDirectoryForResourceId(selectedResourceId.value);
+  if (!directory) return;
+  if (!directory.sections.some((section) => section.id === sectionId)) {
     uiMessage.warning("该小节已不存在，章节列表已刷新");
     return;
   }
   selectedExpertSectionIds.value = {
     ...selectedExpertSectionIds.value,
-    [source.id]: sectionId
+    [directory.id]: sectionId
+  };
+  const selectedNode = resourceNode(selectedResourceId.value);
+  if (selectedNode?.shortAgentId === "expert_section_writer") {
+    const sectionResourceId = resolveDraftSectionResourceId(
+      resourceNode(directory.id),
+      sectionId
+    );
+    if (sectionResourceId) {
+      selectedResourceId.value = sectionResourceId;
+      activeCreationResourceId.value = sectionResourceId;
+    }
+  }
+}
+
+function selectDraftFile(fileKind: "body" | "character-state"): void {
+  const directory = draftDirectoryForResourceId(selectedResourceId.value);
+  if (!directory) return;
+  selectedDraftFileKinds.value = {
+    ...selectedDraftFileKinds.value,
+    [directory.id]: fileKind
   };
 }
 
-function addExpertSection(draftNode: ResourceTreeNode): void {
+function insertEditorSelectionReference(reference: EditorTextReference): void {
+  pendingEditorReference.value = reference;
+}
+
+function clearEditorSelectionReference(): void {
+  pendingEditorReference.value = null;
+}
+
+function locateEditorSelectionReference(reference: EditorTextReference): void {
+  const document = documents.value.find((candidate) => candidate.id === reference.documentId);
+  if (!document) {
+    if (pendingEditorReference.value?.id === reference.id) {
+      pendingEditorReference.value = null;
+    }
+    uiMessage.warning("引用的正文文件已不存在，已移除这条引用");
+    return;
+  }
+
+  let targetResourceId = resourceNode(reference.resourceId)
+    ? reference.resourceId
+    : resourceIdForDocumentId(reference.documentId) ?? reference.documentId;
+  if (document.draftFileKind && document.expertSectionId) {
+    const directory = catalogProjection.value?.draftDirectories.find((candidate) =>
+      candidate.sections.some(
+        (section) =>
+          section.bodyDocumentId === document.id ||
+          section.characterStateDocumentId === document.id
+      )
+    );
+    if (directory) {
+      selectedExpertSectionIds.value = {
+        ...selectedExpertSectionIds.value,
+        [directory.id]: document.expertSectionId
+      };
+      selectedDraftFileKinds.value = {
+        ...selectedDraftFileKinds.value,
+        [directory.id]: document.draftFileKind
+      };
+      const referenceNode = resourceNode(targetResourceId);
+      const referenceDirectory = referenceNode
+        ? draftDirectoryForResourceId(referenceNode.id)
+        : undefined;
+      if (referenceDirectory?.id !== directory.id) {
+        targetResourceId =
+          resolveDraftSectionResourceId(
+            resourceNode(directory.id),
+            document.expertSectionId
+          ) ?? directory.id;
+      }
+    }
+  }
+
+  selectedResourceId.value = targetResourceId;
+  if (document.domain === "creation") {
+    activeCreationResourceId.value = targetResourceId;
+  }
+  rightCollapsed.value = false;
+  editorReferenceNavigation.value = {
+    requestId: ++editorReferenceNavigationClock,
+    reference
+  };
+}
+
+async function addExpertSection(draftNode: ResourceTreeNode): Promise<void> {
+  const directory = draftDirectoryForResourceId(draftNode.id);
   const source = documentForResourceId(draftNode.id);
+  if (!directory) return;
   if (source?.workspaceType !== "short" || source.stageId !== "draft") return;
   if (
     draftNode.shortAgentId !==
       "expert_draft_coordinator" ||
     expertDraftMutationBlocked(source) ||
-    source.readOnly
+    source.readOnly ||
+    catalogMutationPending.value ||
+    !window.deepwrite
   ) {
     uiMessage.info("当前正文暂时不能新建小节，请稍候");
     return;
   }
-  const current = parseExpertDraftMarkdown(liveDocument(source).content);
-  const next = appendExpertDraftSection(current);
-  if (next === current) {
+  if (directory.sections.length >= 100) {
     uiMessage.warning("正文最多支持 100 个小节");
     return;
   }
-  const added = next.sections.at(-1)!;
-  stageEditorDraft({
-    id: source.id,
-    title: editorDrafts.value[source.id]?.title ?? source.title,
-    content: serializeExpertDraftMarkdown(next)
-  });
-  selectedExpertSectionIds.value = {
-    ...selectedExpertSectionIds.value,
-    [source.id]: added.id
-  };
-  uiMessage.success(`已新建“${added.title}”，点击“应用”保存`);
+  catalogMutationPending.value = true;
+  try {
+    const book = catalogBook(directory.workspaceId);
+    const added = await window.deepwrite.catalog.createDraftSection({
+      bookId: directory.workspaceId,
+      ...(directory.sections.at(-1)
+        ? { afterSectionId: directory.sections.at(-1)!.id }
+        : {}),
+      ...(book?.projectRevision === undefined
+        ? {}
+        : { baseProjectRevision: book.projectRevision })
+    });
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    selectedResourceId.value = directory.id;
+    activeCreationResourceId.value = directory.id;
+    selectedExpertSectionIds.value = {
+      ...selectedExpertSectionIds.value,
+      [directory.id]: added.id
+    };
+    selectedDraftFileKinds.value = {
+      ...selectedDraftFileKinds.value,
+      [directory.id]: "body"
+    };
+    uiMessage.success(`已新建“${added.title}”并保存到正文文件夹`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "新建正文小节失败。");
+  } finally {
+    catalogMutationPending.value = false;
+  }
 }
 
 function requestRemoveExpertSection(node: ResourceTreeNode): void {
   if (!node.expertSectionId) return;
-  const source = documentForResourceId(node.id);
-  if (source?.workspaceType !== "short" || source.stageId !== "draft") return;
-  const draft = parseExpertDraftMarkdown(liveDocument(source).content);
-  const section = findExpertDraftSection(draft, node.expertSectionId);
-  if (!section) {
+  const directory = draftDirectoryForResourceId(node.id);
+  const section = directory?.sections.find(
+    (candidate) => candidate.id === node.expertSectionId
+  );
+  if (!directory || !section) {
     uiMessage.warning("该小节已经不存在");
     return;
   }
-  if (draft.sections.length <= 1) {
+  if (directory.sections.length <= 1) {
     uiMessage.warning("正文至少需要保留一个小节");
     return;
   }
+  const body = draftFileDocument(directory, section.id, "body");
+  const characterState = draftFileDocument(
+    directory,
+    section.id,
+    "character-state"
+  );
   pendingExpertSectionDeletion.value = {
-    documentId: source.id,
+    workspaceId: directory.workspaceId,
+    draftDirectoryId: directory.id,
     sectionId: section.id,
     sectionTitle: section.title,
     hasContent: Boolean(
-      section.body.trim() ||
-      section.characterState.trim() ||
+      (body && liveDocument(body).content.trim()) ||
+      (characterState && liveDocument(characterState).content.trim()) ||
       section.wordCountRequirement.trim()
     )
   };
 }
 
-function confirmRemoveExpertSection(): void {
+async function confirmRemoveExpertSection(): Promise<void> {
   const pending = pendingExpertSectionDeletion.value;
   if (!pending) return;
-  const source = documents.value.find((document) => document.id === pending.documentId);
-  if (!source) {
+  const directory = catalogProjection.value?.draftDirectories.find(
+    (candidate) => candidate.id === pending.draftDirectoryId
+  );
+  const section = directory?.sections.find(
+    (candidate) => candidate.id === pending.sectionId
+  );
+  const source = section
+    ? documents.value.find((document) => document.id === section.bodyDocumentId)
+    : undefined;
+  if (!directory || !section || !source) {
     pendingExpertSectionDeletion.value = null;
     uiMessage.warning("该正文已经不存在");
     return;
   }
-  const conversationKey = source.workspaceId
-    ? `${source.workspaceId}:expert_section_writer:${encodeURIComponent(pending.sectionId)}`
-    : undefined;
-  if (expertDraftMutationBlocked(source)) {
+  const conversationKey = `${pending.workspaceId}:expert_section_writer:${encodeURIComponent(pending.sectionId)}`;
+  if (
+    expertDraftMutationBlocked(source) ||
+    catalogMutationPending.value ||
+    !window.deepwrite
+  ) {
     uiMessage.info("当前小节正在处理或保存，请稍候再删除");
     return;
   }
-  const current = parseExpertDraftMarkdown(liveDocument(source).content);
-  const removedIndex = current.sections.findIndex(
-    (section) => section.id === pending.sectionId
+  const removedIndex = directory.sections.findIndex(
+    (candidate) => candidate.id === pending.sectionId
   );
-  const next = removeExpertDraftSection(current, pending.sectionId);
-  if (next === current) {
-    pendingExpertSectionDeletion.value = null;
-    uiMessage.warning("该小节无法删除，正文至少需要保留一个小节");
-    return;
-  }
-  const fallbackSection = next.sections[Math.min(removedIndex, next.sections.length - 1)]!;
-  stageEditorDraft({
-    id: source.id,
-    title: editorDrafts.value[source.id]?.title ?? source.title,
-    content: serializeExpertDraftMarkdown(next)
-  });
-  selectedExpertSectionIds.value = {
-    ...selectedExpertSectionIds.value,
-    [source.id]: fallbackSection.id
-  };
-  if (conversationKey) {
+  const fallbackSections = directory.sections.filter(
+    (candidate) => candidate.id !== pending.sectionId
+  );
+  const fallbackSection =
+    fallbackSections[Math.min(removedIndex, fallbackSections.length - 1)];
+  catalogMutationPending.value = true;
+  try {
+    const book = catalogBook(pending.workspaceId);
+    const deleted = await window.deepwrite.catalog.deleteDraftSection({
+      bookId: pending.workspaceId,
+      sectionId: pending.sectionId,
+      ...(book?.projectRevision === undefined
+        ? {}
+        : { baseProjectRevision: book.projectRevision })
+    });
+    if (!deleted.deleted) {
+      throw new Error("该正文小节已经不存在。");
+    }
+    const nextDrafts = { ...editorDrafts.value };
+    delete nextDrafts[section.bodyDocumentId];
+    delete nextDrafts[section.characterStateDocumentId];
+    editorDrafts.value = nextDrafts;
     conversations.get(conversationKey)?.dispose();
     conversations.delete(conversationKey);
+    // Keep the refresh anchored to this book's virtual draft directory. If the
+    // deleted child disappears first, the generic fallback would otherwise
+    // choose the first draft directory from another book.
+    selectedResourceId.value = directory.id;
+    activeCreationResourceId.value = directory.id;
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    selectedResourceId.value = directory.id;
+    activeCreationResourceId.value = directory.id;
+    if (fallbackSection) {
+      selectedExpertSectionIds.value = {
+        ...selectedExpertSectionIds.value,
+        [directory.id]: fallbackSection.id
+      };
+    }
+    selectedDraftFileKinds.value = {
+      ...selectedDraftFileKinds.value,
+      [directory.id]: "body"
+    };
+    pendingExpertSectionDeletion.value = null;
+    uiMessage.success(`已删除“${pending.sectionTitle}”及对应人物状态文件`);
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "删除正文小节失败。");
+  } finally {
+    catalogMutationPending.value = false;
   }
-  pendingExpertSectionDeletion.value = null;
-  uiMessage.success(`已删除“${pending.sectionTitle}”，点击“应用”保存`);
 }
 
 function applyDocumentLocally(
   payload: { id: string; title: string; content: string },
-  savedProjectRevision?: number
+  savedProjectRevision?: number,
+  submittedPayload = payload
 ): void {
   const index = documents.value.findIndex((document) => document.id === payload.id);
   if (index < 0) {
@@ -2141,19 +2453,34 @@ function applyDocumentLocally(
       savedProjectRevision === undefined
         ? document
         : { ...document, catalogProjectRevision: savedProjectRevision };
-    return document.id === payload.id
-      ? {
-          ...withProjectRevision,
-          title: payload.title,
-          content: payload.content,
-          path: withProjectRevision.path.length
-            ? [
-                ...withProjectRevision.path.slice(0, -1),
-                payload.title
-              ]
-            : withProjectRevision.path
-        }
-      : withProjectRevision;
+    if (document.id === payload.id) {
+      const path = [...withProjectRevision.path];
+      if (document.draftFileKind === "body" && path.length >= 2) {
+        path[path.length - 2] = payload.title;
+      } else if (path.length) {
+        path[path.length - 1] = payload.title;
+      }
+      return {
+        ...withProjectRevision,
+        title: payload.title,
+        content: payload.content,
+        path
+      };
+    }
+    if (
+      current.draftFileKind === "body" &&
+      document.draftFileKind === "character-state" &&
+      document.expertSectionId === current.expertSectionId
+    ) {
+      const path = [...withProjectRevision.path];
+      if (path.length >= 2) path[path.length - 2] = payload.title;
+      return {
+        ...withProjectRevision,
+        title: draftCharacterStateTitle(payload.title),
+        path
+      };
+    }
+    return withProjectRevision;
   });
   const currentDraft = editorDrafts.value[payload.id];
   const nextDrafts = { ...editorDrafts.value };
@@ -2169,14 +2496,32 @@ function applyDocumentLocally(
       }
     }
   }
+  if (current.draftFileKind === "body" && current.expertSectionId) {
+    const pairedState = documents.value.find(
+      (document) =>
+        document.workspaceId === current.workspaceId &&
+        document.expertSectionId === current.expertSectionId &&
+        document.draftFileKind === "character-state"
+    );
+    if (pairedState && nextDrafts[pairedState.id]) {
+      nextDrafts[pairedState.id] = {
+        ...nextDrafts[pairedState.id]!,
+        title: draftCharacterStateTitle(payload.title)
+      };
+    }
+  }
   if (
     currentDraft &&
-    (currentDraft.title !== payload.title || currentDraft.content !== payload.content)
+    (currentDraft.title !== submittedPayload.title ||
+      currentDraft.content !== submittedPayload.content)
   ) {
     // The user continued typing while an asynchronous save was in flight.
     // Keep that newer draft and advance only its disk base to what just saved.
     nextDrafts[payload.id] = {
       ...currentDraft,
+      ...(current.draftFileKind === "character-state"
+        ? { title: payload.title }
+        : {}),
       dirty: true,
       recoveryUpdatedAt: nextDraftRecoveryTimestamp(),
       baseRevision: createShortWorkspaceContentRevision(payload.content),
@@ -2210,6 +2555,45 @@ function applyAcceptedAgentDocumentLocally(
     };
   }
   applyDocumentLocally(payload, savedProjectRevision);
+}
+
+async function refreshBookAfterSuccessfulDocumentSave(
+  workspaceId: string,
+  expectedDocuments: ReadonlyMap<string, WorkspaceDocumentBaseline>
+): Promise<boolean> {
+  if (!window.deepwrite) return false;
+  try {
+    const latestSnapshot = await window.deepwrite.catalog.snapshot();
+    const latestBook = latestSnapshot.books.find(
+      (book) => book.id === workspaceId
+    );
+    if (!latestBook) {
+      throw new Error("保存后的书籍没有出现在最新目录快照中。");
+    }
+    const latestRevision = latestBook.projectRevision;
+    const currentRevision = catalogBook(workspaceId)?.projectRevision;
+    if (
+      latestRevision !== undefined &&
+      currentRevision !== undefined &&
+      latestRevision < currentRevision
+    ) {
+      return true;
+    }
+    applyCatalogSnapshot(latestSnapshot);
+    const projectRevision = catalogBook(workspaceId)?.projectRevision;
+    editorDrafts.value = rebaseDraftsForMatchingDocuments(
+      editorDrafts.value,
+      documents.value,
+      workspaceId,
+      expectedDocuments,
+      projectRevision,
+      nextDraftRecoveryTimestamp()
+    );
+    return true;
+  } catch {
+    uiMessage.warning("文稿已保存，但最新目录版本暂未同步；下次聚焦窗口时会自动重试");
+    return false;
+  }
 }
 
 function setAgentEditDocumentAccepting(documentId: string, accepting: boolean): void {
@@ -2275,7 +2659,33 @@ function applySavedCatalogDocument(
             ...(projectRevision === undefined ? {} : { projectRevision }),
             documents: book.documents.map((document) =>
               document.id === saved.id ? saved : document
-            )
+            ),
+            draft: {
+              ...book.draft,
+              updatedAt: saved.updatedAt,
+              sections: book.draft.sections.map((section) => {
+                if (section.body.id === saved.id) {
+                  return {
+                    ...section,
+                    title: saved.title,
+                    body: saved,
+                    characterState: {
+                      ...section.characterState,
+                      title: draftCharacterStateTitle(saved.title)
+                    },
+                    updatedAt: saved.updatedAt
+                  };
+                }
+                if (section.characterState.id === saved.id) {
+                  return {
+                    ...section,
+                    characterState: saved,
+                    updatedAt: saved.updatedAt
+                  };
+                }
+                return section;
+              })
+            }
           }
     )
   };
@@ -2364,10 +2774,16 @@ async function openSaveConflict(
   if (!window.deepwrite) return;
   try {
     const latestSnapshot = await window.deepwrite.catalog.snapshot();
+    const diskBook = document.workspaceId
+      ? latestSnapshot.books.find((book) => book.id === document.workspaceId)
+      : undefined;
     const diskDocument = document.workspaceId && document.catalogDocumentId
-      ? latestSnapshot.books
-          .find((book) => book.id === document.workspaceId)
-          ?.documents.find((candidate) => candidate.id === document.catalogDocumentId)
+      ? diskBook?.documents.find(
+          (candidate) => candidate.id === document.catalogDocumentId
+        ) ??
+        diskBook?.draft.sections
+          .flatMap((section) => [section.body, section.characterState])
+          .find((candidate) => candidate.id === document.catalogDocumentId)
       : document.libraryId && document.catalogEntryId && document.domain === "material"
         ? latestSnapshot.materials
             .find((library) => library.id === document.libraryId)
@@ -2466,18 +2882,26 @@ async function saveCatalogDocument(
         : { baseProjectRevision: projectRevision }),
       ...(force ? { force: true } : {})
     });
-    const savedProjectRevision =
-      projectRevision === undefined ? undefined : projectRevision + 1;
-    applySavedCatalogDocument(
-      document.workspaceId,
-      saved,
-      savedProjectRevision
-    );
+    const normalizedPayload = {
+      id: payload.id,
+      title: saved.title,
+      content: saved.content
+    };
+    applySavedCatalogDocument(document.workspaceId, saved, undefined);
     applyDocumentLocally(
-      payload,
-      savedProjectRevision
+      normalizedPayload,
+      undefined,
+      payload
     );
     uiMessage.success("文稿已保存到本机");
+    const expectedDocuments = captureWorkspaceDocumentBaselines(
+      documents.value,
+      document.workspaceId
+    );
+    await refreshBookAfterSuccessfulDocumentSave(
+      document.workspaceId,
+      expectedDocuments
+    );
     return true;
   } catch (error: unknown) {
     restoreDraftAfterSaveFailure(document, payload);
@@ -2555,7 +2979,7 @@ async function saveCatalogLibraryEntry(
 }
 
 function applyDocument(rawPayload: { id: string; title: string; content: string }): void {
-  const payload = sourcePayloadForSelectedSection(rawPayload);
+  const payload = rawPayload;
   const document = documents.value.find((candidate) => candidate.id === payload.id);
   if (!document) return;
   if (
@@ -2749,10 +3173,21 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
   );
   if (!sourceConversation) return;
 
-  const target = liveWorkspaceDocuments.value.find(
-    (document) =>
-      document.workspaceId === event.payload.workspaceId &&
-      document.stageId === event.payload.stageId
+  const mutationTarget = event.payload.mutationTarget;
+  const expectedDraftFileKind =
+    mutationTarget?.fileKind === "characterState"
+      ? "character-state"
+      : mutationTarget?.fileKind;
+  const target = liveWorkspaceDocuments.value.find((document) =>
+    mutationTarget
+      ? document.id === mutationTarget.documentId &&
+        document.workspaceId === event.payload.workspaceId &&
+        document.stageId === "draft" &&
+        document.expertSectionId === mutationTarget.sectionId &&
+        document.draftFileKind === expectedDraftFileKind
+      : document.workspaceId === event.payload.workspaceId &&
+        document.stageId === event.payload.stageId &&
+        document.draftFileKind === undefined
   );
   if (!target || target.readOnly) {
     const message = "目标文稿不可写，本次智能体变更未进入审阅。";
@@ -2768,7 +3203,8 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
   const proposalId = agentEditProposalId(
     event.payload.runId,
     event.payload.workspaceId,
-    event.payload.stageId
+    event.payload.stageId,
+    target.id
   );
   const existing = sourceConversation.getEditProposal(
     event.payload.runId,
@@ -2780,8 +3216,7 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
   const currentRevision = createShortWorkspaceContentRevision(target.content);
   const expectedBaseRevision = expectedMutationBaseRevision(
     existing,
-    target.content,
-    event.payload.mutationTarget !== undefined
+    target.content
   );
   if (
     event.payload.baseRevision !== expectedBaseRevision ||
@@ -2830,14 +3265,7 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
   const proposedText = resolvedMutation.text;
   const proposedRevision = createShortWorkspaceContentRevision(proposedText);
 
-  const diff = buildAgentTextDiff(
-    target.workspaceType === "short" && event.payload.stageId === "draft"
-      ? renderExpertDraftReview(parseExpertDraftMarkdown(target.content))
-      : target.content,
-    target.workspaceType === "short" && event.payload.stageId === "draft"
-      ? renderExpertDraftReview(parseExpertDraftMarkdown(proposedText))
-      : proposedText
-  );
+  const diff = buildAgentTextDiff(target.content, proposedText);
   const noChanges = proposedRevision === (existing?.baseRevision ?? currentRevision);
   const proposal: AgentEditProposal = {
     id: proposalId,
@@ -3036,17 +3464,24 @@ async function applyAgentEdit(
           ? {}
           : { baseProjectRevision: projectRevision })
       });
-      const savedProjectRevision =
-        projectRevision === undefined ? undefined : projectRevision + 1;
-      applySavedCatalogDocument(
-        persistedDocument.workspaceId,
-        saved,
-        savedProjectRevision
-      );
+      const normalizedPayload = {
+        id: payload.id,
+        title: saved.title,
+        content: saved.content
+      };
+      applySavedCatalogDocument(persistedDocument.workspaceId, saved, undefined);
       applyAcceptedAgentDocumentLocally(
-        payload,
-        savedProjectRevision,
+        normalizedPayload,
+        undefined,
         draftAtAccept
+      );
+      const expectedDocuments = captureWorkspaceDocumentBaselines(
+        documents.value,
+        persistedDocument.workspaceId
+      );
+      await refreshBookAfterSuccessfulDocumentSave(
+        persistedDocument.workspaceId,
+        expectedDocuments
       );
       newerDraftPreserved = Boolean(editorDrafts.value[payload.id]);
       persisted = true;
@@ -3169,9 +3604,7 @@ async function loadModelSettings(): Promise<void> {
   try {
     const settings = await window.deepwrite.models.list();
     modelSettings.value = settings;
-    for (const conversation of allConversations()) {
-      conversation.applyModelSettings(settings);
-    }
+    applyModelSettingsToConversations(settings);
   } catch (error: unknown) {
     modelError.value = error instanceof Error ? error.message : "加载模型配置失败。";
   } finally {
@@ -3195,9 +3628,7 @@ async function saveModelSettings(settings: ModelSettingsInput): Promise<void> {
   try {
     const saved = await window.deepwrite.models.save(settings);
     modelSettings.value = saved;
-    for (const conversation of allConversations()) {
-      conversation.applyModelSettings(saved);
-    }
+    applyModelSettingsToConversations(saved);
     modelTestMessage.value = "模型配置已保存，并已同步到后续对话。";
   } catch (error: unknown) {
     modelError.value = error instanceof Error ? error.message : "保存模型配置失败。";
@@ -3273,12 +3704,31 @@ async function saveWorkspaceAgentSettings(
   }
 }
 
+function synchronizeActiveAgentRunPreferences(): void {
+  synchronizeAgentRunPreferences(
+    agentRunScopeForDocument(activePromptDocument.value),
+    activeConversation.value
+  );
+}
+
+function selectModel(modelId: string): void {
+  activeConversation.value.selectModel(modelId);
+  synchronizeActiveAgentRunPreferences();
+}
+
 function selectThinking(level: ThinkingLevel): void {
   activeConversation.value.selectThinkingLevel(level);
+  synchronizeActiveAgentRunPreferences();
 }
 
 function selectTemperature(value: number): void {
   activeConversation.value.selectTemperature(value);
+  synchronizeActiveAgentRunPreferences();
+}
+
+function selectApprovalMode(mode: AgentRunSettings["approvalMode"]): void {
+  activeConversation.value.selectApprovalMode(mode);
+  synchronizeActiveAgentRunPreferences();
 }
 
 function handleGlobalKeydown(event: KeyboardEvent): void {
@@ -3515,6 +3965,7 @@ onBeforeUnmount(() => {
         :agent-id="activeAgentId"
         :available-skills="availableSkillReferences"
         :available-materials="availableMaterialReferences"
+        :editor-reference="pendingEditorReference"
         :left-collapsed="leftCollapsed"
         :right-collapsed="rightCollapsed"
         @new-conversation="newConversation"
@@ -3524,17 +3975,21 @@ onBeforeUnmount(() => {
         @suggestion="useSuggestion"
         @toggle-left="leftCollapsed = !leftCollapsed"
         @toggle-right="rightCollapsed = !rightCollapsed"
-        @select-model="activeConversation.selectModel"
+        @select-model="selectModel"
         @select-thinking="selectThinking"
         @select-temperature="selectTemperature"
-        @select-approval="activeConversation.selectApprovalMode"
+        @select-approval="selectApprovalMode"
         @review-edit="reviewAgentEdit"
+        @clear-editor-reference="clearEditorSelectionReference"
+        @locate-editor-reference="locateEditorSelectionReference"
       />
 
       <RightEditorPane
         v-if="!rightCollapsed"
         :document="activeDocument"
+        :resource-id="selectedResourceId"
         :draft-state="activeEditorDraft"
+        :locate-reference="editorReferenceNavigation"
         :locked="editorLocked"
         :locked-label="editorLockedLabel"
         :saving="editorSaving"
@@ -3544,7 +3999,9 @@ onBeforeUnmount(() => {
         @collapse="rightCollapsed = true"
         @save="applyDocument"
         @live-change="handleLiveDocumentChange"
+        @insert-selection="insertEditorSelectionReference"
         @select-section="selectExpertSection"
+        @select-draft-file="selectDraftFile"
       />
 
       <div

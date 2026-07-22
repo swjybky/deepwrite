@@ -1,11 +1,16 @@
 import { z } from "zod";
 
+export const SHORT_WORKSPACE_FILE_MAX_CHARACTERS = 32 * 1024 * 1024;
+
+export const DraftSectionIdSchema = z.string().trim().min(1).max(120);
+export const DraftSectionTitleSchema = z.string().trim().min(1).max(240);
+
 export const ExpertDraftSectionSchema = z.object({
-  id: z.string().trim().min(1).max(120),
-  title: z.string().max(240),
+  id: DraftSectionIdSchema,
+  title: DraftSectionTitleSchema,
   wordCountRequirement: z.string().max(1_000),
-  body: z.string().max(10_000_000),
-  characterState: z.string().max(10_000_000)
+  body: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
+  characterState: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS)
 });
 export type ExpertDraftSection = z.infer<typeof ExpertDraftSectionSchema>;
 

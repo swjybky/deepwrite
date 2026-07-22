@@ -16,10 +16,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  CatalogSnapshotSchema,
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
   createShortWorkspaceContentRevision,
   type CatalogSnapshot
 } from "@deepwrite/contracts";
 import {
+  assertLegacyBookMigrationSourcesUnchanged,
   FolderCatalogConflictError,
   FolderCatalogStore
 } from "./folder-catalog-store";
@@ -44,7 +48,7 @@ function tickingClock(): () => string {
 }
 
 function catalogFixture(): CatalogSnapshot {
-  return {
+  return CatalogSnapshotSchema.parse({
     schemaVersion: 1,
     revision: 17,
     updatedAt: timestamp,
@@ -154,7 +158,7 @@ function catalogFixture(): CatalogSnapshot {
         updatedAt: timestamp
       }
     ]
-  };
+  });
 }
 
 afterEach(async () => {
@@ -165,6 +169,33 @@ afterEach(async () => {
 });
 
 describe("FolderCatalogStore", () => {
+  it("rejects source changes detected immediately before a legacy manifest switch", () => {
+    expect(() =>
+      assertLegacyBookMigrationSourcesUnchanged({
+        originalManifestText: "manifest-v1",
+        currentManifestText: "manifest-v1",
+        originalLegacyDraftContent: "旧正文",
+        currentLegacyDraftContent: "旧正文"
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertLegacyBookMigrationSourcesUnchanged({
+        originalManifestText: "manifest-v1",
+        currentManifestText: "manifest-v1-external-edit",
+        originalLegacyDraftContent: "旧正文",
+        currentLegacyDraftContent: "旧正文"
+      })
+    ).toThrow(/迁移期间被外部修改/u);
+    expect(() =>
+      assertLegacyBookMigrationSourcesUnchanged({
+        originalManifestText: "manifest-v1",
+        currentManifestText: "manifest-v1",
+        originalLegacyDraftContent: "旧正文",
+        currentLegacyDraftContent: "外部更新后的正文"
+      })
+    ).toThrow(/迁移期间被外部修改/u);
+  });
+
   it("migrates a complete snapshot into manifests and Markdown while preserving data", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-migrate-");
     const store = new FolderCatalogStore({ userDataPath: join(root, "user-data") });
@@ -205,17 +236,44 @@ describe("FolderCatalogStore", () => {
     );
     expect(bookManifestText).not.toContain("门外一直在下雨");
     const bookManifest = JSON.parse(bookManifestText) as {
+      schemaVersion: number;
       kind: string;
       documents: Array<{ path: string }>;
+      draft: {
+        sections: Array<{
+          id: string;
+          body: { path: string };
+          characterState: { path: string };
+        }>;
+      };
     };
-    expect(bookManifest.kind).toBe("deepwrite.book");
-    expect(bookManifest.documents[0]?.path).toBe("stages/draft.md");
-    expect(
-      await readFile(
-        join(bookProject.projectDirectory, bookManifest.documents[0]!.path),
-        "utf8"
-      )
-    ).toBe(source.books[0]!.documents[0]!.content);
+    expect(bookManifest).toMatchObject({
+      schemaVersion: 2,
+      kind: "deepwrite.book",
+      documents: []
+    });
+    expect(bookManifest.draft.sections).toHaveLength(2);
+    await Promise.all(
+      bookManifest.draft.sections.map(async (section, index) => {
+        expect(section.body.path).toMatch(
+          new RegExp(`^stages/draft/${section.id}\\.body\\.md$`, "u")
+        );
+        expect(section.characterState.path).toMatch(
+          new RegExp(`^stages/draft/${section.id}\\.state\\.md$`, "u")
+        );
+        await expect(
+          readFile(join(bookProject.projectDirectory, section.body.path), "utf8")
+        ).resolves.toBe(source.books[0]!.draft.sections[index]!.body.content);
+        await expect(
+          readFile(
+            join(bookProject.projectDirectory, section.characterState.path),
+            "utf8"
+          )
+        ).resolves.toBe(
+          source.books[0]!.draft.sections[index]!.characterState.content
+        );
+      })
+    );
 
     const materialProject = registry.projects.find(
       ({ id }) => id === "material-existing"
@@ -322,12 +380,14 @@ describe("FolderCatalogStore", () => {
 
     expect(first.projectDirectory).toMatch(/\/雨夜-来信$/u);
     expect(second.projectDirectory).toMatch(/\/雨夜-来信-2$/u);
-    expect(first.resource.documents).toHaveLength(6);
+    expect(first.resource.documents).toHaveLength(5);
+    expect(first.resource.draft.sections).toHaveLength(2);
 
     const emptyRevision = createShortWorkspaceContentRevision("");
+    const bodyDocumentId = catalogDraftBodyDocumentId("section-1");
     const saved = await store.saveDocument({
       bookId: first.resource.id,
-      documentId: "draft",
+      documentId: bodyDocumentId,
       content: "新的正文",
       baseRevision: emptyRevision,
       baseProjectRevision: 0
@@ -336,7 +396,7 @@ describe("FolderCatalogStore", () => {
     await expect(
       store.saveDocument({
         bookId: first.resource.id,
-        documentId: "draft",
+        documentId: bodyDocumentId,
         content: "会覆盖的正文",
         baseRevision: emptyRevision,
         baseProjectRevision: 0
@@ -362,10 +422,188 @@ describe("FolderCatalogStore", () => {
     ]);
 
     const reopened = await store.openBookProject(first.projectDirectory);
-    expect(reopened.resource.documents.find(({ id }) => id === "draft")?.content).toBe(
-      "新的正文"
-    );
+    expect(
+      reopened.resource.draft.sections.find(({ id }) => id === "section-1")?.body
+        .content
+    ).toBe("新的正文");
     expect((await store.snapshot()).books).toHaveLength(2);
+  });
+
+  it("saves draft body and character-state files independently while guarding title metadata", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-draft-independent-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createShortBook(
+      { title: "双文件正文", genre: "悬疑" },
+      join(root, "books")
+    );
+    const bodyId = catalogDraftBodyDocumentId("section-1");
+    const stateId = catalogDraftCharacterStateDocumentId("section-1");
+    const emptyRevision = createShortWorkspaceContentRevision("");
+
+    await store.saveDocument({
+      bookId: opened.resource.id,
+      documentId: bodyId,
+      content: "第一节正文",
+      baseRevision: emptyRevision,
+      baseProjectRevision: 0
+    });
+    await expect(
+      store.saveDocument({
+        bookId: opened.resource.id,
+        documentId: stateId,
+        content: "林舟：仍在门外",
+        baseRevision: emptyRevision,
+        // A content-only save uses the target file revision, so an unrelated
+        // body save must not make this independent file stale.
+        baseProjectRevision: 0
+      })
+    ).resolves.toMatchObject({ content: "林舟：仍在门外" });
+
+    await expect(
+      store.saveDocument({
+        bookId: opened.resource.id,
+        documentId: bodyId,
+        title: "雨中的门",
+        content: "第一节正文",
+        baseRevision: createShortWorkspaceContentRevision("第一节正文"),
+        baseProjectRevision: 0
+      })
+    ).rejects.toBeInstanceOf(FolderCatalogConflictError);
+
+    await expect(
+      store.saveDocument({
+        bookId: opened.resource.id,
+        documentId: bodyId,
+        title: "雨中的门",
+        content: "第一节正文",
+        baseRevision: createShortWorkspaceContentRevision("第一节正文"),
+        baseProjectRevision: 2
+      })
+    ).resolves.toMatchObject({ title: "雨中的门" });
+
+    const snapshot = await store.snapshot();
+    const section = snapshot.books[0]?.draft.sections.find(
+      ({ id }) => id === "section-1"
+    );
+    expect(section).toMatchObject({
+      title: "雨中的门",
+      body: { content: "第一节正文", title: "雨中的门" },
+      characterState: {
+        content: "林舟：仍在门外",
+        title: "雨中的门 · 人物状态"
+      }
+    });
+    expect(await store.getProjectRevision(opened.resource.id, "book")).toBe(3);
+  });
+
+  it("creates and deletes mapped draft section file pairs", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-draft-sections-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createShortBook(
+      { title: "小节管理", genre: "其他" },
+      join(root, "books")
+    );
+    const created = await store.createDraftSection({
+      bookId: opened.resource.id,
+      afterSectionId: "intro",
+      title: "插入的小节",
+      wordCountRequirement: "约 1500 字",
+      baseProjectRevision: 0
+    });
+    expect(created).toMatchObject({
+      id: "section-2",
+      title: "插入的小节",
+      body: { id: catalogDraftBodyDocumentId("section-2"), content: "" },
+      characterState: {
+        id: catalogDraftCharacterStateDocumentId("section-2"),
+        content: ""
+      }
+    });
+
+    const manifestPath = join(opened.projectDirectory, "deepwrite.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      revision: number;
+      draft: {
+        sections: Array<{
+          id: string;
+          body: { path: string };
+          characterState: { path: string };
+        }>;
+      };
+    };
+    expect(manifest.revision).toBe(1);
+    expect(manifest.draft.sections.map(({ id }) => id)).toEqual([
+      "intro",
+      "section-2",
+      "section-1"
+    ]);
+    const mappedSection = manifest.draft.sections.find(
+      ({ id }) => id === "section-2"
+    )!;
+    await expect(
+      readFile(join(opened.projectDirectory, mappedSection.body.path), "utf8")
+    ).resolves.toBe("");
+    await expect(
+      readFile(
+        join(opened.projectDirectory, mappedSection.characterState.path),
+        "utf8"
+      )
+    ).resolves.toBe("");
+
+    await expect(
+      store.deleteDraftSection({
+        bookId: opened.resource.id,
+        sectionId: "section-2",
+        baseProjectRevision: 1
+      })
+    ).resolves.toEqual({
+      bookId: opened.resource.id,
+      sectionId: "section-2",
+      deleted: true
+    });
+    const afterDelete = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      revision: number;
+      draft: { sections: Array<{ id: string }> };
+    };
+    expect(afterDelete.revision).toBe(2);
+    expect(afterDelete.draft.sections.map(({ id }) => id)).toEqual([
+      "intro",
+      "section-1"
+    ]);
+    await expect(
+      store.saveDocument({
+        bookId: opened.resource.id,
+        documentId: created.body.id,
+        content: "迟到的旧编辑请求不应复活正文",
+        force: true
+      })
+    ).rejects.toThrow(/该正文小节已删除或不存在/u);
+    const afterStaleSave = JSON.parse(
+      await readFile(manifestPath, "utf8")
+    ) as {
+      revision: number;
+      documents: Array<{ id: string }>;
+      draft: { sections: Array<{ id: string }> };
+    };
+    expect(afterStaleSave).toMatchObject({ revision: 2 });
+    expect(
+      afterStaleSave.documents.some(({ id }) => id === created.body.id)
+    ).toBe(false);
+    expect(
+      afterStaleSave.draft.sections.some(({ id }) => id === created.id)
+    ).toBe(false);
+    await expect(
+      access(join(opened.projectDirectory, mappedSection.body.path))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      access(join(opened.projectDirectory, mappedSection.characterState.path))
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("deletes registered book, material, and skill project folders", async () => {
@@ -448,19 +686,42 @@ describe("FolderCatalogStore", () => {
     expect(imported.projectDirectory).toBe(
       join(await realpath(parentDirectory), "旧版雨夜来信")
     );
-    expect(imported.resource.documents).toHaveLength(7);
+    expect(imported.resource.documents).toHaveLength(6);
     expect(
-      imported.resource.documents.find(({ id }) => id === "draft")?.content
+      imported.resource.draft.sections.find(({ id }) => id === "section-1")
+        ?.body.content
     ).toBe("旧正文");
     const manifest = JSON.parse(
       await readFile(join(imported.projectDirectory, "deepwrite.json"), "utf8")
-    ) as { kind: string; documents: Array<{ id: string; path: string }> };
+    ) as {
+      schemaVersion: number;
+      kind: string;
+      documents: Array<{ id: string; path: string }>;
+      draft: {
+        sections: Array<{
+          id: string;
+          body: { path: string };
+          characterState: { path: string };
+        }>;
+      };
+    };
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.kind).toBe("deepwrite.book");
-    const draftPath = manifest.documents.find(({ id }) => id === "draft")?.path;
-    expect(draftPath).toBeTruthy();
+    expect(manifest.documents.some(({ id }) => id === "draft")).toBe(false);
+    const firstSection = manifest.draft.sections.find(({ id }) => id === "section-1")!;
+    expect(firstSection.body.path).toBe("stages/draft/section-1.body.md");
+    expect(firstSection.characterState.path).toBe(
+      "stages/draft/section-1.state.md"
+    );
     await expect(
-      readFile(join(imported.projectDirectory, draftPath!), "utf8")
+      readFile(join(imported.projectDirectory, firstSection.body.path), "utf8")
     ).resolves.toBe("旧正文");
+    await expect(
+      readFile(
+        join(imported.projectDirectory, firstSection.characterState.path),
+        "utf8"
+      )
+    ).resolves.toBe("");
   });
 
   it("creates a new folder-backed library from legacy library data", async () => {
@@ -624,10 +885,20 @@ describe("FolderCatalogStore", () => {
     const skillDirectory = registry.projects.find(
       ({ id }) => id === "skill-existing"
     )!.projectDirectory;
-    await writeFile(join(bookDirectory, "stages", "draft.md"), "Cursor 外部修改", "utf8");
-    expect((await store.snapshot()).books[0]?.documents[0]?.content).toBe(
-      "Cursor 外部修改"
-    );
+    const bookManifest = JSON.parse(
+      await readFile(join(bookDirectory, "deepwrite.json"), "utf8")
+    ) as {
+      draft: { sections: Array<{ id: string; body: { path: string } }> };
+    };
+    const bodyPath = bookManifest.draft.sections.find(
+      ({ id }) => id === "section-1"
+    )!.body.path;
+    await writeFile(join(bookDirectory, bodyPath), "Cursor 外部修改", "utf8");
+    expect(
+      (await store.snapshot()).books[0]?.draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
+    ).toBe("Cursor 外部修改");
 
     const material = await store.saveLibraryEntry({
       domain: "material",
@@ -1099,12 +1370,22 @@ describe("FolderCatalogStore", () => {
     const registryText = await readFile(store.registryPath, "utf8");
     const bookDirectory = created.projectDirectory;
     const manifestPath = join(bookDirectory, "deepwrite.json");
-    const documentPath = join(bookDirectory, "stages", "draft.md");
     const manifestText = await readFile(manifestPath, "utf8");
     const nextManifest = JSON.parse(manifestText) as {
       documents: Array<{ title: string }>;
+      draft: {
+        sections: Array<{
+          id: string;
+          title: string;
+          body: { path: string };
+        }>;
+      };
     };
-    nextManifest.documents[0]!.title = "长".repeat(256);
+    const firstSection = nextManifest.draft.sections.find(
+      ({ id }) => id === "section-1"
+    )!;
+    const documentPath = join(bookDirectory, firstSection.body.path);
+    firstSection.title = "长".repeat(240);
     const readableBytes = Math.max(
       Buffer.byteLength(registryText),
       Buffer.byteLength(manifestText)
@@ -1122,8 +1403,8 @@ describe("FolderCatalogStore", () => {
     await expect(
       limitedStore.saveDocument({
         bookId: created.resource.id,
-        documentId: "draft",
-        title: "长".repeat(256),
+        documentId: catalogDraftBodyDocumentId("section-1"),
+        title: "长".repeat(240),
         content: "不应半提交的新内容",
         baseRevision: createShortWorkspaceContentRevision(originalContent),
         baseProjectRevision: 0
@@ -1147,18 +1428,22 @@ describe("FolderCatalogStore", () => {
     )!.projectDirectory;
     const manifestPath = join(bookDirectory, "deepwrite.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
-      documents: Array<Record<string, unknown>>;
+      draft: {
+        sections: Array<{
+          id: string;
+          body: { path: string };
+          characterState: { path: string };
+        }>;
+      };
     };
+    const firstSection = manifest.draft.sections.find(
+      ({ id }) => id === "section-1"
+    )!;
     await link(
-      join(bookDirectory, "stages", "draft.md"),
-      join(bookDirectory, "stages", "alias.md")
+      join(bookDirectory, firstSection.body.path),
+      join(bookDirectory, "stages", "draft", "alias.state.md")
     );
-    manifest.documents.push({
-      ...manifest.documents[0],
-      id: "alias",
-      title: "别名正文",
-      path: "stages/alias.md"
-    });
+    firstSection.characterState.path = "stages/draft/alias.state.md";
     await writeJson(manifestPath, manifest);
 
     await expect(
@@ -1166,7 +1451,30 @@ describe("FolderCatalogStore", () => {
     ).rejects.toThrow(/distinct files/u);
   });
 
-  it("rejects mutations after an external manifest changes the registered project id", async () => {
+  it("rejects non-canonical v2 draft file ids before a stale save can recreate them", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-draft-file-id-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data")
+    });
+    const created = await store.createShortBook(
+      { title: "正文文件标识", genre: "其他" },
+      join(root, "books")
+    );
+    const manifestPath = join(created.projectDirectory, "deepwrite.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      draft: {
+        sections: Array<{ body: { id: string } }>;
+      };
+    };
+    manifest.draft.sections[0]!.body.id = "custom-body";
+    await writeJson(manifestPath, manifest);
+
+    await expect(
+      store.openBookProject(created.projectDirectory, false)
+    ).rejects.toThrow(/canonical section id/u);
+  });
+
+  it("rejects a changed registered id before a v1 manifest can migrate", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-id-change-");
     const store = new FolderCatalogStore({
       userDataPath: join(root, "user-data")
@@ -1179,23 +1487,72 @@ describe("FolderCatalogStore", () => {
       ({ id }) => id === "book-existing"
     )!.projectDirectory;
     const manifestPath = join(bookDirectory, "deepwrite.json");
-    const documentPath = join(bookDirectory, "stages", "draft.md");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      revision: number;
+      kind: "deepwrite.book";
       id: string;
+      title: string;
+      bookType: "short";
+      genre: string;
+      status: "editing" | "completed";
+      linkedMaterialIdsByKind: unknown;
+      linkedSkillIdsByKind: unknown;
+      createdAt: string;
+      updatedAt: string;
+      draft: {
+        sections: Array<{ id: string; body: { path: string } }>;
+      };
     };
-    manifest.id = "book-renamed-outside";
-    await writeJson(manifestPath, manifest);
+    const documentPath = join(
+      bookDirectory,
+      manifest.draft.sections.find(({ id }) => id === "section-1")!.body.path
+    );
     const originalContent = await readFile(documentPath, "utf8");
+    await rm(join(bookDirectory, "stages", "draft"), {
+      recursive: true,
+      force: true
+    });
+    const legacyDraftPath = join(bookDirectory, "stages", "draft.md");
+    await writeFile(legacyDraftPath, originalContent, "utf8");
+    const changedLegacyManifest = {
+      schemaVersion: 1,
+      revision: manifest.revision,
+      kind: manifest.kind,
+      id: "book-renamed-outside",
+      title: manifest.title,
+      bookType: manifest.bookType,
+      genre: manifest.genre,
+      status: manifest.status,
+      linkedMaterialIdsByKind: manifest.linkedMaterialIdsByKind,
+      linkedSkillIdsByKind: manifest.linkedSkillIdsByKind,
+      documents: [
+        {
+          id: "draft",
+          title: "正文编写",
+          path: "stages/draft.md",
+          createdAt: manifest.createdAt,
+          updatedAt: manifest.updatedAt
+        }
+      ],
+      createdAt: manifest.createdAt,
+      updatedAt: manifest.updatedAt
+    };
+    await writeJson(manifestPath, changedLegacyManifest);
+    const changedLegacyManifestText = await readFile(manifestPath, "utf8");
 
     await expect(
       store.saveDocument({
         bookId: "book-existing",
-        documentId: "draft",
+        documentId: catalogDraftBodyDocumentId("section-1"),
         content: "不应写入另一个 UUID 项目",
         force: true
       })
     ).rejects.toThrow(/标识与注册信息不一致/u);
-    expect(await readFile(documentPath, "utf8")).toBe(originalContent);
+    expect(await readFile(manifestPath, "utf8")).toBe(changedLegacyManifestText);
+    expect(await readFile(legacyDraftPath, "utf8")).toBe(originalContent);
+    await expect(
+      access(join(bookDirectory, "stages", "draft"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("allocates portable-unique paths for case-colliding migrated entry ids", async () => {
@@ -1418,9 +1775,10 @@ describe("FolderCatalogStore", () => {
       join(root, "projects")
     );
     const emptyRevision = createShortWorkspaceContentRevision("");
+    const bodyDocumentId = catalogDraftBodyDocumentId("section-1");
     await store.saveDocument({
       bookId: opened.resource.id,
-      documentId: "draft",
+      documentId: bodyDocumentId,
       content: "磁盘上的新内容",
       baseRevision: emptyRevision,
       baseProjectRevision: 0
@@ -1429,21 +1787,21 @@ describe("FolderCatalogStore", () => {
     await expect(
       store.saveDocument({
         bookId: opened.resource.id,
-        documentId: "draft",
+        documentId: bodyDocumentId,
         content: "未明确覆盖的旧草稿",
         baseRevision: emptyRevision,
         baseProjectRevision: 0
       })
     ).rejects.toBeInstanceOf(FolderCatalogConflictError);
     expect(
-      (await store.snapshot()).books[0]?.documents.find(
-        ({ id }) => id === "draft"
-      )?.content
+      (await store.snapshot()).books[0]?.draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("磁盘上的新内容");
 
     const forced = await store.saveDocument({
       bookId: opened.resource.id,
-      documentId: "draft",
+      documentId: bodyDocumentId,
       content: "用户明确覆盖后的内容",
       baseRevision: emptyRevision,
       baseProjectRevision: 0,
@@ -1487,6 +1845,13 @@ describe("FolderCatalogStore", () => {
       },
       documents: [
         {
+          id: "notes",
+          title: "正文编写",
+          path: "stages/notes.md",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        },
+        {
           id: "draft",
           title: "正文编写",
           path: "stages/draft.md",
@@ -1499,6 +1864,11 @@ describe("FolderCatalogStore", () => {
     };
     await writeJson(manifestPath, externalManifest);
     await mkdir(dirname(draftPath), { recursive: true });
+    await writeFile(
+      join(projectDirectory, "stages", "notes.md"),
+      "同名普通文档",
+      "utf8"
+    );
     await writeFile(draftPath, "最初由 Cursor 写下的正文", "utf8");
 
     const store = new FolderCatalogStore({
@@ -1514,14 +1884,51 @@ describe("FolderCatalogStore", () => {
         id: "book-external",
         title: "潮汐来信",
         projectRevision: 4,
-        documents: [
-          {
-            id: "draft",
-            content: "最初由 Cursor 写下的正文"
-          }
-        ]
+        documents: [{ id: "notes", content: "同名普通文档" }],
+        draft: { id: "draft", title: "正文" }
       }
     });
+    const openedSection = opened.resource.draft.sections.find(
+      ({ id }) => id === "section-1"
+    );
+    expect(openedSection).toMatchObject({
+      body: {
+        id: catalogDraftBodyDocumentId("section-1"),
+        content: "最初由 Cursor 写下的正文"
+      },
+      characterState: {
+        id: catalogDraftCharacterStateDocumentId("section-1"),
+        content: ""
+      }
+    });
+    const migratedManifest = JSON.parse(
+      await readFile(manifestPath, "utf8")
+    ) as {
+      schemaVersion: number;
+      revision: number;
+      title: string;
+      draft: {
+        sections: Array<{
+          id: string;
+          body: { path: string };
+          characterState: { path: string };
+        }>;
+      };
+    };
+    expect(migratedManifest).toMatchObject({ schemaVersion: 2, revision: 4 });
+    const migratedSection = migratedManifest.draft.sections.find(
+      ({ id }) => id === "section-1"
+    )!;
+    const migratedBodyPath = join(projectDirectory, migratedSection.body.path);
+    await expect(readFile(draftPath, "utf8")).resolves.toBe(
+      "最初由 Cursor 写下的正文"
+    );
+    await expect(readFile(migratedBodyPath, "utf8")).resolves.toBe(
+      "最初由 Cursor 写下的正文"
+    );
+    await expect(
+      readFile(join(projectDirectory, migratedSection.characterState.path), "utf8")
+    ).resolves.toBe("");
 
     const restartedStore = new FolderCatalogStore({
       userDataPath,
@@ -1535,27 +1942,31 @@ describe("FolderCatalogStore", () => {
     const originalContentRevision = createShortWorkspaceContentRevision(
       "最初由 Cursor 写下的正文"
     );
-    await writeFile(draftPath, "Cursor 在应用外更新的正文", "utf8");
+    await writeFile(migratedBodyPath, "Cursor 在应用外更新的正文", "utf8");
     expect(
-      (await restartedStore.snapshot()).books[0]?.documents[0]?.content
+      (await restartedStore.snapshot()).books[0]?.draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("Cursor 在应用外更新的正文");
     await expect(
       restartedStore.saveDocument({
         bookId: "book-external",
-        documentId: "draft",
+        documentId: catalogDraftBodyDocumentId("section-1"),
         content: "应用内仍未保存的旧草稿",
         baseRevision: originalContentRevision,
         baseProjectRevision: 4
       })
     ).rejects.toBeInstanceOf(FolderCatalogConflictError);
-    expect(await readFile(draftPath, "utf8")).toBe("Cursor 在应用外更新的正文");
+    expect(await readFile(migratedBodyPath, "utf8")).toBe(
+      "Cursor 在应用外更新的正文"
+    );
     expect(
       (JSON.parse(await readFile(manifestPath, "utf8")) as { revision: number })
         .revision
     ).toBe(4);
 
     await writeJson(manifestPath, {
-      ...externalManifest,
+      ...migratedManifest,
       revision: 5,
       title: "潮汐来信（外部改名）",
       updatedAt: "2026-07-19T02:03:04.000Z"
@@ -1576,7 +1987,7 @@ describe("FolderCatalogStore", () => {
     await expect(
       restartedStore.saveDocument({
         bookId: "book-external",
-        documentId: "draft",
+        documentId: catalogDraftBodyDocumentId("section-1"),
         title: "应用内旧文档标题",
         content: "不会覆盖的内容",
         baseRevision: createShortWorkspaceContentRevision(
@@ -1585,7 +1996,9 @@ describe("FolderCatalogStore", () => {
         baseProjectRevision: 4
       })
     ).rejects.toBeInstanceOf(FolderCatalogConflictError);
-    expect(await readFile(draftPath, "utf8")).toBe("Cursor 在应用外更新的正文");
+    expect(await readFile(migratedBodyPath, "utf8")).toBe(
+      "Cursor 在应用外更新的正文"
+    );
   });
 
   it("rejects escaping paths, symbolic-link content, invalid UTF-8, and oversized files", async () => {
@@ -1601,35 +2014,37 @@ describe("FolderCatalogStore", () => {
     )!.projectDirectory;
     const manifestPath = join(projectDirectory, "deepwrite.json");
     const original = JSON.parse(await readFile(manifestPath, "utf8")) as {
-      documents: Array<{ path: string }>;
+      draft: {
+        sections: Array<{ id: string; body: { path: string } }>;
+      };
     };
+    const body = original.draft.sections.find(({ id }) => id === "section-1")!.body;
+    const originalBodyPath = body.path;
+    const absoluteBodyPath = join(projectDirectory, originalBodyPath);
 
-    original.documents[0]!.path = "../outside.md";
+    body.path = "../outside.md";
     await writeJson(manifestPath, original);
     await expect(store.openBookProject(projectDirectory, false)).rejects.toThrow(
       /relative Markdown paths/u
     );
 
-    original.documents[0]!.path = "stages/draft.md";
+    body.path = originalBodyPath;
     await writeJson(manifestPath, original);
-    await rm(join(projectDirectory, "stages", "draft.md"));
+    await rm(absoluteBodyPath);
     const outside = join(root, "outside.md");
     await writeFile(outside, "outside", "utf8");
-    await symlink(outside, join(projectDirectory, "stages", "draft.md"));
+    await symlink(outside, absoluteBodyPath);
     await expect(store.openBookProject(projectDirectory, false)).rejects.toThrow(
       /symbolic links/u
     );
 
-    await rm(join(projectDirectory, "stages", "draft.md"));
-    await writeFile(
-      join(projectDirectory, "stages", "draft.md"),
-      Buffer.from([0xc3, 0x28])
-    );
+    await rm(absoluteBodyPath);
+    await writeFile(absoluteBodyPath, Buffer.from([0xc3, 0x28]));
     await expect(store.openBookProject(projectDirectory, false)).rejects.toThrow(
       /valid UTF-8/u
     );
 
-    await writeFile(join(projectDirectory, "stages", "draft.md"), "x".repeat(17));
+    await writeFile(absoluteBodyPath, "x".repeat(17));
     const limitedStore = new FolderCatalogStore({
       userDataPath,
       maxMarkdownBytes: 16

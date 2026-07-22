@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type {
   BookResourceDialogMode,
   CatalogResourceNodeActionPayload,
@@ -40,6 +40,106 @@ const emit = defineEmits<{
   createExpertSection: [node: ResourceTreeNode];
   removeExpertSection: [node: ResourceTreeNode];
 }>();
+
+const USER_NAME_STORAGE_KEY = "deepwrite:user-name:v1";
+const DEFAULT_USER_NAME = "作者";
+const MAX_USER_NAME_LENGTH = 30;
+
+function loadUserName(): string {
+  try {
+    const storedName = localStorage.getItem(USER_NAME_STORAGE_KEY)?.trim();
+    return storedName
+      ? Array.from(storedName).slice(0, MAX_USER_NAME_LENGTH).join("")
+      : DEFAULT_USER_NAME;
+  } catch {
+    return DEFAULT_USER_NAME;
+  }
+}
+
+const accountMenuRoot = ref<HTMLElement | null>(null);
+const nameInput = ref<HTMLInputElement | null>(null);
+const accountMenuOpen = ref(false);
+const profileDialog = ref<"name" | "contact" | null>(null);
+const userName = ref(loadUserName());
+const userNameDraft = ref(userName.value);
+const avatarInitial = computed(() => Array.from(userName.value.trim())[0] ?? "作");
+
+function toggleAccountMenu(): void {
+  accountMenuOpen.value = !accountMenuOpen.value;
+}
+
+function openNameDialog(): void {
+  accountMenuOpen.value = false;
+  userNameDraft.value = userName.value;
+  profileDialog.value = "name";
+  void nextTick(() => nameInput.value?.select());
+}
+
+function openContactDialog(): void {
+  accountMenuOpen.value = false;
+  profileDialog.value = "contact";
+}
+
+function closeProfileDialog(): void {
+  profileDialog.value = null;
+}
+
+function saveUserName(): void {
+  const nextName = userNameDraft.value.trim();
+  if (!nextName) {
+    uiMessage.warning("请输入用户姓名");
+    nameInput.value?.focus();
+    return;
+  }
+  if (Array.from(nextName).length > MAX_USER_NAME_LENGTH) {
+    uiMessage.warning(`用户姓名不能超过 ${MAX_USER_NAME_LENGTH} 个字符`);
+    nameInput.value?.focus();
+    return;
+  }
+
+  userName.value = nextName;
+  profileDialog.value = null;
+  try {
+    localStorage.setItem(USER_NAME_STORAGE_KEY, nextName);
+    uiMessage.success("用户姓名已更新");
+  } catch {
+    uiMessage.warning("姓名暂时无法保存到本机，但本次运行中仍会显示新姓名");
+  }
+}
+
+function openSettings(): void {
+  accountMenuOpen.value = false;
+  emit("openSettings");
+}
+
+function handleDocumentPointerDown(event: PointerEvent): void {
+  if (
+    accountMenuOpen.value &&
+    event.target instanceof Node &&
+    !accountMenuRoot.value?.contains(event.target)
+  ) {
+    accountMenuOpen.value = false;
+  }
+}
+
+function handleDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key !== "Escape") return;
+  if (profileDialog.value) {
+    closeProfileDialog();
+    return;
+  }
+  accountMenuOpen.value = false;
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown);
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
 
 const newConversationItem = {
   id: "new",
@@ -272,13 +372,138 @@ watch(
     </div>
 
     <footer class="sidebar-footer">
-      <button class="account-row" type="button" @click="emit('openSettings')">
-        <span class="avatar">作</span>
-        <span class="account-copy">
-          <strong>作者</strong>
-        </span>
-        <AppIcon name="settings" :size="16" />
-      </button>
+      <div class="account-controls">
+        <div ref="accountMenuRoot" class="account-profile">
+          <button
+            class="account-row account-identity-button"
+            type="button"
+            aria-haspopup="menu"
+            :aria-expanded="accountMenuOpen"
+            aria-controls="account-menu"
+            @click="toggleAccountMenu"
+          >
+            <span class="avatar">{{ avatarInitial }}</span>
+            <span class="account-copy">
+              <strong :title="userName">{{ userName }}</strong>
+            </span>
+          </button>
+
+          <div v-if="accountMenuOpen" id="account-menu" class="account-menu" role="menu">
+            <button type="button" role="menuitem" @click="openNameDialog">
+              <AppIcon name="user" :size="16" />
+              <span>设置姓名</span>
+            </button>
+            <button type="button" role="menuitem" @click="openContactDialog">
+              <AppIcon name="message" :size="16" />
+              <span>联系作者</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          class="icon-button account-settings-button"
+          type="button"
+          aria-label="打开设置"
+          title="设置"
+          @click="openSettings"
+        >
+          <AppIcon name="settings" :size="16" />
+        </button>
+      </div>
     </footer>
   </aside>
+
+  <Teleport to="body">
+    <div
+      v-if="profileDialog === 'name'"
+      class="dialog-backdrop"
+      @mousedown.self="closeProfileDialog"
+    >
+      <section
+        class="workspace-dialog profile-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-name-dialog-title"
+      >
+        <header>
+          <div>
+            <span class="dialog-eyebrow">个人信息</span>
+            <h2 id="profile-name-dialog-title">设置姓名</h2>
+          </div>
+          <button
+            class="dialog-close"
+            type="button"
+            aria-label="关闭"
+            @click="closeProfileDialog"
+          >
+            ×
+          </button>
+        </header>
+
+        <form class="dialog-content" @submit.prevent="saveUserName">
+          <label class="profile-name-field">
+            <span>用户姓名</span>
+            <input
+              ref="nameInput"
+              v-model="userNameDraft"
+              type="text"
+              :maxlength="MAX_USER_NAME_LENGTH"
+              autocomplete="off"
+              placeholder="请输入用户姓名"
+            />
+          </label>
+          <p class="profile-field-help">姓名会显示在左侧栏的头像旁边。</p>
+          <div class="dialog-actions">
+            <button class="dialog-secondary-button" type="button" @click="closeProfileDialog">
+              取消
+            </button>
+            <button class="dialog-primary-button" type="submit">保存</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div
+      v-else-if="profileDialog === 'contact'"
+      class="dialog-backdrop"
+      @mousedown.self="closeProfileDialog"
+    >
+      <section
+        class="workspace-dialog profile-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-author-dialog-title"
+      >
+        <header>
+          <div>
+            <span class="dialog-eyebrow">DeepWrite</span>
+            <h2 id="contact-author-dialog-title">联系作者</h2>
+          </div>
+          <button
+            class="dialog-close"
+            type="button"
+            aria-label="关闭"
+            @click="closeProfileDialog"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="dialog-content">
+          <p class="dialog-description contact-author-description">
+            如果你有任何反馈，或者想体验最新版本，请添加作者微信并加入交流群。
+          </p>
+          <div class="author-contact-card">
+            <span>微信号</span>
+            <strong>deepseekwrite</strong>
+          </div>
+          <div class="dialog-actions">
+            <button class="dialog-primary-button" type="button" @click="closeProfileDialog">
+              我知道了
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 </template>

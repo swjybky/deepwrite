@@ -11,8 +11,8 @@ import type {
 } from "@deepwrite/contracts";
 import {
   SHORT_WORKSPACE_STAGE_IDS,
-  createShortWorkspaceContentRevision,
-  parseExpertDraftMarkdown
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
+  createShortWorkspaceContentRevision
 } from "@deepwrite/contracts";
 import type {
   AgentApprovalMode,
@@ -36,6 +36,13 @@ interface UseAgentConversationOptions {
   persistenceKey?: string;
   storage?: ConversationStorage;
   onPersistenceError?: () => void;
+}
+
+export interface AgentRunSettings {
+  selectedModelId: string;
+  thinkingLevel: ThinkingLevel;
+  temperature: number;
+  approvalMode: AgentApprovalMode;
 }
 
 interface StoredConversation {
@@ -97,6 +104,7 @@ export interface AgentConversationController {
   newConversation(): void;
   selectConversation(sessionId: string): boolean;
   applyModelSettings(settings: ModelSettings): void;
+  applyRunSettings(settings: AgentRunSettings): void;
   selectModel(modelId: string): void;
   selectThinkingLevel(level: ThinkingLevel): void;
   selectTemperature(temperature: number): void;
@@ -565,6 +573,8 @@ export function useAgentConversation(
   const storedActive = storedEnvelope?.conversations.find(
     (conversation) => conversation.sessionId === storedEnvelope.activeSessionId
   );
+  let hasRunSettingsPreference = storedActive !== undefined;
+  let modelSettingsApplied = false;
   let conversationClock = Math.max(
     Date.now(),
     ...(storedEnvelope?.conversations.map((conversation) => Date.parse(conversation.updatedAt)) ?? [])
@@ -1463,7 +1473,10 @@ export function useAgentConversation(
     const sendSessionId = sessionId.value;
     const attemptId = ++attemptSequence;
     const originalLength = activeDocument.content.length;
-    const snapshotContent = activeDocument.content.slice(0, 20_000);
+    const snapshotContent =
+      activeDocument.workspaceType === "short" && activeDocument.stageId === "draft"
+        ? activeDocument.content
+        : activeDocument.content.slice(0, 20_000);
     const contextSnapshot: WorkspaceRuntimeContext = {
       activeResource: {
         id: activeDocument.id,
@@ -1500,8 +1513,11 @@ export function useAgentConversation(
           document.workspaceId === activeDocument.workspaceId &&
           document.stageId
       );
-      const stages = SHORT_WORKSPACE_STAGE_IDS.map((stageId) => {
-        const document = liveStages.find((candidate) => candidate.stageId === stageId);
+      const stages = SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => {
+        const document = liveStages.find(
+          (candidate) =>
+            candidate.stageId === stageId && candidate.draftFileKind === undefined
+        );
         if (!document) return undefined;
         const originalLength = document.content.length;
         const stageContent = document.content.slice(0, 20_000);
@@ -1518,22 +1534,81 @@ export function useAgentConversation(
       const completeStages = stages.filter(
         (stage): stage is NonNullable<typeof stage> => stage !== undefined
       );
-      if (completeStages.length === SHORT_WORKSPACE_STAGE_IDS.length) {
-        const expertDraft = activeDocument.expertSectionId
-          ? parseExpertDraftMarkdown(
-              liveStages.find((candidate) => candidate.stageId === "draft")?.content ?? ""
+      const draftSections = new Map<
+        string,
+        {
+          id: string;
+          order: number;
+          title: string;
+          wordCountRequirement: string;
+          body?: WorkspaceDocument;
+          characterState?: WorkspaceDocument;
+        }
+      >();
+      for (const document of liveStages) {
+        if (
+          document.stageId !== "draft" ||
+          !document.expertSectionId ||
+          !document.draftFileKind
+        ) {
+          continue;
+        }
+        const current = draftSections.get(document.expertSectionId) ?? {
+          id: document.expertSectionId,
+          order: document.expertSectionOrder ?? Number.MAX_SAFE_INTEGER,
+          title:
+            document.draftFileKind === "body"
+              ? document.title
+              : document.title.replace(/\s*·\s*人物状态$/u, ""),
+          wordCountRequirement: document.expertWordCountRequirement ?? ""
+        };
+        if (document.draftFileKind === "body") {
+          current.title = document.title;
+          current.wordCountRequirement = document.expertWordCountRequirement ?? "";
+          current.body = document;
+        } else {
+          current.characterState = document;
+        }
+        draftSections.set(document.expertSectionId, current);
+      }
+      const completeDraftSections = [...draftSections.values()]
+        .sort((left, right) => left.order - right.order)
+        .flatMap((section) => {
+        if (!section.body || !section.characterState) return [];
+        return [
+          {
+            id: section.id,
+            title: section.title,
+            wordCountRequirement: section.wordCountRequirement,
+            body: {
+              documentId: section.body.id,
+              title: section.body.title,
+              content: section.body.content,
+              revision: createShortWorkspaceContentRevision(section.body.content)
+            },
+            characterState: {
+              documentId: section.characterState.id,
+              title: section.characterState.title,
+              content: section.characterState.content,
+              revision: createShortWorkspaceContentRevision(
+                section.characterState.content
+              )
+            }
+          }
+        ];
+        });
+      if (
+        completeStages.length === SHORT_WORKSPACE_TEXT_STAGE_IDS.length &&
+        completeDraftSections.length > 0
+      ) {
+        const expertDraftRevision = createShortWorkspaceContentRevision(
+          completeDraftSections
+            .map(
+              (section) =>
+                `${section.id}\u0000${section.title}\u0000${section.wordCountRequirement}\u0000${section.body.revision}\u0000${section.characterState.revision}`
             )
-          : undefined;
-        const expertDraftSectionIds = expertDraft?.sections.map((section) => section.id);
-        const activeSectionIndex = expertDraft?.sections.findIndex(
-          (section) => section.id === activeDocument.expertSectionId
-        ) ?? -1;
-        const expertDraftSections =
-          expertDraft && activeSectionIndex >= 0
-            ? expertDraft.sections
-                .slice(Math.max(0, activeSectionIndex - 3), activeSectionIndex + 1)
-                .map((section) => ({ ...section }))
-            : undefined;
+            .join("\u0001")
+        );
         contextSnapshot.shortWorkspace = {
           id: activeDocument.workspaceId,
           title: activeDocument.workspaceTitle,
@@ -1543,12 +1618,14 @@ export function useAgentConversation(
             ? { activeAgentId: activeDocument.shortAgentId }
             : {}),
           ...(activeDocument.expertSectionId
-            ? {
-                activeSectionId: activeDocument.expertSectionId,
-                expertDraftSectionIds,
-                ...(expertDraftSections ? { expertDraftSections } : {})
-              }
+            ? { activeSectionId: activeDocument.expertSectionId }
             : {}),
+          expertDraft: {
+            id: "draft",
+            title: "正文",
+            revision: expertDraftRevision,
+            sections: completeDraftSections
+          },
           stages: completeStages
         };
       }
@@ -1596,13 +1673,11 @@ export function useAgentConversation(
         ...(requestAttachments.length ? { attachments: requestAttachments } : {}),
         writeApprovalMode: approvalModeByAttempt.get(attemptId),
         ...(selectedModelId.value ? { modelId: selectedModelId.value } : {}),
-        ...(selectedModel
-          ? thinkingLevel.value === "off"
-            ? {
-                ...(selectedModel.reasoning ? { thinkingLevel: "off" as const } : {}),
-                temperature: temperature.value
-              }
-            : { thinkingLevel: thinkingLevel.value }
+        ...(thinkingLevel.value === "off"
+          ? {
+              thinkingLevel: "off" as const,
+              ...(selectedModel ? { temperature: temperature.value } : {})
+            }
           : { thinkingLevel: thinkingLevel.value }),
         workspaceContext: contextSnapshot
       });
@@ -1743,19 +1818,6 @@ export function useAgentConversation(
     }
   }
 
-  function resetModelSelection(): void {
-    const selected =
-      configuredModels.value.find((model) => model.id === defaultModelId.value) ??
-      configuredModels.value[0];
-    selectedModelId.value = selected?.id ?? "";
-    thinkingLevel.value = selected
-      ? selected.reasoning
-        ? selected.defaultThinkingLevel
-        : "off"
-      : "medium";
-    temperature.value = selected?.temperatureOptions[1] ?? 0.7;
-  }
-
   function newConversation(): void {
     stopStreamingMessages();
     flushConversationPersistence();
@@ -1766,7 +1828,6 @@ export function useAgentConversation(
     draft.value = "";
     currentCreatedAt.value = timestamp;
     currentUpdatedAt.value = timestamp;
-    resetModelSelection();
     flushConversationPersistence();
   }
 
@@ -1784,30 +1845,78 @@ export function useAgentConversation(
     sessionId.value = selectedConversation.sessionId;
     messages.value = selectedConversation.messages.map(cloneMessage);
     draft.value = selectedConversation.draft;
-    approvalMode.value = selectedConversation.approvalMode;
     currentCreatedAt.value = selectedConversation.createdAt;
     currentUpdatedAt.value = nextConversationTimestamp();
-    selectedModelId.value = selectedConversation.selectedModelId;
-    thinkingLevel.value = selectedConversation.thinkingLevel;
-    temperature.value = selectedConversation.temperature;
     flushConversationPersistence();
     return true;
   }
 
+  function applyRunSettings(settings: AgentRunSettings): void {
+    hasRunSettingsPreference = true;
+    approvalMode.value = settings.approvalMode;
+    if (configuredModels.value.length === 0) {
+      if (modelSettingsApplied) {
+        selectedModelId.value = "";
+        thinkingLevel.value = "medium";
+        temperature.value = 0.7;
+      } else {
+        selectedModelId.value = settings.selectedModelId;
+        thinkingLevel.value = settings.thinkingLevel;
+        temperature.value = settings.temperature;
+      }
+      return;
+    }
+
+    const preferredModel = configuredModels.value.find(
+      (model) => model.id === settings.selectedModelId
+    );
+    const selected =
+      preferredModel ??
+      configuredModels.value.find((model) => model.id === defaultModelId.value) ??
+      configuredModels.value[0];
+    if (!selected) return;
+
+    selectedModelId.value = selected.id;
+    thinkingLevel.value =
+      preferredModel &&
+      (settings.thinkingLevel === "off" ||
+        selected.thinkingLevelOptions.includes(settings.thinkingLevel))
+        ? settings.thinkingLevel
+        : selected.defaultThinkingLevel;
+    temperature.value =
+      preferredModel && selected.temperatureOptions.includes(settings.temperature)
+        ? settings.temperature
+        : selected.temperatureOptions[1] ?? 0.7;
+  }
+
   function applyModelSettings(settings: ModelSettings): void {
+    const currentRunSettings: AgentRunSettings = {
+      selectedModelId: selectedModelId.value,
+      thinkingLevel: thinkingLevel.value,
+      temperature: temperature.value,
+      approvalMode: approvalMode.value
+    };
     configuredModels.value = settings.models;
     defaultModelId.value = settings.defaultModelId;
+    modelSettingsApplied = true;
+    if (settings.models.length === 0) {
+      selectedModelId.value = "";
+      thinkingLevel.value = "medium";
+      temperature.value = 0.7;
+      return;
+    }
+    if (hasRunSettingsPreference) {
+      applyRunSettings(currentRunSettings);
+      return;
+    }
+
     const selected =
-      settings.models.find((model) => model.id === selectedModelId.value) ??
       settings.models.find((model) => model.id === settings.defaultModelId) ??
       settings.models[0];
     selectedModelId.value = selected?.id ?? "";
-    thinkingLevel.value = selected
-      ? selected.reasoning
-        ? selected.defaultThinkingLevel
-        : "off"
-      : "medium";
+    thinkingLevel.value = selected?.defaultThinkingLevel ?? "medium";
     temperature.value = selected?.temperatureOptions[1] ?? 0.7;
+    hasRunSettingsPreference = true;
   }
 
   function selectModel(modelId: string): void {
@@ -1816,7 +1925,7 @@ export function useAgentConversation(
       return;
     }
     selectedModelId.value = selected.id;
-    thinkingLevel.value = selected.reasoning ? selected.defaultThinkingLevel : "off";
+    thinkingLevel.value = selected.defaultThinkingLevel;
     temperature.value = selected.temperatureOptions[1];
   }
 
@@ -1826,9 +1935,6 @@ export function useAgentConversation(
     );
     if (!selected) {
       thinkingLevel.value = level;
-      return;
-    }
-    if (!selected.reasoning && level !== "off") {
       return;
     }
     if (level !== "off" && !selected.thinkingLevelOptions.includes(level)) {
@@ -1886,6 +1992,7 @@ export function useAgentConversation(
     newConversation,
     selectConversation,
     applyModelSettings,
+    applyRunSettings,
     selectModel,
     selectThinkingLevel,
     selectTemperature,

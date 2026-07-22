@@ -12,4 +12,13 @@ describe("RightEditorPane expert draft navigation", () => {
     expect(source).not.toContain("emit('addSection')");
     expect(editorStart).toBeGreaterThan(tabsStart);
   });
+
+  it("offers one insert action for a selected editor range and accepts locate requests", () => {
+    expect(source).toContain('aria-label="正文选区操作"');
+    expect(source).toContain("插入输入框");
+    expect(source.match(/role="menuitem"/g)).toHaveLength(1);
+    expect(source).toContain('@mouseup="handleEditorMouseup"');
+    expect(source).toContain("emit(\"insertSelection\", reference)");
+    expect(source).toContain("input.setSelectionRange(range.start, range.end, \"forward\")");
+  });
 });

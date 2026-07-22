@@ -18,7 +18,8 @@ import type {
   AgentToolTrace,
   ChatMessage,
   ComposerReferenceOption,
-  ConversationHistoryItem
+  ConversationHistoryItem,
+  EditorTextReference
 } from "../types/conversation";
 import type { IconName } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
@@ -31,6 +32,7 @@ import {
   insertComposerReference,
   type ComposerReferenceMatch
 } from "../utils/composerReferences";
+import { createEditorReferenceAttachment } from "../utils/editorTextReferences";
 import AppIcon from "./AppIcon.vue";
 import MessageMarkdown from "./MessageMarkdown.vue";
 import PopupSelect from "./PopupSelect.vue";
@@ -57,12 +59,15 @@ const props = defineProps<{
   agentId: ShortWorkspaceAgentId | undefined;
   availableSkills: ComposerReferenceOption[];
   availableMaterials: ComposerReferenceOption[];
+  editorReference: EditorTextReference | null;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:draft": [value: string];
+  clearEditorReference: [];
+  locateEditorReference: [reference: EditorTextReference];
   newConversation: [];
   selectConversation: [sessionId: string];
   send: [attachments: UserPromptAttachment[]];
@@ -176,6 +181,7 @@ watch(
     attachmentReadEpoch += 1;
     readingAttachments.value = false;
     pendingAttachments.value = [];
+    emit("clearEditorReference");
     followsConversationTail.value = true;
     void nextTick(scheduleConversationTailFollow);
   }
@@ -185,7 +191,16 @@ const canSubmit = computed(
   () =>
     !readingAttachments.value &&
     (props.canSend ||
-      (props.canSendAttachments && pendingAttachments.value.length > 0))
+      (props.canSendAttachments &&
+        (pendingAttachments.value.length > 0 || Boolean(props.editorReference))))
+);
+
+watch(
+  () => props.editorReference?.id,
+  (id) => {
+    if (!id) return;
+    void nextTick(() => composerInput.value?.focus());
+  }
 );
 
 function openAttachmentPicker(): void {
@@ -294,11 +309,38 @@ function attachmentPreview(attachment: UserPromptAttachment): string | undefined
     : undefined;
 }
 
+function editorReferenceTooltip(reference: EditorTextReference): string {
+  const preview = reference.text.length > 1_000
+    ? `${reference.text.slice(0, 1_000)}…`
+    : reference.text;
+  return `${reference.documentPath.join(" / ")}\n第 ${reference.startLine}-${reference.endLine} 行\n\n${preview}`;
+}
+
 function submitMessage(): void {
   if (!canSubmit.value) return;
   const attachments = pendingAttachments.value.map((attachment) => ({ ...attachment }));
+  const editorAttachment = props.editorReference
+    ? createEditorReferenceAttachment(props.editorReference)
+    : undefined;
+  if (editorAttachment) attachments.push(editorAttachment);
+  if (attachments.length > PROMPT_ATTACHMENT_MAX_ITEMS) {
+    uiMessage.warning(`每条消息最多携带 ${PROMPT_ATTACHMENT_MAX_ITEMS} 项附件或正文引用。`);
+    return;
+  }
+  const textLength = attachments.reduce(
+    (total, attachment) =>
+      total + (attachment.kind === "text" ? attachment.content.length : 0),
+    0
+  );
+  if (textLength > PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH) {
+    uiMessage.warning(
+      `文本附件与正文引用合计最多携带 ${PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH.toLocaleString("zh-CN")} 个字符。`
+    );
+    return;
+  }
   pendingAttachments.value = [];
   emit("send", attachments);
+  if (props.editorReference) emit("clearEditorReference");
 }
 
 onBeforeUnmount(() => {
@@ -456,15 +498,13 @@ function thinkingLabel(level: ThinkingLevel): string {
 
 const availableThinkingOptions = computed(() =>
   selectedModel.value
-    ? selectedModel.value.reasoning
-      ? [
-          { value: "off" as const, label: thinkingLabel("off") },
-          ...selectedModel.value.thinkingLevelOptions.map((value) => ({
-            value,
-            label: thinkingLabel(value)
-          }))
-        ]
-      : [{ value: "off" as const, label: thinkingLabel("off") }]
+    ? [
+        { value: "off" as const, label: thinkingLabel("off") },
+        ...selectedModel.value.thinkingLevelOptions.map((value) => ({
+          value,
+          label: thinkingLabel(value)
+        }))
+      ]
     : fallbackThinkingOptions
 );
 const modelOptions = computed(() =>
@@ -552,9 +592,12 @@ function workspaceToolLabel(name: string): string {
     switch_storyline_stage: "切换剧情方向",
     write_workspace_editor: "写入阶段编辑器",
     replace_current_stage_text: "替换阶段文本",
-    initialize_expert_draft: "初始化正文",
+    read_all_expert_draft: "读取全部正文",
+    write_expert_draft_section: "写入正文小节",
+    replace_expert_draft_section_text: "替换正文小节文本",
     edit_expert_draft_section: "编辑正文",
     read_expert_draft_section: "读取正文小节",
+    read_expert_character_state: "读取人物状态",
     replace_section_body_text: "替换小节正文",
     write_section_body: "写入小节正文",
     replace_character_state_text: "替换人物状态",
@@ -667,7 +710,8 @@ type ToolKind = "read" | "command" | "write" | "web" | "other";
 const WRITE_TOOL_NAMES = new Set([
   "write_workspace_editor",
   "replace_current_stage_text",
-  "initialize_expert_draft",
+  "write_expert_draft_section",
+  "replace_expert_draft_section_text",
   "edit_expert_draft_section",
   "replace_section_body_text",
   "write_section_body",
@@ -677,7 +721,7 @@ const WRITE_TOOL_NAMES = new Set([
 
 const DIRECT_WRITE_TOOL_NAMES = new Set([
   "write_workspace_editor",
-  "initialize_expert_draft",
+  "write_expert_draft_section",
   "write_section_body",
   "write_character_state"
 ]);
@@ -998,10 +1042,15 @@ async function copyMessage(message: ChatMessage): Promise<void> {
     copiedTimer = globalThis.setTimeout(() => {
       copiedMessageId.value = null;
     }, 1_500);
-    uiMessage.success("已复制回复");
+    uiMessage.success(message.role === "assistant" ? "已复制回复" : "已复制消息");
   } catch {
     uiMessage.error("复制失败，请稍后重试。");
   }
+}
+
+function copyMessageLabel(message: ChatMessage): string {
+  if (copiedMessageId.value === message.id) return "已复制";
+  return message.role === "assistant" ? "复制回复" : "复制消息";
 }
 </script>
 
@@ -1369,150 +1418,157 @@ async function copyMessage(message: ChatMessage): Promise<void> {
                 </template>
               </div>
             </details>
-            <div
-              v-if="message.role === 'user'"
-              class="message-copy user-message-copy"
-            >
+            <div class="message-content">
               <div
-                v-if="message.attachments?.length"
-                class="message-attachment-list"
-                aria-label="本条消息的附件"
+                v-if="message.role === 'user'"
+                class="message-copy user-message-copy"
               >
-                <span
-                  v-for="attachment in message.attachments"
-                  :key="attachment.id"
-                  class="message-attachment-chip"
-                  :title="`${attachment.name} · ${formatFileSize(attachment.size)}`"
+                <div
+                  v-if="message.attachments?.length"
+                  class="message-attachment-list"
+                  aria-label="本条消息的附件"
                 >
-                  <AppIcon :name="attachment.kind === 'image' ? 'image' : 'file'" :size="14" />
-                  <span>{{ attachment.name }}</span>
-                  <small v-if="attachment.truncated">已截断</small>
-                </span>
+                  <span
+                    v-for="attachment in message.attachments"
+                    :key="attachment.id"
+                    class="message-attachment-chip"
+                    :title="`${attachment.name} · ${formatFileSize(attachment.size)}`"
+                  >
+                    <AppIcon :name="attachment.kind === 'image' ? 'image' : 'file'" :size="14" />
+                    <span>{{ attachment.name }}</span>
+                    <small v-if="attachment.truncated">已截断</small>
+                  </span>
+                </div>
+                {{ message.content }}
               </div>
-              {{ message.content }}
-            </div>
-            <div
-              v-else-if="visibleResponse(message)"
-              class="message-copy"
-              :class="{ 'is-streaming': message.status === 'streaming' }"
-            >
-              <MessageMarkdown :content="visibleResponse(message)" />
-            </div>
-            <div v-if="message.status === 'stopped'" class="message-stopped-copy">
-              已停止生成
-            </div>
-            <section
-              v-if="message.role === 'assistant' && message.editProposals?.length"
-              class="edit-proposal-list"
-              aria-label="文稿变更提案"
-            >
-              <article
-                v-for="proposal in message.editProposals"
-                :key="proposal.id"
-                class="edit-proposal-card"
-                :class="`is-${proposal.status}`"
-                :aria-busy="proposal.status === 'accepting'"
+              <div
+                v-else-if="visibleResponse(message)"
+                class="message-copy"
+                :class="{ 'is-streaming': message.status === 'streaming' }"
               >
-                <header class="edit-proposal-header">
-                  <span class="edit-proposal-icon" aria-hidden="true">
-                    <AppIcon name="file" :size="17" />
-                  </span>
-                  <div class="edit-proposal-heading">
-                    <div class="edit-proposal-title-row">
-                      <strong>{{ proposal.title }}</strong>
-                      <span class="edit-proposal-status" :class="`is-${proposal.status}`">
-                        {{ proposalStatusLabel(proposal) }}
-                      </span>
-                    </div>
-                    <p>{{ proposal.summary }}</p>
-                  </div>
-                  <div
-                    class="edit-proposal-stats"
-                    :aria-label="`增加 ${proposal.additions} 行，删除 ${proposal.deletions} 行`"
-                  >
-                    <span class="is-addition">+{{ proposal.additions }}</span>
-                    <span class="is-deletion">−{{ proposal.deletions }}</span>
-                  </div>
-                </header>
-
-                <details v-if="proposal.hunks.length" class="edit-proposal-diff">
-                  <summary>
-                    <span>查看差异</span>
-                    <small>{{ proposal.hunks.length }} 个变更块</small>
-                    <AppIcon name="chevron" :size="13" />
-                  </summary>
-                  <div class="edit-diff-content">
-                    <div
-                      v-for="(hunk, hunkIndex) in proposal.hunks"
-                      :key="`${proposal.id}-hunk-${hunkIndex}`"
-                      class="edit-diff-hunk"
-                    >
-                      <div class="edit-diff-hunk-header">
-                        @@ -{{ hunk.oldStart }},{{ hunk.oldLines }} +{{ hunk.newStart }},{{ hunk.newLines }} @@
-                      </div>
-                      <div
-                        v-for="(line, lineIndex) in hunk.lines"
-                        :key="`${proposal.id}-${hunkIndex}-${lineIndex}`"
-                        class="edit-diff-line"
-                        :class="`is-${line.type}`"
-                      >
-                        <span class="edit-diff-line-number">{{ line.oldLineNumber ?? "" }}</span>
-                        <span class="edit-diff-line-number">{{ line.newLineNumber ?? "" }}</span>
-                        <span class="edit-diff-line-mark" aria-hidden="true">
-                          {{ diffLineMark(line.type) }}
+                <MessageMarkdown :content="visibleResponse(message)" />
+              </div>
+              <div v-if="message.status === 'stopped'" class="message-stopped-copy">
+                已停止生成
+              </div>
+              <section
+                v-if="message.role === 'assistant' && message.editProposals?.length"
+                class="edit-proposal-list"
+                aria-label="文稿变更提案"
+              >
+                <article
+                  v-for="proposal in message.editProposals"
+                  :key="proposal.id"
+                  class="edit-proposal-card"
+                  :class="`is-${proposal.status}`"
+                  :aria-busy="proposal.status === 'accepting'"
+                >
+                  <header class="edit-proposal-header">
+                    <span class="edit-proposal-icon" aria-hidden="true">
+                      <AppIcon name="file" :size="17" />
+                    </span>
+                    <div class="edit-proposal-heading">
+                      <div class="edit-proposal-title-row">
+                        <strong>{{ proposal.title }}</strong>
+                        <span class="edit-proposal-status" :class="`is-${proposal.status}`">
+                          {{ proposalStatusLabel(proposal) }}
                         </span>
-                        <code>{{ line.text }}</code>
                       </div>
+                      <p>{{ proposal.summary }}</p>
                     </div>
-                    <p v-if="proposal.truncated" class="edit-diff-truncated">
-                      差异较大，仅显示部分变更；行数统计包含完整提案。
-                    </p>
-                  </div>
-                </details>
-                <p v-else class="edit-proposal-empty">没有可显示的行级差异。</p>
+                    <div
+                      class="edit-proposal-stats"
+                      :aria-label="`增加 ${proposal.additions} 行，删除 ${proposal.deletions} 行`"
+                    >
+                      <span class="is-addition">+{{ proposal.additions }}</span>
+                      <span class="is-deletion">−{{ proposal.deletions }}</span>
+                    </div>
+                  </header>
 
-                <footer class="edit-proposal-footer">
-                  <span class="edit-proposal-message">
-                    {{ proposalStatusMessage(proposal, message.status) }}
-                  </span>
-                  <div
-                    v-if="
-                      proposal.status === 'pending' ||
-                      proposal.status === 'accepting' ||
-                      proposal.status === 'error' ||
-                      proposal.status === 'conflict'
-                    "
-                    class="edit-proposal-actions"
-                  >
-                    <button
-                      class="edit-review-button is-reject"
-                      type="button"
-                      :disabled="message.status === 'streaming' || proposal.status === 'accepting'"
-                      @click="reviewEditProposal(proposal, 'reject', message.status)"
+                  <details v-if="proposal.hunks.length" class="edit-proposal-diff">
+                    <summary>
+                      <span>查看差异</span>
+                      <small>{{ proposal.hunks.length }} 个变更块</small>
+                      <AppIcon name="chevron" :size="13" />
+                    </summary>
+                    <div class="edit-diff-content">
+                      <div
+                        v-for="(hunk, hunkIndex) in proposal.hunks"
+                        :key="`${proposal.id}-hunk-${hunkIndex}`"
+                        class="edit-diff-hunk"
+                      >
+                        <div class="edit-diff-hunk-header">
+                          @@ -{{ hunk.oldStart }},{{ hunk.oldLines }} +{{ hunk.newStart }},{{ hunk.newLines }} @@
+                        </div>
+                        <div
+                          v-for="(line, lineIndex) in hunk.lines"
+                          :key="`${proposal.id}-${hunkIndex}-${lineIndex}`"
+                          class="edit-diff-line"
+                          :class="`is-${line.type}`"
+                        >
+                          <span class="edit-diff-line-number">{{ line.oldLineNumber ?? "" }}</span>
+                          <span class="edit-diff-line-number">{{ line.newLineNumber ?? "" }}</span>
+                          <span class="edit-diff-line-mark" aria-hidden="true">
+                            {{ diffLineMark(line.type) }}
+                          </span>
+                          <code>{{ line.text }}</code>
+                        </div>
+                      </div>
+                      <p v-if="proposal.truncated" class="edit-diff-truncated">
+                        差异较大，仅显示部分变更；行数统计包含完整提案。
+                      </p>
+                    </div>
+                  </details>
+                  <p v-else class="edit-proposal-empty">没有可显示的行级差异。</p>
+
+                  <footer class="edit-proposal-footer">
+                    <span class="edit-proposal-message">
+                      {{ proposalStatusMessage(proposal, message.status) }}
+                    </span>
+                    <div
+                      v-if="
+                        proposal.status === 'pending' ||
+                        proposal.status === 'accepting' ||
+                        proposal.status === 'error' ||
+                        proposal.status === 'conflict'
+                      "
+                      class="edit-proposal-actions"
                     >
-                      拒绝
-                    </button>
-                    <button
-                      v-if="proposal.status !== 'conflict'"
-                      class="edit-review-button is-accept"
-                      type="button"
-                      :disabled="message.status === 'streaming' || proposal.status === 'accepting'"
-                      @click="reviewEditProposal(proposal, 'accept', message.status)"
-                    >
-                      {{ proposalAcceptLabel(proposal) }}
-                    </button>
-                  </div>
-                </footer>
-              </article>
-            </section>
+                      <button
+                        class="edit-review-button is-reject"
+                        type="button"
+                        :disabled="message.status === 'streaming' || proposal.status === 'accepting'"
+                        @click="reviewEditProposal(proposal, 'reject', message.status)"
+                      >
+                        拒绝
+                      </button>
+                      <button
+                        v-if="proposal.status !== 'conflict'"
+                        class="edit-review-button is-accept"
+                        type="button"
+                        :disabled="message.status === 'streaming' || proposal.status === 'accepting'"
+                        @click="reviewEditProposal(proposal, 'accept', message.status)"
+                      >
+                        {{ proposalAcceptLabel(proposal) }}
+                      </button>
+                    </div>
+                  </footer>
+                </article>
+              </section>
+            </div>
             <div
-              v-if="message.role === 'assistant' && message.content && message.status !== 'streaming'"
+              v-if="message.content && message.status !== 'streaming'"
               class="message-actions"
             >
-              <button type="button" :aria-label="copiedMessageId === message.id ? '已复制' : '复制回复'" @click="copyMessage(message)">
+              <span v-if="message.role === 'user'">{{ formatTime(message.createdAt) }}</span>
+              <button
+                type="button"
+                :aria-label="copyMessageLabel(message)"
+                @click="copyMessage(message)"
+              >
                 <AppIcon :name="copiedMessageId === message.id ? 'check' : 'copy'" :size="15" />
               </button>
-              <span>{{ formatTime(message.createdAt) }}</span>
+              <span v-if="message.role === 'assistant'">{{ formatTime(message.createdAt) }}</span>
             </div>
           </div>
         </article>
@@ -1600,6 +1656,31 @@ async function copyMessage(message: ChatMessage): Promise<void> {
               aria-hidden="true"
               @change="handleAttachmentChange"
             />
+            <div
+              v-if="editorReference"
+              class="composer-editor-reference"
+              aria-label="已引用正文选区"
+            >
+              <button
+                class="composer-editor-reference-main"
+                type="button"
+                :title="editorReferenceTooltip(editorReference)"
+                :aria-label="`定位到 ${editorReference.label}`"
+                @click="emit('locateEditorReference', editorReference)"
+              >
+                <AppIcon name="quote" :size="13" />
+                <span>{{ editorReference.label }}</span>
+              </button>
+              <button
+                class="composer-editor-reference-remove"
+                type="button"
+                :aria-label="`移除正文引用 ${editorReference.label}`"
+                :disabled="responding"
+                @click="emit('clearEditorReference')"
+              >
+                <AppIcon name="close" :size="11" />
+              </button>
+            </div>
             <div
               v-if="pendingAttachments.length || readingAttachments"
               class="composer-attachment-list"

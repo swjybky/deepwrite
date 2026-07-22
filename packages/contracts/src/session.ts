@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
+import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "./expert-draft";
 import {
   AgentProviderRuntimeConfigSchema,
   TemperatureSchema,
@@ -36,9 +37,14 @@ export const ActiveResourceSnapshotSchema = z.object({
   path: z.array(z.string().min(1).max(240)).max(16),
   format: z.string().min(1).max(80).optional(),
   source: z.literal("live-editor"),
-  content: z.string().max(20_000),
+  content: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
   truncated: z.boolean().optional(),
-  originalLength: z.number().int().nonnegative().max(10_000_000).optional()
+  originalLength: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS)
+    .optional()
 }).superRefine((value, context) => {
   if (
     value.truncated === true &&
@@ -92,14 +98,31 @@ export const WorkspaceRuntimeContextSchema = z.object({
 }).superRefine((value, context) => {
   const shortWorkspace = value.shortWorkspace;
   const active = value.activeResource;
-  if (
-    shortWorkspace &&
-    active &&
-    !shortWorkspace.stages.some(
-      (stage) =>
-        stage.stageId === shortWorkspace.activeStageId && stage.content === active.content
-    )
-  ) {
+  if (!shortWorkspace || !active) return;
+
+  const matchesActiveStage = shortWorkspace.activeStageId === "draft"
+    ? (
+        shortWorkspace.activeAgentId !== "expert_section_writer" &&
+        active.id === shortWorkspace.expertDraft.id &&
+        active.content === ""
+      ) || shortWorkspace.expertDraft.sections
+        .filter(
+          (section) =>
+            shortWorkspace.activeAgentId !== "expert_section_writer" ||
+            section.id === shortWorkspace.activeSectionId
+        )
+        .some((section) =>
+          [section.body, section.characterState].some(
+            (file) =>
+              file.documentId === active.id && file.content === active.content
+          )
+        )
+    : shortWorkspace.stages.some(
+        (stage) =>
+          stage.stageId === shortWorkspace.activeStageId &&
+          stage.content === active.content
+      );
+  if (!matchesActiveStage) {
     context.addIssue({
       code: "custom",
       path: ["shortWorkspace", "activeStageId"],
@@ -404,9 +427,10 @@ export const AgentToolCompletedPayloadSchema = z.object({
 export type AgentToolCompletedPayload = z.infer<typeof AgentToolCompletedPayloadSchema>;
 
 export const WorkspaceEditorMutationTargetSchema = z.object({
-  kind: z.literal("expert-draft-section"),
+  kind: z.literal("expert-draft-file"),
+  documentId: z.string().trim().min(1).max(4_096),
   sectionId: z.string().trim().min(1).max(120),
-  field: z.enum(["body", "characterState"])
+  fileKind: z.enum(["body", "characterState"])
 });
 export type WorkspaceEditorMutationTarget = z.infer<
   typeof WorkspaceEditorMutationTargetSchema
@@ -419,7 +443,7 @@ export const WorkspaceEditorMutationPayloadSchema = z
     toolCallId: z.string().min(1),
     workspaceId: z.string().min(1).max(240),
     stageId: ShortWorkspaceStageIdSchema,
-    text: z.string().max(10_000_000),
+    text: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
     mutationTarget: WorkspaceEditorMutationTargetSchema.optional(),
     baseRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
     summary: z.string().min(1).max(1_000),
@@ -431,6 +455,13 @@ export const WorkspaceEditorMutationPayloadSchema = z
         code: "custom",
         path: ["mutationTarget"],
         message: "Expert draft section mutations must target the draft stage."
+      });
+    }
+    if (value.stageId === "draft" && value.mutationTarget === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["mutationTarget"],
+        message: "Draft mutations must target one physical expert draft file."
       });
     }
   });

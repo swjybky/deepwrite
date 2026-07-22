@@ -14,9 +14,86 @@ describe("AgentConversation edit proposal placement", () => {
     expect(actionsStart).toBeGreaterThan(proposalsStart);
   });
 
+  it("renders a hover copy action and timestamp below both user and assistant messages", () => {
+    expect(source).toContain('<div class="message-content">');
+    expect(source).toContain('v-if="message.content && message.status !== \'streaming\'"');
+    expect(source).toContain(':aria-label="copyMessageLabel(message)"');
+    expect(source).toContain('return message.role === "assistant" ? "复制回复" : "复制消息";');
+
+    const actionsStart = source.indexOf('class="message-actions"');
+    const userTimeStart = source.indexOf(
+      '<span v-if="message.role === \'user\'">{{ formatTime(message.createdAt) }}</span>',
+      actionsStart
+    );
+    const copyButtonStart = source.indexOf(':aria-label="copyMessageLabel(message)"', actionsStart);
+    const assistantTimeStart = source.indexOf(
+      '<span v-if="message.role === \'assistant\'">{{ formatTime(message.createdAt) }}</span>',
+      actionsStart
+    );
+
+    expect(actionsStart).toBeGreaterThan(-1);
+    expect(userTimeStart).toBeGreaterThan(actionsStart);
+    expect(copyButtonStart).toBeGreaterThan(userTimeStart);
+    expect(assistantTimeStart).toBeGreaterThan(copyButtonStart);
+  });
+
+  it("shows one clickable editor reference inside the composer", () => {
+    expect(source).toContain('class="composer-editor-reference"');
+    expect(source).toContain("{{ editorReference.label }}");
+    expect(source).toContain("emit('locateEditorReference', editorReference)");
+    expect(source).toContain("createEditorReferenceAttachment(props.editorReference)");
+    expect(source).toContain("emit(\"clearEditorReference\")");
+  });
+
   it("only lists configured models in the composer model selector", () => {
     expect(source).toContain("props.models.map");
     expect(source).toContain('placeholder="选择模型"');
     expect(source).not.toContain('{ value: "", label: "DeepWrite Faux" }');
+  });
+
+  it("offers configured thinking levels even when non-thinking parameters were configured last", () => {
+    const optionsStart = source.indexOf("const availableThinkingOptions");
+    const optionsEnd = source.indexOf("const modelOptions", optionsStart);
+    const optionsBlock = source.slice(optionsStart, optionsEnd);
+
+    expect(optionsBlock).toContain("selectedModel.value.thinkingLevelOptions.map");
+    expect(optionsBlock).not.toContain("selectedModel.value.reasoning");
+  });
+
+  it("labels and classifies the physical expert-draft tools", () => {
+    const labelsStart = source.indexOf("function workspaceToolLabel");
+    const labelsEnd = source.indexOf("function hasProcessing", labelsStart);
+    const labels = source.slice(labelsStart, labelsEnd);
+    expect(labels).toContain('read_all_expert_draft: "读取全部正文"');
+    expect(labels).toContain(
+      'write_expert_draft_section: "写入正文小节"'
+    );
+    expect(labels).toContain(
+      'replace_expert_draft_section_text: "替换正文小节文本"'
+    );
+    expect(labels).toContain(
+      'read_expert_character_state: "读取人物状态"'
+    );
+    expect(labels).toContain('edit_expert_draft_section: "编辑正文"');
+
+    const writeStart = source.indexOf("const WRITE_TOOL_NAMES");
+    const directStart = source.indexOf("const DIRECT_WRITE_TOOL_NAMES", writeStart);
+    const writeNames = source.slice(writeStart, directStart);
+    const directEnd = source.indexOf("function isWriteTool", directStart);
+    const directWriteNames = source.slice(directStart, directEnd);
+    expect(writeNames).toContain('"write_expert_draft_section"');
+    expect(writeNames).toContain('"write_section_body"');
+    expect(writeNames).toContain('"replace_expert_draft_section_text"');
+    expect(writeNames).toContain('"edit_expert_draft_section"');
+    expect(writeNames).not.toContain('"read_all_expert_draft"');
+    expect(writeNames).not.toContain('"read_expert_character_state"');
+    expect(directWriteNames).toContain('"write_expert_draft_section"');
+    expect(directWriteNames).toContain('"write_section_body"');
+    expect(directWriteNames).not.toContain(
+      '"replace_expert_draft_section_text"'
+    );
+    expect(directWriteNames).not.toContain('"edit_expert_draft_section"');
+    expect(source).not.toContain("initialize_expert_draft");
+    expect(source).toContain("writeToolText(item.tool).length.toLocaleString('zh-CN')");
   });
 });

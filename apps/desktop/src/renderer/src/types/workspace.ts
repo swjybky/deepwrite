@@ -98,6 +98,10 @@ export interface ResourceTreeNode {
   shortAgentId?: ShortWorkspaceAgentId;
   /** Identifies the expert-draft section selected by this navigation node. */
   expertSectionId?: string;
+  /** Identifies the virtual draft directory represented by this navigation node. */
+  draftDirectoryId?: string;
+  /** The paired character-state editor document for a draft section node. */
+  characterStateDocumentId?: string;
   categoryTag?: string;
   badge?: string;
   muted?: boolean;
@@ -144,6 +148,10 @@ export interface WorkspaceDocument {
   stageId?: ShortWorkspaceStageId;
   shortAgentId?: ShortWorkspaceAgentId;
   expertSectionId?: string;
+  expertSectionOrder?: number;
+  expertWordCountRequirement?: string;
+  draftDirectoryId?: string;
+  draftFileKind?: "body" | "character-state";
   catalogDocumentId?: string;
   catalogEntryId?: string;
   catalogProjectRevision?: number;

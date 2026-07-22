@@ -24,6 +24,7 @@ import {
   SkillKindSchema,
   SkillStageIdSchema,
   UpdateBookInputSchema,
+  createCatalogDraftDirectory,
   type CatalogDocument,
   type CatalogSnapshot,
   type CreateShortBookInput,
@@ -93,9 +94,26 @@ const DEFAULT_SHORT_DOCUMENTS = [
   ["plot_design", "剧情设计"],
   ["intro_design", "导语设计"],
   ["plot_refine", "剧情细化"],
-  ["outline", "大纲"],
-  ["draft", "正文编写"]
+  ["outline", "大纲"]
 ] as const;
+
+const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 人物状态";
+const CATALOG_TITLE_MAX_LENGTH = 256;
+
+function draftCharacterStateTitle(sectionTitle: string): string {
+  return `${sectionTitle.slice(
+    0,
+    CATALOG_TITLE_MAX_LENGTH - DRAFT_CHARACTER_STATE_TITLE_SUFFIX.length
+  )}${DRAFT_CHARACTER_STATE_TITLE_SUFFIX}`;
+}
+
+function isReservedDraftDocumentId(documentId: string): boolean {
+  return (
+    documentId.startsWith("draft-section:") &&
+    (documentId.endsWith(":body") ||
+      documentId.endsWith(":character-state"))
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -1222,6 +1240,7 @@ export class CatalogStore {
       ),
       linkedSkillIdsByKind: normalizeLinkedSkillIds(input.linkedSkillIdsByKind),
       documents: createDefaultDocuments(now),
+      draft: createCatalogDraftDirectory(now),
       createdAt: now,
       updatedAt: now
     });
@@ -1298,23 +1317,59 @@ export class CatalogStore {
         }
         existing.updatedAt = now;
       } else {
-        book.documents.push(
-          CatalogDocumentSchema.parse({
-            id: input.documentId,
-            title: input.title ?? defaultDocumentTitle(input.documentId),
-            content: input.content,
-            createdAt: now,
-            updatedAt: now
-          })
+        const section = book.draft.sections.find(
+          (candidate) =>
+            candidate.body.id === input.documentId ||
+            candidate.characterState.id === input.documentId
         );
+        if (section?.body.id === input.documentId) {
+          const sectionTitle = input.title ?? section.title;
+          section.title = sectionTitle;
+          section.body.title = sectionTitle;
+          section.body.content = input.content;
+          section.body.updatedAt = now;
+          section.characterState.title = draftCharacterStateTitle(sectionTitle);
+          section.updatedAt = now;
+          book.draft.updatedAt = now;
+        } else if (section?.characterState.id === input.documentId) {
+          section.characterState.title = draftCharacterStateTitle(section.title);
+          section.characterState.content = input.content;
+          section.characterState.updatedAt = now;
+          section.updatedAt = now;
+          book.draft.updatedAt = now;
+        } else {
+          if (isReservedDraftDocumentId(input.documentId)) {
+            throw new Error("该正文小节已删除或不存在。");
+          }
+          if (input.documentId === "draft") {
+            throw new Error(
+              "正文现在是小节文件夹，不能再按单一 draft 文档整篇覆盖。"
+            );
+          }
+          book.documents.push(
+            CatalogDocumentSchema.parse({
+              id: input.documentId,
+              title: input.title ?? defaultDocumentTitle(input.documentId),
+              content: input.content,
+              createdAt: now,
+              updatedAt: now
+            })
+          );
+        }
       }
       book.updatedAt = now;
       return true;
     });
     const book = next.books.find((candidate) => candidate.id === input.bookId)!;
-    return structuredClone(
-      book.documents.find((document) => document.id === input.documentId)!
-    );
+    const saved =
+      book.documents.find((document) => document.id === input.documentId) ??
+      book.draft.sections
+        .flatMap((section) => [section.body, section.characterState])
+        .find((document) => document.id === input.documentId);
+    if (!saved) {
+      throw new Error("正文文件保存后未能重新读取。");
+    }
+    return structuredClone(saved);
   }
 
   private async load(): Promise<CatalogSnapshot> {

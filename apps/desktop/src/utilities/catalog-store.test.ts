@@ -8,7 +8,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CatalogSnapshotSchema } from "@deepwrite/contracts";
+import {
+  CatalogSnapshotSchema,
+  catalogDraftBodyDocumentId
+} from "@deepwrite/contracts";
 import { CatalogStore } from "./catalog-store";
 
 const temporaryRoots = new Set<string>();
@@ -355,7 +358,7 @@ describe("CatalogStore", () => {
     });
     await firstStore.saveDocument({
       bookId: book.id,
-      documentId: "draft",
+      documentId: catalogDraftBodyDocumentId("section-1"),
       content: "必须保留的书稿"
     });
 
@@ -432,7 +435,9 @@ describe("CatalogStore", () => {
     ]);
     expect(supplemented.books).toHaveLength(1);
     expect(
-      supplemented.books[0]?.documents.find(({ id }) => id === "draft")?.content
+      supplemented.books[0]?.draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("必须保留的书稿");
     expect(supplemented.legacyImport).toMatchObject({
       sourceRoot: firstRoot,
@@ -511,15 +516,19 @@ describe("CatalogStore", () => {
       linkedMaterialIdsByKind: { character: ["material-character"] },
       linkedSkillIdsByKind: { general: ["skill-general"] }
     });
-    expect(book.documents).toHaveLength(6);
+    expect(book.documents).toHaveLength(5);
+    expect(book.draft.sections).toHaveLength(2);
     expect(book.linkedMaterialIdsByKind.character).toEqual(["material-character"]);
 
     const document = await store.saveDocument({
       bookId: book.id,
-      documentId: "draft",
+      documentId: catalogDraftBodyDocumentId("section-1"),
       content: "第一章正文"
     });
-    expect(document).toMatchObject({ id: "draft", content: "第一章正文" });
+    expect(document).toMatchObject({
+      id: catalogDraftBodyDocumentId("section-1"),
+      content: "第一章正文"
+    });
 
     const updated = await store.updateBook({
       bookId: book.id,
@@ -539,9 +548,10 @@ describe("CatalogStore", () => {
       legacyDataRoot,
       now: tickingClock()
     }).snapshot();
-    expect(persisted.books[0]?.documents.find(({ id }) => id === "draft")?.content).toBe(
-      "第一章正文"
-    );
+    expect(
+      persisted.books[0]?.draft.sections.find(({ id }) => id === "section-1")
+        ?.body.content
+    ).toBe("第一章正文");
     expect(() => CatalogSnapshotSchema.parse(persisted)).not.toThrow();
 
     expect(await store.deleteBook({ bookId: book.id })).toEqual({

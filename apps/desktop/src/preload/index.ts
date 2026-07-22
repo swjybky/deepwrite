@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   CatalogDocumentSchema,
+  CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
@@ -12,6 +13,7 @@ import {
   CatalogSnapshotSchema,
   CommandResultSchema,
   CreateLibraryEntryInputSchema,
+  CreateDraftSectionInputSchema,
   CreateLibraryGroupInputSchema,
   CreateLibraryInputSchema,
   CreateShortBookInputSchema,
@@ -19,6 +21,8 @@ import {
   DeleteCatalogProjectResultSchema,
   DeleteBookInputSchema,
   DeleteBookResultSchema,
+  DeleteDraftSectionInputSchema,
+  DeleteDraftSectionResultSchema,
   ImportLegacyLibraryResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
@@ -48,6 +52,7 @@ import {
   createEnvelope,
   type CommandEnvelope,
   type CatalogDocument,
+  type CatalogDraftSection,
   type CatalogDraftRecovery,
   type CatalogLibrary,
   type CatalogLibraryGroup,
@@ -57,6 +62,7 @@ import {
   type CatalogProjectDomain,
   type CatalogSnapshot,
   type CreateLibraryEntryInput,
+  type CreateDraftSectionInput,
   type CreateLibraryGroupInput,
   type CreateLibraryInput,
   type CreateShortBookInput,
@@ -64,6 +70,8 @@ import {
   type DeleteCatalogProjectInput,
   type DeleteCatalogProjectResult,
   type DeleteBookResult,
+  type DeleteDraftSectionInput,
+  type DeleteDraftSectionResult,
   type ModelConnectionTestResult,
   type ImportLegacyLibraryResult,
   type ModelConfigInput,
@@ -287,6 +295,38 @@ async function saveDocument(
   return CatalogDocumentSchema.parse(
     await invokeCommand<CatalogDocument>(
       createEnvelope("catalog.saveDocument", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function createDraftSection(
+  rawInput: CreateDraftSectionInput
+): Promise<CatalogDraftSection> {
+  const input = CreateDraftSectionInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_create_draft_section");
+  return CatalogDraftSectionSchema.parse(
+    await invokeCommand<CatalogDraftSection>(
+      createEnvelope("catalog.createDraftSection", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function deleteDraftSection(
+  rawInput: DeleteDraftSectionInput
+): Promise<DeleteDraftSectionResult> {
+  const input = DeleteDraftSectionInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_delete_draft_section");
+  return DeleteDraftSectionResultSchema.parse(
+    await invokeCommand<DeleteDraftSectionResult>(
+      createEnvelope("catalog.deleteDraftSection", input, {
         id,
         correlationId: id,
         context: { resourceId: input.bookId }
@@ -529,6 +569,8 @@ const api: DeepWriteApi = {
     updateLibraryGroup,
     deleteBook,
     saveDocument,
+    createDraftSection,
+    deleteDraftSection,
     saveLibraryEntry,
     createLibraryEntry,
     removeLibraryEntry,

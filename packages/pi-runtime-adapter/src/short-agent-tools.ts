@@ -5,10 +5,8 @@ import {
   SHORT_SKILL_KINDS,
   SHORT_WORKSPACE_STAGE_IDS,
   createShortWorkspaceContentRevision,
-  parseExpertDraftMarkdown,
-  renderExpertDraftManuscript,
-  serializeExpertDraftMarkdown,
   type AgentWriteApprovalMode,
+  type ExpertDraftSectionSnapshot,
   type ShortWorkspaceAgentProfile,
   type ShortWorkspaceSnapshot,
   type ShortWorkspaceStageId,
@@ -26,11 +24,12 @@ export type ShortWorkspaceToolDetails =
       summary: string;
     }
   | {
-      kind: "workspace-expert-section-mutation";
+      kind: "workspace-expert-draft-file-mutation";
       workspaceId: string;
       stageId: "draft";
+      documentId: string;
       sectionId: string;
-      field: "body" | "characterState";
+      fileKind: "body" | "characterState";
       text: string;
       baseRevision: string;
       summary: string;
@@ -60,13 +59,15 @@ export const SHORT_WORKSPACE_TOOL_MANIFEST = {
   ],
   plot: ["switch_storyline_stage"],
   coordinator: [
-    "initialize_expert_draft",
+    "read_all_expert_draft",
+    "read_expert_draft_section",
+    "write_expert_draft_section",
+    "replace_expert_draft_section_text",
     "edit_expert_draft_section",
-    "write_single_expert_section",
-    "start_expert_writing"
   ],
   sectionWriter: [
     "read_expert_draft_section",
+    "read_expert_character_state",
     "replace_section_body_text",
     "write_section_body",
     "replace_character_state_text",
@@ -227,17 +228,29 @@ function buildReadWorkspaceContentTool(
       if (!allowed.includes(stageId)) {
         return textResult(`当前智能体不允许读取「${stageLabel(stageId)}」。`);
       }
+      if (stageId === "draft") {
+        const index = input.workspace.expertDraft.sections
+          .map(
+            (section, sectionIndex) =>
+              `${sectionIndex + 1}. ${section.title}（${section.id}）\n` +
+              `   正文文件：${section.body.title}（${section.body.documentId}）\n` +
+              `   人物状态文件：${section.characterState.title}（${section.characterState.documentId}）`
+          )
+          .join("\n");
+        return textResult(
+          `书名：《${input.workspace.title}》\n【正文目录】（draft）\n` +
+          `目录版本：${input.workspace.expertDraft.revision}\n` +
+          `小节数：${input.workspace.expertDraft.sections.length}\n\n${index}\n\n` +
+          "这里只返回文件映射，不返回合并正文。整篇读取请调用 read_all_expert_draft，单节读取请调用 read_expert_draft_section。"
+        );
+      }
       const storedBody = stageBodies.get(stageId) ?? "";
-      const body =
-        stageId === "draft"
-          ? renderExpertDraftManuscript(parseExpertDraftMarkdown(storedBody))
-          : storedBody;
       const snapshot = input.workspace.stages.find((stage) => stage.stageId === stageId);
       const truncationNote = snapshot?.truncated
-        ? `\n注意：本轮只提供前 ${body.length.toLocaleString("zh-CN")} 个字符，原文共 ${snapshot.originalLength?.toLocaleString("zh-CN") ?? "更多"} 个字符。`
+        ? `\n注意：本轮只提供前 ${storedBody.length.toLocaleString("zh-CN")} 个字符，原文共 ${snapshot.originalLength?.toLocaleString("zh-CN") ?? "更多"} 个字符。`
         : "";
       return textResult(
-        `书名：《${input.workspace.title}》\n【${stageLabel(stageId)}】（${stageId}）\n本轮可读字数：${body.replace(/\s/g, "").length}${truncationNote}\n\n${body || "该阶段当前文本为空。"}`
+        `书名：《${input.workspace.title}》\n【${stageLabel(stageId)}】（${stageId}）\n本轮可读字数：${storedBody.replace(/\s/g, "").length}${truncationNote}\n\n${storedBody || "该阶段当前文本为空。"}`
       );
     }
   });
@@ -269,22 +282,35 @@ function buildSearchWorkspaceTextTool(
       const matches: string[] = [];
       for (const stageId of selected) {
         if (!allowed.includes(stageId)) continue;
-        const storedBody = stageBodies.get(stageId) ?? "";
-        const body =
-          stageId === "draft"
-            ? renderExpertDraftManuscript(parseExpertDraftMarkdown(storedBody))
-            : storedBody;
-        let cursor = 0;
-        while (matches.length < maxMatches) {
-          const index = body.indexOf(query, cursor);
-          if (index < 0) break;
-          const { line, column } = lineColumnAt(body, index);
-          const start = Math.max(0, index - contextChars);
-          const end = Math.min(body.length, index + query.length + contextChars);
-          matches.push(
-            `${stageLabel(stageId)}(${stageId}) ${line}:${column} ${start > 0 ? "…" : ""}${body.slice(start, end)}${end < body.length ? "…" : ""}`
-          );
-          cursor = index + Math.max(1, query.length);
+        const draftSections =
+          input.profile.id === "expert_section_writer"
+            ? input.workspace.expertDraft.sections.filter((section) =>
+                readableExpertSectionIds(input).has(section.id)
+              )
+            : input.workspace.expertDraft.sections;
+        const sources = stageId === "draft"
+          ? draftSections.map((section) => ({
+              label: `${section.title}（${section.id}）`,
+              body: section.body.content
+            }))
+          : [{ label: `${stageLabel(stageId)}(${stageId})`, body: stageBodies.get(stageId) ?? "" }];
+        for (const source of sources) {
+          let cursor = 0;
+          while (matches.length < maxMatches) {
+            const index = source.body.indexOf(query, cursor);
+            if (index < 0) break;
+            const { line, column } = lineColumnAt(source.body, index);
+            const start = Math.max(0, index - contextChars);
+            const end = Math.min(
+              source.body.length,
+              index + query.length + contextChars
+            );
+            matches.push(
+              `${source.label} ${line}:${column} ${start > 0 ? "…" : ""}${source.body.slice(start, end)}${end < source.body.length ? "…" : ""}`
+            );
+            cursor = index + Math.max(1, query.length);
+          }
+          if (matches.length >= maxMatches) break;
         }
       }
       const truncatedLabels = selected
@@ -433,27 +459,40 @@ function editorMutationResult(
   });
 }
 
-function expertSectionMutationResult(
+type ExpertSectionMap = Map<string, ExpertDraftSectionSnapshot>;
+
+function expertDraftFileMutationResult(
   input: BuildShortWorkspaceToolsInput,
-  stageRevisions: Map<ShortWorkspaceStageId, string>,
+  expertSections: ExpertSectionMap,
   sectionId: string,
-  field: "body" | "characterState",
+  fileKind: "body" | "characterState",
   text: string,
   summary: string
 ): AgentToolResult<ShortWorkspaceToolDetails> {
-  const baseRevision = stageRevisions.get("draft");
-  if (!baseRevision) {
-    return textResult("未写入：缺少「正文」的基础版本标识。");
+  const section = expertSections.get(sectionId);
+  const file = section?.[fileKind];
+  if (!section || !file) {
+    return textResult(`未写入：没有找到正文小节 ${sectionId} 的目标文件。`);
   }
+  const baseRevision = file.revision;
+  expertSections.set(sectionId, {
+    ...section,
+    [fileKind]: {
+      ...file,
+      content: text,
+      revision: createShortWorkspaceContentRevision(text)
+    }
+  });
   const resultSummary = input.writeApprovalMode === "auto-approve"
     ? summary.replace("，等待用户审阅。", "，将在本轮完成后自动批准并保存。")
     : summary;
   return textResult(resultSummary, {
-    kind: "workspace-expert-section-mutation",
+    kind: "workspace-expert-draft-file-mutation",
     workspaceId: input.workspace.id,
     stageId: "draft",
+    documentId: file.documentId,
     sectionId,
-    field,
+    fileKind,
     text,
     baseRevision,
     summary: resultSummary
@@ -575,105 +614,6 @@ function buildReplaceStageTextTool(
   });
 }
 
-function buildInitializeExpertDraftTool(
-  input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>,
-  stageRevisions: Map<ShortWorkspaceStageId, string>
-): AgentTool {
-  return defineTool({
-    name: "initialize_expert_draft",
-    label: "初始化正文",
-    description:
-      "根据大纲初始化正文小节骨架。当前 DeepWrite 迁移切片先建立可编辑合并正文；后台分节写手调度将在后续切片接通。",
-    parameters: Type.Object({
-      sections: Type.Array(
-        Type.Object({
-          id: Type.Optional(Type.String({ maxLength: 120 })),
-          title: Type.String({ minLength: 1, maxLength: 240 }),
-          word_count_requirement: Type.Optional(Type.String({ maxLength: 120 })),
-          body: Type.Optional(Type.String({ maxLength: 200_000 })),
-          character_state_body: Type.Optional(
-            Type.String({ maxLength: 200_000 })
-          )
-        }),
-        { minItems: 1, maxItems: 100 }
-      ),
-      allow_overwrite_existing: Type.Optional(Type.Boolean())
-    }),
-    execute: async (_toolCallId, params) => {
-      const current = stageBodies.get("draft") ?? "";
-      const snapshot = input.workspace.stages.find(
-        (stage) => stage.stageId === "draft"
-      );
-      if (snapshot?.truncated) {
-        return textResult(
-          "正文超过本轮安全快照上限，不能在未读取完整正文时重建小节骨架。"
-        );
-      }
-      if (current.trim() && params.allow_overwrite_existing !== true) {
-        return textResult("正文已有内容，未重建小节骨架；如需重建必须明确允许覆盖。 ");
-      }
-      const sections = params.sections as Array<{
-        id?: string;
-        title: string;
-        word_count_requirement?: string;
-        body?: string;
-        character_state_body?: string;
-      }>;
-      const usedIds = new Set<string>();
-      const previous = parseExpertDraftMarkdown(current);
-      const previousById = new Map(
-        previous.sections.map((section) => [section.id, section] as const)
-      );
-      const normalizedSections = sections.map((section, index) => {
-        const fallbackId = index === 0 && section.title.trim() === "导语"
-          ? "intro"
-          : `section-${index + (sections[0]?.title.trim() === "导语" ? 0 : 1)}`;
-        const preferredId = section.id?.trim() || fallbackId;
-        let id = preferredId;
-        let suffix = 2;
-        while (usedIds.has(id)) {
-          id = `${preferredId}-${suffix}`;
-          suffix += 1;
-        }
-        usedIds.add(id);
-        const old = previousById.get(id);
-        return {
-          id,
-          title: section.title.trim() || old?.title || `第${index + 1}节`,
-          wordCountRequirement:
-            section.word_count_requirement?.trim() ??
-            old?.wordCountRequirement ??
-            "",
-          body:
-            typeof section.body === "string" && section.body.trim()
-              ? section.body.trim()
-              : old?.body ?? "",
-          characterState:
-            typeof section.character_state_body === "string"
-              ? section.character_state_body
-              : old?.characterState ?? ""
-        };
-      });
-      const body = serializeExpertDraftMarkdown({
-        sections: normalizedSections
-      });
-      if (body.length > 10_000_000) {
-        return textResult("未初始化：正文小节合计超过 10,000,000 字符安全上限。");
-      }
-      return editorMutationResult(
-        input,
-        stageBodies,
-        stageRevisions,
-        "draft",
-        body,
-        `已生成包含 ${sections.length} 个正文小节的初始化变更，等待用户审阅。`
-      );
-    },
-    executionMode: "sequential"
-  });
-}
-
 function activeExpertSectionId(
   input: BuildShortWorkspaceToolsInput
 ): string | undefined {
@@ -683,18 +623,37 @@ function activeExpertSectionId(
 }
 
 function buildExpertSectionBodies(
-  input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>
-) {
-  const draftSnapshot = input.workspace.stages.find(
-    (stage) => stage.stageId === "draft"
+  input: BuildShortWorkspaceToolsInput
+): ExpertSectionMap {
+  return new Map(
+    input.workspace.expertDraft.sections.map((section) => [
+      section.id,
+      {
+        ...section,
+        body: { ...section.body },
+        characterState: { ...section.characterState }
+      }
+    ] as const)
   );
-  const sections = input.workspace.expertDraftSections ?? (
-    draftSnapshot?.truncated === true
+}
+
+function readableExpertSectionIds(
+  input: BuildShortWorkspaceToolsInput
+): Set<string> {
+  if (input.profile.id === "expert_draft_coordinator") {
+    return new Set(input.workspace.expertDraft.sections.map((section) => section.id));
+  }
+  const activeSectionId = activeExpertSectionId(input);
+  const activeIndex = input.workspace.expertDraft.sections.findIndex(
+    (section) => section.id === activeSectionId
+  );
+  return new Set(
+    activeIndex < 0
       ? []
-      : parseExpertDraftMarkdown(stageBodies.get("draft") ?? "").sections
+      : input.workspace.expertDraft.sections
+          .slice(Math.max(0, activeIndex - 3), activeIndex + 1)
+          .map((section) => section.id)
   );
-  return new Map(sections.map((section) => [section.id, { ...section }] as const));
 }
 
 function expertSectionWriteBlocked(
@@ -710,51 +669,231 @@ function expertSectionWriteBlocked(
 
 function buildReadExpertDraftSectionTool(
   input: BuildShortWorkspaceToolsInput,
-  expertSections: ReturnType<typeof buildExpertSectionBodies>
+  expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  readExpertFileIds: Set<string>
 ): AgentTool {
   return defineTool({
     name: "read_expert_draft_section",
     label: "读取正文小节",
     description:
-      "按稳定小节 id 读取章节名、字数要求、正文和该节结束时的人物状态。可读取当前节及其之前最近三个小节，但不会修改正文。",
+      "按稳定小节 id 读取章节名、字数要求和完整正文文件。人物状态需使用独立读取工具。",
     parameters: Type.Object({
       section_id: Type.String({ minLength: 1, maxLength: 120 })
     }),
     execute: async (_toolCallId, params) => {
       const sectionId = String(params.section_id ?? "").trim();
       const section = expertSections.get(sectionId);
-      if (!section) {
-        const knownSection = input.workspace.expertDraftSectionIds?.includes(sectionId);
+      const knownSection = input.workspace.expertDraft.sections.some(
+        (candidate) => candidate.id === sectionId
+      );
+      if (!section || !readableExpertSectionIds(input).has(sectionId)) {
         return textResult(
           knownSection
-            ? `小节 ${sectionId} 不在本轮分节上下文中；仅可读取当前小节及其之前最近三个小节。`
+            ? `小节 ${sectionId} 不在当前智能体的可读范围内。`
             : `没有找到正文小节 ${sectionId}。当前可用：${[...expertSections.values()]
                 .map((item) => `${item.title}（${item.id}）`)
                 .join("、")}`
         );
       }
+      readExpertFileIds.add(section.body.documentId);
       const current = sectionId === activeExpertSectionId(input) ? "（当前小节）" : "";
       return textResult(
         [
           `【${section.title}】${current}`,
           `section_id: ${section.id}`,
           `字数要求: ${section.wordCountRequirement || "未设置"}`,
+          `正文文件: ${section.body.title}（${section.body.documentId}）`,
+          `正文版本: ${section.body.revision}`,
           "",
           "正文:",
-          section.body || "（正文为空）",
-          "",
-          "人物状态:",
-          section.characterState || "（人物状态为空）"
+          section.body.content || "（正文为空）"
         ].join("\n")
       );
     }
   });
 }
 
+function buildReadAllExpertDraftTool(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap,
+  readExpertFileIds: Set<string>
+): AgentTool {
+  return defineTool({
+    name: "read_all_expert_draft",
+    label: "读取全部正文",
+    description:
+      "一次读取正文目录中所有小节的完整正文文件，不读取或混入人物状态。",
+    parameters: Type.Object({}),
+    execute: async () => {
+      input.workspace.expertDraft.sections.forEach((section) => {
+        readExpertFileIds.add(section.body.documentId);
+      });
+      const body = input.workspace.expertDraft.sections
+        .map((snapshot, index) => {
+          const section = expertSections.get(snapshot.id) ?? snapshot;
+          return [
+            `===== ${index + 1}. ${section.title} =====`,
+            `section_id: ${section.id}`,
+            `字数要求: ${section.wordCountRequirement || "未设置"}`,
+            `正文文件: ${section.body.title}（${section.body.documentId}）`,
+            `正文版本: ${section.body.revision}`,
+            "",
+            section.body.content || "（正文为空）"
+          ].join("\n");
+        })
+        .join("\n\n");
+      return textResult(
+        `书名：《${input.workspace.title}》\n正文目录版本：${input.workspace.expertDraft.revision}\n` +
+        `已完整读取 ${input.workspace.expertDraft.sections.length} 个小节的正文；以下不包含人物状态。\n\n${body}`
+      );
+    }
+  });
+}
+
+function buildReadExpertCharacterStateTool(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap,
+  readExpertFileIds: Set<string>
+): AgentTool {
+  return defineTool({
+    name: "read_expert_character_state",
+    label: "读取人物状态",
+    description:
+      "按稳定小节 id 读取独立的人物状态文件。分节写手只可读取当前小节和紧邻上一节。",
+    parameters: Type.Object({
+      section_id: Type.String({ minLength: 1, maxLength: 120 })
+    }),
+    execute: async (_toolCallId, params) => {
+      const sectionId = String(params.section_id ?? "").trim();
+      const section = expertSections.get(sectionId);
+      const activeIndex = input.workspace.expertDraft.sections.findIndex(
+        (candidate) => candidate.id === activeExpertSectionId(input)
+      );
+      const allowedIds = new Set(
+        activeIndex < 0
+          ? []
+          : input.workspace.expertDraft.sections
+              .slice(Math.max(0, activeIndex - 1), activeIndex + 1)
+              .map((candidate) => candidate.id)
+      );
+      if (!section) return textResult(`没有找到正文小节 ${sectionId}。`);
+      if (!allowedIds.has(sectionId)) {
+        return textResult(`小节 ${sectionId} 的人物状态不在当前分节写手的可读范围内。`);
+      }
+      readExpertFileIds.add(section.characterState.documentId);
+      return textResult(
+        [
+          `【${section.title}·人物状态】`,
+          `section_id: ${section.id}`,
+          `人物状态文件: ${section.characterState.title}（${section.characterState.documentId}）`,
+          `人物状态版本: ${section.characterState.revision}`,
+          "",
+          section.characterState.content || "（人物状态为空）"
+        ].join("\n")
+      );
+    }
+  });
+}
+
+function buildWriteCoordinatorExpertSectionTool(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap,
+  readExpertFileIds: Set<string>
+): AgentTool {
+  return defineTool({
+    name: "write_expert_draft_section",
+    label: "写入正文小节",
+    description:
+      "把完整小说正文写入指定 section_id 的正文文件。已有正文时只有明确整节重写才可覆盖。",
+    parameters: Type.Object({
+      section_id: Type.String({ minLength: 1, maxLength: 120 }),
+      text: Type.String({ minLength: 1, maxLength: 200_000 }),
+      allow_overwrite_existing: Type.Optional(Type.Boolean())
+    }),
+    execute: async (_toolCallId, params) => {
+      const sectionId = String(params.section_id ?? "").trim();
+      const section = expertSections.get(sectionId);
+      if (!section) return textResult(`未写入：没有找到正文小节 ${sectionId}。`);
+      if (
+        section.body.content.trim() &&
+        !readExpertFileIds.has(section.body.documentId)
+      ) {
+        return textResult(
+          `未写入：请先读取「${section.title}」的完整正文文件，再执行整节覆盖。`
+        );
+      }
+      if (section.body.content.trim() && params.allow_overwrite_existing !== true) {
+        return textResult(
+          `「${section.title}」已有正文；局部修改请使用 replace_expert_draft_section_text，整节重写需明确设置 allow_overwrite_existing=true。`
+        );
+      }
+      const text = String(params.text ?? "").trim();
+      if (!text) return textResult("未写入：文本为空。");
+      return expertDraftFileMutationResult(
+        input,
+        expertSections,
+        sectionId,
+        "body",
+        text,
+        `已生成「${section.title}」的正文文件变更，等待用户审阅。`
+      );
+    },
+    executionMode: "sequential"
+  });
+}
+
+function buildReplaceCoordinatorExpertSectionTool(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap,
+  readExpertFileIds: Set<string>,
+  options: { name: string; label: string }
+): AgentTool {
+  return defineTool({
+    name: options.name,
+    label: options.label,
+    description:
+      "在指定 section_id 的独立正文文件中执行一处精确替换；original_text 必须在该小节内唯一。",
+    parameters: Type.Object({
+      section_id: Type.String({ minLength: 1, maxLength: 120 }),
+      original_text: Type.String({ minLength: 1, maxLength: 2_400 }),
+      new_text: Type.String({ maxLength: 20_000 })
+    }),
+    execute: async (_toolCallId, params) => {
+      const sectionId = String(params.section_id ?? "").trim();
+      const section = expertSections.get(sectionId);
+      if (!section) return textResult(`未替换：没有找到正文小节 ${sectionId}。`);
+      if (
+        section.body.content.trim() &&
+        !readExpertFileIds.has(section.body.documentId)
+      ) {
+        return textResult(
+          `未替换：请先读取「${section.title}」的完整正文文件。`
+        );
+      }
+      const result = replaceText(section.body.content, [{
+        original_text: String(params.original_text ?? ""),
+        new_text: String(params.new_text ?? "")
+      }]);
+      if (result.error || result.next === undefined) {
+        return textResult(`未替换：${result.error ?? "未知错误"}`);
+      }
+      return expertDraftFileMutationResult(
+        input,
+        expertSections,
+        sectionId,
+        "body",
+        result.next,
+        `已生成「${section.title}」正文的 1 处文本变更，等待用户审阅。`
+      );
+    },
+    executionMode: "sequential"
+  });
+}
+
 function buildReplaceExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  stageRevisions: Map<ShortWorkspaceStageId, string>,
   expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  readExpertFileIds: Set<string>,
   field: "body" | "characterState"
 ): AgentTool {
   const bodyField = field === "body";
@@ -780,24 +919,26 @@ function buildReplaceExpertSectionFieldTool(
       if (blocked) return textResult(blocked);
       const sectionId = activeExpertSectionId(input)!;
       const section = expertSections.get(sectionId)!;
+      const file = section[field];
+      if (file.content.trim() && !readExpertFileIds.has(file.documentId)) {
+        return textResult(
+          `未替换：请先读取当前小节的${bodyField ? "完整正文" : "完整人物状态"}文件。`
+        );
+      }
       const replacements = params.replacements as Array<{
         original_text: string;
         new_text: string;
       }>;
       const result = replaceText(
-        bodyField ? section.body : section.characterState,
+        section[field].content,
         replacements
       );
       if (result.error || result.next === undefined) {
         return textResult(`未替换：${result.error ?? "未知错误"}`);
       }
-      expertSections.set(sectionId, {
-        ...section,
-        [field]: result.next
-      });
-      return expertSectionMutationResult(
+      return expertDraftFileMutationResult(
         input,
-        stageRevisions,
+        expertSections,
         sectionId,
         field,
         result.next,
@@ -810,8 +951,8 @@ function buildReplaceExpertSectionFieldTool(
 
 function buildWriteExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  stageRevisions: Map<ShortWorkspaceStageId, string>,
   expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  readExpertFileIds: Set<string>,
   field: "body" | "characterState"
 ): AgentTool {
   const bodyField = field === "body";
@@ -830,7 +971,15 @@ function buildWriteExpertSectionFieldTool(
       if (blocked) return textResult(blocked);
       const sectionId = activeExpertSectionId(input)!;
       const section = expertSections.get(sectionId)!;
-      const current = bodyField ? section.body : section.characterState;
+      const current = section[field].content;
+      if (
+        current.trim() &&
+        !readExpertFileIds.has(section[field].documentId)
+      ) {
+        return textResult(
+          `未写入：请先读取当前小节的${bodyField ? "完整正文" : "完整人物状态"}文件。`
+        );
+      }
       if (current.trim() && params.allow_overwrite_existing !== true) {
         return textResult(
           `${bodyField ? "当前小节正文" : "当前小节人物状态"}已有内容；局部修改请使用 ${
@@ -840,13 +989,9 @@ function buildWriteExpertSectionFieldTool(
       }
       const text = String(params.text ?? "").trim();
       if (!text) return textResult("未写入：文本为空。");
-      expertSections.set(sectionId, {
-        ...section,
-        [field]: text
-      });
-      return expertSectionMutationResult(
+      return expertDraftFileMutationResult(
         input,
-        stageRevisions,
+        expertSections,
         sectionId,
         field,
         text,
@@ -866,7 +1011,8 @@ export function buildShortWorkspaceTools(
   const stageRevisions = new Map<ShortWorkspaceStageId, string>(
     input.workspace.stages.map((stage) => [stage.stageId, stage.revision])
   );
-  const expertSections = buildExpertSectionBodies(input, stageBodies);
+  const expertSections = buildExpertSectionBodies(input);
+  const readExpertFileIds = new Set<string>();
   let activeStageId = input.workspace.activeStageId;
   const readTools = [
     buildReadWorkspaceContentTool(input, stageBodies),
@@ -878,10 +1024,20 @@ export function buildShortWorkspaceTools(
   if (input.profile.id === "expert_draft_coordinator") {
     return [
       ...readTools,
-      buildInitializeExpertDraftTool(input, stageBodies, stageRevisions),
-      buildReplaceStageTextTool(input, stageBodies, stageRevisions, () => "draft", {
+      buildReadAllExpertDraftTool(input, expertSections, readExpertFileIds),
+      buildReadExpertDraftSectionTool(input, expertSections, readExpertFileIds),
+      buildWriteCoordinatorExpertSectionTool(
+        input,
+        expertSections,
+        readExpertFileIds
+      ),
+      buildReplaceCoordinatorExpertSectionTool(input, expertSections, readExpertFileIds, {
+        name: "replace_expert_draft_section_text",
+        label: "替换正文小节文本"
+      }),
+      buildReplaceCoordinatorExpertSectionTool(input, expertSections, readExpertFileIds, {
         name: "edit_expert_draft_section",
-        label: "编辑正文"
+        label: "编辑正文小节"
       })
     ];
   }
@@ -889,29 +1045,30 @@ export function buildShortWorkspaceTools(
   if (input.profile.id === "expert_section_writer") {
     return [
       ...readTools,
-      buildReadExpertDraftSectionTool(input, expertSections),
+      buildReadExpertDraftSectionTool(input, expertSections, readExpertFileIds),
+      buildReadExpertCharacterStateTool(input, expertSections, readExpertFileIds),
       buildReplaceExpertSectionFieldTool(
         input,
-        stageRevisions,
         expertSections,
+        readExpertFileIds,
         "body"
       ),
       buildWriteExpertSectionFieldTool(
         input,
-        stageRevisions,
         expertSections,
+        readExpertFileIds,
         "body"
       ),
       buildReplaceExpertSectionFieldTool(
         input,
-        stageRevisions,
         expertSections,
+        readExpertFileIds,
         "characterState"
       ),
       buildWriteExpertSectionFieldTool(
         input,
-        stageRevisions,
         expertSections,
+        readExpertFileIds,
         "characterState"
       )
     ];
@@ -940,7 +1097,7 @@ export function isShortWorkspaceToolDetails(
   return (
     kind === "none" ||
     kind === "workspace-editor-mutation" ||
-    kind === "workspace-expert-section-mutation" ||
+    kind === "workspace-expert-draft-file-mutation" ||
     kind === "workspace-stage-selection"
   );
 }

@@ -19,6 +19,7 @@ import type {
 import type { WorkspaceDirectorySettings } from "./workspace-directory";
 import type {
   CatalogDocument,
+  CatalogDraftSection,
   CatalogDraftRecovery,
   CatalogLibrary,
   CatalogLibraryGroup,
@@ -28,12 +29,15 @@ import type {
   CatalogSnapshot,
   CatalogLibraryProjectDomain,
   CreateLibraryEntryInput,
+  CreateDraftSectionInput,
   CreateLibraryGroupInput,
   CreateLibraryInput,
   CreateShortBookInput,
   DeleteCatalogProjectInput,
   DeleteCatalogProjectResult,
   DeleteBookResult,
+  DeleteDraftSectionInput,
+  DeleteDraftSectionResult,
   RemoveLibraryEntryInput,
   RemoveLibraryEntryResult,
   SaveDocumentInput,
@@ -66,6 +70,10 @@ export interface DeepWriteApi {
     updateLibraryGroup(input: UpdateLibraryGroupInput): Promise<CatalogLibraryGroup>;
     deleteBook(bookId: string): Promise<DeleteBookResult>;
     saveDocument(input: SaveDocumentInput): Promise<CatalogDocument>;
+    createDraftSection(input: CreateDraftSectionInput): Promise<CatalogDraftSection>;
+    deleteDraftSection(
+      input: DeleteDraftSectionInput
+    ): Promise<DeleteDraftSectionResult>;
     saveLibraryEntry(input: SaveLibraryEntryInput): Promise<CatalogLibraryEntry>;
     createLibraryEntry(input: CreateLibraryEntryInput): Promise<CatalogLibraryEntry>;
     removeLibraryEntry(input: RemoveLibraryEntryInput): Promise<RemoveLibraryEntryResult>;

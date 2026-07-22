@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   CatalogDocumentSchema,
+  CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
   CatalogLibrarySchema,
@@ -13,6 +14,7 @@ import {
   CommandEnvelopeSchema,
   DeleteCatalogProjectResultSchema,
   DeleteBookResultSchema,
+  DeleteDraftSectionResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
   ModelConnectionTestResultSchema,
@@ -39,6 +41,7 @@ import {
   importLegacyLibraryArchives
 } from "./legacy-library-import-batch";
 import { ModelConfigStore } from "./model-config-store";
+import { resolveModelRunSettings } from "./model-run-settings";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
 import { WorkspaceDirectoryStore } from "./workspace-directory-store";
@@ -668,6 +671,8 @@ function registerIpc(): void {
         command.type === "catalog.updateLibraryGroup" ||
         command.type === "catalog.deleteBook" ||
         command.type === "catalog.saveDocument" ||
+        command.type === "catalog.createDraftSection" ||
+        command.type === "catalog.deleteDraftSection" ||
         command.type === "catalog.saveLibraryEntry" ||
         command.type === "catalog.createLibraryEntry" ||
         command.type === "catalog.removeLibraryEntry" ||
@@ -695,6 +700,12 @@ function registerIpc(): void {
               break;
             case "catalog.saveDocument":
               payload = CatalogDocumentSchema.parse(result.payload);
+              break;
+            case "catalog.createDraftSection":
+              payload = CatalogDraftSectionSchema.parse(result.payload);
+              break;
+            case "catalog.deleteDraftSection":
+              payload = DeleteDraftSectionResultSchema.parse(result.payload);
               break;
             case "catalog.saveLibraryEntry":
             case "catalog.createLibraryEntry":
@@ -922,14 +933,10 @@ function registerIpc(): void {
                 shortWorkspace
               )
             : undefined;
-          const thinkingLevel =
-            runtimeConfig?.reasoning === false
-              ? undefined
-              : command.payload.thinkingLevel ?? runtimeConfig?.defaultThinkingLevel;
-          const temperature =
-            runtimeConfig && (!runtimeConfig.reasoning || thinkingLevel === "off")
-              ? command.payload.temperature ?? runtimeConfig.temperatureOptions[1]
-              : undefined;
+          const { thinkingLevel, temperature } = resolveModelRunSettings(runtimeConfig, {
+            thinkingLevel: command.payload.thinkingLevel,
+            temperature: command.payload.temperature
+          });
           const {
             thinkingLevel: _requestedThinkingLevel,
             temperature: _requestedTemperature,

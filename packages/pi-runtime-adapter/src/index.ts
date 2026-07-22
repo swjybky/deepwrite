@@ -102,6 +102,11 @@ export type AgentRuntimeEvent =
         toolName?: string;
         phase: "start" | "delta" | "end";
         argumentsDelta: string;
+        /**
+         * Provider-side cumulative argument text. This stays inside the runtime
+         * adapter and is reduced to argumentsDelta before crossing IPC.
+         */
+        argumentsSnapshot?: string;
         args?: unknown;
         runtime: AgentRuntimeRef;
       };
@@ -139,9 +144,10 @@ export type AgentRuntimeEvent =
         stageId: import("@deepwrite/contracts").ShortWorkspaceStageId;
         text: string;
         mutationTarget?: {
-          kind: "expert-draft-section";
+          kind: "expert-draft-file";
+          documentId: string;
           sectionId: string;
-          field: "body" | "characterState";
+          fileKind: "body" | "characterState";
         };
         baseRevision: string;
         summary: string;
@@ -329,9 +335,8 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     let effectiveThinkingLevel: PiThinkingLevel;
 
     if (input.runtimeConfig) {
-      const configuredThinkingLevel = input.runtimeConfig.reasoning
-        ? input.thinkingLevel ?? input.runtimeConfig.defaultThinkingLevel
-        : "off";
+      const configuredThinkingLevel =
+        input.thinkingLevel ?? input.runtimeConfig.defaultThinkingLevel;
       const effectiveTemperature = configuredThinkingLevel === "off"
         ? input.temperature ?? input.runtimeConfig.temperatureOptions[1]
         : undefined;
@@ -448,6 +453,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       string,
       Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
     >();
+    const streamedToolArguments = new Map<string, string>();
     let toolDeltaTimer: NodeJS.Timeout | undefined;
 
     const emit = (event: AgentRuntimeEvent): void => {
@@ -480,6 +486,15 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     const emitStreamedToolEvent = (
       event: Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
     ): void => {
+      const currentArguments = streamedToolArguments.get(event.payload.streamId) ?? "";
+      const normalized = reconcileToolCallArguments(
+        currentArguments,
+        event.payload.argumentsDelta,
+        event.payload.argumentsSnapshot
+      );
+      event.payload.argumentsDelta = normalized.delta;
+      delete event.payload.argumentsSnapshot;
+      streamedToolArguments.set(event.payload.streamId, normalized.next);
       if (event.payload.phase !== "delta") {
         flushToolDeltas();
         emit(event);
@@ -525,6 +540,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         toolDeltaTimer = undefined;
       }
       pendingToolDeltas.clear();
+      streamedToolArguments.clear();
       if (abortListener && input.signal) {
         input.signal.removeEventListener("abort", abortListener);
       }
@@ -684,7 +700,8 @@ function toPiThinkingLevel(level: ConfiguredThinkingLevel): PiThinkingLevel {
   return "xhigh";
 }
 
-function buildProviderRuntime(
+/** @internal Exported for runtime-configuration regression tests. */
+export function buildProviderRuntime(
   config: AgentProviderRuntimeConfig,
   temperature?: number,
   configuredThinkingLevel?: ConfiguredThinkingLevel
@@ -702,7 +719,12 @@ function buildProviderRuntime(
     ...(builtin?.thinkingLevelMap ?? {})
   };
   if (configuredThinkingLevel && configuredThinkingLevel !== "off") {
-    thinkingLevelMap[toPiThinkingLevel(configuredThinkingLevel)] = configuredThinkingLevel;
+    const carrier = toPiThinkingLevel(configuredThinkingLevel);
+    if (configuredThinkingLevel !== carrier) {
+      thinkingLevelMap[carrier] = configuredThinkingLevel;
+    } else if (carrier === "xhigh" && thinkingLevelMap.xhigh === undefined) {
+      thinkingLevelMap.xhigh = "xhigh";
+    }
   }
   const model = {
     ...(builtin?.api === config.api ? builtin : {}),
@@ -711,7 +733,9 @@ function buildProviderRuntime(
     api: config.api,
     provider: config.provider,
     baseUrl,
-    reasoning: config.reasoning,
+    reasoning: configuredThinkingLevel === undefined
+      ? config.reasoning
+      : configuredThinkingLevel !== "off",
     // A custom endpoint has no Pi catalog metadata. Keep image blocks enabled
     // and let that endpoint return an explicit capability error if its selected
     // model is text-only; silently dropping a user image is never acceptable.
@@ -750,6 +774,7 @@ export function toToolStreamRuntimeEvent(
 ): Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }> {
   const content = streamEvent.partial.content[streamEvent.contentIndex];
   const toolCall = content?.type === "toolCall" ? content : undefined;
+  const argumentsSnapshot = toolCallArgumentsSnapshot(streamEvent, toolCall);
   const phase = streamEvent.type === "toolcall_start"
     ? "start"
     : streamEvent.type === "toolcall_delta"
@@ -765,12 +790,68 @@ export function toToolStreamRuntimeEvent(
       ...(toolCall?.name ? { toolName: toolCall.name } : {}),
       phase,
       argumentsDelta: streamEvent.type === "toolcall_delta" ? streamEvent.delta : "",
+      ...(argumentsSnapshot !== undefined ? { argumentsSnapshot } : {}),
       ...(streamEvent.type === "toolcall_end"
         ? { args: streamEvent.toolCall.arguments }
         : {}),
       runtime
     }
   };
+}
+
+function serializedToolArguments(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  if (Object.keys(value).length === 0) {
+    return undefined;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/** @internal Exported for protocol regression tests. */
+export function toolCallArgumentsSnapshot(
+  streamEvent: ToolCallAssistantEvent,
+  toolCall: Extract<AssistantMessage["content"][number], { type: "toolCall" }> | undefined
+): string | undefined {
+  const providerToolCall = toolCall as
+    | (typeof toolCall & { partialJson?: unknown; partialArgs?: unknown })
+    | undefined;
+  for (const candidate of [providerToolCall?.partialJson, providerToolCall?.partialArgs]) {
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+  if (streamEvent.type === "toolcall_end") {
+    return serializedToolArguments(streamEvent.toolCall.arguments);
+  }
+  if (streamEvent.type === "toolcall_start") {
+    return serializedToolArguments(toolCall?.arguments);
+  }
+  return undefined;
+}
+
+/** @internal Exported for protocol regression tests. */
+export function reconcileToolCallArguments(
+  current: string,
+  incomingDelta: string,
+  snapshot?: string
+): { delta: string; next: string } {
+  let delta = incomingDelta;
+  if (snapshot !== undefined) {
+    if (snapshot.startsWith(current)) {
+      delta = snapshot.slice(current.length);
+    } else if (current.startsWith(snapshot)) {
+      delta = "";
+    } else if (!current) {
+      delta = snapshot;
+    }
+  }
+  return { delta, next: `${current}${delta}` };
 }
 
 function toRuntimeEvents(
@@ -810,7 +891,7 @@ function toRuntimeEvents(
     if (isShortWorkspaceToolDetails(details)) {
       if (
         details.kind === "workspace-editor-mutation" ||
-        details.kind === "workspace-expert-section-mutation"
+        details.kind === "workspace-expert-draft-file-mutation"
       ) {
         events.push({
           type: "workspace.editor_mutation",
@@ -821,12 +902,13 @@ function toRuntimeEvents(
             workspaceId: details.workspaceId,
             stageId: details.stageId,
             text: details.text,
-            ...(details.kind === "workspace-expert-section-mutation"
+            ...(details.kind === "workspace-expert-draft-file-mutation"
               ? {
                   mutationTarget: {
-                    kind: "expert-draft-section" as const,
+                    kind: "expert-draft-file" as const,
+                    documentId: details.documentId,
                     sectionId: details.sectionId,
-                    field: details.field
+                    fileKind: details.fileKind
                   }
                 }
               : {}),
@@ -1023,9 +1105,9 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
     "只使用本轮实际提供的工具；没有出现在工具列表中的能力尚未接通，不得声称已经执行。",
     writeBoundary,
     profile.id === "expert_draft_coordinator"
-      ? "当前已接通正文骨架初始化与局部编辑；后台分节写手调度尚未接通，不能声称已启动后台写作。"
+      ? "当前已接通正文目录索引、全部/单节正文读取及按小节正文文件写入与替换；正文目录结构调整仍由界面管理，后台分节写手调度尚未接通，不能声称已初始化目录或启动后台写作。"
       : profile.id === "expert_section_writer"
-        ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态写工具提交定向分节变更，由客户端合并为待审阅 Markdown。"
+        ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态工具分别按 documentId 提交到两个独立文件，由客户端生成独立的待审阅变更。"
         : ""
   ].filter(Boolean).join("\n");
 }
@@ -1085,8 +1167,8 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
     input.workspaceContext?.shortWorkspace?.activeSectionId
       ? `当前小节: ${input.workspaceContext.shortWorkspace.activeSectionId}`
       : "",
-    input.workspaceContext?.shortWorkspace?.expertDraftSections?.length
-      ? `本轮可读取小节（由早到晚）: ${input.workspaceContext.shortWorkspace.expertDraftSections
+    input.workspaceContext?.shortWorkspace?.expertDraft.sections.length
+      ? `正文目录小节（由早到晚）: ${input.workspaceContext.shortWorkspace.expertDraft.sections
           .map((section) => `${section.title} (${section.id})`)
           .join("、")}`
       : "",

@@ -20,14 +20,19 @@ import {
 } from "node:path";
 import {
   BookProjectManifestSchema,
+  CatalogDraftSectionSchema,
   CatalogDraftRecoverySchema,
   CatalogProjectContentPathSchema,
   CatalogProjectManifestSchema,
   CatalogLegacyImportSchema,
   CatalogSnapshotSchema,
+  CreateDraftSectionInputSchema,
   CreateLibraryInputSchema,
   CreateLibraryGroupInputSchema,
   CreateShortBookInputSchema,
+  CurrentBookProjectManifestSchema,
+  DeleteDraftSectionInputSchema,
+  LegacyBookProjectManifestSchema,
   SaveDocumentInputSchema,
   MaterialGroupProjectManifestSchema,
   MaterialLibraryProjectManifestSchema,
@@ -37,9 +42,15 @@ import {
   ShortBookSchema,
   UpdateBookInputSchema,
   UpdateLibraryGroupInputSchema,
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
+  createCatalogDraftDirectory,
   createShortWorkspaceContentRevision,
+  migrateCatalogDraftDocument,
+  type BookProjectDraftSectionManifest,
   type BookProjectDocumentManifest,
   type BookProjectManifest,
+  type CatalogDraftSection,
   type CatalogLegacyImport,
   type CatalogProjectManifest,
   type CatalogProjectDiagnostic,
@@ -49,6 +60,11 @@ import {
   type CreateLibraryInput,
   type CreateLibraryGroupInput,
   type CreateShortBookInput,
+  type CreateDraftSectionInput,
+  type CurrentBookProjectManifest,
+  type DeleteDraftSectionInput,
+  type DeleteDraftSectionResult,
+  type LegacyBookProjectManifest,
   type MaterialLibraryProjectManifest,
   type MaterialLibrary,
   type MaterialLibraryGroup,
@@ -79,6 +95,9 @@ const DEFAULT_MAX_SNAPSHOT_CONTENT_BYTES = 256 * 1024 * 1024;
 const DEFAULT_MAX_DRAFT_RECOVERY_BYTES = 128 * 1024 * 1024;
 
 export const FolderBookProjectManifestSchema = BookProjectManifestSchema;
+export const FolderCurrentBookProjectManifestSchema =
+  CurrentBookProjectManifestSchema;
+export const FolderLegacyBookProjectManifestSchema = LegacyBookProjectManifestSchema;
 export const FolderMaterialProjectManifestSchema =
   MaterialLibraryProjectManifestSchema;
 export const FolderSkillProjectManifestSchema = SkillLibraryProjectManifestSchema;
@@ -88,6 +107,8 @@ export const FolderSkillGroupProjectManifestSchema = SkillGroupProjectManifestSc
 export const FolderCatalogProjectManifestSchema = CatalogProjectManifestSchema;
 
 export type FolderBookProjectManifest = BookProjectManifest;
+export type FolderCurrentBookProjectManifest = CurrentBookProjectManifest;
+export type FolderLegacyBookProjectManifest = LegacyBookProjectManifest;
 export type FolderMaterialProjectManifest = MaterialLibraryProjectManifest;
 export type FolderSkillProjectManifest = SkillLibraryProjectManifest;
 export type FolderCatalogProjectManifest = CatalogProjectManifest;
@@ -441,6 +462,7 @@ export class FolderCatalogStore {
           createdAt: now,
           updatedAt: now
         })),
+        draft: createCatalogDraftDirectory(now),
         createdAt: now,
         updatedAt: now
       };
@@ -819,9 +841,8 @@ export class FolderCatalogStore {
         "book",
         input.bookId
       );
-      const manifest = await this.readManifest(
+      const manifest = await this.readCurrentBookManifest(
         opened.projectDirectory,
-        "deepwrite.book",
         input.bookId
       );
       if (!input.force) {
@@ -854,8 +875,8 @@ export class FolderCatalogStore {
                 other: [...(input.linkedSkillIdsByKind.other ?? [])]
               },
         updatedAt: now
-      } satisfies FolderBookProjectManifest;
-      const validated = FolderBookProjectManifestSchema.parse(next);
+      } satisfies FolderCurrentBookProjectManifest;
+      const validated = FolderCurrentBookProjectManifestSchema.parse(next);
       await atomicWriteJson(
         join(opened.projectDirectory, MANIFEST_FILE),
         validated,
@@ -966,23 +987,43 @@ export class FolderCatalogStore {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(registry, input.bookId, "book");
       const projectDirectory = await secureProjectRoot(registration.projectDirectory);
-      const manifest = await this.readManifest(
+      const manifest = await this.readCurrentBookManifest(
         projectDirectory,
-        "deepwrite.book",
         input.bookId
       );
-      if (!input.force) {
-        assertBaseRevision(input.baseProjectRevision, manifest.revision);
-      }
       const now = this.now();
-      const existingIndex = manifest.documents.findIndex(
+      const regularDocumentIndex = manifest.documents.findIndex(
         ({ id }) => id === input.documentId
       );
       const documents = [...manifest.documents];
+      const draft = structuredClone(manifest.draft);
+      const draftTarget =
+        regularDocumentIndex < 0
+          ? findDraftDocumentManifest(draft, input.documentId)
+          : undefined;
+      if (
+        regularDocumentIndex < 0 &&
+        !draftTarget &&
+        isReservedDraftDocumentId(input.documentId)
+      ) {
+        throw new Error("该正文小节已删除或不存在。");
+      }
+      const changesDraftSectionTitle = Boolean(
+        draftTarget?.kind === "body" &&
+          input.title !== undefined &&
+          input.title !== draft.sections[draftTarget.sectionIndex]?.title
+      );
+      if (
+        !input.force &&
+        (regularDocumentIndex >= 0 || !draftTarget || changesDraftSectionTitle)
+      ) {
+        assertBaseRevision(input.baseProjectRevision, manifest.revision);
+      }
       let documentManifest: BookProjectDocumentManifest;
       let currentContent = "";
-      if (existingIndex >= 0) {
-        const existing = documents[existingIndex]!;
+      let existingPhysicalFile = true;
+      if (regularDocumentIndex >= 0) {
+        const existing = documents[regularDocumentIndex]!;
         currentContent = await readProjectMarkdown(
           projectDirectory,
           existing.path,
@@ -993,23 +1034,76 @@ export class FolderCatalogStore {
           ...(input.title === undefined ? {} : { title: input.title }),
           updatedAt: now
         };
-        documents[existingIndex] = documentManifest;
+        documents[regularDocumentIndex] = documentManifest;
       } else {
-        documentManifest = {
-          id: input.documentId,
-          title: input.title ?? defaultDocumentTitle(input.documentId),
-          path: await uniqueRelativeMarkdownPath(
+        if (draftTarget) {
+          const section = draft.sections[draftTarget.sectionIndex]!;
+          const existing =
+            draftTarget.kind === "body" ? section.body : section.characterState;
+          currentContent = await readProjectMarkdown(
             projectDirectory,
-            "stages",
-            input.documentId,
-            new Set(
-              documents.map(({ path }) => portableContentPathKey(path))
-            )
-          ),
-          createdAt: now,
-          updatedAt: now
-        };
-        documents.push(documentManifest);
+            existing.path,
+            this.maxMarkdownBytes
+          );
+          if (draftTarget.kind === "body") {
+            const sectionTitle = input.title ?? section.title;
+            documentManifest = {
+              ...existing,
+              title: sectionTitle,
+              updatedAt: now
+            };
+            draft.sections[draftTarget.sectionIndex] = {
+              ...section,
+              title: sectionTitle,
+              body: documentManifest,
+              characterState:
+                sectionTitle === section.title
+                  ? section.characterState
+                  : {
+                      ...section.characterState,
+                      title: draftCharacterStateTitle(sectionTitle),
+                      updatedAt: now
+                    },
+              updatedAt: now
+            };
+          } else {
+            documentManifest = {
+              ...existing,
+              title: draftCharacterStateTitle(section.title),
+              updatedAt: now
+            };
+            draft.sections[draftTarget.sectionIndex] = {
+              ...section,
+              characterState: documentManifest,
+              updatedAt: now
+            };
+          }
+          draft.updatedAt = now;
+        } else {
+          if (input.documentId === "draft") {
+            throw new Error(
+              "正文现在是小节文件夹，不能再按单一 draft 文档整篇覆盖。"
+            );
+          }
+          existingPhysicalFile = false;
+          documentManifest = {
+            id: input.documentId,
+            title: input.title ?? defaultDocumentTitle(input.documentId),
+            path: await uniqueRelativeMarkdownPath(
+              projectDirectory,
+              "stages",
+              input.documentId,
+              new Set(
+                manifestContentItems(manifest).map(({ path }) =>
+                  portableContentPathKey(path)
+                )
+              )
+            ),
+            createdAt: now,
+            updatedAt: now
+          };
+          documents.push(documentManifest);
+        }
       }
       if (!input.force && input.baseRevision !== undefined) {
         const actualRevision = createShortWorkspaceContentRevision(currentContent);
@@ -1021,16 +1115,17 @@ export class FolderCatalogStore {
         projectDirectory,
         documentManifest.path
       );
-      const next = FolderBookProjectManifestSchema.parse({
+      const next = FolderCurrentBookProjectManifestSchema.parse({
         ...manifest,
         revision: manifest.revision + 1,
         documents,
+        draft,
         updatedAt: now
       });
       await commitProjectMarkdownUpdate(
         target,
         input.content,
-        existingIndex >= 0 ? currentContent : undefined,
+        existingPhysicalFile ? currentContent : undefined,
         join(projectDirectory, MANIFEST_FILE),
         next,
         this.maxMarkdownBytes,
@@ -1044,6 +1139,199 @@ export class FolderCatalogStore {
         createdAt: documentManifest.createdAt,
         updatedAt: documentManifest.updatedAt
       };
+    });
+  }
+
+  async createDraftSection(
+    rawInput: CreateDraftSectionInput
+  ): Promise<CatalogDraftSection> {
+    const input = CreateDraftSectionInputSchema.parse(rawInput);
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(registry, input.bookId, "book");
+      const projectDirectory = await secureProjectRoot(registration.projectDirectory);
+      const manifest = await this.readCurrentBookManifest(
+        projectDirectory,
+        input.bookId
+      );
+      if (!input.force) {
+        assertBaseRevision(input.baseProjectRevision, manifest.revision);
+      }
+      if (manifest.draft.sections.length >= 100) {
+        throw new Error("正文最多支持 100 个小节。");
+      }
+
+      let insertionIndex = manifest.draft.sections.length;
+      if (input.afterSectionId !== undefined) {
+        const afterIndex = manifest.draft.sections.findIndex(
+          ({ id }) => id === input.afterSectionId
+        );
+        if (afterIndex < 0) {
+          throw new Error(`找不到插入位置对应的小节：${input.afterSectionId}`);
+        }
+        insertionIndex = afterIndex + 1;
+      }
+
+      const usedDocumentIds = new Set(
+        manifestContentItems(manifest).map(({ id }) => id)
+      );
+      const sectionId = nextDraftSectionId(
+        manifest.draft.sections.map(({ id }) => id),
+        usedDocumentIds
+      );
+      const title = input.title ?? defaultDraftSectionTitle(sectionId, insertionIndex);
+      const now = this.now();
+      const usedPaths = new Set(
+        manifestContentItems(manifest).map(({ path }) => portableContentPathKey(path))
+      );
+      const bodyPath = await uniqueRelativeMarkdownPathWithSuffix(
+        projectDirectory,
+        "stages/draft",
+        sectionId,
+        ".body.md",
+        usedPaths
+      );
+      usedPaths.add(portableContentPathKey(bodyPath));
+      const characterStatePath = await uniqueRelativeMarkdownPathWithSuffix(
+        projectDirectory,
+        "stages/draft",
+        sectionId,
+        ".state.md",
+        usedPaths
+      );
+      const section: BookProjectDraftSectionManifest = {
+        id: sectionId,
+        title,
+        wordCountRequirement: input.wordCountRequirement ?? "",
+        body: {
+          id: catalogDraftBodyDocumentId(sectionId),
+          title,
+          path: bodyPath,
+          createdAt: now,
+          updatedAt: now
+        },
+        characterState: {
+          id: catalogDraftCharacterStateDocumentId(sectionId),
+          title: draftCharacterStateTitle(title),
+          path: characterStatePath,
+          createdAt: now,
+          updatedAt: now
+        },
+        createdAt: now,
+        updatedAt: now
+      };
+      const sections = [...manifest.draft.sections];
+      sections.splice(insertionIndex, 0, section);
+      const next = FolderCurrentBookProjectManifestSchema.parse({
+        ...manifest,
+        revision: manifest.revision + 1,
+        updatedAt: now,
+        draft: {
+          ...manifest.draft,
+          sections,
+          updatedAt: now
+        }
+      });
+      const bodyTarget = await secureWritableProjectPath(
+        projectDirectory,
+        bodyPath
+      );
+      const characterStateTarget = await secureWritableProjectPath(
+        projectDirectory,
+        characterStatePath
+      );
+      await commitProjectFileCreations(
+        [
+          { target: bodyTarget, content: "" },
+          { target: characterStateTarget, content: "" }
+        ],
+        join(projectDirectory, MANIFEST_FILE),
+        next,
+        this.maxMarkdownBytes,
+        this.maxManifestBytes
+      );
+      await this.bumpRegistry(registry, now);
+      return CatalogDraftSectionSchema.parse({
+        id: section.id,
+        title: section.title,
+        wordCountRequirement: section.wordCountRequirement,
+        body: {
+          id: section.body.id,
+          title: section.body.title,
+          content: "",
+          createdAt: section.body.createdAt,
+          updatedAt: section.body.updatedAt
+        },
+        characterState: {
+          id: section.characterState.id,
+          title: section.characterState.title,
+          content: "",
+          createdAt: section.characterState.createdAt,
+          updatedAt: section.characterState.updatedAt
+        },
+        createdAt: section.createdAt,
+        updatedAt: section.updatedAt
+      });
+    });
+  }
+
+  async deleteDraftSection(
+    rawInput: DeleteDraftSectionInput
+  ): Promise<DeleteDraftSectionResult> {
+    const input = DeleteDraftSectionInputSchema.parse(rawInput);
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(registry, input.bookId, "book");
+      const projectDirectory = await secureProjectRoot(registration.projectDirectory);
+      const manifest = await this.readCurrentBookManifest(
+        projectDirectory,
+        input.bookId
+      );
+      if (!input.force) {
+        assertBaseRevision(input.baseProjectRevision, manifest.revision);
+      }
+      const sectionIndex = manifest.draft.sections.findIndex(
+        ({ id }) => id === input.sectionId
+      );
+      if (sectionIndex < 0) {
+        return { bookId: input.bookId, sectionId: input.sectionId, deleted: false };
+      }
+      if (manifest.draft.sections.length <= 1) {
+        throw new Error("正文至少需要保留一个小节。");
+      }
+      const deletedSection = manifest.draft.sections[sectionIndex]!;
+      const deletedFileTargets = await Promise.all(
+        [deletedSection.body.path, deletedSection.characterState.path].map(
+          async (path) =>
+            await secureExistingProjectPath(projectDirectory, path, true)
+        )
+      );
+      const now = this.now();
+      const next = FolderCurrentBookProjectManifestSchema.parse({
+        ...manifest,
+        revision: manifest.revision + 1,
+        updatedAt: now,
+        draft: {
+          ...manifest.draft,
+          sections: manifest.draft.sections.filter(
+            ({ id }) => id !== input.sectionId
+          ),
+          updatedAt: now
+        }
+      });
+      await atomicWriteJson(
+        join(projectDirectory, MANIFEST_FILE),
+        next,
+        this.maxManifestBytes
+      );
+      // The manifest is committed first so a crash cannot leave it pointing at
+      // missing files. A failed post-commit cleanup can only leave harmless,
+      // unreferenced recovery files behind.
+      await Promise.allSettled(
+        deletedFileTargets.map(async (target) => await unlinkOptional(target))
+      );
+      await this.bumpRegistry(registry, now);
+      return { bookId: input.bookId, sectionId: input.sectionId, deleted: true };
     });
   }
 
@@ -1695,7 +1983,7 @@ export class FolderCatalogStore {
       this.maxManifestBytes,
       "project manifest"
     );
-    const manifest = FolderCatalogProjectManifestSchema.parse(
+    let manifest = FolderCatalogProjectManifestSchema.parse(
       parseJson(text, manifestPath)
     );
     assertManifestUniqueness(manifest);
@@ -1708,7 +1996,41 @@ export class FolderCatalogStore {
     if (expectedResourceId !== undefined && manifest.id !== expectedResourceId) {
       throw new Error("项目标识与注册信息不一致。");
     }
+    if (manifest.kind === "deepwrite.book" && manifest.schemaVersion === 1) {
+      manifest = await migrateLegacyBookProject(
+        root,
+        manifest,
+        text,
+        this.maxMarkdownBytes,
+        this.maxManifestBytes
+      );
+      assertManifestUniqueness(manifest);
+      await assertManifestContentFilesUnique(root, manifest);
+    }
+    if (expectedKind && manifest.kind !== expectedKind) {
+      throw new Error(
+        `项目类型不匹配：需要 ${expectedKind}，实际为 ${manifest.kind}。`
+      );
+    }
+    if (expectedResourceId !== undefined && manifest.id !== expectedResourceId) {
+      throw new Error("项目标识与注册信息不一致。");
+    }
     return manifest as Extract<FolderCatalogProjectManifest, { kind: Kind }>;
+  }
+
+  private async readCurrentBookManifest(
+    projectDirectory: string,
+    expectedResourceId?: string
+  ): Promise<FolderCurrentBookProjectManifest> {
+    const manifest = await this.readManifest(
+      projectDirectory,
+      "deepwrite.book",
+      expectedResourceId
+    );
+    if (manifest.schemaVersion !== 2) {
+      throw new Error("书籍项目未完成正文目录迁移。");
+    }
+    return manifest;
   }
 
   private async readProject(
@@ -1929,9 +2251,81 @@ const DEFAULT_SHORT_DOCUMENTS = [
   ["plot_design", "剧情设计"],
   ["intro_design", "导语设计"],
   ["plot_refine", "剧情细化"],
-  ["outline", "大纲"],
-  ["draft", "正文编写"]
+  ["outline", "大纲"]
 ] as const;
+
+const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 人物状态";
+const CATALOG_TITLE_MAX_LENGTH = 256;
+
+function draftCharacterStateTitle(sectionTitle: string): string {
+  const availableSectionTitleLength =
+    CATALOG_TITLE_MAX_LENGTH - DRAFT_CHARACTER_STATE_TITLE_SUFFIX.length;
+  return `${sectionTitle.slice(0, availableSectionTitleLength)}${DRAFT_CHARACTER_STATE_TITLE_SUFFIX}`;
+}
+
+function findDraftDocumentManifest(
+  draft: FolderCurrentBookProjectManifest["draft"],
+  documentId: string
+): { sectionIndex: number; kind: "body" | "characterState" } | undefined {
+  for (const [sectionIndex, section] of draft.sections.entries()) {
+    if (section.body.id === documentId) {
+      return { sectionIndex, kind: "body" };
+    }
+    if (section.characterState.id === documentId) {
+      return { sectionIndex, kind: "characterState" };
+    }
+  }
+  return undefined;
+}
+
+function isReservedDraftDocumentId(documentId: string): boolean {
+  return (
+    documentId.startsWith("draft-section:") &&
+    (documentId.endsWith(":body") ||
+      documentId.endsWith(":character-state"))
+  );
+}
+
+function nextDraftSectionId(
+  sectionIds: readonly string[],
+  documentIds: ReadonlySet<string>
+): string {
+  const usedSections = new Set(sectionIds);
+  const highest = sectionIds.reduce((value, sectionId) => {
+    const numeric = /^section-(\d+)$/u.exec(sectionId)?.[1];
+    return numeric ? Math.max(value, Number(numeric)) : value;
+  }, 0);
+  let sectionNumber = highest + 1;
+  while (true) {
+    const sectionId = `section-${sectionNumber}`;
+    if (
+      !usedSections.has(sectionId) &&
+      !documentIds.has(catalogDraftBodyDocumentId(sectionId)) &&
+      !documentIds.has(catalogDraftCharacterStateDocumentId(sectionId))
+    ) {
+      return sectionId;
+    }
+    sectionNumber += 1;
+  }
+}
+
+function chineseSectionNumber(value: number): string {
+  const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  if (value <= 10) return value === 10 ? "十" : digits[value]!;
+  if (value < 20) return `十${digits[value - 10]}`;
+  if (value < 100) {
+    const tens = Math.floor(value / 10);
+    const ones = value % 10;
+    return `${digits[tens]}十${ones ? digits[ones] : ""}`;
+  }
+  return String(value);
+}
+
+function defaultDraftSectionTitle(sectionId: string, index: number): string {
+  if (sectionId === "intro") return "导语";
+  const numeric = /^section-(\d+)$/u.exec(sectionId)?.[1];
+  return `第${chineseSectionNumber(numeric ? Number(numeric) : index + 1)}节`;
+}
 
 function positiveByteLimit(
   value: number | undefined,
@@ -2126,18 +2520,38 @@ function registryProjectKey(
   return `${domain}\u0000${id}`;
 }
 
+function manifestContentItems(
+  manifest: FolderCatalogProjectManifest
+): Array<{ id: string; path: string }> {
+  if (manifest.kind === "deepwrite.book") {
+    return manifest.schemaVersion === 2
+      ? [
+          ...manifest.documents,
+          ...manifest.draft.sections.flatMap((section) => [
+            section.body,
+            section.characterState
+          ])
+        ]
+      : [...manifest.documents];
+  }
+  if (
+    manifest.kind === "deepwrite.material-library" ||
+    manifest.kind === "deepwrite.skill-library"
+  ) {
+    return [...manifest.entries];
+  }
+  return [];
+}
+
 function assertManifestUniqueness(manifest: FolderCatalogProjectManifest): void {
-  const items =
-    manifest.kind === "deepwrite.book"
-      ? manifest.documents
-      : manifest.kind === "deepwrite.material-library" ||
-          manifest.kind === "deepwrite.skill-library"
-        ? manifest.entries
-        : [];
+  const items = manifestContentItems(manifest);
   if (new Set(items.map(({ id }) => id)).size !== items.length) {
     throw new Error("Project manifest content ids must be unique.");
   }
-  if (new Set(items.map(({ path }) => path)).size !== items.length) {
+  if (
+    new Set(items.map(({ path }) => portableContentPathKey(path))).size !==
+    items.length
+  ) {
     throw new Error("Project manifest content paths must be unique.");
   }
 }
@@ -2146,13 +2560,7 @@ async function assertManifestContentFilesUnique(
   projectDirectory: string,
   manifest: FolderCatalogProjectManifest
 ): Promise<void> {
-  const items =
-    manifest.kind === "deepwrite.book"
-      ? manifest.documents
-      : manifest.kind === "deepwrite.material-library" ||
-          manifest.kind === "deepwrite.skill-library"
-        ? manifest.entries
-        : [];
+  const items = manifestContentItems(manifest);
   const identities = new Set<string>();
   for (const item of items) {
     const actualPath = await secureExistingProjectPath(
@@ -2254,6 +2662,161 @@ function kindForDomain(
   }
 }
 
+async function migrateLegacyBookProject(
+  projectDirectory: string,
+  manifest: FolderLegacyBookProjectManifest,
+  originalManifestText: string,
+  maxMarkdownBytes: number,
+  maxManifestBytes: number
+): Promise<FolderCurrentBookProjectManifest> {
+  const exactDraftIndex = manifest.documents.findIndex(
+    (document) => document.id === "draft"
+  );
+  const draftIndex =
+    exactDraftIndex >= 0
+      ? exactDraftIndex
+      : manifest.documents.findIndex(
+          (document) => document.title === "正文编写"
+        );
+  const draftManifest = draftIndex >= 0 ? manifest.documents[draftIndex] : undefined;
+  const legacyDraft = draftManifest
+    ? {
+        id: draftManifest.id,
+        title: draftManifest.title,
+        content: await readProjectMarkdown(
+          projectDirectory,
+          draftManifest.path,
+          maxMarkdownBytes
+        ),
+        createdAt: draftManifest.createdAt,
+        updatedAt: draftManifest.updatedAt
+      }
+    : undefined;
+  const draft = migrateCatalogDraftDocument(
+    legacyDraft,
+    manifest.createdAt,
+    manifest.updatedAt
+  );
+  const documents = manifest.documents.filter((_, index) => index !== draftIndex);
+  const usedPaths = new Set(
+    manifest.documents.map(({ path }) => portableContentPathKey(path))
+  );
+  const pendingFiles: Array<{ path: string; content: string }> = [];
+  const sections: BookProjectDraftSectionManifest[] = [];
+  for (const section of draft.sections) {
+    assertTextByteLength(
+      section.body.content,
+      maxMarkdownBytes,
+      "Draft body Markdown content"
+    );
+    assertTextByteLength(
+      section.characterState.content,
+      maxMarkdownBytes,
+      "Draft character-state Markdown content"
+    );
+    const bodyPath = await uniqueRelativeMarkdownPathWithSuffix(
+      projectDirectory,
+      "stages/draft",
+      section.id,
+      ".body.md",
+      usedPaths
+    );
+    usedPaths.add(portableContentPathKey(bodyPath));
+    const characterStatePath = await uniqueRelativeMarkdownPathWithSuffix(
+      projectDirectory,
+      "stages/draft",
+      section.id,
+      ".state.md",
+      usedPaths
+    );
+    usedPaths.add(portableContentPathKey(characterStatePath));
+    pendingFiles.push(
+      { path: bodyPath, content: section.body.content },
+      { path: characterStatePath, content: section.characterState.content }
+    );
+    sections.push({
+      id: section.id,
+      title: section.title,
+      wordCountRequirement: section.wordCountRequirement,
+      body: {
+        id: section.body.id,
+        title: section.body.title,
+        path: bodyPath,
+        createdAt: section.body.createdAt,
+        updatedAt: section.body.updatedAt
+      },
+      characterState: {
+        id: section.characterState.id,
+        title: section.characterState.title,
+        path: characterStatePath,
+        createdAt: section.characterState.createdAt,
+        updatedAt: section.characterState.updatedAt
+      },
+      createdAt: section.createdAt,
+      updatedAt: section.updatedAt
+    });
+  }
+  const next = FolderCurrentBookProjectManifestSchema.parse({
+    ...manifest,
+    schemaVersion: 2,
+    documents,
+    draft: {
+      id: draft.id,
+      title: draft.title,
+      sections,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt
+    }
+  });
+  assertJsonByteLength(next, maxManifestBytes);
+
+  // The v1 manifest remains authoritative until every new file is committed.
+  // A failure or process stop before the final manifest rename can at worst
+  // leave unreferenced recovery files; the original draft.md is never removed.
+  for (const file of pendingFiles) {
+    const target = await secureWritableProjectPath(projectDirectory, file.path);
+    await atomicWriteText(target, file.content);
+  }
+  const currentManifestText = await readRequiredUtf8File(
+    join(projectDirectory, MANIFEST_FILE),
+    maxManifestBytes,
+    "project manifest"
+  );
+  const currentLegacyDraftContent = draftManifest
+    ? await readProjectMarkdown(
+        projectDirectory,
+        draftManifest.path,
+        maxMarkdownBytes
+      )
+    : undefined;
+  assertLegacyBookMigrationSourcesUnchanged({
+    originalManifestText,
+    currentManifestText,
+    originalLegacyDraftContent: legacyDraft?.content,
+    currentLegacyDraftContent
+  });
+  await atomicWriteJson(
+    join(projectDirectory, MANIFEST_FILE),
+    next,
+    maxManifestBytes
+  );
+  return next;
+}
+
+export function assertLegacyBookMigrationSourcesUnchanged(input: {
+  originalManifestText: string;
+  currentManifestText: string;
+  originalLegacyDraftContent: string | undefined;
+  currentLegacyDraftContent: string | undefined;
+}): void {
+  if (
+    input.originalManifestText !== input.currentManifestText ||
+    input.originalLegacyDraftContent !== input.currentLegacyDraftContent
+  ) {
+    throw new Error("旧版书籍在正文迁移期间被外部修改，已中止迁移。");
+  }
+}
+
 async function writeResourceContents(
   projectDirectory: string,
   domain: FolderCatalogProjectDomain,
@@ -2272,7 +2835,7 @@ async function writeResourceContents(
     case "book": {
       const book = resource as ShortBook;
       const used = new Set<string>();
-      const documents = [];
+      const documents: BookProjectDocumentManifest[] = [];
       for (const document of book.documents) {
         assertTextByteLength(document.content, maxMarkdownBytes, "Markdown content");
         const path = await uniqueRelativeMarkdownPath(
@@ -2291,15 +2854,81 @@ async function writeResourceContents(
           updatedAt: document.updatedAt
         });
       }
-      return FolderBookProjectManifestSchema.parse({
+      const sections: BookProjectDraftSectionManifest[] = [];
+      for (const section of book.draft.sections) {
+        assertTextByteLength(
+          section.body.content,
+          maxMarkdownBytes,
+          "Draft body Markdown content"
+        );
+        assertTextByteLength(
+          section.characterState.content,
+          maxMarkdownBytes,
+          "Draft character-state Markdown content"
+        );
+        const bodyPath = await uniqueRelativeMarkdownPathWithSuffix(
+          projectDirectory,
+          "stages/draft",
+          section.id,
+          ".body.md",
+          used
+        );
+        used.add(portableContentPathKey(bodyPath));
+        const characterStatePath = await uniqueRelativeMarkdownPathWithSuffix(
+          projectDirectory,
+          "stages/draft",
+          section.id,
+          ".state.md",
+          used
+        );
+        used.add(portableContentPathKey(characterStatePath));
+        await atomicWriteText(
+          join(projectDirectory, bodyPath),
+          section.body.content
+        );
+        await atomicWriteText(
+          join(projectDirectory, characterStatePath),
+          section.characterState.content
+        );
+        sections.push({
+          id: section.id,
+          title: section.title,
+          wordCountRequirement: section.wordCountRequirement,
+          body: {
+            id: section.body.id,
+            title: section.body.title,
+            path: bodyPath,
+            createdAt: section.body.createdAt,
+            updatedAt: section.body.updatedAt
+          },
+          characterState: {
+            id: section.characterState.id,
+            title: section.characterState.title,
+            path: characterStatePath,
+            createdAt: section.characterState.createdAt,
+            updatedAt: section.characterState.updatedAt
+          },
+          createdAt: section.createdAt,
+          updatedAt: section.updatedAt
+        });
+      }
+      return FolderCurrentBookProjectManifestSchema.parse({
         ...common,
+        schemaVersion: 2,
         kind: kindForDomain(domain),
         bookType: book.bookType,
         genre: book.genre,
         status: book.status,
         linkedMaterialIdsByKind: book.linkedMaterialIdsByKind,
         linkedSkillIdsByKind: book.linkedSkillIdsByKind,
-        documents
+        documents,
+        draft: {
+          id: book.draft.id,
+          title: book.draft.title,
+          sections,
+          createdAt: book.draft.createdAt,
+          updatedAt: book.draft.updatedAt
+        }
       });
     }
     case "material-library": {
@@ -2413,13 +3042,21 @@ async function hydrateResource(
 ): Promise<FolderCatalogResource> {
   switch (manifest.kind) {
     case "deepwrite.book": {
+      if (manifest.schemaVersion !== 2) {
+        throw new Error("书籍项目未完成正文目录迁移。");
+      }
+      const draftFiles = manifest.draft.sections.flatMap((section) => [
+        section.body,
+        section.characterState
+      ]);
       const contents = await readProjectMarkdownContents(
         projectDirectory,
-        manifest.documents,
+        [...manifest.documents, ...draftFiles],
         maxMarkdownBytes,
         maxProjectContentBytes
       );
-      return {
+      const draftOffset = manifest.documents.length;
+      return ShortBookSchema.parse({
         id: manifest.id,
         title: manifest.title,
         bookType: manifest.bookType,
@@ -2435,9 +3072,36 @@ async function hydrateResource(
             createdAt: document.createdAt,
             updatedAt: document.updatedAt
           })),
+        draft: {
+          id: manifest.draft.id,
+          title: manifest.draft.title,
+          sections: manifest.draft.sections.map((section, index) => ({
+            id: section.id,
+            title: section.title,
+            wordCountRequirement: section.wordCountRequirement,
+            body: {
+              id: section.body.id,
+              title: section.body.title,
+              content: contents[draftOffset + index * 2]!,
+              createdAt: section.body.createdAt,
+              updatedAt: section.body.updatedAt
+            },
+            characterState: {
+              id: section.characterState.id,
+              title: section.characterState.title,
+              content: contents[draftOffset + index * 2 + 1]!,
+              createdAt: section.characterState.createdAt,
+              updatedAt: section.characterState.updatedAt
+            },
+            createdAt: section.createdAt,
+            updatedAt: section.updatedAt
+          })),
+          createdAt: manifest.draft.createdAt,
+          updatedAt: manifest.draft.updatedAt
+        },
         createdAt: manifest.createdAt,
         updatedAt: manifest.updatedAt
-      };
+      });
     }
     case "deepwrite.material-library": {
       const contents = await readProjectMarkdownContents(
@@ -2552,15 +3216,25 @@ async function readProjectMarkdownContents(
 function resourceContentByteLength(resource: FolderCatalogResource): number {
   const metadataBytes = Buffer.byteLength(
     JSON.stringify(resource, (key, value) =>
-      key === "content" || key === "body" ? undefined : value
+      key === "content" || (key === "body" && typeof value === "string")
+        ? undefined
+        : value
     ),
     "utf8"
   );
   if ("documents" in resource) {
-    return metadataBytes + resource.documents.reduce(
+    const documentBytes = resource.documents.reduce(
       (total, document) => total + Buffer.byteLength(document.content, "utf8"),
       0
     );
+    const draftBytes = resource.draft.sections.reduce(
+      (total, section) =>
+        total +
+        Buffer.byteLength(section.body.content, "utf8") +
+        Buffer.byteLength(section.characterState.content, "utf8"),
+      0
+    );
+    return metadataBytes + documentBytes + draftBytes;
   }
   if ("entries" in resource) {
     return metadataBytes + resource.entries.reduce(
@@ -2620,6 +3294,39 @@ async function uniqueRelativeMarkdownPath(
   ) {
     index += 1;
     candidate = `${directory}/${stem}-${index}.md`;
+  }
+  return CatalogProjectContentPathSchema.parse(candidate);
+}
+
+async function uniqueRelativeMarkdownPathWithSuffix(
+  projectDirectory: string,
+  directory: string,
+  id: string,
+  suffix: `.${string}.md`,
+  usedPortableKeys: ReadonlySet<string>
+): Promise<string> {
+  const occupied = new Set(usedPortableKeys);
+  const contentDirectory = resolve(projectDirectory, directory);
+  assertContained(projectDirectory, contentDirectory);
+  if (await pathExists(contentDirectory)) {
+    const actualDirectory = await secureDirectory(
+      contentDirectory,
+      "content directory"
+    );
+    assertContained(projectDirectory, actualDirectory);
+    for (const name of await readdir(actualDirectory)) {
+      occupied.add(portableContentPathKey(`${directory}/${name}`));
+    }
+  }
+  const stem = sanitizePathSegment(id);
+  let index = 1;
+  let candidate = `${directory}/${stem}${suffix}`;
+  while (
+    occupied.has(portableContentPathKey(candidate)) ||
+    (await pathExists(resolve(projectDirectory, candidate)))
+  ) {
+    index += 1;
+    candidate = `${directory}/${stem}-${index}${suffix}`;
   }
   return CatalogProjectContentPathSchema.parse(candidate);
 }
@@ -2835,6 +3542,53 @@ async function commitProjectMarkdownUpdate(
       throw new AggregateError(
         [error, rollbackError],
         "项目保存失败，且无法自动恢复原 Markdown。"
+      );
+    }
+    throw error;
+  }
+}
+
+async function commitProjectFileCreations(
+  files: ReadonlyArray<{ target: string; content: string }>,
+  manifestPath: string,
+  manifest: unknown,
+  maxMarkdownBytes: number,
+  maxManifestBytes: number
+): Promise<void> {
+  assertJsonByteLength(manifest, maxManifestBytes);
+  for (const file of files) {
+    assertTextByteLength(file.content, maxMarkdownBytes, "Markdown content");
+    if (await pathExists(file.target)) {
+      throw new Error("新的正文小节文件路径已被其他文件占用。");
+    }
+  }
+  const committed: Array<{ target: string; content: string }> = [];
+  try {
+    for (const file of files) {
+      await atomicWriteText(file.target, file.content);
+      committed.push(file);
+    }
+    await atomicWriteJson(manifestPath, manifest, maxManifestBytes);
+  } catch (error: unknown) {
+    const rollbackErrors: unknown[] = [];
+    for (const file of committed.reverse()) {
+      try {
+        const observed = await readOptionalUtf8File(
+          file.target,
+          maxMarkdownBytes,
+          "Markdown content"
+        );
+        if (observed === file.content) {
+          await unlinkOptional(file.target);
+        }
+      } catch (rollbackError: unknown) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        "正文小节创建失败，且无法完整清理未提交文件。"
       );
     }
     throw error;

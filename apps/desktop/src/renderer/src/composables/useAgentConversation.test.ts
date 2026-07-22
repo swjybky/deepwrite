@@ -3,10 +3,11 @@ import { reactive } from "vue";
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   SHORT_WORKSPACE_STAGE_IDS,
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
   createShortWorkspaceContentRevision,
   createEnvelope,
-  serializeExpertDraftMarkdown,
   type DeepWriteApi,
+  type ModelSettings,
   type SessionAbortCommandPayload,
   type SessionPromptAcceptedPayload,
   type SessionPromptCommandPayload,
@@ -42,13 +43,13 @@ const shortStageTitles: Record<ShortWorkspaceStageId, string> = {
 };
 
 function createShortWorkspaceDocuments(): WorkspaceDocument[] {
-  return SHORT_WORKSPACE_STAGE_IDS.map((stageId) => ({
+  const stages: WorkspaceDocument[] = SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
     id: `short_${stageId}`,
     domain: "creation",
     title: shortStageTitles[stageId],
     eyebrow: "短篇创作",
     path: ["雨夜来信", shortStageTitles[stageId]],
-    format: stageId === "draft" ? "正文" : "设定",
+    format: "设定" as const,
     content: `${stageId} 的实时内容`,
     workspaceId: "short_story_1",
     workspaceType: "short",
@@ -56,6 +57,71 @@ function createShortWorkspaceDocuments(): WorkspaceDocument[] {
     workspaceCategories: ["都市", "悬疑"],
     stageId
   }));
+  const draftFiles: WorkspaceDocument[] = ["intro", "section-1"].flatMap(
+    (sectionId, index) => {
+      const title = index === 0 ? "导语" : "第一节";
+      const common = {
+        domain: "creation" as const,
+        eyebrow: "短篇创作",
+        workspaceId: "short_story_1",
+        workspaceType: "short" as const,
+        workspaceTitle: "雨夜来信",
+        workspaceCategories: ["都市", "悬疑"],
+        stageId: "draft" as const,
+        shortAgentId: "expert_section_writer" as const,
+        expertSectionId: sectionId,
+        expertSectionOrder: index,
+        expertWordCountRequirement: index === 0 ? "300 字" : "1200 字",
+        draftDirectoryId: "draft"
+      };
+      return [
+        {
+          ...common,
+          id: `short_draft_${sectionId}_body`,
+          title,
+          path: ["雨夜来信", "正文", title, "正文"],
+          format: "正文" as const,
+          content: index === 0 ? "" : "draft 的实时内容",
+          draftFileKind: "body" as const
+        },
+        {
+          ...common,
+          id: `short_draft_${sectionId}_state`,
+          title: `${title} · 人物状态`,
+          path: ["雨夜来信", "正文", title, "人物状态"],
+          format: "账本" as const,
+          content: index === 0 ? "" : "第一节人物状态",
+          draftFileKind: "character-state" as const
+        }
+      ];
+    }
+  );
+  return [...stages, ...draftFiles];
+}
+
+function createDraftCoordinatorDocument(
+  workspaceDocuments: WorkspaceDocument[]
+): WorkspaceDocument {
+  const source = workspaceDocuments.find(
+    (candidate) => candidate.draftFileKind === "body"
+  );
+  if (!source) throw new Error("Missing draft body document.");
+  const {
+    catalogDocumentId: _catalogDocumentId,
+    draftFileKind: _draftFileKind,
+    expertSectionId: _expertSectionId,
+    expertSectionOrder: _expertSectionOrder,
+    expertWordCountRequirement: _expertWordCountRequirement,
+    ...coordinator
+  } = source;
+  return {
+    ...coordinator,
+    id: "draft",
+    title: "正文",
+    path: ["雨夜来信", "正文"],
+    content: "",
+    shortAgentId: "expert_draft_coordinator"
+  };
 }
 
 function createDeferredApi(): {
@@ -88,6 +154,12 @@ function createDeferredApi(): {
       importLegacyBook: vi.fn(async () => null),
       importLegacyLibrary: vi.fn(async () => null),
       createShortBook: vi.fn(async () => {
+        throw new Error("Catalog is not used by conversation tests.");
+      }),
+      createDraftSection: vi.fn(async () => {
+        throw new Error("Catalog is not used by conversation tests.");
+      }),
+      deleteDraftSection: vi.fn(async () => {
         throw new Error("Catalog is not used by conversation tests.");
       }),
       createLibrary: vi.fn(async () => {
@@ -578,6 +650,164 @@ describe("agent conversation controller", () => {
     controller.dispose();
   });
 
+  it("keeps the latest run choices when starting or reopening a conversation", () => {
+    const controller = useAgentConversation({
+      api: () => undefined,
+      persistenceKey: "project-run-preferences-test",
+      storage: createMemoryStorage()
+    });
+    controller.applyModelSettings({
+      defaultModelId: "writer",
+      models: [
+        {
+          id: "writer",
+          label: "Writer",
+          provider: "openai",
+          modelId: "writer-model",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "high",
+          thinkingLevelOptions: ["low", "high"],
+          temperatureOptions: [0.2, 0.6, 1.2],
+          hasApiKey: true
+        }
+      ]
+    });
+    controller.messages.value = [{
+      id: "first-user",
+      role: "user",
+      content: "第一条对话",
+      createdAt: "2026-07-22T08:00:00.000Z",
+      status: "completed"
+    }];
+    const firstSessionId = controller.sessionId.value;
+    controller.selectThinkingLevel("off");
+    controller.selectTemperature(1.2);
+    controller.selectApprovalMode("auto-approve");
+
+    controller.newConversation();
+    expect(controller.selectedModelId.value).toBe("writer");
+    expect(controller.thinkingLevel.value).toBe("off");
+    expect(controller.temperature.value).toBe(1.2);
+    expect(controller.approvalMode.value).toBe("auto-approve");
+
+    controller.selectThinkingLevel("low");
+    controller.selectApprovalMode("request-approval");
+    expect(controller.selectConversation(firstSessionId)).toBe(true);
+    expect(controller.selectedModelId.value).toBe("writer");
+    expect(controller.thinkingLevel.value).toBe("low");
+    expect(controller.temperature.value).toBe(1.2);
+    expect(controller.approvalMode.value).toBe("request-approval");
+    controller.dispose();
+  });
+
+  it("preserves valid run choices when model settings are refreshed", () => {
+    const controller = useAgentConversation({ api: () => undefined });
+    const settings: ModelSettings = {
+      defaultModelId: "writer",
+      models: [
+        {
+          id: "writer",
+          label: "Writer",
+          provider: "openai",
+          modelId: "writer-model",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "high",
+          thinkingLevelOptions: ["low", "high"],
+          temperatureOptions: [0.2, 0.6, 1.2],
+          hasApiKey: true
+        }
+      ]
+    };
+    controller.applyModelSettings(settings);
+    controller.selectThinkingLevel("off");
+    controller.selectTemperature(1.2);
+    controller.selectApprovalMode("auto-approve");
+
+    controller.applyModelSettings(settings);
+
+    expect(controller.selectedModelId.value).toBe("writer");
+    expect(controller.thinkingLevel.value).toBe("off");
+    expect(controller.temperature.value).toBe(1.2);
+    expect(controller.approvalMode.value).toBe("auto-approve");
+    controller.dispose();
+  });
+
+  it("clears a persisted model choice when all configured models are removed", () => {
+    const controller = useAgentConversation({ api: () => undefined });
+    controller.applyModelSettings({
+      defaultModelId: "writer",
+      models: [
+        {
+          id: "writer",
+          label: "Writer",
+          provider: "openai",
+          modelId: "writer-model",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "high",
+          thinkingLevelOptions: ["low", "high"],
+          temperatureOptions: [0.2, 0.6, 1.2],
+          hasApiKey: true
+        }
+      ]
+    });
+    controller.selectThinkingLevel("off");
+    controller.selectTemperature(1.2);
+    controller.selectApprovalMode("auto-approve");
+
+    controller.applyModelSettings({ defaultModelId: "", models: [] });
+    controller.applyRunSettings({
+      selectedModelId: "writer",
+      thinkingLevel: "off",
+      temperature: 1.2,
+      approvalMode: "auto-approve"
+    });
+
+    expect(controller.selectedModelId.value).toBe("");
+    expect(controller.thinkingLevel.value).toBe("medium");
+    expect(controller.temperature.value).toBe(0.7);
+    expect(controller.approvalMode.value).toBe("auto-approve");
+    controller.dispose();
+  });
+
+  it("falls back to the new default settings when the selected model is removed", () => {
+    const controller = useAgentConversation({ api: () => undefined });
+    controller.applyRunSettings({
+      selectedModelId: "removed-writer",
+      thinkingLevel: "low",
+      temperature: 1.2,
+      approvalMode: "request-approval"
+    });
+    controller.applyModelSettings({
+      defaultModelId: "replacement",
+      models: [
+        {
+          id: "replacement",
+          label: "Replacement",
+          provider: "openai",
+          modelId: "replacement-model",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
+          reasoning: true,
+          defaultThinkingLevel: "high",
+          thinkingLevelOptions: ["low", "high"],
+          temperatureOptions: [0.2, 0.6, 1.2],
+          hasApiKey: true
+        }
+      ]
+    });
+
+    expect(controller.selectedModelId.value).toBe("replacement");
+    expect(controller.thinkingLevel.value).toBe("high");
+    expect(controller.temperature.value).toBe(0.6);
+    controller.dispose();
+  });
+
   it("sends attachment-only prompts and stores only display metadata", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
@@ -677,7 +907,7 @@ describe("agent conversation controller", () => {
     controller.dispose();
   });
 
-  it("uses only configured temperatures for a non-thinking model", async () => {
+  it("uses only configured temperatures when a model defaults to non-thinking mode", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
     controller.applyModelSettings({
@@ -717,9 +947,56 @@ describe("agent conversation controller", () => {
 
     expect(deferred.prompts[0]).toMatchObject({
       modelId: "plain-writer",
+      thinkingLevel: "off",
       temperature: 1.2
     });
-    expect(deferred.prompts[0]).not.toHaveProperty("thinkingLevel");
+    controller.dispose();
+  });
+
+  it("can turn thinking on when a model defaults to non-thinking mode", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    controller.applyModelSettings({
+      defaultModelId: "plain-writer",
+      models: [
+        {
+          id: "plain-writer",
+          label: "Plain writer",
+          provider: "deepseek",
+          modelId: "deepseek-chat",
+          api: "openai-completions",
+          baseUrl: "https://api.deepseek.com/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off",
+          thinkingLevelOptions: ["low", "high"],
+          temperatureOptions: [0.2, 0.6, 1.2],
+          hasApiKey: true
+        }
+      ]
+    });
+
+    expect(controller.thinkingLevel.value).toBe("off");
+    controller.selectThinkingLevel("medium");
+    expect(controller.thinkingLevel.value).toBe("off");
+    controller.selectThinkingLevel("high");
+    expect(controller.thinkingLevel.value).toBe("high");
+
+    controller.draft.value = "开启深度思考";
+    const sending = controller.sendMessage(document);
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_temperature_default_thinking_override",
+      acceptedAt: new Date().toISOString(),
+      runtime: { provider: "deepseek", model: "deepseek-chat", mode: "provider" }
+    });
+    await sending;
+
+    expect(deferred.prompts[0]).toMatchObject({
+      modelId: "plain-writer",
+      thinkingLevel: "high"
+    });
+    expect(deferred.prompts[0]).not.toHaveProperty("temperature");
     controller.dispose();
   });
 
@@ -1054,6 +1331,87 @@ describe("agent conversation controller", () => {
 
     expect(controller.messages.value.at(-1)?.toolCalls).toHaveLength(1);
     expect(controller.messages.value.at(-1)?.toolCalls?.[0]?.status).toBe("running");
+    expect(controller.messages.value.at(-1)?.processingSteps).toHaveLength(1);
+    controller.dispose();
+  });
+
+  it.each([
+    {
+      toolName: "write_section_body",
+      first: '{"text":"第一',
+      second: '段正文"}',
+      args: { text: "第一段正文" }
+    },
+    {
+      toolName: "write_expert_draft_section",
+      first: '{"section_id":"section-1","text":"第一',
+      second: '段正文"}',
+      args: { section_id: "section-1", text: "第一段正文" }
+    }
+  ])("streams $toolName content and character progress before execution", async ({
+    toolName,
+    first,
+    second,
+    args
+  }) => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    controller.draft.value = "写正文";
+    const sessionId = controller.sessionId.value;
+    const runId = `run_${toolName}`;
+    const streamId = `stream_${toolName}`;
+    const toolCallId = `tool_${toolName}`;
+    const sending = controller.sendMessage(document);
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId,
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    const stream = (
+      phase: "start" | "delta" | "end",
+      argumentsDelta: string,
+      eventId: string,
+      completedArgs?: unknown
+    ) => controller.handleEvent(
+      createEnvelope(
+        "tool.call_stream",
+        {
+          sessionId,
+          runId,
+          streamId,
+          toolCallId,
+          toolName,
+          phase,
+          argumentsDelta,
+          runtime,
+          ...(completedArgs !== undefined ? { args: completedArgs } : {})
+        },
+        eventOptions(sessionId, runId, eventId)
+      )
+    );
+
+    stream("start", first, `${toolCallId}_start`);
+    expect(controller.messages.value.at(-1)?.toolCalls?.[0]).toMatchObject({
+      name: toolName,
+      status: "preparing",
+      argumentsText: first
+    });
+
+    stream("delta", second, `${toolCallId}_delta`);
+    expect(controller.messages.value.at(-1)?.toolCalls?.[0]?.argumentsText).toBe(
+      `${first}${second}`
+    );
+
+    stream("end", "", `${toolCallId}_end`, args);
+    expect(controller.messages.value.at(-1)?.toolCalls?.[0]).toMatchObject({
+      name: toolName,
+      status: "preparing",
+      argumentsComplete: true,
+      args
+    });
     expect(controller.messages.value.at(-1)?.processingSteps).toHaveLength(1);
     controller.dispose();
   });
@@ -1404,7 +1762,7 @@ describe("agent conversation controller", () => {
     controller.dispose();
   });
 
-  it("builds a complete six-stage short snapshot and maps every active stage", async () => {
+  it("builds five text stages plus the physical expert-draft directory", async () => {
     for (const [index, activeStageId] of SHORT_WORKSPACE_STAGE_IDS.entries()) {
       const deferred = createDeferredApi();
       const controller = useAgentConversation({
@@ -1412,9 +1770,12 @@ describe("agent conversation controller", () => {
         idleTimeoutMs: 10_000
       });
       const workspaceDocuments = createShortWorkspaceDocuments();
-      const activeDocument = workspaceDocuments.find(
-        (candidate) => candidate.stageId === activeStageId
-      );
+      const activeDocument =
+        activeStageId === "draft"
+          ? createDraftCoordinatorDocument(workspaceDocuments)
+          : workspaceDocuments.find(
+              (candidate) => candidate.stageId === activeStageId
+            );
       if (!activeDocument) throw new Error(`Missing stage document: ${activeStageId}`);
 
       controller.draft.value = `检查 ${activeStageId}`;
@@ -1432,23 +1793,57 @@ describe("agent conversation controller", () => {
       await sending;
 
       const context = deferred.prompts[0]?.workspaceContext;
-      expect(context?.shortWorkspace).toEqual({
+      expect(context?.shortWorkspace).toMatchObject({
         id: "short_story_1",
         title: "雨夜来信",
         categories: ["都市", "悬疑"],
         activeStageId,
-        stages: SHORT_WORKSPACE_STAGE_IDS.map((stageId) => ({
+        stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
           stageId,
           title: shortStageTitles[stageId],
           content: `${stageId} 的实时内容`,
           revision: createShortWorkspaceContentRevision(
             `${stageId} 的实时内容`
           )
-        }))
+        })),
+        expertDraft: {
+          id: "draft",
+          title: "正文",
+          sections: [
+            expect.objectContaining({
+              id: "intro",
+              body: expect.objectContaining({
+                documentId: "short_draft_intro_body",
+                content: ""
+              }),
+              characterState: expect.objectContaining({
+                documentId: "short_draft_intro_state",
+                content: ""
+              })
+            }),
+            expect.objectContaining({
+              id: "section-1",
+              body: expect.objectContaining({
+                documentId: "short_draft_section-1_body",
+                content: "draft 的实时内容"
+              }),
+              characterState: expect.objectContaining({
+                documentId: "short_draft_section-1_state",
+                content: "第一节人物状态"
+              })
+            })
+          ]
+        }
       });
       expect(context?.activeResource?.content).toBe(
-        `${activeStageId} 的实时内容`
+        activeStageId === "draft" ? "" : `${activeStageId} 的实时内容`
       );
+      if (activeStageId === "draft") {
+        expect(context?.activeResource?.id).toBe("draft");
+        expect(context?.shortWorkspace?.activeAgentId).toBe(
+          "expert_draft_coordinator"
+        );
+      }
       controller.dispose();
     }
   });
@@ -1460,16 +1855,12 @@ describe("agent conversation controller", () => {
       idleTimeoutMs: 10_000
     });
     const workspaceDocuments = createShortWorkspaceDocuments();
-    const draftDocument = workspaceDocuments.find(
-      (candidate) => candidate.stageId === "draft"
+    const sectionDocument = workspaceDocuments.find(
+      (candidate) =>
+        candidate.expertSectionId === "section-1" &&
+        candidate.draftFileKind === "body"
     );
-    if (!draftDocument) throw new Error("Missing draft stage document.");
-    const sectionDocument: WorkspaceDocument = {
-      ...draftDocument,
-      shortAgentId: "expert_section_writer",
-      expertSectionId: "section-1",
-      title: "第一节"
-    };
+    if (!sectionDocument) throw new Error("Missing draft section body.");
 
     controller.draft.value = "继续编写第一节";
     const sending = controller.sendMessage(sectionDocument, workspaceDocuments);
@@ -1486,53 +1877,155 @@ describe("agent conversation controller", () => {
       activeStageId: "draft",
       activeAgentId: "expert_section_writer",
       activeSectionId: "section-1",
-      expertDraftSectionIds: ["intro", "section-1"],
-      expertDraftSections: [
-        expect.objectContaining({ id: "intro", body: "" }),
-        expect.objectContaining({
-          id: "section-1",
-          body: "draft 的实时内容"
-        })
-      ]
+      expertDraft: {
+        sections: [
+          expect.objectContaining({ id: "intro" }),
+          expect.objectContaining({
+            id: "section-1",
+            body: expect.objectContaining({ content: "draft 的实时内容" }),
+            characterState: expect.objectContaining({ content: "第一节人物状态" })
+          })
+        ]
+      }
     });
     expect(
       deferred.prompts[0]?.workspaceContext?.shortWorkspace?.stages
-    ).toHaveLength(SHORT_WORKSPACE_STAGE_IDS.length);
+    ).toHaveLength(SHORT_WORKSPACE_TEXT_STAGE_IDS.length);
+    expect(deferred.prompts[0]?.workspaceContext?.activeResource).toMatchObject({
+      id: "short_draft_section-1_body",
+      content: "draft 的实时内容"
+    });
     controller.dispose();
   });
 
-  it("sends complete current and preceding sections when the full draft snapshot is truncated", async () => {
+  it("sends the tab-selected section body as the active physical draft file", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({
       api: () => deferred.api,
       idleTimeoutMs: 10_000
     });
     const workspaceDocuments = createShortWorkspaceDocuments();
-    const longDraft = serializeExpertDraftMarkdown({
-      sections: Array.from({ length: 5 }, (_, index) => ({
-        id: `section-${index + 1}`,
-        title: `第${index + 1}节`,
-        wordCountRequirement: "1200 字",
-        body: index === 0
-          ? `第一节完整开头${"雨".repeat(20_100)}第一节完整结尾`
-          : `第${index + 1}节完整正文`,
-        characterState: `第${index + 1}节人物状态`
-      }))
-    });
-    const draftIndex = workspaceDocuments.findIndex(
-      (candidate) => candidate.stageId === "draft"
+    const firstBody = workspaceDocuments.find(
+      (candidate) =>
+        candidate.expertSectionId === "section-1" &&
+        candidate.draftFileKind === "body"
     );
-    const draftDocument = {
-      ...workspaceDocuments[draftIndex]!,
-      content: longDraft
+    const firstState = workspaceDocuments.find(
+      (candidate) =>
+        candidate.expertSectionId === "section-1" &&
+        candidate.draftFileKind === "character-state"
+    );
+    if (!firstBody || !firstState) throw new Error("Missing first section files.");
+    const secondBody: WorkspaceDocument = {
+      ...firstBody,
+      id: "short_draft_section-2_body",
+      title: "第二节",
+      path: ["雨夜来信", "正文", "第二节", "正文"],
+      content: "第二节实时正文",
+      expertSectionId: "section-2",
+      expertSectionOrder: 2
     };
-    workspaceDocuments[draftIndex] = draftDocument;
-    const sectionDocument: WorkspaceDocument = {
-      ...draftDocument,
-      shortAgentId: "expert_section_writer",
-      expertSectionId: "section-5",
-      title: "第五节"
+    const secondState: WorkspaceDocument = {
+      ...firstState,
+      id: "short_draft_section-2_state",
+      title: "第二节 · 人物状态",
+      path: ["雨夜来信", "正文", "第二节", "人物状态"],
+      content: "第二节人物状态",
+      expertSectionId: "section-2",
+      expertSectionOrder: 2
     };
+    workspaceDocuments.push(secondBody, secondState);
+
+    controller.draft.value = "右侧标签已切到第二节";
+    const sending = controller.sendMessage(secondBody, workspaceDocuments);
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_tab_selected_section",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    const context = deferred.prompts[0]?.workspaceContext;
+    expect(context?.shortWorkspace).toMatchObject({
+      activeStageId: "draft",
+      activeAgentId: "expert_section_writer",
+      activeSectionId: "section-2"
+    });
+    expect(
+      context?.shortWorkspace?.expertDraft.sections.find(
+        (section) => section.id === "section-2"
+      )?.body
+    ).toMatchObject({
+      documentId: "short_draft_section-2_body",
+      content: "第二节实时正文"
+    });
+    expect(context?.activeResource).toMatchObject({
+      id: "short_draft_section-2_body",
+      content: "第二节实时正文"
+    });
+    controller.dispose();
+  });
+
+  it("sends every physical draft file in full without the former 20k snapshot truncation", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({
+      api: () => deferred.api,
+      idleTimeoutMs: 10_000
+    });
+    const ordinaryStages = createShortWorkspaceDocuments().filter(
+      (candidate) => candidate.stageId !== "draft"
+    );
+    const firstBody = `第一节完整开头${"雨".repeat(20_100)}第一节完整结尾`;
+    const draftFiles: WorkspaceDocument[] = Array.from(
+      { length: 5 },
+      (_, index) => {
+        const sectionId = `section-${index + 1}`;
+        const title = `第${index + 1}节`;
+        const common = {
+          domain: "creation" as const,
+          eyebrow: "短篇创作",
+          workspaceId: "short_story_1",
+          workspaceType: "short" as const,
+          workspaceTitle: "雨夜来信",
+          workspaceCategories: ["都市", "悬疑"],
+          stageId: "draft" as const,
+          shortAgentId: "expert_section_writer" as const,
+          expertSectionId: sectionId,
+          expertSectionOrder: index,
+          expertWordCountRequirement: "1200 字",
+          draftDirectoryId: "draft"
+        };
+        return [
+          {
+            ...common,
+            id: `${sectionId}-body`,
+            title,
+            path: ["雨夜来信", "正文", title, "正文"],
+            format: "正文" as const,
+            content: index === 0 ? firstBody : `第${index + 1}节完整正文`,
+            draftFileKind: "body" as const
+          },
+          {
+            ...common,
+            id: `${sectionId}-state`,
+            title: `${title} · 人物状态`,
+            path: ["雨夜来信", "正文", title, "人物状态"],
+            format: "账本" as const,
+            content: `第${index + 1}节人物状态`,
+            draftFileKind: "character-state" as const
+          }
+        ];
+      }
+    ).flat();
+    const workspaceDocuments = [...ordinaryStages, ...draftFiles];
+    const sectionDocument = draftFiles.find(
+      (candidate) =>
+        candidate.expertSectionId === "section-5" &&
+        candidate.draftFileKind === "body"
+    );
+    if (!sectionDocument) throw new Error("Missing fifth section body.");
 
     controller.draft.value = "继续编写第五节";
     const sending = controller.sendMessage(sectionDocument, workspaceDocuments);
@@ -1546,24 +2039,24 @@ describe("agent conversation controller", () => {
     await sending;
 
     const snapshot = deferred.prompts[0]?.workspaceContext?.shortWorkspace;
-    expect(snapshot?.stages.find((stage) => stage.stageId === "draft")).toMatchObject({
-      truncated: true,
-      originalLength: longDraft.length
-    });
-    expect(snapshot?.expertDraftSectionIds).toEqual([
+    expect(snapshot?.stages.map((stage) => stage.stageId)).toEqual(
+      SHORT_WORKSPACE_TEXT_STAGE_IDS
+    );
+    expect(snapshot?.expertDraft.sections.map((section) => section.id)).toEqual([
       "section-1",
       "section-2",
       "section-3",
       "section-4",
       "section-5"
     ]);
-    expect(snapshot?.expertDraftSections?.map((section) => section.id)).toEqual([
-      "section-2",
-      "section-3",
-      "section-4",
-      "section-5"
-    ]);
-    expect(snapshot?.expertDraftSections?.at(-1)?.body).toBe("第5节完整正文");
+    expect(snapshot?.expertDraft.sections[0]?.body.content).toBe(firstBody);
+    expect(snapshot?.expertDraft.sections.at(-1)?.body.content).toBe(
+      "第5节完整正文"
+    );
+    expect(deferred.prompts[0]?.workspaceContext?.activeResource).toMatchObject({
+      id: "section-5-body",
+      content: "第5节完整正文"
+    });
     controller.dispose();
   });
 

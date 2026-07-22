@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
+import {
+  DraftSectionIdSchema,
+  DraftSectionTitleSchema,
+  createDefaultExpertDraft,
+  parseExpertDraftMarkdown,
+  type ExpertDraft
+} from "./expert-draft";
 
 const CatalogIdSchema = z.string().trim().min(1).max(512);
 const CatalogTitleSchema = z.string().trim().min(1).max(256);
@@ -7,6 +14,7 @@ const TimestampSchema = z.string().datetime();
 
 export const CATALOG_PROJECT_MANIFEST_FILENAME = "deepwrite.json" as const;
 export const CATALOG_PROJECT_MAX_CONTENT_ITEMS = 4_096;
+export const CATALOG_DRAFT_DIRECTORY_ID = "draft" as const;
 
 export const CATALOG_PROJECT_DOMAINS = ["book", "material", "skill"] as const;
 export const CatalogProjectDomainSchema = z.enum(CATALOG_PROJECT_DOMAINS);
@@ -163,7 +171,142 @@ export const CatalogDocumentSchema = z.object({
 });
 export type CatalogDocument = z.infer<typeof CatalogDocumentSchema>;
 
-export const ShortBookSchema = z.object({
+export function catalogDraftBodyDocumentId(sectionId: string): string {
+  return `draft-section:${sectionId}:body`;
+}
+
+export function catalogDraftCharacterStateDocumentId(sectionId: string): string {
+  return `draft-section:${sectionId}:character-state`;
+}
+
+export const CatalogDraftSectionSchema = z
+  .object({
+    id: DraftSectionIdSchema,
+    title: DraftSectionTitleSchema,
+    wordCountRequirement: z.string().max(1_000),
+    body: CatalogDocumentSchema,
+    characterState: CatalogDocumentSchema,
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+  .superRefine((section, context) => {
+    if (section.body.id !== catalogDraftBodyDocumentId(section.id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["body", "id"],
+        message: "Draft body document id must match its canonical section id."
+      });
+    }
+    if (
+      section.characterState.id !==
+      catalogDraftCharacterStateDocumentId(section.id)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "id"],
+        message:
+          "Draft character-state document id must match its canonical section id."
+      });
+    }
+    if (section.body.id === section.characterState.id) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "id"],
+        message: "Draft body and character-state documents must have distinct ids."
+      });
+    }
+  });
+export type CatalogDraftSection = z.infer<typeof CatalogDraftSectionSchema>;
+
+export const CatalogDraftDirectorySchema = z
+  .object({
+    id: z.literal(CATALOG_DRAFT_DIRECTORY_ID),
+    title: CatalogTitleSchema,
+    sections: z.array(CatalogDraftSectionSchema).min(1).max(100),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+  .superRefine((draft, context) => {
+    const sectionIds = draft.sections.map((section) => section.id);
+    if (!uniqueIds(sectionIds)) {
+      context.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: "Draft sections cannot contain duplicate ids."
+      });
+    }
+    const documentIds = draft.sections.flatMap((section) => [
+      section.body.id,
+      section.characterState.id
+    ]);
+    if (!uniqueIds(documentIds)) {
+      context.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: "Draft files cannot contain duplicate document ids."
+      });
+    }
+  });
+export type CatalogDraftDirectory = z.infer<typeof CatalogDraftDirectorySchema>;
+
+function catalogDraftDirectoryFromExpertDraft(
+  draft: ExpertDraft,
+  createdAt: string,
+  updatedAt: string
+): CatalogDraftDirectory {
+  return CatalogDraftDirectorySchema.parse({
+    id: CATALOG_DRAFT_DIRECTORY_ID,
+    title: "正文",
+    sections: draft.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      wordCountRequirement: section.wordCountRequirement,
+      body: {
+        id: catalogDraftBodyDocumentId(section.id),
+        title: section.title,
+        content: section.body,
+        createdAt,
+        updatedAt
+      },
+      characterState: {
+        id: catalogDraftCharacterStateDocumentId(section.id),
+        title: `${section.title} · 人物状态`,
+        content: section.characterState,
+        createdAt,
+        updatedAt
+      },
+      createdAt,
+      updatedAt
+    })),
+    createdAt,
+    updatedAt
+  });
+}
+
+export function createCatalogDraftDirectory(
+  createdAt: string,
+  updatedAt = createdAt
+): CatalogDraftDirectory {
+  return catalogDraftDirectoryFromExpertDraft(
+    createDefaultExpertDraft(),
+    createdAt,
+    updatedAt
+  );
+}
+
+export function migrateCatalogDraftDocument(
+  document: CatalogDocument | undefined,
+  fallbackCreatedAt: string,
+  fallbackUpdatedAt: string
+): CatalogDraftDirectory {
+  return catalogDraftDirectoryFromExpertDraft(
+    parseExpertDraftMarkdown(document?.content ?? ""),
+    document?.createdAt ?? fallbackCreatedAt,
+    document?.updatedAt ?? fallbackUpdatedAt
+  );
+}
+
+const CurrentShortBookSchema = z.object({
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   bookType: z.literal("short"),
@@ -172,9 +315,52 @@ export const ShortBookSchema = z.object({
   linkedMaterialIdsByKind: LinkedMaterialIdsByKindSchema,
   linkedSkillIdsByKind: LinkedSkillIdsByKindSchema,
   documents: z.array(CatalogDocumentSchema),
+  draft: CatalogDraftDirectorySchema,
   projectRevision: z.number().int().nonnegative().optional(),
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema
+});
+const LegacyShortBookSchema = CurrentShortBookSchema.omit({ draft: true });
+
+export const ShortBookSchema = z.preprocess((value) => {
+  const legacy = LegacyShortBookSchema.safeParse(value);
+  if (!legacy.success || (value && typeof value === "object" && "draft" in value)) {
+    return value;
+  }
+  const exactDraftIndex = legacy.data.documents.findIndex(
+    (document) => document.id === CATALOG_DRAFT_DIRECTORY_ID
+  );
+  const draftIndex =
+    exactDraftIndex >= 0
+      ? exactDraftIndex
+      : legacy.data.documents.findIndex(
+          (document) => document.title === "正文编写"
+        );
+  const draftDocument = draftIndex >= 0 ? legacy.data.documents[draftIndex] : undefined;
+  return {
+    ...legacy.data,
+    documents: legacy.data.documents.filter((_, index) => index !== draftIndex),
+    draft: migrateCatalogDraftDocument(
+      draftDocument,
+      legacy.data.createdAt,
+      legacy.data.updatedAt
+    )
+  };
+}, CurrentShortBookSchema).superRefine((book, context) => {
+  const documentIds = [
+    ...book.documents.map((document) => document.id),
+    ...book.draft.sections.flatMap((section) => [
+      section.body.id,
+      section.characterState.id
+    ])
+  ];
+  if (!uniqueIds(documentIds)) {
+    context.addIssue({
+      code: "custom",
+      path: ["documents"],
+      message: "Book files cannot contain duplicate document ids."
+    });
+  }
 });
 export type ShortBook = z.infer<typeof ShortBookSchema>;
 
@@ -317,7 +503,7 @@ export const CatalogProjectManifestBaseSchema = z
   })
   .strict();
 
-export const BookProjectManifestSchema = CatalogProjectManifestBaseSchema.extend({
+export const LegacyBookProjectManifestSchema = CatalogProjectManifestBaseSchema.extend({
   kind: z.literal("deepwrite.book"),
   bookType: z.literal("short"),
   genre: ShortBookGenreSchema,
@@ -326,6 +512,153 @@ export const BookProjectManifestSchema = CatalogProjectManifestBaseSchema.extend
   linkedSkillIdsByKind: LinkedSkillIdsByKindSchema,
   documents: z.array(BookProjectDocumentManifestSchema).max(CATALOG_PROJECT_MAX_CONTENT_ITEMS)
 });
+export type LegacyBookProjectManifest = z.infer<
+  typeof LegacyBookProjectManifestSchema
+>;
+
+export const BookProjectDraftSectionManifestSchema = z
+  .object({
+    id: DraftSectionIdSchema,
+    title: DraftSectionTitleSchema,
+    wordCountRequirement: z.string().max(1_000),
+    body: BookProjectDocumentManifestSchema,
+    characterState: BookProjectDocumentManifestSchema,
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+  .strict()
+  .superRefine((section, context) => {
+    if (section.body.id !== catalogDraftBodyDocumentId(section.id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["body", "id"],
+        message: "Draft body file id must match its canonical section id."
+      });
+    }
+    if (
+      section.characterState.id !==
+      catalogDraftCharacterStateDocumentId(section.id)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "id"],
+        message:
+          "Draft character-state file id must match its canonical section id."
+      });
+    }
+    if (section.body.id === section.characterState.id) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "id"],
+        message: "Draft body and character-state files must have distinct ids."
+      });
+    }
+    if (section.body.path === section.characterState.path) {
+      context.addIssue({
+        code: "custom",
+        path: ["characterState", "path"],
+        message: "Draft body and character-state files must have distinct paths."
+      });
+    }
+  });
+export type BookProjectDraftSectionManifest = z.infer<
+  typeof BookProjectDraftSectionManifestSchema
+>;
+
+export const BookProjectDraftDirectoryManifestSchema = z
+  .object({
+    id: z.literal(CATALOG_DRAFT_DIRECTORY_ID),
+    title: CatalogTitleSchema,
+    sections: z
+      .array(BookProjectDraftSectionManifestSchema)
+      .min(1)
+      .max(100),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+  .strict()
+  .superRefine((draft, context) => {
+    if (!uniqueIds(draft.sections.map((section) => section.id))) {
+      context.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: "Draft sections cannot contain duplicate ids."
+      });
+    }
+    const files = draft.sections.flatMap((section) => [
+      section.body,
+      section.characterState
+    ]);
+    if (!uniqueIds(files.map((file) => file.id))) {
+      context.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: "Draft files cannot contain duplicate document ids."
+      });
+    }
+    if (!uniqueIds(files.map((file) => file.path))) {
+      context.addIssue({
+        code: "custom",
+        path: ["sections"],
+        message: "Draft files cannot contain duplicate paths."
+      });
+    }
+  });
+export type BookProjectDraftDirectoryManifest = z.infer<
+  typeof BookProjectDraftDirectoryManifestSchema
+>;
+
+export const CurrentBookProjectManifestSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    revision: z.number().int().nonnegative(),
+    kind: z.literal("deepwrite.book"),
+    id: CatalogIdSchema,
+    title: CatalogTitleSchema,
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema,
+    bookType: z.literal("short"),
+    genre: ShortBookGenreSchema,
+    status: z.enum(["editing", "completed"]),
+    linkedMaterialIdsByKind: LinkedMaterialIdsByKindSchema,
+    linkedSkillIdsByKind: LinkedSkillIdsByKindSchema,
+    documents: z
+      .array(BookProjectDocumentManifestSchema)
+      .max(CATALOG_PROJECT_MAX_CONTENT_ITEMS),
+    draft: BookProjectDraftDirectoryManifestSchema
+  })
+  .strict()
+  .superRefine((manifest, context) => {
+    const files = [
+      ...manifest.documents,
+      ...manifest.draft.sections.flatMap((section) => [
+        section.body,
+        section.characterState
+      ])
+    ];
+    if (!uniqueIds(files.map((file) => file.id))) {
+      context.addIssue({
+        code: "custom",
+        path: ["documents"],
+        message: "Book files cannot contain duplicate document ids."
+      });
+    }
+    if (!uniqueIds(files.map((file) => file.path))) {
+      context.addIssue({
+        code: "custom",
+        path: ["documents"],
+        message: "Book files cannot contain duplicate paths."
+      });
+    }
+  });
+export type CurrentBookProjectManifest = z.infer<
+  typeof CurrentBookProjectManifestSchema
+>;
+
+export const BookProjectManifestSchema = z.union([
+  CurrentBookProjectManifestSchema,
+  LegacyBookProjectManifestSchema
+]);
 export type BookProjectManifest = z.infer<typeof BookProjectManifestSchema>;
 
 export const MaterialLibraryProjectManifestSchema =
@@ -384,8 +717,9 @@ export type SkillGroupProjectManifest = z.infer<
   typeof SkillGroupProjectManifestSchema
 >;
 
-export const CatalogProjectManifestSchema = z.discriminatedUnion("kind", [
-  BookProjectManifestSchema,
+export const CatalogProjectManifestSchema = z.union([
+  CurrentBookProjectManifestSchema,
+  LegacyBookProjectManifestSchema,
   MaterialLibraryProjectManifestSchema,
   SkillLibraryProjectManifestSchema,
   MaterialGroupProjectManifestSchema,
@@ -593,6 +927,37 @@ export const SaveDocumentInputSchema = z.object({
   force: z.boolean().optional()
 });
 export type SaveDocumentInput = z.infer<typeof SaveDocumentInputSchema>;
+
+export const CreateDraftSectionInputSchema = z.object({
+  bookId: CatalogIdSchema,
+  afterSectionId: DraftSectionIdSchema.optional(),
+  title: DraftSectionTitleSchema.optional(),
+  wordCountRequirement: z.string().max(1_000).optional(),
+  baseProjectRevision: z.number().int().nonnegative().optional(),
+  force: z.boolean().optional()
+});
+export type CreateDraftSectionInput = z.infer<
+  typeof CreateDraftSectionInputSchema
+>;
+
+export const DeleteDraftSectionInputSchema = z.object({
+  bookId: CatalogIdSchema,
+  sectionId: DraftSectionIdSchema,
+  baseProjectRevision: z.number().int().nonnegative().optional(),
+  force: z.boolean().optional()
+});
+export type DeleteDraftSectionInput = z.infer<
+  typeof DeleteDraftSectionInputSchema
+>;
+
+export const DeleteDraftSectionResultSchema = z.object({
+  bookId: CatalogIdSchema,
+  sectionId: DraftSectionIdSchema,
+  deleted: z.boolean()
+});
+export type DeleteDraftSectionResult = z.infer<
+  typeof DeleteDraftSectionResultSchema
+>;
 
 export const CatalogLibrarySchema = z.union([
   MaterialLibrarySchema,
@@ -923,6 +1288,18 @@ export const CatalogSaveDocumentCommandEnvelopeSchema = EnvelopeBaseSchema.exten
   payload: SaveDocumentInputSchema
 });
 
+export const CatalogCreateDraftSectionCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.createDraftSection"),
+    payload: CreateDraftSectionInputSchema
+  });
+
+export const CatalogDeleteDraftSectionCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.deleteDraftSection"),
+    payload: DeleteDraftSectionInputSchema
+  });
+
 export const CatalogSaveLibraryEntryCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.saveLibraryEntry"),
@@ -973,6 +1350,8 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogUpdateLibraryGroupCommandEnvelopeSchema,
   CatalogDeleteBookCommandEnvelopeSchema,
   CatalogSaveDocumentCommandEnvelopeSchema,
+  CatalogCreateDraftSectionCommandEnvelopeSchema,
+  CatalogDeleteDraftSectionCommandEnvelopeSchema,
   CatalogSaveLibraryEntryCommandEnvelopeSchema,
   CatalogCreateLibraryEntryCommandEnvelopeSchema,
   CatalogRemoveLibraryEntryCommandEnvelopeSchema,
