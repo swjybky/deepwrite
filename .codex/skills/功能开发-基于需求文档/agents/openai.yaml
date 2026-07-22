@@ -1,0 +1,6 @@
+interface:
+  display_name: "功能开发-基于开发文档"
+  short_description: "读取已确认需求与原始参考，直接完成完整功能开发和验证"
+  default_prompt: "使用 $功能开发-基于开发文档 按已确认的 DeepWrite 完善需求文档直接开发并完成验证。"
+policy:
+  allow_implicit_invocation: false

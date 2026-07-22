@@ -1,0 +1,6 @@
+interface:
+  display_name: "严重 bug 修改"
+  short_description: "深入分析并修复 DeepWrite 严重 bug"
+  default_prompt: "请使用该技能深入定位 DeepWrite 严重 bug 根因，直接修改 apps/desktop 与 packages 代码完成修复，并将解决结果文档生成到 docs/bug解决需求文档/需求文档/敏捷需求与bug/。"
+policy:
+  allow_implicit_invocation: false

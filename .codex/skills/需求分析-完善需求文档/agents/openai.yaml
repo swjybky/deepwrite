@@ -1,0 +1,6 @@
+interface:
+  display_name: "需求分析-生成开发文档"
+  short_description: "深度解析需求与本地参考，生成带用户确认区的完善需求文档"
+  default_prompt: "使用 $需求分析-生成开发文档 深度解析 DeepWrite 需求和本地参考文件，生成可由用户补充确认的完善需求文档。"
+policy:
+  allow_implicit_invocation: false
