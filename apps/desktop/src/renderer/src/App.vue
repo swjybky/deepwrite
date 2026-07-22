@@ -31,6 +31,7 @@ import type {
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   MATERIAL_KINDS,
+  PROMPT_ATTACHMENT_MAX_ITEMS,
   SKILL_KINDS,
   createShortWorkspaceContentRevision,
   resolveShortWorkspaceAgentIdForStage
@@ -272,7 +273,7 @@ const selectedExpertSectionIds = ref<Record<string, string>>({});
 const selectedDraftFileKinds = ref<
   Record<string, "body" | "character-state">
 >({});
-const pendingEditorReference = ref<EditorTextReference | null>(null);
+const pendingEditorReferences = ref<EditorTextReference[]>([]);
 const editorReferenceNavigation = ref<EditorTextReferenceNavigation>();
 let editorReferenceNavigationClock = 0;
 const acceptingAgentEditDocumentIds = ref<Set<string>>(new Set());
@@ -2201,19 +2202,38 @@ function selectDraftFile(fileKind: "body" | "character-state"): void {
 }
 
 function insertEditorSelectionReference(reference: EditorTextReference): void {
-  pendingEditorReference.value = reference;
+  const duplicate = pendingEditorReferences.value.some(
+    (item) =>
+      item.documentId === reference.documentId &&
+      item.start === reference.start &&
+      item.end === reference.end &&
+      item.text === reference.text
+  );
+  if (duplicate) {
+    uiMessage.info("这段正文已经插入输入框");
+    return;
+  }
+  if (pendingEditorReferences.value.length >= PROMPT_ATTACHMENT_MAX_ITEMS) {
+    uiMessage.warning(`每条消息最多插入 ${PROMPT_ATTACHMENT_MAX_ITEMS} 段正文引用`);
+    return;
+  }
+  pendingEditorReferences.value = [...pendingEditorReferences.value, reference];
 }
 
-function clearEditorSelectionReference(): void {
-  pendingEditorReference.value = null;
+function removeEditorSelectionReference(referenceId: string): void {
+  pendingEditorReferences.value = pendingEditorReferences.value.filter(
+    (reference) => reference.id !== referenceId
+  );
+}
+
+function clearEditorSelectionReferences(): void {
+  pendingEditorReferences.value = [];
 }
 
 function locateEditorSelectionReference(reference: EditorTextReference): void {
   const document = documents.value.find((candidate) => candidate.id === reference.documentId);
   if (!document) {
-    if (pendingEditorReference.value?.id === reference.id) {
-      pendingEditorReference.value = null;
-    }
+    removeEditorSelectionReference(reference.id);
     uiMessage.warning("引用的正文文件已不存在，已移除这条引用");
     return;
   }
@@ -3054,6 +3074,7 @@ function newConversation(): void {
     return;
   }
   activeConversation.value.newConversation();
+  clearEditorSelectionReferences();
 }
 
 function selectConversation(sessionId: string): void {
@@ -3067,7 +3088,9 @@ function selectConversation(sessionId: string): void {
         ? "请先停止当前回复，再切换历史对话"
         : "这条历史对话已不可用，请重新打开历史列表"
     );
+    return;
   }
+  clearEditorSelectionReferences();
 }
 
 function useSuggestion(value: string): void {
@@ -3965,7 +3988,7 @@ onBeforeUnmount(() => {
         :agent-id="activeAgentId"
         :available-skills="availableSkillReferences"
         :available-materials="availableMaterialReferences"
-        :editor-reference="pendingEditorReference"
+        :editor-references="pendingEditorReferences"
         :left-collapsed="leftCollapsed"
         :right-collapsed="rightCollapsed"
         @new-conversation="newConversation"
@@ -3980,7 +4003,8 @@ onBeforeUnmount(() => {
         @select-temperature="selectTemperature"
         @select-approval="selectApprovalMode"
         @review-edit="reviewAgentEdit"
-        @clear-editor-reference="clearEditorSelectionReference"
+        @clear-editor-references="clearEditorSelectionReferences"
+        @remove-editor-reference="removeEditorSelectionReference"
         @locate-editor-reference="locateEditorSelectionReference"
       />
 

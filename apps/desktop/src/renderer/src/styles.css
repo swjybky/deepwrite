@@ -2491,12 +2491,19 @@ html[data-theme="dark"] :where(
   display: none;
 }
 
+.composer-editor-reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px 0;
+}
+
 .composer-editor-reference {
   display: inline-flex;
   align-items: center;
   max-width: calc(100% - 24px);
   min-height: 24px;
-  margin: 10px 12px 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent, #419d8c) 20%, transparent);
   border-radius: 8px;

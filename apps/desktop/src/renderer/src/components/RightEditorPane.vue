@@ -109,7 +109,7 @@ function closeSelectionAction(): void {
 function captureEditorSelection(
   input: HTMLTextAreaElement,
   event?: MouseEvent
-): void {
+): boolean {
   const start = input.selectionStart ?? 0;
   const end = input.selectionEnd ?? start;
   const reference = createEditorTextReference({
@@ -125,7 +125,7 @@ function captureEditorSelection(
   });
   if (!reference) {
     closeSelectionAction();
-    return;
+    return false;
   }
 
   const editorRect = input.getBoundingClientRect();
@@ -138,15 +138,13 @@ function captureEditorSelection(
     left: Math.max(8, Math.min(globalThis.innerWidth - menuWidth - 8, anchorLeft + 8)),
     top: Math.max(8, Math.min(globalThis.innerHeight - menuHeight - 8, anchorTop + 8))
   };
+  return true;
 }
 
-function handleEditorMouseup(event: MouseEvent): void {
-  if (event.button !== 0) return;
-  captureEditorSelection(event.currentTarget as HTMLTextAreaElement, event);
-}
-
-function handleEditorKeyup(event: KeyboardEvent): void {
-  captureEditorSelection(event.currentTarget as HTMLTextAreaElement);
+function handleEditorContextMenu(event: MouseEvent): void {
+  if (captureEditorSelection(event.currentTarget as HTMLTextAreaElement, event)) {
+    event.preventDefault();
+  }
 }
 
 function insertSelectedText(): void {
@@ -332,8 +330,7 @@ onBeforeUnmount(() => {
         aria-label="文本内容编辑器"
         spellcheck="false"
         @input="markDirty"
-        @keyup="handleEditorKeyup"
-        @mouseup="handleEditorMouseup"
+        @contextmenu="handleEditorContextMenu"
         @scroll="closeSelectionAction"
       />
       <article v-else class="document-preview">

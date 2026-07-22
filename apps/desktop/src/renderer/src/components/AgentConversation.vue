@@ -59,14 +59,15 @@ const props = defineProps<{
   agentId: ShortWorkspaceAgentId | undefined;
   availableSkills: ComposerReferenceOption[];
   availableMaterials: ComposerReferenceOption[];
-  editorReference: EditorTextReference | null;
+  editorReferences: EditorTextReference[];
   leftCollapsed: boolean;
   rightCollapsed: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:draft": [value: string];
-  clearEditorReference: [];
+  clearEditorReferences: [];
+  removeEditorReference: [referenceId: string];
   locateEditorReference: [reference: EditorTextReference];
   newConversation: [];
   selectConversation: [sessionId: string];
@@ -181,7 +182,6 @@ watch(
     attachmentReadEpoch += 1;
     readingAttachments.value = false;
     pendingAttachments.value = [];
-    emit("clearEditorReference");
     followsConversationTail.value = true;
     void nextTick(scheduleConversationTailFollow);
   }
@@ -192,13 +192,13 @@ const canSubmit = computed(
     !readingAttachments.value &&
     (props.canSend ||
       (props.canSendAttachments &&
-        (pendingAttachments.value.length > 0 || Boolean(props.editorReference))))
+        (pendingAttachments.value.length > 0 || props.editorReferences.length > 0)))
 );
 
 watch(
-  () => props.editorReference?.id,
-  (id) => {
-    if (!id) return;
+  () => props.editorReferences.map((reference) => reference.id).join("\u0000"),
+  (ids) => {
+    if (!ids) return;
     void nextTick(() => composerInput.value?.focus());
   }
 );
@@ -319,10 +319,7 @@ function editorReferenceTooltip(reference: EditorTextReference): string {
 function submitMessage(): void {
   if (!canSubmit.value) return;
   const attachments = pendingAttachments.value.map((attachment) => ({ ...attachment }));
-  const editorAttachment = props.editorReference
-    ? createEditorReferenceAttachment(props.editorReference)
-    : undefined;
-  if (editorAttachment) attachments.push(editorAttachment);
+  attachments.push(...props.editorReferences.map(createEditorReferenceAttachment));
   if (attachments.length > PROMPT_ATTACHMENT_MAX_ITEMS) {
     uiMessage.warning(`每条消息最多携带 ${PROMPT_ATTACHMENT_MAX_ITEMS} 项附件或正文引用。`);
     return;
@@ -340,7 +337,7 @@ function submitMessage(): void {
   }
   pendingAttachments.value = [];
   emit("send", attachments);
-  if (props.editorReference) emit("clearEditorReference");
+  if (props.editorReferences.length) emit("clearEditorReferences");
 }
 
 onBeforeUnmount(() => {
@@ -1657,29 +1654,35 @@ function copyMessageLabel(message: ChatMessage): string {
               @change="handleAttachmentChange"
             />
             <div
-              v-if="editorReference"
-              class="composer-editor-reference"
-              aria-label="已引用正文选区"
+              v-if="editorReferences.length"
+              class="composer-editor-reference-list"
+              aria-label="已引用正文选区列表"
             >
-              <button
-                class="composer-editor-reference-main"
-                type="button"
-                :title="editorReferenceTooltip(editorReference)"
-                :aria-label="`定位到 ${editorReference.label}`"
-                @click="emit('locateEditorReference', editorReference)"
+              <div
+                v-for="editorReference in editorReferences"
+                :key="editorReference.id"
+                class="composer-editor-reference"
               >
-                <AppIcon name="quote" :size="13" />
-                <span>{{ editorReference.label }}</span>
-              </button>
-              <button
-                class="composer-editor-reference-remove"
-                type="button"
-                :aria-label="`移除正文引用 ${editorReference.label}`"
-                :disabled="responding"
-                @click="emit('clearEditorReference')"
-              >
-                <AppIcon name="close" :size="11" />
-              </button>
+                <button
+                  class="composer-editor-reference-main"
+                  type="button"
+                  :title="editorReferenceTooltip(editorReference)"
+                  :aria-label="`定位到 ${editorReference.label}`"
+                  @click="emit('locateEditorReference', editorReference)"
+                >
+                  <AppIcon name="quote" :size="13" />
+                  <span>{{ editorReference.label }}</span>
+                </button>
+                <button
+                  class="composer-editor-reference-remove"
+                  type="button"
+                  :aria-label="`移除正文引用 ${editorReference.label}`"
+                  :disabled="responding"
+                  @click="emit('removeEditorReference', editorReference.id)"
+                >
+                  <AppIcon name="close" :size="11" />
+                </button>
+              </div>
             </div>
             <div
               v-if="pendingAttachments.length || readingAttachments"

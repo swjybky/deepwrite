@@ -37,12 +37,15 @@ describe("AgentConversation edit proposal placement", () => {
     expect(assistantTimeStart).toBeGreaterThan(copyButtonStart);
   });
 
-  it("shows one clickable editor reference inside the composer", () => {
+  it("shows multiple independently clickable editor references inside the composer", () => {
+    expect(source).toContain('class="composer-editor-reference-list"');
+    expect(source).toContain('v-for="editorReference in editorReferences"');
     expect(source).toContain('class="composer-editor-reference"');
     expect(source).toContain("{{ editorReference.label }}");
     expect(source).toContain("emit('locateEditorReference', editorReference)");
-    expect(source).toContain("createEditorReferenceAttachment(props.editorReference)");
-    expect(source).toContain("emit(\"clearEditorReference\")");
+    expect(source).toContain("props.editorReferences.map(createEditorReferenceAttachment)");
+    expect(source).toContain("emit('removeEditorReference', editorReference.id)");
+    expect(source).toContain("emit(\"clearEditorReferences\")");
   });
 
   it("only lists configured models in the composer model selector", () => {
