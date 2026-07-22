@@ -3,7 +3,10 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage
 } from "@earendil-works/pi-ai";
-import type { AgentProviderRuntimeConfig } from "@deepwrite/contracts";
+import {
+  cloneEmptyLearningImitationResult,
+  type AgentProviderRuntimeConfig
+} from "@deepwrite/contracts";
 import {
   buildProviderRuntime,
   buildRawUserMessage,
@@ -449,6 +452,58 @@ describe("DeepWrite Pi runtime adapter", () => {
         String(message.content).includes("run_history_")
       )
     ).toBe(false);
+  });
+
+  it("starts each learning-imitation preset from a clean runtime transcript", async () => {
+    const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
+
+    for (const [index, prompt] of ["第一次素材学习", "第二次素材学习"].entries()) {
+      for await (const _event of runtime.start({
+        runId: `run_learning_${index}`,
+        sessionId: "session_learning",
+        prompt,
+        thinkingLevel: "off",
+        learningImitationProfile: {
+          id: "material_split",
+          label: "素材拆分",
+          systemPrompt: "分析当前样本文档。"
+        },
+        workspaceContext: {
+          learningImitation: {
+            stageId: "material_split",
+            documents: [{
+              id: "sample",
+              name: "sample.txt",
+              extension: "txt",
+              mediaType: "text/plain",
+              size: 4,
+              text: "测试正文",
+              charCount: 4
+            }],
+            result: cloneEmptyLearningImitationResult()
+          }
+        }
+      })) {
+        // Consume both complete runs before inspecting the stage-scoped cache.
+      }
+    }
+
+    const cache = (
+      runtime as unknown as {
+        conversationAgents: Map<
+          string,
+          { state: { messages: Array<{ role?: string; content?: unknown }> } }
+        >;
+      }
+    ).conversationAgents;
+    const agent = cache.get("session_learning:learning-imitation:material_split");
+    const userMessages = agent?.state.messages.filter(
+      (message) => message.role === "user"
+    );
+
+    expect(userMessages?.map((message) => message.content)).toEqual([
+      "第二次素材学习"
+    ]);
   });
 
   it("aborts an active run through the caller signal", async () => {

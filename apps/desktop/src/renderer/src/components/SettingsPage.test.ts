@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import source from "./SettingsPage.vue?raw";
 
 describe("SettingsPage appearance controls", () => {
+  it("provides a dedicated learning-imitation prompt category", () => {
+    expect(source).toContain('label: "学习仿写设置"');
+    expect(source).toContain("<LearningImitationSettingsPanel");
+    expect(source).toContain("emit('saveLearningImitation', $event)");
+  });
+
   it("lets users replace a font-size value and previews valid input immediately", () => {
     expect(source).toContain('@input="previewFontSize(\'uiFontSize\', $event)"');
     expect(source).toContain('@change="commitFontSize(\'uiFontSize\', $event)"');

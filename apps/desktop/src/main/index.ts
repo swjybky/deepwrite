@@ -17,6 +17,7 @@ import {
   DeleteDraftSectionResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
+  LearningImitationSettingsSchema,
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
   RemoveLibraryEntryResultSchema,
@@ -41,6 +42,7 @@ import {
   importLegacyLibraryArchives
 } from "./legacy-library-import-batch";
 import { ModelConfigStore } from "./model-config-store";
+import { LearningImitationConfigStore } from "./learning-imitation-config-store";
 import { resolveModelRunSettings } from "./model-run-settings";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
@@ -57,6 +59,7 @@ const terminalRuns = new Set<string>();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
+let learningImitationConfigStore: LearningImitationConfigStore | undefined;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
 let quitting = false;
@@ -82,6 +85,7 @@ type AgentEventEnvelope = Extract<
       | "tool.call_stream"
       | "tool.call_requested"
       | "tool.execution_completed"
+      | "learning_imitation.result_updated"
       | "workspace.editor_mutation"
       | "workspace.stage_selection";
   }
@@ -96,6 +100,7 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "tool.call_stream" ||
     event.type === "tool.call_requested" ||
     event.type === "tool.execution_completed" ||
+    event.type === "learning_imitation.result_updated" ||
     event.type === "workspace.editor_mutation" ||
     event.type === "workspace.stage_selection"
   );
@@ -270,6 +275,13 @@ function requireWorkspaceAgentConfigStore(): WorkspaceAgentConfigStore {
     throw new Error("创作空间智能体设置存储尚未初始化。");
   }
   return workspaceAgentConfigStore;
+}
+
+function requireLearningImitationConfigStore(): LearningImitationConfigStore {
+  if (!learningImitationConfigStore) {
+    throw new Error("学习仿写设置存储尚未初始化。");
+  }
+  return learningImitationConfigStore;
 }
 
 function requireWorkspaceDirectoryStore(): WorkspaceDirectoryStore {
@@ -883,6 +895,72 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "learningImitationSettings.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LearningImitationSettingsSchema.parse(
+              await requireLearningImitationConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "learning_imitation_settings.list_failed",
+              message: error instanceof Error ? error.message : "加载学习仿写设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "learningImitationSettings.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LearningImitationSettingsSchema.parse(
+              await requireLearningImitationConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "learning_imitation_settings.save_failed",
+              message: error instanceof Error ? error.message : "保存学习仿写设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "learningImitationSettings.reset") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LearningImitationSettingsSchema.parse(
+              await requireLearningImitationConfigStore().reset(command.payload.stageId)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "learning_imitation_settings.reset_failed",
+              message: error instanceof Error ? error.message : "恢复学习仿写默认设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "session.abort") {
         try {
           const internalCommand = CommandEnvelopeSchema.parse(
@@ -928,9 +1006,15 @@ function registerIpc(): void {
         try {
           const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
           const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
+          const learningImitation = command.payload.workspaceContext?.learningImitation;
           const agentProfile = shortWorkspace
             ? await requireWorkspaceAgentConfigStore().resolveForWorkspace(
                 shortWorkspace
+              )
+            : undefined;
+          const learningImitationProfile = learningImitation
+            ? await requireLearningImitationConfigStore().resolve(
+                learningImitation.stageId
               )
             : undefined;
           const { thinkingLevel, temperature } = resolveModelRunSettings(runtimeConfig, {
@@ -950,7 +1034,8 @@ function registerIpc(): void {
                 ...(thinkingLevel ? { thinkingLevel } : {}),
                 ...(temperature !== undefined ? { temperature } : {}),
                 ...(runtimeConfig ? { runtimeConfig } : {}),
-                ...(agentProfile ? { agentProfile } : {})
+                ...(agentProfile ? { agentProfile } : {}),
+                ...(learningImitationProfile ? { learningImitationProfile } : {})
               },
               { id: command.id, context: command.context }
             )
@@ -1147,6 +1232,7 @@ if (!hasSingleInstanceLock) {
     });
     void modelConfigStore.initialize();
     workspaceAgentConfigStore = new WorkspaceAgentConfigStore(userDataPath);
+    learningImitationConfigStore = new LearningImitationConfigStore(userDataPath);
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
     await workspaceDirectoryStore.initializeDefault(app.getPath("documents"));
     registerIpc();

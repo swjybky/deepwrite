@@ -11,6 +11,9 @@ import type {
   CreateLibraryGroupInput,
   CreateLibraryEntryInput,
   CreateShortBookInput,
+  LearningImitationSettings,
+  LearningImitationSettingsInput,
+  LearningImitationStageId,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   MaterialKind,
@@ -43,6 +46,7 @@ import DeleteExpertSectionDialog from "./components/DeleteExpertSectionDialog.vu
 import LibraryProjectDialog from "./components/LibraryProjectDialog.vue";
 import LibraryGroupDialog from "./components/LibraryGroupDialog.vue";
 import LibraryRemovalDialog from "./components/LibraryRemovalDialog.vue";
+import LearningImitationDialog from "./components/LearningImitationDialog.vue";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import RightEditorPane from "./components/RightEditorPane.vue";
 import SaveConflictDialog from "./components/SaveConflictDialog.vue";
@@ -54,6 +58,7 @@ import {
   type AgentRunSettings
 } from "./composables/useAgentConversation";
 import { useAppearance } from "./composables/useAppearance";
+import { useLearningImitation } from "./composables/useLearningImitation";
 import { uiMessage } from "./ui-feedback";
 import { resourceSections } from "./data/demoWorkspace";
 import {
@@ -281,6 +286,13 @@ const acceptingAgentEditWorkspaceIds = ref<Set<string>>(new Set());
 const savingDocumentIds = ref<Set<string>>(new Set());
 let recoveredEditorDraftCount = 0;
 const dialogMode = ref<DialogMode | null>(null);
+const learningImitationOpen = ref(false);
+const learningImitation = useLearningImitation({
+  api: () => window.deepwrite
+});
+const learningImitationRunning = computed(
+  () => learningImitation.isBusy.value
+);
 const bookDialogMode = ref<BookResourceDialogMode | null>(null);
 const activeBook = ref<ResourceTreeNode | null>(null);
 const catalogSnapshot = ref<CatalogSnapshot | null>(null);
@@ -359,6 +371,9 @@ const workspaceAgentLoading = ref(false);
 const workspaceAgentSaving = ref(false);
 const workspaceAgentError = ref<string | null>(null);
 const workspaceAgentStatus = ref<string | null>(null);
+const learningImitationSettings = ref<LearningImitationSettings | null>(null);
+const learningImitationLoading = ref(false);
+const learningImitationSaving = ref(false);
 const workspaceDirectoryPath = ref<string | null>(null);
 const workspaceDirectoryLoading = ref(false);
 let workspaceAgentFeedbackTimer: number | undefined;
@@ -3141,10 +3156,23 @@ function seedPrompt(value: string): void {
   dialogMode.value = null;
 }
 
+function openWorkspaceDialog(mode: DialogMode): void {
+  if (mode === "imitation") {
+    dialogMode.value = null;
+    learningImitationOpen.value = true;
+    if (!modelSettings.value && window.deepwrite) {
+      void loadModelSettings();
+    }
+    return;
+  }
+  dialogMode.value = mode;
+}
+
 function openSettings(): void {
   currentView.value = "settings";
   if (window.deepwrite) {
     void loadWorkspaceAgentSettings();
+    void loadLearningImitationSettings();
   }
 }
 
@@ -3588,6 +3616,7 @@ function scheduleQueuedAutoAgentEdits(
 }
 
 function handleSystemEvent(event: SystemEventEnvelope): void {
+  learningImitation.handleEvent(event);
   if (event.type === "workspace.editor_mutation") {
     stageAgentEditProposal(event);
   }
@@ -3627,6 +3656,10 @@ async function loadModelSettings(): Promise<void> {
   try {
     const settings = await window.deepwrite.models.list();
     modelSettings.value = settings;
+    learningImitation.setConfiguredModels(
+      settings.models,
+      settings.defaultModelId
+    );
     applyModelSettingsToConversations(settings);
   } catch (error: unknown) {
     modelError.value = error instanceof Error ? error.message : "加载模型配置失败。";
@@ -3651,6 +3684,7 @@ async function saveModelSettings(settings: ModelSettingsInput): Promise<void> {
   try {
     const saved = await window.deepwrite.models.save(settings);
     modelSettings.value = saved;
+    learningImitation.setConfiguredModels(saved.models, saved.defaultModelId);
     applyModelSettingsToConversations(saved);
     modelTestMessage.value = "模型配置已保存，并已同步到后续对话。";
   } catch (error: unknown) {
@@ -3724,6 +3758,57 @@ async function saveWorkspaceAgentSettings(
     );
   } finally {
     workspaceAgentSaving.value = false;
+  }
+}
+
+async function loadLearningImitationSettings(): Promise<void> {
+  if (!window.deepwrite || learningImitationLoading.value) return;
+  learningImitationLoading.value = true;
+  try {
+    learningImitationSettings.value =
+      await window.deepwrite.learningImitationSettings.list();
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "加载学习仿写设置失败。"
+    );
+  } finally {
+    learningImitationLoading.value = false;
+  }
+}
+
+async function saveLearningImitationSettings(
+  settings: LearningImitationSettingsInput
+): Promise<void> {
+  if (!window.deepwrite || learningImitationSaving.value) return;
+  learningImitationSaving.value = true;
+  try {
+    learningImitationSettings.value =
+      await window.deepwrite.learningImitationSettings.save(settings);
+    uiMessage.success("学习仿写提示词已保存，下一次运行对应阶段时生效。");
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "保存学习仿写设置失败。"
+    );
+  } finally {
+    learningImitationSaving.value = false;
+  }
+}
+
+async function resetLearningImitationSettings(
+  stageId: LearningImitationStageId
+): Promise<void> {
+  if (!window.deepwrite || learningImitationSaving.value) return;
+  learningImitationSaving.value = true;
+  try {
+    learningImitationSettings.value =
+      await window.deepwrite.learningImitationSettings.reset(stageId);
+    uiMessage.success("当前阶段已恢复默认提示词。");
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "恢复学习仿写默认设置失败。"
+    );
+  } finally {
+    learningImitationSaving.value = false;
   }
 }
 
@@ -3897,6 +3982,7 @@ onMounted(async () => {
     loadCatalogSnapshot(),
     loadModelSettings(),
     loadWorkspaceAgentSettings(),
+    loadLearningImitationSettings(),
     loadWorkspaceDirectory()
   ]);
   if (recoveredEditorDraftCount > 0) {
@@ -3925,6 +4011,7 @@ onBeforeUnmount(() => {
   for (const conversation of allConversations()) {
     conversation.dispose();
   }
+  learningImitation.dispose();
 });
 </script>
 
@@ -3937,9 +4024,14 @@ onBeforeUnmount(() => {
         :workspace-agent-saving="workspaceAgentSaving"
         :workspace-agent-error="workspaceAgentError"
         :workspace-agent-status="workspaceAgentStatus"
+        :learning-imitation-settings="learningImitationSettings"
+        :learning-imitation-loading="learningImitationLoading"
+        :learning-imitation-saving="learningImitationSaving"
         :runtime-available="hasDesktopRuntime"
         @back="closeSettings"
         @save-workspace-agents="saveWorkspaceAgentSettings"
+        @save-learning-imitation="saveLearningImitationSettings"
+        @reset-learning-imitation="resetLearningImitationSettings"
       />
 
     <div
@@ -3954,9 +4046,10 @@ onBeforeUnmount(() => {
         v-if="!leftCollapsed"
         :sections="resourceTreeSections"
         :selected-id="selectedResourceId"
+        :imitation-running="learningImitationRunning"
         @collapse="leftCollapsed = true"
         @new-conversation="newConversation"
-        @open-dialog="dialogMode = $event"
+        @open-dialog="openWorkspaceDialog"
         @open-settings="openSettings"
         @select-resource="selectResource"
         @book-action="openBookDialog"
@@ -4072,6 +4165,14 @@ onBeforeUnmount(() => {
       @save-models="saveModelSettings"
       @test-model="testModel"
       @choose-workspace-directory="chooseWorkspaceDirectory"
+    />
+    <LearningImitationDialog
+      :open="learningImitationOpen"
+      :controller="learningImitation"
+      :models="modelSettings?.models ?? []"
+      :catalog-snapshot="catalogSnapshot"
+      @close="learningImitationOpen = false"
+      @refresh-catalog="loadCatalogSnapshot"
     />
     <BookResourceDialog
       :mode="bookDialogMode"

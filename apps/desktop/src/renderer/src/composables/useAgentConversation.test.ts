@@ -253,6 +253,17 @@ function createDeferredApi(): {
         return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
       }
     },
+    learningImitationSettings: {
+      async list() {
+        throw new Error("Learning imitation settings are not used by conversation tests.");
+      },
+      async save() {
+        throw new Error("Learning imitation settings are not used by conversation tests.");
+      },
+      async reset() {
+        throw new Error("Learning imitation settings are not used by conversation tests.");
+      }
+    },
     workspaceDirectory: {
       async list() {
         return { path: null };

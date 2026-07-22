@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type {
+  LearningImitationSettings,
+  LearningImitationSettingsInput,
+  LearningImitationStageId,
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
@@ -16,6 +19,7 @@ import {
 } from "../composables/useAppearance";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
+import LearningImitationSettingsPanel from "./LearningImitationSettingsPanel.vue";
 import PopupSelect from "./PopupSelect.vue";
 import ShortAgentSettingsPanel from "./ShortAgentSettingsPanel.vue";
 
@@ -37,12 +41,17 @@ defineProps<{
   workspaceAgentSaving: boolean;
   workspaceAgentError: string | null;
   workspaceAgentStatus: string | null;
+  learningImitationSettings: LearningImitationSettings | null;
+  learningImitationLoading: boolean;
+  learningImitationSaving: boolean;
   runtimeAvailable: boolean;
 }>();
 
 const emit = defineEmits<{
   back: [];
   saveWorkspaceAgents: [settings: ShortWorkspaceAgentSettingsInput];
+  saveLearningImitation: [settings: LearningImitationSettingsInput];
+  resetLearningImitation: [stageId: LearningImitationStageId];
 }>();
 const appearance = useAppearance();
 const activeCategory = ref("general");
@@ -54,7 +63,8 @@ const sections: SettingsSection[] = [
     id: "creation",
     label: "创作",
     categories: [
-      { id: "short-agents", label: "创作空间", icon: "brain" }
+      { id: "short-agents", label: "创作空间", icon: "brain" },
+      { id: "learning-imitation", label: "学习仿写设置", icon: "sparkles" }
     ]
   },
   {
@@ -285,6 +295,16 @@ async function importThemeFile(event: Event): Promise<void> {
           :status-message="workspaceAgentStatus"
           :runtime-available="runtimeAvailable"
           @save="emit('saveWorkspaceAgents', $event)"
+        />
+
+        <LearningImitationSettingsPanel
+          v-else-if="activeCategory === 'learning-imitation'"
+          :settings="learningImitationSettings"
+          :loading="learningImitationLoading"
+          :saving="learningImitationSaving"
+          :runtime-available="runtimeAvailable"
+          @save="emit('saveLearningImitation', $event)"
+          @reset="emit('resetLearningImitation', $event)"
         />
 
         <section v-else-if="activeCategory === 'general'" class="settings-group">

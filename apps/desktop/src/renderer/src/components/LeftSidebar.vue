@@ -26,6 +26,7 @@ import {
 const props = defineProps<{
   sections: ResourceTreeSection[];
   selectedId: string;
+  imitationRunning?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -293,6 +294,13 @@ watch(
         >
           <AppIcon :name="item.icon" :size="17" />
           <span>{{ item.label }}</span>
+          <span
+            v-if="item.id === 'imitation' && props.imitationRunning"
+            class="nav-background-status"
+            title="学习仿写正在后台运行"
+          >
+            <i aria-hidden="true" />后台中
+          </span>
         </button>
 
         <button

@@ -26,6 +26,9 @@ import {
   ImportLegacyLibraryResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
+  LearningImitationSettingsInputSchema,
+  LearningImitationSettingsSchema,
+  LearningImitationStageIdSchema,
   ModelConnectionTestResultSchema,
   ModelConfigInputSchema,
   ModelSettingsInputSchema,
@@ -74,6 +77,9 @@ import {
   type DeleteDraftSectionResult,
   type ModelConnectionTestResult,
   type ImportLegacyLibraryResult,
+  type LearningImitationSettings,
+  type LearningImitationSettingsInput,
+  type LearningImitationStageId,
   type ModelConfigInput,
   type ModelSettings,
   type ModelSettingsInput,
@@ -533,6 +539,48 @@ async function resetWorkspaceAgents(
   );
 }
 
+async function listLearningImitationSettings(): Promise<LearningImitationSettings> {
+  const id = browserId("cmd_learning_imitation_settings_list");
+  return LearningImitationSettingsSchema.parse(
+    await invokeCommand<LearningImitationSettings>(
+      createEnvelope("learningImitationSettings.list", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function saveLearningImitationSettings(
+  rawSettings: LearningImitationSettingsInput
+): Promise<LearningImitationSettings> {
+  const settings = LearningImitationSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_learning_imitation_settings_save");
+  return LearningImitationSettingsSchema.parse(
+    await invokeCommand<LearningImitationSettings>(
+      createEnvelope("learningImitationSettings.save", settings, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
+async function resetLearningImitationSettings(
+  rawStageId?: LearningImitationStageId
+): Promise<LearningImitationSettings> {
+  const stageId = rawStageId
+    ? LearningImitationStageIdSchema.parse(rawStageId)
+    : undefined;
+  const id = browserId("cmd_learning_imitation_settings_reset");
+  return LearningImitationSettingsSchema.parse(
+    await invokeCommand<LearningImitationSettings>(
+      createEnvelope(
+        "learningImitationSettings.reset",
+        { ...(stageId ? { stageId } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
 async function listWorkspaceDirectory(): Promise<WorkspaceDirectorySettings> {
   const id = browserId("cmd_workspace_directory_list");
   return WorkspaceDirectorySettingsSchema.parse(
@@ -590,6 +638,11 @@ const api: DeepWriteApi = {
     list: listWorkspaceAgents,
     save: saveWorkspaceAgents,
     reset: resetWorkspaceAgents
+  },
+  learningImitationSettings: {
+    list: listLearningImitationSettings,
+    save: saveLearningImitationSettings,
+    reset: resetLearningImitationSettings
   },
   workspaceDirectory: {
     list: listWorkspaceDirectory,

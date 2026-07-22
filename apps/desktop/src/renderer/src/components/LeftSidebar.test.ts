@@ -22,4 +22,10 @@ describe("LeftSidebar account controls", () => {
     expect(source).toContain("如果你有任何反馈，或者想体验最新版本，请添加作者微信并加入交流群。");
     expect(source).toContain("deepseekwrite");
   });
+
+  it("shows a background-running marker for learning imitation", () => {
+    expect(source).toContain("imitationRunning");
+    expect(source).toContain("nav-background-status");
+    expect(source).toContain("后台中");
+  });
 });

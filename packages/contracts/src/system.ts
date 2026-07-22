@@ -10,6 +10,7 @@ import {
   AgentToolCompletedEventEnvelopeSchema,
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
+  LearningImitationResultUpdatedEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
   SessionAbortCommandEnvelopeSchema,
@@ -21,9 +22,15 @@ import {
   type AgentToolCompletedEventEnvelope,
   type AgentToolCallStreamEventEnvelope,
   type AgentToolRequestedEventEnvelope,
+  type LearningImitationResultUpdatedEventEnvelope,
   type WorkspaceEditorMutationEventEnvelope,
   type WorkspaceStageSelectionEventEnvelope
 } from "./session";
+import {
+  LearningImitationSettingsListCommandEnvelopeSchema,
+  LearningImitationSettingsResetCommandEnvelopeSchema,
+  LearningImitationSettingsSaveCommandEnvelopeSchema
+} from "./learning-imitation";
 import {
   AgentModelTestCommandEnvelopeSchema,
   ModelsListCommandEnvelopeSchema,
@@ -132,6 +139,9 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   WorkspaceAgentsListCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
   WorkspaceAgentsResetCommandEnvelopeSchema,
+  LearningImitationSettingsListCommandEnvelopeSchema,
+  LearningImitationSettingsSaveCommandEnvelopeSchema,
+  LearningImitationSettingsResetCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema,
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
@@ -197,6 +207,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
+  LearningImitationResultUpdatedEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
   AgentErrorEventEnvelopeSchema
@@ -221,6 +232,7 @@ export type SystemEventEnvelope =
   | AgentToolCallStreamEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope
+  | LearningImitationResultUpdatedEventEnvelope
   | WorkspaceEditorMutationEventEnvelope
   | WorkspaceStageSelectionEventEnvelope
   | AgentErrorEventEnvelope;

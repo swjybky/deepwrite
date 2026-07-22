@@ -28,21 +28,27 @@ import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generati
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { getBuiltinModels, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
-import type {
-  AgentProviderRuntimeConfig,
-  AgentRuntimeRef,
-  AgentUsage,
-  AgentWriteApprovalMode,
-  ShortWorkspaceAgentProfile,
-  ModelConnectionTestResult,
-  ThinkingLevel as ConfiguredThinkingLevel,
-  UserPromptAttachment,
-  WorkspaceRuntimeContext
+import {
+  renderLearningImitationSystemPrompt,
+  type AgentProviderRuntimeConfig,
+  type AgentRuntimeRef,
+  type AgentUsage,
+  type AgentWriteApprovalMode,
+  type LearningImitationAgentProfile,
+  type ShortWorkspaceAgentProfile,
+  type ModelConnectionTestResult,
+  type ThinkingLevel as ConfiguredThinkingLevel,
+  type UserPromptAttachment,
+  type WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import {
   buildShortWorkspaceTools,
   isShortWorkspaceToolDetails
 } from "./short-agent-tools";
+import {
+  buildLearningImitationTools,
+  isLearningImitationToolDetails
+} from "./learning-imitation-tools";
 
 export interface AgentRunInput {
   runId: string;
@@ -54,6 +60,7 @@ export interface AgentRunInput {
   temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
   agentProfile?: ShortWorkspaceAgentProfile;
+  learningImitationProfile?: LearningImitationAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
   signal?: AbortSignal;
 }
@@ -162,6 +169,17 @@ export type AgentRuntimeEvent =
         toolCallId: string;
         workspaceId: string;
         stageId: import("@deepwrite/contracts").ShortWorkspaceStageId;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "learning_imitation.result_updated";
+      runId: string;
+      sessionId: string;
+      payload: {
+        toolCallId: string;
+        stageId: import("@deepwrite/contracts").LearningImitationStageId;
+        update: import("@deepwrite/contracts").LearningImitationWritePayload;
         runtime: AgentRuntimeRef;
       };
     }
@@ -385,6 +403,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     }
 
     const shortWorkspace = input.workspaceContext?.shortWorkspace;
+    const learningImitation = input.workspaceContext?.learningImitation;
     const imageAttachments = input.attachments?.filter(
       (attachment) => attachment.kind === "image"
     ) ?? [];
@@ -395,17 +414,23 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           : `当前模型 ${runtime.model} 不支持图片输入，请更换支持多模态的模型。`
       );
     }
-    const tools = shortWorkspace && input.agentProfile
-      ? buildShortWorkspaceTools({
+    const tools = learningImitation && input.learningImitationProfile
+      ? buildLearningImitationTools(learningImitation)
+      : shortWorkspace && input.agentProfile
+        ? buildShortWorkspaceTools({
           workspace: shortWorkspace,
           profile: input.agentProfile,
           writeApprovalMode: input.writeApprovalMode ?? "request-approval",
           attachedSkills: input.workspaceContext?.attachedSkills,
           attachedMaterials: input.workspaceContext?.attachedMaterials
-        })
-      : [];
+          })
+        : [];
     const systemPrompt = buildEffectiveSystemPrompt(this.systemPrompt, input);
-    const agentKey = `${input.sessionId}:${input.agentProfile?.id ?? "default"}`;
+    const agentKey = `${input.sessionId}:${
+      input.learningImitationProfile
+        ? `learning-imitation:${input.learningImitationProfile.id}`
+        : input.agentProfile?.id ?? "default"
+    }`;
     let emitToolCallEvent: (
       event: ToolCallAssistantEvent,
       assistantTurnIndex: number
@@ -418,6 +443,12 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     if (agent) {
       if (agent.state.isStreaming) {
         throw new Error("The selected conversation agent is already running.");
+      }
+      if (input.learningImitationProfile) {
+        // Every preset analysis is self-contained. The latest documents and
+        // accumulated preview are injected explicitly, so replaying prior tool
+        // calls would only pollute the next learning pass.
+        agent.state.messages = [];
       }
       agent.state.systemPrompt = systemPrompt;
       agent.state.model = model;
@@ -930,6 +961,18 @@ function toRuntimeEvents(
           }
         });
       }
+    } else if (isLearningImitationToolDetails(details)) {
+      events.push({
+        type: "learning_imitation.result_updated",
+        runId: input.runId,
+        sessionId: input.sessionId,
+        payload: {
+          toolCallId: event.toolCallId,
+          stageId: details.stageId,
+          update: details.update,
+          runtime
+        }
+      });
     }
     return events;
   }
@@ -1089,6 +1132,22 @@ function buildDeepWriteSystemPrompt(): string {
 }
 
 function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): string {
+  const learningProfile = input.learningImitationProfile;
+  const learningContext = input.workspaceContext?.learningImitation;
+  if (learningProfile && learningContext) {
+    return [
+      basePrompt,
+      "",
+      `【当前学习仿写智能体：${learningProfile.label} / ${learningProfile.id}】`,
+      renderLearningImitationSystemPrompt(
+        learningProfile.systemPrompt,
+        learningContext
+      ).trim(),
+      "",
+      "【DeepWrite 学习仿写工具边界】",
+      "只能使用本轮列出的样本文档读取、搜索与预览写入工具。write_learning_result 只更新预览区，不会写入正式素材库或技能库。正式落盘必须等待用户在界面中确认。"
+    ].join("\n");
+  }
   const profile = input.agentProfile;
   if (!profile) return basePrompt;
   const writeBoundary =
@@ -1119,6 +1178,7 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
   const isShortAgentRun = Boolean(
     input.workspaceContext?.shortWorkspace && input.agentProfile
   );
+  const learningContext = input.workspaceContext?.learningImitation;
   const readableSkills = input.agentProfile
     ? skills.filter(
         (item) =>
@@ -1174,10 +1234,17 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
       : "",
     input.agentProfile
       ? `当前智能体: ${input.agentProfile.label} (${input.agentProfile.id})`
+      : input.learningImitationProfile
+        ? `当前智能体: ${input.learningImitationProfile.label} (${input.learningImitationProfile.id})`
+      : "",
+    learningContext
+      ? `学习阶段: ${learningContext.stageId}；样本文档: ${learningContext.documents.length} 篇`
       : "",
     active
       ? `当前资源: ${active.title} (${active.domain}${active.format ? ` / ${active.format}` : ""})`
-      : "当前资源: 未提供",
+      : learningContext
+        ? "当前资源: 学习仿写样本文档（正文请通过工具按需读取）"
+        : "当前资源: 未提供",
     active ? `资源路径: ${active.path.join(" / ")}` : "",
     active && !input.workspaceContext?.shortWorkspace ? `实时内容:\n${active.content}` : "",
     skillContext,

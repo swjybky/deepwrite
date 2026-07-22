@@ -14,6 +14,12 @@ import {
   ShortWorkspaceAgentProfileSchema,
   ShortWorkspaceSnapshotSchema
 } from "./workspace";
+import {
+  LearningImitationAgentProfileSchema,
+  LearningImitationRuntimeContextSchema,
+  LearningImitationStageIdSchema,
+  LearningImitationWritePayloadSchema
+} from "./learning-imitation";
 
 export type { ThinkingLevel } from "./models";
 
@@ -87,6 +93,7 @@ export type AttachedContextSnapshot = z.infer<typeof AttachedContextSnapshotSche
 export const WorkspaceRuntimeContextSchema = z.object({
   activeResource: ActiveResourceSnapshotSchema.optional(),
   shortWorkspace: ShortWorkspaceSnapshotSchema.optional(),
+  learningImitation: LearningImitationRuntimeContextSchema.optional(),
   attachedSkills: z
     .array(AttachedSkillSnapshotSchema)
     .max(ATTACHED_CONTEXT_MAX_ITEMS)
@@ -96,6 +103,13 @@ export const WorkspaceRuntimeContextSchema = z.object({
     .max(ATTACHED_CONTEXT_MAX_ITEMS)
     .optional()
 }).superRefine((value, context) => {
+  if (value.shortWorkspace && value.learningImitation) {
+    context.addIssue({
+      code: "custom",
+      path: ["learningImitation"],
+      message: "A run cannot use short-workspace and learning-imitation contexts together."
+    });
+  }
   const shortWorkspace = value.shortWorkspace;
   const active = value.activeResource;
   if (!shortWorkspace || !active) return;
@@ -327,7 +341,30 @@ export const SessionAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
   runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
-  agentProfile: ShortWorkspaceAgentProfileSchema.optional()
+  agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
+  learningImitationProfile: LearningImitationAgentProfileSchema.optional()
+}).superRefine((value, context) => {
+  if (
+    Boolean(value.workspaceContext?.learningImitation) !==
+    Boolean(value.learningImitationProfile)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["learningImitationProfile"],
+      message: "Learning-imitation context and agent profile must be provided together."
+    });
+  }
+  if (
+    value.learningImitationProfile &&
+    value.workspaceContext?.learningImitation?.stageId !==
+      value.learningImitationProfile.id
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["learningImitationProfile", "id"],
+      message: "Learning-imitation profile must match the active stage."
+    });
+  }
 });
 export type AgentPromptCommandPayload = z.infer<typeof AgentPromptCommandPayloadSchema>;
 
@@ -426,6 +463,18 @@ export const AgentToolCompletedPayloadSchema = z.object({
 });
 export type AgentToolCompletedPayload = z.infer<typeof AgentToolCompletedPayloadSchema>;
 
+export const LearningImitationResultUpdatedPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  stageId: LearningImitationStageIdSchema,
+  update: LearningImitationWritePayloadSchema,
+  runtime: AgentRuntimeRefSchema
+});
+export type LearningImitationResultUpdatedPayload = z.infer<
+  typeof LearningImitationResultUpdatedPayloadSchema
+>;
+
 export const WorkspaceEditorMutationTargetSchema = z.object({
   kind: z.literal("expert-draft-file"),
   documentId: z.string().trim().min(1).max(4_096),
@@ -521,6 +570,12 @@ export const AgentToolCompletedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   payload: AgentToolCompletedPayloadSchema
 }).superRefine(validateAgentEventContext);
 
+export const LearningImitationResultUpdatedEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("learning_imitation.result_updated"),
+    payload: LearningImitationResultUpdatedPayloadSchema
+  }).superRefine(validateAgentEventContext);
+
 export const WorkspaceEditorMutationEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("workspace.editor_mutation"),
   payload: WorkspaceEditorMutationPayloadSchema
@@ -568,6 +623,10 @@ export type AgentToolCallStreamEventEnvelope = Envelope<
   "tool.call_stream"
 >;
 export type AgentToolCompletedEventEnvelope = Envelope<AgentToolCompletedPayload, "tool.execution_completed">;
+export type LearningImitationResultUpdatedEventEnvelope = Envelope<
+  LearningImitationResultUpdatedPayload,
+  "learning_imitation.result_updated"
+>;
 export type WorkspaceEditorMutationEventEnvelope = Envelope<
   WorkspaceEditorMutationPayload,
   "workspace.editor_mutation"

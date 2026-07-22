@@ -161,6 +161,21 @@ function toEventEnvelope(
     );
   }
 
+  if (event.type === "learning_imitation.result_updated") {
+    return createEnvelope(
+      "learning_imitation.result_updated",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        stageId: event.payload.stageId,
+        update: event.payload.update,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   return createEnvelope(
     "agent.error",
     {
@@ -341,6 +356,9 @@ bootUtility("agent", {
           : {}),
         ...(command.payload.agentProfile
           ? { agentProfile: command.payload.agentProfile }
+          : {}),
+        ...(command.payload.learningImitationProfile
+          ? { learningImitationProfile: command.payload.learningImitationProfile }
           : {}),
         ...(command.payload.workspaceContext
           ? { workspaceContext: command.payload.workspaceContext }

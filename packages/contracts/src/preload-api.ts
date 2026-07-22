@@ -18,6 +18,11 @@ import type {
 } from "./workspace";
 import type { WorkspaceDirectorySettings } from "./workspace-directory";
 import type {
+  LearningImitationSettings,
+  LearningImitationSettingsInput,
+  LearningImitationStageId
+} from "./learning-imitation";
+import type {
   CatalogDocument,
   CatalogDraftSection,
   CatalogDraftRecovery,
@@ -100,6 +105,11 @@ export interface DeepWriteApi {
       workspaceType: "short",
       agentId?: ShortWorkspaceAgentId
     ): Promise<ShortWorkspaceAgentSettings>;
+  };
+  learningImitationSettings: {
+    list(): Promise<LearningImitationSettings>;
+    save(settings: LearningImitationSettingsInput): Promise<LearningImitationSettings>;
+    reset(stageId?: LearningImitationStageId): Promise<LearningImitationSettings>;
   };
   workspaceDirectory: {
     list(): Promise<WorkspaceDirectorySettings>;

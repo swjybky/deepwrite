@@ -1,6 +1,7 @@
 export * from "./catalog";
 export * from "./envelope";
 export * from "./expert-draft";
+export * from "./learning-imitation";
 export * from "./models";
 export * from "./preload-api";
 export * from "./session";

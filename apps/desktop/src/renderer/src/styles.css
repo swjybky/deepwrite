@@ -295,6 +295,29 @@ ol {
   font-weight: 450;
 }
 
+.nav-background-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-size: 0.714286rem;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.nav-background-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: nav-background-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes nav-background-pulse {
+  50% { opacity: 0.35; }
+}
+
 .more-toggle.is-expanded {
   background: #ebebe8;
   color: #202226;
