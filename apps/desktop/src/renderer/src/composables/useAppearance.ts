@@ -165,6 +165,12 @@ function rgba(hex: string, alpha: number): string {
   return `rgb(${r} ${g} ${b} / ${alpha})`;
 }
 
+function readableAccentText(hex: string): string {
+  const [r, g, b] = hexToRgb(hex);
+  const perceivedBrightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return perceivedBrightness > 158 ? "#17191C" : "#FFFFFF";
+}
+
 function mixRgba(
   background: string,
   foreground: string,
@@ -189,6 +195,7 @@ function applyToDocument(): void {
   root.dataset.theme = scheme;
   root.style.colorScheme = scheme;
   root.style.setProperty("--accent", theme.accent);
+  root.style.setProperty("--accent-contrast", readableAccentText(theme.accent));
   root.style.setProperty("--accent-soft", rgba(theme.accent, scheme === "dark" ? 0.18 : 0.12));
   root.style.setProperty("--theme-background", theme.background);
   root.style.setProperty("--theme-foreground", theme.foreground);

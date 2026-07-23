@@ -36,6 +36,9 @@ import {
   LEARNING_DOCUMENT_SUPPORTED_LABEL,
   readLearningDocumentFile
 } from "../utils/learningDocumentFiles";
+import PopupSelect, {
+  type PopupSelectOption
+} from "./PopupSelect.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -197,6 +200,10 @@ const selectedModelId = computed({
     props.controller.selectedModelId.value = value;
   }
 });
+const modelOptions = computed<PopupSelectOption[]>(() => [
+  { value: "", label: "请先配置并选择模型" },
+  ...props.models.map((model) => ({ value: model.id, label: model.label }))
+]);
 const materialLibraries = computed(
   () => props.catalogSnapshot?.materials ?? []
 );
@@ -247,6 +254,24 @@ function materialCandidates(kind: LearningMaterialKind) {
   );
 }
 
+function materialTargetOptions(
+  kind: LearningMaterialKind
+): PopupSelectOption[] {
+  return [
+    { value: "", label: "请选择目标库" },
+    {
+      value: CREATE_LIBRARY_VALUE,
+      label: "＋ 新建资料库…",
+      description: `创建新的${MATERIAL_KIND_LABELS[kind]}`
+    },
+    ...materialCandidates(kind).map((library) => ({
+      value: library.id,
+      label: library.title,
+      description: library.materialType
+    }))
+  ];
+}
+
 function findMaterialLibrary(libraryId: string) {
   const persisted = materialLibraries.value.find(
     (library) => library.id === libraryId
@@ -260,6 +285,22 @@ function skillCandidates(kind: LearningSkillKind) {
   return skillLibraries.value.filter(
     (library) => library.skillKind === kind && !library.isBuiltin
   );
+}
+
+function skillTargetOptions(kind: LearningSkillKind): PopupSelectOption[] {
+  return [
+    { value: "", label: "请选择目标库" },
+    {
+      value: CREATE_LIBRARY_VALUE,
+      label: "＋ 新建资料库…",
+      description: `创建新的${SKILL_KIND_LABELS[kind]}`
+    },
+    ...skillCandidates(kind).map((library) => ({
+      value: library.id,
+      label: library.title,
+      description: library.skillType
+    }))
+  ];
 }
 
 function findSkillLibrary(libraryId: string) {
@@ -918,10 +959,6 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
           >
             <span>{{ index + 1 }}</span>
             <strong>{{ LEARNING_IMITATION_STAGE_LABELS[stageId] }}</strong>
-            <i
-              v-if="learningImitationStageHasResult(stageId, result)"
-              aria-label="已有结果"
-            ></i>
           </button>
         </nav>
 
@@ -935,7 +972,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
               </div>
               <button
                 type="button"
-                class="learning-primary-button"
+                class="learning-primary-button is-confirm"
                 :disabled="!activeHasResult || saving"
                 @click="prepareSave"
               >
@@ -946,17 +983,16 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
             <section v-if="activeStage === 'material_split'" class="learning-target-strip">
               <label v-for="kind in LEARNING_MATERIAL_KINDS" :key="kind">
                 <span>{{ MATERIAL_KIND_LABELS[kind] }}</span>
-                <select v-model="selectedMaterialLibraryIds[kind]" :disabled="saving">
-                  <option value="">请选择目标库</option>
-                  <option :value="CREATE_LIBRARY_VALUE">＋ 新建资料库…</option>
-                  <option
-                    v-for="library in materialCandidates(kind)"
-                    :key="library.id"
-                    :value="library.id"
-                  >
-                    {{ library.title }} · {{ library.materialType }}
-                  </option>
-                </select>
+                <PopupSelect
+                  class="learning-target-select"
+                  :model-value="selectedMaterialLibraryIds[kind]"
+                  :options="materialTargetOptions(kind)"
+                  :accessible-label="`选择${MATERIAL_KIND_LABELS[kind]}`"
+                  :disabled="saving"
+                  :menu-min-width="260"
+                  :menu-z-index="1300"
+                  @update:model-value="selectedMaterialLibraryIds[kind] = String($event)"
+                />
                 <input
                   v-if="selectedMaterialLibraryIds[kind] === CREATE_LIBRARY_VALUE"
                   v-model="newMaterialLibraryNames[kind]"
@@ -972,13 +1008,16 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
               <label>
                 <span>{{ activeStage === "plot_learning" ? SKILL_KIND_LABELS.plot : SKILL_KIND_LABELS.style }}</span>
                 <template v-if="activeStage === 'plot_learning'">
-                  <select v-model="selectedSkillLibraryIds.plot" :disabled="saving">
-                    <option value="">请选择目标库</option>
-                    <option :value="CREATE_LIBRARY_VALUE">＋ 新建资料库…</option>
-                    <option v-for="library in skillCandidates('plot')" :key="library.id" :value="library.id">
-                      {{ library.title }} · {{ library.skillType }}
-                    </option>
-                  </select>
+                  <PopupSelect
+                    class="learning-target-select"
+                    :model-value="selectedSkillLibraryIds.plot"
+                    :options="skillTargetOptions('plot')"
+                    accessible-label="选择剧情技能库"
+                    :disabled="saving"
+                    :menu-min-width="280"
+                    :menu-z-index="1300"
+                    @update:model-value="selectedSkillLibraryIds.plot = String($event)"
+                  />
                   <input
                     v-if="selectedSkillLibraryIds.plot === CREATE_LIBRARY_VALUE"
                     v-model="newSkillLibraryNames.plot"
@@ -989,13 +1028,16 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
                   />
                 </template>
                 <template v-else>
-                  <select v-model="selectedSkillLibraryIds.style" :disabled="saving">
-                    <option value="">请选择目标库</option>
-                    <option :value="CREATE_LIBRARY_VALUE">＋ 新建资料库…</option>
-                    <option v-for="library in skillCandidates('style')" :key="library.id" :value="library.id">
-                      {{ library.title }} · {{ library.skillType }}
-                    </option>
-                  </select>
+                  <PopupSelect
+                    class="learning-target-select"
+                    :model-value="selectedSkillLibraryIds.style"
+                    :options="skillTargetOptions('style')"
+                    accessible-label="选择文风技能库"
+                    :disabled="saving"
+                    :menu-min-width="280"
+                    :menu-z-index="1300"
+                    @update:model-value="selectedSkillLibraryIds.style = String($event)"
+                  />
                   <input
                     v-if="selectedSkillLibraryIds.style === CREATE_LIBRARY_VALUE"
                     v-model="newSkillLibraryNames.style"
@@ -1073,15 +1115,20 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
           <aside class="learning-agent-pane" aria-label="学习仿写智能体">
             <header class="learning-agent-head">
               <div>
-                <span class="learning-agent-mark">AI</span>
                 <p><strong>学习智能体</strong><small>{{ runningStage ? `正在执行：${LEARNING_IMITATION_STAGE_LABELS[runningStage]}` : "共享同一学习会话" }}</small></p>
               </div>
-              <select v-model="selectedModelId" aria-label="选择学习仿写模型" :disabled="isBusy">
-                <option value="">请先配置并选择模型</option>
-                <option v-for="model in models" :key="model.id" :value="model.id">
-                  {{ model.label }}
-                </option>
-              </select>
+              <PopupSelect
+                class="learning-model-select"
+                :model-value="selectedModelId"
+                :options="modelOptions"
+                accessible-label="选择学习仿写模型"
+                size="small"
+                align="end"
+                :disabled="isBusy"
+                :menu-min-width="220"
+                :menu-z-index="1300"
+                @update:model-value="selectedModelId = String($event)"
+              />
             </header>
 
             <div class="learning-quick-actions" aria-label="一键学习任务">
@@ -1179,7 +1226,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
           <p>当前文档、三阶段结果和聊天记录会被清空。已落盘到资料库的内容不会受影响。</p>
           <footer>
             <button type="button" class="learning-secondary-button" @click="newSessionConfirmOpen = false">取消</button>
-            <button type="button" class="learning-primary-button is-danger" @click="confirmNewSession">确认新建</button>
+            <button type="button" class="learning-primary-button is-confirm" @click="confirmNewSession">确认新建</button>
           </footer>
         </section>
       </div>
@@ -1195,13 +1242,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(15 23 42 / 52%);
-  backdrop-filter: blur(10px);
+  background: rgb(0 0 0 / 42%);
+  font-family: var(--ui-font);
+  backdrop-filter: blur(8px);
 }
 
 .learning-dialog {
-  width: min(1380px, calc(100vw - 48px));
-  height: min(880px, calc(100vh - 48px));
+  width: min(1360px, calc(100vw - 48px));
+  height: min(860px, calc(100vh - 48px));
   min-height: 620px;
   overflow: hidden;
   display: grid;
@@ -1209,8 +1257,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
   color: var(--text-primary);
   background: var(--surface-main);
   border: 1px solid var(--theme-line-soft);
-  border-radius: 22px;
-  box-shadow: 0 28px 80px rgb(15 23 42 / 30%);
+  border-radius: 17px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 24%);
 }
 
 .learning-head {
@@ -1218,13 +1266,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 20px 24px 17px;
-  background: linear-gradient(
-    125deg,
-    var(--surface-raised) 0%,
-    color-mix(in srgb, var(--accent) 7%, var(--surface-raised)) 54%,
-    color-mix(in srgb, var(--accent) 4%, var(--surface-main)) 100%
-  );
+  padding: 19px 24px 16px;
+  background: var(--surface-raised);
   border-bottom: 1px solid var(--theme-line-soft);
 }
 
@@ -1232,10 +1275,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
 .learning-eyebrow,
 .learning-panel-head > div > span,
 .learning-confirm-dialog header span {
-  color: var(--accent);
+  color: var(--text-tertiary);
   font-size: 0.785714rem;
-  font-weight: 750;
-  letter-spacing: .1em;
+  font-weight: 650;
+  letter-spacing: .06em;
   text-transform: uppercase;
 }
 
@@ -1281,20 +1324,23 @@ button { font: inherit; }
 .learning-quiet-button,
 .learning-secondary-button,
 .learning-primary-button {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 14px;
-  border-radius: 9px;
-  font-size: 0.857143rem;
-  font-weight: 700;
+  border-radius: 8px;
+  font-size: 0.892857rem;
+  font-weight: 590;
   cursor: pointer;
 }
 .learning-quiet-button,
 .learning-secondary-button { color: var(--text-secondary); background: var(--surface-raised); border: 1px solid var(--theme-line); }
 .learning-quiet-button:hover,
 .learning-secondary-button:hover { border-color: var(--accent); background: var(--surface-hover); }
-.learning-primary-button { color: #fff; background: var(--accent); border: 1px solid var(--accent); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 18%, transparent); }
+.learning-primary-button { color: var(--accent-contrast, #fff); background: var(--accent); border: 1px solid var(--accent); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 18%, transparent); }
 .learning-primary-button:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
-.learning-primary-button.is-danger { background: #b54b5b; border-color: #b54b5b; }
+.learning-primary-button.is-confirm { color: #fff; background: #292c30; border-color: #292c30; box-shadow: 0 5px 14px rgb(0 0 0 / 16%); }
+.learning-primary-button.is-confirm:hover { background: #1f2124; border-color: #1f2124; }
+:global(html[data-theme="dark"]) .learning-primary-button.is-confirm { color: var(--accent-contrast, #fff); background: var(--accent); border-color: var(--accent); }
+:global(html[data-theme="dark"]) .learning-primary-button.is-confirm:hover { background: color-mix(in srgb, var(--accent) 86%, #000); border-color: color-mix(in srgb, var(--accent) 86%, #000); }
 button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
 .learning-source-bar {
@@ -1350,7 +1396,8 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 48px;
+  min-height: 48px;
+  padding: 7px 6px;
   border: 0;
   color: var(--text-secondary);
   background: transparent;
@@ -1359,10 +1406,10 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-tabs button::after { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; content: ""; background: transparent; }
 .learning-tabs button.is-active { color: var(--accent); }
 .learning-tabs button.is-active::after { background: var(--accent); }
+.learning-tabs button:hover:not(.is-active) { color: var(--text-primary); background: var(--surface-hover); }
 .learning-tabs button > span { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 7px; color: var(--text-tertiary); background: var(--surface-muted); font-size: 0.714286rem; }
-.learning-tabs button.is-active > span { color: #fff; background: var(--accent); }
+.learning-tabs button.is-active > span { color: var(--accent-contrast, #fff); background: var(--accent); }
 .learning-tabs button strong { font-size: 0.857143rem; }
-.learning-tabs button > i { width: 6px; height: 6px; border-radius: 50%; background: #35a777; }
 
 .learning-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(340px, .8fr); }
 .learning-result-pane { min-width: 0; min-height: 0; overflow: auto; padding: 20px 22px 24px; background: var(--surface-main); }
@@ -1378,17 +1425,16 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   padding: 11px;
   border: 1px solid var(--theme-line-soft);
   border-radius: 12px;
-  background: var(--surface-raised);
+  background: var(--surface-muted);
 }
 .learning-target-strip.is-single { grid-template-columns: minmax(220px, .7fr) 1fr; align-items: end; }
-.learning-target-strip label { display: grid; gap: 4px; }
-.learning-target-strip label span { color: var(--text-secondary); font-size: 0.785714rem; font-weight: 700; }
-.learning-target-strip select,
-.learning-agent-head select,
+.learning-target-strip label { min-width: 0; display: grid; gap: 5px; }
+.learning-target-strip label > span { color: var(--text-secondary); font-size: 0.785714rem; font-weight: 620; }
+.learning-target-select { width: 100%; }
 .learning-title-field input,
 .learning-new-library-name {
   width: 100%;
-  height: 32px;
+  min-height: 34px;
   padding: 0 9px;
   border: 1px solid var(--theme-line);
   border-radius: 8px;
@@ -1397,8 +1443,6 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   font-size: 0.785714rem;
   outline: none;
 }
-.learning-target-strip select:focus,
-.learning-agent-head select:focus,
 .learning-title-field input:focus,
 .learning-new-library-name:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .learning-target-strip p { align-self: center; margin: 0; color: var(--text-tertiary); font-size: 0.714286rem; }
@@ -1428,17 +1472,16 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-result-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .learning-result-field textarea:disabled { color: var(--text-secondary); background: var(--surface-muted); }
 
-.learning-agent-pane { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; background: var(--surface-raised); border-left: 1px solid var(--theme-line-soft); }
-.learning-agent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 11px; }
+.learning-agent-pane { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; background: var(--surface-muted); border-left: 1px solid var(--theme-line-soft); }
+.learning-agent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 11px; background: var(--surface-raised); }
 .learning-agent-head > div { min-width: 0; display: flex; align-items: center; gap: 9px; }
-.learning-agent-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 10px; color: #fff; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 68%, #5b80c5)); font-size: 0.714286rem; font-weight: 800; }
 .learning-agent-head p { min-width: 0; display: grid; gap: 1px; margin: 0; }
 .learning-agent-head strong { color: var(--text-primary); font-size: 0.857143rem; }
 .learning-agent-head small { overflow: hidden; color: var(--text-tertiary); font-size: 0.714286rem; text-overflow: ellipsis; white-space: nowrap; }
-.learning-agent-head select { width: 130px; flex: 0 0 auto; }
+.learning-model-select { width: 150px; flex: 0 0 auto; }
 
 .learning-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 13px 12px; border-bottom: 1px solid var(--theme-line-soft); }
-.learning-quick-actions button { min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px 7px; border: 1px solid var(--theme-line-soft); border-radius: 10px; color: var(--text-secondary); background: var(--surface-muted); text-align: left; cursor: pointer; }
+.learning-quick-actions button { min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px 7px; border: 1px solid var(--theme-line-soft); border-radius: 9px; color: var(--text-secondary); background: var(--surface-raised); text-align: left; cursor: pointer; }
 .learning-quick-actions button:hover:not(:disabled),
 .learning-quick-actions button.is-current { border-color: var(--accent); background: var(--accent-soft); }
 .learning-quick-actions button > span { color: var(--accent); font-size: 0.928571rem; }
@@ -1446,7 +1489,7 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-quick-actions strong { overflow: hidden; font-size: 0.785714rem; text-overflow: ellipsis; white-space: nowrap; }
 .learning-quick-actions small { overflow: hidden; color: var(--text-tertiary); font-size: 0.714286rem; text-overflow: ellipsis; white-space: nowrap; }
 
-.learning-chat-log { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 9px; padding: 14px; background: linear-gradient(var(--surface-muted), var(--surface-raised)); }
+.learning-chat-log { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 9px; padding: 14px; background: var(--surface-main); }
 .learning-chat-empty { margin: auto; max-width: 240px; display: grid; justify-items: center; gap: 6px; color: var(--text-tertiary); text-align: center; }
 .learning-chat-empty > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; color: var(--accent); background: var(--accent-soft); }
 .learning-chat-empty strong { color: var(--text-secondary); font-size: 0.785714rem; }
@@ -1475,11 +1518,11 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-custom-input textarea { height: 58px; resize: none; padding: 8px; border: 1px solid var(--theme-line); border-radius: 9px; color: var(--text-primary); background: var(--surface-main); font: 0.857143rem/1.45 inherit; outline: none; }
 .learning-custom-input textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .learning-custom-input button,
-.learning-running-footer button { padding: 0 11px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font-size: 0.785714rem; cursor: pointer; }
+.learning-running-footer button { padding: 0 11px; border: 0; border-radius: 8px; color: var(--accent-contrast, #fff); background: var(--accent); font-size: 0.785714rem; cursor: pointer; }
 .learning-running-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 7px; padding: 7px 8px; border-radius: 8px; color: var(--text-secondary); background: var(--accent-soft); font-size: 0.714286rem; }
 .learning-running-footer button { min-height: 24px; background: color-mix(in srgb, var(--accent) 82%, var(--text-primary)); }
 
-.learning-confirm-backdrop { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgb(27 20 35 / 43%); backdrop-filter: blur(4px); }
+.learning-confirm-backdrop { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgb(0 0 0 / 38%); backdrop-filter: blur(4px); }
 .learning-confirm-dialog { width: min(480px, calc(100vw - 44px)); padding: 20px; border: 1px solid var(--theme-line); border-radius: 17px; background: var(--surface-raised); box-shadow: 0 20px 60px rgb(0 0 0 / 30%); }
 .learning-confirm-dialog.is-compact { width: min(430px, calc(100vw - 44px)); }
 .learning-confirm-dialog header { display: flex; align-items: flex-start; justify-content: space-between; }

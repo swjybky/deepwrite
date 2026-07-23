@@ -31,6 +31,7 @@ const props = withDefaults(
     size?: "small" | "medium" | "large";
     align?: "start" | "end";
     menuMinWidth?: number;
+    menuZIndex?: number;
   }>(),
   {
     disabled: false,
@@ -38,7 +39,8 @@ const props = withDefaults(
     variant: "field",
     size: "medium",
     align: "start",
-    menuMinWidth: 190
+    menuMinWidth: 190,
+    menuZIndex: 1000
   }
 );
 
@@ -110,6 +112,7 @@ function positionMenu(): void {
     width: `${minimumWidth}px`,
     maxWidth: `${Math.min(360, maximumWidth)}px`,
     maxHeight: `${maxHeight}px`,
+    zIndex: props.menuZIndex,
     transformOrigin: opensUpward ? "bottom" : "top"
   };
 }

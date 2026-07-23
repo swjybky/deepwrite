@@ -10,7 +10,14 @@ describe("LearningImitationDialog", () => {
     expect(source).toContain("result.plot_learning.plotDesignSkill");
     expect(source).toContain("result.plot_learning.plotRefineSkill");
     expect(source).toContain("result.style_learning.body");
-    expect(source).toContain('aria-label="选择学习仿写模型"');
+    expect(source).toContain('accessible-label="选择学习仿写模型"');
+    expect(source).toContain('import PopupSelect');
+    expect(source).not.toContain("<select");
+  });
+
+  it("does not show result dots beside stage labels", () => {
+    expect(source).not.toContain('aria-label="已有结果"');
+    expect(source).not.toContain(".learning-tabs button > i");
   });
 
   it("uploads full-text TXT, Markdown, PDF and Word documents through the learning reader", () => {
@@ -65,6 +72,20 @@ describe("LearningImitationDialog", () => {
     expect(closeFunction).not.toContain("controller.dispose");
     expect(source).toContain("关闭弹窗；运行中的任务会在后台继续");
     expect(source).toContain("再次打开会继续显示同一轮进度");
+  });
+
+  it("uses the standard neutral primary action for creating a new learning session", () => {
+    expect(source).toContain('class="learning-primary-button is-confirm"');
+    expect(source).not.toContain("learning-primary-button is-danger");
+    expect(source).toContain("background: #292c30");
+  });
+
+  it("uses the same neutral primary action for confirming persistence", () => {
+    const persistAction = source.slice(
+      source.indexOf('{{ saving ? "落盘中…" : "确认落盘" }}') - 240,
+      source.indexOf('{{ saving ? "落盘中…" : "确认落盘" }}') + 80
+    );
+    expect(persistAction).toContain('class="learning-primary-button is-confirm"');
   });
 
   it("routes temporary feedback through uiMessage and points prompt editing to settings", () => {
