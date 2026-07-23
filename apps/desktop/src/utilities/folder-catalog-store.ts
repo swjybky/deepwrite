@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   lstat,
   mkdir,
@@ -437,7 +437,7 @@ export class FolderCatalogStore {
     return await this.mutate(async () => {
       const now = this.now();
       const book: ShortBook = {
-        id: `book-${randomUUID()}`,
+        id: createShortCatalogId("book"),
         title: input.title,
         bookType: "short",
         genre: input.genre,
@@ -515,7 +515,7 @@ export class FolderCatalogStore {
       const resource: MaterialLibrary | SkillLibrary =
         input.domain === "material"
           ? {
-              id: `material-${randomUUID()}`,
+              id: createShortCatalogId("material"),
               title: input.name,
               materialType: "short",
               materialKind: input.materialKind,
@@ -527,7 +527,7 @@ export class FolderCatalogStore {
               updatedAt: now
             }
           : {
-              id: `skill-${randomUUID()}`,
+              id: createShortCatalogId("skill"),
               title: input.name,
               skillType: "short",
               skillKind: input.skillKind,
@@ -617,14 +617,14 @@ export class FolderCatalogStore {
       const resource: MaterialLibraryGroup | SkillLibraryGroup =
         input.domain === "material"
           ? {
-              id: `material-group-${randomUUID()}`,
+              id: createShortCatalogId("material-group"),
               title: input.name,
               members: { ...input.members },
               createdAt: now,
               updatedAt: now
             }
           : {
-              id: `skill-group-${randomUUID()}`,
+              id: createShortCatalogId("skill-group"),
               title: input.name,
               members: { ...input.members },
               createdAt: now,
@@ -661,7 +661,7 @@ export class FolderCatalogStore {
     return await this.mutate(async () => {
       const now = this.now();
       const book = ShortBookSchema.parse({
-        id: `book-${randomUUID()}`,
+        id: createShortCatalogId("book"),
         title: input.title,
         bookType: "short",
         genre: input.genre,
@@ -725,10 +725,10 @@ export class FolderCatalogStore {
         input.domain === "material"
           ? {
               ...input.library,
-              id: `material-${randomUUID()}`,
+              id: createShortCatalogId("material"),
               entries: input.library.entries.map((entry) => ({
                 ...entry,
-                id: `material-entry-${randomUUID()}`,
+                id: createShortCatalogId("material-entry"),
                 createdAt: now,
                 updatedAt: now
               })),
@@ -737,11 +737,11 @@ export class FolderCatalogStore {
             }
           : {
               ...input.library,
-              id: `skill-${randomUUID()}`,
+              id: createShortCatalogId("skill"),
               isBuiltin: false,
               entries: input.library.entries.map((entry) => ({
                 ...entry,
-                id: `skill-entry-${randomUUID()}`,
+                id: createShortCatalogId("skill-entry"),
                 createdAt: now,
                 updatedAt: now
               })),
@@ -1505,7 +1505,7 @@ export class FolderCatalogStore {
         assertBaseRevision(rawInput.baseProjectRevision, manifest.revision);
       }
       const now = this.now();
-      const id = `${domain}-entry-${randomUUID()}`;
+      const id = createShortCatalogId(`${domain}-entry`);
       const path = await uniqueRelativeMarkdownPath(
         projectDirectory,
         "entries",
@@ -2429,6 +2429,11 @@ function parseRegistry(value: unknown): FolderCatalogRegistry {
     projects,
     ...(legacyImport === undefined ? {} : { legacyImport })
   };
+}
+
+/** 8 位十六进制随机后缀，例如 book-a1b2c3d4、material-entry-a1b2c3d4。 */
+function createShortCatalogId(prefix: string): string {
+  return `${prefix}-${randomBytes(4).toString("hex")}`;
 }
 
 function parseId(value: unknown): string {

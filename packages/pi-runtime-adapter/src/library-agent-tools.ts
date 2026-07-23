@@ -8,7 +8,8 @@ import {
   type AgentWriteApprovalMode,
   type LibraryAgentDomain,
   type LibraryAgentProfile,
-  type LibraryAgentWorkspaceSnapshot
+  type LibraryAgentWorkspaceSnapshot,
+  type WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 
 type LibraryDomain = LibraryAgentDomain;
@@ -46,6 +47,7 @@ export interface BuildLibraryAgentToolsInput {
   workspace: LibraryAgentWorkspaceSnapshot;
   profile: LibraryAgentProfile;
   writeApprovalMode?: AgentWriteApprovalMode;
+  attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
 }
 
 export const LIBRARY_AGENT_TOOL_MANIFEST = {
@@ -53,6 +55,7 @@ export const LIBRARY_AGENT_TOOL_MANIFEST = {
     "list_material_entries",
     "read_material_entry",
     "search_material_entries",
+    "load_skill",
     "create_material_entry",
     "edit_material_entry"
   ],
@@ -60,6 +63,7 @@ export const LIBRARY_AGENT_TOOL_MANIFEST = {
     "list_skill_entries",
     "read_skill_entry",
     "search_skill_entries",
+    "load_skill",
     "create_skill_entry",
     "edit_skill_entry"
   ]
@@ -77,6 +81,15 @@ interface LibraryEntryShape {
   truncated?: boolean;
   originalLength?: number;
   readOnly?: boolean;
+  sourceLibraryId?: string;
+  sourceLibraryTitle?: string;
+}
+
+interface LibraryReadableLibraryShape {
+  libraryId?: string;
+  id?: string;
+  title?: string;
+  kind?: string;
 }
 
 interface LibraryWorkspaceShape {
@@ -94,6 +107,9 @@ interface LibraryWorkspaceShape {
   omittedEntryCount?: number;
   allowedStageIds?: readonly string[];
   stageIds?: readonly string[];
+  groupId?: string;
+  groupTitle?: string;
+  readableLibraries?: readonly LibraryReadableLibraryShape[];
   entries?: readonly LibraryEntryShape[];
 }
 
@@ -114,6 +130,9 @@ interface MutableLibraryEntry {
   originalLength?: number;
   readOnly: boolean;
   pendingCreate: boolean;
+  sourceLibraryId: string;
+  sourceLibraryTitle: string;
+  isCurrentLibrary: boolean;
 }
 
 const MATERIAL_STAGE_LABELS: Record<string, string> = {
@@ -330,6 +349,38 @@ function isReadOnly(
   return value.readOnly === true || value.isReadOnly === true || profileValue.readOnly === true;
 }
 
+function readableLibraries(
+  workspace: LibraryAgentWorkspaceSnapshot
+): Array<{ libraryId: string; title: string; kind: string }> {
+  const value = workspaceShape(workspace);
+  const currentId = libraryId(workspace);
+  const currentTitle = libraryTitle(workspace);
+  const currentKind = String(
+    value.kind ??
+      (workspaceDomain(workspace) === "material"
+        ? value.materialKind
+        : value.skillKind) ??
+      "unknown"
+  );
+  const listed = (value.readableLibraries ?? [])
+    .map((library) => ({
+      libraryId: String(library.libraryId ?? library.id ?? "").trim(),
+      title: String(library.title ?? "").trim() || "未命名资料库",
+      kind: String(library.kind ?? "").trim() || "unknown"
+    }))
+    .filter((library) => library.libraryId);
+  if (!listed.length) {
+    return [{ libraryId: currentId, title: currentTitle, kind: currentKind }];
+  }
+  if (!listed.some((library) => library.libraryId === currentId)) {
+    return [
+      { libraryId: currentId, title: currentTitle, kind: currentKind },
+      ...listed
+    ];
+  }
+  return listed;
+}
+
 function allowedStageIds(
   workspace: LibraryAgentWorkspaceSnapshot,
   domain: LibraryDomain
@@ -348,9 +399,17 @@ function mutableEntries(
   workspace: LibraryAgentWorkspaceSnapshot,
   libraryReadOnly: boolean
 ): MutableLibraryEntry[] {
+  const currentLibraryId = libraryId(workspace);
+  const currentLibraryTitle = libraryTitle(workspace);
   return (workspaceShape(workspace).entries ?? []).map((entry, index) => {
     const entryId = String(entry.entryId ?? entry.id ?? `entry-${index + 1}`);
     const content = String(entry.content ?? entry.body ?? "");
+    const sourceLibraryId = String(entry.sourceLibraryId ?? currentLibraryId).trim() || currentLibraryId;
+    const sourceLibraryTitle =
+      String(entry.sourceLibraryTitle ?? "").trim() ||
+      (sourceLibraryId === currentLibraryId
+        ? currentLibraryTitle
+        : sourceLibraryId);
     return {
       entryId,
       documentId: String(entry.documentId ?? entryId),
@@ -362,31 +421,58 @@ function mutableEntries(
       ...(entry.originalLength === undefined
         ? {}
         : { originalLength: entry.originalLength }),
-      readOnly: libraryReadOnly || entry.readOnly === true,
-      pendingCreate: false
+      readOnly:
+        libraryReadOnly ||
+        entry.readOnly === true ||
+        sourceLibraryId !== currentLibraryId,
+      pendingCreate: false,
+      sourceLibraryId,
+      sourceLibraryTitle,
+      isCurrentLibrary: sourceLibraryId === currentLibraryId
     };
   });
 }
 
 function formatEntryChoice(domain: LibraryDomain, entry: MutableLibraryEntry): string {
-  return `- ${entry.title}｜${stageLabel(domain, entry.stageId)}（${entry.stageId}）｜entry_id=${entry.entryId}`;
+  const libraryPart = entry.isCurrentLibrary
+    ? ""
+    : `｜来源库：${entry.sourceLibraryTitle}（${entry.sourceLibraryId}）`;
+  return `- ${entry.title}｜${stageLabel(domain, entry.stageId)}（${entry.stageId}）${libraryPart}｜entry_id=${entry.entryId}`;
 }
 
 function resolveEntry(
   entries: readonly MutableLibraryEntry[],
   domain: LibraryDomain,
-  input: { entry_id?: unknown; name?: unknown; stage_id?: unknown }
+  input: {
+    entry_id?: unknown;
+    name?: unknown;
+    stage_id?: unknown;
+    library_id?: unknown;
+  }
 ): { entry: MutableLibraryEntry } | { error: string } {
+  const libraryIdFilter = String(input.library_id ?? "").trim();
+  const libraryScoped = libraryIdFilter
+    ? entries.filter((entry) => entry.sourceLibraryId === libraryIdFilter)
+    : entries;
   const stageId = String(input.stage_id ?? "").trim();
-  const scoped = stageId ? entries.filter((entry) => entry.stageId === stageId) : entries;
+  const scoped = stageId
+    ? libraryScoped.filter((entry) => entry.stageId === stageId)
+    : libraryScoped;
   const entryId = String(input.entry_id ?? "").trim();
   if (entryId) {
     const matches = scoped.filter((entry) => entry.entryId === entryId);
     if (matches.length === 1) return { entry: matches[0]! };
     if (matches.length > 1) {
-      return { error: `entry_id=${entryId} 匹配到多个条目，请补充 stage_id。` };
+      return {
+        error: [
+          `entry_id=${entryId} 匹配到多个条目，请补充 library_id 或 stage_id：`,
+          ...matches.map((entry) => formatEntryChoice(domain, entry))
+        ].join("\n")
+      };
     }
-    return { error: `未找到 entry_id=${entryId} 的${domain === "material" ? "素材" : "技能"}条目。` };
+    return {
+      error: `未找到 entry_id=${entryId} 的${domain === "material" ? "素材" : "技能"}条目。`
+    };
   }
 
   const name = normalizedName(String(input.name ?? ""));
@@ -396,7 +482,7 @@ function resolveEntry(
   if (matches.length > 1) {
     return {
       error: [
-        `找到 ${matches.length} 个同名条目「${name}」，请补充 stage_id 或 entry_id：`,
+        `找到 ${matches.length} 个同名条目「${name}」，请补充 library_id、stage_id 或 entry_id：`,
         ...matches.map((entry) => formatEntryChoice(domain, entry))
       ].join("\n")
     };
@@ -409,7 +495,9 @@ function resolveEntry(
           ...nearby.slice(0, 10).map((entry) => formatEntryChoice(domain, entry))
         ].join("\n")
       }
-    : { error: `未找到名为「${name}」的条目，请先调用 list_${domain}_entries。` };
+    : {
+        error: `未找到名为「${name}」的条目，请先调用 list_${domain}_entries。`
+      };
 }
 
 function approvalSummary(
@@ -455,30 +543,51 @@ function buildListTool(
   input: BuildLibraryAgentToolsInput,
   domain: LibraryDomain,
   entries: MutableLibraryEntry[],
-  stages: readonly string[]
+  stages: readonly string[],
+  libraries: readonly { libraryId: string; title: string }[]
 ): AgentTool {
   const noun = domain === "material" ? "素材" : "技能";
+  const libraryIds = libraries.map((library) => library.libraryId);
+  const withPeers = libraries.length > 1;
   return defineTool({
     name: `list_${domain}_entries`,
     label: `列出${noun}条目`,
-    description: `列出当前${noun}库中的条目名称、栏目、entry_id 和字数；不会读取其它资料库。`,
+    description: withPeers
+      ? `列出当前${noun}库及同分组其它成员库中的条目名称、栏目、来源库、entry_id 和字数；可用 library_id 只看某一个成员库。写入仍只针对当前库。`
+      : `列出当前${noun}库中的条目名称、栏目、entry_id 和字数；不会读取其它资料库。`,
     parameters: Type.Object({
-      stage_id: Type.Optional(literalUnion(stages))
+      stage_id: Type.Optional(literalUnion(stages)),
+      ...(withPeers
+        ? { library_id: Type.Optional(literalUnion(libraryIds)) }
+        : {})
     }),
     execute: async (_toolCallId, params) => {
       const stageId = String(params.stage_id ?? "");
-      const scoped = stageId ? entries.filter((entry) => entry.stageId === stageId) : entries;
+      const libraryIdFilter = String(params.library_id ?? "").trim();
+      const scoped = entries.filter((entry) => {
+        if (stageId && entry.stageId !== stageId) return false;
+        if (libraryIdFilter && entry.sourceLibraryId !== libraryIdFilter) return false;
+        return true;
+      });
       const omitted = omittedEntryCount(input.workspace);
-      const header = `${noun}库：《${libraryTitle(input.workspace)}》｜当前快照 ${scoped.length} 条${omitted ? `｜另有 ${omitted} 条因容量限制未载入` : ""}`;
+      const group = workspaceShape(input.workspace);
+      const groupNote =
+        group.groupTitle && withPeers
+          ? `｜分组：《${group.groupTitle}》｜可读 ${libraries.length} 个成员库`
+          : "";
+      const header = `${noun}库：《${libraryTitle(input.workspace)}》｜当前快照 ${scoped.length} 条${groupNote}${omitted ? `｜另有 ${omitted} 条因容量限制未载入` : ""}`;
       if (!scoped.length) return textResult(`${header}\n\n暂无${noun}条目。`);
       return textResult(
         [
           header,
           "",
-          ...scoped.map(
-            (entry, index) =>
-              `${index + 1}. ${entry.title}｜栏目：${stageLabel(domain, entry.stageId)}（${entry.stageId}）｜entry_id=${entry.entryId}｜字数=${countTextCharacters(entry.content)}${entry.truncated ? "｜正文已截断" : ""}${entry.readOnly ? "｜只读" : ""}`
-          )
+          ...scoped.map((entry, index) => {
+            const source =
+              withPeers || !entry.isCurrentLibrary
+                ? `｜来源库：${entry.sourceLibraryTitle}（${entry.sourceLibraryId}）${entry.isCurrentLibrary ? "｜当前库" : "｜只读"}`
+                : "";
+            return `${index + 1}. ${entry.title}｜栏目：${stageLabel(domain, entry.stageId)}（${entry.stageId}）${source}｜entry_id=${entry.entryId}｜字数=${countTextCharacters(entry.content)}${entry.truncated ? "｜正文已截断" : ""}${entry.readOnly && entry.isCurrentLibrary ? "｜只读" : ""}`;
+          })
         ].join("\n")
       );
     }
@@ -490,17 +599,25 @@ function buildReadTool(
   domain: LibraryDomain,
   entries: MutableLibraryEntry[],
   stages: readonly string[],
+  libraries: readonly { libraryId: string; title: string }[],
   accessedEntryIds: Set<string>
 ): AgentTool {
   const noun = domain === "material" ? "素材" : "技能";
+  const libraryIds = libraries.map((library) => library.libraryId);
+  const withPeers = libraries.length > 1;
   return defineTool({
     name: `read_${domain}_entry`,
     label: `读取${noun}条目`,
-    description: `按 entry_id 或精确标题读取当前${noun}库中的一个条目全文；重名时必须补充栏目或 entry_id。`,
+    description: withPeers
+      ? `按 entry_id 或精确标题读取当前${noun}库或同分组其它成员库中的一个条目全文；跨库重名时必须补充 library_id、栏目或 entry_id。`
+      : `按 entry_id 或精确标题读取当前${noun}库中的一个条目全文；重名时必须补充栏目或 entry_id。`,
     parameters: Type.Object({
       entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
       name: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
-      stage_id: Type.Optional(literalUnion(stages))
+      stage_id: Type.Optional(literalUnion(stages)),
+      ...(withPeers
+        ? { library_id: Type.Optional(literalUnion(libraryIds)) }
+        : {})
     }),
     execute: async (_toolCallId, params) => {
       const resolved = resolveEntry(entries, domain, params);
@@ -515,15 +632,18 @@ function buildReadTool(
       const truncation = entry.truncated
         ? `\n\n注意：本轮只提供前 ${entry.content.length.toLocaleString("zh-CN")} 个字符，原文共 ${entry.originalLength?.toLocaleString("zh-CN") ?? "更多"} 个字符；该条目不可由智能体写入。`
         : "";
+      const peerNote = entry.isCurrentLibrary
+        ? ""
+        : `\n来源：同分组成员库《${entry.sourceLibraryTitle}》（只读）`;
       return textResult(
         [
-          `${noun}库：《${libraryTitle(input.workspace)}》`,
+          `${noun}库：《${entry.sourceLibraryTitle}》${entry.isCurrentLibrary ? "（当前库）" : "（同分组只读）"}`,
           `条目：${entry.title}`,
           `栏目：${stageLabel(domain, entry.stageId)}（${entry.stageId}）`,
           `entry_id：${entry.entryId}`,
           `document_id：${entry.documentId}`,
           `当前字数：${countTextCharacters(entry.content).toLocaleString("zh-CN")}`,
-          `版本：${entry.revision}`,
+          `版本：${entry.revision}${peerNote}`,
           "",
           entry.content || "该条目暂无正文。"
         ].join("\n") + truncation
@@ -537,16 +657,24 @@ function buildSearchTool(
   domain: LibraryDomain,
   entries: MutableLibraryEntry[],
   stages: readonly string[],
+  libraries: readonly { libraryId: string; title: string }[],
   accessedEntryIds: Set<string>
 ): AgentTool {
   const noun = domain === "material" ? "素材" : "技能";
+  const libraryIds = libraries.map((library) => library.libraryId);
+  const withPeers = libraries.length > 1;
   return defineTool({
     name: `search_${domain}_entries`,
     label: `搜索${noun}条目`,
-    description: `在当前${noun}库的标题和正文中搜索文本，只返回命中位置与少量上下文。`,
+    description: withPeers
+      ? `在当前${noun}库及同分组其它成员库的标题和正文中搜索文本，只返回命中位置与少量上下文；可用 library_id 限定范围。`
+      : `在当前${noun}库的标题和正文中搜索文本，只返回命中位置与少量上下文。`,
     parameters: Type.Object({
       query: Type.String({ minLength: 1, maxLength: MAX_SEARCH_QUERY_CHARACTERS }),
       stage_id: Type.Optional(literalUnion(stages)),
+      ...(withPeers
+        ? { library_id: Type.Optional(literalUnion(libraryIds)) }
+        : {}),
       max_matches: Type.Optional(
         Type.Integer({ minimum: 1, maximum: MAX_SEARCH_MATCHES })
       ),
@@ -561,7 +689,12 @@ function buildSearchTool(
       const query = String(params.query ?? "").trim();
       if (!query) return textResult("搜索文本不能为空。");
       const stageId = String(params.stage_id ?? "");
-      const scoped = stageId ? entries.filter((entry) => entry.stageId === stageId) : entries;
+      const libraryIdFilter = String(params.library_id ?? "").trim();
+      const scoped = entries.filter((entry) => {
+        if (stageId && entry.stageId !== stageId) return false;
+        if (libraryIdFilter && entry.sourceLibraryId !== libraryIdFilter) return false;
+        return true;
+      });
       const maxMatches = clampInteger(
         params.max_matches,
         DEFAULT_SEARCH_MATCHES,
@@ -574,7 +707,10 @@ function buildSearchTool(
         MIN_SEARCH_CONTEXT_CHARACTERS,
         MAX_SEARCH_CONTEXT_CHARACTERS
       );
-      const output = [`${noun}库：《${libraryTitle(input.workspace)}》`, `搜索：${query}`];
+      const output = [
+        `${noun}库：《${libraryTitle(input.workspace)}》${withPeers ? "及同分组成员库" : ""}`,
+        `搜索：${query}`
+      ];
       const normalizedQuery = query.toLocaleLowerCase();
       let total = 0;
       for (const entry of scoped) {
@@ -590,9 +726,13 @@ function buildSearchTool(
         }
         if (!titleHit && matches.length === 0) continue;
         accessedEntryIds.add(entry.entryId);
+        const source =
+          withPeers || !entry.isCurrentLibrary
+            ? `｜${entry.sourceLibraryTitle}`
+            : "";
         output.push(
           "",
-          `【${stageLabel(domain, entry.stageId)}】${entry.title}（entry_id=${entry.entryId}）${titleHit ? "｜标题命中" : ""}`
+          `【${stageLabel(domain, entry.stageId)}】${entry.title}（entry_id=${entry.entryId}）${source}${titleHit ? "｜标题命中" : ""}`
         );
         for (const [index, start] of matches.entries()) {
           const end = start + query.length;
@@ -612,7 +752,7 @@ function buildSearchTool(
         const hasTruncatedEntries = scoped.some((entry) => entry.truncated);
         const omitted = omittedEntryCount(input.workspace);
         return textResult(
-          `未在当前${noun}库${hasTruncatedEntries || omitted ? "可见快照" : ""}中找到「${query}」。${hasTruncatedEntries ? "存在截断条目，不能据此判断完整原文没有匹配。" : ""}${omitted ? `另有 ${omitted} 条因容量限制未载入。` : ""}`
+          `未在当前${noun}库${withPeers ? "及同分组成员库" : ""}${hasTruncatedEntries || omitted ? "可见快照" : ""}中找到「${query}」。${hasTruncatedEntries ? "存在截断条目，不能据此判断完整原文没有匹配。" : ""}${omitted ? `另有 ${omitted} 条因容量限制未载入。` : ""}`
         );
       }
       const omitted = omittedEntryCount(input.workspace);
@@ -631,10 +771,11 @@ function buildCreateTool(
   accessedEntryIds: Set<string>
 ): AgentTool {
   const noun = domain === "material" ? "素材" : "技能";
+  const currentLibraryId = libraryId(input.workspace);
   return defineTool({
     name: `create_${domain}_entry`,
     label: `创建${noun}条目`,
-    description: `在当前${noun}库的允许栏目中创建一个条目；只提交待审阅变更，不会直接绕过客户端保存。`,
+    description: `在当前${noun}库的允许栏目中创建一个条目；只提交待审阅变更，不会直接绕过客户端保存。即使同分组其它成员库可读，也不会写入那些库。`,
     parameters: Type.Object({
       stage_id: literalUnion(stages),
       title: Type.String({ minLength: 1, maxLength: 256 }),
@@ -649,7 +790,10 @@ function buildCreateTool(
       if (!title) return textResult("未创建：title 不能为空。");
       if (
         entries.some(
-          (entry) => entry.stageId === stageId && normalizedName(entry.title) === normalizedName(title)
+          (entry) =>
+            entry.isCurrentLibrary &&
+            entry.stageId === stageId &&
+            normalizedName(entry.title) === normalizedName(title)
         )
       ) {
         return textResult(`未创建：栏目「${stageLabel(domain, stageId)}」中已存在同名条目「${title}」。`);
@@ -665,7 +809,10 @@ function buildCreateTool(
         revision: createShortWorkspaceContentRevision(content),
         truncated: false,
         readOnly: false,
-        pendingCreate: true
+        pendingCreate: true,
+        sourceLibraryId: currentLibraryId,
+        sourceLibraryTitle: libraryTitle(input.workspace),
+        isCurrentLibrary: true
       };
       entries.push(entry);
       accessedEntryIds.add(entry.entryId);
@@ -768,7 +915,13 @@ function buildEditTool(
           `未修改：「${entry.title}」已在本轮提交新建变更。请等待该变更保存后再编辑，或在 create_${domain}_entry 时一次提供最终正文。`
         );
       }
-      if (entry.readOnly) return textResult(`未修改：「${entry.title}」属于只读资料库。`);
+      if (entry.readOnly) {
+        return textResult(
+          entry.isCurrentLibrary
+            ? `未修改：「${entry.title}」属于只读资料库。`
+            : `未修改：「${entry.title}」来自同分组其它库《${entry.sourceLibraryTitle}》，只读；请先切换到该库再编辑。`
+        );
+      }
       if (entry.truncated) {
         return textResult(
           `未修改：「${entry.title}」超过本轮安全快照上限，无法在看不到完整原文时写入。`
@@ -828,6 +981,7 @@ function buildEditTool(
         entries.some(
           (candidate) =>
             candidate !== entry &&
+            candidate.isCurrentLibrary &&
             candidate.stageId === entry.stageId &&
             normalizedName(candidate.title) === normalizedName(nextTitle)
         )
@@ -851,6 +1005,28 @@ function buildEditTool(
   });
 }
 
+function buildLoadSkillTool(input: BuildLibraryAgentToolsInput): AgentTool {
+  const configuredNames = new Set(input.profile.readAccess.skills.map((skill) => skill.name));
+  return defineTool({
+    name: "load_skill",
+    label: "加载技能",
+    description:
+      "按名称加载本轮显式附加、且属于当前资料库智能体配置中的方法正文。技能是方法，不会自动成为资料库事实。",
+    parameters: Type.Object({ name: Type.String({ minLength: 1, maxLength: 240 }) }),
+    execute: async (_toolCallId, params) => {
+      const name = String(params.name ?? "").trim();
+      const found = (input.attachedSkills ?? []).find(
+        (item) => item.title === name && configuredNames.has(name)
+      );
+      return textResult(
+        found
+          ? `【技能：${found.title}】\n\n${found.content}`
+          : "没有找到可读取的同名已附加技能。"
+      );
+    }
+  });
+}
+
 export function buildLibraryAgentTools(
   input: BuildLibraryAgentToolsInput
 ): AgentTool[] {
@@ -859,25 +1035,33 @@ export function buildLibraryAgentTools(
     throw new Error("Library agent profile domain does not match the workspace snapshot.");
   }
   const readOnly = isReadOnly(input.workspace, input.profile);
-  const stages = allowedStageIds(input.workspace, domain);
-  if (!stages.length) {
+  const writeStages = allowedStageIds(input.workspace, domain);
+  if (!writeStages.length) {
     throw new Error("Library workspace snapshot does not expose any allowed stages.");
   }
-  const entries = mutableEntries(input.workspace, readOnly).filter((entry) =>
-    stages.includes(entry.stageId)
-  );
+  const libraries = readableLibraries(input.workspace);
+  const entries = mutableEntries(input.workspace, readOnly);
+  const readStages = [
+    ...new Set(
+      [
+        ...writeStages,
+        ...entries.map((entry) => entry.stageId).filter(Boolean)
+      ]
+    )
+  ];
   const accessedEntryIds = new Set<string>();
   const readTools = [
-    buildListTool(input, domain, entries, stages),
-    buildReadTool(input, domain, entries, stages, accessedEntryIds),
-    buildSearchTool(input, domain, entries, stages, accessedEntryIds)
+    buildListTool(input, domain, entries, readStages, libraries),
+    buildReadTool(input, domain, entries, readStages, libraries, accessedEntryIds),
+    buildSearchTool(input, domain, entries, readStages, libraries, accessedEntryIds),
+    buildLoadSkillTool(input)
   ];
   return readOnly
     ? readTools
     : [
         ...readTools,
-        buildCreateTool(input, domain, entries, stages, accessedEntryIds),
-        buildEditTool(input, domain, entries, stages, accessedEntryIds)
+        buildCreateTool(input, domain, entries, writeStages, accessedEntryIds),
+        buildEditTool(input, domain, entries, readStages, accessedEntryIds)
       ];
 }
 

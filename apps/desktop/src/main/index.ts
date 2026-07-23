@@ -10,6 +10,7 @@ import {
   CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
   CatalogOpenProjectResultSchema,
+  AppearanceSettingsSnapshotSchema,
   CatalogSnapshotSchema,
   CommandEnvelopeSchema,
   DeleteCatalogProjectResultSchema,
@@ -43,6 +44,7 @@ import {
   LEGACY_LIBRARY_FILE_SELECTION_PROPERTIES,
   importLegacyLibraryArchives
 } from "./legacy-library-import-batch";
+import { AppearanceConfigStore } from "./appearance-config-store";
 import { ModelConfigStore } from "./model-config-store";
 import { LearningImitationConfigStore } from "./learning-imitation-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
@@ -63,6 +65,7 @@ const terminalRuns = new Set<string>();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
+let appearanceConfigStore: AppearanceConfigStore | undefined;
 let learningImitationConfigStore: LearningImitationConfigStore | undefined;
 let libraryAgentConfigStore: LibraryAgentConfigStore | undefined;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
@@ -270,6 +273,34 @@ function safeErrorDetails(error: unknown): Record<string, unknown> {
   return { kind: error instanceof Error ? error.name : "unknown" };
 }
 
+function extractCommandRequestId(rawCommand: unknown): string {
+  if (
+    rawCommand &&
+    typeof rawCommand === "object" &&
+    "id" in rawCommand &&
+    typeof (rawCommand as { id: unknown }).id === "string"
+  ) {
+    const requestId = (rawCommand as { id: string }).id.trim();
+    if (requestId) {
+      return requestId;
+    }
+  }
+  return "unknown";
+}
+
+function summarizeCommandValidationIssues(
+  issues: readonly { path: PropertyKey[]; message: string }[]
+): Record<string, unknown> {
+  const preview = issues.slice(0, 3).map((issue) => ({
+    path: issue.path.map(String).join(".") || "(root)",
+    message: issue.message
+  }));
+  return {
+    issueCount: issues.length,
+    issues: preview
+  };
+}
+
 function requireModelConfigStore(): ModelConfigStore {
   if (!modelConfigStore) {
     throw new Error("模型配置存储尚未初始化。");
@@ -303,6 +334,13 @@ function requireWorkspaceDirectoryStore(): WorkspaceDirectoryStore {
     throw new Error("工作目录配置存储尚未初始化。");
   }
   return workspaceDirectoryStore;
+}
+
+function requireAppearanceConfigStore(): AppearanceConfigStore {
+  if (!appearanceConfigStore) {
+    throw new Error("外观设置存储尚未初始化。");
+  }
+  return appearanceConfigStore;
 }
 
 async function chooseWorkspaceDirectory(): Promise<
@@ -391,10 +429,15 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,
     async (event, rawCommand: unknown): Promise<CommandResult> => {
-      if (!mainWindow || event.sender !== mainWindow.webContents) {
+      const requestId = extractCommandRequestId(rawCommand);
+      if (
+        !mainWindow ||
+        mainWindow.isDestroyed() ||
+        event.sender !== mainWindow.webContents
+      ) {
         return {
           status: "rejected",
-          requestId: "unknown",
+          requestId,
           error: {
             code: "ipc.untrusted_sender",
             message: "IPC command sender is not the active DeepWrite window."
@@ -403,13 +446,25 @@ function registerIpc(): void {
       }
       const parsed = CommandEnvelopeSchema.safeParse(rawCommand);
       if (!parsed.success) {
+        const details = summarizeCommandValidationIssues(parsed.error.issues);
+        const firstIssue = Array.isArray(details.issues)
+          ? (details.issues[0] as { path?: string; message?: string } | undefined)
+          : undefined;
+        const issueHint =
+          firstIssue?.path && firstIssue.message
+            ? ` (${firstIssue.path}: ${firstIssue.message})`
+            : "";
+        console.error(
+          `DeepWrite IPC rejected invalid command ${requestId}:`,
+          details
+        );
         return {
           status: "rejected",
-          requestId: "unknown",
+          requestId,
           error: {
             code: "ipc.invalid_command",
-            message: "Command envelope failed schema validation.",
-            details: { issueCount: parsed.error.issues.length }
+            message: `Command envelope failed schema validation.${issueHint}`,
+            details
           }
         };
       }
@@ -501,6 +556,50 @@ function registerIpc(): void {
             error: {
               code: "workspace_directory.choose_failed",
               message: error instanceof Error ? error.message : "切换工作目录失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "appearance.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AppearanceSettingsSnapshotSchema.parse(
+              await requireAppearanceConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "appearance.list_failed",
+              message: error instanceof Error ? error.message : "加载外观设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "appearance.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AppearanceSettingsSnapshotSchema.parse(
+              await requireAppearanceConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "appearance.save_failed",
+              message: error instanceof Error ? error.message : "保存外观设置失败。",
               details: safeErrorDetails(error)
             }
           };
@@ -1353,6 +1452,7 @@ if (!hasSingleInstanceLock) {
     libraryAgentConfigStore = new LibraryAgentConfigStore(userDataPath);
     learningImitationConfigStore = new LearningImitationConfigStore(userDataPath);
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
+    appearanceConfigStore = new AppearanceConfigStore(userDataPath);
     await workspaceDirectoryStore.initializeDefault(app.getPath("documents"));
     registerIpc();
     supervisor.startAll();

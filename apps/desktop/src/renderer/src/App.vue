@@ -103,7 +103,8 @@ import {
   type BookResourcePreferences
 } from "./utils/bookResourcePreferences";
 import { buildLibraryAttachments } from "./utils/libraryAttachments";
-import { buildLibraryAgentWorkspaceContext } from "./utils/libraryAgentContext";
+import { buildLibraryAgentWorkspaceContext, buildLibraryEntryComposerReferences } from "./utils/libraryAgentContext";
+import { buildLibraryAgentSkillAttachments } from "./utils/libraryAgentSkillAttachments";
 import {
   captureWorkspaceDocumentBaselines,
   rebaseDraftsForMatchingDocuments,
@@ -373,6 +374,11 @@ const workspaceAgentSettings = ref<ShortWorkspaceAgentSettings>({
   workspaceType: "short",
   agents: DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES.map((agent) => ({
     ...agent,
+    welcomeShortcuts: [
+      agent.welcomeShortcuts[0],
+      agent.welcomeShortcuts[1],
+      agent.welcomeShortcuts[2]
+    ],
     readAccess: {
       workspace: [...agent.readAccess.workspace],
       material: [...agent.readAccess.material],
@@ -385,7 +391,12 @@ const workspaceAgentSaving = ref(false);
 const workspaceAgentError = ref<string | null>(null);
 const workspaceAgentStatus = ref<string | null>(null);
 const libraryAgentSettings = ref<LibraryAgentSettings>({
-  agents: DEFAULT_LIBRARY_AGENT_PROFILES.map((agent) => ({ ...agent }))
+  agents: DEFAULT_LIBRARY_AGENT_PROFILES.map((agent) => ({
+    ...agent,
+    readAccess: {
+      skills: agent.readAccess.skills.map((skill) => ({ ...skill }))
+    }
+  }))
 });
 const libraryAgentLoading = ref(false);
 const libraryAgentSaving = ref(false);
@@ -1101,6 +1112,10 @@ const activeAgentId = computed<ShortWorkspaceAgentId | undefined>(() => {
     ? document.shortAgentId ?? resolveShortWorkspaceAgentIdForStage(document.stageId)
     : undefined;
 });
+const activeLibraryDomain = computed<LibraryAgentDomain | undefined>(() => {
+  const domain = activeAgentDocument.value.domain;
+  return domain === "material" || domain === "skill" ? domain : undefined;
+});
 const activeShortAgentProfile = computed(() => {
   const agentId = activeAgentId.value;
   return agentId
@@ -1141,7 +1156,27 @@ const activeLibraryAttachments = computed(() => {
     ? buildLibraryAttachments(catalogSnapshot.value, workspaceId)
     : null;
 });
+const activeLibrarySkillAttachments = computed(() => {
+  const profile = activeLibraryAgentProfile.value;
+  if (!profile) return null;
+  return buildLibraryAgentSkillAttachments(profile.readAccess.skills);
+});
+const activeLibraryWelcomeSkills = computed(() =>
+  activeLibraryAgentProfile.value?.readAccess.skills.map((skill) => ({
+    name: skill.name
+  }))
+);
+const activeWelcomeShortcuts = computed(() =>
+  activeShortAgentProfile.value?.welcomeShortcuts
+);
 const availableSkillReferences = computed<ComposerReferenceOption[]>(() => {
+  if (activeLibraryDomain.value) {
+    return (activeLibrarySkillAttachments.value?.attachedSkills ?? []).map((skill) => ({
+      id: skill.id,
+      label: skill.title,
+      detail: "按需加载的方法"
+    }));
+  }
   const allowedKinds = new Set(activeShortAgentProfile.value?.readAccess.skill ?? []);
   return (activeLibraryAttachments.value?.attachedSkills ?? [])
     .filter(
@@ -1155,6 +1190,9 @@ const availableSkillReferences = computed<ComposerReferenceOption[]>(() => {
     }));
 });
 const availableMaterialReferences = computed<ComposerReferenceOption[]>(() => {
+  if (activeLibraryDomain.value) {
+    return buildLibraryEntryComposerReferences(activeLibraryAgentContext.value);
+  }
   const allowedKinds = new Set(activeShortAgentProfile.value?.readAccess.material ?? []);
   return (activeLibraryAttachments.value?.attachedMaterials ?? [])
     .filter(
@@ -3296,6 +3334,7 @@ async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Prom
   const conversation = activeConversation.value;
   const sendSessionId = conversation.sessionId.value;
   const attachments = activeLibraryAttachments.value;
+  const librarySkillAttachments = activeLibrarySkillAttachments.value;
   if (
     (activeAgentDocument.value.domain === "material" ||
       activeAgentDocument.value.domain === "skill") &&
@@ -3312,6 +3351,18 @@ async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Prom
         : `${first.message}（另有 ${attachments.diagnostics.length - 1} 项资料库提示）`
     );
   }
+  if (
+    librarySkillAttachments &&
+    !librarySkillAttachments.complete &&
+    librarySkillAttachments.diagnostics.length
+  ) {
+    const first = librarySkillAttachments.diagnostics[0]!;
+    uiMessage.warning(
+      librarySkillAttachments.diagnostics.length === 1
+        ? first.message
+        : `${first.message}（另有 ${librarySkillAttachments.diagnostics.length - 1} 项可用技能提示）`
+    );
+  }
   await conversation.sendMessage(
     activeAgentDocument.value,
     liveWorkspaceDocuments.value,
@@ -3321,7 +3372,9 @@ async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Prom
           attachedSkills: attachments.attachedSkills,
           attachedMaterials: attachments.attachedMaterials
           }
-        : {}),
+        : librarySkillAttachments
+          ? { attachedSkills: librarySkillAttachments.attachedSkills }
+          : {}),
       ...(activeLibraryAgentContext.value
         ? { libraryWorkspace: activeLibraryAgentContext.value }
         : {})
@@ -4351,7 +4404,7 @@ async function saveWorkspaceAgentSettings(
   workspaceAgentSaving.value = true;
   try {
     workspaceAgentSettings.value = await window.deepwrite.workspaceAgents.save(settings);
-    showWorkspaceAgentFeedback("status", "短篇智能体提示词与读取范围已保存，下一轮对话立即生效。");
+    showWorkspaceAgentFeedback("status", "短篇智能体提示词、欢迎快捷与读取范围已保存，下一轮对话立即生效。");
   } catch (error: unknown) {
     showWorkspaceAgentFeedback(
       "error",
@@ -4385,7 +4438,7 @@ async function saveLibraryAgentSettings(
     libraryAgentSettings.value = await window.deepwrite.libraryAgents.save(
       settings
     );
-    uiMessage.success("资料库智能体提示词已保存，下一轮对话立即生效。");
+    uiMessage.success("资料库智能体设置已保存，下一轮对话立即生效。");
   } catch (error: unknown) {
     uiMessage.error(
       error instanceof Error ? error.message : "保存资料库智能体设置失败。"
@@ -4405,7 +4458,7 @@ async function resetLibraryAgentSettings(
       domain
     );
     uiMessage.success(
-      `${domain === "skill" ? "技能库" : "素材库"}智能体已恢复默认提示词。`
+      `${domain === "skill" ? "技能库" : "素材库"}智能体已恢复默认设置。`
     );
   } catch (error: unknown) {
     uiMessage.error(
@@ -4740,6 +4793,9 @@ onBeforeUnmount(() => {
         :stage-label="composerStageLabel"
         :agent-label="activeAgentLabel"
         :agent-id="activeAgentId"
+        :library-domain="activeLibraryDomain"
+        :library-skills="activeLibraryWelcomeSkills"
+        :welcome-shortcuts="activeWelcomeShortcuts"
         :available-skills="availableSkillReferences"
         :available-materials="availableMaterialReferences"
         :editor-references="pendingEditorReferences"

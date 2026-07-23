@@ -4,7 +4,8 @@ import appSource from "./App.vue?raw";
 describe("library management agent wiring", () => {
   it("routes selected libraries into a bounded management context", () => {
     expect(appSource).toContain("activeAgentDocumentForSelection(");
-    expect(appSource).toContain("buildLibraryAgentWorkspaceContext(");
+    expect(appSource).toContain("buildLibraryEntryComposerReferences(");
+    expect(appSource).toContain("按需加载的方法");
     expect(appSource).toContain("libraryWorkspace: activeLibraryAgentContext.value");
     expect(appSource).toContain("activeAgentDocument.value");
   });

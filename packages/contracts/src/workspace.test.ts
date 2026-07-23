@@ -119,6 +119,10 @@ describe("short workspace contracts", () => {
       expect(profile.description).not.toBe("");
       expect(profile.systemPrompt).toMatch(/^你是 DeepWrite 的短篇/);
       expect(profile.systemPrompt.endsWith("\n")).toBe(true);
+      expect(profile.welcomeShortcuts).toHaveLength(3);
+      expect(profile.welcomeShortcuts.every((value) => value.trim().length > 0)).toBe(
+        true
+      );
     }
     expect(() =>
       ShortWorkspaceAgentSettingsSchema.parse(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS)
@@ -321,7 +325,12 @@ describe("short workspace contracts", () => {
     const input = {
       workspaceType: "short" as const,
       agents: DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES.map(
-        ({ id, systemPrompt, readAccess }) => ({ id, systemPrompt, readAccess })
+        ({ id, systemPrompt, welcomeShortcuts, readAccess }) => ({
+          id,
+          systemPrompt,
+          welcomeShortcuts,
+          readAccess
+        })
       )
     };
 

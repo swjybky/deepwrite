@@ -126,11 +126,11 @@ describe("library agent tools", () => {
     expect(skill.map((tool) => tool.name)).toEqual(
       LIBRARY_AGENT_TOOL_MANIFEST.skill
     );
-    expect(material.slice(0, 3).every((tool) => tool.executionMode === undefined)).toBe(
+    expect(material.slice(0, 4).every((tool) => tool.executionMode === undefined)).toBe(
       true
     );
     expect(
-      material.slice(3).every((tool) => tool.executionMode === "sequential")
+      material.slice(4).every((tool) => tool.executionMode === "sequential")
     ).toBe(true);
 
     const editSchema = toolByName(material, "edit_material_entry").parameters as {
@@ -142,14 +142,14 @@ describe("library agent tools", () => {
     expect(editSchema.properties?.mode).not.toHaveProperty("anyOf");
   });
 
-  it("exposes only list, read, and search for a read-only library", () => {
+  it("exposes list, read, search, and load_skill for a read-only library", () => {
     const tools = buildLibraryAgentTools({
       workspace: skillWorkspace({ readOnly: true }),
       profile: profile("skill")
     });
 
     expect(tools.map((tool) => tool.name)).toEqual(
-      LIBRARY_AGENT_TOOL_MANIFEST.skill.slice(0, 3)
+      LIBRARY_AGENT_TOOL_MANIFEST.skill.slice(0, 4)
     );
   });
 
@@ -389,5 +389,72 @@ describe("library agent tools", () => {
         profile: profile("skill")
       })
     ).toThrow("profile domain does not match");
+  });
+
+  it("lists and reads peer group libraries via the original tools without allowing writes", async () => {
+    const workspace = materialWorkspace({
+      kind: "character",
+      groupId: "material-group-1",
+      groupTitle: "雾港素材组",
+      readableLibraries: [
+        { libraryId: "material-library-1", title: "雾港素材", kind: "character" },
+        { libraryId: "material-plot", title: "剧情素材", kind: "plot" }
+      ],
+      entries: [
+        {
+          id: "material-entry-1",
+          documentId: "material:material-library-1:material-entry-1",
+          stageId: "character",
+          title: "雾港侦探",
+          content: "当前库人物。",
+          revision: createShortWorkspaceContentRevision("当前库人物。"),
+          readOnly: false
+        },
+        {
+          id: "material-plot/plot-entry-1",
+          documentId: "material:material-plot:plot-entry-1",
+          stageId: "pacing",
+          title: "节奏钩子",
+          content: "同组剧情素材。",
+          revision: createShortWorkspaceContentRevision("同组剧情素材。"),
+          readOnly: true,
+          sourceLibraryId: "material-plot",
+          sourceLibraryTitle: "剧情素材"
+        }
+      ]
+    });
+    const tools = buildLibraryAgentTools({
+      workspace,
+      profile: profile("material")
+    });
+
+    const list = await toolByName(tools, "list_material_entries").execute("list-group", {});
+    const peerRead = await toolByName(tools, "read_material_entry").execute("read-peer", {
+      name: "节奏钩子",
+      library_id: "material-plot"
+    });
+    const peerEdit = await toolByName(tools, "edit_material_entry").execute("edit-peer", {
+      entry_id: "material-plot/plot-entry-1",
+      mode: "append",
+      body: "不应写入"
+    });
+    const created = await toolByName(tools, "create_material_entry").execute("create-current", {
+      stage_id: "character",
+      title: "新人物",
+      body: "只写入当前库。"
+    });
+
+    expect(resultText(list)).toContain("雾港素材组");
+    expect(resultText(list)).toContain("节奏钩子");
+    expect(resultText(list)).toContain("material-plot");
+    expect(resultText(peerRead)).toContain("同组剧情素材。");
+    expect(resultText(peerRead)).toContain("同分组只读");
+    expect(resultText(peerEdit)).toContain("同分组其它库");
+    expect(created.details).toMatchObject({
+      kind: "library-entry-mutation",
+      operation: "create",
+      libraryId: "material-library-1",
+      stageId: "character"
+    });
   });
 });

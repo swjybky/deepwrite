@@ -527,6 +527,7 @@ describe("DeepWrite Pi runtime adapter", () => {
       "list_material_entries",
       "read_material_entry",
       "search_material_entries",
+      "load_skill",
       "create_material_entry",
       "edit_material_entry"
     ]);

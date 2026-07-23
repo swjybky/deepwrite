@@ -536,11 +536,51 @@ export const ShortWorkspaceSnapshotSchema = z
   });
 export type ShortWorkspaceSnapshot = z.infer<typeof ShortWorkspaceSnapshotSchema>;
 
+export const SHORT_AGENT_WELCOME_SHORTCUT_MAX_LENGTH = 120;
+
+export const ShortAgentWelcomeShortcutsSchema = z.tuple([
+  z.string().trim().min(1).max(SHORT_AGENT_WELCOME_SHORTCUT_MAX_LENGTH),
+  z.string().trim().min(1).max(SHORT_AGENT_WELCOME_SHORTCUT_MAX_LENGTH),
+  z.string().trim().min(1).max(SHORT_AGENT_WELCOME_SHORTCUT_MAX_LENGTH)
+]);
+export type ShortAgentWelcomeShortcuts = z.infer<
+  typeof ShortAgentWelcomeShortcutsSchema
+>;
+
+export const DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS = {
+  character_design: [
+    "帮我从零创建一个人物设计",
+    "检查当前人设有哪些问题",
+    "完善人物关系和人物弧光"
+  ],
+  plot_design: [
+    "根据当前人设设计一条主线剧情",
+    "帮我写一个抓人的开篇导语",
+    "细化当前剧情的场景和节拍"
+  ],
+  outline: [
+    "根据现有人物和剧情生成完整大纲",
+    "检查当前大纲是否有逻辑漏洞",
+    "把大纲拆成可写作的小节"
+  ],
+  expert_draft_coordinator: [
+    "根据大纲初始化并开始写正文",
+    "帮我写指定的正文小节",
+    "审阅并润色当前正文"
+  ],
+  expert_section_writer: [
+    "按照大纲写当前小节",
+    "续写当前小节并衔接前文",
+    "重写当前小节，增强冲突和画面感"
+  ]
+} as const satisfies Record<ShortWorkspaceAgentId, ShortAgentWelcomeShortcuts>;
+
 export const ShortWorkspaceAgentProfileSchema = z.object({
   id: ShortWorkspaceAgentIdSchema,
   label: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(1_000),
   systemPrompt: ShortSystemPromptSchema,
+  welcomeShortcuts: ShortAgentWelcomeShortcutsSchema,
   readAccess: ShortAgentReadAccessSchema
 });
 export type ShortWorkspaceAgentProfile = z.infer<
@@ -553,6 +593,7 @@ export const DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES: readonly ShortWorkspaceAgen
     label: "人物",
     description: "创建、补全、诊断和修改可供剧情与正文直接使用的人物设计。",
     systemPrompt: DEFAULT_SHORT_CHARACTER_DESIGN_SYSTEM_PROMPT,
+    welcomeShortcuts: [...DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS.character_design],
     readAccess: DEFAULT_SHORT_AGENT_READ_ACCESS.character_design
   },
   {
@@ -560,6 +601,7 @@ export const DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES: readonly ShortWorkspaceAgen
     label: "剧情",
     description: "统一负责剧情设计、导语设计和剧情细化三个内容阶段。",
     systemPrompt: DEFAULT_SHORT_PLOT_DESIGN_SYSTEM_PROMPT,
+    welcomeShortcuts: [...DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS.plot_design],
     readAccess: DEFAULT_SHORT_AGENT_READ_ACCESS.plot_design
   },
   {
@@ -567,6 +609,7 @@ export const DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES: readonly ShortWorkspaceAgen
     label: "大纲",
     description: "将人物与剧情内容整理成可直接指导分节写作的完整大纲。",
     systemPrompt: DEFAULT_SHORT_OUTLINE_SYSTEM_PROMPT,
+    welcomeShortcuts: [...DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS.outline],
     readAccess: DEFAULT_SHORT_AGENT_READ_ACCESS.outline
   },
   {
@@ -574,6 +617,9 @@ export const DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES: readonly ShortWorkspaceAgen
     label: "正文专家编写智能体",
     description: "管理正文结构、调度分节写作并处理成稿后的修订任务。",
     systemPrompt: DEFAULT_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT,
+    welcomeShortcuts: [
+      ...DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS.expert_draft_coordinator
+    ],
     readAccess: DEFAULT_SHORT_AGENT_READ_ACCESS.expert_draft_coordinator
   },
   {
@@ -581,6 +627,9 @@ export const DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES: readonly ShortWorkspaceAgen
     label: "分节写手智能体",
     description: "按大纲和连续人物状态完成单个正文小节的实际创作。",
     systemPrompt: DEFAULT_SHORT_EXPERT_SECTION_WRITER_SYSTEM_PROMPT,
+    welcomeShortcuts: [
+      ...DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS.expert_section_writer
+    ],
     readAccess: DEFAULT_SHORT_AGENT_READ_ACCESS.expert_section_writer
   }
 ];
@@ -616,6 +665,7 @@ export type ShortWorkspaceAgentSettings = z.infer<
 export const ShortWorkspaceAgentSettingsInputAgentSchema = z.object({
   id: ShortWorkspaceAgentIdSchema,
   systemPrompt: ShortSystemPromptSchema,
+  welcomeShortcuts: ShortAgentWelcomeShortcutsSchema,
   readAccess: ShortAgentReadAccessSchema
 });
 export type ShortWorkspaceAgentSettingsInputAgent = z.infer<

@@ -124,6 +124,11 @@ watch(
       ? settings.agents.map((agent) => ({
           id: agent.id,
           systemPrompt: agent.systemPrompt,
+          welcomeShortcuts: [
+            agent.welcomeShortcuts[0],
+            agent.welcomeShortcuts[1],
+            agent.welcomeShortcuts[2]
+          ],
           readAccess: {
             workspace: [...agent.readAccess.workspace],
             material: [...agent.readAccess.material],
@@ -238,6 +243,11 @@ function resetActiveAgent(): void {
   draftAgents.value[index] = {
     id: builtin.id,
     systemPrompt: builtin.systemPrompt,
+    welcomeShortcuts: [
+      builtin.welcomeShortcuts[0],
+      builtin.welcomeShortcuts[1],
+      builtin.welcomeShortcuts[2]
+    ],
     readAccess: {
       workspace: [...builtin.readAccess.workspace],
       material: [...builtin.readAccess.material],
@@ -258,6 +268,18 @@ function saveSettings(): void {
     const agent = draftAgents.value.find((candidate) => candidate.id === id);
     if (!agent) return null;
 
+    const shortcuts = agent.welcomeShortcuts.map((value) => value.trim());
+    if (shortcuts.some((value) => value.length === 0) || shortcuts.length !== 3) {
+      visibleErrorMessage.value = "每个智能体的三个欢迎快捷按钮都不能为空";
+      if (errorToastTimer) clearTimeout(errorToastTimer);
+      errorToastTimer = setTimeout(() => {
+        if (visibleErrorMessage.value === "每个智能体的三个欢迎快捷按钮都不能为空") {
+          visibleErrorMessage.value = null;
+        }
+      }, 4_500);
+      return null;
+    }
+
     const workspace = new Set<WorkspaceStageId>(agent.readAccess.workspace);
     for (const requiredStage of REQUIRED_WORKSPACE_STAGES[id]) {
       workspace.add(requiredStage);
@@ -266,6 +288,7 @@ function saveSettings(): void {
     return {
       id,
       systemPrompt: agent.systemPrompt,
+      welcomeShortcuts: [shortcuts[0]!, shortcuts[1]!, shortcuts[2]!],
       readAccess: {
         workspace: [...workspace],
         material: [...agent.readAccess.material],
@@ -285,7 +308,7 @@ function saveSettings(): void {
       <div>
         <span class="panel-kicker">短篇创作空间</span>
         <h2 id="short-agent-title">智能体设置</h2>
-        <p>分别配置短篇五个智能体的系统提示词，以及可读取的创作内容、素材和技能范围。</p>
+        <p>分别配置短篇五个智能体的系统提示词、欢迎快捷按钮，以及可读取的创作内容、素材和技能范围。</p>
         <p v-if="!runtimeAvailable" class="runtime-note">
           当前环境仅支持查看；保存和恢复默认设置需要使用 DeepWrite 桌面端。
         </p>
@@ -359,6 +382,32 @@ function saveSettings(): void {
             aria-label="系统提示词"
             placeholder="输入当前智能体的系统提示词…"
           />
+        </section>
+
+        <section class="settings-card welcome-card">
+          <div class="section-heading">
+            <div>
+              <h4>欢迎快捷按钮</h4>
+              <p>空对话欢迎区展示的三个快捷提问；可自定义，也可通过“恢复当前智能体默认”还原。</p>
+            </div>
+          </div>
+          <div class="welcome-shortcut-list">
+            <label
+              v-for="(_, index) in activeAgent.welcomeShortcuts"
+              :key="index"
+              class="welcome-shortcut-field"
+            >
+              <span>按钮 {{ index + 1 }}</span>
+              <input
+                v-model="activeAgent.welcomeShortcuts[index]"
+                type="text"
+                :disabled="formDisabled"
+                maxlength="120"
+                :aria-label="`欢迎快捷按钮 ${index + 1}`"
+                placeholder="输入快捷提问文案…"
+              />
+            </label>
+          </div>
         </section>
 
         <section class="settings-card access-card">
@@ -678,6 +727,52 @@ function saveSettings(): void {
 
 .prompt-card textarea:disabled {
   color: #6f7378;
+  cursor: not-allowed;
+}
+
+.welcome-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 17px 17px;
+  background: #fdfdfc;
+}
+
+.welcome-shortcut-field {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.welcome-shortcut-field > span {
+  color: #6a6e73;
+  font-size: 0.857143rem;
+  font-weight: 560;
+}
+
+.welcome-shortcut-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #e4e4e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #292c30;
+  font: inherit;
+  font-size: 0.928571rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.welcome-shortcut-field input:focus {
+  border-color: rgba(75, 164, 106, 0.55);
+  box-shadow: 0 0 0 3px rgba(75, 164, 106, 0.14);
+}
+
+.welcome-shortcut-field input:disabled {
+  color: #6f7378;
+  background: #f5f5f3;
   cursor: not-allowed;
 }
 

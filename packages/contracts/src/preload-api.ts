@@ -18,6 +18,10 @@ import type {
 } from "./workspace";
 import type { WorkspaceDirectorySettings } from "./workspace-directory";
 import type {
+  AppearanceSettings,
+  AppearanceSettingsSnapshot
+} from "./appearance";
+import type {
   ExportShortManuscriptInput,
   ExportShortManuscriptResult
 } from "./short-manuscript-export";
@@ -128,6 +132,10 @@ export interface DeepWriteApi {
   workspaceDirectory: {
     list(): Promise<WorkspaceDirectorySettings>;
     choose(): Promise<WorkspaceDirectorySettings | null>;
+  };
+  appearance: {
+    list(): Promise<AppearanceSettingsSnapshot>;
+    save(settings: AppearanceSettings): Promise<AppearanceSettingsSnapshot>;
   };
   manuscript: {
     exportShort(

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogSnapshot } from "@deepwrite/contracts";
 import type { WorkspaceDocument } from "../types/workspace";
-import { buildLibraryAgentWorkspaceContext } from "./libraryAgentContext";
+import {
+  buildLibraryAgentWorkspaceContext,
+  buildLibraryEntryComposerReferences
+} from "./libraryAgentContext";
 
 const now = "2026-07-23T00:00:00.000Z";
 
@@ -90,6 +93,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
       projectRevision: 3,
       entries: [{ id: "entry-1", title: "甲（草稿）", content: "实时草稿" }]
     });
+    expect(result?.readableLibraries).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain("列大纲");
   });
 
@@ -126,5 +130,225 @@ describe("buildLibraryAgentWorkspaceContext", () => {
         []
       )
     ).toBeUndefined();
+  });
+
+  it("includes sibling libraries from the same material group as read-only peers", () => {
+    const catalog = snapshot();
+    catalog.materials.push({
+      id: "material-plot",
+      title: "剧情素材",
+      materialType: "short",
+      materialKind: "plot",
+      parentGenre: "",
+      subGenre: "",
+      overview: "剧情库介绍",
+      projectRevision: 1,
+      createdAt: now,
+      updatedAt: now,
+      entries: [
+        {
+          id: "plot-entry-1",
+          stageId: "pacing",
+          title: "节奏钩子",
+          body: "同分组剧情素材正文",
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    });
+    catalog.materialGroups.push({
+      id: "material-group-1",
+      title: "雾港素材组",
+      members: {
+        character: "material-1",
+        plot: "material-plot"
+      },
+      createdAt: now,
+      updatedAt: now
+    });
+    const active = document();
+    const result = buildLibraryAgentWorkspaceContext(catalog, active, [active]);
+
+    expect(result).toMatchObject({
+      groupId: "material-group-1",
+      groupTitle: "雾港素材组",
+      readableLibraries: [
+        { libraryId: "material-1", title: "人物素材", kind: "character" },
+        { libraryId: "material-plot", title: "剧情素材", kind: "plot" }
+      ]
+    });
+    expect(result?.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "entry-1",
+          title: "甲（草稿）",
+          readOnly: false
+        }),
+        expect.objectContaining({
+          id: "material-plot/plot-entry-1",
+          title: "节奏钩子",
+          content: "同分组剧情素材正文",
+          readOnly: true,
+          sourceLibraryId: "material-plot",
+          sourceLibraryTitle: "剧情素材"
+        })
+      ])
+    );
+  });
+
+  it("includes sibling skill libraries from the same skill group as read-only peers", () => {
+    const catalog = snapshot();
+    catalog.skills.push({
+      id: "skill-style",
+      title: "文风技能",
+      skillType: "short",
+      skillKind: "style",
+      overview: "文风说明",
+      isBuiltin: false,
+      createdAt: now,
+      updatedAt: now,
+      entries: [
+        {
+          id: "style-entry-1",
+          stageId: "draft",
+          title: "去 AI 味",
+          body: "同分组文风技能正文",
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    });
+    catalog.skillGroups.push({
+      id: "skill-group-1",
+      title: "短篇方法组",
+      members: {
+        general: "skill-1",
+        style: "skill-style"
+      },
+      createdAt: now,
+      updatedAt: now
+    });
+    const active = document({
+      id: "catalog:skill-entry:skill-1:skill-entry-1",
+      domain: "skill",
+      title: "列大纲",
+      content: "方法",
+      libraryId: "skill-1",
+      catalogEntryId: "skill-entry-1",
+      stageCategoryId: "outline",
+      readOnly: true
+    });
+    const result = buildLibraryAgentWorkspaceContext(catalog, active, [active]);
+
+    expect(result).toMatchObject({
+      groupId: "skill-group-1",
+      groupTitle: "短篇方法组"
+    });
+    expect(result?.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "skill-style/style-entry-1",
+          title: "去 AI 味",
+          content: "同分组文风技能正文",
+          readOnly: true,
+          sourceLibraryId: "skill-style",
+          sourceLibraryTitle: "文风技能"
+        })
+      ])
+    );
+  });
+});
+
+describe("buildLibraryEntryComposerReferences", () => {
+  it("lists other entries from the current library and excludes the active one", () => {
+    const catalog = snapshot();
+    catalog.materials[0]!.entries.push({
+      id: "entry-2",
+      stageId: "character",
+      title: "乙",
+      body: "另一条",
+      createdAt: now,
+      updatedAt: now
+    });
+    const active = document();
+    const peer = document({
+      id: "catalog:material-entry:material-1:entry-2",
+      catalogEntryId: "entry-2",
+      title: "乙",
+      content: "另一条",
+      path: ["人物素材", "乙"]
+    });
+    const context = buildLibraryAgentWorkspaceContext(catalog, active, [active, peer]);
+
+    expect(buildLibraryEntryComposerReferences(context)).toEqual([
+      {
+        id: "catalog:material-entry:material-1:entry-2",
+        label: "乙",
+        detail: "当前素材库"
+      }
+    ]);
+  });
+
+  it("labels peer group library entries in the composer menu", () => {
+    const catalog = snapshot();
+    catalog.materials.push({
+      id: "material-plot",
+      title: "剧情素材",
+      materialType: "short",
+      materialKind: "plot",
+      parentGenre: "",
+      subGenre: "",
+      overview: "",
+      createdAt: now,
+      updatedAt: now,
+      entries: [
+        {
+          id: "plot-entry-1",
+          stageId: "pacing",
+          title: "节奏钩子",
+          body: "正文",
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    });
+    catalog.materialGroups.push({
+      id: "material-group-1",
+      title: "雾港素材组",
+      members: {
+        character: "material-1",
+        plot: "material-plot"
+      },
+      createdAt: now,
+      updatedAt: now
+    });
+    const active = document();
+    const context = buildLibraryAgentWorkspaceContext(catalog, active, [active]);
+
+    expect(buildLibraryEntryComposerReferences(context)).toEqual(
+      expect.arrayContaining([
+        {
+          id: "catalog:material-entry:material-plot:plot-entry-1",
+          label: "节奏钩子",
+          detail: "分组 · 剧情素材"
+        }
+      ])
+    );
+  });
+
+  it("labels skill-library entries for the composer menu", () => {
+    const active = document({
+      id: "catalog:skill-entry:skill-1:skill-entry-1",
+      domain: "skill",
+      title: "列大纲",
+      content: "方法",
+      libraryId: "skill-1",
+      catalogEntryId: "skill-entry-1",
+      stageCategoryId: "outline",
+      readOnly: true
+    });
+    const context = buildLibraryAgentWorkspaceContext(snapshot(), active, [active]);
+
+    expect(buildLibraryEntryComposerReferences(context)).toEqual([]);
   });
 });

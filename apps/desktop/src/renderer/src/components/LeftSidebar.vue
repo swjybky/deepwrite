@@ -400,9 +400,13 @@ watch(
           </button>
 
           <div v-if="accountMenuOpen" id="account-menu" class="account-menu" role="menu">
+            <button type="button" role="menuitem" @click="openSettings">
+              <AppIcon name="settings" :size="16" />
+              <span>设置</span>
+            </button>
             <button type="button" role="menuitem" @click="openNameDialog">
               <AppIcon name="user" :size="16" />
-              <span>设置姓名</span>
+              <span>姓名</span>
             </button>
             <button type="button" role="menuitem" @click="openContactDialog">
               <AppIcon name="message" :size="16" />

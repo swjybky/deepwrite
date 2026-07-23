@@ -81,6 +81,10 @@ import {
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema
 } from "./workspace-directory";
+import {
+  AppearanceListCommandEnvelopeSchema,
+  AppearanceSaveCommandEnvelopeSchema
+} from "./appearance";
 import { ExportShortManuscriptCommandEnvelopeSchema } from "./short-manuscript-export";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
@@ -155,6 +159,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   LearningImitationSettingsResetCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema,
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
+  AppearanceListCommandEnvelopeSchema,
+  AppearanceSaveCommandEnvelopeSchema,
   ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentAbortCommandEnvelopeSchema,

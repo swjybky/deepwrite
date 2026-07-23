@@ -14,6 +14,13 @@ describe("AgentConversation edit proposal placement", () => {
     expect(actionsStart).toBeGreaterThan(proposalsStart);
   });
 
+  it("uses distinct composer placeholders for creative space and library agents", () => {
+    expect(source).toContain("composerPlaceholder");
+    expect(source).toContain("随心输入，输入 / 调用技能，输入 @ 引用素材");
+    expect(source).toContain("输入 / 加载方法技能，输入 @ 引用当前库或同分组其它库的技能");
+    expect(source).toContain("输入 / 加载方法技能，输入 @ 引用当前库或同分组其它库的素材");
+  });
+
   it("renders a hover copy action and timestamp below both user and assistant messages", () => {
     expect(source).toContain('<div class="message-content">');
     expect(source).toContain('v-if="message.content && message.status !== \'streaming\'"');

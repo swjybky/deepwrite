@@ -71,9 +71,16 @@ function cloneReadAccess(value: ShortAgentReadAccess): ShortAgentReadAccess {
   };
 }
 
+function cloneWelcomeShortcuts(
+  value: ShortWorkspaceAgentProfile["welcomeShortcuts"]
+): ShortWorkspaceAgentProfile["welcomeShortcuts"] {
+  return [value[0], value[1], value[2]];
+}
+
 function cloneProfile(profile: ShortWorkspaceAgentProfile): ShortWorkspaceAgentProfile {
   return {
     ...profile,
+    welcomeShortcuts: cloneWelcomeShortcuts(profile.welcomeShortcuts),
     readAccess: cloneReadAccess(profile.readAccess)
   };
 }
@@ -107,6 +114,7 @@ function defaultsAsInput(): ShortWorkspaceAgentSettingsInput {
     agents: DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES.map((profile) => ({
       id: profile.id,
       systemPrompt: profile.systemPrompt,
+      welcomeShortcuts: cloneWelcomeShortcuts(profile.welcomeShortcuts),
       readAccess: cloneReadAccess(profile.readAccess)
     }))
   };
@@ -133,14 +141,48 @@ async function atomicWriteJson(path: string, value: unknown): Promise<void> {
   await rename(temporary, path);
 }
 
+function normalizeWelcomeShortcuts(
+  agentId: ShortWorkspaceAgentId,
+  raw: unknown
+): ShortWorkspaceAgentProfile["welcomeShortcuts"] {
+  if (Array.isArray(raw) && raw.length === 3) {
+    const candidate = raw.map((value) =>
+      typeof value === "string" ? value.trim() : ""
+    );
+    if (candidate.every((value) => value.length > 0)) {
+      return [candidate[0]!, candidate[1]!, candidate[2]!];
+    }
+  }
+  return cloneWelcomeShortcuts(defaultProfile(agentId).welcomeShortcuts);
+}
+
 function normalizeDiskSettings(raw: unknown): ShortWorkspaceAgentSettingsInput {
   if (!raw || typeof raw !== "object") {
     return defaultsAsInput();
   }
   const candidate = raw as Record<string, unknown>;
+  const agents = Array.isArray(candidate.agents)
+    ? candidate.agents.map((agent) => {
+        if (!agent || typeof agent !== "object") return agent;
+        const record = agent as Record<string, unknown>;
+        const agentId =
+          typeof record.id === "string" &&
+          (SHORT_WORKSPACE_AGENT_IDS as readonly string[]).includes(record.id)
+            ? (record.id as ShortWorkspaceAgentId)
+            : undefined;
+        if (!agentId) return agent;
+        return {
+          ...record,
+          welcomeShortcuts: normalizeWelcomeShortcuts(
+            agentId,
+            record.welcomeShortcuts
+          )
+        };
+      })
+    : candidate.agents;
   const parsed = ShortWorkspaceAgentSettingsInputSchema.safeParse({
     workspaceType: candidate.workspaceType,
-    agents: candidate.agents
+    agents
   });
   if (!parsed.success) {
     return defaultsAsInput();
@@ -155,6 +197,7 @@ function normalizeDiskSettings(raw: unknown): ShortWorkspaceAgentSettingsInput {
           RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1
           ? defaultProfile(agent.id).systemPrompt
           : agent.systemPrompt,
+      welcomeShortcuts: cloneWelcomeShortcuts(agent.welcomeShortcuts),
       readAccess: normalizeReadAccess(agent.id, agent.readAccess)
     }))
   };
@@ -183,6 +226,7 @@ export class WorkspaceAgentConfigStore {
         workspaceType: "short",
         agents: input.agents.map((agent) => ({
           ...agent,
+          welcomeShortcuts: cloneWelcomeShortcuts(agent.welcomeShortcuts),
           readAccess: normalizeReadAccess(agent.id, agent.readAccess)
         }))
       };
@@ -207,6 +251,7 @@ export class WorkspaceAgentConfigStore {
         const replacement = {
           id: builtin.id,
           systemPrompt: builtin.systemPrompt,
+          welcomeShortcuts: cloneWelcomeShortcuts(builtin.welcomeShortcuts),
           readAccess: cloneReadAccess(builtin.readAccess)
         };
         if (index >= 0) {
@@ -276,7 +321,12 @@ export class WorkspaceAgentConfigStore {
         const override = byId.get(agentId);
         return {
           ...builtin,
-          ...(override ? { systemPrompt: override.systemPrompt } : {}),
+          ...(override
+            ? {
+                systemPrompt: override.systemPrompt,
+                welcomeShortcuts: cloneWelcomeShortcuts(override.welcomeShortcuts)
+              }
+            : {}),
           readAccess: normalizeReadAccess(
             agentId,
             override?.readAccess ?? builtin.readAccess

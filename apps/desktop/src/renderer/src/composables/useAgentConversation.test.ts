@@ -284,6 +284,37 @@ function createDeferredApi(): {
         return null;
       }
     },
+    appearance: {
+      async list() {
+        return {
+          persisted: false,
+          settings: {
+            mode: "system" as const,
+            light: {
+              preset: "codex",
+              accent: "#339CFF",
+              background: "#FFFFFF",
+              foreground: "#1A1C1F",
+              uiFontSize: 14,
+              codeFontSize: 13,
+              translucentSidebar: true
+            },
+            dark: {
+              preset: "codex",
+              accent: "#5EACFF",
+              background: "#17191C",
+              foreground: "#F3F4F6",
+              uiFontSize: 14,
+              codeFontSize: 13,
+              translucentSidebar: true
+            }
+          }
+        };
+      },
+      async save(settings) {
+        return { persisted: true, settings };
+      }
+    },
     manuscript: {
       async exportShort() {
         throw new Error("Manuscript export is not used by conversation tests.");

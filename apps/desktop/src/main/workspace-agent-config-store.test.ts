@@ -38,6 +38,11 @@ function defaultInput(): ShortWorkspaceAgentSettingsInput {
     agents: DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES.map((profile) => ({
       id: profile.id,
       systemPrompt: profile.systemPrompt,
+      welcomeShortcuts: [
+        profile.welcomeShortcuts[0],
+        profile.welcomeShortcuts[1],
+        profile.welcomeShortcuts[2]
+      ],
       readAccess: {
         workspace: [...profile.readAccess.workspace],
         material: [...profile.readAccess.material],
@@ -142,6 +147,37 @@ describe("WorkspaceAgentConfigStore", () => {
     expect(
       byAgentId(settings.agents, "expert_draft_coordinator").systemPrompt
     ).toBe(customized);
+  });
+
+  it("fills missing welcome shortcuts from builtin defaults without discarding other overrides", async () => {
+    const root = await makeTemporaryRoot();
+    const configDirectory = join(root, "config");
+    await mkdir(configDirectory);
+    const input = defaultInput();
+    byAgentId(input.agents, "character_design").systemPrompt = "自定义人物提示词";
+    const legacyAgents = input.agents.map((agent) => {
+      const { welcomeShortcuts: _welcomeShortcuts, ...rest } = agent;
+      return rest;
+    });
+    await writeFile(
+      join(configDirectory, "workspace-agents.json"),
+      JSON.stringify({
+        version: 1,
+        workspaceType: "short",
+        agents: legacyAgents
+      }),
+      "utf8"
+    );
+
+    const settings = await new WorkspaceAgentConfigStore(root).list();
+
+    expect(byAgentId(settings.agents, "character_design").systemPrompt).toBe(
+      "自定义人物提示词"
+    );
+    expect(byAgentId(settings.agents, "character_design").welcomeShortcuts).toEqual(
+      byAgentId(DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES, "character_design")
+        .welcomeShortcuts
+    );
   });
 
   it("restores each agent's required workspace stages before saving", async () => {

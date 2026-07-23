@@ -4,6 +4,7 @@ import {
   AgentMessageDeltaEventEnvelopeSchema,
   AgentPromptCommandPayloadSchema,
   ActiveResourceSnapshotSchema,
+  AppearanceSettingsSnapshotSchema,
   CommandEnvelopeSchema,
   ExpertDraftFileSnapshotSchema,
   ExpertDraftSchema,
@@ -25,6 +26,7 @@ import {
   UserPromptAttachmentsSchema,
   WorkspaceRuntimeContextSchema,
   WorkspaceEditorMutationPayloadSchema,
+  createDefaultAppearanceSettings,
   createShortWorkspaceContentRevision,
   createEnvelope
 } from "./index";
@@ -817,7 +819,10 @@ describe("DeepWrite desktop contracts", () => {
     const input = {
       agents: DEFAULT_LIBRARY_AGENT_SETTINGS.agents.map((agent) => ({
         domain: agent.domain,
-        systemPrompt: agent.systemPrompt
+        systemPrompt: agent.systemPrompt,
+        readAccess: {
+          skills: agent.readAccess.skills.map((skill) => ({ ...skill }))
+        }
       }))
     };
     expect(LibraryAgentSettingsInputSchema.parse(input)).toEqual(input);
@@ -840,6 +845,36 @@ describe("DeepWrite desktop contracts", () => {
         )
       ).type
     ).toBe("libraryAgents.reset");
+  });
+
+  it("accepts appearance list and save commands with durable settings payloads", () => {
+    const settings = createDefaultAppearanceSettings();
+    settings.light.uiFontSize = 16.5;
+    settings.mode = "dark";
+
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope("appearance.list", {}, { id: "appearance-list" })
+      ).type
+    ).toBe("appearance.list");
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope("appearance.save", settings, { id: "appearance-save" })
+      )
+    ).toMatchObject({
+      type: "appearance.save",
+      payload: {
+        mode: "dark",
+        light: { uiFontSize: 16.5 }
+      }
+    });
+    expect(AppearanceSettingsSnapshotSchema.parse({
+      persisted: true,
+      settings
+    })).toMatchObject({
+      persisted: true,
+      settings: { mode: "dark", light: { uiFontSize: 16.5 } }
+    });
   });
 
   it("keeps library workspaces isolated from short and learning contexts", () => {

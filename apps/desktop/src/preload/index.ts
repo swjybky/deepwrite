@@ -55,6 +55,8 @@ import {
   UnregisterCatalogProjectInputSchema,
   UnregisterCatalogProjectResultSchema,
   WorkspaceDirectorySettingsSchema,
+  AppearanceSettingsSchema,
+  AppearanceSettingsSnapshotSchema,
   UpdateBookInputSchema,
   UpdateLibraryGroupInputSchema,
   createEnvelope,
@@ -111,7 +113,9 @@ import {
   type UnregisterCatalogProjectResult,
   type UpdateBookInput,
   type UpdateLibraryGroupInput,
-  type WorkspaceDirectorySettings
+  type WorkspaceDirectorySettings,
+  type AppearanceSettings,
+  type AppearanceSettingsSnapshot
 } from "@deepwrite/contracts";
 
 function browserId(prefix: string): string {
@@ -119,11 +123,19 @@ function browserId(prefix: string): string {
 }
 
 async function invokeCommand<TPayload>(command: CommandEnvelope): Promise<TPayload> {
+  const expectedRequestId = command.id;
   const result = CommandResultSchema.parse(
     await ipcRenderer.invoke(IPC_COMMAND_CHANNEL, command)
   );
-  if (result.requestId !== command.id) {
-    throw new Error("IPC result requestId does not match command id.");
+  if (result.requestId !== expectedRequestId) {
+    // Prefer the real rejection reason when main returned requestId "unknown"
+    // (or another mismatched id) for an invalid/untrusted command.
+    if (result.status === "rejected") {
+      throw new Error(`${result.error.code}: ${result.error.message}`);
+    }
+    throw new Error(
+      `IPC result requestId does not match command id. expected=${expectedRequestId} actual=${result.requestId}`
+    );
   }
   if (result.status === "rejected") {
     throw new Error(`${result.error.code}: ${result.error.message}`);
@@ -648,6 +660,27 @@ async function chooseWorkspaceDirectory(): Promise<WorkspaceDirectorySettings | 
   );
 }
 
+async function listAppearance(): Promise<AppearanceSettingsSnapshot> {
+  const id = browserId("cmd_appearance_list");
+  return AppearanceSettingsSnapshotSchema.parse(
+    await invokeCommand<AppearanceSettingsSnapshot>(
+      createEnvelope("appearance.list", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function saveAppearance(
+  rawSettings: AppearanceSettings
+): Promise<AppearanceSettingsSnapshot> {
+  const settings = AppearanceSettingsSchema.parse(rawSettings);
+  const id = browserId("cmd_appearance_save");
+  return AppearanceSettingsSnapshotSchema.parse(
+    await invokeCommand<AppearanceSettingsSnapshot>(
+      createEnvelope("appearance.save", settings, { id, correlationId: id })
+    )
+  );
+}
+
 async function exportShortManuscript(
   rawInput: ExportShortManuscriptInput
 ): Promise<ExportShortManuscriptResult> {
@@ -716,6 +749,10 @@ const api: DeepWriteApi = {
   workspaceDirectory: {
     list: listWorkspaceDirectory,
     choose: chooseWorkspaceDirectory
+  },
+  appearance: {
+    list: listAppearance,
+    save: saveAppearance
   },
   manuscript: {
     exportShort: exportShortManuscript

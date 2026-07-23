@@ -1,17 +1,18 @@
 import { computed, reactive, readonly, watch } from "vue";
+import {
+  APPEARANCE_FONT_SIZE_LIMITS,
+  AppearanceSettingsSchema,
+  createDefaultAppearanceSettings,
+  createDefaultAppearanceTheme,
+  type AppearanceColorScheme,
+  type AppearanceMode,
+  type AppearanceSettings,
+  type AppearanceThemeConfig
+} from "@deepwrite/contracts";
 
-export type AppearanceMode = "system" | "light" | "dark";
-export type ColorScheme = "light" | "dark";
-
-export interface ThemeConfig {
-  preset: string;
-  accent: string;
-  background: string;
-  foreground: string;
-  uiFontSize: number;
-  codeFontSize: number;
-  translucentSidebar: boolean;
-}
+export type { AppearanceMode };
+export type ColorScheme = AppearanceColorScheme;
+export type ThemeConfig = AppearanceThemeConfig;
 
 interface AppearanceState {
   mode: AppearanceMode;
@@ -27,14 +28,10 @@ export interface ThemePreset {
   dark: Pick<ThemeConfig, "accent" | "background" | "foreground">;
 }
 
-const STORAGE_KEY = "deepwrite.appearance.v1";
-export const FONT_SIZE_LIMITS = {
-  uiFontSize: { min: 10, max: 24 },
-  codeFontSize: { min: 10, max: 24 }
-} as const;
+const LEGACY_STORAGE_KEY = "deepwrite.appearance.v1";
+const PERSIST_DEBOUNCE_MS = 300;
 
-const DEFAULT_UI_FONT_SIZE = 14;
-const DEFAULT_CODE_FONT_SIZE = 13;
+export const FONT_SIZE_LIMITS = APPEARANCE_FONT_SIZE_LIMITS;
 
 export const themePresets: ThemePreset[] = [
   {
@@ -58,13 +55,7 @@ export const themePresets: ThemePreset[] = [
 ];
 
 function defaultTheme(scheme: ColorScheme): ThemeConfig {
-  return {
-    preset: "codex",
-    ...themePresets[0]![scheme],
-    uiFontSize: DEFAULT_UI_FONT_SIZE,
-    codeFontSize: DEFAULT_CODE_FONT_SIZE,
-    translucentSidebar: true
-  };
+  return createDefaultAppearanceTheme(scheme);
 }
 
 function isHexColor(value: unknown): value is string {
@@ -76,8 +67,10 @@ function sanitizeFontSize(
   fallback: number,
   limits: { min: number; max: number }
 ): number {
-  return typeof value === "number" && Number.isFinite(value) &&
-    value >= limits.min && value <= limits.max
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= limits.min &&
+    value <= limits.max
     ? Math.round(value * 2) / 2
     : fallback;
 }
@@ -112,27 +105,78 @@ function sanitizeTheme(value: unknown, scheme: ColorScheme): ThemeConfig {
   };
 }
 
-function readStoredState(systemScheme: ColorScheme): AppearanceState {
+function captureSettings(): AppearanceSettings {
+  return AppearanceSettingsSchema.parse({
+    mode: state.mode,
+    light: state.light,
+    dark: state.dark
+  });
+}
+
+function applySettings(settings: AppearanceSettings): void {
+  suppressPersist = true;
+  state.mode = settings.mode;
+  Object.assign(state.light, settings.light);
+  Object.assign(state.dark, settings.dark);
+  suppressPersist = false;
+  applyToDocument();
+}
+
+function readLegacyStoredState(systemScheme: ColorScheme): AppearanceState {
+  const defaults = createDefaultAppearanceSettings();
   const fallback: AppearanceState = {
-    mode: "system",
+    mode: defaults.mode,
     systemScheme,
-    light: defaultTheme("light"),
-    dark: defaultTheme("dark")
+    light: defaults.light,
+    dark: defaults.dark
   };
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<AppearanceState>;
+    const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
+    const settings = AppearanceSettingsSchema.safeParse({
+      mode: parsed.mode,
+      light: parsed.light,
+      dark: parsed.dark
+    });
+    if (settings.success) {
+      return {
+        mode: settings.data.mode,
+        systemScheme,
+        light: settings.data.light,
+        dark: settings.data.dark
+      };
+    }
     return {
-      mode: parsed.mode === "light" || parsed.mode === "dark" || parsed.mode === "system"
-        ? parsed.mode
-        : fallback.mode,
+      mode:
+        parsed.mode === "light" || parsed.mode === "dark" || parsed.mode === "system"
+          ? parsed.mode
+          : fallback.mode,
       systemScheme,
       light: sanitizeTheme(parsed.light, "light"),
       dark: sanitizeTheme(parsed.dark, "dark")
     };
   } catch {
     return fallback;
+  }
+}
+
+function clearLegacyStorage(): void {
+  try {
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // Ignore quota / privacy mode failures.
+  }
+}
+
+function persistToLegacyStorage(): void {
+  try {
+    window.localStorage.setItem(
+      LEGACY_STORAGE_KEY,
+      JSON.stringify({ mode: state.mode, light: state.light, dark: state.dark })
+    );
+  } catch {
+    // The live theme still works when storage is unavailable.
   }
 }
 
@@ -181,12 +225,16 @@ function mixRgba(
 }
 
 const media = window.matchMedia("(prefers-color-scheme: dark)");
-const state = reactive<AppearanceState>(readStoredState(media.matches ? "dark" : "light"));
+const state = reactive<AppearanceState>(readLegacyStoredState(media.matches ? "dark" : "light"));
 const resolvedScheme = computed<ColorScheme>(() =>
   state.mode === "system" ? state.systemScheme : state.mode
 );
 const activeTheme = computed(() => state[resolvedScheme.value]);
 let initialized = false;
+let suppressPersist = false;
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let persistChain: Promise<void> = Promise.resolve();
+let hydratePromise: Promise<void> | undefined;
 
 function applyToDocument(): void {
   const scheme = resolvedScheme.value;
@@ -221,14 +269,59 @@ function applyToDocument(): void {
   document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", theme.background);
 }
 
+function queueDesktopPersist(settings: AppearanceSettings): void {
+  const api = window.deepwrite?.appearance;
+  if (!api) {
+    persistToLegacyStorage();
+    return;
+  }
+  persistChain = persistChain
+    .catch(() => undefined)
+    .then(async () => {
+      await api.save(settings);
+      clearLegacyStorage();
+    })
+    .catch(() => {
+      persistToLegacyStorage();
+    });
+}
+
 function persist(): void {
+  if (typeof window === "undefined") return;
+  if (persistTimer !== undefined) {
+    clearTimeout(persistTimer);
+  }
+  persistTimer = setTimeout(() => {
+    persistTimer = undefined;
+    queueDesktopPersist(captureSettings());
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+async function hydrateFromDesktop(): Promise<void> {
+  const api = window.deepwrite?.appearance;
+  if (!api) return;
   try {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ mode: state.mode, light: state.light, dark: state.dark })
-    );
+    const snapshot = await api.list();
+    if (!snapshot.persisted) {
+      const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyRaw) {
+        const legacy = AppearanceSettingsSchema.safeParse(
+          JSON.parse(legacyRaw) as unknown
+        );
+        if (legacy.success) {
+          applySettings(legacy.data);
+          await api.save(legacy.data);
+          clearLegacyStorage();
+          return;
+        }
+      }
+      clearLegacyStorage();
+      return;
+    }
+    applySettings(snapshot.settings);
+    clearLegacyStorage();
   } catch {
-    // The live theme still works when storage is unavailable (for example in a restricted preview).
+    // Keep the bootstrapped theme (legacy localStorage or defaults) if hydration fails.
   }
 }
 
@@ -236,11 +329,16 @@ function initialize(): void {
   if (initialized) return;
   initialized = true;
   media.addEventListener("change", handleSystemSchemeChange);
-  watch(state, () => {
-    applyToDocument();
-    persist();
-  }, { deep: true });
+  watch(
+    state,
+    () => {
+      applyToDocument();
+      if (!suppressPersist) persist();
+    },
+    { deep: true }
+  );
   applyToDocument();
+  hydratePromise = hydrateFromDesktop();
 }
 
 function handleSystemSchemeChange(event: MediaQueryListEvent): void {
@@ -279,7 +377,8 @@ export function useAppearance() {
     updateTheme,
     applyPreset: applyThemePreset,
     importTheme,
-    resetTheme
+    resetTheme,
+    whenReady: () => hydratePromise ?? Promise.resolve()
   };
 }
 

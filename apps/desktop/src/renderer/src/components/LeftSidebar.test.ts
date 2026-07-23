@@ -9,8 +9,10 @@ describe("LeftSidebar account controls", () => {
     expect(source).not.toContain('@click="emit(\'openSettings\')"');
   });
 
-  it("offers name and author-contact actions from the account menu", () => {
-    expect(source).toContain("设置姓名");
+  it("offers settings, name and author-contact actions from the account menu", () => {
+    expect(source).toContain("<span>设置</span>");
+    expect(source).toContain('@click="openSettings"');
+    expect(source).toContain("<span>姓名</span>");
     expect(source).toContain("联系作者");
     expect(source).toContain('profileDialog.value = "name"');
     expect(source).toContain('profileDialog.value = "contact"');

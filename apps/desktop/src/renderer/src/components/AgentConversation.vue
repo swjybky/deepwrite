@@ -6,6 +6,8 @@ import {
   PROMPT_IMAGE_ATTACHMENTS_MAX_BYTES,
   PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH,
   type BuiltInReasoningLevel,
+  type LibraryAgentDomain,
+  type LibraryAgentSkill,
   type ModelConfig,
   type ShortWorkspaceAgentId,
   type ThinkingLevel,
@@ -57,6 +59,9 @@ const props = defineProps<{
   stageLabel: string;
   agentLabel: string;
   agentId: ShortWorkspaceAgentId | undefined;
+  libraryDomain: LibraryAgentDomain | undefined;
+  librarySkills: readonly Pick<LibraryAgentSkill, "name">[] | undefined;
+  welcomeShortcuts: readonly [string, string, string] | undefined;
   availableSkills: ComposerReferenceOption[];
   availableMaterials: ComposerReferenceOption[];
   editorReferences: EditorTextReference[];
@@ -369,12 +374,36 @@ const filteredReferenceOptions = computed(() => {
     : referenceOptions.value;
   return matches.slice(0, 12);
 });
-const referenceMenuTitle = computed(() =>
-  activeReference.value?.trigger === "/" ? "调用技能" : "引用素材"
-);
-const referenceMenuHint = computed(() =>
-  activeReference.value?.trigger === "/" ? "输入名称搜索技能" : "输入名称搜索素材"
-);
+const referenceMenuTitle = computed(() => {
+  if (activeReference.value?.trigger === "/") {
+    return "调用技能";
+  }
+  if (props.libraryDomain === "skill") {
+    return "引用技能";
+  }
+  return "引用素材";
+});
+const referenceMenuHint = computed(() => {
+  if (activeReference.value?.trigger === "/") {
+    return "输入名称搜索技能";
+  }
+  if (props.libraryDomain === "skill") {
+    return "输入名称搜索技能条目";
+  }
+  return "输入名称搜索素材条目";
+});
+const composerPlaceholder = computed(() => {
+  if (!props.runtimeAvailable) {
+    return "浏览器预览不可发送，请启动桌面客户端";
+  }
+  if (props.libraryDomain === "skill") {
+    return "描述资料库任务，输入 / 加载方法技能，输入 @ 引用当前库或同分组其它库的技能……";
+  }
+  if (props.libraryDomain === "material") {
+    return "描述资料库任务，输入 / 加载方法技能，输入 @ 引用当前库或同分组其它库的素材……";
+  }
+  return "随心输入，输入 / 调用技能，输入 @ 引用素材……";
+});
 
 watch(
   () => filteredReferenceOptions.value.map((option) => option.id).join("\u0000"),
@@ -461,7 +490,14 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 }
 
-const welcomeContent = computed(() => resolveAgentWelcome(props.agentId));
+const welcomeContent = computed(() =>
+  resolveAgentWelcome(
+    props.agentId,
+    props.libraryDomain,
+    props.librarySkills,
+    props.welcomeShortcuts
+  )
+);
 const hasStreamingAssistant = computed(() =>
   props.messages.some((message) => message.role === "assistant" && message.status === "streaming")
 );
@@ -1732,7 +1768,7 @@ function copyMessageLabel(message: ChatMessage): string {
               ref="composerInput"
               :value="draft"
               rows="1"
-              :placeholder="runtimeAvailable ? '随心输入，输入 / 调用技能，输入 @ 引用素材……' : '浏览器预览不可发送，请启动桌面客户端'"
+              :placeholder="composerPlaceholder"
               aria-label="智能体消息"
               aria-autocomplete="list"
               :aria-expanded="Boolean(activeReference)"

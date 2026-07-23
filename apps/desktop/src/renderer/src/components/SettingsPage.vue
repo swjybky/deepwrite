@@ -80,7 +80,7 @@ const sections: SettingsSection[] = [
     id: "creation",
     label: "创作",
     categories: [
-      { id: "short-agents", label: "创作空间", icon: "brain" },
+      { id: "short-agents", label: "创作空间配置", icon: "brain" },
       { id: "skill-library-agent", label: "技能库配置", icon: "wand" },
       { id: "material-library-agent", label: "素材库配置", icon: "archive" },
       { id: "learning-imitation", label: "学习仿写设置", icon: "sparkles" }

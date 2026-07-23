@@ -380,6 +380,8 @@ describe("FolderCatalogStore", () => {
 
     expect(first.projectDirectory).toMatch(/\/雨夜-来信$/u);
     expect(second.projectDirectory).toMatch(/\/雨夜-来信-2$/u);
+    expect(first.resource.id).toMatch(/^book-[0-9a-f]{8}$/);
+    expect(second.resource.id).toMatch(/^book-[0-9a-f]{8}$/);
     expect(first.resource.documents).toHaveLength(5);
     expect(first.resource.draft.sections).toHaveLength(2);
 
@@ -760,6 +762,7 @@ describe("FolderCatalogStore", () => {
     );
 
     expect(imported.resource.id).not.toBe("legacy-material-id");
+    expect(imported.resource.id).toMatch(/^material-[0-9a-f]{8}$/);
     expect(imported.resource.entries[0]?.id).not.toBe("legacy-entry-id");
     expect(imported.resource).toMatchObject({
       title: "旧版人物素材库",
@@ -1029,6 +1032,7 @@ describe("FolderCatalogStore", () => {
         projectRevision: 0
       }
     });
+    expect(material.resource.id).toMatch(/^material-[0-9a-f]{8}$/);
     expect(skill).toMatchObject({
       domain: "skill-library",
       revision: 0,
@@ -1042,6 +1046,7 @@ describe("FolderCatalogStore", () => {
         projectRevision: 0
       }
     });
+    expect(skill.resource.id).toMatch(/^skill-[0-9a-f]{8}$/);
     expect(material.projectDirectory).toMatch(/\/人物-素材$/u);
     expect(skill.projectDirectory).toMatch(/\/悬念技能$/u);
     await expect(
@@ -1068,11 +1073,13 @@ describe("FolderCatalogStore", () => {
       title: "守夜人",
       body: "守夜人只在雨夜出现。"
     });
+    expect(materialEntry.id).toMatch(/^material-entry-[0-9a-f]{8}$/);
     expect(skillEntry).toMatchObject({
       stageId: "draft",
       title: "结尾留钩",
       body: "每一节结尾保留未回答的问题。"
     });
+    expect(skillEntry.id).toMatch(/^skill-entry-[0-9a-f]{8}$/);
 
     const materialManifest = JSON.parse(
       await readFile(join(material.projectDirectory, "deepwrite.json"), "utf8")
@@ -1256,6 +1263,9 @@ describe("FolderCatalogStore", () => {
       domain: "material-group",
       resource: { title: "待整理素材", members: {}, projectRevision: 0 }
     });
+    expect(emptyMaterialGroup.resource.id).toMatch(/^material-group-[0-9a-f]{8}$/);
+    expect(skillGroup.resource.id).toMatch(/^skill-group-[0-9a-f]{8}$/);
+    expect(materialGroup.resource.id).toMatch(/^material-group-[0-9a-f]{8}$/);
     expect(skillGroup.resource.members).toEqual({ general: skill.resource.id });
     expect(materialGroup.resource.members).toEqual({ plot: material.resource.id });
     await expect(

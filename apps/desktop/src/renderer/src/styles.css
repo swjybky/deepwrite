@@ -3074,6 +3074,17 @@ html[data-theme="dark"] :where(
   resize: none;
 }
 
+.document-title-input:focus-visible,
+.document-editor:focus-visible {
+  outline: 1px solid rgb(0 0 0 / 22%);
+  outline-offset: 0;
+}
+
+html[data-theme="dark"] .document-title-input:focus-visible,
+html[data-theme="dark"] .document-editor:focus-visible {
+  outline-color: rgb(255 255 255 / 22%);
+}
+
 .document-editor[readonly] {
   color: #55585c;
 }

@@ -461,7 +461,8 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         ? buildLibraryAgentTools({
             workspace: libraryWorkspace,
             profile: input.libraryAgentProfile,
-            writeApprovalMode: input.writeApprovalMode ?? "request-approval"
+            writeApprovalMode: input.writeApprovalMode ?? "request-approval",
+            attachedSkills: input.workspaceContext?.attachedSkills
           })
       : shortWorkspace && input.agentProfile
         ? buildShortWorkspaceTools({
@@ -1254,11 +1255,13 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
       libraryProfile.systemPrompt.trim(),
       "",
       "【DeepWrite 当前资料库工具边界】",
-      "只允许管理本轮指定的一个资料库；条目正文必须通过本轮实际列出的读取和搜索工具按需取得。",
+      "写入只允许管理本轮指定的当前资料库；若该库属于分组，list/read/search 也可读取同分组其它成员库条目，但不得写入那些库。",
+      "条目正文必须通过本轮实际列出的读取和搜索工具按需取得。",
+      "需要整理、创建或初始化等方法时，调用 load_skill 按需加载本轮可用技能；技能是方法，不会自动成为资料库事实。",
       libraryWorkspace.readOnly
         ? "当前资料库只读，本轮不会装配任何创建或编辑工具。"
         : writeBoundary,
-      "库介绍当前只读；删除条目、修改分组、绑定书籍和修改其它资料库均未接通。"
+      "库介绍当前只读；删除条目、修改分组、绑定书籍和写入其它资料库均未接通。"
     ].join("\n");
   }
   const profile = input.agentProfile;
@@ -1293,24 +1296,33 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
   const isShortAgentRun = Boolean(
     input.workspaceContext?.shortWorkspace && input.agentProfile
   );
+  const isLibraryAgentRun = Boolean(
+    libraryContext && input.libraryAgentProfile
+  );
   const learningContext = input.workspaceContext?.learningImitation;
   const readableSkills = input.agentProfile
     ? skills.filter(
         (item) =>
           item.kind !== undefined && input.agentProfile!.readAccess.skill.includes(item.kind)
       )
-    : skills;
+    : input.libraryAgentProfile
+      ? skills
+      : skills;
   const readableMaterials = input.agentProfile
     ? materials.filter(
         (item) =>
           item.kind !== undefined && input.agentProfile!.readAccess.material.includes(item.kind)
       )
     : materials;
-  const skillContext = isShortAgentRun
+  const skillContext = isShortAgentRun || isLibraryAgentRun
     ? readableSkills.length
-      ? `可按需加载的技能：\n${readableSkills
-          .map((item) => `- ${item.title} [${item.kind}]`)
-          .join("\n")}\n需要正文时调用 load_skill。`
+      ? isLibraryAgentRun
+        ? `可按需加载的技能：\n${input.libraryAgentProfile!.readAccess.skills
+            .map((skill) => `- ${skill.name}：${skill.description || "无描述"}`)
+            .join("\n")}\n需要正文时调用 load_skill。`
+        : `可按需加载的技能：\n${readableSkills
+            .map((item) => `- ${item.title} [${item.kind}]`)
+            .join("\n")}\n需要正文时调用 load_skill。`
       : "可按需加载的技能: 无"
     : skills.length
       ? `显式附加技能:\n${skills.map((item) => `- ${item.title}: ${item.content}`).join("\n")}`
@@ -1494,7 +1506,7 @@ function buildLocalWritingResponse(input: AgentRunInput): string {
           input.workspaceContext?.shortWorkspace ? "阶段专属工具" : "通用上下文"
         }。`
       : input.libraryAgentProfile
-        ? `- 当前已选择「${input.libraryAgentProfile.label}」，并且只装配当前资料库的按需读取、搜索与安全写入工具。`
+        ? `- 当前已选择「${input.libraryAgentProfile.label}」，并且装配当前资料库读写工具与按需 load_skill。`
       : "",
     "",
     "下一切片接入真实模型配置后，可以在保持同一协议的前提下生成正式续写、润色和一致性检查结果。"

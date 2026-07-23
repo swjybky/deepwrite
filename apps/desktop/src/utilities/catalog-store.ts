@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   mkdir,
   readFile,
@@ -1227,7 +1227,7 @@ export class CatalogStore {
 
   async createShortBook(rawInput: CreateShortBookInput): Promise<ShortBook> {
     const input = CreateShortBookInputSchema.parse(rawInput);
-    const id = `book-${randomUUID()}`;
+    const id = `book-${randomBytes(4).toString("hex")}`;
     const now = this.now();
     const book = ShortBookSchema.parse({
       id,

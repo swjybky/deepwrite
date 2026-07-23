@@ -28,7 +28,10 @@ function defaultInput(): LibraryAgentSettingsInput {
   return {
     agents: DEFAULT_LIBRARY_AGENT_PROFILES.map((profile) => ({
       domain: profile.domain,
-      systemPrompt: profile.systemPrompt
+      systemPrompt: profile.systemPrompt,
+      readAccess: {
+        skills: profile.readAccess.skills.map((skill) => ({ ...skill }))
+      }
     }))
   };
 }
@@ -37,7 +40,14 @@ function customizedInput(prefix: string): LibraryAgentSettingsInput {
   return {
     agents: defaultInput().agents.map((agent) => ({
       ...agent,
-      systemPrompt: `${prefix}:${agent.domain}`
+      systemPrompt: `${prefix}:${agent.domain}`,
+      readAccess: {
+        skills: agent.readAccess.skills.map((skill, index) =>
+          index === 0
+            ? { ...skill, name: `${prefix}-skill`, content: `${prefix}-content` }
+            : { ...skill }
+        )
+      }
     }))
   };
 }
@@ -116,6 +126,33 @@ describe("LibraryAgentConfigStore", () => {
     await expect(store.list()).resolves.toMatchObject({
       agents: DEFAULT_LIBRARY_AGENT_PROFILES
     });
+  });
+
+  it("backfills missing readAccess from builtin defaults for legacy disk configs", async () => {
+    const root = await makeTemporaryRoot();
+    const configDirectory = join(root, "config");
+    const settingsPath = join(configDirectory, "library-agents.json");
+    await mkdir(configDirectory);
+    const store = new LibraryAgentConfigStore(root);
+    const legacyAgents = DEFAULT_LIBRARY_AGENT_PROFILES.map((profile) => ({
+      domain: profile.domain,
+      systemPrompt: `legacy:${profile.domain}`
+    }));
+
+    await writeFile(
+      settingsPath,
+      JSON.stringify({ version: 1, agents: legacyAgents }),
+      "utf8"
+    );
+
+    const settings = await store.list();
+    expect(byDomain(settings.agents, "material").systemPrompt).toBe("legacy:material");
+    expect(byDomain(settings.agents, "material").readAccess).toEqual(
+      byDomain(DEFAULT_LIBRARY_AGENT_PROFILES, "material").readAccess
+    );
+    expect(byDomain(settings.agents, "skill").readAccess).toEqual(
+      byDomain(DEFAULT_LIBRARY_AGENT_PROFILES, "skill").readAccess
+    );
   });
 
   it("resets only the requested domain and preserves the other override", async () => {
