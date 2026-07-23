@@ -440,6 +440,26 @@ function formatEntryChoice(domain: LibraryDomain, entry: MutableLibraryEntry): s
   return `- ${entry.title}｜${stageLabel(domain, entry.stageId)}（${entry.stageId}）${libraryPart}｜entry_id=${entry.entryId}`;
 }
 
+/** Catalog 原生条目 ID；跨库快照里可能是 `libraryId/entryId`。 */
+function catalogEntryId(entry: MutableLibraryEntry): string {
+  const prefix = `${entry.sourceLibraryId}/`;
+  return entry.entryId.startsWith(prefix)
+    ? entry.entryId.slice(prefix.length)
+    : entry.entryId;
+}
+
+/**
+ * 同时接受：
+ * - 快照 ID（当前库裸 ID，或同组跨库的 `libraryId/entryId`）
+ * - Catalog 裸 entry_id（可再配合 library_id 消歧）
+ */
+function entryIdMatches(entry: MutableLibraryEntry, requested: string): boolean {
+  if (entry.entryId === requested) return true;
+  const nativeId = catalogEntryId(entry);
+  if (nativeId === requested) return true;
+  return `${entry.sourceLibraryId}/${nativeId}` === requested;
+}
+
 function resolveEntry(
   entries: readonly MutableLibraryEntry[],
   domain: LibraryDomain,
@@ -460,7 +480,7 @@ function resolveEntry(
     : libraryScoped;
   const entryId = String(input.entry_id ?? "").trim();
   if (entryId) {
-    const matches = scoped.filter((entry) => entry.entryId === entryId);
+    const matches = scoped.filter((entry) => entryIdMatches(entry, entryId));
     if (matches.length === 1) return { entry: matches[0]! };
     if (matches.length > 1) {
       return {
@@ -609,7 +629,7 @@ function buildReadTool(
     name: `read_${domain}_entry`,
     label: `读取${noun}条目`,
     description: withPeers
-      ? `按 entry_id 或精确标题读取当前${noun}库或同分组其它成员库中的一个条目全文；跨库重名时必须补充 library_id、栏目或 entry_id。`
+      ? `按 entry_id 或精确标题读取当前${noun}库或同分组其它成员库中的一个条目全文；可用 Catalog 裸 entry_id，跨库时建议同时传 library_id；也兼容 list 返回的 libraryId/entryId。`
       : `按 entry_id 或精确标题读取当前${noun}库中的一个条目全文；重名时必须补充栏目或 entry_id。`,
     parameters: Type.Object({
       entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),

@@ -433,6 +433,18 @@ describe("library agent tools", () => {
       name: "节奏钩子",
       library_id: "material-plot"
     });
+    const peerReadByBareId = await toolByName(tools, "read_material_entry").execute(
+      "read-peer-bare",
+      {
+        entry_id: "plot-entry-1",
+        stage_id: "pacing",
+        library_id: "material-plot"
+      }
+    );
+    const peerReadByBareIdAlone = await toolByName(tools, "read_material_entry").execute(
+      "read-peer-bare-alone",
+      { entry_id: "plot-entry-1" }
+    );
     const peerEdit = await toolByName(tools, "edit_material_entry").execute("edit-peer", {
       entry_id: "material-plot/plot-entry-1",
       mode: "append",
@@ -449,6 +461,9 @@ describe("library agent tools", () => {
     expect(resultText(list)).toContain("material-plot");
     expect(resultText(peerRead)).toContain("同组剧情素材。");
     expect(resultText(peerRead)).toContain("同分组只读");
+    expect(resultText(peerReadByBareId)).toContain("同组剧情素材。");
+    expect(resultText(peerReadByBareId)).toContain("entry_id：material-plot/plot-entry-1");
+    expect(resultText(peerReadByBareIdAlone)).toContain("同组剧情素材。");
     expect(resultText(peerEdit)).toContain("同分组其它库");
     expect(created.details).toMatchObject({
       kind: "library-entry-mutation",
@@ -456,5 +471,73 @@ describe("library agent tools", () => {
       libraryId: "material-library-1",
       stageId: "character"
     });
+  });
+
+  it("reports ambiguity when the same bare entry_id exists in multiple peer libraries", async () => {
+    const workspace = materialWorkspace({
+      groupId: "material-group-1",
+      groupTitle: "雾港素材组",
+      readableLibraries: [
+        { libraryId: "material-library-1", title: "雾港素材", kind: "character" },
+        { libraryId: "material-plot", title: "剧情素材", kind: "plot" },
+        { libraryId: "material-gimmick", title: "梗素材", kind: "gimmick" }
+      ],
+      entries: [
+        {
+          id: "material-entry-1",
+          documentId: "material:material-library-1:material-entry-1",
+          stageId: "character",
+          title: "雾港侦探",
+          content: "当前库人物。",
+          revision: createShortWorkspaceContentRevision("当前库人物。"),
+          readOnly: false
+        },
+        {
+          id: "material-plot/shared-entry",
+          documentId: "material:material-plot:shared-entry",
+          stageId: "pacing",
+          title: "剧情共享条目",
+          content: "剧情侧。",
+          revision: createShortWorkspaceContentRevision("剧情侧。"),
+          readOnly: true,
+          sourceLibraryId: "material-plot",
+          sourceLibraryTitle: "剧情素材"
+        },
+        {
+          id: "material-gimmick/shared-entry",
+          documentId: "material:material-gimmick:shared-entry",
+          stageId: "gimmick",
+          title: "梗共享条目",
+          content: "梗侧。",
+          revision: createShortWorkspaceContentRevision("梗侧。"),
+          readOnly: true,
+          sourceLibraryId: "material-gimmick",
+          sourceLibraryTitle: "梗素材"
+        }
+      ]
+    });
+    const tools = buildLibraryAgentTools({
+      workspace,
+      profile: profile("material")
+    });
+
+    const ambiguous = await toolByName(tools, "read_material_entry").execute(
+      "read-ambiguous",
+      { entry_id: "shared-entry" }
+    );
+    const disambiguated = await toolByName(tools, "read_material_entry").execute(
+      "read-disambiguated",
+      {
+        entry_id: "shared-entry",
+        library_id: "material-gimmick",
+        stage_id: "gimmick"
+      }
+    );
+
+    expect(resultText(ambiguous)).toContain("匹配到多个条目");
+    expect(resultText(ambiguous)).toContain("material-plot/shared-entry");
+    expect(resultText(ambiguous)).toContain("material-gimmick/shared-entry");
+    expect(resultText(disambiguated)).toContain("梗侧。");
+    expect(resultText(disambiguated)).not.toContain("剧情侧。");
   });
 });
