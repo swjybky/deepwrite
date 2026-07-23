@@ -36,6 +36,7 @@ const emit = defineEmits<{
   openSettings: [];
   selectResource: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
+  exportBook: [node: ResourceTreeNode];
   resourceAction: [payload: ResourceSectionActionPayload];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   createExpertSection: [node: ResourceTreeNode];
@@ -355,6 +356,7 @@ watch(
               @select="emit('selectResource', $event)"
               @toggle-pin="toggleResourcePin"
               @book-action="(mode, book) => emit('bookAction', mode, book)"
+              @export-book="emit('exportBook', $event)"
               @resource-node-action="emit('resourceNodeAction', $event)"
               @create-expert-section="emit('createExpertSection', $event)"
               @remove-expert-section="emit('removeExpertSection', $event)"
@@ -371,6 +373,7 @@ watch(
           @select="emit('selectResource', $event)"
           @toggle-pin="toggleResourcePin"
           @book-action="(mode, book) => emit('bookAction', mode, book)"
+          @export-book="emit('exportBook', $event)"
           @resource-action="emit('resourceAction', $event)"
           @resource-node-action="emit('resourceNodeAction', $event)"
           @create-expert-section="emit('createExpertSection', $event)"

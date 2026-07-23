@@ -25,7 +25,7 @@ export interface AgentEditProposal {
   id: string;
   runId: string;
   workspaceId: string;
-  stageId: ShortWorkspaceStageId;
+  stageId: ShortWorkspaceStageId | "library";
   documentId: string;
   title: string;
   summary: string;
@@ -47,6 +47,14 @@ export interface AgentEditProposal {
   statusMessage?: string;
   createdAt: string;
   updatedAt: string;
+  libraryTarget?: {
+    operation: "create" | "edit";
+    domain: "material" | "skill";
+    libraryId: string;
+    stageId: string;
+    baseProjectRevision?: number;
+    entryId?: string;
+  };
 }
 
 export interface ChatToolActivity {

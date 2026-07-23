@@ -22,6 +22,7 @@ const emit = defineEmits<{
   select: [node: ResourceTreeNode];
   togglePin: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
+  exportBook: [node: ResourceTreeNode];
   resourceAction: [payload: ResourceSectionActionPayload];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   createExpertSection: [node: ResourceTreeNode];
@@ -162,6 +163,7 @@ onBeforeUnmount(() => {
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
         @book-action="(mode, book) => emit('bookAction', mode, book)"
+        @export-book="emit('exportBook', $event)"
         @resource-node-action="emit('resourceNodeAction', $event)"
         @create-expert-section="emit('createExpertSection', $event)"
         @remove-expert-section="emit('removeExpertSection', $event)"

@@ -17,4 +17,13 @@ describe("TreeNodeItem actions", () => {
       /\.tree-node-action-area\.is-menu-open\s*\{\s*z-index:\s*30;\s*\}/
     );
   });
+
+  it("opens the manuscript export dialog below material binding without an inline format list", () => {
+    expect(source).toContain("<span>导出正文</span>");
+    expect(source).not.toContain("['docx', 'txt', 'epub'] as const");
+    expect(source).toContain('emit("exportBook", props.node)');
+    expect(source.indexOf("<span>导出正文</span>")).toBeGreaterThan(
+      source.indexOf("<span>素材库绑定</span>")
+    );
+  });
 });

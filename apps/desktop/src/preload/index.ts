@@ -23,12 +23,17 @@ import {
   DeleteBookResultSchema,
   DeleteDraftSectionInputSchema,
   DeleteDraftSectionResultSchema,
+  ExportShortManuscriptInputSchema,
+  ExportShortManuscriptResultSchema,
   ImportLegacyLibraryResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
   LearningImitationSettingsInputSchema,
   LearningImitationSettingsSchema,
   LearningImitationStageIdSchema,
+  LibraryAgentDomainSchema,
+  LibraryAgentSettingsInputSchema,
+  LibraryAgentSettingsSchema,
   ModelConnectionTestResultSchema,
   ModelConfigInputSchema,
   ModelSettingsInputSchema,
@@ -75,11 +80,16 @@ import {
   type DeleteBookResult,
   type DeleteDraftSectionInput,
   type DeleteDraftSectionResult,
+  type ExportShortManuscriptInput,
+  type ExportShortManuscriptResult,
   type ModelConnectionTestResult,
   type ImportLegacyLibraryResult,
   type LearningImitationSettings,
   type LearningImitationSettingsInput,
   type LearningImitationStageId,
+  type LibraryAgentDomain,
+  type LibraryAgentSettings,
+  type LibraryAgentSettingsInput,
   type ModelConfigInput,
   type ModelSettings,
   type ModelSettingsInput,
@@ -539,6 +549,45 @@ async function resetWorkspaceAgents(
   );
 }
 
+async function listLibraryAgents(): Promise<LibraryAgentSettings> {
+  const id = browserId("cmd_library_agents_list");
+  return LibraryAgentSettingsSchema.parse(
+    await invokeCommand<LibraryAgentSettings>(
+      createEnvelope("libraryAgents.list", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function saveLibraryAgents(
+  rawSettings: LibraryAgentSettingsInput
+): Promise<LibraryAgentSettings> {
+  const settings = LibraryAgentSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_library_agents_save");
+  return LibraryAgentSettingsSchema.parse(
+    await invokeCommand<LibraryAgentSettings>(
+      createEnvelope("libraryAgents.save", settings, { id, correlationId: id })
+    )
+  );
+}
+
+async function resetLibraryAgents(
+  rawDomain?: LibraryAgentDomain
+): Promise<LibraryAgentSettings> {
+  const domain = rawDomain
+    ? LibraryAgentDomainSchema.parse(rawDomain)
+    : undefined;
+  const id = browserId("cmd_library_agents_reset");
+  return LibraryAgentSettingsSchema.parse(
+    await invokeCommand<LibraryAgentSettings>(
+      createEnvelope(
+        "libraryAgents.reset",
+        { ...(domain ? { domain } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
 async function listLearningImitationSettings(): Promise<LearningImitationSettings> {
   const id = browserId("cmd_learning_imitation_settings_list");
   return LearningImitationSettingsSchema.parse(
@@ -599,6 +648,21 @@ async function chooseWorkspaceDirectory(): Promise<WorkspaceDirectorySettings | 
   );
 }
 
+async function exportShortManuscript(
+  rawInput: ExportShortManuscriptInput
+): Promise<ExportShortManuscriptResult> {
+  const input = ExportShortManuscriptInputSchema.parse(rawInput);
+  const id = browserId("cmd_manuscript_export_short");
+  return ExportShortManuscriptResultSchema.parse(
+    await invokeCommand<ExportShortManuscriptResult>(
+      createEnvelope("manuscript.exportShort", input, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
 const api: DeepWriteApi = {
   system: {
     health: getHealth
@@ -639,6 +703,11 @@ const api: DeepWriteApi = {
     save: saveWorkspaceAgents,
     reset: resetWorkspaceAgents
   },
+  libraryAgents: {
+    list: listLibraryAgents,
+    save: saveLibraryAgents,
+    reset: resetLibraryAgents
+  },
   learningImitationSettings: {
     list: listLearningImitationSettings,
     save: saveLearningImitationSettings,
@@ -647,6 +716,9 @@ const api: DeepWriteApi = {
   workspaceDirectory: {
     list: listWorkspaceDirectory,
     choose: chooseWorkspaceDirectory
+  },
+  manuscript: {
+    exportShort: exportShortManuscript
   },
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void {

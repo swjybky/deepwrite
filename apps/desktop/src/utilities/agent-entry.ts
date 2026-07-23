@@ -146,6 +146,18 @@ function toEventEnvelope(
     );
   }
 
+  if (event.type === "library.editor_mutation") {
+    return createEnvelope(
+      "library.editor_mutation",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        ...event.payload
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   if (event.type === "workspace.stage_selection") {
     return createEnvelope(
       "workspace.stage_selection",
@@ -356,6 +368,9 @@ bootUtility("agent", {
           : {}),
         ...(command.payload.agentProfile
           ? { agentProfile: command.payload.agentProfile }
+          : {}),
+        ...(command.payload.libraryAgentProfile
+          ? { libraryAgentProfile: command.payload.libraryAgentProfile }
           : {}),
         ...(command.payload.learningImitationProfile
           ? { learningImitationProfile: command.payload.learningImitationProfile }

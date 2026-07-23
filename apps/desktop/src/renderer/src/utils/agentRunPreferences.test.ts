@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceDocument } from "../types/workspace";
 import {
+  activeAgentDocumentForSelection,
   agentConversationKeyForDocument,
   agentRunScopeForDocument,
   parseAgentRunPreferences
@@ -38,6 +39,52 @@ describe("agent run preferences", () => {
     expect(agentConversationKeyForDocument(workspaceDocument(undefined))).toBe(
       "general"
     );
+  });
+
+  it("shares one management conversation inside a library and isolates domains", () => {
+    const materialEntry: WorkspaceDocument = {
+      id: "material-entry-1",
+      domain: "material",
+      title: "素材一",
+      eyebrow: "素材",
+      path: ["素材库", "素材一"],
+      content: "",
+      libraryId: "shared-library",
+      catalogEntryId: "entry-1"
+    };
+    const secondMaterialEntry: WorkspaceDocument = {
+      ...materialEntry,
+      id: "material-entry-2",
+      catalogEntryId: "entry-2"
+    };
+    const skillEntry: WorkspaceDocument = {
+      ...materialEntry,
+      id: "skill-entry-1",
+      domain: "skill"
+    };
+
+    expect(agentConversationKeyForDocument(materialEntry)).toBe(
+      "library:material:shared-library"
+    );
+    expect(agentConversationKeyForDocument(secondMaterialEntry)).toBe(
+      "library:material:shared-library"
+    );
+    expect(agentConversationKeyForDocument(skillEntry)).toBe(
+      "library:skill:shared-library"
+    );
+    expect(agentRunScopeForDocument(materialEntry)).toBe(
+      "library:material:shared-library"
+    );
+    const activeBookDocument = workspaceDocument("book-one", "outline");
+    expect(
+      activeAgentDocumentForSelection(materialEntry, activeBookDocument)
+    ).toBe(materialEntry);
+    expect(
+      activeAgentDocumentForSelection(
+        workspaceDocument("book-two", "plot_design"),
+        activeBookDocument
+      )
+    ).toBe(activeBookDocument);
   });
 
   it("accepts the longest valid book-scoped preference key", () => {

@@ -17,13 +17,34 @@ export interface AgentRunPreferences {
 
 export type AgentRunPreferencesByScope = Record<string, AgentRunPreferences>;
 
+export function activeAgentDocumentForSelection(
+  selectedDocument: WorkspaceDocument,
+  activeCreationDocument: WorkspaceDocument
+): WorkspaceDocument {
+  return selectedDocument.domain === "creation"
+    ? activeCreationDocument
+    : selectedDocument;
+}
+
 export function agentRunScopeForDocument(document: WorkspaceDocument): string {
+  if (
+    document.libraryId &&
+    (document.domain === "skill" || document.domain === "material")
+  ) {
+    return `library:${document.domain}:${document.libraryId}`;
+  }
   return document.workspaceId ? `book:${document.workspaceId}` : "general";
 }
 
 export function agentConversationKeyForDocument(
   document: WorkspaceDocument
 ): string {
+  if (
+    document.libraryId &&
+    (document.domain === "skill" || document.domain === "material")
+  ) {
+    return `library:${document.domain}:${document.libraryId}`;
+  }
   if (
     document.workspaceType !== "short" ||
     !document.workspaceId ||
@@ -89,7 +110,8 @@ export function parseAgentRunPreferences(
 
     return Object.fromEntries(
       Object.entries(value).flatMap(([scope, preference]) => {
-        if (!scope.trim() || scope.length > 517) return [];
+        const maximumScopeLength = scope.startsWith("library:") ? 540 : 517;
+        if (!scope.trim() || scope.length > maximumScopeLength) return [];
         const parsed = parseAgentRunPreference(preference);
         return parsed ? [[scope, parsed]] : [];
       })

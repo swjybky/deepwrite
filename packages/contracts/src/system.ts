@@ -11,6 +11,7 @@ import {
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   LearningImitationResultUpdatedEventEnvelopeSchema,
+  LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
   SessionAbortCommandEnvelopeSchema,
@@ -23,6 +24,7 @@ import {
   type AgentToolCallStreamEventEnvelope,
   type AgentToolRequestedEventEnvelope,
   type LearningImitationResultUpdatedEventEnvelope,
+  type LibraryEditorMutationEventEnvelope,
   type WorkspaceEditorMutationEventEnvelope,
   type WorkspaceStageSelectionEventEnvelope
 } from "./session";
@@ -42,6 +44,11 @@ import {
   WorkspaceAgentsResetCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema
 } from "./workspace";
+import {
+  LibraryAgentsListCommandEnvelopeSchema,
+  LibraryAgentsResetCommandEnvelopeSchema,
+  LibraryAgentsSaveCommandEnvelopeSchema
+} from "./library-agent";
 import {
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryCommandEnvelopeSchema,
@@ -74,6 +81,7 @@ import {
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema
 } from "./workspace-directory";
+import { ExportShortManuscriptCommandEnvelopeSchema } from "./short-manuscript-export";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
 export const IPC_EVENT_CHANNEL = "deepwrite:event";
@@ -139,11 +147,15 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   WorkspaceAgentsListCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
   WorkspaceAgentsResetCommandEnvelopeSchema,
+  LibraryAgentsListCommandEnvelopeSchema,
+  LibraryAgentsSaveCommandEnvelopeSchema,
+  LibraryAgentsResetCommandEnvelopeSchema,
   LearningImitationSettingsListCommandEnvelopeSchema,
   LearningImitationSettingsSaveCommandEnvelopeSchema,
   LearningImitationSettingsResetCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema,
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
+  ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentAbortCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema
@@ -208,6 +220,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
   LearningImitationResultUpdatedEventEnvelopeSchema,
+  LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
   AgentErrorEventEnvelopeSchema
@@ -233,6 +246,7 @@ export type SystemEventEnvelope =
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope
   | LearningImitationResultUpdatedEventEnvelope
+  | LibraryEditorMutationEventEnvelope
   | WorkspaceEditorMutationEventEnvelope
   | WorkspaceStageSelectionEventEnvelope
   | AgentErrorEventEnvelope;

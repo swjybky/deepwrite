@@ -15,9 +15,11 @@ import {
   DeleteCatalogProjectResultSchema,
   DeleteBookResultSchema,
   DeleteDraftSectionResultSchema,
+  ExportShortManuscriptResultSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
   LearningImitationSettingsSchema,
+  LibraryAgentSettingsSchema,
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
   RemoveLibraryEntryResultSchema,
@@ -43,7 +45,9 @@ import {
 } from "./legacy-library-import-batch";
 import { ModelConfigStore } from "./model-config-store";
 import { LearningImitationConfigStore } from "./learning-imitation-config-store";
+import { LibraryAgentConfigStore } from "./library-agent-config-store";
 import { resolveModelRunSettings } from "./model-run-settings";
+import { exportShortManuscript } from "./short-manuscript-export";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
 import { WorkspaceDirectoryStore } from "./workspace-directory-store";
@@ -60,6 +64,7 @@ let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
 let learningImitationConfigStore: LearningImitationConfigStore | undefined;
+let libraryAgentConfigStore: LibraryAgentConfigStore | undefined;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
 let quitting = false;
@@ -86,6 +91,7 @@ type AgentEventEnvelope = Extract<
       | "tool.call_requested"
       | "tool.execution_completed"
       | "learning_imitation.result_updated"
+      | "library.editor_mutation"
       | "workspace.editor_mutation"
       | "workspace.stage_selection";
   }
@@ -101,6 +107,7 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "tool.call_requested" ||
     event.type === "tool.execution_completed" ||
     event.type === "learning_imitation.result_updated" ||
+    event.type === "library.editor_mutation" ||
     event.type === "workspace.editor_mutation" ||
     event.type === "workspace.stage_selection"
   );
@@ -277,6 +284,13 @@ function requireWorkspaceAgentConfigStore(): WorkspaceAgentConfigStore {
   return workspaceAgentConfigStore;
 }
 
+function requireLibraryAgentConfigStore(): LibraryAgentConfigStore {
+  if (!libraryAgentConfigStore) {
+    throw new Error("资料库智能体设置存储尚未初始化。");
+  }
+  return libraryAgentConfigStore;
+}
+
 function requireLearningImitationConfigStore(): LearningImitationConfigStore {
   if (!learningImitationConfigStore) {
     throw new Error("学习仿写设置存储尚未初始化。");
@@ -427,6 +441,28 @@ function registerIpc(): void {
           requestId: command.id,
           payload: SystemHealthPayloadSchema.parse(await supervisor.collectHealth())
         };
+      }
+
+      if (command.type === "manuscript.exportShort") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ExportShortManuscriptResultSchema.parse(
+              await exportShortManuscript(mainWindow, command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "manuscript.export_failed",
+              message: error instanceof Error ? error.message : "导出正文失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
       }
 
       if (command.type === "workspaceDirectory.list") {
@@ -895,6 +931,81 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "libraryAgents.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LibraryAgentSettingsSchema.parse(
+              await requireLibraryAgentConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "library_agents.list_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "加载资料库智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "libraryAgents.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LibraryAgentSettingsSchema.parse(
+              await requireLibraryAgentConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "library_agents.save_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "保存资料库智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "libraryAgents.reset") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: LibraryAgentSettingsSchema.parse(
+              await requireLibraryAgentConfigStore().reset(command.payload.domain)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "library_agents.reset_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "恢复资料库智能体默认设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "learningImitationSettings.list") {
         try {
           return {
@@ -1006,10 +1117,16 @@ function registerIpc(): void {
         try {
           const runtimeConfig = await requireModelConfigStore().resolve(command.payload.modelId);
           const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
+          const libraryWorkspace = command.payload.workspaceContext?.libraryWorkspace;
           const learningImitation = command.payload.workspaceContext?.learningImitation;
           const agentProfile = shortWorkspace
             ? await requireWorkspaceAgentConfigStore().resolveForWorkspace(
                 shortWorkspace
+              )
+            : undefined;
+          const libraryAgentProfile = libraryWorkspace
+            ? await requireLibraryAgentConfigStore().resolve(
+                libraryWorkspace.domain
               )
             : undefined;
           const learningImitationProfile = learningImitation
@@ -1035,6 +1152,7 @@ function registerIpc(): void {
                 ...(temperature !== undefined ? { temperature } : {}),
                 ...(runtimeConfig ? { runtimeConfig } : {}),
                 ...(agentProfile ? { agentProfile } : {}),
+                ...(libraryAgentProfile ? { libraryAgentProfile } : {}),
                 ...(learningImitationProfile ? { learningImitationProfile } : {})
               },
               { id: command.id, context: command.context }
@@ -1232,6 +1350,7 @@ if (!hasSingleInstanceLock) {
     });
     void modelConfigStore.initialize();
     workspaceAgentConfigStore = new WorkspaceAgentConfigStore(userDataPath);
+    libraryAgentConfigStore = new LibraryAgentConfigStore(userDataPath);
     learningImitationConfigStore = new LearningImitationConfigStore(userDataPath);
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
     await workspaceDirectoryStore.initializeDefault(app.getPath("documents"));

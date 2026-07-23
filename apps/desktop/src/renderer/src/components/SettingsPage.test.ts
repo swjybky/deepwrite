@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import source from "./SettingsPage.vue?raw";
 
-describe("SettingsPage appearance controls", () => {
+describe("SettingsPage", () => {
   it("provides a dedicated learning-imitation prompt category", () => {
     expect(source).toContain('label: "学习仿写设置"');
     expect(source).toContain("<LearningImitationSettingsPanel");
     expect(source).toContain("emit('saveLearningImitation', $event)");
+  });
+
+  it("provides dedicated skill and material library agent categories", () => {
+    expect(source).toContain('label: "技能库配置"');
+    expect(source).toContain('label: "素材库配置"');
+    expect(source).toContain("<LibraryAgentSettingsPanel");
+    expect(source).toContain('domain="skill"');
+    expect(source).toContain('domain="material"');
+    expect(source).toContain("emit('saveLibraryAgents', $event)");
+    expect(source).toContain("emit('resetLibraryAgent', $event)");
   });
 
   it("lets users replace a font-size value and previews valid input immediately", () => {

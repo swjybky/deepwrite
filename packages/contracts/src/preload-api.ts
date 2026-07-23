@@ -18,10 +18,19 @@ import type {
 } from "./workspace";
 import type { WorkspaceDirectorySettings } from "./workspace-directory";
 import type {
+  ExportShortManuscriptInput,
+  ExportShortManuscriptResult
+} from "./short-manuscript-export";
+import type {
   LearningImitationSettings,
   LearningImitationSettingsInput,
   LearningImitationStageId
 } from "./learning-imitation";
+import type {
+  LibraryAgentDomain,
+  LibraryAgentSettings,
+  LibraryAgentSettingsInput
+} from "./library-agent";
 import type {
   CatalogDocument,
   CatalogDraftSection,
@@ -106,6 +115,11 @@ export interface DeepWriteApi {
       agentId?: ShortWorkspaceAgentId
     ): Promise<ShortWorkspaceAgentSettings>;
   };
+  libraryAgents: {
+    list(): Promise<LibraryAgentSettings>;
+    save(settings: LibraryAgentSettingsInput): Promise<LibraryAgentSettings>;
+    reset(domain?: LibraryAgentDomain): Promise<LibraryAgentSettings>;
+  };
   learningImitationSettings: {
     list(): Promise<LearningImitationSettings>;
     save(settings: LearningImitationSettingsInput): Promise<LearningImitationSettings>;
@@ -114,6 +128,11 @@ export interface DeepWriteApi {
   workspaceDirectory: {
     list(): Promise<WorkspaceDirectorySettings>;
     choose(): Promise<WorkspaceDirectorySettings | null>;
+  };
+  manuscript: {
+    exportShort(
+      input: ExportShortManuscriptInput
+    ): Promise<ExportShortManuscriptResult>;
   };
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void;

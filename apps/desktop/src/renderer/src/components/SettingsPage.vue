@@ -4,6 +4,9 @@ import type {
   LearningImitationSettings,
   LearningImitationSettingsInput,
   LearningImitationStageId,
+  LibraryAgentDomain,
+  LibraryAgentSettings,
+  LibraryAgentSettingsInput,
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
@@ -20,13 +23,22 @@ import {
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
 import LearningImitationSettingsPanel from "./LearningImitationSettingsPanel.vue";
+import LibraryAgentSettingsPanel from "./LibraryAgentSettingsPanel.vue";
 import PopupSelect from "./PopupSelect.vue";
 import ShortAgentSettingsPanel from "./ShortAgentSettingsPanel.vue";
 
 interface SettingsCategory {
   id: string;
   label: string;
-  icon?: "user" | "sparkles" | "keyboard" | "globe" | "model" | "brain";
+  icon?:
+    | "user"
+    | "sparkles"
+    | "keyboard"
+    | "globe"
+    | "model"
+    | "brain"
+    | "wand"
+    | "archive";
 }
 
 interface SettingsSection {
@@ -44,6 +56,9 @@ defineProps<{
   learningImitationSettings: LearningImitationSettings | null;
   learningImitationLoading: boolean;
   learningImitationSaving: boolean;
+  libraryAgentSettings: LibraryAgentSettings | null;
+  libraryAgentLoading: boolean;
+  libraryAgentSaving: boolean;
   runtimeAvailable: boolean;
 }>();
 
@@ -52,6 +67,8 @@ const emit = defineEmits<{
   saveWorkspaceAgents: [settings: ShortWorkspaceAgentSettingsInput];
   saveLearningImitation: [settings: LearningImitationSettingsInput];
   resetLearningImitation: [stageId: LearningImitationStageId];
+  saveLibraryAgents: [settings: LibraryAgentSettingsInput];
+  resetLibraryAgent: [domain: LibraryAgentDomain];
 }>();
 const appearance = useAppearance();
 const activeCategory = ref("general");
@@ -64,6 +81,8 @@ const sections: SettingsSection[] = [
     label: "创作",
     categories: [
       { id: "short-agents", label: "创作空间", icon: "brain" },
+      { id: "skill-library-agent", label: "技能库配置", icon: "wand" },
+      { id: "material-library-agent", label: "素材库配置", icon: "archive" },
       { id: "learning-imitation", label: "学习仿写设置", icon: "sparkles" }
     ]
   },
@@ -305,6 +324,28 @@ async function importThemeFile(event: Event): Promise<void> {
           :runtime-available="runtimeAvailable"
           @save="emit('saveLearningImitation', $event)"
           @reset="emit('resetLearningImitation', $event)"
+        />
+
+        <LibraryAgentSettingsPanel
+          v-else-if="activeCategory === 'skill-library-agent'"
+          domain="skill"
+          :settings="libraryAgentSettings"
+          :loading="libraryAgentLoading"
+          :saving="libraryAgentSaving"
+          :runtime-available="runtimeAvailable"
+          @save="emit('saveLibraryAgents', $event)"
+          @reset="emit('resetLibraryAgent', $event)"
+        />
+
+        <LibraryAgentSettingsPanel
+          v-else-if="activeCategory === 'material-library-agent'"
+          domain="material"
+          :settings="libraryAgentSettings"
+          :loading="libraryAgentLoading"
+          :saving="libraryAgentSaving"
+          :runtime-available="runtimeAvailable"
+          @save="emit('saveLibraryAgents', $event)"
+          @reset="emit('resetLibraryAgent', $event)"
         />
 
         <section v-else-if="activeCategory === 'general'" class="settings-group">

@@ -14,6 +14,9 @@ import type {
   LearningImitationSettings,
   LearningImitationSettingsInput,
   LearningImitationStageId,
+  LibraryAgentDomain,
+  LibraryAgentSettings,
+  LibraryAgentSettingsInput,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   MaterialKind,
@@ -21,6 +24,7 @@ import type {
   ModelSettings,
   ModelSettingsInput,
   ShortBook,
+  ShortManuscriptExportFormat,
   ShortWorkspaceAgentId,
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput,
@@ -32,10 +36,13 @@ import type {
   WorkspaceDirectorySettings
 } from "@deepwrite/contracts";
 import {
+  DEFAULT_LIBRARY_AGENT_PROFILES,
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   MATERIAL_KINDS,
+  MaterialStageIdSchema,
   PROMPT_ATTACHMENT_MAX_ITEMS,
   SKILL_KINDS,
+  SkillStageIdSchema,
   createShortWorkspaceContentRevision,
   resolveShortWorkspaceAgentIdForStage
 } from "@deepwrite/contracts";
@@ -43,6 +50,7 @@ import AgentConversation from "./components/AgentConversation.vue";
 import BookResourceDialog from "./components/BookResourceDialog.vue";
 import CreateShortBookDialog from "./components/CreateShortBookDialog.vue";
 import DeleteExpertSectionDialog from "./components/DeleteExpertSectionDialog.vue";
+import ExportShortManuscriptDialog from "./components/ExportShortManuscriptDialog.vue";
 import LibraryProjectDialog from "./components/LibraryProjectDialog.vue";
 import LibraryGroupDialog from "./components/LibraryGroupDialog.vue";
 import LibraryRemovalDialog from "./components/LibraryRemovalDialog.vue";
@@ -95,6 +103,7 @@ import {
   type BookResourcePreferences
 } from "./utils/bookResourcePreferences";
 import { buildLibraryAttachments } from "./utils/libraryAttachments";
+import { buildLibraryAgentWorkspaceContext } from "./utils/libraryAgentContext";
 import {
   captureWorkspaceDocumentBaselines,
   rebaseDraftsForMatchingDocuments,
@@ -102,6 +111,7 @@ import {
 } from "./utils/catalogSaveReconciliation";
 import { draftCharacterStateTitle } from "./utils/draftFileTitles";
 import { migrateLegacyDraftRecoveries } from "./utils/legacyDraftRecovery";
+import { createShortManuscriptExportInput } from "./utils/shortManuscriptExport";
 import {
   agentEditProposalId,
   classifyAgentEditAcceptance,
@@ -110,6 +120,7 @@ import {
 } from "./utils/agentEditReview";
 import {
   AGENT_RUN_PREFERENCES_STORAGE_KEY,
+  activeAgentDocumentForSelection,
   agentConversationKeyForDocument as conversationKeyForDocument,
   agentRunScopeForDocument,
   parseAgentRunPreferences,
@@ -298,6 +309,8 @@ const activeBook = ref<ResourceTreeNode | null>(null);
 const catalogSnapshot = ref<CatalogSnapshot | null>(null);
 const catalogLoading = ref(false);
 const catalogMutationPending = ref(false);
+const manuscriptExportPending = ref(false);
+const exportBookTarget = ref<ResourceTreeNode | null>(null);
 const createShortBookDialogOpen = ref(false);
 interface LibraryProjectDialogState {
   operation: "create-library" | "create-entry" | "remove-entry";
@@ -371,6 +384,11 @@ const workspaceAgentLoading = ref(false);
 const workspaceAgentSaving = ref(false);
 const workspaceAgentError = ref<string | null>(null);
 const workspaceAgentStatus = ref<string | null>(null);
+const libraryAgentSettings = ref<LibraryAgentSettings>({
+  agents: DEFAULT_LIBRARY_AGENT_PROFILES.map((agent) => ({ ...agent }))
+});
+const libraryAgentLoading = ref(false);
+const libraryAgentSaving = ref(false);
 const learningImitationSettings = ref<LearningImitationSettings | null>(null);
 const learningImitationLoading = ref(false);
 const learningImitationSaving = ref(false);
@@ -397,6 +415,7 @@ interface QueuedAutoAgentEdit {
   proposalId: string;
 }
 const queuedAutoAgentEdits = new Map<string, QueuedAutoAgentEdit>();
+const acceptedLibraryMutationCounts = new Map<string, number>();
 let autoAgentEditFlush = Promise.resolve();
 
 const catalogProjection = computed(() =>
@@ -981,11 +1000,24 @@ const activePromptDocument = computed<WorkspaceDocument>(() => {
     documents.value[0]!
   );
 });
+const activeAgentDocument = computed<WorkspaceDocument>(() =>
+  activeAgentDocumentForSelection(
+    activeDocument.value,
+    activePromptDocument.value
+  )
+);
 const liveWorkspaceDocuments = computed<WorkspaceDocument[]>(() =>
   documents.value.map((document) => {
     const live = editorDrafts.value[document.id];
     return live ? { ...document, title: live.title, content: live.content } : document;
   })
+);
+const activeLibraryAgentContext = computed(() =>
+  buildLibraryAgentWorkspaceContext(
+    catalogSnapshot.value,
+    activeAgentDocument.value,
+    liveWorkspaceDocuments.value
+  )
 );
 const activeLibraryBoundToBook = computed(() => {
   const document = activeDocument.value;
@@ -999,12 +1031,12 @@ const activeLibraryBoundToBook = computed(() => {
     : book?.boundMaterialLibraryIds?.includes(document.libraryId) ?? false;
 });
 const activeConversationKey = computed(() =>
-  conversationKeyForDocument(activePromptDocument.value)
+  conversationKeyForDocument(activeAgentDocument.value)
 );
 const activeConversation = computed(() =>
   conversationForKey(
     activeConversationKey.value,
-    agentRunScopeForDocument(activePromptDocument.value)
+    agentRunScopeForDocument(activeAgentDocument.value)
   )
 );
 const messages = computed(() => activeConversation.value.messages.value);
@@ -1040,6 +1072,9 @@ const editorLocked = computed(() => {
   const key = conversationKeyForDocument(selectedDocument);
   return (
     acceptingAgentEditDocumentIds.value.has(activeDocument.value.id) ||
+    acceptingAgentEditWorkspaceIds.value.has(
+      agentRunScopeForDocument(activeAgentDocument.value)
+    ) ||
     (activeDocument.value.workspaceId !== undefined &&
       acceptingAgentEditWorkspaceIds.value.has(activeDocument.value.workspaceId)) ||
     (key !== "general" &&
@@ -1051,6 +1086,9 @@ const editorLocked = computed(() => {
 });
 const editorLockedLabel = computed(() =>
   acceptingAgentEditDocumentIds.value.has(activeDocument.value.id) ||
+  acceptingAgentEditWorkspaceIds.value.has(
+    agentRunScopeForDocument(activeAgentDocument.value)
+  ) ||
   (activeDocument.value.workspaceId !== undefined &&
     acceptingAgentEditWorkspaceIds.value.has(activeDocument.value.workspaceId))
     ? "正在接受并保存智能体修改"
@@ -1058,33 +1096,53 @@ const editorLockedLabel = computed(() =>
 );
 const editorSaving = computed(() => savingDocumentIds.value.has(activeDocument.value.id));
 const activeAgentId = computed<ShortWorkspaceAgentId | undefined>(() => {
-  const document = activePromptDocument.value;
+  const document = activeAgentDocument.value;
   return document.workspaceType === "short" && document.stageId
     ? document.shortAgentId ?? resolveShortWorkspaceAgentIdForStage(document.stageId)
     : undefined;
 });
-const activeAgentProfile = computed(() => {
+const activeShortAgentProfile = computed(() => {
   const agentId = activeAgentId.value;
   return agentId
     ? workspaceAgentSettings.value?.agents.find((agent) => agent.id === agentId)
     : undefined;
 });
-const activeAgentLabel = computed(() => activeAgentProfile.value?.label ?? "智能体对话");
+const activeLibraryAgentProfile = computed(() => {
+  const domain = activeAgentDocument.value.domain;
+  return domain === "material" || domain === "skill"
+    ? libraryAgentSettings.value.agents.find((agent) => agent.domain === domain)
+    : undefined;
+});
+const activeAgentLabel = computed(
+  () =>
+    activeShortAgentProfile.value?.label ??
+    activeLibraryAgentProfile.value?.label ??
+    "智能体对话"
+);
 const composerBookTitle = computed(
-  () => activePromptDocument.value.workspaceTitle ?? "未选择书籍"
+  () =>
+    activeAgentDocument.value.workspaceTitle ??
+    activeAgentDocument.value.path[0] ??
+    "未选择资源"
 );
 const composerStageLabel = computed(() => {
   const agentId = activeAgentId.value;
-  return agentId ? COMPOSER_STAGE_LABELS[agentId] : "未选择阶段";
+  if (agentId) return COMPOSER_STAGE_LABELS[agentId];
+  return activeAgentDocument.value.domain === "skill"
+    ? "技能库"
+    : activeAgentDocument.value.domain === "material"
+      ? "素材库"
+      : "未选择阶段";
 });
 const activeLibraryAttachments = computed(() => {
+  if (activeAgentDocument.value.domain !== "creation") return null;
   const workspaceId = activePromptDocument.value.workspaceId;
   return catalogSnapshot.value && workspaceId && catalogBook(workspaceId)
     ? buildLibraryAttachments(catalogSnapshot.value, workspaceId)
     : null;
 });
 const availableSkillReferences = computed<ComposerReferenceOption[]>(() => {
-  const allowedKinds = new Set(activeAgentProfile.value?.readAccess.skill ?? []);
+  const allowedKinds = new Set(activeShortAgentProfile.value?.readAccess.skill ?? []);
   return (activeLibraryAttachments.value?.attachedSkills ?? [])
     .filter(
       (skill): skill is typeof skill & { kind: SkillKind } =>
@@ -1097,7 +1155,7 @@ const availableSkillReferences = computed<ComposerReferenceOption[]>(() => {
     }));
 });
 const availableMaterialReferences = computed<ComposerReferenceOption[]>(() => {
-  const allowedKinds = new Set(activeAgentProfile.value?.readAccess.material ?? []);
+  const allowedKinds = new Set(activeShortAgentProfile.value?.readAccess.material ?? []);
   return (activeLibraryAttachments.value?.attachedMaterials ?? [])
     .filter(
       (material): material is typeof material & { kind: MaterialKind } =>
@@ -1272,6 +1330,60 @@ function closeBookDialog(): void {
   activeBook.value = null;
 }
 
+const MANUSCRIPT_EXPORT_FORMAT_LABELS: Record<
+  ShortManuscriptExportFormat,
+  string
+> = {
+  docx: "DOCX",
+  txt: "TXT",
+  epub: "EPUB"
+};
+
+function openBookExportDialog(book: ResourceTreeNode): void {
+  exportBookTarget.value = book;
+}
+
+function closeBookExportDialog(): void {
+  if (!manuscriptExportPending.value) {
+    exportBookTarget.value = null;
+  }
+}
+
+async function exportBookManuscript(
+  format: ShortManuscriptExportFormat
+): Promise<void> {
+  if (!window.deepwrite || manuscriptExportPending.value) return;
+  const bookNode = exportBookTarget.value;
+  if (!bookNode) return;
+  const book = catalogBook(bookNode.id);
+  if (!book) {
+    uiMessage.error("未找到要导出正文的书籍");
+    exportBookTarget.value = null;
+    return;
+  }
+  manuscriptExportPending.value = true;
+  try {
+    const result = await window.deepwrite.manuscript.exportShort(
+      createShortManuscriptExportInput(
+        book,
+        documents.value,
+        editorDrafts.value,
+        format
+      )
+    );
+    if (result.status === "saved") {
+      exportBookTarget.value = null;
+      uiMessage.success(
+        `已将“${book.title}”的导语和全部小节导出为 ${MANUSCRIPT_EXPORT_FORMAT_LABELS[format]}`
+      );
+    }
+  } catch (error: unknown) {
+    uiMessage.error(error instanceof Error ? error.message : "导出正文失败。");
+  } finally {
+    manuscriptExportPending.value = false;
+  }
+}
+
 async function renameCatalogBook(
   book: ResourceTreeNode,
   payload: { bookId: string; label: string }
@@ -1355,6 +1467,17 @@ function disposeBookConversations(bookId: string, documentIds?: Set<string>): vo
     conversationScopes.delete(key);
   }
   removeAgentRunPreferences(`book:${bookId}`);
+}
+
+function disposeLibraryConversation(
+  domain: "material" | "skill",
+  libraryId: string
+): void {
+  const key = `library:${domain}:${libraryId}`;
+  conversations.get(key)?.dispose();
+  conversations.delete(key);
+  conversationScopes.delete(key);
+  removeAgentRunPreferences(key);
 }
 
 async function removeCatalogBook(book: ResourceTreeNode): Promise<void> {
@@ -2004,6 +2127,7 @@ async function unregisterCatalogLibrary(
     if (!result.unregistered) {
       throw new Error("资料库已经不在当前目录中。");
     }
+    disposeLibraryConversation(payload.domain, payload.node.libraryId);
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     libraryRemovalDialog.value = null;
     uiMessage.success(`已从列表移除“${payload.node.label}”，本地文件夹仍完整保留`);
@@ -2033,6 +2157,7 @@ async function deleteCatalogLibrary(
         ([documentId]) => !removedDocumentIds.has(documentId)
       )
     );
+    disposeLibraryConversation(payload.domain, payload.node.libraryId);
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     libraryRemovalDialog.value = null;
     uiMessage.success(`已删除“${payload.node.label}”及其本地文件夹`);
@@ -2681,7 +2806,7 @@ function applySavedCatalogDocument(
 ): void {
   const snapshot = catalogSnapshot.value;
   if (!snapshot) return;
-  catalogSnapshot.value = {
+  const nextSnapshot = {
     ...snapshot,
     revision: snapshot.revision + 1,
     updatedAt: saved.updatedAt,
@@ -2768,6 +2893,61 @@ function applySavedLibraryEntry(
           )
         })
   } as CatalogSnapshot;
+}
+
+function applyCreatedLibraryEntry(
+  domain: "material" | "skill",
+  libraryId: string,
+  created: CatalogLibraryEntry,
+  projectRevision: number | undefined
+): void {
+  const snapshot = catalogSnapshot.value;
+  if (!snapshot) return;
+  const nextSnapshot = {
+    ...snapshot,
+    revision: snapshot.revision + 1,
+    updatedAt: created.updatedAt,
+    ...(domain === "material"
+      ? {
+          materials: snapshot.materials.map((library) =>
+            library.id !== libraryId
+              ? library
+              : {
+                  ...library,
+                  updatedAt: created.updatedAt,
+                  ...(projectRevision === undefined ? {} : { projectRevision }),
+                  entries: [...library.entries, created]
+                }
+          )
+        }
+      : {
+          skills: snapshot.skills.map((library) =>
+            library.id !== libraryId
+              ? library
+              : {
+                  ...library,
+                  updatedAt: created.updatedAt,
+                  ...(projectRevision === undefined ? {} : { projectRevision }),
+                  entries: [...library.entries, created]
+                }
+          )
+        })
+  } as CatalogSnapshot;
+  catalogSnapshot.value = nextSnapshot;
+  const createdDocument = projectCatalogWorkspace(
+    nextSnapshot
+  ).workspaceDocuments.find(
+    (document) =>
+      document.domain === domain &&
+      document.libraryId === libraryId &&
+      document.catalogEntryId === created.id
+  );
+  if (
+    createdDocument &&
+    !documents.value.some((document) => document.id === createdDocument.id)
+  ) {
+    documents.value = [...documents.value, createdDocument];
+  }
 }
 
 function restoreDraftAfterSaveFailure(
@@ -3116,6 +3296,14 @@ async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Prom
   const conversation = activeConversation.value;
   const sendSessionId = conversation.sessionId.value;
   const attachments = activeLibraryAttachments.value;
+  if (
+    (activeAgentDocument.value.domain === "material" ||
+      activeAgentDocument.value.domain === "skill") &&
+    !activeLibraryAgentContext.value
+  ) {
+    uiMessage.warning("当前资料库上下文尚未就绪，请重新选择条目后再发送。");
+    return;
+  }
   if (attachments && !attachments.complete && attachments.diagnostics.length) {
     const first = attachments.diagnostics[0]!;
     uiMessage.warning(
@@ -3125,14 +3313,19 @@ async function sendMessage(promptAttachments: UserPromptAttachment[] = []): Prom
     );
   }
   await conversation.sendMessage(
-    activePromptDocument.value,
+    activeAgentDocument.value,
     liveWorkspaceDocuments.value,
-    attachments
-      ? {
+    {
+      ...(attachments
+        ? {
           attachedSkills: attachments.attachedSkills,
           attachedMaterials: attachments.attachedMaterials
-        }
-      : {},
+          }
+        : {}),
+      ...(activeLibraryAgentContext.value
+        ? { libraryWorkspace: activeLibraryAgentContext.value }
+        : {})
+    },
     promptAttachments
   );
   scheduleQueuedAutoAgentEdits(
@@ -3172,6 +3365,7 @@ function openSettings(): void {
   currentView.value = "settings";
   if (window.deepwrite) {
     void loadWorkspaceAgentSettings();
+    void loadLibraryAgentSettings();
     void loadLearningImitationSettings();
   }
 }
@@ -3210,11 +3404,181 @@ type WorkspaceEditorMutationEvent = Extract<
   SystemEventEnvelope,
   { type: "workspace.editor_mutation" }
 >;
+type LibraryEditorMutationEvent = Extract<
+  SystemEventEnvelope,
+  { type: "library.editor_mutation" }
+>;
 
 interface AgentEditReviewRequest {
   runId: string;
   proposalId: string;
   decision: "accept" | "reject";
+}
+
+function libraryMutationCountKey(proposal: AgentEditProposal): string {
+  const target = proposal.libraryTarget!;
+  return `${proposal.runId}\u0000${target.domain}\u0000${target.libraryId}`;
+}
+
+function currentLibraryProjectRevisionMatches(
+  proposal: AgentEditProposal,
+  currentRevision: number | undefined
+): boolean {
+  const baseRevision = proposal.libraryTarget?.baseProjectRevision;
+  if (baseRevision === undefined || currentRevision === undefined) {
+    return baseRevision === currentRevision;
+  }
+  const acceptedCount =
+    acceptedLibraryMutationCounts.get(libraryMutationCountKey(proposal)) ?? 0;
+  return currentRevision === baseRevision + acceptedCount;
+}
+
+function rememberAcceptedLibraryMutation(proposal: AgentEditProposal): void {
+  const key = libraryMutationCountKey(proposal);
+  acceptedLibraryMutationCounts.set(
+    key,
+    (acceptedLibraryMutationCounts.get(key) ?? 0) + 1
+  );
+  while (acceptedLibraryMutationCounts.size > 2_000) {
+    const oldest = acceptedLibraryMutationCounts.keys().next().value as
+      | string
+      | undefined;
+    if (!oldest) break;
+    acceptedLibraryMutationCounts.delete(oldest);
+  }
+}
+
+async function acceptLibraryCreationProposal(
+  conversation: AgentConversationController,
+  request: AgentEditReviewRequest,
+  proposal: AgentEditProposal,
+  automatic: boolean
+): Promise<void> {
+  const target = proposal.libraryTarget;
+  if (
+    !target ||
+    target.operation !== "create" ||
+    typeof proposal.proposedText !== "string"
+  ) {
+    const message = "待审阅的新条目缺少完整内容，请重新生成。";
+    conversation.updateEditProposal(request.runId, request.proposalId, {
+      status: "error",
+      statusMessage: message
+    });
+    uiMessage.error(message);
+    return;
+  }
+  if (!window.deepwrite) {
+    uiMessage.error("桌面文件服务当前不可用。");
+    return;
+  }
+  const library = findCatalogLibrary(target.domain, target.libraryId);
+  const readOnly =
+    !library ||
+    (target.domain === "skill" && "isBuiltin" in library && library.isBuiltin);
+  if (readOnly) {
+    const message = "目标资料库已不可用或只读，无法创建条目。";
+    conversation.updateEditProposal(request.runId, request.proposalId, {
+      status: "conflict",
+      statusMessage: message
+    });
+    uiMessage.warning(message);
+    return;
+  }
+  if (
+    !currentLibraryProjectRevisionMatches(proposal, library.projectRevision)
+  ) {
+    const message = "资料库目录已发生变化，未创建条目，请重新生成。";
+    conversation.updateEditProposal(request.runId, request.proposalId, {
+      status: "conflict",
+      statusMessage: message
+    });
+    uiMessage.warning(message);
+    return;
+  }
+  if (acceptingAgentEditWorkspaceIds.value.has(proposal.workspaceId)) {
+    uiMessage.info("同一资料库正在保存其他修改，请稍候再接受");
+    return;
+  }
+
+  conversation.updateEditProposal(request.runId, request.proposalId, {
+    status: "accepting",
+    statusMessage: automatic
+      ? "正在自动批准并创建资料库条目…"
+      : "正在校验资料库版本并创建条目…"
+  });
+  setAgentEditWorkspaceAccepting(proposal.workspaceId, true);
+  try {
+    const commonInput = {
+      libraryId: target.libraryId,
+      title: proposal.title,
+      content: proposal.proposedText,
+      ...(library.projectRevision === undefined
+        ? {}
+        : { baseProjectRevision: library.projectRevision })
+    };
+    const created =
+      target.domain === "material"
+        ? await window.deepwrite.catalog.createLibraryEntry({
+            ...commonInput,
+            domain: "material",
+            stageId: MaterialStageIdSchema.parse(target.stageId)
+          })
+        : await window.deepwrite.catalog.createLibraryEntry({
+            ...commonInput,
+            domain: "skill",
+            stageId: SkillStageIdSchema.parse(target.stageId)
+          });
+    const nextProjectRevision =
+      library.projectRevision === undefined
+        ? undefined
+        : library.projectRevision + 1;
+    applyCreatedLibraryEntry(
+      target.domain,
+      target.libraryId,
+      created,
+      nextProjectRevision
+    );
+    rememberAcceptedLibraryMutation(proposal);
+    conversation.updateEditProposal(request.runId, request.proposalId, {
+      status: "accepted",
+      proposedText: undefined,
+      statusMessage: automatic
+        ? "已自动批准并创建资料库条目。"
+        : "已创建并保存到本地 Markdown。"
+    });
+    const createdDocument = documents.value.find(
+      (document) =>
+        document.domain === target.domain &&
+        document.libraryId === target.libraryId &&
+        document.catalogEntryId === created.id
+    );
+    if (createdDocument) {
+      selectedResourceId.value = createdDocument.id;
+      rightCollapsed.value = false;
+    }
+    uiMessage.success(
+      automatic ? "已自动批准并创建资料库条目" : "已创建资料库条目"
+    );
+  } catch (error: unknown) {
+    const message = isCatalogConflict(error)
+      ? "资料库已在外部更新，未创建条目；请重新生成。"
+      : error instanceof Error
+        ? error.message
+        : "创建资料库条目失败。";
+    conversation.updateEditProposal(request.runId, request.proposalId, {
+      status: isCatalogConflict(error) ? "conflict" : "error",
+      statusMessage: message
+    });
+    if (isCatalogConflict(error)) {
+      await loadCatalogSnapshot();
+      uiMessage.warning(message);
+    } else {
+      uiMessage.error(message);
+    }
+  } finally {
+    setAgentEditWorkspaceAccepting(proposal.workspaceId, false);
+  }
 }
 
 function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
@@ -3359,6 +3723,152 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
   }
 }
 
+function stageLibraryEditProposal(event: LibraryEditorMutationEvent): void {
+  if (!rememberWorkspaceMutationEvent(event.id)) return;
+  const sourceConversation = allConversations().find((conversation) =>
+    conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
+  );
+  if (!sourceConversation) return;
+
+  const library = findCatalogLibrary(
+    event.payload.domain,
+    event.payload.libraryId
+  );
+  const libraryReadOnly =
+    !library ||
+    (event.payload.domain === "skill" &&
+      "isBuiltin" in library &&
+      library.isBuiltin);
+  let target: WorkspaceDocument | undefined;
+  if (event.payload.operation === "edit") {
+    const editPayload = event.payload;
+    target = liveWorkspaceDocuments.value.find(
+      (document) =>
+        document.id === editPayload.documentId &&
+        document.domain === editPayload.domain &&
+        document.libraryId === editPayload.libraryId &&
+        document.catalogEntryId === editPayload.entryId
+    );
+  }
+  if (
+    libraryReadOnly ||
+    (event.payload.operation === "edit" && (!target || target.readOnly))
+  ) {
+    const message = "目标资料库或条目不可写，本次智能体变更未进入审阅。";
+    sourceConversation.markToolConflict(
+      event.payload.runId,
+      event.payload.toolCallId,
+      message
+    );
+    uiMessage.warning(message);
+    return;
+  }
+
+  const scopeId = `library:${event.payload.domain}:${event.payload.libraryId}`;
+  const documentId =
+    event.payload.operation === "edit"
+      ? event.payload.documentId
+      : `library-create:${event.payload.toolCallId}`;
+  const proposalId = agentEditProposalId(
+    event.payload.runId,
+    scopeId,
+    "library",
+    documentId
+  );
+  const existing = sourceConversation.getEditProposal(
+    event.payload.runId,
+    proposalId
+  );
+  if (existing?.toolCallIds.includes(event.payload.toolCallId)) return;
+
+  const currentText = target?.content ?? "";
+  const currentRevision = createShortWorkspaceContentRevision(currentText);
+  const expectedBaseRevision = expectedMutationBaseRevision(
+    existing,
+    currentText
+  );
+  if (
+    event.payload.baseRevision !== expectedBaseRevision ||
+    (existing !== undefined && currentRevision !== existing.baseRevision)
+  ) {
+    const message =
+      "资料库条目版本已变化，本次智能体变更未进入审阅，也没有覆盖你的最新编辑。";
+    if (existing) {
+      sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+        status: "conflict",
+        statusMessage: message,
+        updatedAt: event.timestamp
+      });
+    }
+    sourceConversation.markToolConflict(
+      event.payload.runId,
+      event.payload.toolCallId,
+      message
+    );
+    uiMessage.warning(message);
+    return;
+  }
+
+  const proposedText = event.payload.text;
+  const proposedRevision = createShortWorkspaceContentRevision(proposedText);
+  const diff = buildAgentTextDiff(currentText, proposedText);
+  const noChanges =
+    event.payload.operation === "edit" &&
+    proposedRevision === (existing?.baseRevision ?? currentRevision) &&
+    event.payload.title === target?.title;
+  const proposal: AgentEditProposal = {
+    id: proposalId,
+    runId: event.payload.runId,
+    workspaceId: scopeId,
+    stageId: "library",
+    documentId,
+    title: event.payload.title,
+    summary: event.payload.summary,
+    status: noChanges ? "accepted" : "pending",
+    baseRevision: existing?.baseRevision ?? event.payload.baseRevision,
+    proposedRevision,
+    ...(noChanges ? {} : { proposedText }),
+    toolCallIds: [
+      ...new Set([...(existing?.toolCallIds ?? []), event.payload.toolCallId])
+    ],
+    additions: diff.additions,
+    deletions: diff.deletions,
+    hunks: diff.hunks,
+    ...(diff.truncated ? { truncated: true } : {}),
+    ...(noChanges ? { statusMessage: "条目没有实际变化，无需保存。" } : {}),
+    createdAt: existing?.createdAt ?? event.timestamp,
+    updatedAt: event.timestamp,
+    libraryTarget: {
+      operation: event.payload.operation,
+      domain: event.payload.domain,
+      libraryId: event.payload.libraryId,
+      stageId: event.payload.stageId,
+      ...(event.payload.baseProjectRevision === undefined
+        ? {}
+        : { baseProjectRevision: event.payload.baseProjectRevision }),
+      ...(event.payload.operation === "edit"
+        ? { entryId: event.payload.entryId }
+        : {})
+    }
+  };
+  sourceConversation.upsertEditProposal(event.payload.runId, proposal);
+  if (
+    !noChanges &&
+    sourceConversation.approvalModeForRun(
+      event.payload.sessionId,
+      event.payload.runId
+    ) === "auto-approve"
+  ) {
+    const queueKey = `${event.payload.sessionId}\u0000${event.payload.runId}\u0000${proposalId}`;
+    queuedAutoAgentEdits.set(queueKey, {
+      conversation: sourceConversation,
+      sessionId: event.payload.sessionId,
+      runId: event.payload.runId,
+      proposalId
+    });
+  }
+}
+
 async function applyAgentEdit(
   conversation: AgentConversationController,
   request: AgentEditReviewRequest,
@@ -3394,6 +3904,16 @@ async function applyAgentEdit(
     return;
   }
 
+  if (proposal.libraryTarget?.operation === "create") {
+    await acceptLibraryCreationProposal(
+      conversation,
+      request,
+      proposal,
+      automatic
+    );
+    return;
+  }
+
   const target = liveWorkspaceDocuments.value.find(
     (document) => document.id === proposal.documentId
   );
@@ -3410,11 +3930,34 @@ async function applyAgentEdit(
     return;
   }
 
+  if (proposal.libraryTarget) {
+    const library = findCatalogLibrary(
+      proposal.libraryTarget.domain,
+      proposal.libraryTarget.libraryId
+    );
+    if (
+      !library ||
+      !currentLibraryProjectRevisionMatches(proposal, library.projectRevision)
+    ) {
+      const message =
+        "资料库目录已在审阅期间发生变化，未接受智能体修改。";
+      conversation.updateEditProposal(request.runId, request.proposalId, {
+        status: "conflict",
+        statusMessage: message
+      });
+      uiMessage.warning(message);
+      return;
+    }
+  }
+
   if (
     acceptingAgentEditWorkspaceIds.value.has(proposal.workspaceId) ||
     documents.value.some(
       (document) =>
-        document.workspaceId === proposal.workspaceId &&
+        (document.workspaceId === proposal.workspaceId ||
+          (proposal.libraryTarget !== undefined &&
+            document.domain === proposal.libraryTarget.domain &&
+            document.libraryId === proposal.libraryTarget.libraryId)) &&
         savingDocumentIds.value.has(document.id)
     )
   ) {
@@ -3426,7 +3969,10 @@ async function applyAgentEdit(
   const persistedRevision = createShortWorkspaceContentRevision(
     persistedDocument.content
   );
-  if (persistedRevision === proposal.proposedRevision) {
+  if (
+    persistedRevision === proposal.proposedRevision &&
+    (!proposal.libraryTarget || persistedDocument.title === proposal.title)
+  ) {
     const draftRevision = currentDraft
       ? createShortWorkspaceContentRevision(currentDraft.content)
       : undefined;
@@ -3481,7 +4027,7 @@ async function applyAgentEdit(
   const proposedText = proposal.proposedText!;
   const payload = {
     id: target.id,
-    title: target.title,
+    title: proposal.title,
     content: proposedText
   };
   conversation.updateEditProposal(request.runId, request.proposalId, {
@@ -3534,6 +4080,58 @@ async function applyAgentEdit(
         persistedDocument.workspaceId,
         expectedDocuments
       );
+      newerDraftPreserved = Boolean(editorDrafts.value[payload.id]);
+      persisted = true;
+    } else if (
+      proposal.libraryTarget?.operation === "edit" &&
+      persistedDocument.catalogEntryId &&
+      persistedDocument.libraryId &&
+      (persistedDocument.domain === "material" ||
+        persistedDocument.domain === "skill")
+    ) {
+      if (!window.deepwrite) {
+        throw new Error("桌面文件服务当前不可用。");
+      }
+      const library = findCatalogLibrary(
+        persistedDocument.domain,
+        persistedDocument.libraryId
+      );
+      if (!library) {
+        throw new Error("目标资料库已不存在。");
+      }
+      const projectRevision = library.projectRevision;
+      const saved = await window.deepwrite.catalog.saveLibraryEntry({
+        domain: persistedDocument.domain,
+        libraryId: persistedDocument.libraryId,
+        entryId: persistedDocument.catalogEntryId,
+        title: payload.title,
+        content: payload.content,
+        baseRevision:
+          currentDraft?.baseRevision ??
+          createShortWorkspaceContentRevision(persistedDocument.content),
+        ...(projectRevision === undefined
+          ? {}
+          : { baseProjectRevision: projectRevision })
+      });
+      const savedProjectRevision =
+        projectRevision === undefined ? undefined : projectRevision + 1;
+      const normalizedPayload = {
+        id: payload.id,
+        title: saved.title,
+        content: saved.body
+      };
+      applySavedLibraryEntry(
+        persistedDocument.domain,
+        persistedDocument.libraryId,
+        saved,
+        savedProjectRevision
+      );
+      applyAcceptedAgentDocumentLocally(
+        normalizedPayload,
+        savedProjectRevision,
+        draftAtAccept
+      );
+      rememberAcceptedLibraryMutation(proposal);
       newerDraftPreserved = Boolean(editorDrafts.value[payload.id]);
       persisted = true;
     } else {
@@ -3619,6 +4217,9 @@ function handleSystemEvent(event: SystemEventEnvelope): void {
   learningImitation.handleEvent(event);
   if (event.type === "workspace.editor_mutation") {
     stageAgentEditProposal(event);
+  }
+  if (event.type === "library.editor_mutation") {
+    stageLibraryEditProposal(event);
   }
   if (event.type === "workspace.stage_selection") {
     const sourceConversation = allConversations().find((conversation) =>
@@ -3761,6 +4362,60 @@ async function saveWorkspaceAgentSettings(
   }
 }
 
+async function loadLibraryAgentSettings(): Promise<void> {
+  if (!window.deepwrite || libraryAgentLoading.value) return;
+  libraryAgentLoading.value = true;
+  try {
+    libraryAgentSettings.value = await window.deepwrite.libraryAgents.list();
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "加载资料库智能体设置失败。"
+    );
+  } finally {
+    libraryAgentLoading.value = false;
+  }
+}
+
+async function saveLibraryAgentSettings(
+  settings: LibraryAgentSettingsInput
+): Promise<void> {
+  if (!window.deepwrite || libraryAgentSaving.value) return;
+  libraryAgentSaving.value = true;
+  try {
+    libraryAgentSettings.value = await window.deepwrite.libraryAgents.save(
+      settings
+    );
+    uiMessage.success("资料库智能体提示词已保存，下一轮对话立即生效。");
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "保存资料库智能体设置失败。"
+    );
+  } finally {
+    libraryAgentSaving.value = false;
+  }
+}
+
+async function resetLibraryAgentSettings(
+  domain: LibraryAgentDomain
+): Promise<void> {
+  if (!window.deepwrite || libraryAgentSaving.value) return;
+  libraryAgentSaving.value = true;
+  try {
+    libraryAgentSettings.value = await window.deepwrite.libraryAgents.reset(
+      domain
+    );
+    uiMessage.success(
+      `${domain === "skill" ? "技能库" : "素材库"}智能体已恢复默认提示词。`
+    );
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "恢复资料库智能体默认设置失败。"
+    );
+  } finally {
+    libraryAgentSaving.value = false;
+  }
+}
+
 async function loadLearningImitationSettings(): Promise<void> {
   if (!window.deepwrite || learningImitationLoading.value) return;
   learningImitationLoading.value = true;
@@ -3814,7 +4469,7 @@ async function resetLearningImitationSettings(
 
 function synchronizeActiveAgentRunPreferences(): void {
   synchronizeAgentRunPreferences(
-    agentRunScopeForDocument(activePromptDocument.value),
+    agentRunScopeForDocument(activeAgentDocument.value),
     activeConversation.value
   );
 }
@@ -4024,12 +4679,17 @@ onBeforeUnmount(() => {
         :workspace-agent-saving="workspaceAgentSaving"
         :workspace-agent-error="workspaceAgentError"
         :workspace-agent-status="workspaceAgentStatus"
+        :library-agent-settings="libraryAgentSettings"
+        :library-agent-loading="libraryAgentLoading"
+        :library-agent-saving="libraryAgentSaving"
         :learning-imitation-settings="learningImitationSettings"
         :learning-imitation-loading="learningImitationLoading"
         :learning-imitation-saving="learningImitationSaving"
         :runtime-available="hasDesktopRuntime"
         @back="closeSettings"
         @save-workspace-agents="saveWorkspaceAgentSettings"
+        @save-library-agents="saveLibraryAgentSettings"
+        @reset-library-agent="resetLibraryAgentSettings"
         @save-learning-imitation="saveLearningImitationSettings"
         @reset-learning-imitation="resetLearningImitationSettings"
       />
@@ -4053,6 +4713,7 @@ onBeforeUnmount(() => {
         @open-settings="openSettings"
         @select-resource="selectResource"
         @book-action="openBookDialog"
+        @export-book="openBookExportDialog"
         @resource-action="handleResourceAction"
         @resource-node-action="handleResourceNodeAction"
         @create-expert-section="addExpertSection"
@@ -4074,7 +4735,7 @@ onBeforeUnmount(() => {
         :thinking-level="thinkingLevel"
         :temperature="temperature"
         :approval-mode="approvalMode"
-        :context-title="activePromptDocument.title"
+        :context-title="activeAgentDocument.title"
         :book-title="composerBookTitle"
         :stage-label="composerStageLabel"
         :agent-label="activeAgentLabel"
@@ -4188,6 +4849,13 @@ onBeforeUnmount(() => {
       @remove="removeBook"
       @delete="deleteBook"
       @update-bindings="updateBookBindings"
+    />
+    <ExportShortManuscriptDialog
+      :open="Boolean(exportBookTarget)"
+      :book-title="exportBookTarget?.label ?? ''"
+      :submitting="manuscriptExportPending"
+      @close="closeBookExportDialog"
+      @export="exportBookManuscript"
     />
     <LibraryRemovalDialog
       :open="Boolean(libraryRemovalDialog)"

@@ -35,6 +35,7 @@ import {
   type AgentUsage,
   type AgentWriteApprovalMode,
   type LearningImitationAgentProfile,
+  type LibraryAgentProfile,
   type ShortWorkspaceAgentProfile,
   type ModelConnectionTestResult,
   type ThinkingLevel as ConfiguredThinkingLevel,
@@ -49,6 +50,10 @@ import {
   buildLearningImitationTools,
   isLearningImitationToolDetails
 } from "./learning-imitation-tools";
+import {
+  buildLibraryAgentTools,
+  isLibraryAgentToolDetails
+} from "./library-agent-tools";
 
 export interface AgentRunInput {
   runId: string;
@@ -60,6 +65,7 @@ export interface AgentRunInput {
   temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
   agentProfile?: ShortWorkspaceAgentProfile;
+  libraryAgentProfile?: LibraryAgentProfile;
   learningImitationProfile?: LearningImitationAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
   signal?: AbortSignal;
@@ -171,6 +177,40 @@ export type AgentRuntimeEvent =
         stageId: import("@deepwrite/contracts").ShortWorkspaceStageId;
         runtime: AgentRuntimeRef;
       };
+    }
+  | {
+      type: "library.editor_mutation";
+      runId: string;
+      sessionId: string;
+      payload:
+        | {
+            toolCallId: string;
+            operation: "create";
+            domain: "material" | "skill";
+            libraryId: string;
+            stageId: string;
+            title: string;
+            text: string;
+            baseRevision: string;
+            baseProjectRevision?: number;
+            summary: string;
+            runtime: AgentRuntimeRef;
+          }
+        | {
+            toolCallId: string;
+            operation: "edit";
+            domain: "material" | "skill";
+            libraryId: string;
+            entryId: string;
+            documentId: string;
+            stageId: string;
+            title: string;
+            text: string;
+            baseRevision: string;
+            baseProjectRevision?: number;
+            summary: string;
+            runtime: AgentRuntimeRef;
+          };
     }
   | {
       type: "learning_imitation.result_updated";
@@ -403,6 +443,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     }
 
     const shortWorkspace = input.workspaceContext?.shortWorkspace;
+    const libraryWorkspace = input.workspaceContext?.libraryWorkspace;
     const learningImitation = input.workspaceContext?.learningImitation;
     const imageAttachments = input.attachments?.filter(
       (attachment) => attachment.kind === "image"
@@ -416,6 +457,12 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     }
     const tools = learningImitation && input.learningImitationProfile
       ? buildLearningImitationTools(learningImitation)
+      : libraryWorkspace && input.libraryAgentProfile
+        ? buildLibraryAgentTools({
+            workspace: libraryWorkspace,
+            profile: input.libraryAgentProfile,
+            writeApprovalMode: input.writeApprovalMode ?? "request-approval"
+          })
       : shortWorkspace && input.agentProfile
         ? buildShortWorkspaceTools({
           workspace: shortWorkspace,
@@ -429,6 +476,8 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     const agentKey = `${input.sessionId}:${
       input.learningImitationProfile
         ? `learning-imitation:${input.learningImitationProfile.id}`
+        : input.libraryAgentProfile && libraryWorkspace
+          ? `library:${input.libraryAgentProfile.domain}:${libraryWorkspace.libraryId}`
         : input.agentProfile?.id ?? "default"
     }`;
     let emitToolCallEvent: (
@@ -885,7 +934,8 @@ export function reconcileToolCallArguments(
   return { delta, next: `${current}${delta}` };
 }
 
-function toRuntimeEvents(
+/** @internal Exported for runtime event contract tests. */
+export function toRuntimeEvents(
   event: AgentEvent,
   input: AgentRunInput,
   runtime: AgentRuntimeRef,
@@ -961,6 +1011,48 @@ function toRuntimeEvents(
           }
         });
       }
+    } else if (
+      isLibraryAgentToolDetails(details) &&
+      details.kind === "library-entry-mutation"
+    ) {
+      events.push({
+        type: "library.editor_mutation",
+        runId: input.runId,
+        sessionId: input.sessionId,
+        payload: details.operation === "create"
+          ? {
+              toolCallId: event.toolCallId,
+              operation: details.operation,
+              domain: details.domain,
+              libraryId: details.libraryId,
+              stageId: details.stageId,
+              title: details.title,
+              text: details.text,
+              baseRevision: details.baseRevision,
+              ...(details.baseProjectRevision === undefined
+                ? {}
+                : { baseProjectRevision: details.baseProjectRevision }),
+              summary: details.summary,
+              runtime
+            }
+          : {
+              toolCallId: event.toolCallId,
+              operation: details.operation,
+              domain: details.domain,
+              libraryId: details.libraryId,
+              entryId: details.entryId,
+              documentId: details.documentId,
+              stageId: details.stageId,
+              title: details.title,
+              text: details.text,
+              baseRevision: details.baseRevision,
+              ...(details.baseProjectRevision === undefined
+                ? {}
+                : { baseProjectRevision: details.baseProjectRevision }),
+              summary: details.summary,
+              runtime
+            }
+      });
     } else if (isLearningImitationToolDetails(details)) {
       events.push({
         type: "learning_imitation.result_updated",
@@ -1148,6 +1240,27 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
       "只能使用本轮列出的样本文档读取、搜索与预览写入工具。write_learning_result 只更新预览区，不会写入正式素材库或技能库。正式落盘必须等待用户在界面中确认。"
     ].join("\n");
   }
+  const libraryProfile = input.libraryAgentProfile;
+  const libraryWorkspace = input.workspaceContext?.libraryWorkspace;
+  if (libraryProfile && libraryWorkspace) {
+    const writeBoundary =
+      input.writeApprovalMode === "auto-approve"
+        ? "写入工具只提交资料库条目变更；客户端会在本轮完成后自动批准并尝试保存。当前回复可以说明已提交自动写入，但不得提前声称已经保存成功。"
+        : "写入工具提交待用户审阅的资料库条目变更；用户接受后客户端才会保存到本地 Markdown，当前回复不得提前声称已经保存。";
+    return [
+      basePrompt,
+      "",
+      `【当前资料库智能体：${libraryProfile.label} / ${libraryProfile.domain}】`,
+      libraryProfile.systemPrompt.trim(),
+      "",
+      "【DeepWrite 当前资料库工具边界】",
+      "只允许管理本轮指定的一个资料库；条目正文必须通过本轮实际列出的读取和搜索工具按需取得。",
+      libraryWorkspace.readOnly
+        ? "当前资料库只读，本轮不会装配任何创建或编辑工具。"
+        : writeBoundary,
+      "库介绍当前只读；删除条目、修改分组、绑定书籍和修改其它资料库均未接通。"
+    ].join("\n");
+  }
   const profile = input.agentProfile;
   if (!profile) return basePrompt;
   const writeBoundary =
@@ -1171,8 +1284,10 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
   ].filter(Boolean).join("\n");
 }
 
-function buildRuntimeUserPrompt(input: AgentRunInput): string {
+/** @internal Exported for prompt-boundary regression tests. */
+export function buildRuntimeUserPrompt(input: AgentRunInput): string {
   const active = input.workspaceContext?.activeResource;
+  const libraryContext = input.workspaceContext?.libraryWorkspace;
   const skills = input.workspaceContext?.attachedSkills ?? [];
   const materials = input.workspaceContext?.attachedMaterials ?? [];
   const isShortAgentRun = Boolean(
@@ -1234,11 +1349,37 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
       : "",
     input.agentProfile
       ? `当前智能体: ${input.agentProfile.label} (${input.agentProfile.id})`
+      : input.libraryAgentProfile
+        ? `当前智能体: ${input.libraryAgentProfile.label} (${input.libraryAgentProfile.domain})`
       : input.learningImitationProfile
         ? `当前智能体: ${input.learningImitationProfile.label} (${input.learningImitationProfile.id})`
       : "",
     learningContext
       ? `学习阶段: ${learningContext.stageId}；样本文档: ${learningContext.documents.length} 篇`
+      : "",
+    libraryContext
+      ? `当前资料库: 《${libraryContext.title}》 (${libraryContext.domain} / ${libraryContext.libraryType} / ${libraryContext.kind})`
+      : "",
+    libraryContext
+      ? `资料库状态: ${libraryContext.readOnly ? "只读" : "可写"}${libraryContext.projectRevision === undefined ? "" : `；项目版本 ${libraryContext.projectRevision}`}`
+      : "",
+    libraryContext?.activeEntryId
+      ? `当前条目: ${libraryContext.activeEntryId}`
+      : "",
+    libraryContext
+      ? `库介绍${libraryContext.overviewTruncated ? "（已截断）" : ""}:\n${libraryContext.overview || "未填写"}`
+      : "",
+    libraryContext
+      ? `条目索引（正文请通过工具读取）:\n${
+          libraryContext.entries.length
+            ? libraryContext.entries
+                .map(
+                  (entry) =>
+                    `- ${entry.title} (${entry.id}) [${entry.stageId}]${entry.readOnly ? " [只读]" : ""}${entry.truncated ? " [正文快照已截断]" : ""}`
+                )
+                .join("\n")
+            : "- 无条目"
+        }${libraryContext.omittedEntryCount ? `\n- 另有 ${libraryContext.omittedEntryCount} 个条目未进入本轮快照` : ""}`
       : "",
     active
       ? `当前资源: ${active.title} (${active.domain}${active.format ? ` / ${active.format}` : ""})`
@@ -1246,7 +1387,11 @@ function buildRuntimeUserPrompt(input: AgentRunInput): string {
         ? "当前资源: 学习仿写样本文档（正文请通过工具按需读取）"
         : "当前资源: 未提供",
     active ? `资源路径: ${active.path.join(" / ")}` : "",
-    active && !input.workspaceContext?.shortWorkspace ? `实时内容:\n${active.content}` : "",
+    active &&
+    !input.workspaceContext?.shortWorkspace &&
+    !input.workspaceContext?.libraryWorkspace
+      ? `实时内容:\n${active.content}`
+      : "",
     skillContext,
     materialContext,
     "",
@@ -1319,7 +1464,8 @@ export function buildRawUserMessage(input: AgentRunInput, timestamp = Date.now()
 
 function buildLocalThinking(input: AgentRunInput): string {
   const title = input.workspaceContext?.activeResource?.title ?? "未命名资源";
-  const agent = input.agentProfile ? `，由「${input.agentProfile.label}」处理` : "";
+  const selectedProfile = input.agentProfile ?? input.libraryAgentProfile;
+  const agent = selectedProfile ? `，由「${selectedProfile.label}」处理` : "";
   return `正在读取发送瞬间的创作上下文快照，确认当前工作对象为《${title}》${agent}，并区分用户要求、作品事实与参考信息。`;
 }
 
@@ -1347,6 +1493,8 @@ function buildLocalWritingResponse(input: AgentRunInput): string {
       ? `- 当前已按短篇阶段选择「${input.agentProfile.label}」智能体，并装配 ${
           input.workspaceContext?.shortWorkspace ? "阶段专属工具" : "通用上下文"
         }。`
+      : input.libraryAgentProfile
+        ? `- 当前已选择「${input.libraryAgentProfile.label}」，并且只装配当前资料库的按需读取、搜索与安全写入工具。`
       : "",
     "",
     "下一切片接入真实模型配置后，可以在保持同一协议的前提下生成正式续写、润色和一致性检查结果。"

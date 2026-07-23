@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
 import {
+  DEFAULT_LIBRARY_AGENT_SETTINGS,
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   SHORT_WORKSPACE_STAGE_IDS,
   SHORT_WORKSPACE_TEXT_STAGE_IDS,
@@ -253,6 +254,17 @@ function createDeferredApi(): {
         return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
       }
     },
+    libraryAgents: {
+      async list() {
+        return structuredClone(DEFAULT_LIBRARY_AGENT_SETTINGS);
+      },
+      async save() {
+        return structuredClone(DEFAULT_LIBRARY_AGENT_SETTINGS);
+      },
+      async reset() {
+        return structuredClone(DEFAULT_LIBRARY_AGENT_SETTINGS);
+      }
+    },
     learningImitationSettings: {
       async list() {
         throw new Error("Learning imitation settings are not used by conversation tests.");
@@ -270,6 +282,11 @@ function createDeferredApi(): {
       },
       async choose() {
         return null;
+      }
+    },
+    manuscript: {
+      async exportShort() {
+        throw new Error("Manuscript export is not used by conversation tests.");
       }
     },
     events: {
@@ -537,6 +554,53 @@ describe("agent conversation controller", () => {
       "proposedText"
     );
     expect(restored.hasPendingEditReview.value).toBe(true);
+    restored.dispose();
+  });
+
+  it("persists the target metadata required to review a library creation", () => {
+    const storage = createMemoryStorage();
+    const persistenceKey = "conversation-library-proposal-test";
+    const controller = useAgentConversation({
+      api: () => undefined,
+      persistenceKey,
+      storage
+    });
+    controller.upsertEditProposal(
+      "run_edit_1",
+      createEditProposal({
+        workspaceId: "library:material:library-1",
+        stageId: "library",
+        documentId: "library-create:tool-1",
+        title: "人物甲",
+        baseRevision: createShortWorkspaceContentRevision(""),
+        proposedRevision: createShortWorkspaceContentRevision("人物素材"),
+        proposedText: "人物素材",
+        libraryTarget: {
+          operation: "create",
+          domain: "material",
+          libraryId: "library-1",
+          stageId: "character",
+          baseProjectRevision: 3
+        }
+      })
+    );
+    controller.dispose();
+
+    const restored = useAgentConversation({
+      api: () => undefined,
+      persistenceKey,
+      storage
+    });
+    expect(restored.getEditProposal("run_edit_1", "proposal_1")).toMatchObject({
+      stageId: "library",
+      libraryTarget: {
+        operation: "create",
+        domain: "material",
+        libraryId: "library-1",
+        stageId: "character",
+        baseProjectRevision: 3
+      }
+    });
     restored.dispose();
   });
 
@@ -2228,6 +2292,79 @@ describe("agent conversation controller", () => {
         }
       ]
     });
+    controller.dispose();
+  });
+
+  it("forwards only the explicitly selected library workspace for library management", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({
+      api: () => deferred.api,
+      idleTimeoutMs: 10_000
+    });
+    const activeDocument: WorkspaceDocument = {
+      id: "material-document-1",
+      domain: "material",
+      title: "人物甲",
+      eyebrow: "短篇素材",
+      path: ["人物素材", "人物甲"],
+      content: "人物正文",
+      libraryId: "material-library-1",
+      catalogEntryId: "entry-1",
+      stageCategoryId: "character"
+    };
+    const content = "人物正文";
+    controller.draft.value = "整理当前素材";
+    const sending = controller.sendMessage(activeDocument, [], {
+      libraryWorkspace: {
+        domain: "material",
+        libraryId: "material-library-1",
+        title: "人物素材",
+        libraryType: "short",
+        kind: "character",
+        overview: "人物素材边界",
+        readOnly: false,
+        activeEntryId: "entry-1",
+        projectRevision: 7,
+        entries: [
+          {
+            id: "entry-1",
+            documentId: activeDocument.id,
+            stageId: "character",
+            title: activeDocument.title,
+            content,
+            revision: createShortWorkspaceContentRevision(content),
+            readOnly: false
+          }
+        ]
+      }
+    });
+    const sessionId = controller.sessionId.value;
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_material_library",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    expect(deferred.prompts[0]?.workspaceContext).toMatchObject({
+      activeResource: {
+        id: activeDocument.id,
+        domain: "material"
+      },
+      libraryWorkspace: {
+        domain: "material",
+        libraryId: "material-library-1",
+        activeEntryId: "entry-1",
+        entries: [{ id: "entry-1", content }]
+      }
+    });
+    expect(deferred.prompts[0]?.workspaceContext).not.toHaveProperty(
+      "shortWorkspace"
+    );
+    expect(() =>
+      structuredClone(deferred.prompts[0]?.workspaceContext?.libraryWorkspace)
+    ).not.toThrow();
     controller.dispose();
   });
 

@@ -25,6 +25,7 @@ const emit = defineEmits<{
   select: [node: ResourceTreeNode];
   togglePin: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
+  exportBook: [node: ResourceTreeNode];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   createExpertSection: [node: ResourceTreeNode];
   removeExpertSection: [node: ResourceTreeNode];
@@ -116,9 +117,18 @@ function togglePin(): void {
   emit("togglePin", props.node);
 }
 
+function toggleActionMenu(): void {
+  actionMenuOpen.value = !actionMenuOpen.value;
+}
+
 function openBookAction(mode: BookResourceDialogMode): void {
   actionMenuOpen.value = false;
   emit("bookAction", mode, props.node);
+}
+
+function exportBook(): void {
+  actionMenuOpen.value = false;
+  emit("exportBook", props.node);
 }
 
 function activateResourceNodeAction(action: CatalogResourceNodeAction): void {
@@ -238,7 +248,7 @@ onBeforeUnmount(() => {
         :aria-label="`${node.label}更多操作`"
         :aria-expanded="actionMenuOpen"
         aria-haspopup="menu"
-        @click.stop="actionMenuOpen = !actionMenuOpen"
+        @click.stop="toggleActionMenu"
       >
         <AppIcon name="more" :size="16" />
       </button>
@@ -293,6 +303,15 @@ onBeforeUnmount(() => {
           >
             <AppIcon name="archive" :size="16" />
             <span>素材库绑定</span>
+          </button>
+          <button
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="exportBook"
+          >
+            <AppIcon name="download" :size="16" />
+            <span>导出正文</span>
           </button>
           </template>
           <div class="tree-node-action-menu-divider" role="separator" />
@@ -402,6 +421,7 @@ onBeforeUnmount(() => {
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
         @book-action="(mode, book) => emit('bookAction', mode, book)"
+        @export-book="emit('exportBook', $event)"
         @resource-node-action="emit('resourceNodeAction', $event)"
         @create-expert-section="emit('createExpertSection', $event)"
         @remove-expert-section="emit('removeExpertSection', $event)"

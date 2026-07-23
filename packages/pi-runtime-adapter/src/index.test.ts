@@ -4,15 +4,19 @@ import {
   type AssistantMessage
 } from "@earendil-works/pi-ai";
 import {
+  DEFAULT_LIBRARY_AGENT_PROFILES,
   cloneEmptyLearningImitationResult,
+  createShortWorkspaceContentRevision,
   type AgentProviderRuntimeConfig
 } from "@deepwrite/contracts";
 import {
   buildProviderRuntime,
   buildRawUserMessage,
+  buildRuntimeUserPrompt,
   interceptToolCallStream,
   PiAgentRuntimeAdapter,
   reconcileToolCallArguments,
+  toRuntimeEvents,
   toToolStreamRuntimeEvent,
   type AgentRuntimeEvent
 } from "./index";
@@ -452,6 +456,137 @@ describe("DeepWrite Pi runtime adapter", () => {
         String(message.content).includes("run_history_")
       )
     ).toBe(false);
+  });
+
+  it("assembles only the active library tools and keeps entry bodies out of the prompt", async () => {
+    const profile = DEFAULT_LIBRARY_AGENT_PROFILES.find(
+      ({ domain }) => domain === "material"
+    )!;
+    const entryBody = "DO_NOT_INLINE_LIBRARY_BODY_7d9d";
+    const input = {
+      runId: "run_library",
+      sessionId: "session_library",
+      prompt: "整理这个素材库",
+      thinkingLevel: "off" as const,
+      libraryAgentProfile: profile,
+      workspaceContext: {
+        activeResource: {
+          id: "material-document-1",
+          domain: "material" as const,
+          title: "雨夜人物",
+          path: ["人物素材", "雨夜人物"],
+          source: "live-editor" as const,
+          content: entryBody
+        },
+        libraryWorkspace: {
+          domain: "material" as const,
+          libraryId: "material-library-1",
+          title: "人物素材",
+          libraryType: "short" as const,
+          kind: "character" as const,
+          overview: "仅用于都市悬疑人物",
+          readOnly: false,
+          activeEntryId: "material-entry-1",
+          projectRevision: 2,
+          entries: [
+            {
+              id: "material-entry-1",
+              documentId: "material-document-1",
+              stageId: "character" as const,
+              title: "雨夜人物",
+              content: entryBody,
+              revision: createShortWorkspaceContentRevision(entryBody),
+              readOnly: false
+            }
+          ]
+        }
+      }
+    };
+
+    const prompt = buildRuntimeUserPrompt(input);
+    expect(prompt).toContain("雨夜人物 (material-entry-1)");
+    expect(prompt).toContain("仅用于都市悬疑人物");
+    expect(prompt).not.toContain(entryBody);
+
+    const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
+    for await (const _event of runtime.start(input)) {
+      // Consume the local run before inspecting its domain-scoped agent.
+    }
+    const cache = (
+      runtime as unknown as {
+        conversationAgents: Map<
+          string,
+          { state: { tools: Array<{ name: string }>; systemPrompt: string } }
+        >;
+      }
+    ).conversationAgents;
+    const agent = cache.get(
+      "session_library:library:material:material-library-1"
+    );
+    expect(agent?.state.tools.map(({ name }) => name)).toEqual([
+      "list_material_entries",
+      "read_material_entry",
+      "search_material_entries",
+      "create_material_entry",
+      "edit_material_entry"
+    ]);
+    expect(agent?.state.systemPrompt).toContain("素材库管理智能体");
+  });
+
+  it("maps library mutation tool details to the renderer event contract", () => {
+    const events = toRuntimeEvents(
+      {
+        type: "tool_execution_end",
+        toolCallId: "tool_edit_material",
+        toolName: "edit_material_entry",
+        isError: false,
+        result: {
+          content: [{ type: "text", text: "等待审阅" }],
+          details: {
+            kind: "library-entry-mutation",
+            operation: "edit",
+            domain: "material",
+            libraryId: "material-library-1",
+            entryId: "entry-1",
+            documentId: "document-1",
+            stageId: "character",
+            title: "人物甲",
+            text: "修改后",
+            baseRevision: createShortWorkspaceContentRevision("修改前"),
+            baseProjectRevision: 4,
+            summary: "等待审阅"
+          }
+        }
+      } as never,
+      {
+        runId: "run_library_event",
+        sessionId: "session_library_event",
+        prompt: "修改人物"
+      },
+      providerRuntime,
+      "assistant-library"
+    );
+
+    expect(events).toContainEqual({
+      type: "library.editor_mutation",
+      runId: "run_library_event",
+      sessionId: "session_library_event",
+      payload: {
+        toolCallId: "tool_edit_material",
+        operation: "edit",
+        domain: "material",
+        libraryId: "material-library-1",
+        entryId: "entry-1",
+        documentId: "document-1",
+        stageId: "character",
+        title: "人物甲",
+        text: "修改后",
+        baseRevision: createShortWorkspaceContentRevision("修改前"),
+        baseProjectRevision: 4,
+        summary: "等待审阅",
+        runtime: providerRuntime
+      }
+    });
   });
 
   it("starts each learning-imitation preset from a clean runtime transcript", async () => {

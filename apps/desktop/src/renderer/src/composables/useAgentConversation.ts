@@ -10,6 +10,7 @@ import type {
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import {
+  LibraryAgentWorkspaceSnapshotSchema,
   SHORT_WORKSPACE_STAGE_IDS,
   SHORT_WORKSPACE_TEXT_STAGE_IDS,
   createShortWorkspaceContentRevision
@@ -115,7 +116,7 @@ export interface AgentConversationController {
 
 export type WorkspaceContextAttachments = Pick<
   WorkspaceRuntimeContext,
-  "attachedSkills" | "attachedMaterials"
+  "attachedSkills" | "attachedMaterials" | "libraryWorkspace"
 >;
 
 function id(prefix: string): string {
@@ -136,8 +137,39 @@ function cloneTextDiffHunk(hunk: AgentTextDiffHunk): AgentTextDiffHunk {
 function cloneEditProposal(proposal: AgentEditProposal): AgentEditProposal {
   return {
     ...proposal,
+    ...(proposal.libraryTarget
+      ? { libraryTarget: { ...proposal.libraryTarget } }
+      : {}),
     toolCallIds: [...proposal.toolCallIds],
     hunks: proposal.hunks.map(cloneTextDiffHunk)
+  };
+}
+
+function parseStoredLibraryTarget(
+  value: unknown
+): AgentEditProposal["libraryTarget"] | undefined {
+  if (
+    !isRecord(value) ||
+    (value.operation !== "create" && value.operation !== "edit") ||
+    (value.domain !== "material" && value.domain !== "skill") ||
+    typeof value.libraryId !== "string" ||
+    typeof value.stageId !== "string" ||
+    (value.baseProjectRevision !== undefined &&
+      !nonnegativeInteger(value.baseProjectRevision)) ||
+    (value.entryId !== undefined && typeof value.entryId !== "string") ||
+    (value.operation === "edit" && typeof value.entryId !== "string")
+  ) {
+    return undefined;
+  }
+  return {
+    operation: value.operation,
+    domain: value.domain,
+    libraryId: value.libraryId,
+    stageId: value.stageId,
+    ...(value.baseProjectRevision === undefined
+      ? {}
+      : { baseProjectRevision: value.baseProjectRevision }),
+    ...(value.entryId === undefined ? {} : { entryId: value.entryId })
   };
 }
 
@@ -226,9 +258,10 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
     typeof value.id !== "string" ||
     typeof value.runId !== "string" ||
     typeof value.workspaceId !== "string" ||
-    !SHORT_WORKSPACE_STAGE_IDS.includes(
-      value.stageId as (typeof SHORT_WORKSPACE_STAGE_IDS)[number]
-    ) ||
+    (value.stageId !== "library" &&
+      !SHORT_WORKSPACE_STAGE_IDS.includes(
+        value.stageId as (typeof SHORT_WORKSPACE_STAGE_IDS)[number]
+      )) ||
     typeof value.documentId !== "string" ||
     typeof value.title !== "string" ||
     typeof value.summary !== "string" ||
@@ -247,6 +280,13 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
     (value.statusMessage !== undefined && typeof value.statusMessage !== "string") ||
     !validDate(value.createdAt) ||
     !validDate(value.updatedAt)
+  ) {
+    return undefined;
+  }
+  const libraryTarget = parseStoredLibraryTarget(value.libraryTarget);
+  if (
+    (value.stageId === "library" && !libraryTarget) ||
+    (value.stageId !== "library" && value.libraryTarget !== undefined)
   ) {
     return undefined;
   }
@@ -275,7 +315,8 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
     ...(value.truncated === undefined ? {} : { truncated: value.truncated }),
     ...(value.statusMessage === undefined ? {} : { statusMessage: value.statusMessage }),
     createdAt: value.createdAt,
-    updatedAt: value.updatedAt
+    updatedAt: value.updatedAt,
+    ...(libraryTarget ? { libraryTarget } : {})
   };
 }
 
@@ -1500,6 +1541,11 @@ export function useAgentConversation(
       contextSnapshot.attachedMaterials = attachments.attachedMaterials.map((material) => ({
         ...material
       }));
+    }
+    if (attachments.libraryWorkspace) {
+      contextSnapshot.libraryWorkspace = LibraryAgentWorkspaceSnapshotSchema.parse(
+        attachments.libraryWorkspace
+      );
     }
     if (
       activeDocument.workspaceType === "short" &&

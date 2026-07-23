@@ -10,6 +10,7 @@ export type IconName =
   | "close"
   | "copy"
   | "directory"
+  | "download"
   | "edit"
   | "file"
   | "folder"

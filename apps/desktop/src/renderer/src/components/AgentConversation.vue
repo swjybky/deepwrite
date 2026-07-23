@@ -998,6 +998,11 @@ function proposalStatusMessage(
   ) {
     return "生成完成后可审阅。";
   }
+  if (!proposal.statusMessage && proposal.status === "pending" && proposal.libraryTarget) {
+    return proposal.libraryTarget.operation === "create"
+      ? "接受后将创建资料库条目并保存到本机。"
+      : "接受后将更新资料库条目并保存到本机。";
+  }
   return proposal.statusMessage?.trim() || proposalStatusMessages[proposal.status];
 }
 

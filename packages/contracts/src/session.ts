@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "./expert-draft";
+import { MaterialStageIdSchema, SkillStageIdSchema } from "./catalog";
 import {
   AgentProviderRuntimeConfigSchema,
   TemperatureSchema,
@@ -20,6 +21,10 @@ import {
   LearningImitationStageIdSchema,
   LearningImitationWritePayloadSchema
 } from "./learning-imitation";
+import {
+  LibraryAgentProfileSchema,
+  LibraryAgentWorkspaceSnapshotSchema
+} from "./library-agent";
 
 export type { ThinkingLevel } from "./models";
 
@@ -93,6 +98,7 @@ export type AttachedContextSnapshot = z.infer<typeof AttachedContextSnapshotSche
 export const WorkspaceRuntimeContextSchema = z.object({
   activeResource: ActiveResourceSnapshotSchema.optional(),
   shortWorkspace: ShortWorkspaceSnapshotSchema.optional(),
+  libraryWorkspace: LibraryAgentWorkspaceSnapshotSchema.optional(),
   learningImitation: LearningImitationRuntimeContextSchema.optional(),
   attachedSkills: z
     .array(AttachedSkillSnapshotSchema)
@@ -103,12 +109,38 @@ export const WorkspaceRuntimeContextSchema = z.object({
     .max(ATTACHED_CONTEXT_MAX_ITEMS)
     .optional()
 }).superRefine((value, context) => {
-  if (value.shortWorkspace && value.learningImitation) {
+  const exclusiveContexts = [
+    value.shortWorkspace,
+    value.libraryWorkspace,
+    value.learningImitation
+  ].filter(Boolean).length;
+  if (exclusiveContexts > 1) {
     context.addIssue({
       code: "custom",
-      path: ["learningImitation"],
-      message: "A run cannot use short-workspace and learning-imitation contexts together."
+      path: ["libraryWorkspace"],
+      message: "A run can use only one managed workspace context."
     });
+  }
+  if (value.libraryWorkspace && value.activeResource) {
+    if (value.libraryWorkspace.domain !== value.activeResource.domain) {
+      context.addIssue({
+        code: "custom",
+        path: ["libraryWorkspace", "domain"],
+        message: "The active resource must match the library workspace domain."
+      });
+    }
+    if (value.libraryWorkspace.activeEntryId) {
+      const activeEntry = value.libraryWorkspace.entries.find(
+        (entry) => entry.id === value.libraryWorkspace?.activeEntryId
+      );
+      if (!activeEntry || activeEntry.documentId !== value.activeResource.id) {
+        context.addIssue({
+          code: "custom",
+          path: ["libraryWorkspace", "activeEntryId"],
+          message: "The active library entry must match the active resource."
+        });
+      }
+    }
   }
   const shortWorkspace = value.shortWorkspace;
   const active = value.activeResource;
@@ -342,6 +374,7 @@ export const SessionAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
   runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
   agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
+  libraryAgentProfile: LibraryAgentProfileSchema.optional(),
   learningImitationProfile: LearningImitationAgentProfileSchema.optional()
 }).superRefine((value, context) => {
   if (
@@ -363,6 +396,27 @@ export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema
       code: "custom",
       path: ["learningImitationProfile", "id"],
       message: "Learning-imitation profile must match the active stage."
+    });
+  }
+  if (
+    Boolean(value.workspaceContext?.libraryWorkspace) !==
+    Boolean(value.libraryAgentProfile)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["libraryAgentProfile"],
+      message: "Library workspace context and agent profile must be provided together."
+    });
+  }
+  if (
+    value.libraryAgentProfile &&
+    value.workspaceContext?.libraryWorkspace?.domain !==
+      value.libraryAgentProfile.domain
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["libraryAgentProfile", "domain"],
+      message: "Library agent profile must match the active library domain."
     });
   }
 });
@@ -518,6 +572,49 @@ export type WorkspaceEditorMutationPayload = z.infer<
   typeof WorkspaceEditorMutationPayloadSchema
 >;
 
+const LibraryEditorMutationBaseSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  domain: z.enum(["material", "skill"]),
+  libraryId: z.string().trim().min(1).max(512),
+  stageId: z.string().trim().min(1).max(120),
+  title: z.string().trim().min(1).max(256),
+  text: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),
+  baseRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
+  baseProjectRevision: z.number().int().nonnegative().optional(),
+  summary: z.string().trim().min(1).max(1_000),
+  runtime: AgentRuntimeRefSchema
+});
+
+export const LibraryEditorMutationPayloadSchema = z
+  .discriminatedUnion("operation", [
+    LibraryEditorMutationBaseSchema.extend({
+      operation: z.literal("create")
+    }),
+    LibraryEditorMutationBaseSchema.extend({
+      operation: z.literal("edit"),
+      entryId: z.string().trim().min(1).max(512),
+      documentId: z.string().trim().min(1).max(4_096)
+    })
+  ])
+  .superRefine((value, context) => {
+    const validStage =
+      value.domain === "material"
+        ? MaterialStageIdSchema.safeParse(value.stageId).success
+        : SkillStageIdSchema.safeParse(value.stageId).success;
+    if (!validStage) {
+      context.addIssue({
+        code: "custom",
+        path: ["stageId"],
+        message: `Stage ${value.stageId} does not belong to ${value.domain}.`
+      });
+    }
+  });
+export type LibraryEditorMutationPayload = z.infer<
+  typeof LibraryEditorMutationPayloadSchema
+>;
+
 export const WorkspaceStageSelectionPayloadSchema = z.object({
   sessionId: z.string().min(1),
   runId: z.string().min(1),
@@ -581,6 +678,11 @@ export const WorkspaceEditorMutationEventEnvelopeSchema = EnvelopeBaseSchema.ext
   payload: WorkspaceEditorMutationPayloadSchema
 }).superRefine(validateAgentEventContext);
 
+export const LibraryEditorMutationEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("library.editor_mutation"),
+  payload: LibraryEditorMutationPayloadSchema
+}).superRefine(validateAgentEventContext);
+
 export const WorkspaceStageSelectionEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("workspace.stage_selection"),
   payload: WorkspaceStageSelectionPayloadSchema
@@ -630,6 +732,10 @@ export type LearningImitationResultUpdatedEventEnvelope = Envelope<
 export type WorkspaceEditorMutationEventEnvelope = Envelope<
   WorkspaceEditorMutationPayload,
   "workspace.editor_mutation"
+>;
+export type LibraryEditorMutationEventEnvelope = Envelope<
+  LibraryEditorMutationPayload,
+  "library.editor_mutation"
 >;
 export type WorkspaceStageSelectionEventEnvelope = Envelope<
   WorkspaceStageSelectionPayload,

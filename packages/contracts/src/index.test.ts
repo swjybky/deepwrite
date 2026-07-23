@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   AgentMessageCompletedEventEnvelopeSchema,
   AgentMessageDeltaEventEnvelopeSchema,
+  AgentPromptCommandPayloadSchema,
   ActiveResourceSnapshotSchema,
   CommandEnvelopeSchema,
   ExpertDraftFileSnapshotSchema,
   ExpertDraftSchema,
   ModelSettingsInputSchema,
   ModelSettingsSchema,
+  ExportShortManuscriptResultSchema,
+  DEFAULT_LIBRARY_AGENT_SETTINGS,
+  LibraryAgentSettingsInputSchema,
   PROTOCOL_VERSION,
   PROMPT_IMAGE_ATTACHMENT_MAX_BYTES,
   SHORT_WORKSPACE_FILE_MAX_CHARACTERS,
@@ -110,6 +114,32 @@ describe("DeepWrite desktop contracts", () => {
     const envelope = createEnvelope("system.health", {}, { id: "cmd_health" });
 
     expect(() => CommandEnvelopeSchema.parse({ ...envelope, protocolVersion: 2 })).toThrow();
+  });
+
+  it("accepts a validated short manuscript export command and result", () => {
+    const envelope = createEnvelope(
+      "manuscript.exportShort",
+      {
+        title: "雨夜来信",
+        format: "epub" as const,
+        sections: [
+          { title: "导语", content: "雨落下来。" },
+          { title: "第一节", content: "她打开了门。" }
+        ]
+      },
+      { id: "cmd_export_short" }
+    );
+
+    expect(CommandEnvelopeSchema.parse(envelope)).toMatchObject({
+      type: "manuscript.exportShort",
+      payload: { format: "epub" }
+    });
+    expect(
+      ExportShortManuscriptResultSchema.parse({
+        status: "saved",
+        filePath: "/tmp/雨夜来信.epub"
+      })
+    ).toMatchObject({ status: "saved" });
   });
 
   it("accepts three healthy utility workers", () => {
@@ -776,6 +806,164 @@ describe("DeepWrite desktop contracts", () => {
           }
         ]
       })
+    ).toThrow();
+  });
+
+  it("validates complete library-agent settings and configuration commands", () => {
+    expect(DEFAULT_LIBRARY_AGENT_SETTINGS.agents.map(({ domain }) => domain)).toEqual([
+      "material",
+      "skill"
+    ]);
+    const input = {
+      agents: DEFAULT_LIBRARY_AGENT_SETTINGS.agents.map((agent) => ({
+        domain: agent.domain,
+        systemPrompt: agent.systemPrompt
+      }))
+    };
+    expect(LibraryAgentSettingsInputSchema.parse(input)).toEqual(input);
+    expect(
+      LibraryAgentSettingsInputSchema.safeParse({
+        agents: [input.agents[0], input.agents[0]]
+      }).success
+    ).toBe(false);
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope("libraryAgents.save", input, { id: "library-save" })
+      ).type
+    ).toBe("libraryAgents.save");
+    expect(
+      CommandEnvelopeSchema.parse(
+        createEnvelope(
+          "libraryAgents.reset",
+          { domain: "skill" },
+          { id: "library-reset" }
+        )
+      ).type
+    ).toBe("libraryAgents.reset");
+  });
+
+  it("keeps library workspaces isolated from short and learning contexts", () => {
+    const body = "人物素材正文";
+    const libraryWorkspace = {
+      domain: "material" as const,
+      libraryId: "material-library-1",
+      title: "人物素材",
+      libraryType: "short" as const,
+      kind: "character" as const,
+      overview: "只用于人物设定",
+      readOnly: false,
+      activeEntryId: "entry-1",
+      projectRevision: 2,
+      entries: [
+        {
+          id: "entry-1",
+          documentId: "document-1",
+          stageId: "character" as const,
+          title: "人物甲",
+          content: body,
+          revision: createShortWorkspaceContentRevision(body),
+          readOnly: false
+        }
+      ]
+    };
+    const activeResource = {
+      id: "document-1",
+      domain: "material" as const,
+      title: "人物甲",
+      path: ["人物素材", "人物甲"],
+      source: "live-editor" as const,
+      content: body
+    };
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        activeResource,
+        libraryWorkspace
+      })
+    ).not.toThrow();
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        activeResource: { ...activeResource, domain: "skill" },
+        libraryWorkspace
+      })
+    ).toThrow();
+    expect(() =>
+      WorkspaceRuntimeContextSchema.parse({
+        activeResource,
+        libraryWorkspace,
+        shortWorkspace: shortWorkspaceRuntimeFixture()
+      })
+    ).toThrow();
+
+    const profile = DEFAULT_LIBRARY_AGENT_SETTINGS.agents.find(
+      ({ domain }) => domain === "material"
+    )!;
+    expect(() =>
+      AgentPromptCommandPayloadSchema.parse({
+        sessionId: "session-library",
+        message: "整理素材",
+        workspaceContext: { activeResource, libraryWorkspace },
+        libraryAgentProfile: profile
+      })
+    ).not.toThrow();
+    expect(() =>
+      AgentPromptCommandPayloadSchema.parse({
+        sessionId: "session-library",
+        message: "整理素材",
+        workspaceContext: { activeResource, libraryWorkspace }
+      })
+    ).toThrow();
+  });
+
+  it("validates create and edit library mutation events", () => {
+    const base = {
+      sessionId: "session-library-edit",
+      runId: "run-library-edit",
+      toolCallId: "tool-library-edit",
+      domain: "material" as const,
+      libraryId: "material-library-1",
+      stageId: "character",
+      title: "人物甲",
+      text: "更新后正文",
+      baseRevision: createShortWorkspaceContentRevision("更新前正文"),
+      baseProjectRevision: 3,
+      summary: "已生成条目修改。",
+      runtime
+    };
+    const context = {
+      sessionId: base.sessionId,
+      runId: base.runId
+    };
+    expect(
+      SystemEventEnvelopeSchema.parse(
+        createEnvelope(
+          "library.editor_mutation",
+          {
+            ...base,
+            operation: "edit" as const,
+            entryId: "entry-1",
+            documentId: "document-1"
+          },
+          { id: "library-edit-event", context }
+        )
+      ).type
+    ).toBe("library.editor_mutation");
+    expect(
+      SystemEventEnvelopeSchema.parse(
+        createEnvelope(
+          "library.editor_mutation",
+          { ...base, operation: "create" as const },
+          { id: "library-create-event", context }
+        )
+      ).type
+    ).toBe("library.editor_mutation");
+    expect(() =>
+      SystemEventEnvelopeSchema.parse(
+        createEnvelope(
+          "library.editor_mutation",
+          { ...base, operation: "edit" as const },
+          { id: "library-bad-edit-event", context }
+        )
+      )
     ).toThrow();
   });
 });
