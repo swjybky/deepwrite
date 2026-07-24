@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AgentTeamSettingsInputSchema,
+  AgentTeamSettingsSchema,
   CatalogDocumentSchema,
   CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
@@ -61,6 +63,8 @@ import {
   UpdateLibraryGroupInputSchema,
   createEnvelope,
   type CommandEnvelope,
+  type AgentTeamSettings,
+  type AgentTeamSettingsInput,
   type CatalogDocument,
   type CatalogDraftSection,
   type CatalogDraftRecovery,
@@ -530,6 +534,33 @@ async function listWorkspaceAgents(
   );
 }
 
+async function listAgentTeams(
+  workspaceType: "short"
+): Promise<AgentTeamSettings> {
+  const id = browserId("cmd_agent_teams_list");
+  return AgentTeamSettingsSchema.parse(
+    await invokeCommand<AgentTeamSettings>(
+      createEnvelope(
+        "agentTeams.list",
+        { workspaceType },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
+async function saveAgentTeams(
+  rawSettings: AgentTeamSettingsInput
+): Promise<AgentTeamSettings> {
+  const settings = AgentTeamSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_agent_teams_save");
+  return AgentTeamSettingsSchema.parse(
+    await invokeCommand<AgentTeamSettings>(
+      createEnvelope("agentTeams.save", settings, { id, correlationId: id })
+    )
+  );
+}
+
 async function saveWorkspaceAgents(
   rawSettings: ShortWorkspaceAgentSettingsInput
 ): Promise<ShortWorkspaceAgentSettings> {
@@ -735,6 +766,10 @@ const api: DeepWriteApi = {
     list: listWorkspaceAgents,
     save: saveWorkspaceAgents,
     reset: resetWorkspaceAgents
+  },
+  agentTeams: {
+    list: listAgentTeams,
+    save: saveAgentTeams
   },
   libraryAgents: {
     list: listLibraryAgents,

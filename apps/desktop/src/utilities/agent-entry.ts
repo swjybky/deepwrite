@@ -76,6 +76,42 @@ function toEventEnvelope(
     );
   }
 
+  if (event.type === "subagent.started") {
+    return createEnvelope(
+      "subagent.started",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        ...event.payload
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "subagent.activity") {
+    return createEnvelope(
+      "subagent.activity",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        ...event.payload
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
+  if (event.type === "subagent.completed") {
+    return createEnvelope(
+      "subagent.completed",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        ...event.payload
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   if (event.type === "agent.tool_requested") {
     return createEnvelope(
       "tool.call_requested",
@@ -368,6 +404,9 @@ bootUtility("agent", {
           : {}),
         ...(command.payload.agentProfile
           ? { agentProfile: command.payload.agentProfile }
+          : {}),
+        ...(command.payload.subagentDefinitions
+          ? { subagentDefinitions: command.payload.subagentDefinitions }
           : {}),
         ...(command.payload.libraryAgentProfile
           ? { libraryAgentProfile: command.payload.libraryAgentProfile }

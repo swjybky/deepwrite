@@ -1,4 +1,5 @@
 export * from "./appearance";
+export * from "./agent-team";
 export * from "./catalog";
 export * from "./envelope";
 export * from "./expert-draft";

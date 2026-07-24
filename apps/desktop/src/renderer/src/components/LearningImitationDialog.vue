@@ -42,7 +42,7 @@ import PopupSelect, {
 
 const props = withDefaults(
   defineProps<{
-    open: boolean;
+    active?: boolean;
     controller: LearningImitationController;
     models?: readonly ModelConfig[];
     catalogSnapshot?: CatalogSnapshot | null;
@@ -54,7 +54,6 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  close: [];
   refreshCatalog: [];
 }>();
 
@@ -333,12 +332,6 @@ function resetInvalidTargets(): void {
       selectedSkillLibraryIds[kind] = "";
     }
   }
-}
-
-function requestClose(): void {
-  saveDialogOpen.value = false;
-  newSessionConfirmOpen.value = false;
-  emit("close");
 }
 
 function openFilePicker(): void {
@@ -795,14 +788,12 @@ function toolDisplayName(name: string): string {
 }
 
 function onKeyDown(event: KeyboardEvent): void {
-  if (!props.open || event.key !== "Escape") return;
+  if (!props.active || event.key !== "Escape") return;
   event.preventDefault();
   if (saveDialogOpen.value) {
     saveDialogOpen.value = false;
   } else if (newSessionConfirmOpen.value) {
     newSessionConfirmOpen.value = false;
-  } else {
-    requestClose();
   }
 }
 
@@ -819,9 +810,9 @@ watch(
 );
 
 watch(
-  () => props.open,
-  (open) => {
-    if (open && runningStage.value) activeStage.value = runningStage.value;
+  () => props.active,
+  (active) => {
+    if (active && runningStage.value) activeStage.value = runningStage.value;
   }
 );
 
@@ -830,7 +821,7 @@ watch(status, (next, previous) => {
   if (next === "completed") {
     const runId = props.controller.lastCompletedRunId.value;
     const stageId = props.controller.lastCompletedStage.value;
-    if (!props.open && runId && stageId && !backgroundPersistRunIds.has(runId)) {
+    if (!props.active && runId && stageId && !backgroundPersistRunIds.has(runId)) {
       backgroundPersistRunIds.add(runId);
       activeStage.value = stageId;
       if (hasConfiguredTargets(stageId)) {
@@ -871,12 +862,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="learning-backdrop" @mousedown.self="requestClose">
       <section
         class="learning-dialog"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="learning-dialog-title"
       >
         <header class="learning-head">
@@ -898,15 +885,6 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
               @click="newSessionConfirmOpen = true"
             >
               新建学习
-            </button>
-            <button
-              type="button"
-              class="learning-close"
-              aria-label="关闭学习仿写，任务将在后台继续"
-              title="关闭弹窗；运行中的任务会在后台继续"
-              @click="requestClose"
-            >
-              ×
             </button>
           </div>
         </header>
@@ -1149,7 +1127,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
               <div v-if="!messages.length" class="learning-chat-empty">
                 <span>✦</span>
                 <strong>准备好后选择一键任务</strong>
-                <p>关闭弹窗不会中断运行；再次打开会继续显示同一轮进度。</p>
+                <p>切换到其他页面不会中断运行；返回这里会继续显示同一轮进度。</p>
               </div>
               <article
                 v-for="message in messages"
@@ -1195,7 +1173,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
                 <button type="button" :disabled="isBusy || !customPrompt.trim()" @click="sendCustomPrompt">发送</button>
               </div>
               <div v-if="isBusy" class="learning-running-footer">
-                <span>任务会持续在后台执行，关闭弹窗也不会中断。</span>
+                <span>任务会持续在后台执行，切换页面也不会中断。</span>
                 <button type="button" @click="stopLearning">停止</button>
               </div>
             </footer>
@@ -1230,35 +1208,20 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
           </footer>
         </section>
       </div>
-    </div>
-  </Teleport>
 </template>
 
 <style scoped>
-.learning-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgb(0 0 0 / 42%);
-  font-family: var(--ui-font);
-  backdrop-filter: blur(8px);
-}
-
 .learning-dialog {
-  width: min(1360px, calc(100vw - 48px));
-  height: min(860px, calc(100vh - 48px));
-  min-height: 620px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   color: var(--text-primary);
   background: var(--surface-main);
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 17px;
-  box-shadow: 0 24px 64px rgb(0 0 0 / 24%);
+  font-family: var(--ui-font);
 }
 
 .learning-head {
@@ -1307,7 +1270,6 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
 
 .learning-head-actions { display: flex; align-items: center; gap: 8px; }
 button { font: inherit; }
-.learning-close,
 .learning-confirm-dialog header button {
   width: 34px;
   height: 34px;
@@ -1318,7 +1280,6 @@ button { font: inherit; }
   font-size: 22px;
   cursor: pointer;
 }
-.learning-close:hover,
 .learning-confirm-dialog header button:hover { color: var(--text-primary); background: var(--surface-hover); }
 
 .learning-quiet-button,
@@ -1533,8 +1494,6 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-confirm-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 @media (max-width: 1080px) {
-  .learning-backdrop { padding: 12px; }
-  .learning-dialog { width: calc(100vw - 24px); height: calc(100vh - 24px); }
   .learning-head { padding-right: 18px; padding-left: 18px; }
   .learning-source-bar,
   .learning-tabs { padding-right: 18px; padding-left: 18px; }
@@ -1547,8 +1506,6 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 }
 
 @media (max-height: 720px) {
-  .learning-backdrop { padding: 8px; }
-  .learning-dialog { height: calc(100vh - 16px); min-height: 0; }
   .learning-head { padding-top: 12px; padding-bottom: 10px; }
   .learning-title-block > p { margin-top: 4px; }
   .learning-source-bar { min-height: 52px; padding-top: 7px; padding-bottom: 7px; }

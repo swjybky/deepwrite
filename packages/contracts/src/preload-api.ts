@@ -16,6 +16,10 @@ import type {
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput
 } from "./workspace";
+import type {
+  AgentTeamSettings,
+  AgentTeamSettingsInput
+} from "./agent-team";
 import type { WorkspaceDirectorySettings } from "./workspace-directory";
 import type {
   AppearanceSettings,
@@ -118,6 +122,10 @@ export interface DeepWriteApi {
       workspaceType: "short",
       agentId?: ShortWorkspaceAgentId
     ): Promise<ShortWorkspaceAgentSettings>;
+  };
+  agentTeams: {
+    list(workspaceType: "short"): Promise<AgentTeamSettings>;
+    save(settings: AgentTeamSettingsInput): Promise<AgentTeamSettings>;
   };
   libraryAgents: {
     list(): Promise<LibraryAgentSettings>;

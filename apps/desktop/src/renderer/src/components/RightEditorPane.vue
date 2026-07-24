@@ -19,6 +19,7 @@ const props = defineProps<{
   locked: boolean;
   lockedLabel?: string | undefined;
   saving?: boolean;
+  autoSaveEnabled?: boolean;
   boundToCurrentBook?: boolean;
   sectionTabs?: readonly { id: string; title: string }[];
   activeSectionId?: string | undefined;
@@ -213,7 +214,7 @@ onBeforeUnmount(() => {
       <div class="editor-header-actions">
         <span class="save-state" :class="{ 'is-dirty': dirty }">
           <AppIcon :name="dirty ? 'save' : 'check'" :size="13" />
-          {{ document.readOnly ? "只读" : locked ? (lockedLabel ?? "智能体运行中 · 暂停编辑") : saving ? "正在保存到本机" : dirty ? "有未应用修改" : persistedDocument ? "已保存到本机" : "本次运行已应用" }}
+          {{ document.readOnly ? "只读" : locked ? (lockedLabel ?? "智能体运行中 · 暂停编辑") : saving ? "正在保存到本机" : dirty ? (autoSaveEnabled ? "等待自动保存" : "有未应用修改") : persistedDocument ? "已保存到本机" : "本次运行已应用" }}
         </span>
         <button
           class="icon-button"
@@ -340,7 +341,7 @@ onBeforeUnmount(() => {
 
     <footer class="editor-footer">
       <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
-      <span>{{ locked ? (lockedLabel ?? "智能体运行中 · 防止版本冲突") : saving ? "正在原子保存本机文稿" : persistedDocument ? "本机文稿 · 应用后持久保存" : "内存草稿 · 重启后不保留" }}</span>
+      <span>{{ locked ? (lockedLabel ?? "智能体运行中 · 防止版本冲突") : saving ? "正在原子保存本机文稿" : persistedDocument ? (autoSaveEnabled ? "本机文稿 · 更改后自动保存" : "本机文稿 · 应用后持久保存") : "内存草稿 · 重启后不保留" }}</span>
       <span class="footer-spacer" />
       <button
         class="save-button"
@@ -349,7 +350,7 @@ onBeforeUnmount(() => {
         @click="save"
       >
         <AppIcon name="save" :size="14" />
-        {{ saving ? "保存中…" : "应用" }}
+        {{ saving ? "保存中…" : autoSaveEnabled ? "立即保存" : "应用" }}
       </button>
     </footer>
   </aside>

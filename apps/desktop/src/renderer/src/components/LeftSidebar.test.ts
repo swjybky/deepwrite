@@ -30,4 +30,15 @@ describe("LeftSidebar account controls", () => {
     expect(source).toContain("nav-background-status");
     expect(source).toContain("后台中");
   });
+
+  it("places agent-team management directly below learning imitation", () => {
+    expect(source.indexOf('label: "学习仿写"')).toBeLessThan(
+      source.indexOf('label: "智能体团队"')
+    );
+    expect(source).toContain('id: "agent-teams"');
+    expect(source).toContain('emit("openAgentTeams")');
+    expect(source).toContain("props.activePrimaryFeature");
+    expect(source).toContain("'is-active'");
+    expect(source).toContain("'page'");
+  });
 });

@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import source from "./RightEditorPane.vue?raw";
 
 describe("RightEditorPane expert draft navigation", () => {
+  it("shows automatic save status while preserving an immediate save action", () => {
+    expect(source).toContain('autoSaveEnabled ? "等待自动保存"');
+    expect(source).toContain('autoSaveEnabled ? "本机文稿 · 更改后自动保存"');
+    expect(source).toContain('autoSaveEnabled ? "立即保存" : "应用"');
+  });
+
   it("renders independently managed section tabs before the active section editor", () => {
     const tabsStart = source.indexOf('class="section-tabs-bar"');
     const editorStart = source.indexOf('class="editor-document"', tabsStart);

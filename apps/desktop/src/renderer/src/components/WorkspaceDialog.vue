@@ -13,7 +13,6 @@ import {
   type ThinkingLevelOptions,
   type ThinkingLevel
 } from "@deepwrite/contracts";
-import type { DialogMode } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
@@ -26,7 +25,8 @@ interface DraftModel extends ModelConfig {
 }
 
 const props = defineProps<{
-  mode: DialogMode | null;
+  mode: "directory" | "models";
+  active?: boolean;
   modelSettings: ModelSettings | null;
   modelLoading: boolean;
   modelSaving: boolean;
@@ -37,14 +37,11 @@ const props = defineProps<{
   workspaceDirectoryLoading: boolean;
 }>();
 const emit = defineEmits<{
-  close: [];
-  seedPrompt: [value: string];
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
   chooseWorkspaceDirectory: [];
 }>();
 
-const imitationSample = ref("");
 const draftModels = ref<DraftModel[]>([]);
 const draftDefaultModelId = ref("");
 const modelEditor = ref<DraftModel | null>(null);
@@ -146,12 +143,9 @@ function resetModelDraft(settings: ModelSettings | null): void {
 }
 
 watch(
-  () => props.mode,
-  (mode) => {
-    if (mode !== "imitation") {
-      imitationSample.value = "";
-    }
-    if (mode === "models") {
+  () => [props.mode, props.active] as const,
+  ([mode, active]) => {
+    if (active && mode === "models") {
       resetModelDraft(props.modelSettings);
     }
   }
@@ -160,7 +154,7 @@ watch(
 watch(
   () => [props.modelSettings, props.modelSaving] as const,
   ([settings, saving]) => {
-    if (props.mode === "models" && !saving) {
+    if (props.active && props.mode === "models" && !saving) {
       resetModelDraft(settings);
     }
   }
@@ -183,16 +177,6 @@ watch(
     }
   }
 );
-
-function addImitationContext(): void {
-  const sample = imitationSample.value.trim();
-  emit(
-    "seedPrompt",
-    sample
-      ? `请分析下面文字的语言风格，并在不复用原句的前提下仿写：\n\n${sample}`
-      : "请分析一段参考文字的语言风格，并建立可复用的仿写规则。"
-  );
-}
 
 function createModel(): void {
   modelEditor.value = {
@@ -488,16 +472,16 @@ function submitModelSettings(): void {
     defaultModelId: draftDefaultModelId.value || models[0]?.id || ""
   });
 }
+
+function discardModelChanges(): void {
+  resetModelDraft(props.modelSettings);
+}
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="mode" class="dialog-backdrop" @mousedown.self="emit('close')">
       <section
-        class="workspace-dialog"
+        class="workspace-settings-panel"
         :class="{ 'is-model-config': mode === 'models' }"
-        role="dialog"
-        aria-modal="true"
       >
         <header>
           <div>
@@ -508,11 +492,10 @@ function submitModelSettings(): void {
                   ? "工作目录"
                   : mode === "models"
                     ? "模型配置"
-                    : "学习仿写"
+                    : "模型配置"
               }}
             </h2>
           </div>
-          <button class="dialog-close" type="button" aria-label="关闭" @click="emit('close')">×</button>
         </header>
 
         <div v-if="mode === 'directory'" class="dialog-content">
@@ -527,7 +510,6 @@ function submitModelSettings(): void {
           </div>
           <div class="dialog-note">新书和旧版导入保存在 books，新素材库保存在 materials，新技能库保存在 skills。项目仍采用 deepwrite.json + Markdown 文件结构，可由 Git 或同步盘直接管理。</div>
           <div class="dialog-actions">
-            <button class="dialog-secondary-button" type="button" @click="emit('close')">关闭</button>
             <button
               class="dialog-primary-button"
               type="button"
@@ -547,6 +529,178 @@ function submitModelSettings(): void {
 
             <div v-if="modelLoading" class="dialog-note">正在读取模型配置…</div>
             <template v-else>
+              <section v-if="modelEditor" class="model-editor">
+                <div class="model-editor-heading">
+                  <strong>{{ draftModels.some((model) => model.id === (modelEditor?.originalId ?? modelEditor?.id)) ? "编辑模型" : "添加模型" }}</strong>
+                  <button type="button" @click="modelEditor = null">取消</button>
+                </div>
+                <div class="model-form-grid">
+                  <label>
+                    <span>名称</span>
+                    <input
+                      v-model="modelEditor.label"
+                      type="text"
+                      placeholder="例如：DeepSeek 写作"
+                      :readonly="isDeepWriteFreeEditor"
+                    />
+                  </label>
+                  <label>
+                    <span>Provider</span>
+                    <PopupSelect
+                      :model-value="isDeepWriteFreeEditor ? 'deepwrite-free' : modelEditor.provider"
+                      :options="providerOptions"
+                      accessible-label="选择 Provider"
+                      @update:model-value="applyProviderPreset(String($event))"
+                    />
+                  </label>
+                  <label>
+                    <span>模型 ID</span>
+                    <PopupSelect
+                      v-if="isDeepWriteFreeEditor"
+                      :model-value="modelEditor.id"
+                      :options="deepwriteFreeModelOptions"
+                      accessible-label="选择 DeepWrite 免费模型"
+                      :menu-min-width="300"
+                      @update:model-value="applyDeepWriteFreeModel(String($event))"
+                    />
+                    <input
+                      v-else
+                      v-model="modelEditor.modelId"
+                      type="text"
+                      placeholder="服务商提供的模型 ID"
+                    />
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor">
+                    <span>API 类型</span>
+                    <PopupSelect
+                      :model-value="modelEditor.api"
+                      :options="apiOptions"
+                      accessible-label="选择 API 类型"
+                      :menu-min-width="240"
+                      @update:model-value="setModelApi"
+                    />
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor" class="is-wide">
+                    <span>API 地址</span>
+                    <input v-model="modelEditor.baseUrl" type="url" placeholder="内置模型可留空，自定义服务请填写" />
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor" class="is-wide">
+                    <span>API Key</span>
+                    <input
+                      v-model="modelEditor.apiKey"
+                      type="password"
+                      :placeholder="modelEditor.hasApiKey ? '已安全保存；留空表示保持不变' : '请输入 API Key（本地服务可留空）'"
+                      autocomplete="new-password"
+                      @input="modelEditor.clearApiKey = false"
+                    />
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor">
+                    <span>模型模式</span>
+                    <PopupSelect
+                      :model-value="modelEditor.reasoning ? 'reasoning' : 'temperature'"
+                      :options="modelModeOptions"
+                      accessible-label="选择模型模式"
+                      @update:model-value="setModelMode(String($event) as 'reasoning' | 'temperature')"
+                    />
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning">
+                    <span>默认思考等级</span>
+                    <PopupSelect
+                      :model-value="modelEditor.defaultThinkingLevel"
+                      :options="defaultThinkingOptions"
+                      accessible-label="选择默认思考等级"
+                      @update:model-value="setDefaultThinkingLevel"
+                    />
+                  </label>
+                  <label v-else-if="!isDeepWriteFreeEditor">
+                    <span class="model-field-label">
+                      温度选项
+                      <span
+                        class="model-help-icon"
+                        tabindex="0"
+                        aria-label="温度说明：温度越低，输出越稳定和确定；温度越高，表达越多样和有创造性。可填写 0 到 2。"
+                        data-tooltip="温度越低，输出越稳定、确定；温度越高，表达越多样、有创造性。可填写 0–2。"
+                      >!</span>
+                    </span>
+                    <span class="model-temperature-options">
+                      <input
+                        v-for="(_, index) in modelEditor.temperatureOptions"
+                        :key="index"
+                        v-model.number="modelEditor.temperatureOptions[index]"
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        :aria-label="`温度选项 ${index + 1}`"
+                      />
+                    </span>
+                  </label>
+                  <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning" class="is-wide">
+                    <span>思考等级选项</span>
+                    <span class="model-thinking-options">
+                      <label
+                        v-for="option in reasoningOptions"
+                        :key="option.value"
+                        class="model-thinking-option"
+                        tabindex="0"
+                        :title="option.value"
+                        :data-tooltip="option.value"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="modelEditor.thinkingLevelOptions.includes(option.value)"
+                          @change="toggleThinkingLevelOption(option.value, $event)"
+                        />
+                        <span>{{ option.label }}</span>
+                      </label>
+                      <span
+                        class="model-custom-thinking"
+                        :title="modelEditor.customThinkingLevel?.trim() || 'custom'"
+                        :data-tooltip="modelEditor.customThinkingLevel?.trim() || 'custom'"
+                      >
+                        <span>自定义</span>
+                        <input
+                          :value="modelEditor.customThinkingLevel"
+                          type="text"
+                          maxlength="64"
+                          placeholder="例如 ultra"
+                          aria-label="自定义思考等级英文值"
+                          @input="updateCustomThinkingLevel"
+                        />
+                      </span>
+                    </span>
+                  </label>
+                  <p v-if="isDeepWriteFreeEditor" class="model-managed-note is-wide">
+                    模型名称和参数由 DeepWrite 远程配置自动维护；运行环境提供密钥，无需在此填写。
+                  </p>
+                </div>
+                <div
+                  v-if="modelEditor.hasApiKey && !isDeepWriteFreeEditor"
+                  class="model-key-row"
+                >
+                  <span>已有密钥会保持不变。</span>
+                  <button
+                    type="button"
+                    @click="modelEditor.hasApiKey = false; modelEditor.clearApiKey = true; modelEditor.apiKey = ''"
+                  >
+                    清除已保存密钥
+                  </button>
+                </div>
+                <div class="dialog-actions">
+                  <button
+                    class="dialog-secondary-button"
+                    type="button"
+                    :disabled="testingModelId !== null"
+                    @click="testDraftModel(modelEditor)"
+                  >
+                    {{ testingModelId === modelEditor.id ? "测试中…" : "测试当前填写" }}
+                  </button>
+                  <button class="dialog-primary-button" type="button" @click="saveModelEditor">
+                    应用到配置
+                  </button>
+                </div>
+              </section>
+
               <div v-if="draftModels.length === 0" class="model-empty-state">
                 <strong>尚未配置真实模型</strong>
                 <span>当前对话继续使用 DeepWrite Faux。添加模型并设为默认后，新的请求会走真实 Provider。</span>
@@ -588,180 +742,8 @@ function submitModelSettings(): void {
               </div>
               </article>
 
-              <section v-if="modelEditor" class="model-editor">
-              <div class="model-editor-heading">
-                <strong>{{ draftModels.some((model) => model.id === (modelEditor?.originalId ?? modelEditor?.id)) ? "编辑模型" : "添加模型" }}</strong>
-                <button type="button" @click="modelEditor = null">取消</button>
-              </div>
-              <div class="model-form-grid">
-                <label>
-                  <span>名称</span>
-                  <input
-                    v-model="modelEditor.label"
-                    type="text"
-                    placeholder="例如：DeepSeek 写作"
-                    :readonly="isDeepWriteFreeEditor"
-                  />
-                </label>
-                <label>
-                  <span>Provider</span>
-                  <PopupSelect
-                    :model-value="isDeepWriteFreeEditor ? 'deepwrite-free' : modelEditor.provider"
-                    :options="providerOptions"
-                    accessible-label="选择 Provider"
-                    @update:model-value="applyProviderPreset(String($event))"
-                  />
-                </label>
-                <label>
-                  <span>模型 ID</span>
-                  <PopupSelect
-                    v-if="isDeepWriteFreeEditor"
-                    :model-value="modelEditor.id"
-                    :options="deepwriteFreeModelOptions"
-                    accessible-label="选择 DeepWrite 免费模型"
-                    :menu-min-width="300"
-                    @update:model-value="applyDeepWriteFreeModel(String($event))"
-                  />
-                  <input
-                    v-else
-                    v-model="modelEditor.modelId"
-                    type="text"
-                    placeholder="服务商提供的模型 ID"
-                  />
-                </label>
-                <label v-if="!isDeepWriteFreeEditor">
-                  <span>API 类型</span>
-                  <PopupSelect
-                    :model-value="modelEditor.api"
-                    :options="apiOptions"
-                    accessible-label="选择 API 类型"
-                    :menu-min-width="240"
-                    @update:model-value="setModelApi"
-                  />
-                </label>
-                <label v-if="!isDeepWriteFreeEditor" class="is-wide">
-                  <span>API 地址</span>
-                  <input v-model="modelEditor.baseUrl" type="url" placeholder="内置模型可留空，自定义服务请填写" />
-                </label>
-                <label v-if="!isDeepWriteFreeEditor" class="is-wide">
-                  <span>API Key</span>
-                  <input
-                    v-model="modelEditor.apiKey"
-                    type="password"
-                    :placeholder="modelEditor.hasApiKey ? '已安全保存；留空表示保持不变' : '请输入 API Key（本地服务可留空）'"
-                    autocomplete="new-password"
-                    @input="modelEditor.clearApiKey = false"
-                  />
-                </label>
-                <label v-if="!isDeepWriteFreeEditor">
-                  <span>模型模式</span>
-                  <PopupSelect
-                    :model-value="modelEditor.reasoning ? 'reasoning' : 'temperature'"
-                    :options="modelModeOptions"
-                    accessible-label="选择模型模式"
-                    @update:model-value="setModelMode(String($event) as 'reasoning' | 'temperature')"
-                  />
-                </label>
-                <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning">
-                  <span>默认思考等级</span>
-                  <PopupSelect
-                    :model-value="modelEditor.defaultThinkingLevel"
-                    :options="defaultThinkingOptions"
-                    accessible-label="选择默认思考等级"
-                    @update:model-value="setDefaultThinkingLevel"
-                  />
-                </label>
-                <label v-else-if="!isDeepWriteFreeEditor">
-                  <span class="model-field-label">
-                    温度选项
-                    <span
-                      class="model-help-icon"
-                      tabindex="0"
-                      aria-label="温度说明：温度越低，输出越稳定和确定；温度越高，表达越多样和有创造性。可填写 0 到 2。"
-                      data-tooltip="温度越低，输出越稳定、确定；温度越高，表达越多样、有创造性。可填写 0–2。"
-                    >!</span>
-                  </span>
-                  <span class="model-temperature-options">
-                    <input
-                      v-for="(_, index) in modelEditor.temperatureOptions"
-                      :key="index"
-                      v-model.number="modelEditor.temperatureOptions[index]"
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      :aria-label="`温度选项 ${index + 1}`"
-                    />
-                  </span>
-                </label>
-                <label v-if="!isDeepWriteFreeEditor && modelEditor.reasoning" class="is-wide">
-                  <span>思考等级选项</span>
-                  <span class="model-thinking-options">
-                    <label
-                      v-for="option in reasoningOptions"
-                      :key="option.value"
-                      class="model-thinking-option"
-                      tabindex="0"
-                      :title="option.value"
-                      :data-tooltip="option.value"
-                    >
-                      <input
-                        type="checkbox"
-                        :checked="modelEditor.thinkingLevelOptions.includes(option.value)"
-                        @change="toggleThinkingLevelOption(option.value, $event)"
-                      />
-                      <span>{{ option.label }}</span>
-                    </label>
-                    <span
-                      class="model-custom-thinking"
-                      :title="modelEditor.customThinkingLevel?.trim() || 'custom'"
-                      :data-tooltip="modelEditor.customThinkingLevel?.trim() || 'custom'"
-                    >
-                      <span>自定义</span>
-                      <input
-                        :value="modelEditor.customThinkingLevel"
-                        type="text"
-                        maxlength="64"
-                        placeholder="例如 ultra"
-                        aria-label="自定义思考等级英文值"
-                        @input="updateCustomThinkingLevel"
-                      />
-                    </span>
-                  </span>
-                </label>
-                <p v-if="isDeepWriteFreeEditor" class="model-managed-note is-wide">
-                  模型名称和参数由 DeepWrite 远程配置自动维护；运行环境提供密钥，无需在此填写。
-                </p>
-              </div>
-              <div
-                v-if="modelEditor.hasApiKey && !isDeepWriteFreeEditor"
-                class="model-key-row"
-              >
-                <span>已有密钥会保持不变。</span>
-                <button
-                  type="button"
-                  @click="modelEditor.hasApiKey = false; modelEditor.clearApiKey = true; modelEditor.apiKey = ''"
-                >
-                  清除已保存密钥
-                </button>
-              </div>
-              <div class="dialog-actions">
-                <button
-                  class="dialog-secondary-button"
-                  type="button"
-                  :disabled="testingModelId !== null"
-                  @click="testDraftModel(modelEditor)"
-                >
-                  {{ testingModelId === modelEditor.id ? "测试中…" : "测试当前填写" }}
-                </button>
-                <button class="dialog-primary-button" type="button" @click="saveModelEditor">
-                  应用到配置
-                </button>
-              </div>
-              </section>
-
               <button
-                v-else
+                v-if="!modelEditor"
                 class="dialog-secondary-button model-add-button"
                 type="button"
                 @click="createModel"
@@ -772,7 +754,7 @@ function submitModelSettings(): void {
           </div>
 
           <div v-if="!modelLoading" class="dialog-actions model-save-actions">
-            <button class="dialog-secondary-button" type="button" @click="emit('close')">取消</button>
+            <button class="dialog-secondary-button" type="button" @click="discardModelChanges">还原未保存</button>
             <button
               class="dialog-primary-button"
               type="button"
@@ -784,18 +766,5 @@ function submitModelSettings(): void {
           </div>
         </div>
 
-        <div v-else-if="mode === 'imitation'" class="dialog-content">
-          <p class="dialog-description">粘贴参考文字，把风格分析任务发送到中间智能体对话。</p>
-          <textarea v-model="imitationSample" rows="8" placeholder="在这里粘贴参考文本……" />
-          <div class="dialog-actions">
-            <button class="dialog-secondary-button" type="button" @click="emit('close')">取消</button>
-            <button class="dialog-primary-button" type="button" @click="addImitationContext">
-              <AppIcon name="wand" :size="15" />添加到对话
-            </button>
-          </div>
-        </div>
-
       </section>
-    </div>
-  </Teleport>
 </template>

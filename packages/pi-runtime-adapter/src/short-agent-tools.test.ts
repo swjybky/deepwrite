@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   buildShortWorkspaceTools,
+  createShortWorkspaceToolSharedState,
   SHORT_WORKSPACE_TOOL_MANIFEST,
   type ShortWorkspaceToolDetails
 } from "./short-agent-tools";
@@ -234,6 +235,55 @@ describe("short workspace tools", () => {
       kind: "workspace-editor-mutation",
       text: "旧剧情的新片段。"
     });
+  });
+
+  it("shares the mutation overlay without sharing per-agent read evidence", async () => {
+    const snapshot = workspace("draft");
+    const sharedState = createShortWorkspaceToolSharedState(snapshot);
+    const parentTools = buildShortWorkspaceTools({
+      workspace: snapshot,
+      profile: profile("expert_draft_coordinator"),
+      sharedState
+    });
+    const childTools = buildShortWorkspaceTools({
+      workspace: snapshot,
+      profile: profile("expert_draft_coordinator"),
+      sharedState
+    });
+
+    await toolByName(childTools, "read_expert_draft_section").execute(
+      "child-read",
+      { section_id: "section-1" }
+    );
+    const childWrite = await toolByName(
+      childTools,
+      "replace_expert_draft_section_text"
+    ).execute("child-write", {
+      section_id: "section-1",
+      original_text: "迟到了七分钟",
+      new_text: "提前了三分钟"
+    });
+    expect(childWrite.details).toMatchObject({
+      kind: "workspace-expert-draft-file-mutation",
+      text: "汽笛提前了三分钟。共同片段。"
+    });
+
+    const blockedParentWrite = await toolByName(
+      parentTools,
+      "replace_expert_draft_section_text"
+    ).execute("parent-write", {
+      section_id: "section-1",
+      original_text: "共同片段",
+      new_text: "独有片段"
+    });
+    expect(blockedParentWrite.details).toEqual({ kind: "none" });
+    expect(resultText(blockedParentWrite)).toContain("请先读取");
+
+    const parentRead = await toolByName(
+      parentTools,
+      "read_expert_draft_section"
+    ).execute("parent-read", { section_id: "section-1" });
+    expect(resultText(parentRead)).toContain("汽笛提前了三分钟");
   });
 
   it("refuses local replacement when the stage snapshot is truncated", async () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
 import {
+  DEFAULT_AGENT_TEAM_SETTINGS,
   DEFAULT_LIBRARY_AGENT_SETTINGS,
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   SHORT_WORKSPACE_STAGE_IDS,
@@ -252,6 +253,14 @@ function createDeferredApi(): {
       },
       async reset() {
         return structuredClone(DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS);
+      }
+    },
+    agentTeams: {
+      async list() {
+        return structuredClone(DEFAULT_AGENT_TEAM_SETTINGS);
+      },
+      async save() {
+        return structuredClone(DEFAULT_AGENT_TEAM_SETTINGS);
       }
     },
     libraryAgents: {
@@ -632,6 +641,82 @@ describe("agent conversation controller", () => {
         baseProjectRevision: 3
       }
     });
+    restored.dispose();
+  });
+
+  it("persists subagent details and restores interrupted child runs as stopped", () => {
+    const storage = createMemoryStorage();
+    const persistenceKey = "conversation-subagent-history-test";
+    const controller = useAgentConversation({
+      api: () => undefined,
+      persistenceKey,
+      storage
+    });
+    controller.messages.value = [{
+      id: "assistant-subagent-history",
+      role: "assistant",
+      content: "",
+      createdAt: "2026-07-24T02:00:00.000Z",
+      runId: "run_subagent_history",
+      status: "completed",
+      subagentRuns: [{
+        parentToolCallId: "spawn_history",
+        subagentRunId: "subrun_history",
+        subagentId: "researcher",
+        name: "资料员",
+        task: "检查旧设定",
+        status: "running",
+        runtime,
+        thinking: "正在检查",
+        output: "已经找到两条相关设定。",
+        summary: "等待父智能体接收。",
+        usage: {
+          inputTokens: 30,
+          outputTokens: 10,
+          cacheReadTokens: 2,
+          cacheWriteTokens: 0,
+          totalTokens: 42
+        },
+        toolCalls: [{
+          id: "subtool_history",
+          name: "read_workspace_content",
+          args: { stage: "outline" },
+          status: "running",
+          requestedAt: "2026-07-24T02:00:01.000Z"
+        }],
+        processingSteps: [{
+          id: "substep_history",
+          type: "tool",
+          toolCallId: "subtool_history",
+          createdAt: "2026-07-24T02:00:01.000Z"
+        }],
+        startedAt: "2026-07-24T02:00:00.000Z"
+      }]
+    }];
+    controller.dispose();
+
+    const restored = useAgentConversation({
+      api: () => undefined,
+      persistenceKey,
+      storage
+    });
+    expect(restored.messages.value[0]?.subagentRuns?.[0]).toMatchObject({
+      subagentRunId: "subrun_history",
+      status: "stopped",
+      thinking: "正在检查",
+      output: "已经找到两条相关设定。",
+      summary: "等待父智能体接收。",
+      usage: { totalTokens: 42 },
+      errorMessage: "应用关闭或对话恢复时，子任务仍在运行。",
+      toolCalls: [{
+        id: "subtool_history",
+        status: "error",
+        isError: true
+      }]
+    });
+    expect(
+      restored.messages.value[0]?.subagentRuns?.[0]?.completedAt
+    ).toBeTruthy();
     restored.dispose();
   });
 
@@ -1254,6 +1339,248 @@ describe("agent conversation controller", () => {
     expect(controller.messages.value.at(-1)?.content).toBe("AB");
     expect(controller.messages.value.at(-1)?.status).toBe("completed");
     expect(controller.isBusy.value).toBe(false);
+    controller.dispose();
+  });
+
+  it("assembles isolated subagent activity across duplicate and out-of-order events", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    controller.draft.value = "请让资料核对员先检查设定";
+    const sessionId = controller.sessionId.value;
+    const sending = controller.sendMessage(document);
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_subagent",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    const base = {
+      sessionId,
+      runId: "run_subagent",
+      parentToolCallId: "spawn_1",
+      subagentRunId: "subrun_1",
+      subagentId: "fact_checker",
+      name: "资料核对员",
+      runtime
+    };
+    controller.handleEvent(
+      createEnvelope(
+        "tool.call_requested",
+        {
+          sessionId,
+          runId: "run_subagent",
+          toolCallId: "spawn_1",
+          toolName: "spawn_subagent",
+          args: {
+            subagent_id: "fact_checker",
+            task: "核对人物年龄与章节时间线"
+          },
+          runtime
+        },
+        eventOptions(sessionId, "run_subagent", "evt_spawn_requested")
+      )
+    );
+    expect(controller.messages.value.at(-1)?.subagentRuns).toMatchObject([{
+      parentToolCallId: "spawn_1",
+      subagentRunId: "pending:spawn_1",
+      task: "核对人物年龄与章节时间线",
+      status: "running"
+    }]);
+    const thinking = createEnvelope(
+      "subagent.activity",
+      {
+        ...base,
+        activity: { type: "thinking_delta" as const, delta: "先核对时间线。" }
+      },
+      eventOptions(sessionId, "run_subagent", "evt_sub_thinking")
+    );
+    controller.handleEvent(thinking);
+    controller.handleEvent(thinking);
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.completed",
+        {
+          ...base,
+          status: "completed" as const,
+          summary: "时间线一致，可以继续写作。",
+          usage: {
+            inputTokens: 12,
+            outputTokens: 8,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 20
+          }
+        },
+        eventOptions(sessionId, "run_subagent", "evt_sub_completed")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.started",
+        { ...base, task: "核对人物年龄与章节时间线" },
+        eventOptions(sessionId, "run_subagent", "evt_sub_started_late")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.activity",
+        {
+          ...base,
+          activity: {
+            type: "tool_completed" as const,
+            toolCallId: "subtool_1",
+            toolName: "read_workspace_content",
+            resultSummary: "已读取人物与大纲",
+            isError: false
+          }
+        },
+        eventOptions(sessionId, "run_subagent", "evt_sub_tool_completed")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.activity",
+        {
+          ...base,
+          activity: {
+            type: "tool_requested" as const,
+            toolCallId: "subtool_1",
+            toolName: "read_workspace_content",
+            args: { stage: "character_design" }
+          }
+        },
+        eventOptions(sessionId, "run_subagent", "evt_sub_tool_requested_late")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "agent.message_completed",
+        {
+          sessionId,
+          runId: "run_subagent",
+          messageId: "message_subagent",
+          role: "assistant" as const,
+          content: "核对完成，我会按一致的时间线继续。",
+          runtime
+        },
+        eventOptions(sessionId, "run_subagent", "evt_parent_completed")
+      )
+    );
+
+    expect(controller.messages.value.at(-1)).toMatchObject({
+      id: "message_subagent",
+      content: "核对完成，我会按一致的时间线继续。",
+      subagentRuns: [{
+        parentToolCallId: "spawn_1",
+        subagentRunId: "subrun_1",
+        task: "核对人物年龄与章节时间线",
+        status: "completed",
+        thinking: "先核对时间线。",
+        summary: "时间线一致，可以继续写作。",
+        usage: { totalTokens: 20 },
+        toolCalls: [{
+          id: "subtool_1",
+          status: "completed",
+          args: { stage: "character_design" },
+          resultSummary: "已读取人物与大纲"
+        }]
+      }]
+    });
+    expect(controller.messages.value.at(-1)?.content).not.toContain("时间线一致");
+    expect(
+      controller.messages.value.at(-1)?.subagentRuns?.[0]?.processingSteps.map(
+        (step) => step.type
+      )
+    ).toEqual(["thinking", "tool"]);
+    expect(controller.messages.value.at(-1)?.subagentRuns).toHaveLength(1);
+    controller.markToolConflict(
+      "run_subagent",
+      "subtool_1",
+      "文稿版本已变化，未应用子智能体变更。"
+    );
+    expect(
+      controller.messages.value.at(-1)?.subagentRuns?.[0]?.toolCalls[0]
+    ).toMatchObject({
+      status: "error",
+      isError: true,
+      resultSummary: "文稿版本已变化，未应用子智能体变更。"
+    });
+    controller.dispose();
+  });
+
+  it("stops an in-flight subagent card when its parent run is aborted", async () => {
+    const deferred = createDeferredApi();
+    const controller = useAgentConversation({ api: () => deferred.api, idleTimeoutMs: 10_000 });
+    controller.draft.value = "启动子任务后停止";
+    const sessionId = controller.sessionId.value;
+    const sending = controller.sendMessage(document);
+    deferred.resolveAccepted(0, {
+      sessionId,
+      runId: "run_subagent_abort",
+      acceptedAt: new Date().toISOString(),
+      runtime
+    });
+    await sending;
+
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.started",
+        {
+          sessionId,
+          runId: "run_subagent_abort",
+          parentToolCallId: "spawn_abort",
+          subagentRunId: "subrun_abort",
+          subagentId: "researcher",
+          name: "资料员",
+          task: "查找背景资料",
+          runtime
+        },
+        eventOptions(sessionId, "run_subagent_abort", "evt_sub_abort_started")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "agent.error",
+        {
+          sessionId,
+          runId: "run_subagent_abort",
+          code: "pi_agent.aborted",
+          message: "Agent run aborted.",
+          runtime
+        },
+        eventOptions(sessionId, "run_subagent_abort", "evt_sub_parent_aborted")
+      )
+    );
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.started",
+        {
+          sessionId,
+          runId: "run_subagent_abort",
+          parentToolCallId: "spawn_abort_late",
+          subagentRunId: "subrun_abort_late",
+          subagentId: "late_researcher",
+          name: "迟到的资料员",
+          task: "不应恢复成执行中",
+          runtime
+        },
+        eventOptions(sessionId, "run_subagent_abort", "evt_sub_abort_started_late")
+      )
+    );
+
+    expect(controller.messages.value.at(-1)?.status).toBe("stopped");
+    expect(controller.messages.value.at(-1)?.subagentRuns?.[0]).toMatchObject({
+      status: "stopped",
+      errorMessage: "父智能体运行已停止，子任务同步停止。"
+    });
+    expect(
+      controller.messages.value.at(-1)?.subagentRuns?.[0]?.completedAt
+    ).toBeTruthy();
+    expect(
+      controller.messages.value.at(-1)?.subagentRuns?.map((run) => run.status)
+    ).toEqual(["stopped", "stopped"]);
     controller.dispose();
   });
 

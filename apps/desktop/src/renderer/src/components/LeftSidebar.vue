@@ -28,12 +28,14 @@ const props = defineProps<{
   selectedId: string;
   imitationRunning?: boolean;
   libraryEntryClipboardDomain?: "skill" | "material" | undefined;
+  activePrimaryFeature: PrimaryFeatureId | undefined;
 }>();
 
 const emit = defineEmits<{
   collapse: [];
   newConversation: [];
   openDialog: [mode: DialogMode];
+  openAgentTeams: [];
   openSettings: [];
   selectResource: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
@@ -151,14 +153,17 @@ const newConversationItem = {
   shortcut: "Ctrl N"
 } as const;
 
+type PrimaryFeatureId = DialogMode | "agent-teams";
+
 const navItems: Array<{
-  id: DialogMode;
+  id: PrimaryFeatureId;
   label: string;
-  icon: "directory" | "model" | "wand";
+  icon: "directory" | "model" | "wand" | "brain";
 }> = [
   { id: "directory", label: "工作目录", icon: "directory" },
   { id: "models", label: "模型配置", icon: "model" },
-  { id: "imitation", label: "学习仿写", icon: "wand" }
+  { id: "imitation", label: "学习仿写", icon: "wand" },
+  { id: "agent-teams", label: "智能体团队", icon: "brain" }
 ];
 
 function loadPinnedResourceIds(): string[] {
@@ -210,9 +215,13 @@ const moreFeatures: Array<{
   { id: "runtime", label: "运行设置", description: "智能体与工具边界", icon: "model" }
 ];
 
-function activateNav(id: "new" | DialogMode): void {
+function activateNav(id: "new" | PrimaryFeatureId): void {
   if (id === "new") {
     emit("newConversation");
+    return;
+  }
+  if (id === "agent-teams") {
+    emit("openAgentTeams");
     return;
   }
   emit("openDialog", id);
@@ -290,8 +299,10 @@ watch(
           v-for="item in navItems"
           :key="item.id"
           class="nav-row"
+          :class="{ 'is-active': item.id === props.activePrimaryFeature }"
           type="button"
           :data-nav-id="item.id"
+          :aria-current="item.id === props.activePrimaryFeature ? 'page' : undefined"
           @click="activateNav(item.id)"
         >
           <AppIcon :name="item.icon" :size="17" />

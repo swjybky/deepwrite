@@ -48,6 +48,7 @@ interface SettingsSection {
 }
 
 defineProps<{
+  autoSaveEnabled: boolean;
   workspaceAgentSettings: ShortWorkspaceAgentSettings | null;
   workspaceAgentLoading: boolean;
   workspaceAgentSaving: boolean;
@@ -64,6 +65,7 @@ defineProps<{
 
 const emit = defineEmits<{
   back: [];
+  updateAutoSave: [enabled: boolean];
   saveWorkspaceAgents: [settings: ShortWorkspaceAgentSettingsInput];
   saveLearningImitation: [settings: LearningImitationSettingsInput];
   resetLearningImitation: [stageId: LearningImitationStageId];
@@ -393,6 +395,10 @@ async function importThemeFile(event: Event): Promise<void> {
 
           <h2 class="settings-group-title">常规</h2>
           <div class="settings-card">
+            <label class="settings-item">
+              <span class="settings-item-text"><strong>自动保存</strong><small>文稿发生变化并停止输入片刻后，自动保存到本机</small></span>
+              <span class="settings-toggle"><input type="checkbox" :checked="autoSaveEnabled" @change="emit('updateAutoSave', ($event.target as HTMLInputElement).checked)" /></span>
+            </label>
             <div class="settings-item"><span class="settings-item-text"><strong>默认文件打开目标</strong><small>默认打开文件和文件夹的位置</small></span><button class="settings-select" type="button">Cursor</button></div>
             <div class="settings-item"><span class="settings-item-text"><strong>语言</strong><small>应用 UI 语言</small></span><button class="settings-select" type="button">自动检测</button></div>
             <label class="settings-item"><span class="settings-item-text"><strong>在菜单栏中显示</strong><small>关闭主窗口后，仍在菜单栏中保留应用图标</small></span><span class="settings-toggle"><input type="checkbox" checked /></span></label>

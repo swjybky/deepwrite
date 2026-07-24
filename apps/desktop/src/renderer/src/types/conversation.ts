@@ -87,6 +87,58 @@ export interface AgentToolTrace {
   isError?: boolean;
 }
 
+export type AgentSubagentRunStatus =
+  | "running"
+  | "completed"
+  | "error"
+  | "stopped";
+
+export type AgentSubagentProcessingStep =
+  | {
+      id: string;
+      type: "thinking";
+      content: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      type: "response";
+      content: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      type: "tool";
+      toolCallId: string;
+      createdAt: string;
+    };
+
+/**
+ * Renderer-owned projection of one isolated child-agent session.
+ *
+ * The child output intentionally lives outside `ChatMessage.content`: the parent
+ * model receives only the tool's final hand-off, while people can still inspect
+ * the child run from the conversation card and from restored display history.
+ */
+export interface AgentSubagentRun {
+  parentToolCallId: string;
+  subagentRunId: string;
+  subagentId: string;
+  name: string;
+  task: string;
+  status: AgentSubagentRunStatus;
+  runtime: AgentRuntimeRef;
+  thinking?: string;
+  output?: string;
+  toolCalls: AgentToolTrace[];
+  processingSteps: AgentSubagentProcessingStep[];
+  startedAt: string;
+  completedAt?: string;
+  summary?: string;
+  errorMessage?: string;
+  usage?: AgentUsage;
+}
+
 export type AgentProcessingStep =
   | {
       id: string;
@@ -125,6 +177,7 @@ export interface ChatMessage {
   runtime?: AgentRuntimeRef;
   usage?: AgentUsage;
   tools?: ChatToolActivity[];
+  subagentRuns?: AgentSubagentRun[];
   editProposals?: AgentEditProposal[];
 }
 

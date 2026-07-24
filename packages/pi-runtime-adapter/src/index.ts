@@ -2,6 +2,7 @@ import {
   Agent,
   type AgentEvent,
   type AgentMessage,
+  type AgentTool,
   type StreamFn,
   type ThinkingLevel as PiThinkingLevel
 } from "@earendil-works/pi-agent-core";
@@ -36,7 +37,9 @@ import {
   type AgentWriteApprovalMode,
   type LearningImitationAgentProfile,
   type LibraryAgentProfile,
+  type ShortAgentSubagentDefinition,
   type ShortWorkspaceAgentProfile,
+  type SubagentActivity,
   type ModelConnectionTestResult,
   type ThinkingLevel as ConfiguredThinkingLevel,
   type UserPromptAttachment,
@@ -44,8 +47,15 @@ import {
 } from "@deepwrite/contracts";
 import {
   buildShortWorkspaceTools,
+  createShortWorkspaceToolSharedState,
   isShortWorkspaceToolDetails
 } from "./short-agent-tools";
+import {
+  buildSpawnSubagentTool,
+  isSubagentToolProgressDetails,
+  type AgentToolExecutionHooks,
+  type SubagentToolProgress
+} from "./subagent-runtime";
 import {
   buildLearningImitationTools,
   isLearningImitationToolDetails
@@ -65,6 +75,7 @@ export interface AgentRunInput {
   temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
   agentProfile?: ShortWorkspaceAgentProfile;
+  subagentDefinitions?: ShortAgentSubagentDefinition[];
   libraryAgentProfile?: LibraryAgentProfile;
   learningImitationProfile?: LearningImitationAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
@@ -144,6 +155,48 @@ export type AgentRuntimeEvent =
         toolName: string;
         resultSummary: string;
         isError: boolean;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "subagent.started";
+      runId: string;
+      sessionId: string;
+      payload: {
+        parentToolCallId: string;
+        subagentRunId: string;
+        subagentId: string;
+        name: string;
+        task: string;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "subagent.activity";
+      runId: string;
+      sessionId: string;
+      payload: {
+        parentToolCallId: string;
+        subagentRunId: string;
+        subagentId: string;
+        name: string;
+        activity: SubagentActivity;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "subagent.completed";
+      runId: string;
+      sessionId: string;
+      payload: {
+        parentToolCallId: string;
+        subagentRunId: string;
+        subagentId: string;
+        name: string;
+        status: "completed" | "error" | "aborted";
+        summary: string;
+        errorMessage?: string;
+        usage?: AgentUsage;
         runtime: AgentRuntimeRef;
       };
     }
@@ -240,8 +293,9 @@ export interface AgentRuntime {
   start(input: AgentRunInput): AsyncIterable<AgentRuntimeEvent>;
 }
 
-export interface PiRuntimeAdapterOptions {
+export interface PiRuntimeAdapterOptions extends AgentToolExecutionHooks {
   idleTimeoutMs?: number;
+  subagentTimeoutMs?: number;
   tokensPerSecond?: number;
   systemPrompt?: string;
 }
@@ -334,14 +388,23 @@ const TOOL_STREAM_DELTA_FLUSH_MS = 100;
 
 export class PiAgentRuntimeAdapter implements AgentRuntime {
   private readonly idleTimeoutMs: number;
+  private readonly subagentTimeoutMs: number | undefined;
   private readonly tokensPerSecond: number;
   private readonly systemPrompt: string;
+  private readonly toolExecutionHooks: AgentToolExecutionHooks;
   private readonly conversationAgents = new Map<string, Agent>();
 
   constructor(options: PiRuntimeAdapterOptions = {}) {
     this.idleTimeoutMs = options.idleTimeoutMs ?? 5 * 60_000;
+    this.subagentTimeoutMs = options.subagentTimeoutMs;
     this.tokensPerSecond = options.tokensPerSecond ?? 90;
     this.systemPrompt = options.systemPrompt ?? buildDeepWriteSystemPrompt();
+    this.toolExecutionHooks = {
+      ...(options.beforeToolCall
+        ? { beforeToolCall: options.beforeToolCall }
+        : {}),
+      ...(options.afterToolCall ? { afterToolCall: options.afterToolCall } : {})
+    };
   }
 
   describe(config?: AgentProviderRuntimeConfig): AgentRuntimeRef {
@@ -455,7 +518,22 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           : `当前模型 ${runtime.model} 不支持图片输入，请更换支持多模态的模型。`
       );
     }
-    const tools = learningImitation && input.learningImitationProfile
+    const systemPrompt = buildEffectiveSystemPrompt(this.systemPrompt, input);
+    const shortToolSharedState = shortWorkspace && input.agentProfile
+      ? createShortWorkspaceToolSharedState(shortWorkspace)
+      : undefined;
+    const buildShortTools = (): AgentTool[] =>
+      shortWorkspace && input.agentProfile
+        ? buildShortWorkspaceTools({
+            workspace: shortWorkspace,
+            profile: input.agentProfile,
+            writeApprovalMode: input.writeApprovalMode ?? "request-approval",
+            attachedSkills: input.workspaceContext?.attachedSkills,
+            attachedMaterials: input.workspaceContext?.attachedMaterials,
+            ...(shortToolSharedState ? { sharedState: shortToolSharedState } : {})
+          })
+        : [];
+    let tools: AgentTool[] = learningImitation && input.learningImitationProfile
       ? buildLearningImitationTools(learningImitation)
       : libraryWorkspace && input.libraryAgentProfile
         ? buildLibraryAgentTools({
@@ -465,15 +543,41 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
             attachedSkills: input.workspaceContext?.attachedSkills
           })
       : shortWorkspace && input.agentProfile
-        ? buildShortWorkspaceTools({
-          workspace: shortWorkspace,
-          profile: input.agentProfile,
-          writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-          attachedSkills: input.workspaceContext?.attachedSkills,
-          attachedMaterials: input.workspaceContext?.attachedMaterials
-          })
+        ? buildShortTools()
         : [];
-    const systemPrompt = buildEffectiveSystemPrompt(this.systemPrompt, input);
+    if (shortWorkspace && input.agentProfile) {
+      const spawnTool = buildSpawnSubagentTool({
+        parentSessionId: input.sessionId,
+        model,
+        thinkingLevel: effectiveThinkingLevel,
+        streamFn,
+        parentSystemPrompt: systemPrompt,
+        definitions: input.subagentDefinitions ?? [],
+        buildChildTools: buildShortTools,
+        buildChildUserMessage: (_definition, task, subagentRunId) => {
+          const childInput: AgentRunInput = {
+            ...input,
+            runId: subagentRunId,
+            sessionId: `${input.sessionId}:${subagentRunId}`,
+            prompt: task
+          };
+          delete childInput.attachments;
+          delete childInput.subagentDefinitions;
+          delete childInput.signal;
+          return {
+            role: "user",
+            content: buildRuntimeUserMessageContent(childInput),
+            timestamp: Date.now()
+          };
+        },
+        toolExecutionHooks: this.toolExecutionHooks,
+        ...(this.subagentTimeoutMs === undefined
+          ? {}
+          : { timeoutMs: this.subagentTimeoutMs }),
+        depth: 0
+      });
+      if (spawnTool) tools = [...tools, spawnTool];
+    }
     const agentKey = `${input.sessionId}:${
       input.learningImitationProfile
         ? `learning-imitation:${input.learningImitationProfile.id}`
@@ -505,6 +609,16 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       agent.state.thinkingLevel = effectiveThinkingLevel;
       agent.state.tools = tools;
       agent.streamFn = interceptedStreamFn;
+      if (this.toolExecutionHooks.beforeToolCall) {
+        agent.beforeToolCall = this.toolExecutionHooks.beforeToolCall;
+      } else {
+        delete agent.beforeToolCall;
+      }
+      if (this.toolExecutionHooks.afterToolCall) {
+        agent.afterToolCall = this.toolExecutionHooks.afterToolCall;
+      } else {
+        delete agent.afterToolCall;
+      }
       agent.sessionId = input.sessionId;
       agent.toolExecution = "sequential";
       this.conversationAgents.delete(agentKey);
@@ -518,6 +632,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           tools
         },
         streamFn: interceptedStreamFn,
+        ...this.toolExecutionHooks,
         sessionId: input.sessionId,
         toolExecution: "sequential"
       });
@@ -535,6 +650,10 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
     >();
     const streamedToolArguments = new Map<string, string>();
+    const activeSubagents = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: "subagent.started" }>["payload"]
+    >();
     let toolDeltaTimer: NodeJS.Timeout | undefined;
 
     const emit = (event: AgentRuntimeEvent): void => {
@@ -542,7 +661,35 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       if (terminalEmitted) {
         return;
       }
+      if (event.type === "subagent.started") {
+        activeSubagents.set(event.payload.subagentRunId, event.payload);
+      } else if (event.type === "subagent.completed") {
+        activeSubagents.delete(event.payload.subagentRunId);
+      }
       if (terminal) {
+        const aborted =
+          event.type === "agent.error" && event.payload.code === "pi_agent.aborted";
+        for (const active of activeSubagents.values()) {
+          const summary = aborted
+            ? "父智能体运行已中止，子智能体同步停止。"
+            : "父智能体运行已结束，子智能体未返回完整终态。";
+          queue.push({
+            type: "subagent.completed",
+            runId: input.runId,
+            sessionId: input.sessionId,
+            payload: {
+              parentToolCallId: active.parentToolCallId,
+              subagentRunId: active.subagentRunId,
+              subagentId: active.subagentId,
+              name: active.name,
+              status: aborted ? "aborted" : "error",
+              summary,
+              errorMessage: summary,
+              runtime: active.runtime
+            }
+          });
+        }
+        activeSubagents.clear();
         terminalEmitted = true;
         if (idleTimeout) {
           clearTimeout(idleTimeout);
@@ -622,6 +769,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       }
       pendingToolDeltas.clear();
       streamedToolArguments.clear();
+      activeSubagents.clear();
       if (abortListener && input.signal) {
         input.signal.removeEventListener("abort", abortListener);
       }
@@ -630,6 +778,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     };
 
     abortListener = () => {
+      agent.abort();
       emit({
         type: "agent.error",
         runId: input.runId,
@@ -640,7 +789,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           runtime
         }
       });
-      agent.abort();
       cleanup();
     };
     if (input.signal?.aborted) {
@@ -657,6 +805,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         clearTimeout(idleTimeout);
       }
       idleTimeout = setTimeout(() => {
+        agent.abort();
         emit({
           type: "agent.error",
           runId: input.runId,
@@ -667,7 +816,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
             runtime
           }
         });
-        agent.abort();
         cleanup();
       }, this.idleTimeoutMs);
       idleTimeout.unref();
@@ -942,6 +1090,14 @@ export function toRuntimeEvents(
   runtime: AgentRuntimeRef,
   messageId: string
 ): AgentRuntimeEvent[] {
+  if (event.type === "tool_execution_update") {
+    const details = (event.partialResult as { details?: unknown } | undefined)?.details;
+    if (isSubagentToolProgressDetails(details)) {
+      return toSubagentRuntimeEvents(details.progress, input, runtime, messageId);
+    }
+    return [];
+  }
+
   if (event.type === "tool_execution_start") {
     return [{
       type: "agent.tool_requested",
@@ -1139,6 +1295,72 @@ export function toRuntimeEvents(
   }
 
   return [];
+}
+
+/** @internal Exported for subagent protocol regression tests. */
+export function toSubagentRuntimeEvents(
+  progress: SubagentToolProgress,
+  input: AgentRunInput,
+  runtime: AgentRuntimeRef,
+  messageId: string
+): AgentRuntimeEvent[] {
+  const base = {
+    parentToolCallId: progress.parentToolCallId,
+    subagentRunId: progress.subagentRunId,
+    subagentId: progress.subagentId,
+    name: progress.name,
+    runtime
+  };
+  if (progress.type === "started") {
+    return [{
+      type: "subagent.started",
+      runId: input.runId,
+      sessionId: input.sessionId,
+      payload: { ...base, task: progress.task }
+    }];
+  }
+  if (progress.type === "activity") {
+    return [{
+      type: "subagent.activity",
+      runId: input.runId,
+      sessionId: input.sessionId,
+      payload: { ...base, activity: progress.activity }
+    }];
+  }
+  if (progress.type === "completed") {
+    return [{
+      type: "subagent.completed",
+      runId: input.runId,
+      sessionId: input.sessionId,
+      payload: {
+        ...base,
+        status: progress.status,
+        summary: progress.summary,
+        ...(progress.errorMessage ? { errorMessage: progress.errorMessage } : {}),
+        ...(progress.usage ? { usage: progress.usage } : {})
+      }
+    }];
+  }
+
+  // Child workspace mutations remain ordinary parent-run workspace events so
+  // the existing review/approval chain can process them. Only their tool-call
+  // id is namespaced to the ephemeral child run.
+  return toRuntimeEvents(
+    {
+      type: "tool_execution_end",
+      toolCallId: progress.toolCallId,
+      toolName: progress.toolName,
+      result: progress.result,
+      isError: progress.isError
+    },
+    input,
+    runtime,
+    messageId
+  ).filter(
+    (event) =>
+      event.type === "workspace.editor_mutation" ||
+      event.type === "workspace.stage_selection"
+  );
 }
 
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {

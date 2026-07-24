@@ -51,10 +51,10 @@ describe("LearningImitationDialog", () => {
     expect(source).toContain('v-for="kind in LEARNING_MATERIAL_KINDS"');
   });
 
-  it("auto-overwrites once after a hidden run completes, otherwise only preserves preview", () => {
+  it("auto-overwrites once after a background page run completes, otherwise only preserves preview", () => {
     expect(source).toContain("props.controller.lastCompletedRunId.value");
     expect(source).toContain("props.controller.lastCompletedStage.value");
-    expect(source).toContain("!props.open");
+    expect(source).toContain("!props.active");
     expect(source).toContain("backgroundPersistRunIds.has(runId)");
     expect(source).toContain('persistStage("overwrite", stageId, true)');
     expect(source).toContain(
@@ -62,16 +62,12 @@ describe("LearningImitationDialog", () => {
     );
   });
 
-  it("only hides on close and explicitly explains that the controller keeps running", () => {
-    const closeFunction = source.slice(
-      source.indexOf("function requestClose"),
-      source.indexOf("function openFilePicker")
-    );
-    expect(closeFunction).toContain('emit("close")');
-    expect(closeFunction).not.toContain("controller.stop");
-    expect(closeFunction).not.toContain("controller.dispose");
-    expect(source).toContain("关闭弹窗；运行中的任务会在后台继续");
-    expect(source).toContain("再次打开会继续显示同一轮进度");
+  it("stays mounted as a workspace page and explains that navigation keeps the controller running", () => {
+    expect(source).not.toContain("<Teleport");
+    expect(source).not.toContain("learning-backdrop");
+    expect(source).not.toContain("controller.dispose");
+    expect(source).toContain("切换到其他页面不会中断运行");
+    expect(source).toContain("切换页面也不会中断");
   });
 
   it("uses the standard neutral primary action for creating a new learning session", () => {

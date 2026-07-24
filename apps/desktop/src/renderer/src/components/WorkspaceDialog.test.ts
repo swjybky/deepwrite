@@ -13,4 +13,10 @@ describe("WorkspaceDialog DeepWrite free models", () => {
     expect(source).toContain("managedBy: model.managedBy");
     expect(source).toContain("applyDeepWriteFreeModel");
   });
+
+  it("renders the editor above the configured model list", () => {
+    expect(source.indexOf('<section v-if="modelEditor" class="model-editor">')).toBeLessThan(
+      source.indexOf('v-for="model in draftModels"')
+    );
+  });
 });

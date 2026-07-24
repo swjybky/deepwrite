@@ -8,12 +8,13 @@ describe("App learning-imitation integration", () => {
     expect(source).toContain(":controller=\"learningImitation\"");
   });
 
-  it("opens a dedicated dialog and only changes visibility when it closes", () => {
+  it("opens learning imitation as a persistent workspace page", () => {
     expect(source).toContain('@open-dialog="openWorkspaceDialog"');
-    expect(source).toContain('if (mode === "imitation")');
-    expect(source).toContain('@close="learningImitationOpen = false"');
-    expect(source).not.toContain("@close=\"learningImitation.dispose");
-    expect(source).not.toContain("@close=\"learningImitation.stop");
+    expect(source).toContain("workspaceMainView.value = mode");
+    expect(source).toContain("workspaceMainView === 'imitation'");
+    expect(source).toContain(':active="workspaceMainView === \'imitation\'"');
+    expect(source).toContain('class="learning-imitation-main-view"');
+    expect(source).not.toContain("learningImitationOpen");
   });
 
   it("shows a sidebar background marker and disposes only with App", () => {

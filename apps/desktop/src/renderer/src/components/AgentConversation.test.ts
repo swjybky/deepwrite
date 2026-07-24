@@ -106,4 +106,23 @@ describe("AgentConversation edit proposal placement", () => {
     expect(source).not.toContain("initialize_expert_draft");
     expect(source).toContain("writeToolText(item.tool).length.toLocaleString('zh-CN')");
   });
+
+  it("renders subagent runs as collapsed inline cards with inspectable details", () => {
+    expect(source).toContain('class="subagent-run-list"');
+    expect(source).toContain('class="subagent-run-card"');
+    expect(source).toContain('v-for="run in message.subagentRuns"');
+    expect(source).not.toContain('<details\n                v-for="run in message.subagentRuns"\n                open');
+    expect(source).toContain('aria-label="子智能体执行时间线"');
+    expect(source).toContain("{{ run.task }}");
+    expect(source).toContain("{{ subagentStatusLabel(run) }}");
+    expect(source).toContain("{{ run.toolCalls.length }} 个工具");
+    expect(source).toContain("subagentReviewHint(message, run)");
+    expect(source).toContain("`${writeCount} 次写入调用`");
+    expect(source).not.toContain("`${writeCount} 项文本变更`");
+    expect(source).toContain("formatToolPayload(visibleToolArguments(item.tool))");
+    expect(source).toContain("item.tool.resultSummary");
+    expect(source).toContain("run.summary");
+    expect(source).toContain('tool.name === "spawn_subagent"');
+    expect(source).not.toContain("subagent-run-modal");
+  });
 });

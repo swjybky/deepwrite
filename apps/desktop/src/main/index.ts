@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } from "e
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  AgentTeamSettingsSchema,
   CatalogDocumentSchema,
   CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
@@ -47,6 +48,7 @@ import {
   importLegacyLibraryArchives
 } from "./legacy-library-import-batch";
 import { AppearanceConfigStore } from "./appearance-config-store";
+import { AgentTeamConfigStore } from "./agent-team-config-store";
 import { ModelConfigStore } from "./model-config-store";
 import { LearningImitationConfigStore } from "./learning-imitation-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
@@ -71,6 +73,7 @@ const terminalRuns = new Set<string>();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
+let agentTeamConfigStore: AgentTeamConfigStore | undefined;
 let appearanceConfigStore: AppearanceConfigStore | undefined;
 let learningImitationConfigStore: LearningImitationConfigStore | undefined;
 let libraryAgentConfigStore: LibraryAgentConfigStore | undefined;
@@ -104,7 +107,10 @@ type AgentEventEnvelope = Extract<
       | "learning_imitation.result_updated"
       | "library.editor_mutation"
       | "workspace.editor_mutation"
-      | "workspace.stage_selection";
+      | "workspace.stage_selection"
+      | "subagent.started"
+      | "subagent.activity"
+      | "subagent.completed";
   }
 >;
 
@@ -120,7 +126,10 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "learning_imitation.result_updated" ||
     event.type === "library.editor_mutation" ||
     event.type === "workspace.editor_mutation" ||
-    event.type === "workspace.stage_selection"
+    event.type === "workspace.stage_selection" ||
+    event.type === "subagent.started" ||
+    event.type === "subagent.activity" ||
+    event.type === "subagent.completed"
   );
 }
 
@@ -330,6 +339,13 @@ function requireWorkspaceAgentConfigStore(): WorkspaceAgentConfigStore {
     throw new Error("创作空间智能体设置存储尚未初始化。");
   }
   return workspaceAgentConfigStore;
+}
+
+function requireAgentTeamConfigStore(): AgentTeamConfigStore {
+  if (!agentTeamConfigStore) {
+    throw new Error("智能体团队设置存储尚未初始化。");
+  }
+  return agentTeamConfigStore;
 }
 
 function requireLibraryAgentConfigStore(): LibraryAgentConfigStore {
@@ -1029,6 +1045,50 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "agentTeams.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AgentTeamSettingsSchema.parse(
+              await requireAgentTeamConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "agent_teams.list_failed",
+              message: error instanceof Error ? error.message : "加载智能体团队设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "agentTeams.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AgentTeamSettingsSchema.parse(
+              await requireAgentTeamConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "agent_teams.save_failed",
+              message: error instanceof Error ? error.message : "保存智能体团队设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "workspaceAgents.save") {
         try {
           return {
@@ -1266,6 +1326,9 @@ function registerIpc(): void {
                 shortWorkspace
               )
             : undefined;
+          const subagentDefinitions = agentProfile
+            ? await requireAgentTeamConfigStore().resolve(agentProfile.id)
+            : undefined;
           const libraryAgentProfile = libraryWorkspace
             ? await requireLibraryAgentConfigStore().resolve(
                 libraryWorkspace.domain
@@ -1294,6 +1357,7 @@ function registerIpc(): void {
                 ...(temperature !== undefined ? { temperature } : {}),
                 ...(runtimeConfig ? { runtimeConfig } : {}),
                 ...(agentProfile ? { agentProfile } : {}),
+                ...(subagentDefinitions ? { subagentDefinitions } : {}),
                 ...(libraryAgentProfile ? { libraryAgentProfile } : {}),
                 ...(learningImitationProfile ? { learningImitationProfile } : {})
               },
@@ -1492,6 +1556,7 @@ if (!hasSingleInstanceLock) {
     });
     void modelConfigStore.initialize();
     workspaceAgentConfigStore = new WorkspaceAgentConfigStore(userDataPath);
+    agentTeamConfigStore = new AgentTeamConfigStore(userDataPath);
     libraryAgentConfigStore = new LibraryAgentConfigStore(userDataPath);
     learningImitationConfigStore = new LearningImitationConfigStore(userDataPath);
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);

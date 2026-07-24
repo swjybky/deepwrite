@@ -46,6 +46,20 @@ export interface BuildShortWorkspaceToolsInput {
   writeApprovalMode?: AgentWriteApprovalMode;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  /**
+   * Mutable content shared by every agent participating in the same parent run.
+   * Read evidence deliberately stays outside this object and is recreated by
+   * every buildShortWorkspaceTools() call.
+   */
+  sharedState?: ShortWorkspaceToolSharedState;
+}
+
+type ExpertSectionMap = Map<string, ExpertDraftSectionSnapshot>;
+
+export interface ShortWorkspaceToolSharedState {
+  stageBodies: Map<ShortWorkspaceStageId, string>;
+  stageRevisions: Map<ShortWorkspaceStageId, string>;
+  expertSections: ExpertSectionMap;
 }
 
 export const SHORT_WORKSPACE_TOOL_MANIFEST = {
@@ -96,7 +110,7 @@ function primitiveTypeOf(value: unknown): string | undefined {
   return undefined;
 }
 
-function sanitizeToolSchemaForGemini(value: unknown): unknown {
+export function sanitizeToolSchemaForGemini(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeToolSchemaForGemini(item));
   }
@@ -258,7 +272,8 @@ function buildReadWorkspaceContentTool(
 
 function buildSearchWorkspaceTextTool(
   input: BuildShortWorkspaceToolsInput,
-  stageBodies: Map<ShortWorkspaceStageId, string>
+  stageBodies: Map<ShortWorkspaceStageId, string>,
+  expertSections: ExpertSectionMap
 ): AgentTool {
   const allowed = input.profile.readAccess.workspace;
   return defineTool({
@@ -282,17 +297,20 @@ function buildSearchWorkspaceTextTool(
       const matches: string[] = [];
       for (const stageId of selected) {
         if (!allowed.includes(stageId)) continue;
-        const draftSections =
+        const draftSectionSnapshots =
           input.profile.id === "expert_section_writer"
             ? input.workspace.expertDraft.sections.filter((section) =>
                 readableExpertSectionIds(input).has(section.id)
               )
             : input.workspace.expertDraft.sections;
         const sources = stageId === "draft"
-          ? draftSections.map((section) => ({
-              label: `${section.title}（${section.id}）`,
-              body: section.body.content
-            }))
+          ? draftSectionSnapshots.map((snapshot) => {
+              const section = expertSections.get(snapshot.id) ?? snapshot;
+              return {
+                label: `${section.title}（${section.id}）`,
+                body: section.body.content
+              };
+            })
           : [{ label: `${stageLabel(stageId)}(${stageId})`, body: stageBodies.get(stageId) ?? "" }];
         for (const source of sources) {
           let cursor = 0;
@@ -459,8 +477,6 @@ function editorMutationResult(
   });
 }
 
-type ExpertSectionMap = Map<string, ExpertDraftSectionSnapshot>;
-
 function expertDraftFileMutationResult(
   input: BuildShortWorkspaceToolsInput,
   expertSections: ExpertSectionMap,
@@ -622,19 +638,31 @@ function activeExpertSectionId(
     : undefined;
 }
 
-function buildExpertSectionBodies(
-  input: BuildShortWorkspaceToolsInput
-): ExpertSectionMap {
-  return new Map(
-    input.workspace.expertDraft.sections.map((section) => [
-      section.id,
-      {
-        ...section,
-        body: { ...section.body },
-        characterState: { ...section.characterState }
-      }
-    ] as const)
-  );
+/**
+ * Creates the per-parent-run mutation/revision overlay. Parent and child tools
+ * receive this same object, while each tool set keeps its own read evidence.
+ */
+export function createShortWorkspaceToolSharedState(
+  workspace: ShortWorkspaceSnapshot
+): ShortWorkspaceToolSharedState {
+  return {
+    stageBodies: new Map<ShortWorkspaceStageId, string>(
+      workspace.stages.map((stage) => [stage.stageId, stage.content])
+    ),
+    stageRevisions: new Map<ShortWorkspaceStageId, string>(
+      workspace.stages.map((stage) => [stage.stageId, stage.revision])
+    ),
+    expertSections: new Map(
+      workspace.expertDraft.sections.map((section) => [
+        section.id,
+        {
+          ...section,
+          body: { ...section.body },
+          characterState: { ...section.characterState }
+        }
+      ] as const)
+    )
+  };
 }
 
 function readableExpertSectionIds(
@@ -658,7 +686,7 @@ function readableExpertSectionIds(
 
 function expertSectionWriteBlocked(
   input: BuildShortWorkspaceToolsInput,
-  expertSections: ReturnType<typeof buildExpertSectionBodies>
+  expertSections: ExpertSectionMap
 ): string | undefined {
   const sectionId = activeExpertSectionId(input);
   if (!sectionId) return "未修改：当前没有选中可写的小节。";
@@ -669,7 +697,7 @@ function expertSectionWriteBlocked(
 
 function buildReadExpertDraftSectionTool(
   input: BuildShortWorkspaceToolsInput,
-  expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  expertSections: ExpertSectionMap,
   readExpertFileIds: Set<string>
 ): AgentTool {
   return defineTool({
@@ -892,7 +920,7 @@ function buildReplaceCoordinatorExpertSectionTool(
 
 function buildReplaceExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  expertSections: ExpertSectionMap,
   readExpertFileIds: Set<string>,
   field: "body" | "characterState"
 ): AgentTool {
@@ -951,7 +979,7 @@ function buildReplaceExpertSectionFieldTool(
 
 function buildWriteExpertSectionFieldTool(
   input: BuildShortWorkspaceToolsInput,
-  expertSections: ReturnType<typeof buildExpertSectionBodies>,
+  expertSections: ExpertSectionMap,
   readExpertFileIds: Set<string>,
   field: "body" | "characterState"
 ): AgentTool {
@@ -1005,18 +1033,15 @@ function buildWriteExpertSectionFieldTool(
 export function buildShortWorkspaceTools(
   input: BuildShortWorkspaceToolsInput
 ): AgentTool[] {
-  const stageBodies = new Map<ShortWorkspaceStageId, string>(
-    input.workspace.stages.map((stage) => [stage.stageId, stage.content])
-  );
-  const stageRevisions = new Map<ShortWorkspaceStageId, string>(
-    input.workspace.stages.map((stage) => [stage.stageId, stage.revision])
-  );
-  const expertSections = buildExpertSectionBodies(input);
+  const sharedState = input.sharedState ?? createShortWorkspaceToolSharedState(input.workspace);
+  const { stageBodies, stageRevisions, expertSections } = sharedState;
+  // This is intentionally agent-local. A child reading a file must never grant
+  // its parent permission to overwrite that file (or vice versa).
   const readExpertFileIds = new Set<string>();
   let activeStageId = input.workspace.activeStageId;
   const readTools = [
     buildReadWorkspaceContentTool(input, stageBodies),
-    buildSearchWorkspaceTextTool(input, stageBodies),
+    buildSearchWorkspaceTextTool(input, stageBodies, expertSections),
     buildQueryLinkedMaterialEntriesTool(input),
     buildLoadSkillTool(input)
   ];

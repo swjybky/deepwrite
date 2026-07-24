@@ -5,6 +5,8 @@ import {
 } from "@earendil-works/pi-ai";
 import {
   DEFAULT_LIBRARY_AGENT_PROFILES,
+  DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
+  SHORT_WORKSPACE_TEXT_STAGE_IDS,
   cloneEmptyLearningImitationResult,
   createShortWorkspaceContentRevision,
   type AgentProviderRuntimeConfig
@@ -532,6 +534,201 @@ describe("DeepWrite Pi runtime adapter", () => {
       "edit_material_entry"
     ]);
     expect(agent?.state.systemPrompt).toContain("素材库管理智能体");
+  });
+
+  it("injects spawn_subagent only when the active short agent has enabled definitions", async () => {
+    const agentProfile = DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES.find(
+      ({ id }) => id === "character_design"
+    )!;
+    const shortWorkspace = {
+      id: "short-subagent-test",
+      title: "雾港回声",
+      categories: ["悬疑"],
+      activeStageId: "character_design" as const,
+      activeAgentId: "character_design" as const,
+      expertDraft: {
+        id: "draft" as const,
+        title: "正文",
+        revision: createShortWorkspaceContentRevision(""),
+        sections: []
+      },
+      stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
+        stageId,
+        title: stageId,
+        content: "",
+        revision: createShortWorkspaceContentRevision("")
+      }))
+    };
+    const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
+
+    for await (const _event of runtime.start({
+      runId: "run_with_subagent",
+      sessionId: "session_with_subagent",
+      prompt: "检查人物",
+      thinkingLevel: "off",
+      agentProfile,
+      subagentDefinitions: [{
+        id: "character_reviewer",
+        name: "人物审校",
+        description: "检查人物设定冲突。",
+        systemPrompt: "只做人物一致性检查。",
+        enabled: true
+      }],
+      workspaceContext: { shortWorkspace }
+    })) {
+      // Consume before reading the parent agent's current tool set.
+    }
+    for await (const _event of runtime.start({
+      runId: "run_without_subagent",
+      sessionId: "session_without_subagent",
+      prompt: "检查人物",
+      thinkingLevel: "off",
+      agentProfile,
+      subagentDefinitions: [{
+        id: "disabled_reviewer",
+        name: "停用审校",
+        description: "当前停用。",
+        systemPrompt: "不要执行。",
+        enabled: false
+      }],
+      workspaceContext: { shortWorkspace }
+    })) {
+      // Consume before reading the second parent agent's current tool set.
+    }
+
+    const cache = (
+      runtime as unknown as {
+        conversationAgents: Map<string, { state: { tools: Array<{ name: string }> } }>;
+      }
+    ).conversationAgents;
+    expect(
+      cache.get("session_with_subagent:character_design")?.state.tools.map(({ name }) => name)
+    ).toContain("spawn_subagent");
+    expect(
+      cache.get("session_without_subagent:character_design")?.state.tools.map(({ name }) => name)
+    ).not.toContain("spawn_subagent");
+  });
+
+  it("projects child mutation details onto the parent run with a namespaced tool id", () => {
+    const baseRevision = createShortWorkspaceContentRevision("修改前");
+    const events = toRuntimeEvents(
+      {
+        type: "tool_execution_update",
+        toolCallId: "parent-spawn-call",
+        toolName: "spawn_subagent",
+        args: {},
+        partialResult: {
+          content: [{ type: "text", text: "子工具结果已同步" }],
+          details: {
+            kind: "subagent-progress",
+            progress: {
+              type: "child_tool_details",
+              parentToolCallId: "parent-spawn-call",
+              subagentRunId: "subrun-1",
+              subagentId: "draft_reviewer",
+              name: "正文审校",
+              toolCallId: "subrun-1:child-write",
+              toolName: "write_workspace_editor",
+              isError: false,
+              result: {
+                content: [{ type: "text", text: "等待审阅" }],
+                details: {
+                  kind: "workspace-editor-mutation",
+                  workspaceId: "short-1",
+                  stageId: "character_design",
+                  text: "修改后",
+                  baseRevision,
+                  summary: "等待审阅"
+                }
+              }
+            }
+          }
+        }
+      } as never,
+      {
+        runId: "parent-run",
+        sessionId: "parent-session",
+        prompt: "委派修改"
+      },
+      providerRuntime,
+      "parent-assistant"
+    );
+
+    expect(events).toEqual([{
+      type: "workspace.editor_mutation",
+      runId: "parent-run",
+      sessionId: "parent-session",
+      payload: {
+        toolCallId: "subrun-1:child-write",
+        workspaceId: "short-1",
+        stageId: "character_design",
+        text: "修改后",
+        baseRevision,
+        summary: "等待审阅",
+        runtime: providerRuntime
+      }
+    }]);
+  });
+
+  it("maps subagent progress updates in started-activity-completed order", () => {
+    const input = {
+      runId: "parent-run-order",
+      sessionId: "parent-session-order",
+      prompt: "委派检查"
+    };
+    const progress = [
+      {
+        type: "started",
+        parentToolCallId: "spawn-order",
+        subagentRunId: "subrun-order",
+        subagentId: "reviewer",
+        name: "审校",
+        task: "检查时间线"
+      },
+      {
+        type: "activity",
+        parentToolCallId: "spawn-order",
+        subagentRunId: "subrun-order",
+        subagentId: "reviewer",
+        name: "审校",
+        activity: { type: "message_delta", delta: "结论" }
+      },
+      {
+        type: "completed",
+        parentToolCallId: "spawn-order",
+        subagentRunId: "subrun-order",
+        subagentId: "reviewer",
+        name: "审校",
+        status: "completed",
+        summary: "检查完成"
+      }
+    ];
+    const events = progress.flatMap((item) =>
+      toRuntimeEvents(
+        {
+          type: "tool_execution_update",
+          toolCallId: "spawn-order",
+          toolName: "spawn_subagent",
+          args: {},
+          partialResult: {
+            content: [{ type: "text", text: "progress" }],
+            details: { kind: "subagent-progress", progress: item }
+          }
+        } as never,
+        input,
+        providerRuntime,
+        "parent-assistant-order"
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "subagent.started",
+      "subagent.activity",
+      "subagent.completed"
+    ]);
+    expect(events.every((event) =>
+      event.runId === input.runId && event.sessionId === input.sessionId
+    )).toBe(true);
   });
 
   it("maps library mutation tool details to the renderer event contract", () => {

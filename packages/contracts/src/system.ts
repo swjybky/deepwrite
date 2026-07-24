@@ -7,6 +7,9 @@ import {
   AgentMessageDeltaEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
+  SubagentActivityEventEnvelopeSchema,
+  SubagentCompletedEventEnvelopeSchema,
+  SubagentStartedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
@@ -23,11 +26,18 @@ import {
   type AgentToolCompletedEventEnvelope,
   type AgentToolCallStreamEventEnvelope,
   type AgentToolRequestedEventEnvelope,
+  type SubagentActivityEventEnvelope,
+  type SubagentCompletedEventEnvelope,
+  type SubagentStartedEventEnvelope,
   type LearningImitationResultUpdatedEventEnvelope,
   type LibraryEditorMutationEventEnvelope,
   type WorkspaceEditorMutationEventEnvelope,
   type WorkspaceStageSelectionEventEnvelope
 } from "./session";
+import {
+  AgentTeamsListCommandEnvelopeSchema,
+  AgentTeamsSaveCommandEnvelopeSchema
+} from "./agent-team";
 import {
   LearningImitationSettingsListCommandEnvelopeSchema,
   LearningImitationSettingsResetCommandEnvelopeSchema,
@@ -157,6 +167,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   LearningImitationSettingsListCommandEnvelopeSchema,
   LearningImitationSettingsSaveCommandEnvelopeSchema,
   LearningImitationSettingsResetCommandEnvelopeSchema,
+  AgentTeamsListCommandEnvelopeSchema,
+  AgentTeamsSaveCommandEnvelopeSchema,
   WorkspaceDirectoryListCommandEnvelopeSchema,
   WorkspaceDirectoryChooseCommandEnvelopeSchema,
   AppearanceListCommandEnvelopeSchema,
@@ -225,6 +237,9 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
+  SubagentStartedEventEnvelopeSchema,
+  SubagentActivityEventEnvelopeSchema,
+  SubagentCompletedEventEnvelopeSchema,
   LearningImitationResultUpdatedEventEnvelopeSchema,
   LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
@@ -251,6 +266,9 @@ export type SystemEventEnvelope =
   | AgentToolCallStreamEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope
+  | SubagentStartedEventEnvelope
+  | SubagentActivityEventEnvelope
+  | SubagentCompletedEventEnvelope
   | LearningImitationResultUpdatedEventEnvelope
   | LibraryEditorMutationEventEnvelope
   | WorkspaceEditorMutationEventEnvelope

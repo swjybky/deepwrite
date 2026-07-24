@@ -13,8 +13,10 @@ import {
   ShortSkillKindSchema,
   ShortWorkspaceStageIdSchema,
   ShortWorkspaceAgentProfileSchema,
-  ShortWorkspaceSnapshotSchema
+  ShortWorkspaceSnapshotSchema,
+  resolveShortWorkspaceAgentIdForStage
 } from "./workspace";
+import { ShortAgentSubagentDefinitionsSchema } from "./agent-team";
 import {
   LearningImitationAgentProfileSchema,
   LearningImitationRuntimeContextSchema,
@@ -374,9 +376,33 @@ export const SessionAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema.extend({
   runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
   agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
+  subagentDefinitions: ShortAgentSubagentDefinitionsSchema.optional(),
   libraryAgentProfile: LibraryAgentProfileSchema.optional(),
   learningImitationProfile: LearningImitationAgentProfileSchema.optional()
 }).superRefine((value, context) => {
+  const shortWorkspace = value.workspaceContext?.shortWorkspace;
+  if (
+    value.subagentDefinitions !== undefined &&
+    (!shortWorkspace || !value.agentProfile)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["subagentDefinitions"],
+      message: "Subagent definitions require a short workspace and its agent profile."
+    });
+  }
+  if (shortWorkspace && value.agentProfile) {
+    const activeAgentId =
+      shortWorkspace.activeAgentId ??
+      resolveShortWorkspaceAgentIdForStage(shortWorkspace.activeStageId);
+    if (value.agentProfile.id !== activeAgentId) {
+      context.addIssue({
+        code: "custom",
+        path: ["agentProfile", "id"],
+        message: "Short workspace agent profile must match the active parent agent."
+      });
+    }
+  }
   if (
     Boolean(value.workspaceContext?.learningImitation) !==
     Boolean(value.learningImitationProfile)
@@ -473,6 +499,66 @@ export const AgentUsageSchema = z.object({
   totalTokens: z.number().int().nonnegative()
 });
 export type AgentUsage = z.infer<typeof AgentUsageSchema>;
+
+export const SubagentEventBaseSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1),
+  parentToolCallId: z.string().min(1),
+  subagentRunId: z.string().min(1),
+  subagentId: z.string().min(1).max(120),
+  name: z.string().trim().min(1).max(80),
+  runtime: AgentRuntimeRefSchema
+});
+export type SubagentEventBase = z.infer<typeof SubagentEventBaseSchema>;
+
+export const SubagentActivitySchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("thinking_delta"),
+    delta: z.string()
+  }),
+  z.object({
+    type: z.literal("message_delta"),
+    delta: z.string()
+  }),
+  z.object({
+    type: z.literal("tool_requested"),
+    toolCallId: z.string().min(1),
+    toolName: z.string().min(1),
+    args: z.unknown()
+  }),
+  z.object({
+    type: z.literal("tool_completed"),
+    toolCallId: z.string().min(1),
+    toolName: z.string().min(1),
+    resultSummary: z.string().max(4_000),
+    isError: z.boolean()
+  })
+]);
+export type SubagentActivity = z.infer<typeof SubagentActivitySchema>;
+
+export const SubagentStartedPayloadSchema = SubagentEventBaseSchema.extend({
+  task: z.string().trim().min(1).max(20_000)
+});
+export type SubagentStartedPayload = z.infer<
+  typeof SubagentStartedPayloadSchema
+>;
+
+export const SubagentActivityPayloadSchema = SubagentEventBaseSchema.extend({
+  activity: SubagentActivitySchema
+});
+export type SubagentActivityPayload = z.infer<
+  typeof SubagentActivityPayloadSchema
+>;
+
+export const SubagentCompletedPayloadSchema = SubagentEventBaseSchema.extend({
+  status: z.enum(["completed", "error", "aborted"]),
+  summary: z.string().max(20_000),
+  errorMessage: z.string().min(1).max(4_000).optional(),
+  usage: AgentUsageSchema.optional()
+});
+export type SubagentCompletedPayload = z.infer<
+  typeof SubagentCompletedPayloadSchema
+>;
 
 export const AgentMessageCompletedPayloadSchema = AgentEventIdentitySchema.extend({
   role: z.literal("assistant"),
@@ -642,6 +728,21 @@ export const AgentMessageDeltaEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   payload: AgentMessageDeltaPayloadSchema
 }).superRefine(validateAgentEventContext);
 
+export const SubagentStartedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("subagent.started"),
+  payload: SubagentStartedPayloadSchema
+}).superRefine(validateAgentEventContext);
+
+export const SubagentActivityEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("subagent.activity"),
+  payload: SubagentActivityPayloadSchema
+}).superRefine(validateAgentEventContext);
+
+export const SubagentCompletedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("subagent.completed"),
+  payload: SubagentCompletedPayloadSchema
+}).superRefine(validateAgentEventContext);
+
 export const AgentThinkingDeltaEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agent.thinking_delta"),
   payload: AgentThinkingDeltaPayloadSchema
@@ -717,6 +818,18 @@ function validateAgentEventContext(
 }
 
 export type AgentMessageDeltaEventEnvelope = Envelope<AgentMessageDeltaPayload, "agent.message_delta">;
+export type SubagentStartedEventEnvelope = Envelope<
+  SubagentStartedPayload,
+  "subagent.started"
+>;
+export type SubagentActivityEventEnvelope = Envelope<
+  SubagentActivityPayload,
+  "subagent.activity"
+>;
+export type SubagentCompletedEventEnvelope = Envelope<
+  SubagentCompletedPayload,
+  "subagent.completed"
+>;
 export type AgentThinkingDeltaEventEnvelope = Envelope<AgentThinkingDeltaPayload, "agent.thinking_delta">;
 export type AgentMessageCompletedEventEnvelope = Envelope<AgentMessageCompletedPayload, "agent.message_completed">;
 export type AgentToolRequestedEventEnvelope = Envelope<AgentToolRequestedPayload, "tool.call_requested">;

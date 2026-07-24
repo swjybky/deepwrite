@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { darkTheme, NConfigProvider } from "naive-ui";
 import type {
+  AgentTeamSettings,
+  AgentTeamSettingsInput,
   CatalogDocument,
   CatalogDraftRecovery,
   CatalogLibraryEntry,
@@ -50,6 +52,8 @@ import {
   resolveShortWorkspaceAgentIdForStage
 } from "@deepwrite/contracts";
 import AgentConversation from "./components/AgentConversation.vue";
+import AgentTeamSettingsPanel from "./components/AgentTeamSettingsPanel.vue";
+import AppIcon from "./components/AppIcon.vue";
 import BookResourceDialog from "./components/BookResourceDialog.vue";
 import CreateShortBookDialog from "./components/CreateShortBookDialog.vue";
 import DeleteExpertSectionDialog from "./components/DeleteExpertSectionDialog.vue";
@@ -131,6 +135,10 @@ import {
   type AgentRunPreferencesByScope
 } from "./utils/agentRunPreferences";
 import { buildAgentTextDiff } from "./utils/agentTextDiff";
+import {
+  loadGeneralPreferences,
+  saveGeneralPreferences
+} from "./utils/generalPreferences";
 
 const EMPTY_WORKSPACE_DOCUMENT: WorkspaceDocument = {
   id: "deepwrite-empty-workspace",
@@ -155,6 +163,8 @@ const COMPOSER_STAGE_LABELS = {
   expert_section_writer: "分节"
 } as const satisfies Record<ShortWorkspaceAgentId, string>;
 const EDITOR_DRAFT_RECOVERY_KEY = "deepwrite:editor-draft-recovery:v1";
+const EDITOR_AUTO_SAVE_DEBOUNCE_MS = 800;
+const EDITOR_AUTO_SAVE_RETRY_MS = 250;
 let draftRecoveryClock = 0;
 
 function observeDraftRecoveryTimestamp(value: string | undefined): void {
@@ -289,6 +299,11 @@ const selectedResourceId = ref(EMPTY_WORKSPACE_DOCUMENT.id);
 const activeCreationResourceId = ref(EMPTY_WORKSPACE_DOCUMENT.id);
 const documents = ref<WorkspaceDocument[]>([{ ...EMPTY_WORKSPACE_DOCUMENT }]);
 const editorDrafts = ref<Record<string, EditorDraftState>>({});
+const editorAutoSaveEnabled = ref(
+  loadGeneralPreferences(window.localStorage).autoSave
+);
+const editorAutoSaveTimers = new Map<string, number>();
+let editorSaveChain: Promise<void> = Promise.resolve();
 const selectedExpertSectionIds = ref<Record<string, string>>({});
 const selectedDraftFileKinds = ref<
   Record<string, "body" | "character-state">
@@ -300,8 +315,6 @@ const acceptingAgentEditDocumentIds = ref<Set<string>>(new Set());
 const acceptingAgentEditWorkspaceIds = ref<Set<string>>(new Set());
 const savingDocumentIds = ref<Set<string>>(new Set());
 let recoveredEditorDraftCount = 0;
-const dialogMode = ref<DialogMode | null>(null);
-const learningImitationOpen = ref(false);
 const learningImitation = useLearningImitation({
   api: () => window.deepwrite
 });
@@ -398,6 +411,17 @@ interface SaveConflictState {
 const saveConflict = ref<SaveConflictState | null>(null);
 const saveConflictSubmitting = ref(false);
 const currentView = ref<"workspace" | "settings">("workspace");
+type WorkspaceMainView = "conversation" | "directory" | "models" | "imitation" | "agent-team";
+const workspaceMainView = ref<WorkspaceMainView>("conversation");
+const activePrimaryFeature = computed<
+  "directory" | "models" | "imitation" | "agent-teams" | undefined
+>(() =>
+  workspaceMainView.value === "agent-team"
+    ? "agent-teams"
+    : workspaceMainView.value === "conversation"
+      ? undefined
+      : workspaceMainView.value
+);
 const modelSettings = ref<ModelSettings | null>(null);
 const modelLoading = ref(false);
 const modelSaving = ref(false);
@@ -420,6 +444,11 @@ const workspaceAgentSettings = ref<ShortWorkspaceAgentSettings>({
     }
   }))
 });
+const agentTeamSettings = ref<AgentTeamSettings | null>(null);
+const agentTeamLoading = ref(false);
+const agentTeamSaving = ref(false);
+const agentTeamLoaded = ref(false);
+const agentTeamLoadError = ref<string | null>(null);
 const workspaceAgentLoading = ref(false);
 const workspaceAgentSaving = ref(false);
 const workspaceAgentError = ref<string | null>(null);
@@ -1357,6 +1386,7 @@ function selectResource(node: ResourceTreeNode): void {
   if (!document) {
     return;
   }
+  workspaceMainView.value = "conversation";
   selectedResourceId.value = node.id;
   if (document.domain === "creation") {
     activeCreationResourceId.value = node.id;
@@ -2520,6 +2550,58 @@ function handleResourceNodeAction(payload: CatalogResourceNodeActionPayload): vo
   };
 }
 
+function cancelEditorAutoSave(documentId?: string): void {
+  if (documentId !== undefined) {
+    const timer = editorAutoSaveTimers.get(documentId);
+    if (timer !== undefined) window.clearTimeout(timer);
+    editorAutoSaveTimers.delete(documentId);
+    return;
+  }
+  for (const timer of editorAutoSaveTimers.values()) {
+    window.clearTimeout(timer);
+  }
+  editorAutoSaveTimers.clear();
+}
+
+function enqueueEditorSave(task: () => Promise<void>): void {
+  const operation = editorSaveChain.catch(() => undefined).then(task);
+  editorSaveChain = operation.catch(() => undefined);
+}
+
+function scheduleEditorAutoSave(
+  documentId: string,
+  delay = EDITOR_AUTO_SAVE_DEBOUNCE_MS
+): void {
+  if (!editorAutoSaveEnabled.value) return;
+  cancelEditorAutoSave(documentId);
+  editorAutoSaveTimers.set(
+    documentId,
+    window.setTimeout(() => {
+      editorAutoSaveTimers.delete(documentId);
+      enqueueEditorSave(() => runEditorAutoSave(documentId));
+    }, delay)
+  );
+}
+
+function scheduleDirtyEditorDraftsForAutoSave(): void {
+  if (!editorAutoSaveEnabled.value) return;
+  for (const [documentId, draft] of Object.entries(editorDrafts.value)) {
+    if (draft.dirty) scheduleEditorAutoSave(documentId);
+  }
+}
+
+function updateEditorAutoSave(enabled: boolean): void {
+  editorAutoSaveEnabled.value = enabled;
+  if (!saveGeneralPreferences(window.localStorage, { autoSave: enabled })) {
+    uiMessage.warning("自动保存设置已生效，但暂时无法写入本机配置");
+  }
+  if (enabled) {
+    scheduleDirtyEditorDraftsForAutoSave();
+  } else {
+    cancelEditorAutoSave();
+  }
+}
+
 function stageEditorDraft(payload: { id: string; title: string; content: string }): void {
   const persisted = documents.value.find((document) => document.id === payload.id);
   const existingDraft = editorDrafts.value[payload.id];
@@ -2546,6 +2628,7 @@ function stageEditorDraft(payload: { id: string; title: string; content: string 
 
 function handleLiveDocumentChange(rawPayload: { id: string; title: string; content: string }): void {
   stageEditorDraft(rawPayload);
+  scheduleEditorAutoSave(rawPayload.id);
 }
 
 function expertDraftMutationBlocked(source: WorkspaceDocument): boolean {
@@ -3320,11 +3403,17 @@ async function openSaveConflict(
   }
 }
 
+interface DocumentSaveOptions {
+  force?: boolean;
+  announceSuccess?: boolean;
+}
+
 async function saveCatalogDocument(
   document: WorkspaceDocument,
   payload: { id: string; title: string; content: string },
-  force = false
+  options: DocumentSaveOptions = {}
 ): Promise<boolean> {
+  const force = options.force ?? false;
   if (
     !window.deepwrite ||
     !document.workspaceId ||
@@ -3364,7 +3453,9 @@ async function saveCatalogDocument(
       undefined,
       payload
     );
-    uiMessage.success("文稿已保存到本机");
+    if (options.announceSuccess !== false) {
+      uiMessage.success("文稿已保存到本机");
+    }
     const expectedDocuments = captureWorkspaceDocumentBaselines(
       documents.value,
       document.workspaceId
@@ -3390,8 +3481,9 @@ async function saveCatalogDocument(
 async function saveCatalogLibraryEntry(
   document: WorkspaceDocument,
   payload: { id: string; title: string; content: string },
-  force = false
+  options: DocumentSaveOptions = {}
 ): Promise<boolean> {
+  const force = options.force ?? false;
   if (
     !window.deepwrite ||
     !document.libraryId ||
@@ -3434,7 +3526,9 @@ async function saveCatalogLibraryEntry(
       payload,
       savedProjectRevision
     );
-    uiMessage.success(`${document.domain === "material" ? "素材" : "技能"}内容已保存到本机文件夹`);
+    if (options.announceSuccess !== false) {
+      uiMessage.success(`${document.domain === "material" ? "素材" : "技能"}内容已保存到本机文件夹`);
+    }
     return true;
   } catch (error: unknown) {
     restoreDraftAfterSaveFailure(document, payload);
@@ -3449,30 +3543,75 @@ async function saveCatalogLibraryEntry(
   }
 }
 
-function applyDocument(rawPayload: { id: string; title: string; content: string }): void {
-  const payload = rawPayload;
+async function persistEditorDocument(
+  payload: { id: string; title: string; content: string },
+  announceSuccess: boolean
+): Promise<boolean> {
   const document = documents.value.find((candidate) => candidate.id === payload.id);
-  if (!document) return;
+  if (!document) return false;
   if (
     document.workspaceId &&
     acceptingAgentEditWorkspaceIds.value.has(document.workspaceId)
   ) {
-    uiMessage.info("正在保存同一作品的智能体修改，请稍候");
-    return;
+    if (announceSuccess) {
+      uiMessage.info("正在保存同一作品的智能体修改，请稍候");
+    }
+    return false;
   }
   if (document.catalogDocumentId && document.workspaceId) {
-    void saveCatalogDocument(document, payload);
-    return;
+    return saveCatalogDocument(document, payload, { announceSuccess });
   }
   if (
     document.catalogEntryId &&
     document.libraryId &&
     (document.domain === "material" || document.domain === "skill")
   ) {
-    void saveCatalogLibraryEntry(document, payload);
-    return;
+    return saveCatalogLibraryEntry(document, payload, { announceSuccess });
   }
   applyDocumentLocally(payload);
+  return true;
+}
+
+async function runEditorAutoSave(documentId: string): Promise<void> {
+  if (!editorAutoSaveEnabled.value) return;
+  const draft = editorDrafts.value[documentId];
+  const document = documents.value.find((candidate) => candidate.id === documentId);
+  if (!draft?.dirty || !document || document.readOnly) return;
+  if (
+    saveConflict.value?.documentId === documentId ||
+    savingDocumentIds.value.size > 0 ||
+    acceptingAgentEditDocumentIds.value.has(documentId) ||
+    (document.workspaceId !== undefined &&
+      acceptingAgentEditWorkspaceIds.value.has(document.workspaceId))
+  ) {
+    if (saveConflict.value?.documentId !== documentId) {
+      scheduleEditorAutoSave(documentId, EDITOR_AUTO_SAVE_RETRY_MS);
+    }
+    return;
+  }
+
+  const submittedPayload = {
+    id: documentId,
+    title: draft.title,
+    content: draft.content
+  };
+  const saved = await persistEditorDocument(submittedPayload, false);
+  const latestDraft = editorDrafts.value[documentId];
+  if (
+    saved &&
+    latestDraft?.dirty &&
+    (latestDraft.title !== submittedPayload.title ||
+      latestDraft.content !== submittedPayload.content)
+  ) {
+    scheduleEditorAutoSave(documentId);
+  }
+}
+
+function applyDocument(rawPayload: { id: string; title: string; content: string }): void {
+  cancelEditorAutoSave(rawPayload.id);
+  enqueueEditorSave(async () => {
+    await persistEditorDocument(rawPayload, true);
+  });
 }
 
 function keepSaveConflictDraft(): void {
@@ -3504,10 +3643,10 @@ async function overwriteSaveConflictOnDisk(): Promise<void> {
     }
     const saved =
       document.catalogDocumentId && document.workspaceId
-        ? await saveCatalogDocument(document, conflict.payload, true)
+        ? await saveCatalogDocument(document, conflict.payload, { force: true })
         : document.catalogEntryId && document.libraryId &&
             (document.domain === "material" || document.domain === "skill")
-          ? await saveCatalogLibraryEntry(document, conflict.payload, true)
+          ? await saveCatalogLibraryEntry(document, conflict.payload, { force: true })
           : false;
     if (saved) {
       saveConflict.value = null;
@@ -3524,6 +3663,7 @@ function newConversation(): void {
     uiMessage.info("请等待智能体修改保存完成后再新建对话");
     return;
   }
+  workspaceMainView.value = "conversation";
   activeConversation.value.newConversation();
   clearEditorSelectionReferences();
 }
@@ -3615,21 +3755,11 @@ async function stopGeneration(): Promise<void> {
   }
 }
 
-function seedPrompt(value: string): void {
-  composerDraft.value = value;
-  dialogMode.value = null;
-}
-
 function openWorkspaceDialog(mode: DialogMode): void {
-  if (mode === "imitation") {
-    dialogMode.value = null;
-    learningImitationOpen.value = true;
-    if (!modelSettings.value && window.deepwrite) {
-      void loadModelSettings();
-    }
-    return;
+  workspaceMainView.value = mode;
+  if ((mode === "models" || mode === "imitation") && !modelSettings.value && window.deepwrite) {
+    void loadModelSettings();
   }
-  dialogMode.value = mode;
 }
 
 function openSettings(): void {
@@ -3638,6 +3768,13 @@ function openSettings(): void {
     void loadWorkspaceAgentSettings();
     void loadLibraryAgentSettings();
     void loadLearningImitationSettings();
+  }
+}
+
+function openAgentTeams(): void {
+  workspaceMainView.value = "agent-team";
+  if (window.deepwrite && !agentTeamLoaded.value) {
+    void loadAgentTeamSettings();
   }
 }
 
@@ -4540,8 +4677,8 @@ async function loadModelSettings(): Promise<void> {
   }
 }
 
-watch(dialogMode, (mode) => {
-  if (mode === "models") {
+watch(workspaceMainView, (view) => {
+  if (view === "models") {
     void loadModelSettings();
   }
 });
@@ -4630,6 +4767,42 @@ async function saveWorkspaceAgentSettings(
     );
   } finally {
     workspaceAgentSaving.value = false;
+  }
+}
+
+async function loadAgentTeamSettings(): Promise<void> {
+  if (!window.deepwrite || agentTeamLoading.value) return;
+  agentTeamLoading.value = true;
+  agentTeamLoadError.value = null;
+  try {
+    agentTeamSettings.value = await window.deepwrite.agentTeams.list("short");
+    agentTeamLoaded.value = true;
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "加载智能体团队设置失败。";
+    agentTeamLoadError.value = message;
+    uiMessage.error(message);
+  } finally {
+    agentTeamLoading.value = false;
+  }
+}
+
+async function saveAgentTeamSettings(
+  settings: AgentTeamSettingsInput
+): Promise<void> {
+  if (!window.deepwrite || agentTeamSaving.value) return;
+  agentTeamSaving.value = true;
+  try {
+    agentTeamSettings.value = await window.deepwrite.agentTeams.save(settings);
+    agentTeamLoaded.value = true;
+    agentTeamLoadError.value = null;
+    uiMessage.success("智能体团队已保存，下一轮对话立即生效。");
+  } catch (error: unknown) {
+    uiMessage.error(
+      error instanceof Error ? error.message : "保存智能体团队设置失败。"
+    );
+  } finally {
+    agentTeamSaving.value = false;
   }
 }
 
@@ -4771,7 +4944,6 @@ function handleGlobalKeydown(event: KeyboardEvent): void {
     newConversation();
   }
   if (event.key === "Escape") {
-    dialogMode.value = null;
     createShortBookDialogOpen.value = false;
     libraryProjectDialog.value = null;
     libraryGroupDialog.value = null;
@@ -4908,9 +5080,11 @@ onMounted(async () => {
     loadCatalogSnapshot(),
     loadModelSettings(),
     loadWorkspaceAgentSettings(),
+    loadAgentTeamSettings(),
     loadLearningImitationSettings(),
     loadWorkspaceDirectory()
   ]);
+  scheduleDirtyEditorDraftsForAutoSave();
   if (recoveredEditorDraftCount > 0) {
     uiMessage.info(`已恢复 ${recoveredEditorDraftCount} 份未保存草稿`, {
       duration: 1500
@@ -4924,6 +5098,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("focus", refreshCatalogOnWindowFocus);
   window.removeEventListener("beforeunload", handleBeforeUnload);
   stopPaneResize();
+  cancelEditorAutoSave();
   removeSystemListener?.();
   if (draftRecoveryTimer !== undefined) {
     window.clearTimeout(draftRecoveryTimer);
@@ -4945,6 +5120,7 @@ onBeforeUnmount(() => {
   <NConfigProvider :theme="naiveTheme" :theme-overrides="themeOverrides">
       <SettingsPage
         v-if="currentView === 'settings'"
+        :auto-save-enabled="editorAutoSaveEnabled"
         :workspace-agent-settings="workspaceAgentSettings"
         :workspace-agent-loading="workspaceAgentLoading"
         :workspace-agent-saving="workspaceAgentSaving"
@@ -4958,6 +5134,7 @@ onBeforeUnmount(() => {
         :learning-imitation-saving="learningImitationSaving"
         :runtime-available="hasDesktopRuntime"
         @back="closeSettings"
+        @update-auto-save="updateEditorAutoSave"
         @save-workspace-agents="saveWorkspaceAgentSettings"
         @save-library-agents="saveLibraryAgentSettings"
         @reset-library-agent="resetLibraryAgentSettings"
@@ -4979,9 +5156,11 @@ onBeforeUnmount(() => {
         :selected-id="selectedResourceId"
         :imitation-running="learningImitationRunning"
         :library-entry-clipboard-domain="libraryEntryClipboardDomain"
+        :active-primary-feature="activePrimaryFeature"
         @collapse="leftCollapsed = true"
         @new-conversation="newConversation"
         @open-dialog="openWorkspaceDialog"
+        @open-agent-teams="openAgentTeams"
         @open-settings="openSettings"
         @select-resource="selectResource"
         @book-action="openBookDialog"
@@ -4992,7 +5171,87 @@ onBeforeUnmount(() => {
         @remove-expert-section="requestRemoveExpertSection"
       />
 
+      <main
+        v-show="workspaceMainView === 'agent-team'"
+        class="agent-team-main-view"
+        aria-label="智能体团队"
+      >
+        <button
+          v-if="leftCollapsed"
+          class="icon-button agent-team-expand-sidebar"
+          type="button"
+          aria-label="展开左侧栏"
+          @click="leftCollapsed = false"
+        >
+          <AppIcon name="panel-left" :size="18" />
+        </button>
+        <AgentTeamSettingsPanel
+          :settings="agentTeamSettings"
+          :loading="agentTeamLoading"
+          :saving="agentTeamSaving"
+          :load-error="agentTeamLoadError"
+          :runtime-available="hasDesktopRuntime"
+          @retry="loadAgentTeamSettings"
+          @save="saveAgentTeamSettings"
+        />
+      </main>
+
+      <main
+        v-show="workspaceMainView === 'directory' || workspaceMainView === 'models'"
+        class="workspace-settings-main-view"
+        :aria-label="workspaceMainView === 'directory' ? '工作目录' : '模型配置'"
+      >
+        <button
+          v-if="leftCollapsed"
+          class="icon-button workspace-settings-expand-sidebar"
+          type="button"
+          aria-label="展开左侧栏"
+          @click="leftCollapsed = false"
+        >
+          <AppIcon name="panel-left" :size="18" />
+        </button>
+        <WorkspaceDialog
+          :mode="workspaceMainView === 'directory' ? 'directory' : 'models'"
+          :active="workspaceMainView === 'directory' || workspaceMainView === 'models'"
+          :model-settings="modelSettings"
+          :model-loading="modelLoading"
+          :model-saving="modelSaving"
+          :model-error="modelError"
+          :model-test-message="modelTestMessage"
+          :testing-model-id="testingModelId"
+          :workspace-directory-path="workspaceDirectoryPath"
+          :workspace-directory-loading="workspaceDirectoryLoading"
+          @save-models="saveModelSettings"
+          @test-model="testModel"
+          @choose-workspace-directory="chooseWorkspaceDirectory"
+        />
+      </main>
+
+      <main
+        v-show="workspaceMainView === 'imitation'"
+        class="learning-imitation-main-view"
+        aria-label="学习仿写"
+      >
+        <button
+          v-if="leftCollapsed"
+          class="icon-button learning-imitation-expand-sidebar"
+          type="button"
+          aria-label="展开左侧栏"
+          @click="leftCollapsed = false"
+        >
+          <AppIcon name="panel-left" :size="18" />
+        </button>
+        <LearningImitationDialog
+          :active="workspaceMainView === 'imitation'"
+          :controller="learningImitation"
+          :models="modelSettings?.models ?? []"
+          :catalog-snapshot="catalogSnapshot"
+          @refresh-catalog="loadCatalogSnapshot"
+        />
+      </main>
+
       <AgentConversation
+        v-show="workspaceMainView === 'conversation'"
         v-model:draft="composerDraft"
         :messages="messages"
         :conversation-history="conversationHistory"
@@ -5038,7 +5297,7 @@ onBeforeUnmount(() => {
       />
 
       <RightEditorPane
-        v-if="!rightCollapsed"
+        v-if="workspaceMainView === 'conversation' && !rightCollapsed"
         :document="activeDocument"
         :resource-id="selectedResourceId"
         :draft-state="activeEditorDraft"
@@ -5046,6 +5305,7 @@ onBeforeUnmount(() => {
         :locked="editorLocked"
         :locked-label="editorLockedLabel"
         :saving="editorSaving"
+        :auto-save-enabled="editorAutoSaveEnabled"
         :bound-to-current-book="activeLibraryBoundToBook"
         :section-tabs="activeExpertSectionTabs"
         :active-section-id="activeExpertSectionId"
@@ -5072,7 +5332,7 @@ onBeforeUnmount(() => {
       />
 
       <div
-        v-if="!rightCollapsed"
+        v-if="workspaceMainView === 'conversation' && !rightCollapsed"
         class="pane-resizer pane-resizer-right"
         role="separator"
         aria-label="调整右侧栏宽度"
@@ -5086,30 +5346,6 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <WorkspaceDialog
-      :mode="dialogMode"
-      :model-settings="modelSettings"
-      :model-loading="modelLoading"
-      :model-saving="modelSaving"
-      :model-error="modelError"
-      :model-test-message="modelTestMessage"
-      :testing-model-id="testingModelId"
-      :workspace-directory-path="workspaceDirectoryPath"
-      :workspace-directory-loading="workspaceDirectoryLoading"
-      @close="dialogMode = null"
-      @seed-prompt="seedPrompt"
-      @save-models="saveModelSettings"
-      @test-model="testModel"
-      @choose-workspace-directory="chooseWorkspaceDirectory"
-    />
-    <LearningImitationDialog
-      :open="learningImitationOpen"
-      :controller="learningImitation"
-      :models="modelSettings?.models ?? []"
-      :catalog-snapshot="catalogSnapshot"
-      @close="learningImitationOpen = false"
-      @refresh-catalog="loadCatalogSnapshot"
-    />
     <BookResourceDialog
       :mode="bookDialogMode"
       :book="activeBook"

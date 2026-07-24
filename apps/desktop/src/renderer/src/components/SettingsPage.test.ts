@@ -2,10 +2,22 @@ import { describe, expect, it } from "vitest";
 import source from "./SettingsPage.vue?raw";
 
 describe("SettingsPage", () => {
+  it("offers a persisted auto-save switch in general settings", () => {
+    expect(source).toContain("<strong>自动保存</strong>");
+    expect(source).toContain(':checked="autoSaveEnabled"');
+    expect(source).toContain("emit('updateAutoSave'");
+  });
+
   it("provides a dedicated learning-imitation prompt category", () => {
     expect(source).toContain('label: "学习仿写设置"');
     expect(source).toContain("<LearningImitationSettingsPanel");
     expect(source).toContain("emit('saveLearningImitation', $event)");
+  });
+
+  it("keeps agent-team management outside the settings page", () => {
+    expect(source).not.toContain('id: "agent-teams"');
+    expect(source).not.toContain("<AgentTeamSettingsPanel");
+    expect(source).not.toContain("saveAgentTeams");
   });
 
   it("provides dedicated skill and material library agent categories", () => {

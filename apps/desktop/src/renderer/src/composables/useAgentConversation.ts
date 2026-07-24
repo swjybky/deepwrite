@@ -1,6 +1,7 @@
 import { computed, ref, watch, type Ref } from "vue";
 import type {
   AgentRuntimeRef,
+  AgentUsage,
   DeepWriteApi,
   ModelConfig,
   ModelSettings,
@@ -18,8 +19,11 @@ import {
 import type {
   AgentApprovalMode,
   AgentEditProposal,
+  AgentSubagentProcessingStep,
+  AgentSubagentRun,
   AgentTextDiffHunk,
   AgentTextDiffLine,
+  AgentToolTrace,
   ChatMessage,
   ConversationHistoryItem
 } from "../types/conversation";
@@ -63,6 +67,12 @@ interface StoredConversationEnvelope {
   activeSessionId: string;
   conversations: StoredConversation[];
 }
+
+type SubagentEventEnvelope = Extract<
+  SystemEventEnvelope,
+  { type: "subagent.started" | "subagent.activity" | "subagent.completed" }
+>;
+type SubagentEventPayload = SubagentEventEnvelope["payload"];
 
 const MAX_STORED_CONVERSATIONS = 20;
 const PERSISTENCE_DEBOUNCE_MS = 180;
@@ -187,6 +197,17 @@ function cloneMessage(message: ChatMessage): ChatMessage {
       : {}),
     ...(message.processingSteps
       ? { processingSteps: message.processingSteps.map((step) => ({ ...step })) }
+      : {}),
+    ...(message.subagentRuns
+      ? {
+          subagentRuns: message.subagentRuns.map((run) => ({
+            ...run,
+            runtime: { ...run.runtime },
+            ...(run.usage ? { usage: { ...run.usage } } : {}),
+            toolCalls: run.toolCalls.map((toolCall) => ({ ...toolCall })),
+            processingSteps: run.processingSteps.map((step) => ({ ...step }))
+          }))
+        }
       : {}),
     ...(message.editProposals
       ? { editProposals: message.editProposals.map(cloneEditProposal) }
@@ -320,6 +341,192 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
   };
 }
 
+function parseStoredRuntime(value: unknown): AgentRuntimeRef | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.provider !== "string" ||
+    !value.provider ||
+    typeof value.model !== "string" ||
+    !value.model ||
+    (value.mode !== "local-faux" && value.mode !== "provider")
+  ) {
+    return undefined;
+  }
+  return {
+    provider: value.provider,
+    model: value.model,
+    mode: value.mode
+  };
+}
+
+function parseStoredUsage(value: unknown): AgentUsage | undefined {
+  if (!isRecord(value)) return undefined;
+  const keys = [
+    "inputTokens",
+    "outputTokens",
+    "cacheReadTokens",
+    "cacheWriteTokens",
+    "totalTokens"
+  ] as const;
+  if (!keys.every((key) => nonnegativeInteger(value[key]))) return undefined;
+  return {
+    inputTokens: value.inputTokens as number,
+    outputTokens: value.outputTokens as number,
+    cacheReadTokens: value.cacheReadTokens as number,
+    cacheWriteTokens: value.cacheWriteTokens as number,
+    totalTokens: value.totalTokens as number
+  };
+}
+
+function parseStoredToolTrace(value: unknown): AgentToolTrace | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    !["preparing", "running", "completed", "error"].includes(String(value.status)) ||
+    typeof value.requestedAt !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    id: value.id,
+    ...(typeof value.streamId === "string" ? { streamId: value.streamId } : {}),
+    name: value.name,
+    args: value.args,
+    ...(typeof value.argumentsText === "string"
+      ? { argumentsText: value.argumentsText }
+      : {}),
+    ...(typeof value.argumentsComplete === "boolean"
+      ? { argumentsComplete: value.argumentsComplete }
+      : {}),
+    status: value.status as AgentToolTrace["status"],
+    requestedAt: value.requestedAt,
+    ...(typeof value.completedAt === "string"
+      ? { completedAt: value.completedAt }
+      : {}),
+    ...(typeof value.resultSummary === "string"
+      ? { resultSummary: value.resultSummary }
+      : {}),
+    ...(typeof value.isError === "boolean" ? { isError: value.isError } : {})
+  };
+}
+
+function parseStoredSubagentStep(
+  value: unknown
+): AgentSubagentProcessingStep | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.createdAt !== "string"
+  ) {
+    return undefined;
+  }
+  if (value.type === "thinking" && typeof value.content === "string") {
+    return {
+      id: value.id,
+      type: "thinking",
+      content: value.content,
+      createdAt: value.createdAt
+    };
+  }
+  if (value.type === "response" && typeof value.content === "string") {
+    return {
+      id: value.id,
+      type: "response",
+      content: value.content,
+      createdAt: value.createdAt
+    };
+  }
+  if (value.type === "tool" && typeof value.toolCallId === "string") {
+    return {
+      id: value.id,
+      type: "tool",
+      toolCallId: value.toolCallId,
+      createdAt: value.createdAt
+    };
+  }
+  return undefined;
+}
+
+function parseStoredSubagentRun(value: unknown): AgentSubagentRun | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.parentToolCallId !== "string" ||
+    typeof value.subagentRunId !== "string" ||
+    typeof value.subagentId !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.task !== "string" ||
+    !["running", "completed", "error", "stopped", "interrupted"].includes(
+      String(value.status)
+    ) ||
+    !validDate(value.startedAt) ||
+    !Array.isArray(value.toolCalls) ||
+    !Array.isArray(value.processingSteps)
+  ) {
+    return undefined;
+  }
+  const runtime = parseStoredRuntime(value.runtime);
+  if (!runtime) return undefined;
+  const toolCalls = value.toolCalls
+    .map(parseStoredToolTrace)
+    .filter((toolCall): toolCall is AgentToolTrace => toolCall !== undefined);
+  const processingSteps = value.processingSteps
+    .map(parseStoredSubagentStep)
+    .filter((step): step is AgentSubagentProcessingStep => step !== undefined);
+  if (
+    toolCalls.length !== value.toolCalls.length ||
+    processingSteps.length !== value.processingSteps.length
+  ) {
+    return undefined;
+  }
+
+  const restoredWhileRunning = value.status === "running";
+  const restoredAt = new Date().toISOString();
+  const normalizedToolCalls = restoredWhileRunning
+    ? toolCalls.map((toolCall) =>
+        toolCall.status === "preparing" || toolCall.status === "running"
+          ? {
+              ...toolCall,
+              status: "error" as const,
+              completedAt: restoredAt,
+              resultSummary: toolCall.resultSummary ?? "会话恢复时子任务已停止。",
+              isError: true
+            }
+          : toolCall
+      )
+    : toolCalls;
+  const usage = parseStoredUsage(value.usage);
+  return {
+    parentToolCallId: value.parentToolCallId,
+    subagentRunId: value.subagentRunId,
+    subagentId: value.subagentId,
+    name: value.name,
+    task: value.task,
+    status:
+      restoredWhileRunning || value.status === "interrupted"
+        ? "stopped"
+        : value.status as AgentSubagentRun["status"],
+    runtime,
+    ...(typeof value.thinking === "string" ? { thinking: value.thinking } : {}),
+    ...(typeof value.output === "string" ? { output: value.output } : {}),
+    toolCalls: normalizedToolCalls,
+    processingSteps,
+    startedAt: value.startedAt,
+    ...(typeof value.completedAt === "string"
+      ? { completedAt: value.completedAt }
+      : restoredWhileRunning
+        ? { completedAt: restoredAt }
+        : {}),
+    ...(typeof value.summary === "string" ? { summary: value.summary } : {}),
+    ...(typeof value.errorMessage === "string"
+      ? { errorMessage: value.errorMessage }
+      : restoredWhileRunning
+        ? { errorMessage: "应用关闭或对话恢复时，子任务仍在运行。" }
+        : {}),
+    ...(usage ? { usage } : {})
+  };
+}
+
 function parseStoredMessage(value: unknown): ChatMessage | undefined {
   if (!isRecord(value)) return undefined;
   if (
@@ -400,38 +607,9 @@ function parseStoredMessage(value: unknown): ChatMessage | undefined {
   }
 
   if (Array.isArray(value.toolCalls)) {
-    message.toolCalls = value.toolCalls.flatMap((toolCall) => {
-      if (
-        !isRecord(toolCall) ||
-        typeof toolCall.id !== "string" ||
-        typeof toolCall.name !== "string" ||
-        !["preparing", "running", "completed", "error"].includes(String(toolCall.status)) ||
-        typeof toolCall.requestedAt !== "string"
-      ) {
-        return [];
-      }
-      return [{
-        id: toolCall.id,
-        ...(typeof toolCall.streamId === "string" ? { streamId: toolCall.streamId } : {}),
-        name: toolCall.name,
-        args: toolCall.args,
-        ...(typeof toolCall.argumentsText === "string"
-          ? { argumentsText: toolCall.argumentsText }
-          : {}),
-        ...(typeof toolCall.argumentsComplete === "boolean"
-          ? { argumentsComplete: toolCall.argumentsComplete }
-          : {}),
-        status: toolCall.status as "preparing" | "running" | "completed" | "error",
-        requestedAt: toolCall.requestedAt,
-        ...(typeof toolCall.completedAt === "string"
-          ? { completedAt: toolCall.completedAt }
-          : {}),
-        ...(typeof toolCall.resultSummary === "string"
-          ? { resultSummary: toolCall.resultSummary }
-          : {}),
-        ...(typeof toolCall.isError === "boolean" ? { isError: toolCall.isError } : {})
-      }];
-    });
+    message.toolCalls = value.toolCalls
+      .map(parseStoredToolTrace)
+      .filter((toolCall): toolCall is AgentToolTrace => toolCall !== undefined);
   }
 
   if (Array.isArray(value.processingSteps)) {
@@ -472,6 +650,12 @@ function parseStoredMessage(value: unknown): ChatMessage | undefined {
       }
     }
     message.processingSteps = processingSteps;
+  }
+
+  if (Array.isArray(value.subagentRuns)) {
+    message.subagentRuns = value.subagentRuns
+      .map(parseStoredSubagentRun)
+      .filter((run): run is AgentSubagentRun => run !== undefined);
   }
 
   if (Array.isArray(value.editProposals)) {
@@ -790,6 +974,29 @@ export function useAgentConversation(
     }
   }
 
+  function finalizeRunningSubagents(
+    message: ChatMessage,
+    status: "error" | "stopped",
+    completedAt: string,
+    reason: string
+  ): void {
+    for (const run of message.subagentRuns ?? []) {
+      if (run.status !== "running") continue;
+      run.status = status;
+      run.completedAt = completedAt;
+      run.errorMessage = reason;
+      for (const toolCall of run.toolCalls) {
+        if (toolCall.status !== "preparing" && toolCall.status !== "running") {
+          continue;
+        }
+        toolCall.status = "error";
+        toolCall.completedAt = completedAt;
+        toolCall.resultSummary ??= reason;
+        toolCall.isError = true;
+      }
+    }
+  }
+
   function markRunError(
     runId: string,
     messageText: string,
@@ -817,8 +1024,10 @@ export function useAgentConversation(
     }
     message.status = "error";
     message.errorMessage = messageText;
+    const completedAt = new Date().toISOString();
+    finalizeRunningSubagents(message, "error", completedAt, messageText);
     if (message.processingStartedAt) {
-      message.processingCompletedAt = new Date().toISOString();
+      message.processingCompletedAt = completedAt;
     }
     rememberBounded(finishedRunIds, runId);
   }
@@ -844,8 +1053,15 @@ export function useAgentConversation(
       runMessageIds.set(runId, message.id);
     }
     message.status = "stopped";
+    const completedAt = new Date().toISOString();
+    finalizeRunningSubagents(
+      message,
+      "stopped",
+      completedAt,
+      "父智能体运行已停止，子任务同步停止。"
+    );
     if (message.processingStartedAt) {
-      message.processingCompletedAt = new Date().toISOString();
+      message.processingCompletedAt = completedAt;
     }
     rememberBounded(finishedRunIds, runId);
   }
@@ -1005,6 +1221,294 @@ export function useAgentConversation(
     return message;
   }
 
+  function ensureSubagentMessage(runId: string, createdAt: string): ChatMessage {
+    const mappedMessageId = runMessageIds.get(runId);
+    const existing = mappedMessageId
+      ? messages.value.find(
+          (message) =>
+            message.id === mappedMessageId &&
+            message.role === "assistant" &&
+            message.runId === runId
+        )
+      : messages.value.find(
+          (message) => message.role === "assistant" && message.runId === runId
+        );
+    if (existing) {
+      runMessageIds.set(runId, existing.id);
+      return existing;
+    }
+
+    const preferredId = `${runId}_assistant`;
+    const message: ChatMessage = {
+      id: messages.value.some((candidate) => candidate.id === preferredId)
+        ? `${preferredId}_${id("subagent")}`
+        : preferredId,
+      role: "assistant",
+      content: "",
+      createdAt,
+      runId,
+      status: "streaming",
+      activityOnly: true,
+      toolCalls: [],
+      processingSteps: [],
+      subagentRuns: []
+    };
+    runMessageIds.set(runId, message.id);
+    messages.value.push(message);
+    return message;
+  }
+
+  function earlierTimestamp(current: string, candidate: string): string {
+    const currentTime = Date.parse(current);
+    const candidateTime = Date.parse(candidate);
+    if (!Number.isFinite(currentTime)) return candidate;
+    if (!Number.isFinite(candidateTime)) return current;
+    return candidateTime < currentTime ? candidate : current;
+  }
+
+  function ensurePendingSubagentRunForTool(
+    message: ChatMessage,
+    toolCallId: string,
+    args: unknown,
+    eventRuntime: AgentRuntimeRef,
+    eventTimestamp: string
+  ): void {
+    if (message.subagentRuns?.some((run) => run.parentToolCallId === toolCallId)) {
+      return;
+    }
+    const record = isRecord(args) ? args : {};
+    const subagentId =
+      typeof record.subagent_id === "string" && record.subagent_id.trim()
+        ? record.subagent_id.trim()
+        : "subagent";
+    const task =
+      typeof record.task === "string" && record.task.trim()
+        ? record.task.trim()
+        : "正在接收子任务…";
+    (message.subagentRuns ??= []).push({
+      parentToolCallId: toolCallId,
+      subagentRunId: `pending:${toolCallId}`,
+      subagentId,
+      name: subagentId,
+      task,
+      status: "running",
+      runtime: { ...eventRuntime },
+      toolCalls: [],
+      processingSteps: [],
+      startedAt: eventTimestamp
+    });
+  }
+
+  function ensureSubagentRun(
+    message: ChatMessage,
+    payload: SubagentEventPayload,
+    eventTimestamp: string,
+    task?: string
+  ): AgentSubagentRun {
+    let run = message.subagentRuns?.find(
+      (candidate) => candidate.subagentRunId === payload.subagentRunId
+    );
+    run ??= message.subagentRuns?.find(
+      (candidate) =>
+        candidate.parentToolCallId === payload.parentToolCallId &&
+        candidate.subagentRunId.startsWith("pending:")
+    );
+    if (!run) {
+      run = {
+        parentToolCallId: payload.parentToolCallId,
+        subagentRunId: payload.subagentRunId,
+        subagentId: payload.subagentId,
+        name: payload.name,
+        task: task ?? "正在接收子任务…",
+        status: "running",
+        runtime: { ...payload.runtime },
+        toolCalls: [],
+        processingSteps: [],
+        startedAt: eventTimestamp
+      };
+      (message.subagentRuns ??= []).push(run);
+      return run;
+    }
+
+    run.subagentRunId = payload.subagentRunId;
+    run.parentToolCallId = payload.parentToolCallId;
+    run.subagentId = payload.subagentId;
+    run.name = payload.name;
+    run.runtime = { ...payload.runtime };
+    run.startedAt = earlierTimestamp(run.startedAt, eventTimestamp);
+    if (task !== undefined) {
+      run.task = task;
+    }
+    return run;
+  }
+
+  function handleSubagentEvent(event: SubagentEventEnvelope): void {
+    const message = ensureSubagentMessage(event.payload.runId, event.timestamp);
+    message.processingStartedAt ??= event.timestamp;
+    const run = ensureSubagentRun(
+      message,
+      event.payload,
+      event.timestamp,
+      event.type === "subagent.started" ? event.payload.task : undefined
+    );
+
+    if (
+      event.type !== "subagent.completed" &&
+      run.status === "running" &&
+      (message.status === "stopped" || message.status === "error")
+    ) {
+      run.status = message.status;
+      run.completedAt = message.processingCompletedAt ?? event.timestamp;
+      run.errorMessage =
+        message.status === "stopped"
+          ? "父智能体运行已停止，子任务同步停止。"
+          : message.errorMessage ?? "父智能体运行异常结束，子任务同步停止。";
+    }
+
+    if (event.type === "subagent.started") {
+      return;
+    }
+
+    if (event.type === "subagent.activity") {
+      const activity = event.payload.activity;
+      if (activity.type === "thinking_delta") {
+        run.thinking = `${run.thinking ?? ""}${activity.delta}`;
+        const lastStep = run.processingSteps.at(-1);
+        if (lastStep?.type === "thinking") {
+          lastStep.content += activity.delta;
+        } else {
+          run.processingSteps.push({
+            id: event.id,
+            type: "thinking",
+            content: activity.delta,
+            createdAt: event.timestamp
+          });
+        }
+        return;
+      }
+
+      if (activity.type === "message_delta") {
+        run.output = `${run.output ?? ""}${activity.delta}`;
+        const lastStep = run.processingSteps.at(-1);
+        if (lastStep?.type === "response") {
+          lastStep.content += activity.delta;
+        } else {
+          run.processingSteps.push({
+            id: event.id,
+            type: "response",
+            content: activity.delta,
+            createdAt: event.timestamp
+          });
+        }
+        return;
+      }
+
+      let toolCall = run.toolCalls.find(
+        (candidate) => candidate.id === activity.toolCallId
+      );
+      if (activity.type === "tool_requested") {
+        if (toolCall) {
+          toolCall.name = activity.toolName;
+          toolCall.args = activity.args;
+          toolCall.requestedAt = earlierTimestamp(
+            toolCall.requestedAt,
+            event.timestamp
+          );
+          if (toolCall.status !== "completed" && toolCall.status !== "error") {
+            toolCall.status = "running";
+          }
+        } else {
+          const terminalStatus =
+            run.status === "completed" ? "completed" : "error";
+          toolCall = {
+            id: activity.toolCallId,
+            name: activity.toolName,
+            args: activity.args,
+            status: run.status === "running" ? "running" : terminalStatus,
+            requestedAt: event.timestamp,
+            ...(run.status === "running"
+              ? {}
+              : {
+                  completedAt: run.completedAt ?? event.timestamp,
+                  ...(terminalStatus === "error"
+                    ? {
+                        resultSummary:
+                          run.errorMessage ?? "子任务已经结束。",
+                        isError: true
+                      }
+                    : {})
+                })
+          };
+          run.toolCalls.push(toolCall);
+        }
+        if (!run.processingSteps.some(
+          (step) => step.type === "tool" && step.toolCallId === activity.toolCallId
+        )) {
+          run.processingSteps.push({
+            id: event.id,
+            type: "tool",
+            toolCallId: activity.toolCallId,
+            createdAt: event.timestamp
+          });
+        }
+        return;
+      }
+
+      if (!toolCall) {
+        toolCall = {
+          id: activity.toolCallId,
+          name: activity.toolName,
+          args: undefined,
+          status: activity.isError ? "error" : "completed",
+          requestedAt: event.timestamp
+        };
+        run.toolCalls.push(toolCall);
+      }
+      if (!run.processingSteps.some(
+        (step) => step.type === "tool" && step.toolCallId === activity.toolCallId
+      )) {
+        run.processingSteps.push({
+          id: event.id,
+          type: "tool",
+          toolCallId: activity.toolCallId,
+          createdAt: event.timestamp
+        });
+      }
+      toolCall.name = activity.toolName;
+      toolCall.status = activity.isError ? "error" : "completed";
+      toolCall.completedAt = event.timestamp;
+      toolCall.resultSummary = activity.resultSummary;
+      toolCall.isError = activity.isError;
+      return;
+    }
+
+    run.status =
+      event.payload.status === "aborted" ? "stopped" : event.payload.status;
+    run.completedAt = event.timestamp;
+    run.summary = event.payload.summary;
+    if (event.payload.errorMessage !== undefined) {
+      run.errorMessage = event.payload.errorMessage;
+    } else {
+      delete run.errorMessage;
+    }
+    if (event.payload.usage !== undefined) {
+      run.usage = { ...event.payload.usage };
+    } else {
+      delete run.usage;
+    }
+    for (const toolCall of run.toolCalls) {
+      if (toolCall.status !== "preparing" && toolCall.status !== "running") {
+        continue;
+      }
+      toolCall.status = run.status === "completed" ? "completed" : "error";
+      toolCall.completedAt = event.timestamp;
+      if (run.status !== "completed") {
+        toolCall.resultSummary ??= "子任务结束前未返回工具结果。";
+        toolCall.isError = true;
+      }
+    }
+  }
+
   function finishRun(runId: string): void {
     rememberBounded(finishedRunIds, runId);
     if (activeRunId.value === runId) {
@@ -1078,6 +1582,16 @@ export function useAgentConversation(
       toolCall.status = "error";
       toolCall.resultSummary = summary;
       toolCall.isError = true;
+    }
+    for (const subagentRun of message?.subagentRuns ?? []) {
+      const subagentToolCall = subagentRun.toolCalls.find(
+        (candidate) => candidate.id === toolCallId
+      );
+      if (!subagentToolCall) continue;
+      subagentToolCall.status = "error";
+      subagentToolCall.completedAt ??= new Date().toISOString();
+      subagentToolCall.resultSummary = summary;
+      subagentToolCall.isError = true;
     }
   }
 
@@ -1172,15 +1686,25 @@ export function useAgentConversation(
     if (!isAgentEvent(event) || event.payload.sessionId !== sessionId.value) {
       return;
     }
-    if (handledEventIds.has(event.id) || finishedRunIds.has(event.payload.runId)) {
+    if (handledEventIds.has(event.id)) {
       return;
     }
 
     const runId = event.payload.runId;
-    if (activeRunId.value && activeRunId.value !== runId) {
+    const subagentEvent = isSubagentEvent(event);
+    const lateSubagentEvent =
+      subagentEvent &&
+      finishedRunIds.has(runId) &&
+      messages.value.some(
+        (message) => message.role === "assistant" && message.runId === runId
+      );
+    if (finishedRunIds.has(runId) && !lateSubagentEvent) {
       return;
     }
-    if (!activeRunId.value) {
+    if (activeRunId.value && activeRunId.value !== runId && !lateSubagentEvent) {
+      return;
+    }
+    if (!activeRunId.value && !lateSubagentEvent) {
       if (pendingAttemptId.value === null) {
         return;
       }
@@ -1196,12 +1720,19 @@ export function useAgentConversation(
     }
 
     rememberBounded(handledEventIds, event.id);
-    submitting.value = false;
-    scheduleIdleTimeout({
-      expectedEpoch: epoch,
-      expectedSessionId: sessionId.value,
-      runId
-    });
+    if (!lateSubagentEvent) {
+      submitting.value = false;
+      scheduleIdleTimeout({
+        expectedEpoch: epoch,
+        expectedSessionId: sessionId.value,
+        runId
+      });
+    }
+
+    if (subagentEvent) {
+      handleSubagentEvent(event);
+      return;
+    }
 
     if (event.type === "agent.message_delta") {
       const message = ensureAssistantMessage(
@@ -1325,6 +1856,15 @@ export function useAgentConversation(
 
     if (event.type === "tool.call_requested") {
       const message = ensureActivityMessage(runId, event.payload.runtime, event.timestamp);
+      if (event.payload.toolName === "spawn_subagent") {
+        ensurePendingSubagentRunForTool(
+          message,
+          event.payload.toolCallId,
+          event.payload.args,
+          event.payload.runtime,
+          event.timestamp
+        );
+      }
       if (!message.tools?.some((tool) => tool.id === event.payload.toolCallId)) {
         message.tools = [
           ...(message.tools ?? []),
@@ -1378,6 +1918,19 @@ export function useAgentConversation(
 
     if (event.type === "tool.execution_completed") {
       const message = ensureActivityMessage(runId, event.payload.runtime, event.timestamp);
+      if (event.payload.toolName === "spawn_subagent") {
+        const subagentRun = message.subagentRuns?.find(
+          (candidate) => candidate.parentToolCallId === event.payload.toolCallId
+        );
+        if (subagentRun?.status === "running") {
+          subagentRun.status = event.payload.isError ? "error" : "completed";
+          subagentRun.completedAt = event.timestamp;
+          subagentRun.summary = event.payload.resultSummary;
+          if (event.payload.isError) {
+            subagentRun.errorMessage = event.payload.resultSummary;
+          }
+        }
+      }
       const tools = message.tools ?? [];
       const existingTool = tools.find((tool) => tool.id === event.payload.toolCallId);
       if (existingTool) {
@@ -2071,7 +2624,10 @@ function isAgentEvent(
       | "agent.error"
       | "tool.call_stream"
       | "tool.call_requested"
-      | "tool.execution_completed";
+      | "tool.execution_completed"
+      | "subagent.started"
+      | "subagent.activity"
+      | "subagent.completed";
   }
 > {
   return (
@@ -2081,6 +2637,17 @@ function isAgentEvent(
     event.type === "agent.error" ||
     event.type === "tool.call_stream" ||
     event.type === "tool.call_requested" ||
-    event.type === "tool.execution_completed"
+    event.type === "tool.execution_completed" ||
+    event.type === "subagent.started" ||
+    event.type === "subagent.activity" ||
+    event.type === "subagent.completed"
+  );
+}
+
+function isSubagentEvent(event: SystemEventEnvelope): event is SubagentEventEnvelope {
+  return (
+    event.type === "subagent.started" ||
+    event.type === "subagent.activity" ||
+    event.type === "subagent.completed"
   );
 }

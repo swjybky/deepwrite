@@ -17,6 +17,7 @@ import { resolveAgentWelcome } from "../data/agentWelcome";
 import type {
   AgentApprovalMode,
   AgentEditProposal,
+  AgentSubagentRun,
   AgentToolTrace,
   ChatMessage,
   ComposerReferenceOption,
@@ -144,6 +145,19 @@ watch(
       message?.thinking?.length,
       message?.toolCalls
         ?.map((toolCall) => `${toolCall.status}:${toolCall.argumentsText?.length ?? 0}`)
+        .join(","),
+      message?.subagentRuns
+        ?.map((run) =>
+          [
+            run.subagentRunId,
+            run.status,
+            run.thinking?.length ?? 0,
+            run.output?.length ?? 0,
+            run.toolCalls
+              .map((toolCall) => `${toolCall.id}:${toolCall.status}`)
+              .join(";")
+          ].join(":")
+        )
         .join(","),
       message?.editProposals
         ?.map((proposal) => `${proposal.id}:${proposal.status}:${proposal.updatedAt}`)
@@ -643,6 +657,20 @@ function hasProcessing(message: ChatMessage): boolean {
   return processingItems(message).length > 0;
 }
 
+function isSpawnSubagentTool(tool: AgentToolTrace): boolean {
+  return tool.name === "spawn_subagent";
+}
+
+function hasSubagentRunForTool(
+  message: ChatMessage,
+  tool: AgentToolTrace
+): boolean {
+  return Boolean(
+    isSpawnSubagentTool(tool) &&
+    message.subagentRuns?.some((run) => run.parentToolCallId === tool.id)
+  );
+}
+
 type ProcessingItem =
   | { id: string; type: "thinking"; content: string }
   | { id: string; type: "response"; content: string }
@@ -677,7 +705,7 @@ function processingItems(message: ChatMessage): ProcessingItem[] {
         continue;
       }
       const tool = message.toolCalls?.find((toolCall) => toolCall.id === step.toolCallId);
-      if (tool) {
+      if (tool && !hasSubagentRunForTool(message, tool)) {
         items.push({ id: step.id, type: "tool", tool });
       }
     }
@@ -687,9 +715,119 @@ function processingItems(message: ChatMessage): ProcessingItem[] {
     items.push({ id: `${message.id}_thinking`, type: "thinking", content: message.thinking });
   }
   for (const tool of message.toolCalls ?? []) {
-    items.push({ id: `${message.id}_${tool.id}`, type: "tool", tool });
+    if (!hasSubagentRunForTool(message, tool)) {
+      items.push({ id: `${message.id}_${tool.id}`, type: "tool", tool });
+    }
   }
   return items;
+}
+
+type SubagentDisplayItem =
+  | { id: string; type: "thinking"; content: string; createdAt: string }
+  | { id: string; type: "response"; content: string; createdAt: string }
+  | { id: string; type: "tool"; tool: AgentToolTrace; createdAt: string };
+
+function subagentDisplayItems(run: AgentSubagentRun): SubagentDisplayItem[] {
+  if (run.processingSteps.length) {
+    const items: SubagentDisplayItem[] = [];
+    for (const step of run.processingSteps) {
+      if (step.type === "thinking" || step.type === "response") {
+        items.push({ ...step });
+        continue;
+      }
+      const tool = run.toolCalls.find(
+        (candidate) => candidate.id === step.toolCallId
+      );
+      if (tool) {
+        items.push({ id: step.id, type: "tool", tool, createdAt: step.createdAt });
+      }
+    }
+    return items;
+  }
+
+  const items: SubagentDisplayItem[] = [];
+  if (run.thinking) {
+    items.push({
+      id: `${run.subagentRunId}_thinking`,
+      type: "thinking",
+      content: run.thinking,
+      createdAt: run.startedAt
+    });
+  }
+  if (run.output) {
+    items.push({
+      id: `${run.subagentRunId}_response`,
+      type: "response",
+      content: run.output,
+      createdAt: run.startedAt
+    });
+  }
+  for (const tool of run.toolCalls) {
+    items.push({
+      id: `${run.subagentRunId}_${tool.id}`,
+      type: "tool",
+      tool,
+      createdAt: tool.requestedAt
+    });
+  }
+  return items;
+}
+
+const subagentStatusLabels: Record<AgentSubagentRun["status"], string> = {
+  running: "执行中",
+  completed: "已完成",
+  error: "失败",
+  stopped: "已停止"
+};
+
+function subagentStatusLabel(run: AgentSubagentRun): string {
+  return subagentStatusLabels[run.status];
+}
+
+function subagentDuration(run: AgentSubagentRun): string {
+  const start = Date.parse(run.startedAt);
+  const end = run.completedAt
+    ? Date.parse(run.completedAt)
+    : run.status === "running"
+      ? clock.value
+      : start;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "";
+  const seconds = Math.max(0, Math.ceil((end - start) / 1_000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${seconds % 60}s`;
+}
+
+function subagentPendingReviewCount(
+  message: ChatMessage,
+  run: AgentSubagentRun
+): number {
+  const toolCallIds = new Set(run.toolCalls.map((toolCall) => toolCall.id));
+  return (message.editProposals ?? []).filter(
+    (proposal) =>
+      (proposal.status === "pending" || proposal.status === "accepting") &&
+      proposal.toolCallIds.some((toolCallId) => toolCallIds.has(toolCallId))
+  ).length;
+}
+
+function subagentWriteToolCount(run: AgentSubagentRun): number {
+  return run.toolCalls.filter(isWriteTool).length;
+}
+
+function subagentReviewHint(
+  message: ChatMessage,
+  run: AgentSubagentRun
+): string | undefined {
+  const pendingCount = subagentPendingReviewCount(message, run);
+  if (pendingCount > 0) return `${pendingCount} 项待审阅`;
+  const writeCount = subagentWriteToolCount(run);
+  return writeCount > 0 ? `${writeCount} 次写入调用` : undefined;
+}
+
+function subagentUsageLabel(run: AgentSubagentRun): string | undefined {
+  return run.usage
+    ? `${run.usage.totalTokens.toLocaleString("zh-CN")} tokens`
+    : undefined;
 }
 
 function processingDisplayItems(message: ChatMessage): ProcessingDisplayItem[] {
@@ -1233,6 +1371,7 @@ function copyMessageLabel(message: ChatMessage): string {
                 message.status === 'error' &&
                 !message.content &&
                 !hasProcessing(message) &&
+                !message.subagentRuns?.length &&
                 !message.editProposals?.length
             }
           ]"
@@ -1456,6 +1595,103 @@ function copyMessageLabel(message: ChatMessage): string {
                 </template>
               </div>
             </details>
+            <section
+              v-if="message.role === 'assistant' && message.subagentRuns?.length"
+              class="subagent-run-list"
+              aria-label="子智能体执行记录"
+            >
+              <details
+                v-for="run in message.subagentRuns"
+                :key="run.parentToolCallId"
+                class="subagent-run-card"
+                :class="`is-${run.status}`"
+                :aria-busy="run.status === 'running'"
+              >
+                <summary>
+                  <span class="subagent-run-icon" aria-hidden="true">
+                    <AppIcon name="user" :size="17" />
+                  </span>
+                  <span class="subagent-run-heading">
+                    <span class="subagent-run-title-row">
+                      <strong>{{ run.name }}</strong>
+                      <span class="subagent-run-status" :class="`is-${run.status}`">
+                        {{ subagentStatusLabel(run) }}
+                      </span>
+                    </span>
+                    <span class="subagent-run-task">{{ run.task }}</span>
+                  </span>
+                  <span class="subagent-run-meta" aria-label="子任务运行摘要">
+                    <span v-if="subagentDuration(run)">{{ subagentDuration(run) }}</span>
+                    <span>{{ run.toolCalls.length }} 个工具</span>
+                    <span v-if="subagentReviewHint(message, run)" class="is-review">
+                      {{ subagentReviewHint(message, run) }}
+                    </span>
+                  </span>
+                  <AppIcon class="subagent-run-chevron" name="chevron" :size="14" />
+                </summary>
+
+                <div class="subagent-run-detail">
+                  <div
+                    v-if="subagentDisplayItems(run).length"
+                    class="subagent-run-timeline"
+                    aria-label="子智能体执行时间线"
+                  >
+                    <article
+                      v-for="item in subagentDisplayItems(run)"
+                      :key="item.id"
+                      class="subagent-run-step"
+                      :class="`is-${item.type}`"
+                    >
+                      <span class="subagent-run-step-marker" aria-hidden="true"></span>
+                      <div class="subagent-run-step-content">
+                        <header>
+                          <strong v-if="item.type === 'thinking'">思考</strong>
+                          <strong v-else-if="item.type === 'response'">阶段输出</strong>
+                          <strong v-else>{{ toolLabel(item.tool) }}</strong>
+                          <time :datetime="item.createdAt">{{ formatTime(item.createdAt) }}</time>
+                        </header>
+                        <div
+                          v-if="item.type === 'thinking'"
+                          class="subagent-run-thinking"
+                        >
+                          <MessageMarkdown :content="item.content" />
+                        </div>
+                        <div
+                          v-else-if="item.type === 'response'"
+                          class="subagent-run-output"
+                        >
+                          <MessageMarkdown :content="item.content" />
+                        </div>
+                        <div v-else class="subagent-run-tool-detail">
+                          <div v-if="formatToolPayload(visibleToolArguments(item.tool))">
+                            <span>调用参数</span>
+                            <pre>{{ formatToolPayload(visibleToolArguments(item.tool)) }}</pre>
+                          </div>
+                          <div v-if="item.tool.resultSummary">
+                            <span>执行结果</span>
+                            <p>{{ item.tool.resultSummary }}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else-if="run.status === 'running'" class="subagent-run-waiting">
+                    正在启动独立上下文并接收执行事件…
+                  </div>
+
+                  <section
+                    v-if="run.summary || run.errorMessage"
+                    class="subagent-run-handoff"
+                    :class="{ 'is-error': run.status === 'error' }"
+                  >
+                    <strong>{{ run.status === 'completed' ? '交接摘要' : '结束说明' }}</strong>
+                    <MessageMarkdown v-if="run.summary" :content="run.summary" />
+                    <p v-if="run.errorMessage">{{ run.errorMessage }}</p>
+                    <small v-if="subagentUsageLabel(run)">{{ subagentUsageLabel(run) }}</small>
+                  </section>
+                </div>
+              </details>
+            </section>
             <div class="message-content">
               <div
                 v-if="message.role === 'user'"
