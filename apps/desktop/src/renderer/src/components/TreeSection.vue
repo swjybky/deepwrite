@@ -16,6 +16,7 @@ const props = defineProps<{
   section: ResourceTreeSection;
   selectedId: string;
   pinnedIds?: string[];
+  libraryEntryClipboardDomain?: "skill" | "material" | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -160,6 +161,7 @@ onBeforeUnmount(() => {
         :pinned="pinnedIds?.includes(node.id) ?? false"
         :pinned-ids="pinnedIds"
         :resource-domain="section.id"
+        :library-entry-clipboard-domain="libraryEntryClipboardDomain"
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
         @book-action="(mode, book) => emit('bookAction', mode, book)"

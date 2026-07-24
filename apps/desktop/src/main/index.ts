@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } from "electron";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
@@ -33,8 +33,10 @@ import {
   SystemReadyEventEnvelopeSchema,
   UnregisterCatalogProjectResultSchema,
   WorkspaceDirectorySettingsSchema,
+  createDefaultAppearanceSettings,
   createEnvelope,
   type AgentRuntimeRef,
+  type AppearanceSettings,
   type CommandResult,
   type SystemEventEnvelope,
   type UtilityWorkerName
@@ -49,6 +51,10 @@ import { ModelConfigStore } from "./model-config-store";
 import { LearningImitationConfigStore } from "./learning-imitation-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
 import { resolveModelRunSettings } from "./model-run-settings";
+import {
+  applyNativeAppearanceChrome,
+  resolveNativeBackgroundColor
+} from "./native-appearance-chrome";
 import { exportShortManuscript } from "./short-manuscript-export";
 import { UtilitySupervisor } from "./supervisor";
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
@@ -68,6 +74,8 @@ let modelConfigStore: ModelConfigStore | undefined;
 let appearanceConfigStore: AppearanceConfigStore | undefined;
 let learningImitationConfigStore: LearningImitationConfigStore | undefined;
 let libraryAgentConfigStore: LibraryAgentConfigStore | undefined;
+let cachedAppearanceSettings: AppearanceSettings = createDefaultAppearanceSettings();
+let nativeAppearanceListenerBound = false;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
 let quitting = false;
@@ -219,15 +227,22 @@ function isSafeExternalUrl(rawUrl: string): boolean {
 }
 
 function createMainWindow(): BrowserWindow {
+  const isDarwin = process.platform === "darwin";
   const window = new BrowserWindow({
     width: 1560,
     height: 940,
     minWidth: 1120,
     minHeight: 700,
     show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: resolveNativeBackgroundColor(cachedAppearanceSettings),
     title: "DeepWrite",
     icon: join(__dirname, "../../build/icon.png"),
+    ...(isDarwin
+      ? {
+          titleBarStyle: "hiddenInset" as const,
+          trafficLightPosition: { x: 14, y: 10 }
+        }
+      : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -236,6 +251,8 @@ function createMainWindow(): BrowserWindow {
       webSecurity: true
     }
   });
+
+  applyNativeAppearanceChrome(cachedAppearanceSettings, [window]);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isSafeExternalUrl(url)) {
@@ -341,6 +358,28 @@ function requireAppearanceConfigStore(): AppearanceConfigStore {
     throw new Error("外观设置存储尚未初始化。");
   }
   return appearanceConfigStore;
+}
+
+function syncNativeAppearanceChrome(settings: AppearanceSettings): void {
+  cachedAppearanceSettings = settings;
+  applyNativeAppearanceChrome(settings);
+  if (!nativeAppearanceListenerBound) {
+    nativeAppearanceListenerBound = true;
+    nativeTheme.on("updated", () => {
+      if (cachedAppearanceSettings.mode === "system") {
+        applyNativeAppearanceChrome(cachedAppearanceSettings);
+      }
+    });
+  }
+}
+
+async function loadAndSyncNativeAppearanceChrome(): Promise<void> {
+  try {
+    const snapshot = await requireAppearanceConfigStore().list();
+    syncNativeAppearanceChrome(snapshot.settings);
+  } catch {
+    syncNativeAppearanceChrome(createDefaultAppearanceSettings());
+  }
 }
 
 async function chooseWorkspaceDirectory(): Promise<
@@ -564,12 +603,14 @@ function registerIpc(): void {
 
       if (command.type === "appearance.list") {
         try {
+          const snapshot = AppearanceSettingsSnapshotSchema.parse(
+            await requireAppearanceConfigStore().list()
+          );
+          syncNativeAppearanceChrome(snapshot.settings);
           return {
             status: "accepted",
             requestId: command.id,
-            payload: AppearanceSettingsSnapshotSchema.parse(
-              await requireAppearanceConfigStore().list()
-            )
+            payload: snapshot
           };
         } catch (error: unknown) {
           return {
@@ -586,12 +627,14 @@ function registerIpc(): void {
 
       if (command.type === "appearance.save") {
         try {
+          const snapshot = AppearanceSettingsSnapshotSchema.parse(
+            await requireAppearanceConfigStore().save(command.payload)
+          );
+          syncNativeAppearanceChrome(snapshot.settings);
           return {
             status: "accepted",
             requestId: command.id,
-            payload: AppearanceSettingsSnapshotSchema.parse(
-              await requireAppearanceConfigStore().save(command.payload)
-            )
+            payload: snapshot
           };
         } catch (error: unknown) {
           return {
@@ -1454,6 +1497,7 @@ if (!hasSingleInstanceLock) {
     workspaceDirectoryStore = new WorkspaceDirectoryStore(userDataPath);
     appearanceConfigStore = new AppearanceConfigStore(userDataPath);
     await workspaceDirectoryStore.initializeDefault(app.getPath("documents"));
+    await loadAndSyncNativeAppearanceChrome();
     registerIpc();
     supervisor.startAll();
     mainWindow = createMainWindow();

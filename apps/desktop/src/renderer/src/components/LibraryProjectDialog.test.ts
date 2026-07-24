@@ -15,3 +15,16 @@ describe("LibraryProjectDialog create-library form", () => {
     expect(source).not.toContain("选择位置并创建");
   });
 });
+
+describe("LibraryProjectDialog create-entry form", () => {
+  it("only asks for a name when creating skill entries", () => {
+    expect(source).toContain('domain: "skill"');
+    expect(source).toContain("title: normalizedTitle");
+    expect(source).toContain(
+      '() => props.operation === "create-entry" && props.domain === "material"'
+    );
+    expect(source).toContain('v-if="showEntryStageField"');
+    expect(source).not.toContain("stageId: stageId.value as SkillStageId");
+    expect(source).not.toContain('{ value: "character_design", label: "人物设计" }');
+  });
+});

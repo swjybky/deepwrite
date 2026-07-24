@@ -20,6 +20,8 @@ import type {
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   MaterialKind,
+  MaterialLibraryKind,
+  MaterialStageId,
   ModelConfigInput,
   ModelSettings,
   ModelSettingsInput,
@@ -29,6 +31,7 @@ import type {
   ShortWorkspaceAgentSettings,
   ShortWorkspaceAgentSettingsInput,
   SkillKind,
+  SkillStageId,
   SystemEventEnvelope,
   ThinkingLevel,
   UpdateLibraryGroupInput,
@@ -337,6 +340,37 @@ interface LibraryRemovalDialogState {
   payload: CatalogResourceNodeActionPayload;
 }
 const libraryRemovalDialog = ref<LibraryRemovalDialogState | null>(null);
+interface LibraryEntryClipboard {
+  domain: "material" | "skill";
+  title: string;
+  content: string;
+  stageId: MaterialStageId | SkillStageId;
+  sourceLibraryId: string;
+  sourceEntryId: string;
+}
+const libraryEntryClipboard = ref<LibraryEntryClipboard | null>(null);
+const libraryEntryClipboardDomain = computed(
+  () => libraryEntryClipboard.value?.domain
+);
+const MATERIAL_KIND_ALLOWED_STAGES: Record<
+  MaterialLibraryKind,
+  readonly MaterialStageId[]
+> = {
+  character: ["character"],
+  gimmick: ["gimmick"],
+  plot: ["pacing", "intro", "plot_refine"],
+  draft: ["draft_excerpt"],
+  other: ["other"],
+  mixed: [
+    "gimmick",
+    "character",
+    "pacing",
+    "intro",
+    "plot_refine",
+    "draft_excerpt",
+    "other"
+  ]
+};
 const activeLibraryGroup = computed<CatalogLibraryGroup | null>(() => {
   const state = libraryGroupDialog.value;
   if (!state?.groupId) return null;
@@ -2003,10 +2037,12 @@ async function createCatalogLibraryGroup(
   try {
     const created = await window.deepwrite.catalog.createLibraryGroup(payload);
     if (!created) return;
+    await loadWorkspaceDirectory();
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     libraryGroupDialog.value = null;
     uiMessage.success(`已创建${payload.domain === "material" ? "素材" : "技能"}分组“${created.title}”`);
   } catch (error: unknown) {
+    await loadCatalogSnapshot();
     uiMessage.error(error instanceof Error ? error.message : "创建资料库分组失败。");
   } finally {
     catalogMutationPending.value = false;
@@ -2020,6 +2056,7 @@ async function updateCatalogLibraryGroup(
   catalogMutationPending.value = true;
   try {
     const updated = await window.deepwrite.catalog.updateLibraryGroup(payload);
+    await loadWorkspaceDirectory();
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     libraryGroupDialog.value = null;
     uiMessage.success(`已更新分组“${updated.title}”的绑定`);
@@ -2029,6 +2066,7 @@ async function updateCatalogLibraryGroup(
       libraryGroupDialog.value = null;
       uiMessage.warning("分组配置已在外部更新，已重新加载；请确认后再次切换绑定");
     } else {
+      await loadCatalogSnapshot();
       uiMessage.error(error instanceof Error ? error.message : "更新分组绑定失败。");
     }
   } finally {
@@ -2152,6 +2190,176 @@ async function removeCatalogLibraryEntry(payload: {
   }
 }
 
+function resolveLibraryEntryClipboardPayload(
+  domain: "material" | "skill",
+  libraryId: string,
+  entryId: string,
+  fallbackTitle: string
+): LibraryEntryClipboard | null {
+  const library = findCatalogLibrary(domain, libraryId);
+  const entry = library?.entries.find((item) => item.id === entryId);
+  const document = documents.value.find(
+    (item) => item.libraryId === libraryId && item.catalogEntryId === entryId
+  );
+  const draft = document ? editorDrafts.value[document.id] : undefined;
+  const title = (
+    draft?.dirty ? draft.title : (document?.title ?? entry?.title ?? fallbackTitle)
+  ).trim();
+  if (!title) {
+    return null;
+  }
+  const content = draft?.dirty
+    ? draft.content
+    : (document?.content ?? entry?.body ?? "");
+  const stageIdRaw =
+    entry?.stageId ??
+    document?.stageCategoryId ??
+    (domain === "material" ? "other" : "draft");
+  const materialStage = MaterialStageIdSchema.safeParse(stageIdRaw);
+  const skillStage = SkillStageIdSchema.safeParse(stageIdRaw);
+  const stageId =
+    domain === "material"
+      ? materialStage.success
+        ? materialStage.data
+        : ("other" as MaterialStageId)
+      : skillStage.success
+        ? skillStage.data
+        : ("draft" as SkillStageId);
+  return {
+    domain,
+    title,
+    content,
+    stageId,
+    sourceLibraryId: libraryId,
+    sourceEntryId: entryId
+  };
+}
+
+function resolvePasteMaterialStageId(
+  stageId: MaterialStageId | SkillStageId,
+  materialKind: MaterialLibraryKind | undefined
+): MaterialStageId {
+  const parsed = MaterialStageIdSchema.safeParse(stageId);
+  const candidate = parsed.success ? parsed.data : ("other" as MaterialStageId);
+  const allowed = MATERIAL_KIND_ALLOWED_STAGES[materialKind ?? "mixed"];
+  if (allowed.includes(candidate)) {
+    return candidate;
+  }
+  return allowed[0] ?? "other";
+}
+
+function copyCatalogLibraryEntry(payload: CatalogResourceNodeActionPayload): void {
+  const libraryId = payload.node.libraryId;
+  const entryId = payload.node.catalogEntryId;
+  if (!libraryId || !entryId) {
+    uiMessage.error("未找到要复制的条目");
+    return;
+  }
+  const clipboard = resolveLibraryEntryClipboardPayload(
+    payload.domain,
+    libraryId,
+    entryId,
+    payload.node.label
+  );
+  if (!clipboard) {
+    uiMessage.error("未找到要复制的条目内容");
+    return;
+  }
+  libraryEntryClipboard.value = clipboard;
+  uiMessage.success(
+    `已复制${payload.domain === "material" ? "素材" : "技能"}条目“${clipboard.title}”`
+  );
+}
+
+async function pasteCatalogLibraryEntry(
+  payload: CatalogResourceNodeActionPayload
+): Promise<void> {
+  if (!window.deepwrite || catalogMutationPending.value) return;
+  const clipboard = libraryEntryClipboard.value;
+  const libraryId = payload.node.libraryId;
+  if (!clipboard) {
+    uiMessage.warning("剪贴板中没有可粘贴的条目");
+    return;
+  }
+  if (!libraryId) {
+    uiMessage.error("未找到要粘贴到的资料库");
+    return;
+  }
+  if (clipboard.domain !== payload.domain) {
+    uiMessage.warning(
+      clipboard.domain === "material"
+        ? "当前复制的是素材条目，只能粘贴到素材库"
+        : "当前复制的是技能条目，只能粘贴到技能库"
+    );
+    return;
+  }
+  if (payload.node.readOnly || payload.node.unavailable) {
+    uiMessage.warning("目标资料库为只读或不可用，无法粘贴条目");
+    return;
+  }
+  const library = findCatalogLibrary(payload.domain, libraryId);
+  if (!library) {
+    uiMessage.error("未找到要粘贴到的资料库");
+    return;
+  }
+  if (payload.domain === "skill" && "isBuiltin" in library && library.isBuiltin) {
+    uiMessage.warning("内置技能库为只读内容，不能粘贴条目");
+    return;
+  }
+
+  catalogMutationPending.value = true;
+  try {
+    const baseProjectRevision = library.projectRevision;
+    const materialKind =
+      "materialKind" in library ? library.materialKind : undefined;
+    const created =
+      clipboard.domain === "material"
+        ? await window.deepwrite.catalog.createLibraryEntry({
+            domain: "material",
+            libraryId,
+            title: clipboard.title,
+            content: clipboard.content,
+            stageId: resolvePasteMaterialStageId(clipboard.stageId, materialKind),
+            ...(baseProjectRevision === undefined ? {} : { baseProjectRevision })
+          })
+        : await window.deepwrite.catalog.createLibraryEntry({
+            domain: "skill",
+            libraryId,
+            title: clipboard.title,
+            content: clipboard.content,
+            stageId: SkillStageIdSchema.parse(clipboard.stageId),
+            ...(baseProjectRevision === undefined ? {} : { baseProjectRevision })
+          });
+    applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
+    advanceLibraryDraftProjectRevision(
+      payload.domain,
+      libraryId,
+      baseProjectRevision === undefined ? undefined : baseProjectRevision + 1
+    );
+    const target = documents.value.find(
+      (document) =>
+        document.libraryId === libraryId &&
+        document.catalogEntryId === created.id
+    );
+    if (target) {
+      selectedResourceId.value = target.id;
+      rightCollapsed.value = false;
+    }
+    uiMessage.success(
+      `已粘贴${payload.domain === "material" ? "素材" : "技能"}条目“${created.title}”到“${payload.node.label}”`
+    );
+  } catch (error: unknown) {
+    if (isCatalogConflict(error)) {
+      await loadCatalogSnapshot();
+      uiMessage.warning("资料库已在外部更新，已重新加载；请再次粘贴");
+    } else {
+      uiMessage.error(error instanceof Error ? error.message : "粘贴资料库条目失败。");
+    }
+  } finally {
+    catalogMutationPending.value = false;
+  }
+}
+
 async function unregisterCatalogLibrary(
   payload: CatalogResourceNodeActionPayload
 ): Promise<void> {
@@ -2259,11 +2467,21 @@ function handleResourceNodeAction(payload: CatalogResourceNodeActionPayload): vo
     uiMessage.error("未找到对应的本地资料库");
     return;
   }
+  if (payload.action === "copy-entry") {
+    copyCatalogLibraryEntry(payload);
+    return;
+  }
   if (
     (payload.node.readOnly || payload.node.unavailable) &&
-    (payload.action === "create-entry" || payload.action === "remove-entry")
+    (payload.action === "create-entry" ||
+      payload.action === "paste-entry" ||
+      payload.action === "remove-entry")
   ) {
     uiMessage.warning("内置技能库为只读内容，不能修改条目");
+    return;
+  }
+  if (payload.action === "paste-entry") {
+    void pasteCatalogLibraryEntry(payload);
     return;
   }
   if (payload.action === "unregister-library") {
@@ -4760,6 +4978,7 @@ onBeforeUnmount(() => {
         :sections="resourceTreeSections"
         :selected-id="selectedResourceId"
         :imitation-running="learningImitationRunning"
+        :library-entry-clipboard-domain="libraryEntryClipboardDomain"
         @collapse="leftCollapsed = true"
         @new-conversation="newConversation"
         @open-dialog="openWorkspaceDialog"

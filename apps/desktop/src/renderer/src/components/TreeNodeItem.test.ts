@@ -26,4 +26,14 @@ describe("TreeNodeItem actions", () => {
       source.indexOf("<span>素材库绑定</span>")
     );
   });
+
+  it("offers copy on library entries and paste on writable libraries", () => {
+    expect(source).toContain('activateResourceNodeAction(\'copy-entry\')');
+    expect(source).toContain("<span>复制</span>");
+    expect(source).toContain('activateResourceNodeAction(\'paste-entry\')');
+    expect(source).toContain("<span>粘贴</span>");
+    expect(source).toContain("canPasteLibraryEntry");
+    expect(source).toContain("libraryEntryClipboardDomain");
+    expect(source).toContain("<span>删除条目文件</span>");
+  });
 });

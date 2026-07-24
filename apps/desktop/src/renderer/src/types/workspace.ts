@@ -68,6 +68,8 @@ export interface ResourceSectionActionPayload {
 
 export type CatalogResourceNodeAction =
   | "create-entry"
+  | "copy-entry"
+  | "paste-entry"
   | "remove-entry"
   | "unregister-library"
   | "delete-library"

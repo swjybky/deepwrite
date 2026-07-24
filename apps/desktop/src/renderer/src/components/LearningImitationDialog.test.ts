@@ -77,7 +77,7 @@ describe("LearningImitationDialog", () => {
   it("uses the standard neutral primary action for creating a new learning session", () => {
     expect(source).toContain('class="learning-primary-button is-confirm"');
     expect(source).not.toContain("learning-primary-button is-danger");
-    expect(source).toContain("background: #292c30");
+    expect(source).toContain("background: var(--neutral-solid)");
   });
 
   it("uses the same neutral primary action for confirming persistence", () => {

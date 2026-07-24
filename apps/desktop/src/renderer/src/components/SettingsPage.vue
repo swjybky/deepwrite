@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type {
   LearningImitationSettings,
   LearningImitationSettingsInput,
@@ -74,6 +74,16 @@ const appearance = useAppearance();
 const activeCategory = ref("general");
 const searchQuery = ref("");
 const importInput = ref<HTMLInputElement | null>(null);
+const accentColorInput = ref<HTMLInputElement | null>(null);
+const backgroundColorInput = ref<HTMLInputElement | null>(null);
+const foregroundColorInput = ref<HTMLInputElement | null>(null);
+const appearanceReady = ref(false);
+
+onMounted(() => {
+  void appearance.whenReady().then(() => {
+    appearanceReady.value = true;
+  });
+});
 
 const sections: SettingsSection[] = [
   {
@@ -153,7 +163,11 @@ const appearanceModes: Array<{ id: AppearanceMode; label: string }> = [
   { id: "dark", label: "深色" }
 ];
 
-function selectCategory(id: string): void {
+async function selectCategory(id: string): Promise<void> {
+  if (id === "appearance" && !appearanceReady.value) {
+    await appearance.whenReady();
+    appearanceReady.value = true;
+  }
   activeCategory.value = id;
 }
 
@@ -173,8 +187,20 @@ type ThemeColorKey = "accent" | "background" | "foreground";
 type ThemeFontSizeKey = "uiFontSize" | "codeFontSize";
 
 function applyColor(key: ThemeColorKey, value: string): void {
-  updateTheme(key, value.trim().toUpperCase());
-  appearance.updateTheme(editingScheme.value, { preset: "custom" });
+  appearance.updateTheme(editingScheme.value, {
+    [key]: value.trim().toUpperCase(),
+    preset: "custom"
+  });
+}
+
+function openColorPicker(key: ThemeColorKey): void {
+  const input =
+    key === "accent"
+      ? accentColorInput.value
+      : key === "background"
+        ? backgroundColorInput.value
+        : foregroundColorInput.value;
+  input?.click();
 }
 
 function previewColor(key: ThemeColorKey, event: Event): void {
@@ -421,23 +447,88 @@ async function importThemeFile(event: Event): Promise<void> {
 
             <div class="theme-setting-row">
               <label for="accent-color">强调色</label>
-              <div class="color-control" :style="{ backgroundColor: editingTheme.accent, color: '#fff' }">
-                <input id="accent-color" type="color" :value="editingTheme.accent" aria-label="选择强调色" @input="applyColor('accent', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.accent" aria-label="输入强调色" spellcheck="false" @input="previewColor('accent', $event)" @change="commitColor('accent', $event)" />
+              <div
+                class="color-control"
+                :style="{ backgroundColor: editingTheme.accent, color: '#fff' }"
+                @click="openColorPicker('accent')"
+              >
+                <span class="color-swatch" aria-hidden="true">
+                  <input
+                    id="accent-color"
+                    ref="accentColorInput"
+                    type="color"
+                    :value="editingTheme.accent.toLowerCase()"
+                    aria-label="选择强调色"
+                    @click.stop
+                    @input="applyColor('accent', ($event.target as HTMLInputElement).value)"
+                  />
+                </span>
+                <input
+                  :value="editingTheme.accent"
+                  aria-label="输入强调色"
+                  spellcheck="false"
+                  @click.stop
+                  @input="previewColor('accent', $event)"
+                  @change="commitColor('accent', $event)"
+                />
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="background-color">背景</label>
-              <div class="color-control" :class="{ 'is-light': editingScheme === 'light' }" :style="{ backgroundColor: editingTheme.background, color: editingTheme.foreground }">
-                <input id="background-color" type="color" :value="editingTheme.background" aria-label="选择背景色" @input="applyColor('background', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.background" aria-label="输入背景色" spellcheck="false" @input="previewColor('background', $event)" @change="commitColor('background', $event)" />
+              <div
+                class="color-control"
+                :class="{ 'is-light': editingScheme === 'light' }"
+                :style="{ backgroundColor: editingTheme.background, color: editingTheme.foreground }"
+                @click="openColorPicker('background')"
+              >
+                <span class="color-swatch" aria-hidden="true">
+                  <input
+                    id="background-color"
+                    ref="backgroundColorInput"
+                    type="color"
+                    :value="editingTheme.background.toLowerCase()"
+                    aria-label="选择背景色"
+                    @click.stop
+                    @input="applyColor('background', ($event.target as HTMLInputElement).value)"
+                  />
+                </span>
+                <input
+                  :value="editingTheme.background"
+                  aria-label="输入背景色"
+                  spellcheck="false"
+                  @click.stop
+                  @input="previewColor('background', $event)"
+                  @change="commitColor('background', $event)"
+                />
               </div>
             </div>
             <div class="theme-setting-row">
               <label for="foreground-color">前景</label>
-              <div class="color-control" :class="{ 'is-light': editingScheme === 'light' }" :style="{ backgroundColor: editingTheme.foreground, color: editingTheme.background }">
-                <input id="foreground-color" type="color" :value="editingTheme.foreground" aria-label="选择前景色" @input="applyColor('foreground', ($event.target as HTMLInputElement).value)" />
-                <input :value="editingTheme.foreground" aria-label="输入前景色" spellcheck="false" @input="previewColor('foreground', $event)" @change="commitColor('foreground', $event)" />
+              <div
+                class="color-control"
+                :class="{ 'is-light': editingScheme === 'light' }"
+                :style="{ backgroundColor: editingTheme.foreground, color: editingTheme.background }"
+                @click="openColorPicker('foreground')"
+              >
+                <span class="color-swatch" aria-hidden="true">
+                  <input
+                    id="foreground-color"
+                    ref="foregroundColorInput"
+                    type="color"
+                    :value="editingTheme.foreground.toLowerCase()"
+                    aria-label="选择前景色"
+                    @click.stop
+                    @input="applyColor('foreground', ($event.target as HTMLInputElement).value)"
+                  />
+                </span>
+                <input
+                  :value="editingTheme.foreground"
+                  aria-label="输入前景色"
+                  spellcheck="false"
+                  @click.stop
+                  @input="previewColor('foreground', $event)"
+                  @change="commitColor('foreground', $event)"
+                />
               </div>
             </div>
             <div class="theme-setting-row">
@@ -488,6 +579,15 @@ async function importThemeFile(event: Event): Promise<void> {
   border-right: 1px solid var(--theme-line-soft);
   background: var(--sidebar-surface);
   overflow-y: auto;
+}
+
+:global(html[data-platform="darwin"] .settings-sidebar) {
+  padding-top: 40px;
+  -webkit-app-region: drag;
+}
+
+:global(html[data-platform="darwin"] .settings-sidebar) :is(button, input, a, .settings-nav) {
+  -webkit-app-region: no-drag;
 }
 
 :global(html[data-translucent-sidebar="true"] .settings-sidebar) { backdrop-filter: blur(22px) saturate(1.25); }
@@ -552,7 +652,7 @@ async function importThemeFile(event: Event): Promise<void> {
 .preview-window i { display: block; width: 38%; height: 7px; margin-bottom: 11px; border-radius: 5px; background: #d9d9d9; }
 .preview-window i:nth-child(2) { width: 62%; }.preview-window i:nth-child(3) { width: 78%; }
 
-.theme-config-card { overflow: hidden; border: 1px solid var(--theme-line-soft); border-radius: 17px; background: var(--surface-raised); box-shadow: 0 1px 3px rgb(0 0 0 / .025); }
+.theme-config-card { border: 1px solid var(--theme-line-soft); border-radius: 17px; background: var(--surface-raised); box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-foreground) 4%, transparent); }
 .theme-config-header, .theme-setting-row { display: flex; align-items: center; min-height: 62px; padding: 0 22px; border-bottom: 1px solid var(--theme-line-soft); }
 .theme-config-header { justify-content: space-between; gap: 24px; min-height: 70px; }
 .theme-config-header h2 { margin: 0; font-size: 1.14286rem; font-weight: 640; }
@@ -564,10 +664,12 @@ async function importThemeFile(event: Event): Promise<void> {
 .preset-badge { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--theme-line); border-radius: 8px; color: var(--accent); font-size: 1.21429rem; font-weight: 650; }
 .theme-setting-row { justify-content: space-between; gap: 32px; font-size: 1.07143rem; font-weight: 580; }
 .theme-setting-row:last-child { border-bottom: 0; }
-.color-control { display: flex; align-items: center; width: 190px; height: 38px; padding: 0 10px; border: 1px solid rgb(127 127 127 / .18); border-radius: 11px; }
-.color-control input[type="color"] { width: 22px; height: 22px; padding: 2px; border: 1px solid currentColor; border-radius: 50%; background: transparent; cursor: pointer; opacity: .65; }
-.color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }.color-control input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.color-control input:not([type="color"]) { width: 110px; margin-left: 8px; border: 0; outline: 0; background: transparent; color: inherit; font-size: 1rem; font-weight: 570; text-transform: uppercase; }
+.color-control { display: flex; align-items: center; width: 190px; height: 38px; padding: 0 10px; border: 1px solid rgb(127 127 127 / .18); border-radius: 11px; cursor: pointer; }
+.color-swatch { position: relative; display: grid; place-items: center; width: 22px; height: 22px; overflow: hidden; border: 1px solid currentColor; border-radius: 50%; flex-shrink: 0; }
+.color-control input[type="color"] { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; opacity: 1; }
+.color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-control input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 0; }
+.color-control input:not([type="color"]) { width: 110px; margin-left: 8px; border: 0; outline: 0; background: transparent; color: inherit; font-size: 1rem; font-weight: 570; text-transform: uppercase; cursor: text; }
 .font-size-control { display: flex; align-items: center; width: 112px; padding: 0 11px; border: 1px solid var(--theme-line); border-radius: 10px; background: var(--surface-main); color: var(--text-tertiary); }
 .font-size-control:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .font-size-control input { width: 100%; min-width: 0; padding: 8px 0; border: 0; outline: 0; background: transparent; color: var(--text-secondary); font-size: 0.964286rem; font-weight: 570; }

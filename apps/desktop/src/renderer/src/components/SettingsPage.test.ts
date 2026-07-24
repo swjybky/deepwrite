@@ -27,6 +27,14 @@ describe("SettingsPage", () => {
   it("previews valid typed colors and validates incomplete values on commit", () => {
     expect(source).toContain('@input="previewColor(\'background\', $event)"');
     expect(source).toContain('@change="commitColor(\'background\', $event)"');
-    expect(source).toContain("appearance.updateTheme(editingScheme.value, { preset: \"custom\" })");
+    expect(source).toContain("preset: \"custom\"");
+    expect(source).toContain("editingTheme.accent.toLowerCase()");
+    expect(source).toContain("editingTheme.background.toLowerCase()");
+    expect(source).toContain("editingTheme.foreground.toLowerCase()");
+    expect(source).toContain("openColorPicker(");
+    expect(source).toContain("appearance.whenReady()");
+    expect(source).not.toContain(
+      'appearance.updateTheme(editingScheme.value, { preset: "custom" })'
+    );
   });
 });

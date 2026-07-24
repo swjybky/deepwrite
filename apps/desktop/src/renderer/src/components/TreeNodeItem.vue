@@ -19,6 +19,7 @@ const props = defineProps<{
   pinned?: boolean;
   pinnedIds?: string[] | undefined;
   resourceDomain?: ResourceDomain | undefined;
+  libraryEntryClipboardDomain?: "skill" | "material" | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -41,13 +42,17 @@ const libraryDomain = computed<"skill" | "material" | undefined>(() =>
     ? props.resourceDomain
     : undefined
 );
+const canPasteLibraryEntry = computed(
+  () =>
+    libraryDomain.value !== undefined &&
+    props.libraryEntryClipboardDomain === libraryDomain.value
+);
 const hasLibraryAction = computed(
   () =>
     libraryDomain.value !== undefined &&
     ((props.node.catalogNodeType === "library" && !props.node.missing) ||
       (props.node.catalogNodeType === "document" &&
-        Boolean(props.node.catalogEntryId) &&
-        !props.node.readOnly))
+        Boolean(props.node.catalogEntryId)))
 );
 const hasGroupAction = computed(
   () =>
@@ -346,6 +351,16 @@ onBeforeUnmount(() => {
             <AppIcon name="plus" :size="16" />
             <span>新建条目</span>
           </button>
+          <button
+            v-if="!node.readOnly && !node.unavailable && canPasteLibraryEntry"
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('paste-entry')"
+          >
+            <AppIcon name="copy" :size="16" />
+            <span>粘贴</span>
+          </button>
           <div v-if="pinnable" class="tree-node-action-menu-divider" role="separator" />
           <button
             class="tree-node-action-menu-item is-danger"
@@ -391,6 +406,16 @@ onBeforeUnmount(() => {
           v-else-if="node.catalogNodeType === 'document' && node.catalogEntryId && libraryDomain"
         >
           <button
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('copy-entry')"
+          >
+            <AppIcon name="copy" :size="16" />
+            <span>复制</span>
+          </button>
+          <button
+            v-if="!node.readOnly"
             class="tree-node-action-menu-item is-danger"
             type="button"
             role="menuitem"
@@ -411,6 +436,7 @@ onBeforeUnmount(() => {
         :depth="depth + 1"
         :selected-id="selectedId"
         :resource-domain="resourceDomain"
+        :library-entry-clipboard-domain="libraryEntryClipboardDomain"
         :pinnable="
           !child.unavailable &&
           !child.missing &&

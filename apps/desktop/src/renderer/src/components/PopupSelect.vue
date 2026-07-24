@@ -460,7 +460,8 @@ onBeforeUnmount(() => {
   border: 1px solid var(--theme-line, #dededb);
   border-radius: 13px;
   background: color-mix(in srgb, var(--surface-raised, #fbfbfa) 96%, transparent);
-  box-shadow: 0 18px 46px rgb(22 24 27 / 16%), 0 3px 10px rgb(22 24 27 / 10%);
+  box-shadow: 0 18px 46px color-mix(in srgb, var(--theme-foreground) 16%, transparent),
+    0 3px 10px color-mix(in srgb, var(--theme-foreground) 10%, transparent);
   backdrop-filter: blur(18px) saturate(1.15);
 }
 
@@ -538,6 +539,7 @@ onBeforeUnmount(() => {
 }
 
 :global(html[data-theme="dark"] .popup-select-menu) {
-  box-shadow: 0 20px 52px rgb(0 0 0 / 38%), 0 3px 12px rgb(0 0 0 / 28%);
+  box-shadow: 0 20px 52px color-mix(in srgb, var(--theme-foreground) 38%, transparent),
+    0 3px 12px color-mix(in srgb, var(--theme-foreground) 28%, transparent);
 }
 </style>

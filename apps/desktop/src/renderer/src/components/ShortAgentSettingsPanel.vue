@@ -518,10 +518,8 @@ function saveSettings(): void {
 <style scoped>
 .short-agent-settings {
   width: min(100%, 980px);
-  color: #202226;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", "PingFang SC", sans-serif;
+  color: var(--text-primary);
+  font-family: var(--ui-font);
 }
 
 .panel-header {
@@ -534,7 +532,7 @@ function saveSettings(): void {
 
 .panel-kicker,
 .agent-header > span {
-  color: #767a7f;
+  color: var(--text-tertiary);
   font-size: 0.785714rem;
   font-weight: 650;
   letter-spacing: 0.06em;
@@ -543,7 +541,7 @@ function saveSettings(): void {
 
 .panel-header h2 {
   margin: 4px 0 5px;
-  color: #17191c;
+  color: var(--text-primary);
   font-size: 1.57143rem;
   font-weight: 650;
 }
@@ -552,14 +550,14 @@ function saveSettings(): void {
 .agent-header p,
 .section-heading p {
   margin: 0;
-  color: #6a6e73;
+  color: var(--text-secondary);
   font-size: 0.892857rem;
   line-height: 1.55;
 }
 
 .runtime-note {
   margin-top: 5px !important;
-  color: #8a6731 !important;
+  color: var(--warning) !important;
 }
 
 .toast-stack {
@@ -578,28 +576,28 @@ function saveSettings(): void {
 .settings-toast {
   margin: 0;
   padding: 10px 13px;
-  border: 1px solid #d5e6da;
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--theme-line));
   border-radius: 9px;
-  background: #f2faf4;
-  box-shadow: 0 8px 24px rgba(22, 24, 27, 0.14);
-  color: #387b4d;
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-raised));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--theme-foreground) 14%, transparent);
+  color: var(--success);
   font-size: 0.892857rem;
   font-weight: 560;
   line-height: 1.5;
 }
 
 .settings-toast.is-error {
-  border-color: #f0d3d0;
-  background: #fff5f3;
-  color: #a33d35;
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--theme-line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
+  color: var(--danger);
 }
 
 .panel-state {
   padding: 48px 20px;
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(22, 24, 27, 0.04);
-  color: #6a6e73;
+  background: var(--surface-raised);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-foreground) 4%, transparent);
+  color: var(--text-secondary);
   font-size: 0.928571rem;
   text-align: center;
 }
@@ -618,9 +616,9 @@ function saveSettings(): void {
   flex-direction: column;
   gap: 4px;
   padding: 6px;
-  border: 1px solid #e7e7e4;
+  border: 1px solid var(--theme-line-soft);
   border-radius: 11px;
-  background: #efefed;
+  background: var(--surface-muted);
 }
 
 .agent-nav-item {
@@ -633,24 +631,24 @@ function saveSettings(): void {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #4a4e53;
+  color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
 }
 
 .agent-nav-item:hover {
-  background: #e5e5e2;
-  color: #202226;
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .agent-nav-item.is-active {
-  background: #ffffff;
-  color: #17191c;
-  box-shadow: 0 1px 2px rgba(22, 24, 27, 0.08);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-foreground) 8%, transparent);
 }
 
 .agent-nav-item small {
-  color: #85888d;
+  color: var(--text-tertiary);
   font-size: 0.75rem;
 }
 
@@ -670,17 +668,17 @@ function saveSettings(): void {
 
 .agent-header h3 {
   margin: 3px 0 4px;
-  color: #17191c;
+  color: var(--text-primary);
   font-size: 1.28571rem;
   font-weight: 640;
 }
 
 .settings-card {
   margin-bottom: 14px;
-  border: 1px solid #e8e8e5;
+  border: 1px solid var(--theme-line-soft);
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(22, 24, 27, 0.035);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-foreground) 3.5%, transparent);
   overflow: hidden;
 }
 
@@ -690,7 +688,7 @@ function saveSettings(): void {
   justify-content: space-between;
   gap: 20px;
   padding: 15px 17px 12px;
-  border-bottom: 1px solid #f0f0ee;
+  border-bottom: 1px solid var(--theme-line-soft);
 }
 
 .section-heading h4 {
@@ -701,7 +699,7 @@ function saveSettings(): void {
 
 .section-heading > span {
   flex: none;
-  color: #8b8e92;
+  color: var(--text-tertiary);
   font-size: 0.821429rem;
 }
 
@@ -712,8 +710,8 @@ function saveSettings(): void {
   padding: 16px 17px;
   resize: vertical;
   border: 0;
-  background: #fdfdfc;
-  color: #292c30;
+  background: var(--surface-main);
+  color: var(--text-primary);
   font-family: var(--code-font);
   font-size: var(--code-font-size);
   line-height: 1.65;
@@ -722,11 +720,11 @@ function saveSettings(): void {
 }
 
 .prompt-card textarea:focus {
-  box-shadow: inset 0 0 0 2px rgba(75, 164, 106, 0.22);
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
 }
 
 .prompt-card textarea:disabled {
-  color: #6f7378;
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
@@ -735,7 +733,7 @@ function saveSettings(): void {
   flex-direction: column;
   gap: 10px;
   padding: 14px 17px 17px;
-  background: #fdfdfc;
+  background: var(--surface-main);
 }
 
 .welcome-shortcut-field {
@@ -746,7 +744,7 @@ function saveSettings(): void {
 }
 
 .welcome-shortcut-field > span {
-  color: #6a6e73;
+  color: var(--text-secondary);
   font-size: 0.857143rem;
   font-weight: 560;
 }
@@ -755,10 +753,10 @@ function saveSettings(): void {
   width: 100%;
   min-height: 38px;
   padding: 8px 11px;
-  border: 1px solid #e4e4e1;
+  border: 1px solid var(--theme-line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #292c30;
+  background: var(--surface-raised);
+  color: var(--text-primary);
   font: inherit;
   font-size: 0.928571rem;
   outline: none;
@@ -766,13 +764,13 @@ function saveSettings(): void {
 }
 
 .welcome-shortcut-field input:focus {
-  border-color: rgba(75, 164, 106, 0.55);
-  box-shadow: 0 0 0 3px rgba(75, 164, 106, 0.14);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--theme-line));
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .welcome-shortcut-field input:disabled {
-  color: #6f7378;
-  background: #f5f5f3;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
   cursor: not-allowed;
 }
 
@@ -784,12 +782,12 @@ function saveSettings(): void {
 }
 
 .access-card fieldset:not(:last-child) {
-  border-bottom: 1px solid #f0f0ee;
+  border-bottom: 1px solid var(--theme-line-soft);
 }
 
 .access-card legend {
   padding: 0;
-  color: #4a4e53;
+  color: var(--text-secondary);
   font-size: 0.857143rem;
   font-weight: 620;
 }
@@ -807,19 +805,19 @@ function saveSettings(): void {
   gap: 9px;
   min-width: 0;
   padding: 9px 10px;
-  border: 1px solid #ececea;
+  border: 1px solid var(--theme-line-soft);
   border-radius: 8px;
-  background: #fbfbfa;
+  background: var(--surface-raised);
   cursor: pointer;
 }
 
 .read-option:hover {
-  border-color: #dededb;
-  background: #f7f7f5;
+  border-color: var(--theme-line);
+  background: var(--surface-muted);
 }
 
 .read-option.is-locked {
-  background: #f5f7f5;
+  background: color-mix(in srgb, var(--success) 6%, var(--surface-muted));
   cursor: default;
 }
 
@@ -828,7 +826,7 @@ function saveSettings(): void {
   width: 15px;
   height: 15px;
   margin: 2px 0 0;
-  accent-color: #4ba46a;
+  accent-color: var(--accent);
 }
 
 .read-option input:disabled {
@@ -844,13 +842,13 @@ function saveSettings(): void {
 }
 
 .option-copy strong {
-  color: #303338;
+  color: var(--text-primary);
   font-size: 0.892857rem;
   font-weight: 590;
 }
 
 .option-copy small {
-  color: #85888d;
+  color: var(--text-tertiary);
   font-size: 0.785714rem;
   line-height: 1.4;
 }
@@ -860,8 +858,8 @@ function saveSettings(): void {
   margin-left: 4px;
   padding: 1px 5px;
   border-radius: 999px;
-  background: #e5eee8;
-  color: #477457;
+  background: color-mix(in srgb, var(--success) 14%, var(--surface-muted));
+  color: var(--success);
   font-size: 0.678571rem;
   font-style: normal;
   font-weight: 600;
@@ -886,23 +884,23 @@ function saveSettings(): void {
 }
 
 .secondary-button {
-  border: 1px solid #dededb;
-  background: #fbfbf9;
-  color: #34373b;
+  border: 1px solid var(--theme-line);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 .secondary-button:hover:not(:disabled) {
-  background: #f1f1ef;
+  background: var(--surface-hover);
 }
 
 .primary-button {
-  border: 1px solid #3f8f5b;
-  background: #4ba46a;
-  color: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--neutral-solid) 88%, transparent);
+  background: var(--neutral-solid);
+  color: var(--accent-contrast, #ffffff);
 }
 
 .primary-button:hover:not(:disabled) {
-  background: #438f5e;
+  background: color-mix(in srgb, var(--neutral-solid) 88%, var(--theme-foreground));
 }
 
 .panel-actions button:disabled {

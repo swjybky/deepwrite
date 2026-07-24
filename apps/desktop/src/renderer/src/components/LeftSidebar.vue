@@ -27,6 +27,7 @@ const props = defineProps<{
   sections: ResourceTreeSection[];
   selectedId: string;
   imitationRunning?: boolean;
+  libraryEntryClipboardDomain?: "skill" | "material" | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -353,6 +354,7 @@ watch(
               pinned
               :pinned-ids="pinnedResourceIds"
               :resource-domain="resourceDomainFor(node)"
+              :library-entry-clipboard-domain="libraryEntryClipboardDomain"
               @select="emit('selectResource', $event)"
               @toggle-pin="toggleResourcePin"
               @book-action="(mode, book) => emit('bookAction', mode, book)"
@@ -370,6 +372,7 @@ watch(
           :section="section"
           :selected-id="selectedId"
           :pinned-ids="pinnedResourceIds"
+          :library-entry-clipboard-domain="libraryEntryClipboardDomain"
           @select="emit('selectResource', $event)"
           @toggle-pin="toggleResourcePin"
           @book-action="(mode, book) => emit('bookAction', mode, book)"

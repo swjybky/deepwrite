@@ -6,8 +6,7 @@ import type {
   MaterialKind,
   MaterialLibraryKind,
   MaterialStageId,
-  SkillKind,
-  SkillStageId
+  SkillKind
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
@@ -46,7 +45,7 @@ const emit = defineEmits<{
 }>();
 
 const title = ref("");
-const stageId = ref<MaterialStageId | SkillStageId>("other");
+const stageId = ref<MaterialStageId>("other");
 const libraryKind = ref<MaterialKind | SkillKind>("character");
 const titleInput = ref<HTMLInputElement | null>(null);
 const domainLabel = computed(() => (props.domain === "material" ? "素材" : "技能"));
@@ -72,37 +71,29 @@ const libraryKindOptions = computed(() =>
       ]
 );
 const stageOptions = computed(() => {
-  if (props.domain === "material") {
-    const allOptions = [
-        { value: "gimmick", label: "梗" },
-        { value: "character", label: "人设" },
-        { value: "pacing", label: "剧情设计" },
-        { value: "intro", label: "导语设计" },
-        { value: "plot_refine", label: "剧情细化" },
-        { value: "draft_excerpt", label: "优秀正文片段" },
-        { value: "other", label: "其他素材" }
-      ];
-    const allowedByKind: Record<MaterialLibraryKind, readonly string[]> = {
-      character: ["character"],
-      gimmick: ["gimmick"],
-      plot: ["pacing", "intro", "plot_refine"],
-      draft: ["draft_excerpt"],
-      other: ["other"],
-      mixed: allOptions.map(({ value }) => value)
-    };
-    const allowed = new Set(
-      allowedByKind[props.materialKind ?? "mixed"]
-    );
-    return allOptions.filter(({ value }) => allowed.has(value));
-  }
-  return [
-    { value: "character_design", label: "人物设计" },
-    { value: "plot_design", label: "剧情设计" },
-    { value: "outline", label: "大纲" },
-    { value: "draft", label: "正文" },
-    { value: "expert_section_writer", label: "分节写手" }
+  const allOptions = [
+    { value: "gimmick", label: "梗" },
+    { value: "character", label: "人设" },
+    { value: "pacing", label: "剧情设计" },
+    { value: "intro", label: "导语设计" },
+    { value: "plot_refine", label: "剧情细化" },
+    { value: "draft_excerpt", label: "优秀正文片段" },
+    { value: "other", label: "其他素材" }
   ];
+  const allowedByKind: Record<MaterialLibraryKind, readonly string[]> = {
+    character: ["character"],
+    gimmick: ["gimmick"],
+    plot: ["pacing", "intro", "plot_refine"],
+    draft: ["draft_excerpt"],
+    other: ["other"],
+    mixed: allOptions.map(({ value }) => value)
+  };
+  const allowed = new Set(allowedByKind[props.materialKind ?? "mixed"]);
+  return allOptions.filter(({ value }) => allowed.has(value));
 });
+const showEntryStageField = computed(
+  () => props.operation === "create-entry" && props.domain === "material"
+);
 
 function requestClose(): void {
   if (!props.submitting) emit("close");
@@ -153,14 +144,13 @@ function submit(): void {
       domain: "material",
       libraryId: props.libraryId,
       title: normalizedTitle,
-      stageId: stageId.value as MaterialStageId
+      stageId: stageId.value
     });
   } else {
     emit("createEntry", {
       domain: "skill",
       libraryId: props.libraryId,
-      title: normalizedTitle,
-      stageId: stageId.value as SkillStageId
+      title: normalizedTitle
     });
   }
 }
@@ -183,8 +173,7 @@ watch(
     title.value = "";
     libraryKind.value = props.domain === "material" ? "character" : "general";
     stageId.value =
-      (stageOptions.value[0]?.value as MaterialStageId | SkillStageId | undefined) ??
-      (props.domain === "material" ? "other" : "draft");
+      (stageOptions.value[0]?.value as MaterialStageId | undefined) ?? "other";
     if (props.operation !== "remove-entry") {
       void nextTick(() => titleInput.value?.focus());
     }
@@ -271,7 +260,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 :disabled="submitting"
               />
             </label>
-            <label class="book-resource-name-field catalog-resource-stage-field">
+            <label
+              v-if="showEntryStageField"
+              class="book-resource-name-field catalog-resource-stage-field"
+            >
               <span>内容阶段</span>
               <PopupSelect
                 :model-value="stageId"
@@ -280,7 +272,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 size="large"
                 :disabled="submitting"
                 :menu-min-width="220"
-                @update:model-value="stageId = String($event) as MaterialStageId | SkillStageId"
+                @update:model-value="stageId = String($event) as MaterialStageId"
               />
             </label>
           </template>

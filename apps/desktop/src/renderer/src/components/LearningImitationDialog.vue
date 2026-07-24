@@ -1300,10 +1300,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeyDown));
 .learning-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); }
 .learning-status[data-tone="running"] { color: var(--accent); background: var(--accent-soft); }
 .learning-status[data-tone="running"] i { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent); }
-.learning-status[data-tone="success"] { color: color-mix(in srgb, #2a9b6e 74%, var(--text-primary)); background: color-mix(in srgb, #2a9b6e 15%, var(--surface-raised)); }
-.learning-status[data-tone="success"] i { background: #2a9b6e; }
-.learning-status[data-tone="error"] { color: color-mix(in srgb, #cf5363 74%, var(--text-primary)); background: color-mix(in srgb, #cf5363 15%, var(--surface-raised)); }
-.learning-status[data-tone="error"] i { background: #cf5363; }
+.learning-status[data-tone="success"] { color: color-mix(in srgb, var(--success) 74%, var(--text-primary)); background: color-mix(in srgb, var(--success) 15%, var(--surface-raised)); }
+.learning-status[data-tone="success"] i { background: var(--success); }
+.learning-status[data-tone="error"] { color: color-mix(in srgb, var(--danger) 74%, var(--text-primary)); background: color-mix(in srgb, var(--danger) 15%, var(--surface-raised)); }
+.learning-status[data-tone="error"] i { background: var(--danger); }
 
 .learning-head-actions { display: flex; align-items: center; gap: 8px; }
 button { font: inherit; }
@@ -1337,8 +1337,8 @@ button { font: inherit; }
 .learning-secondary-button:hover { border-color: var(--accent); background: var(--surface-hover); }
 .learning-primary-button { color: var(--accent-contrast, #fff); background: var(--accent); border: 1px solid var(--accent); box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 18%, transparent); }
 .learning-primary-button:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
-.learning-primary-button.is-confirm { color: #fff; background: #292c30; border-color: #292c30; box-shadow: 0 5px 14px rgb(0 0 0 / 16%); }
-.learning-primary-button.is-confirm:hover { background: #1f2124; border-color: #1f2124; }
+.learning-primary-button.is-confirm { color: var(--accent-contrast, #fff); background: var(--neutral-solid); border-color: var(--neutral-solid); box-shadow: 0 5px 14px color-mix(in srgb, var(--theme-foreground) 16%, transparent); }
+.learning-primary-button.is-confirm:hover { background: color-mix(in srgb, var(--neutral-solid) 88%, var(--theme-foreground)); border-color: color-mix(in srgb, var(--neutral-solid) 88%, var(--theme-foreground)); }
 :global(html[data-theme="dark"]) .learning-primary-button.is-confirm { color: var(--accent-contrast, #fff); background: var(--accent); border-color: var(--accent); }
 :global(html[data-theme="dark"]) .learning-primary-button.is-confirm:hover { background: color-mix(in srgb, var(--accent) 86%, #000); border-color: color-mix(in srgb, var(--accent) 86%, #000); }
 button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
@@ -1507,8 +1507,8 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .learning-tool-list i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); }
 .learning-tool-list i[data-status="running"],
 .learning-tool-list i[data-status="preparing"] { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
-.learning-tool-list i[data-status="completed"] { background: #35a777; }
-.learning-tool-list i[data-status="error"] { background: #d15a67; }
+.learning-tool-list i[data-status="completed"] { background: var(--success); }
+.learning-tool-list i[data-status="error"] { background: var(--danger); }
 .learning-tool-list small { color: var(--text-tertiary); }
 
 .learning-agent-composer { padding: 9px 13px 12px; border-top: 1px solid var(--theme-line-soft); }
