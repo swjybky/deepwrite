@@ -109,14 +109,8 @@ export interface BuildSpawnSubagentToolInput {
   model: Model<Api>;
   thinkingLevel: PiThinkingLevel;
   streamFn: StreamFn;
-  parentSystemPrompt: string;
   definitions: readonly ShortAgentSubagentDefinition[];
   buildChildTools: () => AgentTool[];
-  buildChildUserMessage: (
-    definition: ShortAgentSubagentDefinition,
-    task: string,
-    subagentRunId: string
-  ) => UserMessage;
   toolExecutionHooks?: AgentToolExecutionHooks;
   timeoutMs?: number;
   depth?: number;
@@ -173,23 +167,6 @@ function summarizeToolResult(result: unknown): string {
   } catch {
     return "工具已执行完成。";
   }
-}
-
-function buildSubagentSystemPrompt(
-  parentSystemPrompt: string,
-  definition: ShortAgentSubagentDefinition
-): string {
-  return [
-    parentSystemPrompt,
-    "",
-    `【当前子智能体：${definition.name} / ${definition.id}】`,
-    definition.systemPrompt.trim(),
-    "",
-    "【子智能体执行边界】",
-    "你由当前主智能体为一个明确子任务临时创建。本次运行使用全新上下文，不继承主对话历史。",
-    "只能完成委派任务并使用本轮实际提供的工具；你不能创建或调用其它子智能体。",
-    "最终回复只写给主智能体的交接摘要：说明完成了什么、关键结论、产生的待审阅修改及仍需主智能体处理的事项。"
-  ].join("\n");
 }
 
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
@@ -260,15 +237,18 @@ export function buildSpawnSubagentTool(
 
       let child: Agent;
       try {
+        const childTools = input.buildChildTools().filter(
+          (tool) => tool.name !== "load_skill" && tool.name !== "spawn_subagent"
+        );
         child = new Agent({
           initialState: {
-            systemPrompt: buildSubagentSystemPrompt(input.parentSystemPrompt, definition),
+            systemPrompt: definition.systemPrompt.trim(),
             model: input.model,
             thinkingLevel: input.thinkingLevel,
             messages: [],
             // buildChildTools() creates fresh read evidence while closing over the
             // same parent-run mutation/revision overlay.
-            tools: input.buildChildTools()
+            tools: childTools
           },
           streamFn: input.streamFn,
           sessionId: `${input.parentSessionId}:${subagentRunId}`,
@@ -429,7 +409,11 @@ export function buildSpawnSubagentTool(
           }, timeoutMs);
           timeout.unref();
           const prompt: Promise<PromptOutcome> = child
-            .prompt(input.buildChildUserMessage(definition, task, subagentRunId))
+            .prompt({
+              role: "user",
+              content: task,
+              timestamp: Date.now()
+            } satisfies UserMessage)
             .then((): PromptOutcome => ({ kind: "completed" }))
             .catch(
               (error: unknown): PromptOutcome => ({ kind: "failed", error })

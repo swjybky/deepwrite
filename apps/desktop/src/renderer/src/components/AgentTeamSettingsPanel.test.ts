@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import source from "./AgentTeamSettingsPanel.vue?raw";
 
 describe("AgentTeamSettingsPanel", () => {
+  it("explains the isolated subagent prompt and skill boundary", () => {
+    expect(source).toContain("不继承主智能体提示词、会话或技能库");
+    expect(source).toContain("每次调用只接收自己的系统提示词和主智能体委派内容");
+  });
+
   it("shows the three workspace tabs and disables unfinished modes", () => {
     expect(source).toContain("短篇");
     expect(source).toContain("剧本");

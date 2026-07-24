@@ -1891,128 +1891,14 @@ html[data-platform="darwin"] .conversation-header {
   background: var(--surface-main, #ffffff);
 }
 
-.subagent-run-timeline {
+.subagent-processing-list {
   display: grid;
-}
-
-.subagent-run-step {
-  position: relative;
-  display: grid;
-  grid-template-columns: 15px minmax(0, 1fr);
-  gap: 9px;
-  min-width: 0;
-  padding: 0 0 14px;
-}
-
-.subagent-run-step:last-child {
-  padding-bottom: 0;
-}
-
-.subagent-run-step::before {
-  position: absolute;
-  top: 13px;
-  bottom: -1px;
-  left: 6px;
-  width: 1px;
-  background: var(--theme-line-soft, #e9e9e7);
-  content: "";
-}
-
-.subagent-run-step:last-child::before {
-  display: none;
-}
-
-.subagent-run-step-marker {
-  position: relative;
-  z-index: 1;
-  width: 7px;
-  height: 7px;
-  margin: 5px 0 0 3px;
-  border-radius: 50%;
-  background: var(--text-tertiary, #8b8f94);
-  box-shadow: 0 0 0 3px var(--surface-main, #ffffff);
-}
-
-.subagent-run-step.is-tool .subagent-run-step-marker {
-  background: var(--accent, #5b82b8);
-}
-
-.subagent-run-step-content {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.subagent-run-step-content > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
   gap: 10px;
-}
-
-.subagent-run-step-content > header strong {
-  overflow-wrap: anywhere;
-  color: var(--text-secondary, #60646b);
-  font-size: 0.821429rem;
-  font-weight: 620;
-}
-
-.subagent-run-step-content > header time {
-  flex: 0 0 auto;
-  color: var(--text-tertiary, #8b8f94);
-  font-size: 0.714286rem;
-}
-
-.subagent-run-thinking,
-.subagent-run-output {
   min-width: 0;
-  color: var(--text-secondary, #60646b);
+}
+
+.subagent-processing-response {
   font-size: 0.857143rem;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
-
-.subagent-run-thinking {
-  color: var(--text-tertiary, #8b8f94);
-}
-
-.subagent-run-thinking :where(p, ul, ol),
-.subagent-run-output :where(p, ul, ol) {
-  margin: 0;
-}
-
-.subagent-run-tool-detail {
-  display: grid;
-  gap: 9px;
-}
-
-.subagent-run-tool-detail > div {
-  display: grid;
-  gap: 5px;
-}
-
-.subagent-run-tool-detail span {
-  color: var(--text-tertiary, #8b8f94);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.subagent-run-tool-detail pre,
-.subagent-run-tool-detail p {
-  overflow: auto;
-  max-height: 260px;
-  margin: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--theme-line-soft, #e9e9e7);
-  border-radius: 8px;
-  background: var(--surface-muted, #f5f5f2);
-  color: var(--text-secondary, #60646b);
-  font-family: var(--code-font);
-  font-size: var(--code-font-size);
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .subagent-run-waiting {

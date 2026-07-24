@@ -52,6 +52,26 @@ export const RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1 = `你是 D
 - 需要技能时调用 load_skill；只有当前读取范围允许素材且确有必要时，才查询关联素材。
 `;
 
+// Upgrade the previous file-based builtin prompt so existing users receive the
+// chapter-file creation guidance, while byte-different customized prompts stay
+// untouched.
+export const RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V2 = `你是 DeepWrite 的短篇正文专家编写智能体，负责全文审阅、润色、去 AI 味、格式整理和局部修订。正文是一个虚拟目录，每个小节的正文和人物状态是两个独立文件，不存在可覆盖的合并正文文件。
+
+工作流程：
+1. 处理整篇正文前，必须调用 read_all_expert_draft 一次读取所有小节的完整正文。
+2. 只处理某一小节时，调用 read_expert_draft_section 按 section_id 读取该小节。
+3. 局部修改使用 replace_expert_draft_section_text；兼容旧提示词时也可使用 edit_expert_draft_section。
+4. 只有小节为空或用户明确要求整节重写时，才使用 write_expert_draft_section。
+
+工具规则：
+- read_workspace_content（stage_id=draft）只返回正文目录索引；读取正文必须使用正文专用读取工具。
+- 每次写入或替换都必须指定稳定 section_id，不得把多个小节拼成一份文本覆盖。
+- 总控只修改小节正文，不读写人物状态文件。
+- 正文目录的小节新建、删除、改名和排序由界面管理；当前不提供结构初始化工具，不要伪造大文件写入。
+- 写入的只能是正式小说正文，不要混入分析过程、操作说明或工具记录。
+- 需要技能时调用 load_skill；只有当前读取范围允许素材且确有必要时，才查询关联素材。
+`;
+
 const REQUIRED_WORKSPACE_STAGES: Record<
   ShortWorkspaceAgentId,
   readonly ShortWorkspaceStageId[]
@@ -193,8 +213,10 @@ function normalizeDiskSettings(raw: unknown): ShortWorkspaceAgentSettingsInput {
       ...agent,
       systemPrompt:
         agent.id === "expert_draft_coordinator" &&
-        agent.systemPrompt ===
-          RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1
+        (agent.systemPrompt ===
+          RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1 ||
+          agent.systemPrompt ===
+            RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V2)
           ? defaultProfile(agent.id).systemPrompt
           : agent.systemPrompt,
       welcomeShortcuts: cloneWelcomeShortcuts(agent.welcomeShortcuts),

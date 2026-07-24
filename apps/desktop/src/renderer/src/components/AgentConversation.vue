@@ -639,6 +639,7 @@ function workspaceToolLabel(name: string): string {
     switch_storyline_stage: "切换剧情方向",
     write_workspace_editor: "写入阶段编辑器",
     replace_current_stage_text: "替换阶段文本",
+    create_expert_draft_sections: "创建章节文件",
     read_all_expert_draft: "读取全部正文",
     write_expert_draft_section: "写入正文小节",
     replace_expert_draft_section_text: "替换正文小节文本",
@@ -727,6 +728,11 @@ type SubagentDisplayItem =
   | { id: string; type: "response"; content: string; createdAt: string }
   | { id: string; type: "tool"; tool: AgentToolTrace; createdAt: string };
 
+type SubagentProcessingDisplayItem =
+  | Exclude<SubagentDisplayItem, { type: "tool" }>
+  | { id: string; type: "tool"; tool: AgentToolTrace; createdAt: string }
+  | { id: string; type: "tool-group"; tools: AgentToolTrace[] };
+
 function subagentDisplayItems(run: AgentSubagentRun): SubagentDisplayItem[] {
   if (run.processingSteps.length) {
     const items: SubagentDisplayItem[] = [];
@@ -771,6 +777,29 @@ function subagentDisplayItems(run: AgentSubagentRun): SubagentDisplayItem[] {
     });
   }
   return items;
+}
+
+function subagentProcessingDisplayItems(
+  run: AgentSubagentRun
+): SubagentProcessingDisplayItem[] {
+  const displayItems: SubagentProcessingDisplayItem[] = [];
+  for (const item of subagentDisplayItems(run)) {
+    if (item.type !== "tool" || isWriteTool(item.tool)) {
+      displayItems.push(item);
+      continue;
+    }
+    const previous = displayItems.at(-1);
+    if (previous?.type === "tool-group") {
+      previous.tools.push(item.tool);
+      continue;
+    }
+    displayItems.push({
+      id: `${item.id}_group`,
+      type: "tool-group",
+      tools: [item.tool]
+    });
+  }
+  return displayItems;
 }
 
 const subagentStatusLabels: Record<AgentSubagentRun["status"], string> = {
@@ -881,6 +910,7 @@ type ToolKind = "read" | "command" | "write" | "web" | "other";
 const WRITE_TOOL_NAMES = new Set([
   "write_workspace_editor",
   "replace_current_stage_text",
+  "create_expert_draft_sections",
   "write_expert_draft_section",
   "replace_expert_draft_section_text",
   "edit_expert_draft_section",
@@ -892,6 +922,7 @@ const WRITE_TOOL_NAMES = new Set([
 
 const DIRECT_WRITE_TOOL_NAMES = new Set([
   "write_workspace_editor",
+  "create_expert_draft_sections",
   "write_expert_draft_section",
   "write_section_body",
   "write_character_state"
@@ -1176,6 +1207,13 @@ function proposalStatusMessage(
     return proposal.libraryTarget.operation === "create"
       ? "接受后将创建资料库条目并保存到本机。"
       : "接受后将更新资料库条目并保存到本机。";
+  }
+  if (
+    !proposal.statusMessage &&
+    proposal.status === "pending" &&
+    proposal.draftSectionCreationTarget
+  ) {
+    return "接受后将批量创建空白正文与人物状态文件并保存到本机。";
   }
   return proposal.statusMessage?.trim() || proposalStatusMessages[proposal.status];
 }
@@ -1632,38 +1670,78 @@ function copyMessageLabel(message: ChatMessage): string {
 
                 <div class="subagent-run-detail">
                   <div
-                    v-if="subagentDisplayItems(run).length"
-                    class="subagent-run-timeline"
-                    aria-label="子智能体执行时间线"
+                    v-if="subagentProcessingDisplayItems(run).length"
+                    class="subagent-processing-list"
+                    aria-label="子智能体执行过程"
                   >
-                    <article
-                      v-for="item in subagentDisplayItems(run)"
+                    <template
+                      v-for="item in subagentProcessingDisplayItems(run)"
                       :key="item.id"
-                      class="subagent-run-step"
-                      :class="`is-${item.type}`"
                     >
-                      <span class="subagent-run-step-marker" aria-hidden="true"></span>
-                      <div class="subagent-run-step-content">
-                        <header>
-                          <strong v-if="item.type === 'thinking'">思考</strong>
-                          <strong v-else-if="item.type === 'response'">阶段输出</strong>
-                          <strong v-else>{{ toolLabel(item.tool) }}</strong>
-                          <time :datetime="item.createdAt">{{ formatTime(item.createdAt) }}</time>
-                        </header>
-                        <div
-                          v-if="item.type === 'thinking'"
-                          class="subagent-run-thinking"
-                        >
+                      <details
+                        v-if="item.type === 'thinking'"
+                        class="processing-live-item processing-live-thinking"
+                      >
+                        <summary>
+                          <span>{{ run.status === 'running' ? '思考中' : '思考过程' }}</span>
+                          <AppIcon name="chevron" :size="13" />
+                        </summary>
+                        <div class="processing-live-body processing-thinking">
                           <MessageMarkdown :content="item.content" />
                         </div>
-                        <div
-                          v-else-if="item.type === 'response'"
-                          class="subagent-run-output"
-                        >
-                          <MessageMarkdown :content="item.content" />
-                        </div>
-                        <div v-else class="subagent-run-tool-detail">
-                          <div v-if="formatToolPayload(visibleToolArguments(item.tool))">
+                      </details>
+                      <div
+                        v-else-if="item.type === 'response'"
+                        class="processing-step processing-response subagent-processing-response"
+                      >
+                        <MessageMarkdown :content="item.content" />
+                      </div>
+                      <details
+                        v-else-if="item.type === 'tool'"
+                        class="processing-live-item processing-live-tool"
+                      >
+                        <summary>
+                          <div
+                            class="tool-trace"
+                            :class="[`is-${item.tool.status}`, { 'is-write': isWriteTool(item.tool) }]"
+                          >
+                            <AppIcon
+                              v-if="!isWriteTool(item.tool)"
+                              :name="toolIcon(item.tool)"
+                              :size="17"
+                            />
+                            <div>
+                              <div v-if="isWriteTool(item.tool)" class="write-tool-label">
+                                <strong>{{ toolLabel(item.tool) }}</strong>
+                                <AppIcon name="chevron" :size="13" />
+                              </div>
+                              <strong v-else>{{ toolLabel(item.tool) }}</strong>
+                              <span v-if="toolDetail(item.tool)">{{ toolDetail(item.tool) }}</span>
+                            </div>
+                          </div>
+                          <AppIcon
+                            v-if="!isWriteTool(item.tool)"
+                            name="chevron"
+                            :size="13"
+                          />
+                        </summary>
+                        <div class="processing-live-body tool-detail">
+                          <div v-if="isWriteTool(item.tool)" class="write-tool-detail">
+                            <div class="write-tool-output-heading">
+                              <span>写入内容</span>
+                              <small v-if="writeToolTarget(item.tool)">
+                                {{ writeToolTarget(item.tool) }}
+                              </small>
+                              <small>
+                                {{ writeToolText(item.tool).length.toLocaleString('zh-CN') }} 字符
+                              </small>
+                            </div>
+                            <pre
+                              class="write-tool-output"
+                              :class="{ 'is-streaming': item.tool.status === 'preparing' }"
+                            >{{ writeToolText(item.tool) || '正在等待写入内容……' }}</pre>
+                          </div>
+                          <div v-else-if="formatToolPayload(visibleToolArguments(item.tool))">
                             <span>调用参数</span>
                             <pre>{{ formatToolPayload(visibleToolArguments(item.tool)) }}</pre>
                           </div>
@@ -1672,8 +1750,46 @@ function copyMessageLabel(message: ChatMessage): string {
                             <p>{{ item.tool.resultSummary }}</p>
                           </div>
                         </div>
-                      </div>
-                    </article>
+                      </details>
+                      <details
+                        v-else
+                        class="processing-live-item processing-live-thinking processing-tool-group"
+                        :aria-busy="toolGroupIsRunning(item.tools)"
+                      >
+                        <summary>
+                          <span>{{ toolGroupLabel(item.tools) }}</span>
+                          <AppIcon name="chevron" :size="13" />
+                        </summary>
+                        <div class="processing-live-body tool-call-list" aria-label="工具调用列表">
+                          <details
+                            v-for="tool in item.tools"
+                            :key="tool.id"
+                            class="processing-live-item processing-live-tool tool-call-list-item"
+                          >
+                            <summary>
+                              <div class="tool-trace" :class="`is-${tool.status}`">
+                                <AppIcon :name="toolIcon(tool)" :size="17" />
+                                <div>
+                                  <strong>{{ toolLabel(tool) }}</strong>
+                                  <span v-if="toolDetail(tool)">{{ toolDetail(tool) }}</span>
+                                </div>
+                              </div>
+                              <AppIcon name="chevron" :size="13" />
+                            </summary>
+                            <div class="processing-live-body tool-detail">
+                              <div v-if="formatToolPayload(visibleToolArguments(tool))">
+                                <span>调用参数</span>
+                                <pre>{{ formatToolPayload(visibleToolArguments(tool)) }}</pre>
+                              </div>
+                              <div v-if="tool.resultSummary">
+                                <span>执行结果</span>
+                                <p>{{ tool.resultSummary }}</p>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+                      </details>
+                    </template>
                   </div>
                   <div v-else-if="run.status === 'running'" class="subagent-run-waiting">
                     正在启动独立上下文并接收执行事件…

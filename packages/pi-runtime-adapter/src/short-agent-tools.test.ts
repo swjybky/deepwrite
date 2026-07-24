@@ -343,6 +343,60 @@ describe("short workspace tools", () => {
     expect(resultText(result)).not.toContain("暗房里显出了照片");
   });
 
+  it("lets only the draft coordinator propose one batch of blank chapter files", async () => {
+    const snapshot = workspace("draft");
+    const coordinatorTools = buildShortWorkspaceTools({
+      workspace: snapshot,
+      profile: profile("expert_draft_coordinator")
+    });
+    const create = toolByName(
+      coordinatorTools,
+      "create_expert_draft_sections"
+    );
+
+    const result = await create.execute("create-sections", {
+      sections: [
+        { title: "第三节·钟楼", word_count_requirement: "1300 字" },
+        { title: "第四节·回声" }
+      ],
+      after_section_id: "section-2"
+    });
+
+    expect(result.details).toEqual({
+      kind: "workspace-expert-draft-section-creation",
+      workspaceId: snapshot.id,
+      stageId: "draft",
+      sections: [
+        { title: "第三节·钟楼", wordCountRequirement: "1300 字" },
+        { title: "第四节·回声", wordCountRequirement: "" }
+      ],
+      afterSectionId: "section-2",
+      baseRevision: snapshot.expertDraft.revision,
+      summary: "已生成创建 2 个空白章节文件的变更，等待用户审阅。"
+    });
+    expect(resultText(result)).toContain("创建 2 个空白章节文件");
+
+    const repeated = await create.execute("create-sections-again", {
+      sections: [{ title: "第三节·钟楼" }]
+    });
+    expect(repeated.details).toEqual({ kind: "none" });
+    expect(resultText(repeated)).toContain("同名章节");
+
+    for (const agentId of [
+      "character_design",
+      "plot_design",
+      "outline",
+      "expert_section_writer"
+    ] as const) {
+      expect(
+        buildShortWorkspaceTools({
+          workspace: snapshot,
+          profile: profile(agentId)
+        }).map((tool) => tool.name)
+      ).not.toContain("create_expert_draft_sections");
+    }
+  });
+
   it("does not expose untyped or out-of-scope attached material bodies", async () => {
     const tools = buildShortWorkspaceTools({
       workspace: workspace("character_design"),

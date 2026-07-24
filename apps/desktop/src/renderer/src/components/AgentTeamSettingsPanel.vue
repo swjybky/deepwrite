@@ -221,7 +221,7 @@ function saveSettings(): void {
         <h2 id="agent-team-title">智能体团队</h2>
         <p>提前为每个主智能体配置可调用的专项子智能体。</p>
         <p class="inheritance-note">
-          子智能体继承所属主智能体的模型、工具与审批策略；每次调用使用独立上下文，且不能继续创建子智能体。
+          子智能体继承所属主智能体的模型、工具与审批策略，但继承的工具不包含技能加载；它不继承主智能体提示词、会话或技能库，且不能继续创建子智能体；每次调用只接收自己的系统提示词和主智能体委派内容。
         </p>
         <p v-if="!runtimeAvailable" class="runtime-note">
           当前环境仅支持查看；保存设置需要使用 DeepWrite 桌面端。

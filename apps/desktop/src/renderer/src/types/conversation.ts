@@ -55,6 +55,13 @@ export interface AgentEditProposal {
     baseProjectRevision?: number;
     entryId?: string;
   };
+  draftSectionCreationTarget?: {
+    sections: Array<{
+      title: string;
+      wordCountRequirement: string;
+    }>;
+    afterSectionId?: string;
+  };
 }
 
 export interface ChatToolActivity {

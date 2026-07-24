@@ -35,6 +35,18 @@ export type ShortWorkspaceToolDetails =
       summary: string;
     }
   | {
+      kind: "workspace-expert-draft-section-creation";
+      workspaceId: string;
+      stageId: "draft";
+      sections: Array<{
+        title: string;
+        wordCountRequirement: string;
+      }>;
+      afterSectionId?: string;
+      baseRevision: string;
+      summary: string;
+    }
+  | {
       kind: "workspace-stage-selection";
       workspaceId: string;
       stageId: ShortWorkspaceStageId;
@@ -60,6 +72,7 @@ export interface ShortWorkspaceToolSharedState {
   stageBodies: Map<ShortWorkspaceStageId, string>;
   stageRevisions: Map<ShortWorkspaceStageId, string>;
   expertSections: ExpertSectionMap;
+  pendingExpertSectionTitles: Set<string>;
 }
 
 export const SHORT_WORKSPACE_TOOL_MANIFEST = {
@@ -73,6 +86,7 @@ export const SHORT_WORKSPACE_TOOL_MANIFEST = {
   ],
   plot: ["switch_storyline_stage"],
   coordinator: [
+    "create_expert_draft_sections",
     "read_all_expert_draft",
     "read_expert_draft_section",
     "write_expert_draft_section",
@@ -661,8 +675,120 @@ export function createShortWorkspaceToolSharedState(
           characterState: { ...section.characterState }
         }
       ] as const)
-    )
+    ),
+    pendingExpertSectionTitles: new Set<string>()
   };
+}
+
+function buildCreateExpertDraftSectionsTool(
+  input: BuildShortWorkspaceToolsInput,
+  sharedState: ShortWorkspaceToolSharedState
+): AgentTool {
+  return defineTool({
+    name: "create_expert_draft_sections",
+    label: "创建章节文件",
+    description:
+      "一次创建一个或多个空白正文章节；每章会生成独立的正文文件和人物状态文件。只新增结构，不写正文、不删除或覆盖已有章节。",
+    parameters: Type.Object({
+      sections: Type.Array(
+        Type.Object({
+          title: Type.String({ minLength: 1, maxLength: 240 }),
+          word_count_requirement: Type.Optional(
+            Type.String({ maxLength: 1_000 })
+          )
+        }),
+        { minItems: 1, maxItems: 100 }
+      ),
+      after_section_id: Type.Optional(
+        Type.String({ minLength: 1, maxLength: 120 })
+      )
+    }),
+    execute: async (_toolCallId, params) => {
+      const requested = params.sections as Array<{
+        title: string;
+        word_count_requirement?: string;
+      }>;
+      const sections = requested.map((section) => ({
+        title: String(section.title ?? "").trim(),
+        wordCountRequirement: String(
+          section.word_count_requirement ?? ""
+        ).trim()
+      }));
+      if (sections.some((section) => !section.title)) {
+        return textResult("未创建：章节标题不能为空。");
+      }
+
+      const duplicateTitles = sections
+        .map((section) => section.title)
+        .filter((title, index, titles) => titles.indexOf(title) !== index);
+      if (duplicateTitles.length > 0) {
+        return textResult(
+          `未创建：本次参数中包含重复章节标题：${[...new Set(duplicateTitles)].join("、")}。`
+        );
+      }
+
+      const existingTitles = new Set([
+        ...input.workspace.expertDraft.sections.map((section) => section.title),
+        ...sharedState.pendingExpertSectionTitles
+      ]);
+      const conflicts = sections
+        .map((section) => section.title)
+        .filter((title) => existingTitles.has(title));
+      if (conflicts.length > 0) {
+        return textResult(
+          `未创建：正文目录已存在同名章节：${conflicts.join("、")}。初始化时请只提交尚未存在的章节。`
+        );
+      }
+
+      const currentCount =
+        input.workspace.expertDraft.sections.length +
+        sharedState.pendingExpertSectionTitles.size;
+      if (currentCount + sections.length > 100) {
+        return textResult(
+          `未创建：正文最多支持 100 个章节，当前已有或待创建 ${currentCount} 个，本次请求 ${sections.length} 个。`
+        );
+      }
+
+      const afterSectionId = String(params.after_section_id ?? "").trim();
+      if (
+        afterSectionId &&
+        !input.workspace.expertDraft.sections.some(
+          (section) => section.id === afterSectionId
+        )
+      ) {
+        return textResult(`未创建：找不到插入位置章节 ${afterSectionId}。`);
+      }
+
+      for (const section of sections) {
+        sharedState.pendingExpertSectionTitles.add(section.title);
+      }
+      const summary = `已生成创建 ${sections.length} 个空白章节文件的变更，等待用户审阅。`;
+      return textResult(
+        input.writeApprovalMode === "auto-approve"
+          ? summary.replace(
+              "，等待用户审阅。",
+              "，将在本轮完成后自动批准并保存。"
+            )
+          : summary,
+        {
+          kind: "workspace-expert-draft-section-creation",
+          workspaceId: input.workspace.id,
+          stageId: "draft",
+          sections,
+          ...(afterSectionId ? { afterSectionId } : {}),
+          baseRevision: input.workspace.expertDraft.revision,
+          summary:
+            input.writeApprovalMode === "auto-approve"
+              ? summary.replace(
+                  "，等待用户审阅。",
+                  "，将在本轮完成后自动批准并保存。"
+                )
+              : summary
+        }
+      );
+    },
+    executionMode: "sequential"
+  });
 }
 
 function readableExpertSectionIds(
@@ -1049,6 +1175,7 @@ export function buildShortWorkspaceTools(
   if (input.profile.id === "expert_draft_coordinator") {
     return [
       ...readTools,
+      buildCreateExpertDraftSectionsTool(input, sharedState),
       buildReadAllExpertDraftTool(input, expertSections, readExpertFileIds),
       buildReadExpertDraftSectionTool(input, expertSections, readExpertFileIds),
       buildWriteCoordinatorExpertSectionTool(
@@ -1123,6 +1250,7 @@ export function isShortWorkspaceToolDetails(
     kind === "none" ||
     kind === "workspace-editor-mutation" ||
     kind === "workspace-expert-draft-file-mutation" ||
+    kind === "workspace-expert-draft-section-creation" ||
     kind === "workspace-stage-selection"
   );
 }

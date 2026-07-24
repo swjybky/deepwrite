@@ -149,7 +149,7 @@ describe("short workspace contracts", () => {
       character_design: "d758185c",
       plot_design: "6ed0f6fe",
       outline: "2479c31a",
-      expert_draft_coordinator: "4ac36ffc",
+      expert_draft_coordinator: "022c8ee2",
       expert_section_writer: "5a7065ff"
     });
   });

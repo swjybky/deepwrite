@@ -615,12 +615,27 @@ export type LearningImitationResultUpdatedPayload = z.infer<
   typeof LearningImitationResultUpdatedPayloadSchema
 >;
 
-export const WorkspaceEditorMutationTargetSchema = z.object({
-  kind: z.literal("expert-draft-file"),
-  documentId: z.string().trim().min(1).max(4_096),
-  sectionId: z.string().trim().min(1).max(120),
-  fileKind: z.enum(["body", "characterState"])
-});
+export const WorkspaceEditorMutationTargetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("expert-draft-file"),
+    documentId: z.string().trim().min(1).max(4_096),
+    sectionId: z.string().trim().min(1).max(120),
+    fileKind: z.enum(["body", "characterState"])
+  }),
+  z.object({
+    kind: z.literal("expert-draft-section-creation"),
+    sections: z
+      .array(
+        z.object({
+          title: z.string().trim().min(1).max(240),
+          wordCountRequirement: z.string().max(1_000)
+        })
+      )
+      .min(1)
+      .max(100),
+    afterSectionId: z.string().trim().min(1).max(120).optional()
+  })
+]);
 export type WorkspaceEditorMutationTarget = z.infer<
   typeof WorkspaceEditorMutationTargetSchema
 >;
@@ -643,14 +658,14 @@ export const WorkspaceEditorMutationPayloadSchema = z
       context.addIssue({
         code: "custom",
         path: ["mutationTarget"],
-        message: "Expert draft section mutations must target the draft stage."
+        message: "Expert draft mutations must target the draft stage."
       });
     }
     if (value.stageId === "draft" && value.mutationTarget === undefined) {
       context.addIssue({
         code: "custom",
         path: ["mutationTarget"],
-        message: "Draft mutations must target one physical expert draft file."
+        message: "Draft mutations must target a physical file or section creation."
       });
     }
   });

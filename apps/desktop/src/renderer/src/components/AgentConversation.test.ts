@@ -74,6 +74,9 @@ describe("AgentConversation edit proposal placement", () => {
     const labelsStart = source.indexOf("function workspaceToolLabel");
     const labelsEnd = source.indexOf("function hasProcessing", labelsStart);
     const labels = source.slice(labelsStart, labelsEnd);
+    expect(labels).toContain(
+      'create_expert_draft_sections: "创建章节文件"'
+    );
     expect(labels).toContain('read_all_expert_draft: "读取全部正文"');
     expect(labels).toContain(
       'write_expert_draft_section: "写入正文小节"'
@@ -92,12 +95,14 @@ describe("AgentConversation edit proposal placement", () => {
     const directEnd = source.indexOf("function isWriteTool", directStart);
     const directWriteNames = source.slice(directStart, directEnd);
     expect(writeNames).toContain('"write_expert_draft_section"');
+    expect(writeNames).toContain('"create_expert_draft_sections"');
     expect(writeNames).toContain('"write_section_body"');
     expect(writeNames).toContain('"replace_expert_draft_section_text"');
     expect(writeNames).toContain('"edit_expert_draft_section"');
     expect(writeNames).not.toContain('"read_all_expert_draft"');
     expect(writeNames).not.toContain('"read_expert_character_state"');
     expect(directWriteNames).toContain('"write_expert_draft_section"');
+    expect(directWriteNames).toContain('"create_expert_draft_sections"');
     expect(directWriteNames).toContain('"write_section_body"');
     expect(directWriteNames).not.toContain(
       '"replace_expert_draft_section_text"'
@@ -112,7 +117,19 @@ describe("AgentConversation edit proposal placement", () => {
     expect(source).toContain('class="subagent-run-card"');
     expect(source).toContain('v-for="run in message.subagentRuns"');
     expect(source).not.toContain('<details\n                v-for="run in message.subagentRuns"\n                open');
-    expect(source).toContain('aria-label="子智能体执行时间线"');
+    expect(source).toContain('aria-label="子智能体执行过程"');
+    expect(source).toContain("subagentProcessingDisplayItems(run)");
+    expect(source).toContain(
+      'class="processing-live-item processing-live-thinking"'
+    );
+    expect(source).toContain(
+      'class="processing-live-item processing-live-tool"'
+    );
+    expect(source).toContain(
+      'class="processing-live-item processing-live-thinking processing-tool-group"'
+    );
+    expect(source).toContain("run.status === 'running' ? '思考中' : '思考过程'");
+    expect(source).not.toContain('class="subagent-run-timeline"');
     expect(source).toContain("{{ run.task }}");
     expect(source).toContain("{{ subagentStatusLabel(run) }}");
     expect(source).toContain("{{ run.toolCalls.length }} 个工具");

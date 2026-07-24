@@ -214,6 +214,13 @@ export type AgentRuntimeEvent =
           documentId: string;
           sectionId: string;
           fileKind: "body" | "characterState";
+        } | {
+          kind: "expert-draft-section-creation";
+          sections: Array<{
+            title: string;
+            wordCountRequirement: string;
+          }>;
+          afterSectionId?: string;
         };
         baseRevision: string;
         summary: string;
@@ -551,25 +558,8 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         model,
         thinkingLevel: effectiveThinkingLevel,
         streamFn,
-        parentSystemPrompt: systemPrompt,
         definitions: input.subagentDefinitions ?? [],
         buildChildTools: buildShortTools,
-        buildChildUserMessage: (_definition, task, subagentRunId) => {
-          const childInput: AgentRunInput = {
-            ...input,
-            runId: subagentRunId,
-            sessionId: `${input.sessionId}:${subagentRunId}`,
-            prompt: task
-          };
-          delete childInput.attachments;
-          delete childInput.subagentDefinitions;
-          delete childInput.signal;
-          return {
-            role: "user",
-            content: buildRuntimeUserMessageContent(childInput),
-            timestamp: Date.now()
-          };
-        },
         toolExecutionHooks: this.toolExecutionHooks,
         ...(this.subagentTimeoutMs === undefined
           ? {}
@@ -1129,8 +1119,18 @@ export function toRuntimeEvents(
     if (isShortWorkspaceToolDetails(details)) {
       if (
         details.kind === "workspace-editor-mutation" ||
-        details.kind === "workspace-expert-draft-file-mutation"
+        details.kind === "workspace-expert-draft-file-mutation" ||
+        details.kind === "workspace-expert-draft-section-creation"
       ) {
+        const text =
+          details.kind === "workspace-expert-draft-section-creation"
+            ? details.sections
+                .map(
+                  (section, index) =>
+                    `${index + 1}. ${section.title}${section.wordCountRequirement ? `（${section.wordCountRequirement}）` : ""}`
+                )
+                .join("\n")
+            : details.text;
         events.push({
           type: "workspace.editor_mutation",
           runId: input.runId,
@@ -1139,7 +1139,7 @@ export function toRuntimeEvents(
             toolCallId: event.toolCallId,
             workspaceId: details.workspaceId,
             stageId: details.stageId,
-            text: details.text,
+            text,
             ...(details.kind === "workspace-expert-draft-file-mutation"
               ? {
                   mutationTarget: {
@@ -1149,6 +1149,16 @@ export function toRuntimeEvents(
                     fileKind: details.fileKind
                   }
                 }
+              : details.kind === "workspace-expert-draft-section-creation"
+                ? {
+                    mutationTarget: {
+                      kind: "expert-draft-section-creation" as const,
+                      sections: details.sections,
+                      ...(details.afterSectionId
+                        ? { afterSectionId: details.afterSectionId }
+                        : {})
+                    }
+                  }
               : {}),
             baseRevision: details.baseRevision,
             summary: details.summary,
@@ -1502,7 +1512,7 @@ function buildEffectiveSystemPrompt(basePrompt: string, input: AgentRunInput): s
     "只使用本轮实际提供的工具；没有出现在工具列表中的能力尚未接通，不得声称已经执行。",
     writeBoundary,
     profile.id === "expert_draft_coordinator"
-      ? "当前已接通正文目录索引、全部/单节正文读取及按小节正文文件写入与替换；正文目录结构调整仍由界面管理，后台分节写手调度尚未接通，不能声称已初始化目录或启动后台写作。"
+      ? "当前已接通正文目录索引、批量创建空白章节文件、全部/单章正文读取及按章节正文文件写入与替换；删除、改名、排序和后台分节写手调度尚未接通，不得声称已经执行。"
       : profile.id === "expert_section_writer"
         ? "当前分节写手只允许修改运行上下文锁定的小节；正文与人物状态工具分别按 documentId 提交到两个独立文件，由客户端生成独立的待审阅变更。"
         : ""

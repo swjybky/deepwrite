@@ -21,6 +21,7 @@ import {
 } from "@deepwrite/contracts";
 import {
   RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V1,
+  RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V2,
   WorkspaceAgentConfigStore
 } from "./workspace-agent-config-store";
 
@@ -147,6 +148,30 @@ describe("WorkspaceAgentConfigStore", () => {
     expect(
       byAgentId(settings.agents, "expert_draft_coordinator").systemPrompt
     ).toBe(customized);
+  });
+
+  it("upgrades the previous file-based coordinator default without changing custom prompts", async () => {
+    const root = await makeTemporaryRoot();
+    const configDirectory = join(root, "config");
+    await mkdir(configDirectory);
+    const input = defaultInput();
+    byAgentId(input.agents, "expert_draft_coordinator").systemPrompt =
+      RETIRED_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT_V2;
+    byAgentId(input.agents, "outline").systemPrompt = "自定义大纲提示词";
+    await writeFile(
+      join(configDirectory, "workspace-agents.json"),
+      JSON.stringify({ version: 1, ...input }),
+      "utf8"
+    );
+
+    const settings = await new WorkspaceAgentConfigStore(root).list();
+
+    expect(
+      byAgentId(settings.agents, "expert_draft_coordinator").systemPrompt
+    ).toContain("create_expert_draft_sections");
+    expect(byAgentId(settings.agents, "outline").systemPrompt).toBe(
+      "自定义大纲提示词"
+    );
   });
 
   it("fills missing welcome shortcuts from builtin defaults without discarding other overrides", async () => {

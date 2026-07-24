@@ -670,6 +670,63 @@ describe("DeepWrite Pi runtime adapter", () => {
     }]);
   });
 
+  it("maps a batch chapter-file creation result into one reviewable workspace event", () => {
+    const baseRevision = createShortWorkspaceContentRevision("draft-directory");
+    const events = toRuntimeEvents(
+      {
+        type: "tool_execution_end",
+        toolCallId: "create-chapters",
+        toolName: "create_expert_draft_sections",
+        isError: false,
+        result: {
+          content: [{ type: "text", text: "等待审阅" }],
+          details: {
+            kind: "workspace-expert-draft-section-creation",
+            workspaceId: "short-1",
+            stageId: "draft",
+            sections: [
+              { title: "第二章", wordCountRequirement: "1200 字" },
+              { title: "第三章", wordCountRequirement: "" }
+            ],
+            afterSectionId: "section-1",
+            baseRevision,
+            summary: "已生成创建 2 个空白章节文件的变更，等待用户审阅。"
+          }
+        }
+      } as never,
+      {
+        runId: "run-create-chapters",
+        sessionId: "session-create-chapters",
+        prompt: "初始化正文"
+      },
+      providerRuntime,
+      "assistant-create-chapters"
+    );
+
+    expect(events.at(-1)).toEqual({
+      type: "workspace.editor_mutation",
+      runId: "run-create-chapters",
+      sessionId: "session-create-chapters",
+      payload: {
+        toolCallId: "create-chapters",
+        workspaceId: "short-1",
+        stageId: "draft",
+        text: "1. 第二章（1200 字）\n2. 第三章",
+        mutationTarget: {
+          kind: "expert-draft-section-creation",
+          sections: [
+            { title: "第二章", wordCountRequirement: "1200 字" },
+            { title: "第三章", wordCountRequirement: "" }
+          ],
+          afterSectionId: "section-1"
+        },
+        baseRevision,
+        summary: "已生成创建 2 个空白章节文件的变更，等待用户审阅。",
+        runtime: providerRuntime
+      }
+    });
+  });
+
   it("maps subagent progress updates in started-activity-completed order", () => {
     const input = {
       runId: "parent-run-order",

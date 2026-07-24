@@ -525,6 +525,47 @@ describe("DeepWrite desktop contracts", () => {
     ).toThrow();
   });
 
+  it("validates batch expert-draft section creation mutations", () => {
+    const payload = {
+      sessionId: "session_section_creation",
+      runId: "run_section_creation",
+      toolCallId: "tool_section_creation",
+      workspaceId: "book-1",
+      stageId: "draft" as const,
+      text: "1. 第二章（1200 字）\n2. 第三章",
+      mutationTarget: {
+        kind: "expert-draft-section-creation" as const,
+        sections: [
+          { title: "第二章", wordCountRequirement: "1200 字" },
+          { title: "第三章", wordCountRequirement: "" }
+        ],
+        afterSectionId: "section-1"
+      },
+      baseRevision: "v1:100:1234abcd",
+      summary: "已生成创建 2 个空白章节文件的变更。",
+      runtime
+    };
+
+    expect(WorkspaceEditorMutationPayloadSchema.parse(payload)).toMatchObject({
+      mutationTarget: {
+        kind: "expert-draft-section-creation",
+        sections: [{ title: "第二章" }, { title: "第三章" }]
+      }
+    });
+    expect(
+      WorkspaceEditorMutationPayloadSchema.safeParse({
+        ...payload,
+        mutationTarget: { ...payload.mutationTarget, sections: [] }
+      }).success
+    ).toBe(false);
+    expect(
+      WorkspaceEditorMutationPayloadSchema.safeParse({
+        ...payload,
+        stageId: "outline"
+      }).success
+    ).toBe(false);
+  });
+
   it("validates command and event messages at the Utility boundary", () => {
     const command = createEnvelope(
       "session.prompt",

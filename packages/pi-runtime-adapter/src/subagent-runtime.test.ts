@@ -76,14 +76,8 @@ function makeHarness(options: {
     model,
     thinkingLevel: "medium",
     streamFn,
-    parentSystemPrompt: "你是短篇正文主智能体。",
     definitions: options.definitions ?? [enabledDefinition],
     buildChildTools: options.buildChildTools ?? (() => [childTool()]),
-    buildChildUserMessage: (_definition, task, subagentRunId) => ({
-      role: "user",
-      content: `workspace=雾港回声\nsubagentRunId=${subagentRunId}\ntask=${task}`,
-      timestamp: 123
-    }),
     ...(options.toolExecutionHooks
       ? { toolExecutionHooks: options.toolExecutionHooks }
       : {}),
@@ -167,6 +161,11 @@ describe("blocking subagent runtime", () => {
     const { tool, faux } = makeHarness({
       createRunId: () => `subrun-fixed-${++createdRunCount}`,
       onContext: (context) => contexts.push(context),
+      buildChildTools: () => [
+        childTool(),
+        { ...childTool(), name: "load_skill", label: "加载技能" },
+        { ...childTool(), name: "spawn_subagent", label: "调用子智能体" }
+      ],
       responses: [
         fauxAssistantMessage([
           fauxThinking("先检查当前工作区。"),
@@ -192,11 +191,16 @@ describe("blocking subagent runtime", () => {
     expect(contexts[0]?.messages).toHaveLength(1);
     expect(contexts[0]?.messages[0]).toMatchObject({
       role: "user",
-      content: expect.stringContaining("task=检查第一节时间线")
+      content: "检查第一节时间线"
     });
+    expect(contexts[0]?.systemPrompt).toBe(enabledDefinition.systemPrompt);
+    expect(JSON.stringify(contexts[0])).not.toContain("你是短篇正文主智能体");
+    expect(JSON.stringify(contexts[0])).not.toContain("雾港回声");
     expect(contexts[0]?.tools?.map((candidate) => candidate.name)).toEqual([
       "echo_child_context"
     ]);
+    expect(contexts[0]?.tools?.some((candidate) => candidate.name === "load_skill"))
+      .toBe(false);
     expect(contexts[0]?.tools?.some((candidate) => candidate.name === "spawn_subagent"))
       .toBe(false);
     expect(progress[0]).toMatchObject({
@@ -247,7 +251,7 @@ describe("blocking subagent runtime", () => {
     expect(contexts.at(-1)?.messages).toHaveLength(1);
     expect(contexts.at(-1)?.messages[0]).toMatchObject({
       role: "user",
-      content: expect.stringContaining("task=重新独立检查")
+      content: "重新独立检查"
     });
     expect(JSON.stringify(contexts.at(-1)?.messages)).not.toContain("第一节时间线一致");
     expect(secondResult.content).toEqual([{
