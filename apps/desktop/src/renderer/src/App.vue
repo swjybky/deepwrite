@@ -48,7 +48,12 @@ import {
   PROMPT_ATTACHMENT_MAX_ITEMS,
   SKILL_KINDS,
   SkillStageIdSchema,
+  createExpertDraftDirectoryRevision,
   createShortWorkspaceContentRevision,
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
+  isProvisionalExpertDraftSectionId,
+  parseCatalogDraftDocumentId,
   resolveShortWorkspaceAgentIdForStage
 } from "@deepwrite/contracts";
 import AgentConversation from "./components/AgentConversation.vue";
@@ -120,10 +125,14 @@ import {
 import { draftCharacterStateTitle } from "./utils/draftFileTitles";
 import {
   advanceDraftSectionCreationRevision,
+  draftSectionCreationRevisionKey,
   expectedDraftSectionCreationRevision,
   type DraftSectionCreationRevisionCursor
 } from "./utils/draftSectionCreationRevision";
 import { migrateLegacyDraftRecoveries } from "./utils/legacyDraftRecovery";
+import {
+  resolveProvisionalWriteStagingMode
+} from "./utils/provisionalExpertSectionStaging";
 import { createShortManuscriptExportInput } from "./utils/shortManuscriptExport";
 import {
   agentEditProposalId,
@@ -499,6 +508,8 @@ const acceptedDraftSectionCreationRevisions = new Map<
   string,
   DraftSectionCreationRevisionCursor
 >();
+/** runId\0workspaceId → provisionalSectionId → real catalog section id */
+const acceptedProvisionalExpertSectionIds = new Map<string, Map<string, string>>();
 let autoAgentEditFlush = Promise.resolve();
 
 const catalogProjection = computed(() =>
@@ -3785,6 +3796,9 @@ function openAgentTeams(): void {
   if (window.deepwrite && !agentTeamLoaded.value) {
     void loadAgentTeamSettings();
   }
+  if (window.deepwrite && !modelSettings.value) {
+    void loadModelSettings();
+  }
 }
 
 async function loadWorkspaceDirectory(): Promise<void> {
@@ -3865,17 +3879,13 @@ function rememberAcceptedLibraryMutation(proposal: AgentEditProposal): void {
   }
 }
 
-function draftSectionCreationRevisionKey(proposal: AgentEditProposal): string {
-  return `${proposal.runId}\u0000${proposal.workspaceId}`;
-}
-
 function expectedDraftSectionCreationBaseRevision(
   proposal: AgentEditProposal
 ): string {
   return expectedDraftSectionCreationRevision(
     proposal.baseRevision,
     acceptedDraftSectionCreationRevisions.get(
-      draftSectionCreationRevisionKey(proposal)
+      draftSectionCreationRevisionKey(proposal.runId, proposal.workspaceId)
     )
   );
 }
@@ -3884,7 +3894,10 @@ function rememberAcceptedDraftSectionCreation(
   proposal: AgentEditProposal,
   currentRevision: string
 ): void {
-  const key = draftSectionCreationRevisionKey(proposal);
+  const key = draftSectionCreationRevisionKey(
+    proposal.runId,
+    proposal.workspaceId
+  );
   acceptedDraftSectionCreationRevisions.set(
     key,
     advanceDraftSectionCreationRevision(
@@ -4044,8 +4057,8 @@ function currentExpertDraftDirectoryRevision(
       order: number;
       title: string;
       wordCountRequirement: string;
-      bodyRevision?: string;
-      characterStateRevision?: string;
+      hasBody: boolean;
+      hasCharacterState: boolean;
     }
   >();
   for (const document of liveWorkspaceDocuments.value) {
@@ -4063,44 +4076,158 @@ function currentExpertDraftDirectoryRevision(
         document.draftFileKind === "body"
           ? document.title
           : document.title.replace(/\s*·\s*人物状态$/u, ""),
-      wordCountRequirement: document.expertWordCountRequirement ?? ""
+      wordCountRequirement: document.expertWordCountRequirement ?? "",
+      hasBody: false,
+      hasCharacterState: false
     };
     if (document.draftFileKind === "body") {
       section.title = document.title;
       section.wordCountRequirement = document.expertWordCountRequirement ?? "";
-      section.bodyRevision = createShortWorkspaceContentRevision(document.content);
+      section.hasBody = true;
     } else {
-      section.characterStateRevision = createShortWorkspaceContentRevision(
-        document.content
-      );
+      section.hasCharacterState = true;
     }
     sections.set(document.expertSectionId, section);
   }
   const complete = [...sections.entries()]
-    .filter(
-      (
-        entry
-      ): entry is [
-        string,
-        {
-          order: number;
-          title: string;
-          wordCountRequirement: string;
-          bodyRevision: string;
-          characterStateRevision: string;
-        }
-      ] => Boolean(entry[1].bodyRevision && entry[1].characterStateRevision)
-    )
+    .filter(([, section]) => section.hasBody && section.hasCharacterState)
     .sort((left, right) => left[1].order - right[1].order);
   if (complete.length === 0) return undefined;
-  return createShortWorkspaceContentRevision(
-    complete
-      .map(
-        ([sectionId, section]) =>
-          `${sectionId}\u0000${section.title}\u0000${section.wordCountRequirement}\u0000${section.bodyRevision}\u0000${section.characterStateRevision}`
-      )
-      .join("\u0001")
+  return createExpertDraftDirectoryRevision(
+    complete.map(([sectionId, section]) => ({
+      id: sectionId,
+      title: section.title,
+      wordCountRequirement: section.wordCountRequirement
+    }))
   );
+}
+
+function provisionalExpertSectionMapKey(runId: string, workspaceId: string): string {
+  return `${runId}\u0000${workspaceId}`;
+}
+
+function rememberProvisionalExpertSectionMapping(
+  runId: string,
+  workspaceId: string,
+  provisionalSectionId: string,
+  realSectionId: string
+): void {
+  const key = provisionalExpertSectionMapKey(runId, workspaceId);
+  const map = acceptedProvisionalExpertSectionIds.get(key) ?? new Map<string, string>();
+  map.set(provisionalSectionId, realSectionId);
+  acceptedProvisionalExpertSectionIds.set(key, map);
+  while (acceptedProvisionalExpertSectionIds.size > 2_000) {
+    const oldest = acceptedProvisionalExpertSectionIds.keys().next().value as
+      | string
+      | undefined;
+    if (!oldest) break;
+    acceptedProvisionalExpertSectionIds.delete(oldest);
+  }
+}
+
+function resolveProvisionalExpertSectionId(
+  runId: string,
+  workspaceId: string,
+  sectionId: string
+): string {
+  if (!isProvisionalExpertDraftSectionId(sectionId)) return sectionId;
+  return (
+    acceptedProvisionalExpertSectionIds
+      .get(provisionalExpertSectionMapKey(runId, workspaceId))
+      ?.get(sectionId) ?? sectionId
+  );
+}
+
+function findPendingDraftSectionCreationForProvisional(
+  conversation: AgentConversationController,
+  runId: string,
+  provisionalSectionId: string
+): AgentEditProposal | undefined {
+  return conversation.listEditProposals(runId).find((proposal) =>
+    Boolean(
+      proposal.draftSectionCreationTarget?.sections.some(
+        (section) => section.provisionalSectionId === provisionalSectionId
+      ) && proposal.status === "pending"
+    )
+  );
+}
+
+function remapProvisionalExpertSectionFileProposals(
+  conversation: AgentConversationController,
+  runId: string,
+  workspaceId: string,
+  mapping: ReadonlyMap<string, string>
+): void {
+  for (const proposal of conversation.listEditProposals(runId)) {
+    if (!proposal.provisionalExpertSection) continue;
+    if (proposal.status !== "pending" && proposal.status !== "error") continue;
+    for (const [provisionalSectionId, realSectionId] of mapping) {
+      const provisionalBodyId = catalogDraftBodyDocumentId(provisionalSectionId);
+      const provisionalStateId =
+        catalogDraftCharacterStateDocumentId(provisionalSectionId);
+      const fileKind =
+        proposal.documentId === provisionalBodyId
+          ? ("body" as const)
+          : proposal.documentId === provisionalStateId
+            ? ("character-state" as const)
+            : undefined;
+      if (!fileKind) continue;
+      const realDocument = liveWorkspaceDocuments.value.find(
+        (document) =>
+          document.workspaceId === workspaceId &&
+          document.stageId === "draft" &&
+          document.expertSectionId === realSectionId &&
+          document.draftFileKind === fileKind
+      );
+      if (!realDocument) continue;
+      conversation.updateEditProposal(runId, proposal.id, {
+        documentId: realDocument.id,
+        title: realDocument.title,
+        provisionalExpertSection: false,
+        baseRevision: createShortWorkspaceContentRevision(realDocument.content),
+        statusMessage:
+          proposal.statusMessage ??
+          "已关联到新创建的章节文件，接受后将写入正文。"
+      });
+      break;
+    }
+  }
+}
+
+function conflictDependentProvisionalFileProposals(
+  conversation: AgentConversationController,
+  runId: string,
+  provisionalSectionIds: readonly string[],
+  message: string
+): void {
+  const provisionalSet = new Set(provisionalSectionIds);
+  for (const proposal of conversation.listEditProposals(runId)) {
+    if (!proposal.provisionalExpertSection) continue;
+    if (proposal.status !== "pending" && proposal.status !== "error") continue;
+    const matches = [...provisionalSet].some((sectionId) => {
+      const bodyId = catalogDraftBodyDocumentId(sectionId);
+      const stateId = catalogDraftCharacterStateDocumentId(sectionId);
+      return proposal.documentId === bodyId || proposal.documentId === stateId;
+    });
+    if (!matches) continue;
+    conversation.updateEditProposal(runId, proposal.id, {
+      status: "conflict",
+      statusMessage: message,
+      proposedText: undefined
+    });
+  }
+}
+
+function autoApproveEditPriority(
+  conversation: AgentConversationController,
+  runId: string,
+  proposalId: string
+): number {
+  const proposal = conversation.getEditProposal(runId, proposalId);
+  if (!proposal) return 2;
+  if (proposal.draftSectionCreationTarget) return 0;
+  if (proposal.provisionalExpertSection) return 1;
+  return 2;
 }
 
 function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
@@ -4118,7 +4245,18 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
     const currentRevision = currentExpertDraftDirectoryRevision(
       event.payload.workspaceId
     );
-    if (!directory || currentRevision !== event.payload.baseRevision) {
+    // Same cursor as accept: same-run creates keep frozen baseRevision R0, but after
+    // an earlier accept the live directory may already be R1/R2/...
+    const expectedDirectoryRevision = expectedDraftSectionCreationRevision(
+      event.payload.baseRevision,
+      acceptedDraftSectionCreationRevisions.get(
+        draftSectionCreationRevisionKey(
+          event.payload.runId,
+          event.payload.workspaceId
+        )
+      )
+    );
+    if (!directory || currentRevision !== expectedDirectoryRevision) {
       const message =
         "正文目录版本已变化，本次章节创建未进入审阅，也没有改动现有文件。";
       sourceConversation.markToolConflict(
@@ -4204,6 +4342,277 @@ function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
         document.stageId === event.payload.stageId &&
         document.draftFileKind === undefined
   );
+  if (
+    (!target || target.readOnly) &&
+    mutationTarget?.kind === "expert-draft-file" &&
+    isProvisionalExpertDraftSectionId(mutationTarget.sectionId)
+  ) {
+    const creation = findPendingDraftSectionCreationForProvisional(
+      sourceConversation,
+      event.payload.runId,
+      mutationTarget.sectionId
+    );
+    const realSectionId = resolveProvisionalExpertSectionId(
+      event.payload.runId,
+      event.payload.workspaceId,
+      mutationTarget.sectionId
+    );
+    const stagingMode = resolveProvisionalWriteStagingMode({
+      hasPendingCreation: Boolean(creation),
+      provisionalSectionId: mutationTarget.sectionId,
+      resolvedSectionId: realSectionId
+    });
+
+    // Mid-run accept already landed the chapter: keep staging on the same
+    // provisional-keyed proposal id, but validate/write against the real file.
+    if (stagingMode === "mapped-real") {
+      const realTarget = liveWorkspaceDocuments.value.find(
+        (document) =>
+          document.workspaceId === event.payload.workspaceId &&
+          document.stageId === "draft" &&
+          document.expertSectionId === realSectionId &&
+          document.draftFileKind === expectedDraftFileKind
+      );
+      if (!realTarget || realTarget.readOnly) {
+        const message =
+          "目标章节尚未创建或已失效，本次智能体变更未进入审阅。";
+        sourceConversation.markToolConflict(
+          event.payload.runId,
+          event.payload.toolCallId,
+          message
+        );
+        uiMessage.warning(message);
+        return;
+      }
+
+      const proposalId = agentEditProposalId(
+        event.payload.runId,
+        event.payload.workspaceId,
+        event.payload.stageId,
+        mutationTarget.documentId
+      );
+      const existing = sourceConversation.getEditProposal(
+        event.payload.runId,
+        proposalId
+      );
+      if (existing?.toolCallIds.includes(event.payload.toolCallId)) {
+        return;
+      }
+      const currentRevision = createShortWorkspaceContentRevision(realTarget.content);
+      const expectedBaseRevision = expectedMutationBaseRevision(
+        existing,
+        realTarget.content
+      );
+      if (
+        event.payload.baseRevision !== expectedBaseRevision ||
+        (existing !== undefined && currentRevision !== existing.baseRevision)
+      ) {
+        const message =
+          "文稿版本已变化，本次智能体变更未进入审阅，也没有覆盖你的最新编辑。";
+        if (existing) {
+          sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+            status: "conflict",
+            statusMessage: message,
+            updatedAt: event.timestamp
+          });
+        }
+        sourceConversation.markToolConflict(
+          event.payload.runId,
+          event.payload.toolCallId,
+          message
+        );
+        uiMessage.warning(message);
+        return;
+      }
+
+      const resolvedMutation = resolveAgentEditorMutationText(
+        existing?.proposedText !== undefined
+          ? existing.proposedText
+          : realTarget.content,
+        event.payload
+      );
+      if ("error" in resolvedMutation) {
+        if (existing) {
+          sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+            status: "conflict",
+            statusMessage: resolvedMutation.error,
+            updatedAt: event.timestamp
+          });
+        }
+        sourceConversation.markToolConflict(
+          event.payload.runId,
+          event.payload.toolCallId,
+          resolvedMutation.error
+        );
+        uiMessage.warning(resolvedMutation.error);
+        return;
+      }
+      const proposedText = resolvedMutation.text;
+      const proposedRevision = createShortWorkspaceContentRevision(proposedText);
+      const diff = buildAgentTextDiff(realTarget.content, proposedText);
+      const noChanges =
+        proposedRevision === (existing?.baseRevision ?? currentRevision);
+      const proposal: AgentEditProposal = {
+        id: proposalId,
+        runId: event.payload.runId,
+        workspaceId: event.payload.workspaceId,
+        stageId: event.payload.stageId,
+        documentId: realTarget.id,
+        title: realTarget.title,
+        summary: event.payload.summary,
+        status: noChanges ? "accepted" : "pending",
+        baseRevision: existing?.baseRevision ?? event.payload.baseRevision,
+        proposedRevision,
+        ...(noChanges ? {} : { proposedText }),
+        toolCallIds: [
+          ...new Set([
+            ...(existing?.toolCallIds ?? []),
+            event.payload.toolCallId
+          ])
+        ],
+        additions: diff.additions,
+        deletions: diff.deletions,
+        hunks: diff.hunks,
+        ...(diff.truncated ? { truncated: true } : {}),
+        ...(noChanges
+          ? { statusMessage: "文本没有实际变化，无需保存。" }
+          : {}),
+        createdAt: existing?.createdAt ?? event.timestamp,
+        updatedAt: event.timestamp,
+        provisionalExpertSection: false
+      };
+      sourceConversation.upsertEditProposal(event.payload.runId, proposal);
+      if (
+        !noChanges &&
+        sourceConversation.approvalModeForRun(
+          event.payload.sessionId,
+          event.payload.runId
+        ) === "auto-approve"
+      ) {
+        const queueKey = `${event.payload.sessionId}\u0000${event.payload.runId}\u0000${proposalId}`;
+        queuedAutoAgentEdits.set(queueKey, {
+          conversation: sourceConversation,
+          sessionId: event.payload.sessionId,
+          runId: event.payload.runId,
+          proposalId
+        });
+      }
+      return;
+    }
+
+    if (stagingMode === "unavailable" || !creation) {
+      const message =
+        "目标章节尚未创建或已失效，本次智能体变更未进入审阅。";
+      sourceConversation.markToolConflict(
+        event.payload.runId,
+        event.payload.toolCallId,
+        message
+      );
+      uiMessage.warning(message);
+      return;
+    }
+    const proposalId = agentEditProposalId(
+      event.payload.runId,
+      event.payload.workspaceId,
+      event.payload.stageId,
+      mutationTarget.documentId
+    );
+    const existing = sourceConversation.getEditProposal(
+      event.payload.runId,
+      proposalId
+    );
+    if (existing?.toolCallIds.includes(event.payload.toolCallId)) {
+      return;
+    }
+    const baseText = existing?.proposedText ?? "";
+    const expectedBaseRevision = expectedMutationBaseRevision(existing, baseText);
+    if (event.payload.baseRevision !== expectedBaseRevision) {
+      const message =
+        "待创建章节的文稿版本已变化，本次智能体变更未进入审阅。";
+      if (existing) {
+        sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+          status: "conflict",
+          statusMessage: message,
+          updatedAt: event.timestamp
+        });
+      }
+      sourceConversation.markToolConflict(
+        event.payload.runId,
+        event.payload.toolCallId,
+        message
+      );
+      uiMessage.warning(message);
+      return;
+    }
+    const resolvedMutation = resolveAgentEditorMutationText(baseText, event.payload);
+    if ("error" in resolvedMutation) {
+      if (existing) {
+        sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
+          status: "conflict",
+          statusMessage: resolvedMutation.error,
+          updatedAt: event.timestamp
+        });
+      }
+      sourceConversation.markToolConflict(
+        event.payload.runId,
+        event.payload.toolCallId,
+        resolvedMutation.error
+      );
+      uiMessage.warning(resolvedMutation.error);
+      return;
+    }
+    const proposedText = resolvedMutation.text;
+    const proposedRevision = createShortWorkspaceContentRevision(proposedText);
+    const diff = buildAgentTextDiff(baseText, proposedText);
+    const sectionTitle =
+      creation.draftSectionCreationTarget?.sections.find(
+        (section) => section.provisionalSectionId === mutationTarget.sectionId
+      )?.title ?? "新章节";
+    const title =
+      mutationTarget.fileKind === "characterState"
+        ? `${sectionTitle} · 人物状态`
+        : sectionTitle;
+    const proposal: AgentEditProposal = {
+      id: proposalId,
+      runId: event.payload.runId,
+      workspaceId: event.payload.workspaceId,
+      stageId: event.payload.stageId,
+      documentId: mutationTarget.documentId,
+      title,
+      summary: event.payload.summary,
+      status: "pending",
+      baseRevision: existing?.baseRevision ?? event.payload.baseRevision,
+      proposedRevision,
+      proposedText,
+      toolCallIds: [
+        ...new Set([...(existing?.toolCallIds ?? []), event.payload.toolCallId])
+      ],
+      additions: diff.additions,
+      deletions: diff.deletions,
+      hunks: diff.hunks,
+      ...(diff.truncated ? { truncated: true } : {}),
+      createdAt: existing?.createdAt ?? event.timestamp,
+      updatedAt: event.timestamp,
+      provisionalExpertSection: true
+    };
+    sourceConversation.upsertEditProposal(event.payload.runId, proposal);
+    if (
+      sourceConversation.approvalModeForRun(
+        event.payload.sessionId,
+        event.payload.runId
+      ) === "auto-approve"
+    ) {
+      const queueKey = `${event.payload.sessionId}\u0000${event.payload.runId}\u0000${proposalId}`;
+      queuedAutoAgentEdits.set(queueKey, {
+        conversation: sourceConversation,
+        sessionId: event.payload.sessionId,
+        runId: event.payload.runId,
+        proposalId
+      });
+    }
+    return;
+  }
+
   if (!target || target.readOnly) {
     const message = "目标文稿不可写，本次智能体变更未进入审阅。";
     sourceConversation.markToolConflict(
@@ -4475,6 +4884,14 @@ async function acceptDraftSectionCreationProposal(
   proposal: AgentEditProposal,
   automatic: boolean
 ): Promise<void> {
+  if (
+    proposal.status === "accepting" ||
+    proposal.status === "accepted" ||
+    proposal.status === "rejected" ||
+    proposal.status === "conflict"
+  ) {
+    return;
+  }
   const target = proposal.draftSectionCreationTarget;
   if (!target || target.sections.length === 0) {
     const message = "待审阅的章节创建缺少完整参数，请重新生成。";
@@ -4536,9 +4953,16 @@ async function acceptDraftSectionCreationProposal(
     uiMessage.warning(message);
     return;
   }
+  const resolvedAfterSectionId = target.afterSectionId
+    ? resolveProvisionalExpertSectionId(
+        request.runId,
+        proposal.workspaceId,
+        target.afterSectionId
+      )
+    : undefined;
   if (
-    target.afterSectionId &&
-    !directory.sections.some((section) => section.id === target.afterSectionId)
+    resolvedAfterSectionId &&
+    !directory.sections.some((section) => section.id === resolvedAfterSectionId)
   ) {
     const message = "指定的章节插入位置已不存在，未创建章节。";
     conversation.updateEditProposal(request.runId, request.proposalId, {
@@ -4562,8 +4986,9 @@ async function acceptDraftSectionCreationProposal(
   setAgentEditWorkspaceAccepting(proposal.workspaceId, true);
   let createdCount = 0;
   let afterSectionId =
-    target.afterSectionId ?? directory.sections.at(-1)?.id;
+    resolvedAfterSectionId ?? directory.sections.at(-1)?.id;
   let lastCreatedSectionId: string | undefined;
+  const createdMapping = new Map<string, string>();
   try {
     for (const section of target.sections) {
       const created = await window.deepwrite.catalog.createDraftSection({
@@ -4580,6 +5005,13 @@ async function acceptDraftSectionCreationProposal(
       createdCount += 1;
       afterSectionId = created.id;
       lastCreatedSectionId = created.id;
+      createdMapping.set(section.provisionalSectionId, created.id);
+      rememberProvisionalExpertSectionMapping(
+        request.runId,
+        proposal.workspaceId,
+        section.provisionalSectionId,
+        created.id
+      );
     }
     applyCatalogSnapshot(await window.deepwrite.catalog.snapshot());
     const savedDirectoryRevision = currentExpertDraftDirectoryRevision(
@@ -4589,6 +5021,12 @@ async function acceptDraftSectionCreationProposal(
       throw new Error("创建完成后无法读取最新正文目录版本。");
     }
     rememberAcceptedDraftSectionCreation(proposal, savedDirectoryRevision);
+    remapProvisionalExpertSectionFileProposals(
+      conversation,
+      request.runId,
+      proposal.workspaceId,
+      createdMapping
+    );
     const refreshedDirectory = catalogProjection.value?.draftDirectories.find(
       (candidate) => candidate.workspaceId === proposal.workspaceId
     );
@@ -4625,6 +5063,33 @@ async function acceptDraftSectionCreationProposal(
       status: createdCount ? "conflict" : "error",
       statusMessage: message
     });
+    if (createdMapping.size > 0) {
+      const savedDirectoryRevision = currentExpertDraftDirectoryRevision(
+        proposal.workspaceId
+      );
+      if (savedDirectoryRevision) {
+        rememberAcceptedDraftSectionCreation(proposal, savedDirectoryRevision);
+      }
+      remapProvisionalExpertSectionFileProposals(
+        conversation,
+        request.runId,
+        proposal.workspaceId,
+        createdMapping
+      );
+    }
+    const failedProvisionalIds = target.sections
+      .map((section) => section.provisionalSectionId)
+      .filter((sectionId) => !createdMapping.has(sectionId));
+    if (failedProvisionalIds.length > 0) {
+      conflictDependentProvisionalFileProposals(
+        conversation,
+        request.runId,
+        failedProvisionalIds,
+        createdCount
+          ? "关联的空白章节未能完整创建，未落盘章节的正文写入已取消。"
+          : "关联的空白章节未能完整创建，相关正文写入已取消。"
+      );
+    }
     if (createdCount) {
       uiMessage.warning(message);
     } else {
@@ -4640,7 +5105,7 @@ async function applyAgentEdit(
   request: AgentEditReviewRequest,
   automatic = false
 ): Promise<void> {
-  const proposal = conversation.getEditProposal(request.runId, request.proposalId);
+  let proposal = conversation.getEditProposal(request.runId, request.proposalId);
   if (!proposal) {
     uiMessage.error("待审阅的智能体变更已不存在，请重新生成修改。");
     return;
@@ -4657,6 +5122,16 @@ async function applyAgentEdit(
       proposedText: undefined,
       statusMessage: "已拒绝，原文保持不变。"
     });
+    if (proposal.draftSectionCreationTarget) {
+      conflictDependentProvisionalFileProposals(
+        conversation,
+        request.runId,
+        proposal.draftSectionCreationTarget.sections.map(
+          (section) => section.provisionalSectionId
+        ),
+        "空白章节创建已被拒绝，相关正文写入无法落盘。"
+      );
+    }
     uiMessage.info("已拒绝智能体修改，原文未改变");
     return;
   }
@@ -4688,6 +5163,81 @@ async function applyAgentEdit(
       automatic
     );
     return;
+  }
+
+  if (proposal.provisionalExpertSection) {
+    const parsedDocumentId = parseCatalogDraftDocumentId(proposal.documentId);
+    if (!parsedDocumentId) {
+      const message = "待审阅的临时章节文件标识无效，请重新生成。";
+      conversation.updateEditProposal(request.runId, request.proposalId, {
+        status: "error",
+        statusMessage: message
+      });
+      uiMessage.warning(message);
+      return;
+    }
+    const provisionalSectionId = parsedDocumentId.sectionId;
+    const creation = findPendingDraftSectionCreationForProvisional(
+      conversation,
+      request.runId,
+      provisionalSectionId
+    );
+    if (creation) {
+      await acceptDraftSectionCreationProposal(
+        conversation,
+        {
+          runId: request.runId,
+          proposalId: creation.id,
+          decision: "accept"
+        },
+        creation,
+        automatic
+      );
+    } else {
+      const realSectionId = resolveProvisionalExpertSectionId(
+        request.runId,
+        proposal.workspaceId,
+        provisionalSectionId
+      );
+      if (realSectionId !== provisionalSectionId) {
+        remapProvisionalExpertSectionFileProposals(
+          conversation,
+          request.runId,
+          proposal.workspaceId,
+          new Map([[provisionalSectionId, realSectionId]])
+        );
+      } else {
+        const inFlight = conversation.listEditProposals(request.runId).find(
+          (candidate) =>
+            candidate.draftSectionCreationTarget?.sections.some(
+              (section) => section.provisionalSectionId === provisionalSectionId
+            ) && candidate.status === "accepting"
+        );
+        if (inFlight) {
+          uiMessage.info("同一作品正在保存其他修改，请稍候再接受");
+          return;
+        }
+      }
+    }
+    const remapped = conversation.getEditProposal(
+      request.runId,
+      request.proposalId
+    );
+    if (!remapped) {
+      uiMessage.error("待审阅的智能体变更已不存在，请重新生成修改。");
+      return;
+    }
+    proposal = remapped;
+    if (proposal.provisionalExpertSection) {
+      const message =
+        "目标空白章节尚未落盘，无法写入正文。请先接受章节创建，或重新生成。";
+      conversation.updateEditProposal(request.runId, request.proposalId, {
+        status: "conflict",
+        statusMessage: message
+      });
+      uiMessage.warning(message);
+      return;
+    }
   }
 
   const target = liveWorkspaceDocuments.value.find(
@@ -4965,9 +5515,17 @@ function scheduleQueuedAutoAgentEdits(
 ): void {
   autoAgentEditFlush = autoAgentEditFlush
     .then(async () => {
-      const entries = [...queuedAutoAgentEdits.entries()].filter(([, queued]) =>
-        matches(queued)
-      );
+      const entries = [...queuedAutoAgentEdits.entries()]
+        .filter(([, queued]) => matches(queued))
+        .sort(
+          ([, left], [, right]) =>
+            autoApproveEditPriority(left.conversation, left.runId, left.proposalId) -
+            autoApproveEditPriority(
+              right.conversation,
+              right.runId,
+              right.proposalId
+            )
+        );
       for (const [key, queued] of entries) {
         if (queued.conversation.isBusy.value) continue;
         queuedAutoAgentEdits.delete(key);
@@ -5555,6 +6113,7 @@ onBeforeUnmount(() => {
         </button>
         <AgentTeamSettingsPanel
           :settings="agentTeamSettings"
+          :models="modelSettings?.models ?? []"
           :loading="agentTeamLoading"
           :saving="agentTeamSaving"
           :load-error="agentTeamLoadError"

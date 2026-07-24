@@ -8,6 +8,7 @@ import {
   watch,
   type CSSProperties
 } from "vue";
+import { createId } from "@deepwrite/shared";
 import AppIcon from "./AppIcon.vue";
 
 export type PopupSelectValue = string | number;
@@ -54,7 +55,7 @@ const menu = ref<HTMLElement | null>(null);
 const optionElements = ref<Array<HTMLButtonElement | undefined>>([]);
 const open = ref(false);
 const menuStyle = ref<CSSProperties>({});
-const menuId = `popup-select-${globalThis.crypto.randomUUID()}`;
+const menuId = createId("popup-select");
 
 const selectedOption = computed(() =>
   props.options.find((option) => Object.is(option.value, props.modelValue))

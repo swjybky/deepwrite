@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceDraftSectionCreationRevision,
+  draftSectionCreationRevisionKey,
   expectedDraftSectionCreationRevision
 } from "./draftSectionCreationRevision";
 
@@ -22,6 +23,9 @@ describe("draft section creation revision chain", () => {
     );
     expect(expectedDraftSectionCreationRevision("directory-v1", second)).toBe(
       "directory-v3"
+    );
+    expect(draftSectionCreationRevisionKey("run-a", "book-b")).toBe(
+      "run-a\u0000book-b"
     );
   });
 

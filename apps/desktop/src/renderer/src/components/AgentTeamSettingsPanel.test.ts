@@ -4,7 +4,9 @@ import source from "./AgentTeamSettingsPanel.vue?raw";
 describe("AgentTeamSettingsPanel", () => {
   it("explains the isolated subagent prompt and skill boundary", () => {
     expect(source).toContain("不继承主智能体提示词、会话或技能库");
-    expect(source).toContain("每次调用只接收自己的系统提示词和主智能体委派内容");
+    expect(source).toContain(
+      "必须通过工具写回、交接摘要不能代替写入"
+    );
   });
 
   it("shows the three workspace tabs and disables unfinished modes", () => {
@@ -21,7 +23,20 @@ describe("AgentTeamSettingsPanel", () => {
       expect(source).toContain(`label: "${label}"`);
     }
     expect(source).toContain("不能继续创建子智能体");
-    expect(source).toContain("继承所属主智能体的模型、工具与审批策略");
+    expect(source).toContain("默认跟随所属主智能体的模型");
+  });
+
+  it("supports model mode inherit or custom with PopupSelect", () => {
+    expect(source).toContain("跟随主智能体");
+    expect(source).toContain("单独配置模型");
+    expect(source).toContain('setSubagentModelMode(subagent, \'inherit\')');
+    expect(source).toContain('setSubagentModelMode(subagent, \'custom\')');
+    expect(source).toContain("PopupSelect");
+    expect(source).toContain("models:");
+    expect(source).toContain("setSubagentThinkingLevel");
+    expect(source).toContain("setSubagentTemperature");
+    expect(source).toContain('v-if="subagent.thinkingLevel === \'off\'"');
+    expect(source.indexOf("模型配置")).toBeLessThan(source.indexOf("<span>名称</span>"));
   });
 
   it("supports adding, editing, enabling, deleting and saving subagents", () => {

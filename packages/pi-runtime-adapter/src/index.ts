@@ -76,6 +76,7 @@ export interface AgentRunInput {
   runtimeConfig?: AgentProviderRuntimeConfig;
   agentProfile?: ShortWorkspaceAgentProfile;
   subagentDefinitions?: ShortAgentSubagentDefinition[];
+  subagentRuntimeConfigs?: Readonly<Record<string, AgentProviderRuntimeConfig>>;
   libraryAgentProfile?: LibraryAgentProfile;
   learningImitationProfile?: LearningImitationAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
@@ -219,6 +220,7 @@ export type AgentRuntimeEvent =
           sections: Array<{
             title: string;
             wordCountRequirement: string;
+            provisionalSectionId: string;
           }>;
           afterSectionId?: string;
         };
@@ -559,6 +561,27 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         thinkingLevel: effectiveThinkingLevel,
         streamFn,
         definitions: input.subagentDefinitions ?? [],
+        ...(input.subagentRuntimeConfigs
+          ? { subagentRuntimeConfigs: input.subagentRuntimeConfigs }
+          : {}),
+        buildCustomModelRuntime: (config, options) => {
+          const childThinking =
+            options?.thinkingLevel ?? config.defaultThinkingLevel ?? "medium";
+          const childTemperature =
+            childThinking === "off"
+              ? options?.temperature ?? config.temperatureOptions[1]
+              : undefined;
+          const childRuntime = buildProviderRuntime(
+            config,
+            childTemperature,
+            childThinking
+          );
+          return {
+            model: childRuntime.model,
+            streamFn: childRuntime.streamFn,
+            thinkingLevel: toPiThinkingLevel(childThinking)
+          };
+        },
         buildChildTools: buildShortTools,
         toolExecutionHooks: this.toolExecutionHooks,
         ...(this.subagentTimeoutMs === undefined

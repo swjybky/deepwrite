@@ -572,7 +572,8 @@ describe("DeepWrite Pi runtime adapter", () => {
         name: "人物审校",
         description: "检查人物设定冲突。",
         systemPrompt: "只做人物一致性检查。",
-        enabled: true
+        enabled: true,
+        modelMode: "inherit"
       }],
       workspaceContext: { shortWorkspace }
     })) {
@@ -589,7 +590,8 @@ describe("DeepWrite Pi runtime adapter", () => {
         name: "停用审校",
         description: "当前停用。",
         systemPrompt: "不要执行。",
-        enabled: false
+        enabled: false,
+        modelMode: "inherit"
       }],
       workspaceContext: { shortWorkspace }
     })) {
@@ -685,8 +687,16 @@ describe("DeepWrite Pi runtime adapter", () => {
             workspaceId: "short-1",
             stageId: "draft",
             sections: [
-              { title: "第二章", wordCountRequirement: "1200 字" },
-              { title: "第三章", wordCountRequirement: "" }
+              {
+                title: "第二章",
+                wordCountRequirement: "1200 字",
+                provisionalSectionId: "pending:section:1"
+              },
+              {
+                title: "第三章",
+                wordCountRequirement: "",
+                provisionalSectionId: "pending:section:2"
+              }
             ],
             afterSectionId: "section-1",
             baseRevision,
@@ -715,8 +725,16 @@ describe("DeepWrite Pi runtime adapter", () => {
         mutationTarget: {
           kind: "expert-draft-section-creation",
           sections: [
-            { title: "第二章", wordCountRequirement: "1200 字" },
-            { title: "第三章", wordCountRequirement: "" }
+            {
+              title: "第二章",
+              wordCountRequirement: "1200 字",
+              provisionalSectionId: "pending:section:1"
+            },
+            {
+              title: "第三章",
+              wordCountRequirement: "",
+              provisionalSectionId: "pending:section:2"
+            }
           ],
           afterSectionId: "section-1"
         },

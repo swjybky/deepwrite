@@ -68,6 +68,35 @@ export function createShortWorkspaceContentRevision(content: string): string {
   return `v1:${content.length}:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
+/** Provisional section ids allocated in-run before catalog create lands. */
+export const PROVISIONAL_EXPERT_DRAFT_SECTION_ID_PREFIX = "pending:section:";
+
+export function isProvisionalExpertDraftSectionId(sectionId: string): boolean {
+  return sectionId.startsWith(PROVISIONAL_EXPERT_DRAFT_SECTION_ID_PREFIX);
+}
+
+/**
+ * Directory/structure revision for expert draft. Must NOT include body or
+ * character-state content hashes — otherwise same-run content writes falsely
+ * invalidate pending section-creation proposals.
+ */
+export function createExpertDraftDirectoryRevision(
+  sections: ReadonlyArray<{
+    id: string;
+    title: string;
+    wordCountRequirement: string;
+  }>
+): string {
+  return createShortWorkspaceContentRevision(
+    sections
+      .map(
+        (section) =>
+          `${section.id}\u0000${section.title}\u0000${section.wordCountRequirement}`
+      )
+      .join("\u0001")
+  );
+}
+
 export const SHORT_MATERIAL_KINDS = [
   "character",
   "gimmick",
@@ -180,11 +209,12 @@ export const DEFAULT_SHORT_EXPERT_DRAFT_COORDINATOR_SYSTEM_PROMPT = `你是 Deep
 - 大纲为空且用户没有明确给出章节清单时，不得猜测章节结构，应引导用户先补充大纲或章节标题。
 - 章节标题、顺序和字数要求应与大纲或用户本轮明确要求一致；创建前必须排除目录中已经存在的同名章节。
 - 批量初始化必须在一次 create_expert_draft_sections 调用中提交全部待创建章节，不得拆成多次单章调用。
-- 初始化只新增空白章节文件，不删除、不改名、不排序、不覆盖已有章节，也不顺带写正文。
+- 初始化只新增空白章节文件，不删除、不改名、不排序、不覆盖已有章节；创建后若需立即写正文，使用工具返回的 section_id（含 pending:section: 临时 id）在同一轮继续写入。
 
 工具规则：
-- read_workspace_content（stage_id=draft）只返回正文目录索引；读取正文必须使用正文专用读取工具。
+- read_workspace_content（stage_id=draft）只返回正文目录索引（含本轮已提交、尚未落盘的待创建章节）；读取正文必须使用正文专用读取工具。
 - 每次写入或替换都必须指定稳定 section_id，不得把多个章节拼成一份文本覆盖。
+- 同一轮内先创建再写文时，必须使用创建结果给出的 section_id；不要假设章节已落盘到磁盘。
 - 总控只修改章节正文，不读写人物状态文件。
 - 正文目录只接通了新增空白章节文件；删除、改名和排序仍由界面管理。
 - 写入的只能是正式小说正文，不要混入分析过程、操作说明或工具记录。

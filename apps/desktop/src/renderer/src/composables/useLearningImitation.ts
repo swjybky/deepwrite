@@ -11,6 +11,7 @@ import {
   type ModelConfig,
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 
 export const LEARNING_IMITATION_PRESET_PROMPTS = {
   material_split: [
@@ -142,9 +143,7 @@ type LearningImitationRuntimeEvent = Extract<
 const MAX_TRACKED_EVENT_IDS = 1_000;
 
 function fallbackId(prefix: string): string {
-  const randomId = globalThis.crypto?.randomUUID?.() ??
-    `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-  return `${prefix}_${randomId}`;
+  return createId(prefix);
 }
 
 function cloneDocument(document: LearningImitationDocument): LearningImitationDocument {

@@ -13,6 +13,7 @@ import {
   type ThinkingLevelOptions,
   type ThinkingLevel
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
@@ -180,7 +181,7 @@ watch(
 
 function createModel(): void {
   modelEditor.value = {
-    id: `model_${globalThis.crypto.randomUUID()}`,
+    id: createId("model"),
     label: "",
     provider: "deepseek",
     modelId: "",
@@ -249,7 +250,7 @@ function applyProviderPreset(provider: string): void {
   const wasManaged = editor.managedBy === "deepwrite-free";
   delete editor.managedBy;
   if (wasManaged && !editor.originalId) {
-    editor.id = `model_${globalThis.crypto.randomUUID()}`;
+    editor.id = createId("model");
   }
   if (wasManaged) {
     editor.label = "";

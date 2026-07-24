@@ -7,6 +7,7 @@ describe("App agent-team integration", () => {
     expect(source).toContain('workspaceMainView.value = "agent-team"');
     expect(source).toContain('type WorkspaceMainView = "conversation" | "directory" | "models" | "imitation" | "agent-team"');
     expect(source).toContain("<AgentTeamSettingsPanel");
+    expect(source).toContain(':models="modelSettings?.models ?? []"');
     expect(source).toContain("class=\"agent-team-main-view\"");
   });
 

@@ -343,6 +343,50 @@ describe("short workspace tools", () => {
     expect(resultText(result)).not.toContain("暗房里显出了照片");
   });
 
+  it("shares create→write overlay across parent and child tool sets", async () => {
+    const snapshot = workspace("draft");
+    const sharedState = createShortWorkspaceToolSharedState(snapshot);
+    const parentTools = buildShortWorkspaceTools({
+      workspace: snapshot,
+      profile: profile("expert_draft_coordinator"),
+      sharedState
+    });
+    const childTools = buildShortWorkspaceTools({
+      workspace: snapshot,
+      profile: profile("expert_draft_coordinator"),
+      sharedState
+    });
+
+    const created = await toolByName(parentTools, "create_expert_draft_sections").execute(
+      "parent-create",
+      { sections: [{ title: "第五节·尾声" }] }
+    );
+    const details = created.details as Extract<
+      ShortWorkspaceToolDetails,
+      { kind: "workspace-expert-draft-section-creation" }
+    >;
+    const sectionId = details.sections[0]!.provisionalSectionId;
+
+    const written = await toolByName(childTools, "write_expert_draft_section").execute(
+      "child-write",
+      {
+        section_id: sectionId,
+        text: "尾声里只剩下潮水声。"
+      }
+    );
+    expect(written.details).toMatchObject({
+      kind: "workspace-expert-draft-file-mutation",
+      sectionId,
+      text: "尾声里只剩下潮水声。"
+    });
+
+    const readBack = await toolByName(parentTools, "read_expert_draft_section").execute(
+      "parent-read",
+      { section_id: sectionId }
+    );
+    expect(resultText(readBack)).toContain("尾声里只剩下潮水声。");
+  });
+
   it("lets only the draft coordinator propose one batch of blank chapter files", async () => {
     const snapshot = workspace("draft");
     const coordinatorTools = buildShortWorkspaceTools({
@@ -362,19 +406,49 @@ describe("short workspace tools", () => {
       after_section_id: "section-2"
     });
 
-    expect(result.details).toEqual({
+    expect(result.details).toMatchObject({
       kind: "workspace-expert-draft-section-creation",
       workspaceId: snapshot.id,
       stageId: "draft",
       sections: [
-        { title: "第三节·钟楼", wordCountRequirement: "1300 字" },
-        { title: "第四节·回声", wordCountRequirement: "" }
+        {
+          title: "第三节·钟楼",
+          wordCountRequirement: "1300 字",
+          provisionalSectionId: "pending:section:1"
+        },
+        {
+          title: "第四节·回声",
+          wordCountRequirement: "",
+          provisionalSectionId: "pending:section:2"
+        }
       ],
       afterSectionId: "section-2",
       baseRevision: snapshot.expertDraft.revision,
       summary: "已生成创建 2 个空白章节文件的变更，等待用户审阅。"
     });
     expect(resultText(result)).toContain("创建 2 个空白章节文件");
+    expect(resultText(result)).toContain("section_id=pending:section:1");
+
+    const directory = await toolByName(
+      coordinatorTools,
+      "read_workspace_content"
+    ).execute("read-after-create", { stage_id: "draft" });
+    expect(resultText(directory)).toContain("pending:section:1");
+    expect(resultText(directory)).toContain("本轮待创建");
+
+    const written = await toolByName(
+      coordinatorTools,
+      "write_expert_draft_section"
+    ).execute("write-pending", {
+      section_id: "pending:section:1",
+      text: "钟楼的指针停在十三分。"
+    });
+    expect(written.details).toMatchObject({
+      kind: "workspace-expert-draft-file-mutation",
+      sectionId: "pending:section:1",
+      fileKind: "body",
+      text: "钟楼的指针停在十三分。"
+    });
 
     const repeated = await create.execute("create-sections-again", {
       sections: [{ title: "第三节·钟楼" }]

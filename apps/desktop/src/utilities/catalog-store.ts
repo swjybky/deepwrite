@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   mkdir,
   readFile,
@@ -8,6 +8,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { createCatalogId, randomHex8 } from "@deepwrite/shared";
 import {
   CatalogDocumentSchema,
   CatalogSnapshotSchema,
@@ -1067,7 +1068,7 @@ async function importMissingLegacySources(
 
 async function atomicWriteJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  const temporary = `${path}.tmp-${process.pid}-${randomHex8()}`;
   try {
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
       encoding: "utf8",
@@ -1227,7 +1228,7 @@ export class CatalogStore {
 
   async createShortBook(rawInput: CreateShortBookInput): Promise<ShortBook> {
     const input = CreateShortBookInputSchema.parse(rawInput);
-    const id = `book-${randomBytes(4).toString("hex")}`;
+    const id = createCatalogId("book");
     const now = this.now();
     const book = ShortBookSchema.parse({
       id,

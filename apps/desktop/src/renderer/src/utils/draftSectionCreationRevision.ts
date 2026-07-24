@@ -3,6 +3,13 @@ export interface DraftSectionCreationRevisionCursor {
   currentRevision: string;
 }
 
+export function draftSectionCreationRevisionKey(
+  runId: string,
+  workspaceId: string
+): string {
+  return `${runId}\u0000${workspaceId}`;
+}
+
 export function expectedDraftSectionCreationRevision(
   proposalBaseRevision: string,
   cursor: DraftSectionCreationRevisionCursor | undefined

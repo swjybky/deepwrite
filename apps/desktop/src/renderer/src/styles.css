@@ -1726,6 +1726,10 @@ html[data-platform="darwin"] .conversation-header {
   margin: 2px 0 18px;
 }
 
+.processing-content > .subagent-run-list {
+  margin: 0;
+}
+
 .subagent-run-card {
   overflow: hidden;
   min-width: 0;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { randomHex8 } from "@deepwrite/shared";
 import type {
   EditorTextReference,
   EditorTextReferenceNavigation
@@ -114,7 +115,7 @@ function captureEditorSelection(
   const start = input.selectionStart ?? 0;
   const end = input.selectionEnd ?? start;
   const reference = createEditorTextReference({
-    id: globalThis.crypto.randomUUID(),
+    id: randomHex8(),
     resourceId: props.resourceId,
     document: {
       ...props.document,

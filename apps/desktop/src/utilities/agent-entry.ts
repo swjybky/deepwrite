@@ -408,6 +408,9 @@ bootUtility("agent", {
         ...(command.payload.subagentDefinitions
           ? { subagentDefinitions: command.payload.subagentDefinitions }
           : {}),
+        ...(command.payload.subagentRuntimeConfigs
+          ? { subagentRuntimeConfigs: command.payload.subagentRuntimeConfigs }
+          : {}),
         ...(command.payload.libraryAgentProfile
           ? { libraryAgentProfile: command.payload.libraryAgentProfile }
           : {}),

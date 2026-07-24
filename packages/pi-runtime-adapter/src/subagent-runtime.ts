@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   Agent,
   type AfterToolCallContext,
@@ -22,6 +22,7 @@ import {
 import { Type, type Static } from "typebox";
 import {
   type AgentUsage,
+  type AgentProviderRuntimeConfig,
   type ShortAgentSubagentDefinition
 } from "@deepwrite/contracts";
 import { sanitizeToolSchemaForGemini } from "./short-agent-tools";
@@ -110,6 +111,26 @@ export interface BuildSpawnSubagentToolInput {
   thinkingLevel: PiThinkingLevel;
   streamFn: StreamFn;
   definitions: readonly ShortAgentSubagentDefinition[];
+  /**
+   * Resolved provider configs keyed by model config id, for subagents with
+   * `modelMode: "custom"`.
+   */
+  subagentRuntimeConfigs?: Readonly<Record<string, AgentProviderRuntimeConfig>>;
+  /**
+   * Builds a child model + stream from a custom runtime config. Required when
+   * any enabled definition uses `modelMode: "custom"`.
+   */
+  buildCustomModelRuntime?: (
+    config: AgentProviderRuntimeConfig,
+    options?: {
+      thinkingLevel?: ShortAgentSubagentDefinition["thinkingLevel"];
+      temperature?: ShortAgentSubagentDefinition["temperature"];
+    }
+  ) => {
+    model: Model<Api>;
+    streamFn: StreamFn;
+    thinkingLevel: PiThinkingLevel;
+  };
   buildChildTools: () => AgentTool[];
   toolExecutionHooks?: AgentToolExecutionHooks;
   timeoutMs?: number;
@@ -174,6 +195,38 @@ function isAssistantMessage(message: AgentMessage): message is AssistantMessage 
 }
 
 /**
+ * Child agents keep their own role prompt (no parent prompt inheritance), but
+ * still need an explicit execution boundary so they use the inherited tools to
+ * read/write instead of dumping chapter text into the handoff summary.
+ */
+export function buildSubagentSystemPrompt(
+  definition: ShortAgentSubagentDefinition,
+  childTools: readonly AgentTool[]
+): string {
+  const toolLines = childTools.map((tool) => {
+    const label = "label" in tool && typeof tool.label === "string" && tool.label.trim()
+      ? tool.label.trim()
+      : tool.name;
+    return `- ${tool.name}（${label}）`;
+  });
+  return [
+    definition.systemPrompt.trim(),
+    "",
+    `【当前子智能体：${definition.name} / ${definition.id}】`,
+    "【子智能体执行边界】",
+    "你由当前主智能体为一个明确子任务临时创建。本次运行使用全新上下文，不继承主对话历史。",
+    "本轮已提供下列工具；读取、创建章节、写入正文、局部替换都必须通过这些工具完成，不能只在聊天或交接摘要里写正文。",
+    ...(toolLines.length > 0
+      ? ["可用工具：", ...toolLines]
+      : ["本轮没有可用工具；只能返回无法完成写入的交接说明。"]),
+    "若任务要求写文或改章：先用读取工具核对目标，再调用对应写入 / 替换工具；工具成功后，交接摘要只说明写了哪一章、调用了哪些工具、是否已生成待审阅变更。",
+    "禁止把应写入章节文件的小说正文整段粘贴进最终交接摘要来代替工具调用。",
+    "你不能创建或调用其它子智能体。",
+    "最终回复只写给主智能体的交接摘要：说明完成了什么、关键结论、产生的待审阅修改及仍需主智能体处理的事项。"
+  ].join("\n");
+}
+
+/**
  * Builds the sole delegation capability exposed to a parent short-workspace
  * agent. Every invocation creates a fresh, uncached Agent instance.
  */
@@ -219,7 +272,7 @@ export function buildSpawnSubagentTool(
       const task = String(params.task ?? "").trim();
       if (!task) throw new Error("子智能体任务不能为空。");
 
-      const subagentRunId = input.createRunId?.() ?? `subrun_${randomUUID()}`;
+      const subagentRunId = input.createRunId?.() ?? `subrun_${randomBytes(4).toString("hex")}`;
       const progressBase: SubagentProgressBase = {
         parentToolCallId,
         subagentRunId,
@@ -237,20 +290,49 @@ export function buildSpawnSubagentTool(
 
       let child: Agent;
       try {
+        let childModel = input.model;
+        let childStreamFn = input.streamFn;
+        let childThinkingLevel = input.thinkingLevel;
+        if (definition.modelMode === "custom") {
+          const modelId = definition.modelId?.trim();
+          if (!modelId) {
+            throw new Error(`子智能体「${definition.name}」未配置模型。`);
+          }
+          const runtimeConfig = input.subagentRuntimeConfigs?.[modelId];
+          if (!runtimeConfig) {
+            throw new Error(
+              `子智能体「${definition.name}」配置的模型不可用，请重新保存智能体团队或刷新模型配置。`
+            );
+          }
+          if (!input.buildCustomModelRuntime) {
+            throw new Error("当前运行时不支持子智能体单独配置模型。");
+          }
+          const customRuntime = input.buildCustomModelRuntime(runtimeConfig, {
+            ...(definition.thinkingLevel !== undefined
+              ? { thinkingLevel: definition.thinkingLevel }
+              : {}),
+            ...(definition.temperature !== undefined
+              ? { temperature: definition.temperature }
+              : {})
+          });
+          childModel = customRuntime.model;
+          childStreamFn = customRuntime.streamFn;
+          childThinkingLevel = customRuntime.thinkingLevel;
+        }
         const childTools = input.buildChildTools().filter(
           (tool) => tool.name !== "load_skill" && tool.name !== "spawn_subagent"
         );
         child = new Agent({
           initialState: {
-            systemPrompt: definition.systemPrompt.trim(),
-            model: input.model,
-            thinkingLevel: input.thinkingLevel,
+            systemPrompt: buildSubagentSystemPrompt(definition, childTools),
+            model: childModel,
+            thinkingLevel: childThinkingLevel,
             messages: [],
             // buildChildTools() creates fresh read evidence while closing over the
             // same parent-run mutation/revision overlay.
             tools: childTools
           },
-          streamFn: input.streamFn,
+          streamFn: childStreamFn,
           sessionId: `${input.parentSessionId}:${subagentRunId}`,
           toolExecution: "sequential",
           ...input.toolExecutionHooks

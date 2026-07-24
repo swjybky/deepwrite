@@ -14,8 +14,10 @@ import {
   LibraryAgentWorkspaceSnapshotSchema,
   SHORT_WORKSPACE_STAGE_IDS,
   SHORT_WORKSPACE_TEXT_STAGE_IDS,
+  createExpertDraftDirectoryRevision,
   createShortWorkspaceContentRevision
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 import type {
   AgentApprovalMode,
   AgentEditProposal,
@@ -98,6 +100,7 @@ export interface AgentConversationController {
   approvalModeForRun(sessionId: string, runId: string): AgentApprovalMode | undefined;
   markToolConflict(runId: string, toolCallId: string, summary: string): void;
   getEditProposal(runId: string, proposalId: string): AgentEditProposal | undefined;
+  listEditProposals(runId: string): AgentEditProposal[];
   upsertEditProposal(runId: string, proposal: AgentEditProposal): AgentEditProposal;
   updateEditProposal(
     runId: string,
@@ -130,7 +133,7 @@ export type WorkspaceContextAttachments = Pick<
 >;
 
 function id(prefix: string): string {
-  return `${prefix}_${globalThis.crypto.randomUUID()}`;
+  return createId(prefix);
 }
 
 function cloneTextDiffLine(line: AgentTextDiffLine): AgentTextDiffLine {
@@ -149,6 +152,21 @@ function cloneEditProposal(proposal: AgentEditProposal): AgentEditProposal {
     ...proposal,
     ...(proposal.libraryTarget
       ? { libraryTarget: { ...proposal.libraryTarget } }
+      : {}),
+    ...(proposal.draftSectionCreationTarget
+      ? {
+          draftSectionCreationTarget: {
+            sections: proposal.draftSectionCreationTarget.sections.map((section) => ({
+              ...section
+            })),
+            ...(proposal.draftSectionCreationTarget.afterSectionId
+              ? {
+                  afterSectionId:
+                    proposal.draftSectionCreationTarget.afterSectionId
+                }
+              : {})
+          }
+        }
       : {}),
     toolCallIds: [...proposal.toolCallIds],
     hunks: proposal.hunks.map(cloneTextDiffHunk)
@@ -273,6 +291,49 @@ function parseStoredTextDiffHunk(value: unknown): AgentTextDiffHunk | undefined 
   };
 }
 
+function parseStoredDraftSectionCreationTarget(
+  value: unknown
+): AgentEditProposal["draftSectionCreationTarget"] | undefined {
+  if (!isRecord(value) || !Array.isArray(value.sections) || value.sections.length === 0) {
+    return undefined;
+  }
+  const sections: Array<{
+    title: string;
+    wordCountRequirement: string;
+    provisionalSectionId: string;
+  }> = [];
+  for (const [index, section] of value.sections.entries()) {
+    if (
+      !isRecord(section) ||
+      typeof section.title !== "string" ||
+      typeof section.wordCountRequirement !== "string"
+    ) {
+      return undefined;
+    }
+    sections.push({
+      title: section.title,
+      wordCountRequirement: section.wordCountRequirement,
+      provisionalSectionId:
+        typeof section.provisionalSectionId === "string" &&
+        section.provisionalSectionId.trim()
+          ? section.provisionalSectionId
+          : `pending:section:legacy-${index + 1}`
+    });
+  }
+  if (
+    value.afterSectionId !== undefined &&
+    typeof value.afterSectionId !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    sections,
+    ...(typeof value.afterSectionId === "string"
+      ? { afterSectionId: value.afterSectionId }
+      : {})
+  };
+}
+
 function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined {
   if (
     !isRecord(value) ||
@@ -299,6 +360,8 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
     !Array.isArray(value.hunks) ||
     (value.truncated !== undefined && typeof value.truncated !== "boolean") ||
     (value.statusMessage !== undefined && typeof value.statusMessage !== "string") ||
+    (value.provisionalExpertSection !== undefined &&
+      typeof value.provisionalExpertSection !== "boolean") ||
     !validDate(value.createdAt) ||
     !validDate(value.updatedAt)
   ) {
@@ -308,6 +371,15 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
   if (
     (value.stageId === "library" && !libraryTarget) ||
     (value.stageId !== "library" && value.libraryTarget !== undefined)
+  ) {
+    return undefined;
+  }
+  const draftSectionCreationTarget = parseStoredDraftSectionCreationTarget(
+    value.draftSectionCreationTarget
+  );
+  if (
+    value.draftSectionCreationTarget !== undefined &&
+    !draftSectionCreationTarget
   ) {
     return undefined;
   }
@@ -337,7 +409,11 @@ function parseStoredEditProposal(value: unknown): AgentEditProposal | undefined 
     ...(value.statusMessage === undefined ? {} : { statusMessage: value.statusMessage }),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
-    ...(libraryTarget ? { libraryTarget } : {})
+    ...(libraryTarget ? { libraryTarget } : {}),
+    ...(draftSectionCreationTarget ? { draftSectionCreationTarget } : {}),
+    ...(value.provisionalExpertSection
+      ? { provisionalExpertSection: true }
+      : {})
   };
 }
 
@@ -1642,6 +1718,10 @@ export function useAgentConversation(
     return proposal ? cloneEditProposal(proposal) : undefined;
   }
 
+  function listEditProposals(runId: string): AgentEditProposal[] {
+    return (messageForEditProposal(runId)?.editProposals ?? []).map(cloneEditProposal);
+  }
+
   function upsertEditProposal(
     runId: string,
     proposal: AgentEditProposal
@@ -2200,13 +2280,12 @@ export function useAgentConversation(
         completeStages.length === SHORT_WORKSPACE_TEXT_STAGE_IDS.length &&
         completeDraftSections.length > 0
       ) {
-        const expertDraftRevision = createShortWorkspaceContentRevision(
-          completeDraftSections
-            .map(
-              (section) =>
-                `${section.id}\u0000${section.title}\u0000${section.wordCountRequirement}\u0000${section.body.revision}\u0000${section.characterState.revision}`
-            )
-            .join("\u0001")
+        const expertDraftRevision = createExpertDraftDirectoryRevision(
+          completeDraftSections.map((section) => ({
+            id: section.id,
+            title: section.title,
+            wordCountRequirement: section.wordCountRequirement
+          }))
         );
         contextSnapshot.shortWorkspace = {
           id: activeDocument.workspaceId,
@@ -2583,6 +2662,7 @@ export function useAgentConversation(
     approvalModeForRun,
     markToolConflict,
     getEditProposal,
+    listEditProposals,
     upsertEditProposal,
     updateEditProposal,
     handleEvent,

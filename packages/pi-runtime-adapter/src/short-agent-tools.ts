@@ -4,7 +4,11 @@ import {
   SHORT_MATERIAL_KINDS,
   SHORT_SKILL_KINDS,
   SHORT_WORKSPACE_STAGE_IDS,
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
   createShortWorkspaceContentRevision,
+  isProvisionalExpertDraftSectionId,
+  PROVISIONAL_EXPERT_DRAFT_SECTION_ID_PREFIX,
   type AgentWriteApprovalMode,
   type ExpertDraftSectionSnapshot,
   type ShortWorkspaceAgentProfile,
@@ -41,6 +45,7 @@ export type ShortWorkspaceToolDetails =
       sections: Array<{
         title: string;
         wordCountRequirement: string;
+        provisionalSectionId: string;
       }>;
       afterSectionId?: string;
       baseRevision: string;
@@ -72,7 +77,15 @@ export interface ShortWorkspaceToolSharedState {
   stageBodies: Map<ShortWorkspaceStageId, string>;
   stageRevisions: Map<ShortWorkspaceStageId, string>;
   expertSections: ExpertSectionMap;
+  /** Stable directory order including provisional sections created in this run. */
+  expertSectionOrder: string[];
   pendingExpertSectionTitles: Set<string>;
+  pendingSectionSeq: number;
+  /**
+   * Structural directory revision at run start. Section creation proposals keep
+   * this base so Renderer same-run accept chaining stays valid.
+   */
+  expertDraftDirectoryBaseRevision: string;
 }
 
 export const SHORT_WORKSPACE_TOOL_MANIFEST = {
@@ -257,18 +270,35 @@ function buildReadWorkspaceContentTool(
         return textResult(`当前智能体不允许读取「${stageLabel(stageId)}」。`);
       }
       if (stageId === "draft") {
-        const index = input.workspace.expertDraft.sections
+        const shared = input.sharedState;
+        const orderedIds =
+          shared?.expertSectionOrder ??
+          input.workspace.expertDraft.sections.map((section) => section.id);
+        const sections = orderedIds
+          .map(
+            (sectionId) =>
+              shared?.expertSections.get(sectionId) ??
+              input.workspace.expertDraft.sections.find(
+                (section) => section.id === sectionId
+              )
+          )
+          .filter((section): section is ExpertDraftSectionSnapshot => Boolean(section));
+        const index = sections
           .map(
             (section, sectionIndex) =>
-              `${sectionIndex + 1}. ${section.title}（${section.id}）\n` +
+              `${sectionIndex + 1}. ${section.title}（${section.id}）` +
+              `${isProvisionalExpertDraftSectionId(section.id) ? "〔本轮待创建〕" : ""}\n` +
               `   正文文件：${section.body.title}（${section.body.documentId}）\n` +
               `   人物状态文件：${section.characterState.title}（${section.characterState.documentId}）`
           )
           .join("\n");
+        const directoryRevision =
+          shared?.expertDraftDirectoryBaseRevision ??
+          input.workspace.expertDraft.revision;
         return textResult(
           `书名：《${input.workspace.title}》\n【正文目录】（draft）\n` +
-          `目录版本：${input.workspace.expertDraft.revision}\n` +
-          `小节数：${input.workspace.expertDraft.sections.length}\n\n${index}\n\n` +
+          `目录版本：${directoryRevision}\n` +
+          `小节数：${sections.length}\n\n${index}\n\n` +
           "这里只返回文件映射，不返回合并正文。整篇读取请调用 read_all_expert_draft，单节读取请调用 read_expert_draft_section。"
         );
       }
@@ -313,10 +343,10 @@ function buildSearchWorkspaceTextTool(
         if (!allowed.includes(stageId)) continue;
         const draftSectionSnapshots =
           input.profile.id === "expert_section_writer"
-            ? input.workspace.expertDraft.sections.filter((section) =>
-                readableExpertSectionIds(input).has(section.id)
+            ? orderedExpertSections(input, expertSections).filter((section) =>
+                readableExpertSectionIds(input, expertSections).has(section.id)
               )
-            : input.workspace.expertDraft.sections;
+            : orderedExpertSections(input, expertSections);
         const sources = stageId === "draft"
           ? draftSectionSnapshots.map((snapshot) => {
               const section = expertSections.get(snapshot.id) ?? snapshot;
@@ -659,6 +689,16 @@ function activeExpertSectionId(
 export function createShortWorkspaceToolSharedState(
   workspace: ShortWorkspaceSnapshot
 ): ShortWorkspaceToolSharedState {
+  const expertSections = new Map(
+    workspace.expertDraft.sections.map((section) => [
+      section.id,
+      {
+        ...section,
+        body: { ...section.body },
+        characterState: { ...section.characterState }
+      }
+    ] as const)
+  );
   return {
     stageBodies: new Map<ShortWorkspaceStageId, string>(
       workspace.stages.map((stage) => [stage.stageId, stage.content])
@@ -666,18 +706,56 @@ export function createShortWorkspaceToolSharedState(
     stageRevisions: new Map<ShortWorkspaceStageId, string>(
       workspace.stages.map((stage) => [stage.stageId, stage.revision])
     ),
-    expertSections: new Map(
-      workspace.expertDraft.sections.map((section) => [
-        section.id,
-        {
-          ...section,
-          body: { ...section.body },
-          characterState: { ...section.characterState }
-        }
-      ] as const)
-    ),
-    pendingExpertSectionTitles: new Set<string>()
+    expertSections,
+    expertSectionOrder: workspace.expertDraft.sections.map((section) => section.id),
+    pendingExpertSectionTitles: new Set<string>(),
+    pendingSectionSeq: 0,
+    expertDraftDirectoryBaseRevision: workspace.expertDraft.revision
   };
+}
+
+function nextProvisionalSectionId(
+  sharedState: ShortWorkspaceToolSharedState
+): string {
+  sharedState.pendingSectionSeq += 1;
+  return `${PROVISIONAL_EXPERT_DRAFT_SECTION_ID_PREFIX}${sharedState.pendingSectionSeq}`;
+}
+
+function createBlankProvisionalSection(
+  sectionId: string,
+  title: string,
+  wordCountRequirement: string
+): ExpertDraftSectionSnapshot {
+  const emptyRevision = createShortWorkspaceContentRevision("");
+  return {
+    id: sectionId,
+    title,
+    wordCountRequirement,
+    body: {
+      documentId: catalogDraftBodyDocumentId(sectionId),
+      title,
+      content: "",
+      revision: emptyRevision
+    },
+    characterState: {
+      documentId: catalogDraftCharacterStateDocumentId(sectionId),
+      title: `${title} · 人物状态`,
+      content: "",
+      revision: emptyRevision
+    }
+  };
+}
+
+function orderedExpertSections(
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap
+): ExpertDraftSectionSnapshot[] {
+  const order =
+    input.sharedState?.expertSectionOrder ??
+    input.workspace.expertDraft.sections.map((section) => section.id);
+  return order
+    .map((sectionId) => expertSections.get(sectionId))
+    .filter((section): section is ExpertDraftSectionSnapshot => Boolean(section));
 }
 
 function buildCreateExpertDraftSectionsTool(
@@ -688,7 +766,7 @@ function buildCreateExpertDraftSectionsTool(
     name: "create_expert_draft_sections",
     label: "创建章节文件",
     description:
-      "一次创建一个或多个空白正文章节；每章会生成独立的正文文件和人物状态文件。只新增结构，不写正文、不删除或覆盖已有章节。",
+      "一次创建一个或多个空白正文章节；每章会生成独立的正文文件和人物状态文件，并返回可在同一轮继续写入的 section_id。只新增结构，不写正文、不删除或覆盖已有章节。",
     parameters: Type.Object({
       sections: Type.Array(
         Type.Object({
@@ -728,7 +806,9 @@ function buildCreateExpertDraftSectionsTool(
       }
 
       const existingTitles = new Set([
-        ...input.workspace.expertDraft.sections.map((section) => section.title),
+        ...orderedExpertSections(input, sharedState.expertSections).map(
+          (section) => section.title
+        ),
         ...sharedState.pendingExpertSectionTitles
       ]);
       const conflicts = sections
@@ -740,9 +820,7 @@ function buildCreateExpertDraftSectionsTool(
         );
       }
 
-      const currentCount =
-        input.workspace.expertDraft.sections.length +
-        sharedState.pendingExpertSectionTitles.size;
+      const currentCount = sharedState.expertSectionOrder.length;
       if (currentCount + sections.length > 100) {
         return textResult(
           `未创建：正文最多支持 100 个章节，当前已有或待创建 ${currentCount} 个，本次请求 ${sections.length} 个。`
@@ -750,40 +828,65 @@ function buildCreateExpertDraftSectionsTool(
       }
 
       const afterSectionId = String(params.after_section_id ?? "").trim();
-      if (
-        afterSectionId &&
-        !input.workspace.expertDraft.sections.some(
-          (section) => section.id === afterSectionId
-        )
-      ) {
+      if (afterSectionId && !sharedState.expertSections.has(afterSectionId)) {
         return textResult(`未创建：找不到插入位置章节 ${afterSectionId}。`);
       }
 
-      for (const section of sections) {
-        sharedState.pendingExpertSectionTitles.add(section.title);
+      let insertAt = sharedState.expertSectionOrder.length;
+      if (afterSectionId) {
+        const afterIndex = sharedState.expertSectionOrder.indexOf(afterSectionId);
+        if (afterIndex < 0) {
+          return textResult(`未创建：找不到插入位置章节 ${afterSectionId}。`);
+        }
+        insertAt = afterIndex + 1;
       }
-      const summary = `已生成创建 ${sections.length} 个空白章节文件的变更，等待用户审阅。`;
-      return textResult(
+
+      const createdSections: Array<{
+        title: string;
+        wordCountRequirement: string;
+        provisionalSectionId: string;
+      }> = [];
+      for (const [offset, section] of sections.entries()) {
+        const provisionalSectionId = nextProvisionalSectionId(sharedState);
+        const snapshot = createBlankProvisionalSection(
+          provisionalSectionId,
+          section.title,
+          section.wordCountRequirement
+        );
+        sharedState.expertSections.set(provisionalSectionId, snapshot);
+        sharedState.expertSectionOrder.splice(insertAt + offset, 0, provisionalSectionId);
+        sharedState.pendingExpertSectionTitles.add(section.title);
+        createdSections.push({
+          title: section.title,
+          wordCountRequirement: section.wordCountRequirement,
+          provisionalSectionId
+        });
+      }
+
+      const idLines = createdSections
+        .map(
+          (section, index) =>
+            `${index + 1}. ${section.title} → section_id=${section.provisionalSectionId}`
+        )
+        .join("\n");
+      const summary = `已生成创建 ${createdSections.length} 个空白章节文件的变更，等待用户审阅。`;
+      const resultSummary =
         input.writeApprovalMode === "auto-approve"
           ? summary.replace(
               "，等待用户审阅。",
               "，将在本轮完成后自动批准并保存。"
             )
-          : summary,
+          : summary;
+      return textResult(
+        `${resultSummary}\n${idLines}\n同一轮内可立即使用上述 section_id 读取或写入正文。`,
         {
           kind: "workspace-expert-draft-section-creation",
           workspaceId: input.workspace.id,
           stageId: "draft",
-          sections,
+          sections: createdSections,
           ...(afterSectionId ? { afterSectionId } : {}),
-          baseRevision: input.workspace.expertDraft.revision,
-          summary:
-            input.writeApprovalMode === "auto-approve"
-              ? summary.replace(
-                  "，等待用户审阅。",
-                  "，将在本轮完成后自动批准并保存。"
-                )
-              : summary
+          baseRevision: sharedState.expertDraftDirectoryBaseRevision,
+          summary: resultSummary
         }
       );
     },
@@ -792,21 +895,23 @@ function buildCreateExpertDraftSectionsTool(
 }
 
 function readableExpertSectionIds(
-  input: BuildShortWorkspaceToolsInput
+  input: BuildShortWorkspaceToolsInput,
+  expertSections: ExpertSectionMap
 ): Set<string> {
   if (input.profile.id === "expert_draft_coordinator") {
-    return new Set(input.workspace.expertDraft.sections.map((section) => section.id));
+    return new Set(
+      input.sharedState?.expertSectionOrder ?? [...expertSections.keys()]
+    );
   }
   const activeSectionId = activeExpertSectionId(input);
-  const activeIndex = input.workspace.expertDraft.sections.findIndex(
-    (section) => section.id === activeSectionId
-  );
+  const order =
+    input.sharedState?.expertSectionOrder ??
+    input.workspace.expertDraft.sections.map((section) => section.id);
+  const activeIndex = order.findIndex((sectionId) => sectionId === activeSectionId);
   return new Set(
     activeIndex < 0
       ? []
-      : input.workspace.expertDraft.sections
-          .slice(Math.max(0, activeIndex - 3), activeIndex + 1)
-          .map((section) => section.id)
+      : order.slice(Math.max(0, activeIndex - 3), activeIndex + 1)
   );
 }
 
@@ -837,14 +942,16 @@ function buildReadExpertDraftSectionTool(
     execute: async (_toolCallId, params) => {
       const sectionId = String(params.section_id ?? "").trim();
       const section = expertSections.get(sectionId);
-      const knownSection = input.workspace.expertDraft.sections.some(
-        (candidate) => candidate.id === sectionId
-      );
-      if (!section || !readableExpertSectionIds(input).has(sectionId)) {
+      const knownSection =
+        expertSections.has(sectionId) ||
+        input.workspace.expertDraft.sections.some(
+          (candidate) => candidate.id === sectionId
+        );
+      if (!section || !readableExpertSectionIds(input, expertSections).has(sectionId)) {
         return textResult(
           knownSection
             ? `小节 ${sectionId} 不在当前智能体的可读范围内。`
-            : `没有找到正文小节 ${sectionId}。当前可用：${[...expertSections.values()]
+            : `没有找到正文小节 ${sectionId}。当前可用：${orderedExpertSections(input, expertSections)
                 .map((item) => `${item.title}（${item.id}）`)
                 .join("、")}`
         );
@@ -879,12 +986,12 @@ function buildReadAllExpertDraftTool(
       "一次读取正文目录中所有小节的完整正文文件，不读取或混入人物状态。",
     parameters: Type.Object({}),
     execute: async () => {
-      input.workspace.expertDraft.sections.forEach((section) => {
+      const sections = orderedExpertSections(input, expertSections);
+      sections.forEach((section) => {
         readExpertFileIds.add(section.body.documentId);
       });
-      const body = input.workspace.expertDraft.sections
-        .map((snapshot, index) => {
-          const section = expertSections.get(snapshot.id) ?? snapshot;
+      const body = sections
+        .map((section, index) => {
           return [
             `===== ${index + 1}. ${section.title} =====`,
             `section_id: ${section.id}`,
@@ -896,9 +1003,12 @@ function buildReadAllExpertDraftTool(
           ].join("\n");
         })
         .join("\n\n");
+      const directoryRevision =
+        input.sharedState?.expertDraftDirectoryBaseRevision ??
+        input.workspace.expertDraft.revision;
       return textResult(
-        `书名：《${input.workspace.title}》\n正文目录版本：${input.workspace.expertDraft.revision}\n` +
-        `已完整读取 ${input.workspace.expertDraft.sections.length} 个小节的正文；以下不包含人物状态。\n\n${body}`
+        `书名：《${input.workspace.title}》\n正文目录版本：${directoryRevision}\n` +
+        `已完整读取 ${sections.length} 个小节的正文；以下不包含人物状态。\n\n${body}`
       );
     }
   });
@@ -920,15 +1030,16 @@ function buildReadExpertCharacterStateTool(
     execute: async (_toolCallId, params) => {
       const sectionId = String(params.section_id ?? "").trim();
       const section = expertSections.get(sectionId);
-      const activeIndex = input.workspace.expertDraft.sections.findIndex(
-        (candidate) => candidate.id === activeExpertSectionId(input)
+      const order =
+        input.sharedState?.expertSectionOrder ??
+        input.workspace.expertDraft.sections.map((candidate) => candidate.id);
+      const activeIndex = order.findIndex(
+        (candidate) => candidate === activeExpertSectionId(input)
       );
       const allowedIds = new Set(
         activeIndex < 0
           ? []
-          : input.workspace.expertDraft.sections
-              .slice(Math.max(0, activeIndex - 1), activeIndex + 1)
-              .map((candidate) => candidate.id)
+          : order.slice(Math.max(0, activeIndex - 1), activeIndex + 1)
       );
       if (!section) return textResult(`没有找到正文小节 ${sectionId}。`);
       if (!allowedIds.has(sectionId)) {
@@ -1160,65 +1271,66 @@ export function buildShortWorkspaceTools(
   input: BuildShortWorkspaceToolsInput
 ): AgentTool[] {
   const sharedState = input.sharedState ?? createShortWorkspaceToolSharedState(input.workspace);
+  const toolInput: BuildShortWorkspaceToolsInput = { ...input, sharedState };
   const { stageBodies, stageRevisions, expertSections } = sharedState;
   // This is intentionally agent-local. A child reading a file must never grant
   // its parent permission to overwrite that file (or vice versa).
   const readExpertFileIds = new Set<string>();
-  let activeStageId = input.workspace.activeStageId;
+  let activeStageId = toolInput.workspace.activeStageId;
   const readTools = [
-    buildReadWorkspaceContentTool(input, stageBodies),
-    buildSearchWorkspaceTextTool(input, stageBodies, expertSections),
-    buildQueryLinkedMaterialEntriesTool(input),
-    buildLoadSkillTool(input)
+    buildReadWorkspaceContentTool(toolInput, stageBodies),
+    buildSearchWorkspaceTextTool(toolInput, stageBodies, expertSections),
+    buildQueryLinkedMaterialEntriesTool(toolInput),
+    buildLoadSkillTool(toolInput)
   ];
 
-  if (input.profile.id === "expert_draft_coordinator") {
+  if (toolInput.profile.id === "expert_draft_coordinator") {
     return [
       ...readTools,
-      buildCreateExpertDraftSectionsTool(input, sharedState),
-      buildReadAllExpertDraftTool(input, expertSections, readExpertFileIds),
-      buildReadExpertDraftSectionTool(input, expertSections, readExpertFileIds),
+      buildCreateExpertDraftSectionsTool(toolInput, sharedState),
+      buildReadAllExpertDraftTool(toolInput, expertSections, readExpertFileIds),
+      buildReadExpertDraftSectionTool(toolInput, expertSections, readExpertFileIds),
       buildWriteCoordinatorExpertSectionTool(
-        input,
+        toolInput,
         expertSections,
         readExpertFileIds
       ),
-      buildReplaceCoordinatorExpertSectionTool(input, expertSections, readExpertFileIds, {
+      buildReplaceCoordinatorExpertSectionTool(toolInput, expertSections, readExpertFileIds, {
         name: "replace_expert_draft_section_text",
         label: "替换正文小节文本"
       }),
-      buildReplaceCoordinatorExpertSectionTool(input, expertSections, readExpertFileIds, {
+      buildReplaceCoordinatorExpertSectionTool(toolInput, expertSections, readExpertFileIds, {
         name: "edit_expert_draft_section",
         label: "编辑正文小节"
       })
     ];
   }
 
-  if (input.profile.id === "expert_section_writer") {
+  if (toolInput.profile.id === "expert_section_writer") {
     return [
       ...readTools,
-      buildReadExpertDraftSectionTool(input, expertSections, readExpertFileIds),
-      buildReadExpertCharacterStateTool(input, expertSections, readExpertFileIds),
+      buildReadExpertDraftSectionTool(toolInput, expertSections, readExpertFileIds),
+      buildReadExpertCharacterStateTool(toolInput, expertSections, readExpertFileIds),
       buildReplaceExpertSectionFieldTool(
-        input,
+        toolInput,
         expertSections,
         readExpertFileIds,
         "body"
       ),
       buildWriteExpertSectionFieldTool(
-        input,
+        toolInput,
         expertSections,
         readExpertFileIds,
         "body"
       ),
       buildReplaceExpertSectionFieldTool(
-        input,
+        toolInput,
         expertSections,
         readExpertFileIds,
         "characterState"
       ),
       buildWriteExpertSectionFieldTool(
-        input,
+        toolInput,
         expertSections,
         readExpertFileIds,
         "characterState"
@@ -1227,16 +1339,16 @@ export function buildShortWorkspaceTools(
   }
 
   const tools = [...readTools];
-  if (input.profile.id === "plot_design") {
+  if (toolInput.profile.id === "plot_design") {
     tools.push(
-      buildSwitchStorylineStageTool(input, (stageId) => {
+      buildSwitchStorylineStageTool(toolInput, (stageId) => {
         activeStageId = stageId;
       })
     );
   }
   tools.push(
-    buildWriteWorkspaceEditorTool(input, stageBodies, stageRevisions, () => activeStageId),
-    buildReplaceStageTextTool(input, stageBodies, stageRevisions, () => activeStageId)
+    buildWriteWorkspaceEditorTool(toolInput, stageBodies, stageRevisions, () => activeStageId),
+    buildReplaceStageTextTool(toolInput, stageBodies, stageRevisions, () => activeStageId)
   );
   return tools;
 }

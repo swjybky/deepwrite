@@ -6,6 +6,7 @@ import {
   type PromptImageMediaType,
   type UserPromptAttachment
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 
 export const PROMPT_ATTACHMENT_ACCEPT = [
   ".txt",
@@ -38,7 +39,7 @@ function extensionOf(name: string): string {
 }
 
 function attachmentId(): string {
-  return `prompt_attachment_${globalThis.crypto.randomUUID()}`;
+  return createId("prompt_attachment");
 }
 
 function imageMediaType(file: File): PromptImageMediaType | undefined {

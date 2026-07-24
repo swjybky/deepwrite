@@ -16,7 +16,8 @@ const definition: ShortAgentSubagentDefinition = {
   name: "连续性审阅",
   description: "检查人物状态、时间线和伏笔是否前后一致。",
   systemPrompt: "只检查连续性问题，并把结论摘要交还主智能体。",
-  enabled: true
+  enabled: true,
+  modelMode: "inherit"
 };
 
 function completeSettings() {
@@ -81,6 +82,83 @@ describe("agent-team contracts", () => {
     expect(AgentTeamSettingsInputSchema.parse(completeSettings())).toEqual(
       completeSettings()
     );
+  });
+
+  it("defaults missing modelMode to inherit and requires modelId for custom", () => {
+    const legacy = completeSettings();
+    const outline = legacy.teams.find((team) => team.parentAgentId === "outline")!;
+    outline.subagents = [
+      {
+        id: "legacy_helper",
+        name: "旧配置助手",
+        description: "无模型字段的旧数据。",
+        systemPrompt: "保持兼容。",
+        enabled: true
+      } as ShortAgentSubagentDefinition
+    ];
+    const parsed = AgentTeamSettingsInputSchema.parse(legacy);
+    expect(
+      parsed.teams.find((team) => team.parentAgentId === "outline")?.subagents[0]
+    ).toMatchObject({ modelMode: "inherit" });
+
+    const customMissingModel = completeSettings();
+    customMissingModel.teams.find(
+      (team) => team.parentAgentId === "outline"
+    )!.subagents = [
+      {
+        ...definition,
+        modelMode: "custom"
+      }
+    ];
+    expect(
+      AgentTeamSettingsInputSchema.safeParse(customMissingModel).success
+    ).toBe(false);
+
+    const customWithModel = completeSettings();
+    customWithModel.teams.find(
+      (team) => team.parentAgentId === "outline"
+    )!.subagents = [
+      {
+        ...definition,
+        modelMode: "custom",
+        modelId: "model-local-1",
+        thinkingLevel: "medium"
+      }
+    ];
+    expect(
+      AgentTeamSettingsInputSchema.safeParse(customWithModel).success
+    ).toBe(true);
+
+    const customOffWithoutTemperature = completeSettings();
+    customOffWithoutTemperature.teams.find(
+      (team) => team.parentAgentId === "outline"
+    )!.subagents = [
+      {
+        ...definition,
+        modelMode: "custom",
+        modelId: "model-local-1",
+        thinkingLevel: "off"
+      }
+    ];
+    expect(
+      AgentTeamSettingsInputSchema.safeParse(customOffWithoutTemperature).success
+    ).toBe(false);
+
+    const customOffWithTemperature = completeSettings();
+    customOffWithTemperature.teams.find(
+      (team) => team.parentAgentId === "outline"
+    )!.subagents = [
+      {
+        ...definition,
+        modelMode: "custom",
+        modelId: "model-local-1",
+        thinkingLevel: "off",
+        temperature: 0.7
+      }
+    ];
+    expect(
+      AgentTeamSettingsInputSchema.safeParse(customOffWithTemperature).success
+    ).toBe(true);
   });
 
   it("rejects duplicate ids and names inside one parent team", () => {

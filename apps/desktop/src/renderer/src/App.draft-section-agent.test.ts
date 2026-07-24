@@ -29,5 +29,16 @@ describe("App agent chapter-file creation", () => {
     expect(source).toContain(
       "rememberAcceptedDraftSectionCreation(proposal, savedDirectoryRevision)"
     );
+    expect(source).toContain("remapProvisionalExpertSectionFileProposals(");
+    expect(source).toContain("provisionalExpertSection: true");
+    expect(source).toContain("createExpertDraftDirectoryRevision(");
+    expect(source).toContain("autoApproveEditPriority(");
+    expect(source).toContain('proposal.status === "pending"');
+    expect(source).toContain("failedProvisionalIds");
+    expect(source).toContain("section.hasBody && section.hasCharacterState");
+    expect(source).toContain("expectedDirectoryRevision");
+    expect(source).toContain("resolveProvisionalWriteStagingMode(");
+    expect(source).toContain('stagingMode === "mapped-real"');
+    expect(source).toContain("draftSectionCreationRevisionKey(");
   });
 });

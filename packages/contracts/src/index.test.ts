@@ -536,8 +536,16 @@ describe("DeepWrite desktop contracts", () => {
       mutationTarget: {
         kind: "expert-draft-section-creation" as const,
         sections: [
-          { title: "第二章", wordCountRequirement: "1200 字" },
-          { title: "第三章", wordCountRequirement: "" }
+          {
+            title: "第二章",
+            wordCountRequirement: "1200 字",
+            provisionalSectionId: "pending:section:1"
+          },
+          {
+            title: "第三章",
+            wordCountRequirement: "",
+            provisionalSectionId: "pending:section:2"
+          }
         ],
         afterSectionId: "section-1"
       },
@@ -549,7 +557,10 @@ describe("DeepWrite desktop contracts", () => {
     expect(WorkspaceEditorMutationPayloadSchema.parse(payload)).toMatchObject({
       mutationTarget: {
         kind: "expert-draft-section-creation",
-        sections: [{ title: "第二章" }, { title: "第三章" }]
+        sections: [
+          { title: "第二章", provisionalSectionId: "pending:section:1" },
+          { title: "第三章", provisionalSectionId: "pending:section:2" }
+        ]
       }
     });
     expect(

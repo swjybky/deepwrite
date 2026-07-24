@@ -377,6 +377,13 @@ export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema
   runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
   agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
   subagentDefinitions: ShortAgentSubagentDefinitionsSchema.optional(),
+  /**
+   * Runtime-only map of model config id → resolved provider config for
+   * subagents that use `modelMode: "custom"`. Never persisted with teams.
+   */
+  subagentRuntimeConfigs: z
+    .record(z.string().min(1).max(120), AgentProviderRuntimeConfigSchema)
+    .optional(),
   libraryAgentProfile: LibraryAgentProfileSchema.optional(),
   learningImitationProfile: LearningImitationAgentProfileSchema.optional()
 }).superRefine((value, context) => {
@@ -390,6 +397,28 @@ export const AgentPromptCommandPayloadSchema = SessionPromptCommandPayloadSchema
       path: ["subagentDefinitions"],
       message: "Subagent definitions require a short workspace and its agent profile."
     });
+  }
+  if (
+    value.subagentRuntimeConfigs !== undefined &&
+    value.subagentDefinitions === undefined
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["subagentRuntimeConfigs"],
+      message: "Subagent runtime configs require subagent definitions."
+    });
+  }
+  if (value.subagentDefinitions && value.subagentRuntimeConfigs) {
+    for (const definition of value.subagentDefinitions) {
+      if (definition.modelMode !== "custom" || !definition.modelId) continue;
+      if (!value.subagentRuntimeConfigs[definition.modelId]) {
+        context.addIssue({
+          code: "custom",
+          path: ["subagentRuntimeConfigs", definition.modelId],
+          message: `Missing runtime config for subagent model: ${definition.modelId}`
+        });
+      }
+    }
   }
   if (shortWorkspace && value.agentProfile) {
     const activeAgentId =
@@ -628,7 +657,8 @@ export const WorkspaceEditorMutationTargetSchema = z.discriminatedUnion("kind", 
       .array(
         z.object({
           title: z.string().trim().min(1).max(240),
-          wordCountRequirement: z.string().max(1_000)
+          wordCountRequirement: z.string().max(1_000),
+          provisionalSectionId: z.string().trim().min(1).max(120)
         })
       )
       .min(1)

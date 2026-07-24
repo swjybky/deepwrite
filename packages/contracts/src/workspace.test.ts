@@ -14,6 +14,7 @@ import {
   WorkspaceAgentsResetCommandEnvelopeSchema,
   WorkspaceAgentsSaveCommandEnvelopeSchema,
   createShortWorkspaceContentRevision,
+  createExpertDraftDirectoryRevision,
   createEnvelope,
   resolveShortWorkspaceAgentIdForStage,
 } from "./index";
@@ -149,7 +150,7 @@ describe("short workspace contracts", () => {
       character_design: "d758185c",
       plot_design: "6ed0f6fe",
       outline: "2479c31a",
-      expert_draft_coordinator: "022c8ee2",
+      expert_draft_coordinator: "c3e2ad07",
       expert_section_writer: "5a7065ff"
     });
   });
@@ -369,5 +370,47 @@ describe("short workspace contracts", () => {
         )
       })
     ).toThrow();
+  });
+});
+
+describe("createExpertDraftDirectoryRevision", () => {
+  it("ignores body and character-state content when hashing the directory", () => {
+    const sections = [
+      {
+        id: "section-1",
+        title: "第一节",
+        wordCountRequirement: "1000 字"
+      },
+      {
+        id: "section-2",
+        title: "第二节",
+        wordCountRequirement: ""
+      }
+    ];
+    const first = createExpertDraftDirectoryRevision(sections);
+    const second = createExpertDraftDirectoryRevision(sections);
+    expect(first).toBe(second);
+    expect(first).not.toBe(createShortWorkspaceContentRevision("任意正文"));
+    expect(createExpertDraftDirectoryRevision(sections)).toBe(
+      createExpertDraftDirectoryRevision([
+        { ...sections[0]! },
+        { ...sections[1]! }
+      ])
+    );
+  });
+
+  it("changes when structure changes", () => {
+    const base = createExpertDraftDirectoryRevision([
+      { id: "section-1", title: "第一节", wordCountRequirement: "1000 字" }
+    ]);
+    const renamed = createExpertDraftDirectoryRevision([
+      { id: "section-1", title: "新标题", wordCountRequirement: "1000 字" }
+    ]);
+    const added = createExpertDraftDirectoryRevision([
+      { id: "section-1", title: "第一节", wordCountRequirement: "1000 字" },
+      { id: "pending:section:1", title: "第二节", wordCountRequirement: "" }
+    ]);
+    expect(renamed).not.toBe(base);
+    expect(added).not.toBe(base);
   });
 });

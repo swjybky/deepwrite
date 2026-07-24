@@ -2,6 +2,7 @@ import {
   LEARNING_IMITATION_DOCUMENT_MAX_CHARACTERS,
   type LearningImitationDocument
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 import { readPromptAttachment } from "./promptAttachments";
 
 export const LEARNING_DOCUMENT_ACCEPT = [
@@ -45,7 +46,7 @@ function extensionOf(name: string): string {
 }
 
 function learningDocumentId(): string {
-  return `learning_document_${globalThis.crypto.randomUUID()}`;
+  return createId("learning_document");
 }
 
 function normalizeExtractedText(text: string): string {

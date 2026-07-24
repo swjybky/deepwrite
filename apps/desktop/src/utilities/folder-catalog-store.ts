@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createCatalogId, randomHex8 } from "@deepwrite/shared";
 import {
   lstat,
   mkdir,
@@ -437,7 +437,7 @@ export class FolderCatalogStore {
     return await this.mutate(async () => {
       const now = this.now();
       const book: ShortBook = {
-        id: createShortCatalogId("book"),
+        id: createCatalogId("book"),
         title: input.title,
         bookType: "short",
         genre: input.genre,
@@ -515,7 +515,7 @@ export class FolderCatalogStore {
       const resource: MaterialLibrary | SkillLibrary =
         input.domain === "material"
           ? {
-              id: createShortCatalogId("material"),
+              id: createCatalogId("material"),
               title: input.name,
               materialType: "short",
               materialKind: input.materialKind,
@@ -527,7 +527,7 @@ export class FolderCatalogStore {
               updatedAt: now
             }
           : {
-              id: createShortCatalogId("skill"),
+              id: createCatalogId("skill"),
               title: input.name,
               skillType: "short",
               skillKind: input.skillKind,
@@ -617,14 +617,14 @@ export class FolderCatalogStore {
       const resource: MaterialLibraryGroup | SkillLibraryGroup =
         input.domain === "material"
           ? {
-              id: createShortCatalogId("material-group"),
+              id: createCatalogId("material-group"),
               title: input.name,
               members: { ...input.members },
               createdAt: now,
               updatedAt: now
             }
           : {
-              id: createShortCatalogId("skill-group"),
+              id: createCatalogId("skill-group"),
               title: input.name,
               members: { ...input.members },
               createdAt: now,
@@ -661,7 +661,7 @@ export class FolderCatalogStore {
     return await this.mutate(async () => {
       const now = this.now();
       const book = ShortBookSchema.parse({
-        id: createShortCatalogId("book"),
+        id: createCatalogId("book"),
         title: input.title,
         bookType: "short",
         genre: input.genre,
@@ -725,10 +725,10 @@ export class FolderCatalogStore {
         input.domain === "material"
           ? {
               ...input.library,
-              id: createShortCatalogId("material"),
+              id: createCatalogId("material"),
               entries: input.library.entries.map((entry) => ({
                 ...entry,
-                id: createShortCatalogId("material-entry"),
+                id: createCatalogId("material-entry"),
                 createdAt: now,
                 updatedAt: now
               })),
@@ -737,11 +737,11 @@ export class FolderCatalogStore {
             }
           : {
               ...input.library,
-              id: createShortCatalogId("skill"),
+              id: createCatalogId("skill"),
               isBuiltin: false,
               entries: input.library.entries.map((entry) => ({
                 ...entry,
-                id: createShortCatalogId("skill-entry"),
+                id: createCatalogId("skill-entry"),
                 createdAt: now,
                 updatedAt: now
               })),
@@ -1505,7 +1505,7 @@ export class FolderCatalogStore {
         assertBaseRevision(rawInput.baseProjectRevision, manifest.revision);
       }
       const now = this.now();
-      const id = createShortCatalogId(`${domain}-entry`);
+      const id = createCatalogId(`${domain}-entry`);
       const path = await uniqueRelativeMarkdownPath(
         projectDirectory,
         "entries",
@@ -1643,7 +1643,7 @@ export class FolderCatalogStore {
       assertJsonByteLength(next, this.maxManifestBytes);
       const stagedDeletion = join(
         dirname(target),
-        `.deepwrite-delete-${randomUUID()}.tmp`
+        `.deepwrite-delete-${randomHex8()}.tmp`
       );
       await rename(target, stagedDeletion);
       try {
@@ -1732,7 +1732,7 @@ export class FolderCatalogStore {
 
       const stagedDeletion = join(
         dirname(projectDirectory),
-        `.deepwrite-deleting-${randomUUID()}`
+        `.deepwrite-deleting-${randomHex8()}`
       );
       await rename(projectDirectory, stagedDeletion);
       try {
@@ -1944,7 +1944,7 @@ export class FolderCatalogStore {
     );
     const stagingDirectory = join(
       secureParent,
-      `.deepwrite-project-${process.pid}-${randomUUID()}.tmp`
+      `.deepwrite-project-${process.pid}-${randomHex8()}.tmp`
     );
     await mkdir(stagingDirectory, { mode: 0o700 });
     let promoted = false;
@@ -2429,11 +2429,6 @@ function parseRegistry(value: unknown): FolderCatalogRegistry {
     projects,
     ...(legacyImport === undefined ? {} : { legacyImport })
   };
-}
-
-/** 8 位十六进制随机后缀，例如 book-a1b2c3d4、material-entry-a1b2c3d4。 */
-function createShortCatalogId(prefix: string): string {
-  return `${prefix}-${randomBytes(4).toString("hex")}`;
 }
 
 function parseId(value: unknown): string {
@@ -3602,7 +3597,7 @@ async function commitProjectFileCreations(
 
 async function atomicWriteText(path: string, value: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = join(dirname(path), `.deepwrite-${randomUUID()}.tmp`);
+  const temporary = join(dirname(path), `.deepwrite-${randomHex8()}.tmp`);
   try {
     await writeFile(temporary, value, { encoding: "utf8", mode: 0o600 });
     await rename(temporary, path);

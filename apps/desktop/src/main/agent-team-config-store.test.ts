@@ -29,14 +29,16 @@ function customizedInput(): AgentTeamSettingsInput {
                 name: "大纲审阅",
                 description: "检查大纲逻辑与缺漏。",
                 systemPrompt: "审阅大纲并只向主智能体返回摘要。",
-                enabled: true
+                enabled: true,
+                modelMode: "inherit" as const
               },
               {
                 id: "disabled_helper",
                 name: "停用助手",
                 description: "暂时不参与工作。",
                 systemPrompt: "当前已停用。",
-                enabled: false
+                enabled: false,
+                modelMode: "inherit" as const
               }
             ]
           : []

@@ -179,6 +179,50 @@ export function catalogDraftCharacterStateDocumentId(sectionId: string): string 
   return `draft-section:${sectionId}:character-state`;
 }
 
+const CATALOG_DRAFT_DOCUMENT_ID_PREFIX = "draft-section:";
+const CATALOG_DRAFT_BODY_SUFFIX = ":body";
+const CATALOG_DRAFT_CHARACTER_STATE_SUFFIX = ":character-state";
+
+export type CatalogDraftFileKind = "body" | "character-state";
+
+/**
+ * Inverse of {@link catalogDraftBodyDocumentId} /
+ * {@link catalogDraftCharacterStateDocumentId}. Prefers the longer
+ * `:character-state` suffix so section ids that contain `:body` are not
+ * mis-parsed.
+ */
+export function parseCatalogDraftDocumentId(
+  documentId: string
+): { sectionId: string; fileKind: CatalogDraftFileKind } | undefined {
+  if (!documentId.startsWith(CATALOG_DRAFT_DOCUMENT_ID_PREFIX)) {
+    return undefined;
+  }
+  if (documentId.endsWith(CATALOG_DRAFT_CHARACTER_STATE_SUFFIX)) {
+    const sectionId = documentId.slice(
+      CATALOG_DRAFT_DOCUMENT_ID_PREFIX.length,
+      documentId.length - CATALOG_DRAFT_CHARACTER_STATE_SUFFIX.length
+    );
+    if (
+      !sectionId ||
+      catalogDraftCharacterStateDocumentId(sectionId) !== documentId
+    ) {
+      return undefined;
+    }
+    return { sectionId, fileKind: "character-state" };
+  }
+  if (documentId.endsWith(CATALOG_DRAFT_BODY_SUFFIX)) {
+    const sectionId = documentId.slice(
+      CATALOG_DRAFT_DOCUMENT_ID_PREFIX.length,
+      documentId.length - CATALOG_DRAFT_BODY_SUFFIX.length
+    );
+    if (!sectionId || catalogDraftBodyDocumentId(sectionId) !== documentId) {
+      return undefined;
+    }
+    return { sectionId, fileKind: "body" };
+  }
+  return undefined;
+}
+
 export const CatalogDraftSectionSchema = z
   .object({
     id: DraftSectionIdSchema,

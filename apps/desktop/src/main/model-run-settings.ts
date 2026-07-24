@@ -49,3 +49,15 @@ export function resolveModelRunSettings(
     ...(temperature !== undefined ? { temperature } : {})
   };
 }
+
+/**
+ * Validates requested thinking/temperature against a resolved model config.
+ * Use when callers apply those settings later (e.g. subagent spawn) and only
+ * need the throw-on-invalid behavior here.
+ */
+export function assertModelRunSettings(
+  runtimeConfig: AgentProviderRuntimeConfig | undefined,
+  requested: RequestedModelRunSettings
+): void {
+  resolveModelRunSettings(runtimeConfig, requested);
+}

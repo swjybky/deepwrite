@@ -36,6 +36,7 @@ import {
   WorkspaceDirectorySettingsSchema,
   createDefaultAppearanceSettings,
   createEnvelope,
+  type AgentProviderRuntimeConfig,
   type AgentRuntimeRef,
   type AppearanceSettings,
   type CommandResult,
@@ -52,7 +53,10 @@ import { AgentTeamConfigStore } from "./agent-team-config-store";
 import { ModelConfigStore } from "./model-config-store";
 import { LearningImitationConfigStore } from "./learning-imitation-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
-import { resolveModelRunSettings } from "./model-run-settings";
+import {
+  assertModelRunSettings,
+  resolveModelRunSettings
+} from "./model-run-settings";
 import {
   applyNativeAppearanceChrome,
   resolveNativeBackgroundColor
@@ -1329,6 +1333,28 @@ function registerIpc(): void {
           const subagentDefinitions = agentProfile
             ? await requireAgentTeamConfigStore().resolve(agentProfile.id)
             : undefined;
+          const subagentRuntimeConfigs: Record<string, AgentProviderRuntimeConfig> =
+            {};
+          if (subagentDefinitions?.length) {
+            for (const definition of subagentDefinitions) {
+              if (definition.modelMode !== "custom" || !definition.modelId) {
+                continue;
+              }
+              const resolved =
+                subagentRuntimeConfigs[definition.modelId] ??
+                (await requireModelConfigStore().resolve(definition.modelId));
+              if (!resolved) {
+                throw new Error(
+                  `子智能体「${definition.name}」配置的模型不存在，请刷新模型配置后重试。`
+                );
+              }
+              assertModelRunSettings(resolved, {
+                thinkingLevel: definition.thinkingLevel,
+                temperature: definition.temperature
+              });
+              subagentRuntimeConfigs[definition.modelId] = resolved;
+            }
+          }
           const libraryAgentProfile = libraryWorkspace
             ? await requireLibraryAgentConfigStore().resolve(
                 libraryWorkspace.domain
@@ -1358,6 +1384,9 @@ function registerIpc(): void {
                 ...(runtimeConfig ? { runtimeConfig } : {}),
                 ...(agentProfile ? { agentProfile } : {}),
                 ...(subagentDefinitions ? { subagentDefinitions } : {}),
+                ...(Object.keys(subagentRuntimeConfigs).length > 0
+                  ? { subagentRuntimeConfigs }
+                  : {}),
                 ...(libraryAgentProfile ? { libraryAgentProfile } : {}),
                 ...(learningImitationProfile ? { learningImitationProfile } : {})
               },

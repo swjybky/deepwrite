@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   AgentTeamSettingsInputSchema,
+  BUILT_IN_REASONING_LEVELS,
   SHORT_AGENT_SUBAGENT_DESCRIPTION_MAX_LENGTH,
   SHORT_AGENT_SUBAGENT_MAX_COUNT,
   SHORT_AGENT_SUBAGENT_NAME_MAX_LENGTH,
@@ -8,12 +9,17 @@ import {
   SHORT_WORKSPACE_AGENT_IDS,
   type AgentTeamSettings,
   type AgentTeamSettingsInput,
+  type BuiltInReasoningLevel,
+  type ModelConfig,
   type ShortAgentSubagentDefinition,
-  type ShortWorkspaceAgentId
+  type ShortAgentSubagentModelMode,
+  type ShortWorkspaceAgentId,
+  type ThinkingLevel
 } from "@deepwrite/contracts";
 import { computed, ref, watch } from "vue";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
+import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
 
 interface ParentAgentMeta {
   id: ShortWorkspaceAgentId;
@@ -23,6 +29,7 @@ interface ParentAgentMeta {
 
 const props = defineProps<{
   settings: AgentTeamSettings | null;
+  models: readonly ModelConfig[];
   loading: boolean;
   saving: boolean;
   loadError?: string | null;
@@ -87,13 +94,104 @@ const activeTeam = computed(() =>
   )
 );
 
+const modelOptions = computed<PopupSelectOption[]>(() =>
+  props.models.map((model) => ({ value: model.id, label: model.label }))
+);
+
+const modelById = computed(() => {
+  const map = new Map<string, ModelConfig>();
+  for (const model of props.models) {
+    map.set(model.id, model);
+  }
+  return map;
+});
+
+const builtInThinkingLabels: Record<BuiltInReasoningLevel, string> = {
+  minimal: "最低",
+  low: "较低",
+  medium: "标准",
+  high: "深度",
+  xhigh: "极高",
+  max: "最高"
+};
+
+function thinkingLabel(level: ThinkingLevel): string {
+  if (level === "off") return "关闭";
+  return BUILT_IN_REASONING_LEVELS.includes(level as BuiltInReasoningLevel)
+    ? builtInThinkingLabels[level as BuiltInReasoningLevel]
+    : `自定义（${level}）`;
+}
+
+function modelDefaults(model: ModelConfig | undefined): {
+  thinkingLevel: ThinkingLevel;
+  temperature: number;
+} {
+  return {
+    thinkingLevel: model?.defaultThinkingLevel ?? "medium",
+    temperature: model?.temperatureOptions[1] ?? 0.7
+  };
+}
+
+function thinkingOptionsFor(
+  subagent: ShortAgentSubagentDefinition
+): PopupSelectOption[] {
+  const model = subagent.modelId ? modelById.value.get(subagent.modelId) : undefined;
+  if (!model) {
+    return [
+      { value: "off", label: thinkingLabel("off") },
+      ...BUILT_IN_REASONING_LEVELS.map((value) => ({
+        value,
+        label: thinkingLabel(value)
+      }))
+    ];
+  }
+  return [
+    { value: "off", label: thinkingLabel("off") },
+    ...model.thinkingLevelOptions.map((value) => ({
+      value,
+      label: thinkingLabel(value)
+    }))
+  ];
+}
+
+function temperatureOptionsFor(
+  subagent: ShortAgentSubagentDefinition
+): PopupSelectOption[] {
+  const model = subagent.modelId ? modelById.value.get(subagent.modelId) : undefined;
+  return (model?.temperatureOptions ?? [0.1, 0.7, 1]).map((value) => ({
+    value,
+    label: `温度 ${value}`
+  }));
+}
+
+function applyModelRunDefaults(
+  subagent: ShortAgentSubagentDefinition,
+  modelId: string | undefined
+): void {
+  const defaults = modelDefaults(
+    modelId ? modelById.value.get(modelId) : undefined
+  );
+  subagent.thinkingLevel = defaults.thinkingLevel;
+  subagent.temperature = defaults.temperature;
+}
+
 watch(
   () => props.settings,
   (settings) => {
     draftTeams.value = settings
       ? settings.teams.map((team) => ({
           parentAgentId: team.parentAgentId,
-          subagents: team.subagents.map((subagent) => ({ ...subagent }))
+          subagents: team.subagents.map((subagent) => ({
+            ...subagent,
+            modelMode: subagent.modelMode ?? "inherit",
+            ...(subagent.modelId ? { modelId: subagent.modelId } : {}),
+            ...(subagent.thinkingLevel !== undefined
+              ? { thinkingLevel: subagent.thinkingLevel }
+              : {}),
+            ...(subagent.temperature !== undefined
+              ? { temperature: subagent.temperature }
+              : {})
+          }))
         }))
       : [];
     editingSubagentId.value = null;
@@ -124,9 +222,81 @@ function addSubagent(): void {
     name: `新子智能体 ${team.subagents.length + 1}`,
     description: "",
     systemPrompt: "",
-    enabled: true
+    enabled: true,
+    modelMode: "inherit"
   });
   editingSubagentId.value = id;
+}
+
+function setSubagentModelMode(
+  subagent: ShortAgentSubagentDefinition,
+  mode: ShortAgentSubagentModelMode
+): void {
+  if (formDisabled.value) return;
+  subagent.modelMode = mode;
+  if (mode !== "custom") {
+    delete subagent.modelId;
+    delete subagent.thinkingLevel;
+    delete subagent.temperature;
+    return;
+  }
+  if (!subagent.modelId && props.models[0]) {
+    subagent.modelId = props.models[0].id;
+  }
+  if (subagent.thinkingLevel === undefined) {
+    applyModelRunDefaults(subagent, subagent.modelId);
+  }
+}
+
+function setSubagentModelId(
+  subagent: ShortAgentSubagentDefinition,
+  modelId: string
+): void {
+  if (formDisabled.value) return;
+  subagent.modelId = modelId;
+  applyModelRunDefaults(subagent, modelId);
+}
+
+function setSubagentThinkingLevel(
+  subagent: ShortAgentSubagentDefinition,
+  level: ThinkingLevel
+): void {
+  if (formDisabled.value) return;
+  subagent.thinkingLevel = level;
+  if (level === "off") {
+    const options = temperatureOptionsFor(subagent);
+    const current = subagent.temperature;
+    if (
+      current === undefined ||
+      !options.some((option) => Object.is(option.value, current))
+    ) {
+      subagent.temperature = Number(options[1]?.value ?? options[0]?.value ?? 0.7);
+    }
+  }
+}
+
+function setSubagentTemperature(
+  subagent: ShortAgentSubagentDefinition,
+  temperature: number
+): void {
+  if (formDisabled.value) return;
+  subagent.temperature = temperature;
+}
+
+function subagentModelSummary(subagent: ShortAgentSubagentDefinition): string {
+  if (subagent.modelMode !== "custom") return "跟随主智能体";
+  if (!subagent.modelId) return "单独配置（未选模型）";
+  const modelLabel =
+    modelById.value.get(subagent.modelId)?.label ?? subagent.modelId;
+  const thinking =
+    subagent.thinkingLevel !== undefined
+      ? thinkingLabel(subagent.thinkingLevel)
+      : undefined;
+  if (!thinking) return modelLabel;
+  if (subagent.thinkingLevel === "off" && subagent.temperature !== undefined) {
+    return `${modelLabel} · 关闭 · 温度 ${subagent.temperature}`;
+  }
+  return `${modelLabel} · ${thinking}`;
 }
 
 function editSubagent(id: string): void {
@@ -167,6 +337,30 @@ function validationMessage(
       if (!subagent.name.trim()) return "子智能体名称不能为空";
       if (!subagent.description.trim()) return "子智能体能力说明不能为空";
       if (!subagent.systemPrompt.trim()) return "子智能体系统提示词不能为空";
+      if (subagent.modelMode === "custom") {
+        if (!subagent.modelId?.trim()) return "单独配置模型时必须选择模型";
+        const model = props.models.find((candidate) => candidate.id === subagent.modelId);
+        if (!model) {
+          return `子智能体「${subagent.name.trim() || "未命名"}」所选模型不存在，请重新选择`;
+        }
+        if (subagent.thinkingLevel === undefined) {
+          return "单独配置模型时必须选择思考等级";
+        }
+        if (
+          subagent.thinkingLevel !== "off" &&
+          !model.thinkingLevelOptions.includes(subagent.thinkingLevel)
+        ) {
+          return `子智能体「${subagent.name.trim() || "未命名"}」的思考等级不在所选模型配置中`;
+        }
+        if (subagent.thinkingLevel === "off") {
+          if (subagent.temperature === undefined) {
+            return "思考等级关闭时必须选择温度";
+          }
+          if (!model.temperatureOptions.includes(subagent.temperature)) {
+            return `子智能体「${subagent.name.trim() || "未命名"}」的温度不在所选模型配置中`;
+          }
+        }
+      }
       const id = subagent.id.toLocaleLowerCase();
       const name = subagent.name.trim().toLocaleLowerCase();
       if (ids.has(id)) return "同一主智能体下的子智能体 ID 不能重复";
@@ -188,10 +382,24 @@ function saveSettings(): void {
       return {
         parentAgentId,
         subagents: (team?.subagents ?? []).map((subagent) => ({
-          ...subagent,
+          id: subagent.id,
           name: subagent.name.trim(),
           description: subagent.description.trim(),
-          systemPrompt: subagent.systemPrompt.trim()
+          systemPrompt: subagent.systemPrompt.trim(),
+          enabled: subagent.enabled,
+          modelMode: subagent.modelMode ?? "inherit",
+          ...(subagent.modelMode === "custom" && subagent.modelId
+            ? {
+                modelId: subagent.modelId.trim(),
+                ...(subagent.thinkingLevel !== undefined
+                  ? { thinkingLevel: subagent.thinkingLevel }
+                  : {}),
+                ...(subagent.thinkingLevel === "off" &&
+                subagent.temperature !== undefined
+                  ? { temperature: subagent.temperature }
+                  : {})
+              }
+            : {})
         }))
       };
     }
@@ -221,7 +429,7 @@ function saveSettings(): void {
         <h2 id="agent-team-title">智能体团队</h2>
         <p>提前为每个主智能体配置可调用的专项子智能体。</p>
         <p class="inheritance-note">
-          子智能体继承所属主智能体的模型、工具与审批策略，但继承的工具不包含技能加载；它不继承主智能体提示词、会话或技能库，且不能继续创建子智能体；每次调用只接收自己的系统提示词和主智能体委派内容。
+          子智能体默认跟随所属主智能体的模型；也可单独配置模型。它继承主智能体的工具与审批策略，但继承的工具不包含技能加载；不继承主智能体提示词、会话或技能库，且不能继续创建子智能体。每次调用以自己的系统提示词为主，并自动附带可用工具清单与“必须通过工具写回、交接摘要不能代替写入”的执行边界，再接收主智能体委派内容。
         </p>
         <p v-if="!runtimeAvailable" class="runtime-note">
           当前环境仅支持查看；保存设置需要使用 DeepWrite 桌面端。
@@ -325,6 +533,7 @@ function saveSettings(): void {
                   <span :class="{ 'is-disabled': !subagent.enabled }">
                     {{ subagent.enabled ? "已启用" : "已停用" }}
                   </span>
+                  <span class="model-badge">{{ subagentModelSummary(subagent) }}</span>
                 </div>
                 <p>{{ subagent.description || "补充能力说明，让主智能体知道何时调用它。" }}</p>
               </div>
@@ -358,6 +567,81 @@ function saveSettings(): void {
             </header>
 
             <div v-if="editingSubagentId === subagent.id" class="subagent-form">
+              <div class="form-field">
+                <span>模型配置</span>
+                <div class="model-mode-options" role="radiogroup" aria-label="子智能体模型配置">
+                  <label :class="{ 'is-selected': subagent.modelMode !== 'custom' }">
+                    <input
+                      type="radio"
+                      :name="`subagent-model-mode-${subagent.id}`"
+                      value="inherit"
+                      :checked="subagent.modelMode !== 'custom'"
+                      :disabled="formDisabled"
+                      @change="setSubagentModelMode(subagent, 'inherit')"
+                    />
+                    跟随主智能体
+                  </label>
+                  <label :class="{ 'is-selected': subagent.modelMode === 'custom' }">
+                    <input
+                      type="radio"
+                      :name="`subagent-model-mode-${subagent.id}`"
+                      value="custom"
+                      :checked="subagent.modelMode === 'custom'"
+                      :disabled="formDisabled"
+                      @change="setSubagentModelMode(subagent, 'custom')"
+                    />
+                    单独配置模型
+                  </label>
+                </div>
+                <div v-if="subagent.modelMode === 'custom'" class="model-run-settings">
+                  <PopupSelect
+                    class="model-select"
+                    :model-value="subagent.modelId ?? ''"
+                    :options="modelOptions"
+                    accessible-label="选择子智能体模型"
+                    placeholder="请选择模型"
+                    size="large"
+                    :disabled="formDisabled || modelOptions.length === 0"
+                    :menu-min-width="260"
+                    :menu-z-index="1200"
+                    @update:model-value="setSubagentModelId(subagent, String($event))"
+                  >
+                    <template #prefix><AppIcon name="model" :size="14" /></template>
+                  </PopupSelect>
+                  <PopupSelect
+                    class="model-select"
+                    :model-value="subagent.thinkingLevel ?? ''"
+                    :options="thinkingOptionsFor(subagent)"
+                    accessible-label="选择思考等级"
+                    placeholder="请选择思考等级"
+                    size="large"
+                    :disabled="formDisabled || !subagent.modelId"
+                    :menu-min-width="200"
+                    :menu-z-index="1200"
+                    @update:model-value="setSubagentThinkingLevel(subagent, String($event) as ThinkingLevel)"
+                  >
+                    <template #prefix><AppIcon name="brain" :size="14" /></template>
+                  </PopupSelect>
+                  <PopupSelect
+                    v-if="subagent.thinkingLevel === 'off'"
+                    class="model-select"
+                    :model-value="subagent.temperature ?? ''"
+                    :options="temperatureOptionsFor(subagent)"
+                    accessible-label="选择温度"
+                    placeholder="请选择温度"
+                    size="large"
+                    :disabled="formDisabled || !subagent.modelId"
+                    :menu-min-width="180"
+                    :menu-z-index="1200"
+                    @update:model-value="setSubagentTemperature(subagent, Number($event))"
+                  >
+                    <template #prefix><AppIcon name="temperature" :size="14" /></template>
+                  </PopupSelect>
+                  <p v-if="modelOptions.length === 0" class="model-empty-hint">
+                    暂无可用模型，请先在「模型配置」中添加。
+                  </p>
+                </div>
+              </div>
               <label class="form-field">
                 <span>名称</span>
                 <input
@@ -560,6 +844,14 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .subagent-title-row strong { overflow: hidden; font-size: 1rem; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }
 .subagent-title-row span { flex: none; padding: 2px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.714286rem; font-weight: 620; }
 .subagent-title-row span.is-disabled { background: var(--surface-selected); color: var(--text-tertiary); }
+.subagent-title-row .model-badge {
+  max-width: 240px;
+  overflow: hidden;
+  background: var(--surface-selected);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .subagent-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button { width: 32px; height: 32px; padding: 0; background: transparent; color: var(--text-secondary); }
 .icon-button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-primary); }
@@ -592,6 +884,52 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .prompt-input { min-height: 180px; font-family: var(--code-font); font-size: 0.892857rem; }
 .form-field input:focus, .form-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .form-field input::placeholder, .form-field textarea::placeholder { color: var(--text-tertiary); }
+.model-mode-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.model-mode-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 9px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.model-mode-options label.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+.model-mode-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.model-select { width: 100%; }
+.model-run-settings {
+  display: grid;
+  gap: 8px;
+}
+.model-empty-hint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  line-height: 1.45;
+}
 .form-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--text-tertiary); font-size: 0.75rem; }
 .form-meta code { overflow-wrap: anywhere; color: var(--text-secondary); }
 .form-meta button { flex: none; padding: 7px 10px; background: var(--surface-raised); color: var(--text-primary); font-size: 0.821429rem; }

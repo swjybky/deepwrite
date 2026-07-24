@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AgentProviderRuntimeConfig } from "@deepwrite/contracts";
-import { resolveModelRunSettings } from "./model-run-settings";
+import {
+  assertModelRunSettings,
+  resolveModelRunSettings
+} from "./model-run-settings";
 
 const temperatureModeConfig: AgentProviderRuntimeConfig = {
   id: "writer",
@@ -56,5 +59,8 @@ describe("model run settings", () => {
         temperature: 0.7
       })
     ).toThrow("所选温度不在当前模型配置中");
+    expect(() =>
+      assertModelRunSettings(temperatureModeConfig, { thinkingLevel: "medium" })
+    ).toThrow("所选思考等级不在当前模型配置中");
   });
 });

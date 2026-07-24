@@ -122,8 +122,10 @@ import {
   type AppearanceSettingsSnapshot
 } from "@deepwrite/contracts";
 
+import { createId } from "@deepwrite/shared";
+
 function browserId(prefix: string): string {
-  return `${prefix}_${globalThis.crypto.randomUUID()}`;
+  return createId(prefix);
 }
 
 async function invokeCommand<TPayload>(command: CommandEnvelope): Promise<TPayload> {

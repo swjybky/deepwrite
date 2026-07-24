@@ -18,12 +18,29 @@ import {
   UpdateLibraryGroupInputSchema,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
-  createEnvelope
+  createEnvelope,
+  parseCatalogDraftDocumentId
 } from "./index";
 
 const now = "2026-07-18T10:00:00.000Z";
 
 describe("catalog contracts", () => {
+  it("round-trips draft section document ids through parseCatalogDraftDocumentId", () => {
+    const sectionId = "pending:section:1";
+    expect(parseCatalogDraftDocumentId(catalogDraftBodyDocumentId(sectionId))).toEqual({
+      sectionId,
+      fileKind: "body"
+    });
+    expect(
+      parseCatalogDraftDocumentId(catalogDraftCharacterStateDocumentId(sectionId))
+    ).toEqual({
+      sectionId,
+      fileKind: "character-state"
+    });
+    expect(parseCatalogDraftDocumentId("draft-section:only")).toBeUndefined();
+    expect(parseCatalogDraftDocumentId("other:x:body")).toBeUndefined();
+  });
+
   it("keeps draft section ids and titles within the Agent snapshot boundary", () => {
     const sectionId = "s".repeat(120);
     const sectionTitle = "节".repeat(240);

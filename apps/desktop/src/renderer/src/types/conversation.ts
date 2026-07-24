@@ -59,9 +59,12 @@ export interface AgentEditProposal {
     sections: Array<{
       title: string;
       wordCountRequirement: string;
+      provisionalSectionId: string;
     }>;
     afterSectionId?: string;
   };
+  /** True when this file mutation targets a same-run provisional section. */
+  provisionalExpertSection?: boolean;
 }
 
 export interface ChatToolActivity {
