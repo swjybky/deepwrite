@@ -18,20 +18,20 @@
     "@deepwrite/contracts": "workspace:*",
     "@deepwrite/pi-runtime-adapter": "workspace:*",
     "@deepwrite/shared": "workspace:*",
-    "electron-updater": "6.6.2",
-    "naive-ui": "2.44.1",
-    "pdfjs-dist": "6.1.200",
-    "pinia": "3.0.4",
-    "vue": "3.5.39"
+    "electron-updater": "catalog:",
+    "naive-ui": "catalog:",
+    "pdfjs-dist": "catalog:",
+    "pinia": "catalog:",
+    "vue": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "26.0.1",
-    "@vitejs/plugin-vue": "6.0.7",
-    "electron": "42.5.0",
-    "electron-builder": "26.15.3",
-    "electron-vite": "5.0.0",
-    "typescript": "6.0.3",
-    "vite": "8.1.0",
-    "vue-tsc": "3.3.5"
+    "@types/node": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "electron": "catalog:",
+    "electron-builder": "catalog:",
+    "electron-vite": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vue-tsc": "catalog:"
   }
 }
