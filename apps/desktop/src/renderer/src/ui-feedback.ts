@@ -27,12 +27,38 @@ function remove(id: number): void {
   }
 }
 
+function formatErrorMessage(content: string): string {
+  if (!content.startsWith("[") || !content.endsWith("]")) return content;
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object" && parsed[0] !== null) {
+      const issue = parsed[0];
+      if ("code" in issue && "path" in issue) {
+        const path = Array.isArray(issue.path) ? issue.path.join(".") : "";
+        if (issue.code === "too_small" && path === "title") {
+          return "标题不能为空，请输入有效标题。";
+        }
+        if (issue.code === "too_small") {
+          return `${path ? `“${path}”` : "输入"}内容长度不足。`;
+        }
+        if (issue.code === "too_big") {
+          return `${path ? `“${path}”` : "输入"}内容超出最大限制。`;
+        }
+        return `输入内容无效（${path || issue.code}）。`;
+      }
+    }
+  } catch {
+    // Ignore JSON parse errors and return original content
+  }
+  return content;
+}
+
 function show(
   kind: UiMessageKind,
   content: string,
   options: UiMessageOptions = {}
 ): number {
-  const normalized = String(content).trim();
+  const normalized = formatErrorMessage(String(content).trim());
   if (!normalized) return -1;
   const id = ++messageId;
   const overflow = Math.max(
