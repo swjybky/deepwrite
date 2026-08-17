@@ -37,9 +37,11 @@ describe("RightEditorPane expert draft navigation", () => {
     expect(source).not.toContain("!dirty || contentExceedsLimit || skillFormatError");
   });
 
-  it("keeps library overview titles fixed while routing overview content to persistent saves", () => {
+  it("keeps library overview and character overview titles fixed while routing overview content to persistent saves", () => {
     expect(source).toContain('props.document.catalogLibraryField === "overview"');
-    expect(source).toContain("document.draftFileKind === 'character-state' || isLibraryOverview");
+    expect(source).toContain('props.document.characterFileKind === "overview"');
+    expect(source).toContain("props.document.plotStageOrder !== undefined");
+    expect(source).toContain(":readonly=\"isTitleReadOnly\"");
     expect(source).toContain("CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS");
     expect(persistenceSource).toContain(
       "async function saveCatalogLibraryOverview("

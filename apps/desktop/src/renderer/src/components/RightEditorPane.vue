@@ -153,6 +153,21 @@ const isLibraryEntry = computed(
 const isLibraryOverview = computed(
   () => props.document.catalogLibraryField === "overview"
 );
+const isCharacterOverview = computed(
+  () => props.document.characterFileKind === "overview"
+);
+const isPlotStage = computed(
+  () => props.document.plotStageOrder !== undefined
+);
+const isTitleReadOnly = computed(
+  () =>
+    props.document.readOnly ||
+    props.locked ||
+    props.document.draftFileKind === "character-state" ||
+    isLibraryOverview.value ||
+    isCharacterOverview.value ||
+    isPlotStage.value
+);
 const isLibraryDocument = computed(
   () => isLibraryEntry.value || isLibraryOverview.value
 );
@@ -431,6 +446,10 @@ function save(): void {
         ? "素材库或技能库介绍最多 40,000 字，请精简内容后再保存"
         : "每个素材库或技能库条目最多 40,000 字，请精简内容后再保存"
     );
+    return;
+  }
+  if (!title.value.trim()) {
+    uiMessage.warning("请输入文档标题后再保存");
     return;
   }
   emit("save", { id: props.document.id, title: title.value, content: content.value });
@@ -1004,7 +1023,7 @@ onBeforeUnmount(() => {
       <input
         v-model="title"
         class="document-title-input"
-        :readonly="document.readOnly || locked || document.draftFileKind === 'character-state' || isLibraryOverview"
+        :readonly="isTitleReadOnly"
         aria-label="文档标题"
         @input="markDirty"
       />

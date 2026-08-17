@@ -683,6 +683,12 @@ export function useCatalogDocumentPersistence(
     ) {
       return false;
     }
+    if (!payload.title.trim()) {
+      if (saveOptions.announceSuccess !== false) {
+        uiMessage.warning("请输入文档标题后再保存");
+      }
+      return false;
+    }
     setDocumentSaving(payload.id, true);
     try {
       const projectRevision = force
@@ -778,6 +784,12 @@ export function useCatalogDocumentPersistence(
       (document.domain !== "material" && document.domain !== "skill") ||
       savingDocumentIds.value.has(payload.id)
     ) {
+      return false;
+    }
+    if (!payload.title.trim()) {
+      if (saveOptions.announceSuccess !== false) {
+        uiMessage.warning("请输入条目标题后再保存");
+      }
       return false;
     }
     setDocumentSaving(payload.id, true);
