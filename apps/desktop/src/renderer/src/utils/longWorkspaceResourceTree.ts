@@ -72,6 +72,7 @@ export function projectLongWorkspaceNavigation(
       readOnly?: boolean;
       longTreeCollection?: ResourceTreeNode["longTreeCollection"];
       longTreeItem?: ResourceTreeNode["longTreeItem"];
+      longLedgerCommit?: ResourceTreeNode["longLedgerCommit"];
     }
   ): ResourceTreeNode => ({
     id: longNavigationNodeId(book.id, options.nodeKey ?? selection.key),
@@ -86,6 +87,9 @@ export function projectLongWorkspaceNavigation(
       ? { longTreeCollection: options.longTreeCollection }
       : {}),
     ...(options.longTreeItem ? { longTreeItem: options.longTreeItem } : {}),
+    ...(options.longLedgerCommit
+      ? { longLedgerCommit: options.longLedgerCommit }
+      : {}),
     ...(options.readOnly ? { readOnly: true } : {}),
     selectableBranch:
       options.selectableBranch ?? Boolean(options.children?.length),
@@ -615,6 +619,7 @@ export function projectLongWorkspaceNavigation(
       icon: NonNullable<ResourceTreeNode["icon"]>;
       label: string;
       badge: string;
+      longLedgerCommit?: ResourceTreeNode["longLedgerCommit"];
     }
   ): ResourceTreeNode => {
     const children = characterAndContinuityUseLeftTree
@@ -670,6 +675,7 @@ export function projectLongWorkspaceNavigation(
     }
   }
   if (index) {
+    const latestCommitId = index.ledger.commits.at(-1)?.id;
     for (const commit of [...index.ledger.commits].sort(
       (left, right) =>
         left.sequence - right.sequence || left.id.localeCompare(right.id)
@@ -689,7 +695,13 @@ export function projectLongWorkspaceNavigation(
             icon: "file",
             label: display.label,
             badge:
-              commit.mode === "import_checkpoint" ? "导入检查点" : display.badge
+              commit.mode === "import_checkpoint"
+                ? "导入检查点"
+                : display.badge,
+            longLedgerCommit: {
+              id: commit.id,
+              deletable: commit.id === latestCommitId
+            }
           })
         );
       }

@@ -116,6 +116,9 @@ function createOptions() {
       api: () => undefined as DeepWriteApi["manuscript"] | undefined,
       ensureDocumentsLoaded: async () => true
     },
+    clipboard: {
+      writeText: async () => undefined
+    },
     notifications
   } as LazyShortBookLifecycleCoordinatorOptions;
   return { options, catalogMutationPending, notifications };
@@ -180,6 +183,9 @@ describe("useLazyShortBookLifecycleCoordinator", () => {
     lifecycle.openBookExportDialog(fixtureNode());
     await lifecycle.exportBookManuscript("docx");
     expect(loaded.exportBookManuscript).toHaveBeenCalledWith("docx");
+    lifecycle.openBookExportDialog(fixtureNode());
+    await lifecycle.exportBookManuscript("clipboard");
+    expect(loaded.exportBookManuscript).toHaveBeenCalledWith("clipboard");
     expect(loader).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledTimes(1);
   });

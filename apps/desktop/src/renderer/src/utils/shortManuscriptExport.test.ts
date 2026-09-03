@@ -5,7 +5,10 @@ import {
   type ShortBook
 } from "@deepwrite/contracts";
 import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
-import { createShortManuscriptExportInput } from "./shortManuscriptExport";
+import {
+  createShortManuscriptClipboardText,
+  createShortManuscriptExportInput
+} from "./shortManuscriptExport";
 
 const NOW = "2026-07-23T00:00:00.000Z";
 
@@ -96,5 +99,21 @@ describe("short manuscript export projection", () => {
       ]
     });
     expect(JSON.stringify(result)).not.toContain("不应导出的人物状态");
+  });
+
+  it("creates clipboard text in the same title and section order without a BOM", () => {
+    const text = createShortManuscriptClipboardText({
+      title: "雨夜来信",
+      format: "txt",
+      sections: [
+        { title: "导语", content: "开场\r\n第二行" },
+        { title: "第一节", content: "  正文  " }
+      ]
+    });
+
+    expect(text).toBe(
+      "《雨夜来信》\n\n导语\n\n开场\n第二行\n\n第一节\n\n正文\n"
+    );
+    expect(text.startsWith("\ufeff")).toBe(false);
   });
 });

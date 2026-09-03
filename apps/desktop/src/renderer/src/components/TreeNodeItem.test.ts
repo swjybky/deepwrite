@@ -86,7 +86,7 @@ describe("TreeNodeItem actions", () => {
     expect(source).toContain('emit("createLongTreeItem", props.node)');
     expect(source).toContain("isLongTreeItem");
     const itemMenu = source.slice(
-      source.indexOf('<template v-if="isLongTreeItem">'),
+      source.indexOf('<template v-else-if="isLongTreeItem">'),
       source.indexOf('<template v-else-if="isLongDraftSection">')
     );
     expect(itemMenu).toContain("longTreeItemAction('move-up')");
@@ -105,6 +105,22 @@ describe("TreeNodeItem actions", () => {
     expect(source).toContain(
       ':disabled="longTreeActionsDisabled || longTreeItemMoveDownDisabled"'
     );
+  });
+
+  it("offers deletion on every ledger row and disables older records", () => {
+    expect(source).toContain("isLongLedgerCommit");
+    expect(source).toContain("Boolean(props.node.longLedgerCommit)");
+    expect(source).toContain('emit("deleteLongLedgerCommit", props.node)');
+    const menu = source.slice(
+      source.indexOf('<template v-if="isLongLedgerCommit">'),
+      source.indexOf('<template v-else-if="isLongTreeItem">')
+    );
+    expect(menu).toContain("<span>{{");
+    expect(menu).toContain('"删除记录"');
+    expect(menu).toContain('"删除记录（请先删除最后一条）"');
+    expect(menu).toContain("!node.longLedgerCommit?.deletable");
+    expect(menu).toContain("请先删除最后一条提交记录");
+    expect(menu).toContain("is-danger");
   });
 
   it("keeps long character creation out of the resource tree", () => {
@@ -176,6 +192,13 @@ describe("TreeNodeItem actions", () => {
     expect(source).toContain("application/x-deepwrite-library-entry-");
     expect(source).toContain("moveLibraryEntry");
     expect(source).toContain("beforeEntryId");
+  });
+
+  it("enables native row dragging for both catalog entries and creation books", () => {
+    expect(source).toContain("creationBookDraggable?: boolean");
+    expect(source).toContain(
+      ':draggable="canDragLibraryEntry || creationBookDraggable"'
+    );
   });
 
   it("uses an independent action event for long-book nodes", () => {

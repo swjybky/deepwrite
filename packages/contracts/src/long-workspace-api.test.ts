@@ -68,6 +68,38 @@ function runtimeContext(
 }
 
 describe("long workspace API contracts", () => {
+  it("accepts only well-formed ledger deletion command envelopes", () => {
+    const command = LongWorkspaceCommandEnvelopeSchema.parse(
+      createEnvelope(
+        "long.deleteLedgerCommit",
+        {
+          bookId: "longbook_api",
+          commitId: "commit_latest"
+        },
+        { id: "cmd_delete_ledger_commit" }
+      )
+    );
+    expect(command).toMatchObject({
+      type: "long.deleteLedgerCommit",
+      payload: {
+        bookId: "longbook_api",
+        commitId: "commit_latest"
+      }
+    });
+    expect(
+      CommandEnvelopeSchema.safeParse(
+        createEnvelope(
+          "long.deleteLedgerCommit",
+          {
+            bookId: "longbook_api",
+            commitId: ""
+          },
+          { id: "cmd_delete_ledger_commit_invalid" }
+        )
+      ).success
+    ).toBe(false);
+  });
+
   it("binds privileged long agents to their root and an existing chapter", () => {
     expect(
       LongWorkspaceRuntimeContextSchema.parse(

@@ -155,7 +155,8 @@ describe("ModelSettingsFeature provider presets", () => {
 
 describe("ModelSettingsFeature official models", () => {
   it("keeps official models selectable but hides edit and delete actions", () => {
-    expect(source).toContain("DeepWrite 官方模型");
+    expect(source).toContain("旧官方小站模型");
+    expect(source).toContain("新官方小站模型");
     expect(source).toContain('v-if="!row.model.managedBy"');
     expect(source).toContain("requestModelId: model.requestModelId");
     expect(source).toContain(

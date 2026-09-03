@@ -171,6 +171,9 @@ onBeforeUnmount(() => {
           v-else-if="visibleResponse(message)"
           class="message-copy"
           :class="{ 'is-streaming': message.status === 'streaming' }"
+          :data-assistant-response-message-id="
+            message.status === 'streaming' ? undefined : message.id
+          "
         >
           <StreamedContent
             :content="visibleResponse(message)"

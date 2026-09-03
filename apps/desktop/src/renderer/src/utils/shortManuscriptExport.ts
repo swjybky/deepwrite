@@ -5,6 +5,9 @@ import type {
 } from "@deepwrite/contracts";
 import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
 
+export type ShortManuscriptExportTarget =
+  ShortManuscriptExportFormat | "clipboard";
+
 /**
  * Builds the reader-visible short manuscript in persisted section order.
  * Character-state documents are deliberately excluded, and live editor drafts
@@ -39,4 +42,21 @@ export function createShortManuscriptExportInput(
       };
     })
   };
+}
+
+/**
+ * Produces the plain-text manuscript placed on the system clipboard.
+ * It intentionally mirrors TXT export ordering without copying a BOM.
+ */
+export function createShortManuscriptClipboardText(
+  input: ExportShortManuscriptInput
+): string {
+  const content = [
+    `《${input.title}》`,
+    ...input.sections.flatMap((section) => [
+      section.title,
+      section.content.replace(/\r\n?/gu, "\n").trim()
+    ])
+  ].join("\n\n");
+  return `${content}\n`;
 }

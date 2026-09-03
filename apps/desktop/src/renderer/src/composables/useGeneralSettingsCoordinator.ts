@@ -181,6 +181,11 @@ export function useGeneralSettingsCoordinator(
     queueSave();
   }
 
+  function updateUseNetworkProxy(enabled: boolean): void {
+    applyLocalPatch({ useNetworkProxy: enabled });
+    queueSave();
+  }
+
   function updateShowContextUsage(enabled: boolean): void {
     applyLocalPatch({ showContextUsage: enabled });
     queueSave();
@@ -218,6 +223,7 @@ export function useGeneralSettingsCoordinator(
     updatePermissionMode,
     updateShowContextUsage,
     updateShowInMenuBar,
+    updateUseNetworkProxy,
     updateWorkspacePaneLayout
   };
 }

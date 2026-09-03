@@ -1358,19 +1358,73 @@ export class FolderCatalogStore {
       };
 
       if (mutation.type === "create") {
+        const title = mutation.title.trim();
+        const description = mutation.description.trim();
+        const existingDefinition = mutation.stageId
+          ? globalStages.find(({ id }) => id === mutation.stageId)
+          : undefined;
+        if (existingDefinition) {
+          if (
+            !input.force ||
+            existingDefinition.title !== title ||
+            existingDefinition.description !== description
+          ) {
+            throw new Error(
+              `剧情结构标识“${mutation.stageId}”已用于其他创建请求。`
+            );
+          }
+          const existingStage = manifest.plotStages.find(
+            ({ id }) => id === mutation.stageId
+          );
+          const existingDocument = manifest.documents.find(
+            ({ id }) => id === mutation.stageId
+          );
+          if (existingStage && existingDocument) {
+            if (
+              existingStage.title !== title ||
+              existingStage.description !== description ||
+              existingDocument.title !== title
+            ) {
+              throw new Error(
+                "剧情结构创建记录与本次创建意图不一致，无法安全重放。"
+              );
+            }
+            return (
+              await this.readProject(projectDirectory, "book", input.bookId)
+            ).resource as Book;
+          }
+          if (existingStage || existingDocument) {
+            throw new Error("剧情结构创建记录不完整，无法安全重放本次创建。");
+          }
+          await this.applyGlobalPlotStageCreate(
+            registry,
+            existingDefinition,
+            input.bookId,
+            now
+          );
+          await this.bumpRegistry(registry, now);
+          return (
+            await this.readProject(projectDirectory, "book", input.bookId)
+          ).resource as Book;
+        }
         if (globalStages.length >= 32) {
           throw new Error("剧情结构最多支持 32 项。");
         }
-        assertUniqueGlobalTitle(mutation.title);
+        assertUniqueGlobalTitle(title);
         const ids = new Set(globalStages.map(({ id }) => id));
-        let stageId = createCatalogId("plot-stage");
-        while (ids.has(stageId)) {
+        if (mutation.stageId && ids.has(mutation.stageId)) {
+          throw new Error(
+            `剧情结构标识“${mutation.stageId}”已被其他结构占用。`
+          );
+        }
+        let stageId = mutation.stageId ?? createCatalogId("plot-stage");
+        while (!mutation.stageId && ids.has(stageId)) {
           stageId = createCatalogId("plot-stage");
         }
         const definition: CreativePlotStage = {
           id: stageId,
-          title: mutation.title.trim(),
-          description: mutation.description.trim()
+          title,
+          description
         };
         globalStages.push(definition);
         registry.creativePlotStages =
@@ -1617,6 +1671,20 @@ export class FolderCatalogStore {
         }));
         if (mutation.type === "createItem") {
           const title = mutation.title.trim();
+          const existingItem = mutation.itemId
+            ? items.find(({ id }) => id === mutation.itemId)
+            : undefined;
+          if (existingItem) {
+            const hasDocument = documents.some(
+              ({ id }) => id === existingItem.id
+            );
+            if (input.force && existingItem.title === title && hasDocument) {
+              return (
+                await this.readProject(projectDirectory, "book", input.bookId)
+              ).resource as Book;
+            }
+            throw new Error("人物条目标识已存在。");
+          }
           if (
             items.some(
               (item) =>
@@ -2097,11 +2165,16 @@ export class FolderCatalogStore {
     rawInput: SaveFolderDocumentInput
   ): Promise<SaveDocumentResult> {
     const input = SaveDocumentInputSchema.parse(rawInput);
-    assertTextByteLength(
-      input.content,
-      this.maxMarkdownBytes,
-      "Markdown content"
-    );
+    if (input.preserveCurrentContent && input.title === undefined) {
+      throw new Error("保留正文内容时必须同时提供新标题。");
+    }
+    if (!input.preserveCurrentContent) {
+      assertTextByteLength(
+        input.content,
+        this.maxMarkdownBytes,
+        "Markdown content"
+      );
+    }
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(registry, input.bookId, "book");
@@ -2216,6 +2289,21 @@ export class FolderCatalogStore {
           );
           if (draftTarget.kind === "body") {
             const sectionTitle = input.title ?? section.title;
+            if (
+              input.title !== undefined &&
+              sectionTitle !== section.title &&
+              draft.sections.some(
+                (candidate, index) =>
+                  index !== draftTarget.sectionIndex &&
+                  candidate.title === sectionTitle
+              )
+            ) {
+              throw new Error(
+                `正文目录已存在同名${
+                  manifest.bookType === "script" ? "剧集" : "章节"
+                }「${sectionTitle}」。`
+              );
+            }
             documentManifest = {
               ...existing,
               title: sectionTitle,
@@ -2288,6 +2376,12 @@ export class FolderCatalogStore {
         projectDirectory,
         documentManifest.path
       );
+      if (input.preserveCurrentContent && !existingPhysicalFile) {
+        throw new Error("目标文档不存在，无法只修改标题。");
+      }
+      const committedContent = input.preserveCurrentContent
+        ? currentContent
+        : input.content;
       const next = FolderCurrentBookProjectManifestSchema.parse({
         ...manifest,
         revision: manifest.revision + 1,
@@ -2299,7 +2393,7 @@ export class FolderCatalogStore {
       });
       await commitProjectMarkdownUpdate(
         target,
-        input.content,
+        committedContent,
         existingPhysicalFile ? currentContent : undefined,
         join(projectDirectory, MANIFEST_FILE),
         next,
@@ -2310,7 +2404,7 @@ export class FolderCatalogStore {
       return SaveDocumentResultSchema.parse({
         id: documentManifest.id,
         title: documentManifest.title,
-        content: input.content,
+        content: committedContent,
         createdAt: documentManifest.createdAt,
         updatedAt: documentManifest.updatedAt,
         projectRevision: next.revision
@@ -2590,6 +2684,20 @@ export class FolderCatalogStore {
         });
       }
 
+      const seenDraftSectionTitles = new Set(
+        manifest.draft.sections.map(({ title }) => title)
+      );
+      for (const section of createdSections) {
+        if (seenDraftSectionTitles.has(section.title)) {
+          throw new Error(
+            `正文目录已存在同名${
+              manifest.bookType === "script" ? "剧集" : "小节"
+            }“${section.title}”。`
+          );
+        }
+        seenDraftSectionTitles.add(section.title);
+      }
+
       sections.splice(insertionIndex, 0, ...createdSections);
       const operationSections = input.sections.map(
         ({ clientSectionId }, index) => ({
@@ -2677,7 +2785,9 @@ export class FolderCatalogStore {
         };
       }
       if (manifest.draft.sections.length <= 1) {
-        throw new Error("正文至少需要保留一个小节。");
+        throw new Error(
+          `正文至少需要保留一个${manifest.bookType === "script" ? "剧集" : "小节"}。`
+        );
       }
       const deletedSection = manifest.draft.sections[sectionIndex]!;
       const deletedFileTargets = await Promise.all(

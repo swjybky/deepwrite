@@ -6,6 +6,8 @@ import type {
   ModelUsageQueryInput
 } from "@deepwrite/contracts";
 import { useSettingsStore } from "../stores/settingsStore";
+import { selectableModelSettings } from "../utils/selectableModelSettings";
+import { useSiteOfficialModelSettings } from "./useSiteOfficialModelSettings";
 
 export interface ModelSettingsNotifications {
   error(message: string): void;
@@ -38,7 +40,7 @@ export function useModelSettingsCoordinator(
     }
     if (lastPublishedModelSettings === settings) return;
     lastPublishedModelSettings = settings;
-    context.onModelsLoaded(settings);
+    context.onModelsLoaded(selectableModelSettings(settings));
   }
 
   async function loadModelSettings(): Promise<void> {
@@ -318,7 +320,16 @@ export function useModelSettingsCoordinator(
     }
   }
 
+  const siteOfficialModelSettings = useSiteOfficialModelSettings({
+    api: context.api,
+    settingsStore,
+    notifications: uiMessage,
+    applyLoadedModelSettings,
+    loadModelSettings
+  });
+
   return {
+    ...siteOfficialModelSettings,
     loadModelSettings,
     loadAppAlerts,
     closeStartupAlert,

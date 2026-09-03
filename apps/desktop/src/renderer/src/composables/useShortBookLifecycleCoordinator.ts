@@ -3,7 +3,6 @@ import type {
   CreateScriptBookInput,
   CreateShortBookInput,
   DeepWriteApi,
-  ExportShortManuscriptResult,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   ShortManuscriptExportFormat
@@ -15,7 +14,8 @@ import type {
   ResourceTreeNode,
   WorkspaceDocument
 } from "../types/workspace";
-import { createShortManuscriptExportInput } from "../utils/shortManuscriptExport";
+import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
+import { executeShortManuscriptExport } from "./short-manuscript-export-transaction";
 
 type MaybePromise<Value> = Value | Promise<Value>;
 type PendingLane = "catalog" | "manuscript-export";
@@ -125,6 +125,10 @@ export interface ShortBookLifecycleManuscriptPort {
   ): Promise<boolean>;
 }
 
+export interface ShortBookLifecycleClipboardPort {
+  writeText(text: string): Promise<void>;
+}
+
 export interface ShortBookLifecycleCoordinatorOptions {
   state: ShortBookLifecycleState;
   catalog: ShortBookLifecycleCatalogPort;
@@ -134,6 +138,7 @@ export interface ShortBookLifecycleCoordinatorOptions {
   resources: ShortBookLifecycleResourcePort;
   legacy: ShortBookLifecycleLegacyPort;
   manuscript: ShortBookLifecycleManuscriptPort;
+  clipboard: ShortBookLifecycleClipboardPort;
   notifications: ShortBookLifecycleNotifications;
 }
 
@@ -165,6 +170,7 @@ export function useShortBookLifecycleCoordinator(
 ) {
   const {
     catalog,
+    clipboard,
     conversations,
     legacy,
     manuscript,
@@ -885,16 +891,10 @@ export function useShortBookLifecycleCoordinator(
   }
 
   function exportBookManuscript(
-    format: ShortManuscriptExportFormat
+    targetOutput: ShortManuscriptExportTarget
   ): Promise<void> {
     const target = state.exportBookTarget.value;
-    const api = manuscript.api();
-    if (
-      !target ||
-      !api ||
-      target.unavailable ||
-      !exportTargetIsCurrent(target)
-    ) {
+    if (!target || target.unavailable || !exportTargetIsCurrent(target)) {
       return Promise.resolve();
     }
     const lease = acquirePendingLease("manuscript-export");
@@ -926,28 +926,37 @@ export function useShortBookLifecycleCoordinator(
           notifications.error("未找到要导出正文的书籍");
           return;
         }
-        const input = createShortManuscriptExportInput(
-          currentBook,
-          state.documents.value,
-          state.drafts.value,
-          format
-        );
-        const result: ExportShortManuscriptResult =
-          await api.exportShort(input);
+        const result = await executeShortManuscriptExport({
+          target: targetOutput,
+          book: currentBook,
+          documents: state.documents.value,
+          drafts: state.drafts.value,
+          api: manuscript.api(),
+          writeClipboardText: (text) => clipboard.writeText(text)
+        });
         if (
           !leaseCanPublish(lease) ||
           !exportTargetIsCurrent(target) ||
-          result.status !== "saved"
+          result.status === "cancelled"
         ) {
           return;
         }
         closeExportTarget(target);
+        const scope =
+          currentBook.bookType === "script" ? "全部剧集" : "导语和全部小节";
         notifications.success(
-          `已将“${currentBook.title}”的${currentBook.bookType === "script" ? "全部剧集" : "导语和全部小节"}导出为 ${MANUSCRIPT_EXPORT_FORMAT_LABELS[format]}`
+          targetOutput === "clipboard"
+            ? `已复制“${currentBook.title}”的${scope}正文，可直接粘贴`
+            : `已将“${currentBook.title}”的${scope}导出为 ${MANUSCRIPT_EXPORT_FORMAT_LABELS[targetOutput]}`
         );
       } catch (error: unknown) {
         if (leaseCanPublish(lease) && exportTargetIsCurrent(target)) {
-          notifications.error(errorMessage(error, "导出正文失败。"));
+          notifications.error(
+            errorMessage(
+              error,
+              targetOutput === "clipboard" ? "复制正文失败。" : "导出正文失败。"
+            )
+          );
         }
       }
     });

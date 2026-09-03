@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { shallowRef, watch } from "vue";
 import type {
   LongWorkspaceImpactConfirmation,
   LongWorkspaceOperationBatch
@@ -13,7 +13,10 @@ export function useLongStructureFormImpact(options: {
   fields: () => readonly unknown[];
   mutationPending: () => boolean;
 }) {
-  const pendingFormImpact = ref<PendingLongStructureFormImpact | null>(null);
+  // Batches and confirmations are sent through Electron IPC after confirmation.
+  const pendingFormImpact = shallowRef<PendingLongStructureFormImpact | null>(
+    null
+  );
 
   watch(options.fields, () => {
     if (!options.mutationPending()) pendingFormImpact.value = null;

@@ -1,14 +1,17 @@
 import type {
   LongWorkspaceImpactConfirmation,
-  LongWorkspaceIndexSnapshot,
   LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
 import { nextTick } from "vue";
-import { createLongChapterSelection } from "../../types/longWorkspace";
-import { longNavigationNodeId } from "../../utils/longWorkspaceResourceTree";
 import { longDeletionDescription } from "../../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../../utils/longImpactConfirmation";
+import { selectAfterLongDraftSectionDelete } from "./draft-delete-selection";
 import type { LongStructureLease } from "./lease";
+import {
+  buildLongNavigationDeleteBatch,
+  createLongNavigationDeletePreviewTimes,
+  type LongNavigationDeletion
+} from "./navigation-delete-batch";
 import type { LongStructureSync } from "./sync";
 import { isActiveLongTreeItem, resolveLongTreeItemDetails } from "./tree";
 
@@ -43,57 +46,7 @@ export function createLongStructureDelete(
   const { selectWorkspaceFile: selectLongWorkspaceFile } = session;
   const resourceNode = resources.node;
   const selectResource = resources.select;
-
-  async function buildNavigationDeleteBatch(
-    index: LongWorkspaceIndexSnapshot,
-    input: {
-      kind: "character" | "volume" | "plotPoint" | "chapterCard";
-      id: string;
-      title: string;
-    }
-  ): Promise<{
-    batch: LongWorkspaceOperationBatch;
-    label: string;
-    title: string;
-  }> {
-    const { createLongStructureMutationBuilder } =
-      await loadLongStructureMutationModule();
-    const builder = createLongStructureMutationBuilder(index);
-    if (input.kind === "character") {
-      const target = index.characters.find(({ id }) => id === input.id);
-      if (!target) throw new Error("该人物已不存在，请刷新后重试。");
-      return {
-        batch: builder.deleteCharacter(target.id),
-        label: "人物",
-        title: target.name
-      };
-    }
-    if (input.kind === "volume") {
-      const target = index.plot.volumes.find(({ id }) => id === input.id);
-      if (!target) throw new Error("该分卷已不存在，请刷新后重试。");
-      return {
-        batch: builder.deleteVolume(target.id),
-        label: "分卷",
-        title: target.title
-      };
-    }
-    if (input.kind === "plotPoint") {
-      const target = index.plot.arcs.find(({ id }) => id === input.id);
-      if (!target) throw new Error("该剧情点已不存在，请刷新后重试。");
-      return {
-        batch: builder.deleteArc(target.id),
-        label: "剧情点",
-        title: target.title
-      };
-    }
-    const target = index.plot.chapterCards.find(({ id }) => id === input.id);
-    if (!target) throw new Error("该章卡已不存在，请刷新后重试。");
-    return {
-      batch: builder.deleteChapter(target.id),
-      label: "章卡",
-      title: target.title
-    };
-  }
+  const navigationDeletePreviewTimes = createLongNavigationDeletePreviewTimes();
 
   async function confirmDeleteLongTreeItem(): Promise<void> {
     const pending = longTreeItemDelete.value;
@@ -131,7 +84,9 @@ export function createLongStructureDelete(
           const { createLongStructureMutationBuilder } =
             await loadLongStructureMutationModule();
           assertCurrentLongStructureMutationTarget(lease.target, lease);
-          const builder = createLongStructureMutationBuilder(index);
+          const builder = createLongStructureMutationBuilder(index, {
+            now: () => pending.operationUpdatedAt
+          });
           if (target.kind === "worldbuilding-item") {
             if (!target.parentId) throw new Error("缺少世界观分类 ID。");
             batch = builder.deleteWorldbuildingItem(target.parentId, target.id);
@@ -214,6 +169,7 @@ export function createLongStructureDelete(
       id: string;
       title: string;
       expectedImpact: LongWorkspaceImpactConfirmation;
+      operationUpdatedAt?: string;
     },
     completion: (
       succeeded: boolean,
@@ -229,13 +185,21 @@ export function createLongStructureDelete(
       },
       async (lease) => {
         const index = lease.target.index;
-        let deletion: Awaited<ReturnType<typeof buildNavigationDeleteBatch>>;
+        let deletion: LongNavigationDeletion;
         try {
           assertCurrentLongStructureMutationTarget(lease.target, lease);
           if (!isTargetCurrent()) {
             throw new Error("删除目标已切换，本次操作已取消。");
           }
-          deletion = await buildNavigationDeleteBatch(index, input);
+          const previewedAt =
+            input.operationUpdatedAt ??
+            navigationDeletePreviewTimes.timestampFor(expectedBookId, input);
+          deletion = await buildLongNavigationDeleteBatch(
+            loadLongStructureMutationModule,
+            index,
+            input,
+            previewedAt
+          );
           assertCurrentLongStructureMutationTarget(lease.target, lease);
           if (!isTargetCurrent()) {
             throw new Error("删除目标已切换，本次操作已取消。");
@@ -255,9 +219,15 @@ export function createLongStructureDelete(
           lease,
           deletion.batch,
           {
-            succeed: () => completion(true),
+            succeed: () => {
+              navigationDeletePreviewTimes.clear(expectedBookId, input);
+              completion(true);
+            },
             fail: () => completion(false, changedImpact),
-            appliedButRefreshFailed: () => completion(true)
+            appliedButRefreshFailed: () => {
+              navigationDeletePreviewTimes.clear(expectedBookId, input);
+              completion(true);
+            }
           },
           {
             successMessage: `已删除${deletion.label}“${deletion.title}”`,
@@ -281,7 +251,8 @@ export function createLongStructureDelete(
         kind: "chapterCard",
         id: pending.chapterCardId,
         title: pending.title,
-        expectedImpact: pending.expectedImpact
+        expectedImpact: pending.expectedImpact,
+        operationUpdatedAt: pending.operationUpdatedAt
       },
       (succeeded, changedImpact) => {
         if (!succeeded && changedImpact) {
@@ -303,52 +274,21 @@ export function createLongStructureDelete(
           return;
         }
         if (!succeeded || isDisposed()) return;
-        const deletedSelected =
-          activeLongSelection.value?.chapterCardId === pending.chapterCardId ||
-          selectedResourceId.value ===
-            longNavigationNodeId(
-              pending.bookId,
-              `chapter:${pending.chapterCardId}`
-            );
         if (longDraftSectionDelete.value === pending) {
           longDraftSectionDelete.value = null;
         }
-        if (!deletedSelected) return;
-        const summary = activeLongBookSummary.value;
-        const index = activeLongWorkspaceIndex.value;
-        if (!summary || !index || summary.id !== pending.bookId) return;
-        const remaining = summary.navigation.chapterCards
-          .filter((chapter) => chapter.volumeId === pending.volumeId)
-          .sort(
-            (left, right) =>
-              left.narrativeOrder - right.narrativeOrder ||
-              left.id.localeCompare(right.id)
-          );
-        const next = remaining[0];
-        if (next) {
-          const selection = createLongChapterSelection(summary, index, next.id);
-          if (selection) {
-            selectedResourceId.value = longNavigationNodeId(
-              pending.bookId,
-              selection.key
-            );
-            void runTracked(() => selectLongWorkspaceFile(selection)).catch(
-              (error: unknown) => {
-                if (isDisposed()) return;
-                uiMessage.error(
-                  error instanceof Error
-                    ? error.message
-                    : "小节已删除，但无法打开下一小节。"
-                );
-              }
-            );
-            return;
-          }
-        }
-        selectedResourceId.value = longNavigationNodeId(
-          pending.bookId,
-          `volume:${pending.volumeId}`
-        );
+        selectAfterLongDraftSectionDelete({
+          pending,
+          summary: activeLongBookSummary.value,
+          index: activeLongWorkspaceIndex.value,
+          selectedChapterCardId:
+            activeLongSelection.value?.chapterCardId ?? undefined,
+          selectedResourceId,
+          selectWorkspaceFile: selectLongWorkspaceFile,
+          runTracked,
+          isDisposed,
+          reportError: (message) => uiMessage.error(message)
+        });
       },
       () => longDraftSectionDelete.value === pending
     );
@@ -392,7 +332,11 @@ export function createLongStructureDelete(
     }
     await runTracked(async () => {
       try {
-        const deletion = await buildNavigationDeleteBatch(index, input);
+        const deletion = await buildLongNavigationDeleteBatch(
+          loadLongStructureMutationModule,
+          index,
+          input
+        );
         if (
           isDisposed() ||
           activeLongBookId.value !== expectedBookId ||
@@ -401,6 +345,10 @@ export function createLongStructureDelete(
           completion();
           return;
         }
+        const previewRequest = navigationDeletePreviewTimes.begin(
+          expectedBookId,
+          input
+        );
         const impact = await sync.previewLongStructureImpact(
           expectedBookId,
           deletion.batch
@@ -413,6 +361,12 @@ export function createLongStructureDelete(
           completion();
           return;
         }
+        navigationDeletePreviewTimes.remember(
+          expectedBookId,
+          input,
+          deletion.batch.updatedAt,
+          previewRequest
+        );
         completion(impact);
       } catch (error: unknown) {
         if (isDisposed()) return;

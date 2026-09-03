@@ -3,6 +3,7 @@ import {
   type LongBook,
   type LongBookSummary,
   type LongCommitChapterInput,
+  type LongDeleteLedgerCommitInput,
   type LongProjectManifest,
   type LongTextFilesBatchCommitInput,
   type LongTextFilesCommitChapterInput,
@@ -211,6 +212,10 @@ export type StoreCommitLongChapterInput =
       })
   | Omit<LongTextFilesCommitChapterInput, "bookId">
   | Omit<LongTextFilesBatchCommitInput, "bookId">;
+export type StoreDeleteLongLedgerCommitInput = Omit<
+  LongDeleteLedgerCommitInput,
+  "bookId"
+>;
 export interface SecureTextFile {
   content: string;
   bytes: Buffer;

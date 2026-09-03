@@ -164,6 +164,76 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
     expect(await store.getProjectRevision(opened.resource.id, "book")).toBe(3);
   });
 
+  it("renames a draft section from the latest Core state without rewriting stale body content", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-draft-rename-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createScriptBook(
+      { title: "安全改名", genre: "其他" },
+      join(root, "books")
+    );
+    const firstSection = opened.resource.draft.sections[0]!;
+
+    await store.saveDocument({
+      bookId: opened.resource.id,
+      documentId: firstSection.body.id,
+      content: "磁盘上的最新正文",
+      force: true
+    });
+    const renamed = await store.saveDocument({
+      bookId: opened.resource.id,
+      documentId: firstSection.body.id,
+      title: "新的剧集名",
+      content: "渲染进程里的陈旧正文",
+      preserveCurrentContent: true,
+      force: true
+    });
+
+    expect(renamed).toMatchObject({
+      title: "新的剧集名",
+      content: "磁盘上的最新正文"
+    });
+    const snapshot = await store.snapshot();
+    expect(snapshot.books[0]?.draft.sections[0]).toMatchObject({
+      title: "新的剧集名",
+      body: { title: "新的剧集名", content: "磁盘上的最新正文" },
+      characterState: { title: "新的剧集名 · 人物状态" }
+    });
+  });
+
+  it("rejects draft renames against duplicate titles in the latest Core directory", async () => {
+    const root = await makeTemporaryRoot(
+      "deepwrite-folder-draft-rename-duplicate-"
+    );
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createShortBook(
+      { title: "改名同名校验", genre: "其他" },
+      join(root, "books")
+    );
+    const firstSection = opened.resource.draft.sections[0]!;
+    const secondSection = await store.createDraftSection({
+      bookId: opened.resource.id,
+      title: "已经存在的章节",
+      force: true
+    });
+
+    await expect(
+      store.saveDocument({
+        bookId: opened.resource.id,
+        documentId: firstSection.body.id,
+        title: secondSection.title,
+        content: "",
+        preserveCurrentContent: true,
+        force: true
+      })
+    ).rejects.toThrow(/正文目录已存在同名/u);
+  });
+
   it("creates and deletes mapped draft section file pairs", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-draft-sections-");
     const store = new FolderCatalogStore({
@@ -514,6 +584,58 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
         }
       ]
     });
+  });
+
+  it("rejects duplicate draft titles against the latest serialized directory", async () => {
+    for (const bookType of ["short", "script"] as const) {
+      const root = await makeTemporaryRoot(
+        `deepwrite-folder-${bookType}-duplicate-draft-title-`
+      );
+      const store = new FolderCatalogStore({
+        userDataPath: join(root, "user-data"),
+        now: tickingClock()
+      });
+      const opened =
+        bookType === "short"
+          ? await store.createShortBook(
+              { title: "短篇同名目录", genre: "其他" },
+              join(root, "books")
+            )
+          : await store.createScriptBook(
+              { title: "剧本同名目录", genre: "其他" },
+              join(root, "books")
+            );
+      const existingTitle = opened.resource.draft.sections[0]!.title;
+
+      await expect(
+        store.createDraftSections({
+          operationId: `${bookType}-duplicate-existing-title`,
+          bookId: opened.resource.id,
+          force: true,
+          sections: [
+            {
+              clientSectionId: `pending:${bookType}:existing`,
+              title: existingTitle
+            }
+          ]
+        })
+      ).rejects.toThrow(/正文目录已存在同名/u);
+
+      await expect(
+        store.createDraftSections({
+          operationId: `${bookType}-duplicate-batch-title`,
+          bookId: opened.resource.id,
+          force: true,
+          sections: [
+            { clientSectionId: `pending:${bookType}:one`, title: "重复标题" },
+            { clientSectionId: `pending:${bookType}:two`, title: "重复标题" }
+          ]
+        })
+      ).rejects.toThrow(/正文目录已存在同名/u);
+      expect(await store.getProjectRevision(opened.resource.id, "book")).toBe(
+        0
+      );
+    }
   });
 
   it("deletes registered book, material, and skill project folders", async () => {

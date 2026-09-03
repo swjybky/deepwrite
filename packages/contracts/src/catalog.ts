@@ -2003,6 +2003,7 @@ export const PlotStructureMutationSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("create"),
+      stageId: CreativePlotStageIdSchema.optional(),
       title: CreativePlotStageSchema.shape.title,
       description: CreativePlotStageSchema.shape.description
     })
@@ -2111,6 +2112,7 @@ export const SaveDocumentInputSchema = z.object({
   documentId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
   content: z.string(),
+  preserveCurrentContent: z.boolean().optional(),
   baseRevision: z.string().min(1).optional(),
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
@@ -2412,32 +2414,49 @@ export type CreateLibraryEntryInput = z.infer<
   typeof CreateLibraryEntryInputSchema
 >;
 
-export const ExternalSkillSourceKindSchema = z.enum(["directory", "file"]);
-export type ExternalSkillSourceKind = z.infer<
-  typeof ExternalSkillSourceKindSchema
+export const ExternalLibrarySourceKindSchema = z.enum(["directory", "file"]);
+export type ExternalLibrarySourceKind = z.infer<
+  typeof ExternalLibrarySourceKindSchema
 >;
 
-export const ExternalSkillCandidateSchema = z.object({
+export const ExternalLibraryCandidateSchema = z.object({
+  id: CatalogIdSchema,
   title: CatalogTitleSchema,
-  description: z.string(),
+  sourceName: z.string().trim().min(1).max(512),
   content: z.string()
 });
-export type ExternalSkillCandidate = z.infer<
-  typeof ExternalSkillCandidateSchema
+export type ExternalLibraryCandidate = z.infer<
+  typeof ExternalLibraryCandidateSchema
 >;
 
-export const ExternalSkillSelectionResultSchema = z.object({
-  candidates: z.array(ExternalSkillCandidateSchema),
+export const ExternalLibrarySelectionResultSchema = z.object({
+  candidates: z
+    .array(ExternalLibraryCandidateSchema)
+    .max(CATALOG_PROJECT_MAX_CONTENT_ITEMS),
   scanned: z.number().int().nonnegative(),
   skipped: z.object({
-    invalidFormat: z.number().int().nonnegative(),
+    unsupported: z.number().int().nonnegative(),
     unreadable: z.number().int().nonnegative(),
-    invalidName: z.number().int().nonnegative(),
-    contentTooLong: z.number().int().nonnegative()
+    empty: z.number().int().nonnegative(),
+    tooLarge: z.number().int().nonnegative(),
+    limitExceeded: z.number().int().nonnegative()
   })
 });
-export type ExternalSkillSelectionResult = z.infer<
-  typeof ExternalSkillSelectionResultSchema
+export type ExternalLibrarySelectionResult = z.infer<
+  typeof ExternalLibrarySelectionResultSchema
+>;
+
+export const ImportLibraryEntriesInputSchema = z.object({
+  domain: CatalogLibraryProjectDomainSchema,
+  libraryId: CatalogIdSchema,
+  entries: z
+    .array(ExternalLibraryCandidateSchema.pick({ title: true, content: true }))
+    .min(1)
+    .max(CATALOG_PROJECT_MAX_CONTENT_ITEMS),
+  baseProjectRevision: z.number().int().nonnegative()
+});
+export type ImportLibraryEntriesInput = z.infer<
+  typeof ImportLibraryEntriesInputSchema
 >;
 
 export const RemoveLibraryEntryInputSchema = z.object({
@@ -2574,6 +2593,16 @@ export const CatalogLibraryEntrySchema = z.union([
   SkillEntrySchema
 ]);
 export type CatalogLibraryEntry = z.infer<typeof CatalogLibraryEntrySchema>;
+
+export const ImportLibraryEntriesResultSchema = z.object({
+  entries: z
+    .array(CatalogLibraryEntrySchema)
+    .min(1)
+    .max(CATALOG_PROJECT_MAX_CONTENT_ITEMS)
+});
+export type ImportLibraryEntriesResult = z.infer<
+  typeof ImportLibraryEntriesResultSchema
+>;
 
 export const CatalogSnapshotCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("catalog.snapshot"),
@@ -2797,10 +2826,16 @@ export const CatalogDuplicateProjectCommandEnvelopeSchema =
     payload: DuplicateCatalogProjectInputSchema
   });
 
-export const CatalogChooseExternalSkillsCommandEnvelopeSchema =
+export const CatalogChooseExternalLibraryEntriesCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
-    type: z.literal("catalog.chooseExternalSkills"),
-    payload: z.object({ sourceKind: ExternalSkillSourceKindSchema })
+    type: z.literal("catalog.chooseExternalLibraryEntries"),
+    payload: z.object({ sourceKind: ExternalLibrarySourceKindSchema })
+  });
+
+export const CatalogImportLibraryEntriesCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.importLibraryEntries"),
+    payload: ImportLibraryEntriesInputSchema
   });
 
 export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
@@ -2841,7 +2876,8 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
-  CatalogChooseExternalSkillsCommandEnvelopeSchema,
+  CatalogChooseExternalLibraryEntriesCommandEnvelopeSchema,
+  CatalogImportLibraryEntriesCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema
 ]);
 export type CatalogCommandEnvelope = z.infer<

@@ -151,11 +151,12 @@ describe("general settings coordinator", () => {
 
     coordinator.updateLanguage("zh-CN");
     coordinator.updateShowInMenuBar(false);
+    coordinator.updateUseNetworkProxy(true);
     coordinator.updateWorkspacePaneLayout("editor-agent");
     coordinator.updateDefaultTextViewMode("preview");
     await coordinator.drain();
 
-    expect(snapshots).toHaveLength(4);
+    expect(snapshots).toHaveLength(5);
     expect(snapshots[0]).toMatchObject({
       language: "zh-CN",
       showInMenuBar: true
@@ -167,9 +168,14 @@ describe("general settings coordinator", () => {
     expect(snapshots[2]).toMatchObject({
       language: "zh-CN",
       showInMenuBar: false,
-      workspacePaneLayout: "editor-agent"
+      useNetworkProxy: true
     });
     expect(snapshots[3]).toMatchObject({
+      language: "zh-CN",
+      showInMenuBar: false,
+      workspacePaneLayout: "editor-agent"
+    });
+    expect(snapshots[4]).toMatchObject({
       workspacePaneLayout: "editor-agent",
       defaultTextViewMode: "preview"
     });

@@ -8,6 +8,8 @@ import {
   LongChooseLegacySyncSourceResultSchema,
   LongCommitChapterInputSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitInputSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongDuplicateBookInputSchema,
   LongImportContinuationInputSchema,
   LongImportContinuationResultSchema,
@@ -45,6 +47,8 @@ import {
   type LongChooseLegacySyncSourceResult,
   type LongCommitChapterInput,
   type LongCommitChapterResult,
+  type LongDeleteLedgerCommitInput,
+  type LongDeleteLedgerCommitResult,
   type LongDuplicateBookInput,
   type LongImportContinuationInput,
   type LongImportContinuationResult,
@@ -375,6 +379,22 @@ export async function commitLongChapter(
   );
 }
 
+export async function deleteLongLedgerCommit(
+  rawInput: LongDeleteLedgerCommitInput
+): Promise<LongDeleteLedgerCommitResult> {
+  const input = LongDeleteLedgerCommitInputSchema.parse(rawInput);
+  const id = browserId("cmd_long_delete_ledger_commit");
+  return LongDeleteLedgerCommitResultSchema.parse(
+    await invokeCommand<LongDeleteLedgerCommitResult>(
+      createEnvelope("long.deleteLedgerCommit", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
 export async function unregisterLongBook(
   rawInput: LongRemoveBookInput
 ): Promise<LongRemoveBookResult> {
@@ -446,6 +466,7 @@ export const long: DeepWriteApi["long"] = {
   applyOperations: applyLongOperations,
   writeChapter: writeLongChapter,
   commitChapter: commitLongChapter,
+  deleteLedgerCommit: deleteLongLedgerCommit,
   unregister: unregisterLongBook,
   delete: deleteLongBook
 };

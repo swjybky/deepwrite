@@ -252,19 +252,72 @@ export async function mutatePlotStructure(
     };
 
     if (mutation.type === "create") {
+      const title = mutation.title.trim();
+      const description = mutation.description.trim();
+      const existingDefinition = mutation.stageId
+        ? globalStages.find(({ id }) => id === mutation.stageId)
+        : undefined;
+      if (existingDefinition) {
+        if (
+          !input.force ||
+          existingDefinition.title !== title ||
+          existingDefinition.description !== description
+        ) {
+          throw new Error(
+            `剧情结构标识“${mutation.stageId}”已用于其他创建请求。`
+          );
+        }
+        const existingStage = manifest.plotStages.find(
+          ({ id }) => id === mutation.stageId
+        );
+        const existingDocument = manifest.documents.find(
+          ({ id }) => id === mutation.stageId
+        );
+        if (existingStage && existingDocument) {
+          if (
+            existingStage.title !== title ||
+            existingStage.description !== description ||
+            existingDocument.title !== title
+          ) {
+            throw new Error(
+              "剧情结构创建记录与本次创建意图不一致，无法安全重放。"
+            );
+          }
+          return (
+            await readProject(store, projectDirectory, "book", input.bookId)
+          ).resource as Book;
+        }
+        if (existingStage || existingDocument) {
+          throw new Error("剧情结构创建记录不完整，无法安全重放本次创建。");
+        }
+        await applyGlobalPlotStageCreate(
+          store,
+          registry,
+          existingDefinition,
+          input.bookId,
+          now
+        );
+        await bumpRegistry(store, registry, now);
+        return (
+          await readProject(store, projectDirectory, "book", input.bookId)
+        ).resource as Book;
+      }
       if (globalStages.length >= 32) {
         throw new Error("剧情结构最多支持 32 项。");
       }
-      assertUniqueGlobalTitle(mutation.title);
+      assertUniqueGlobalTitle(title);
       const ids = new Set(globalStages.map(({ id }) => id));
-      let stageId = createCatalogId("plot-stage");
-      while (ids.has(stageId)) {
+      if (mutation.stageId && ids.has(mutation.stageId)) {
+        throw new Error(`剧情结构标识“${mutation.stageId}”已被其他结构占用。`);
+      }
+      let stageId = mutation.stageId ?? createCatalogId("plot-stage");
+      while (!mutation.stageId && ids.has(stageId)) {
         stageId = createCatalogId("plot-stage");
       }
       const definition: CreativePlotStage = {
         id: stageId,
-        title: mutation.title.trim(),
-        description: mutation.description.trim()
+        title,
+        description
       };
       globalStages.push(definition);
       registry.creativePlotStages =

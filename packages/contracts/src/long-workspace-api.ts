@@ -6,6 +6,7 @@ import {
 import { EnvelopeBaseSchema } from "./envelope";
 import {
   LongCommitChapterInputSchema,
+  LongDeleteLedgerCommitInputSchema,
   LongWriteChapterInputSchema
 } from "./long-ledger";
 import {
@@ -1575,6 +1576,11 @@ export const LongCommitChapterCommandEnvelopeSchema = EnvelopeBaseSchema.extend(
     payload: LongCommitChapterInputSchema
   }
 );
+export const LongDeleteLedgerCommitCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("long.deleteLedgerCommit"),
+    payload: LongDeleteLedgerCommitInputSchema
+  });
 export const LongWorkspaceCommandEnvelopeSchema = z.discriminatedUnion("type", [
   LongCreateBookCommandEnvelopeSchema,
   LongCreateBookAtPathCommandEnvelopeSchema,
@@ -1606,7 +1612,8 @@ export const LongWorkspaceCommandEnvelopeSchema = z.discriminatedUnion("type", [
   LongPreviewOperationsCommandEnvelopeSchema,
   LongApplyOperationsCommandEnvelopeSchema,
   LongWriteChapterCommandEnvelopeSchema,
-  LongCommitChapterCommandEnvelopeSchema
+  LongCommitChapterCommandEnvelopeSchema,
+  LongDeleteLedgerCommitCommandEnvelopeSchema
 ]);
 export type LongWorkspaceCommandEnvelope = z.infer<
   typeof LongWorkspaceCommandEnvelopeSchema

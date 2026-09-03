@@ -1,5 +1,8 @@
 import { computed, ref, watch } from "vue";
-import { BUILT_IN_REASONING_LEVELS } from "@deepwrite/contracts";
+import {
+  BUILT_IN_REASONING_LEVELS,
+  isDeepWriteSiteOfficialModel
+} from "@deepwrite/contracts";
 import type {
   ModelConfigInput,
   ModelSettings,
@@ -61,7 +64,11 @@ export function useModelSettingsDraft(
 
   function resetModelDraft(settings: ModelSettings | null): void {
     draftModels.value = (settings?.models ?? [])
-      .filter((model) => props.modelScope === "all" || !model.managedBy)
+      .filter(
+        (model) =>
+          !isDeepWriteSiteOfficialModel(model) &&
+          (props.modelScope === "all" || !model.managedBy)
+      )
       .map((model) =>
         cloneDraftModel({
           ...model,
@@ -256,22 +263,15 @@ export function useModelSettingsDraft(
 
   function submitModelSettings(): void {
     const draftInputs = draftModels.value.map(toModelInput);
-    if (props.modelScope === "custom") {
-      actions.saveModels(
-        mergeCustomModelSettings(
-          (props.modelSettings?.models ?? []).map((model) =>
-            toModelInput(cloneDraftModel(model))
-          ),
-          draftInputs,
-          draftDefaultModelId.value
-        )
-      );
-      return;
-    }
-    actions.saveModels({
-      models: draftInputs,
-      defaultModelId: draftDefaultModelId.value || draftInputs[0]?.id || ""
-    });
+    actions.saveModels(
+      mergeCustomModelSettings(
+        (props.modelSettings?.models ?? []).map((model) =>
+          toModelInput(cloneDraftModel(model))
+        ),
+        draftInputs,
+        draftDefaultModelId.value || draftInputs[0]?.id || ""
+      )
+    );
   }
 
   function setDefaultModel(modelId: string): void {

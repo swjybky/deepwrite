@@ -240,7 +240,8 @@ html[data-platform="darwin"] .desktop-shell {
 }
 
 .marketplace-main-view,
-.long-book-analysis-main-view {
+.long-book-analysis-main-view,
+.zhuque-detection-main-view {
   position: relative;
   grid-column: 2 / 4;
   min-width: 0;
@@ -250,7 +251,8 @@ html[data-platform="darwin"] .desktop-shell {
   color: var(--text-primary);
 }
 
-.marketplace-expand-sidebar {
+.marketplace-expand-sidebar,
+.zhuque-detection-expand-sidebar {
   position: absolute;
   z-index: 5;
   top: 12px;
@@ -987,12 +989,31 @@ html[data-platform="darwin"] .sidebar-brand-row {
   color: var(--text-primary);
 }
 
-.tree-row[draggable="true"] {
-  cursor: grab;
+.tree-node:is(.is-creation-book-drop-before, .is-creation-book-drop-after)
+  > .tree-row {
+  position: relative;
 }
 
-.tree-row[draggable="true"]:active {
-  cursor: grabbing;
+.tree-node:is(.is-creation-book-drop-before, .is-creation-book-drop-after)
+  > .tree-row::before {
+  position: absolute;
+  z-index: 25;
+  right: 5px;
+  left: 5px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--surface-main);
+  content: "";
+  pointer-events: none;
+}
+
+.tree-node.is-creation-book-drop-before > .tree-row::before {
+  top: -1px;
+}
+
+.tree-node.is-creation-book-drop-after > .tree-row::before {
+  bottom: -1px;
 }
 
 .tree-row.is-library-entry-drop-target {

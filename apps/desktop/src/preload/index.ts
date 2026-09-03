@@ -114,6 +114,8 @@ import {
   LongAgentSettingsSchema,
   LongCommitChapterInputSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitInputSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongDuplicateBookInputSchema,
   LongListBooksResultSchema,
   LongOpenBookInputSchema,
@@ -247,6 +249,8 @@ import {
   type LongAgentSettingsInput,
   type LongCommitChapterInput,
   type LongCommitChapterResult,
+  type LongDeleteLedgerCommitInput,
+  type LongDeleteLedgerCommitResult,
   type LongDuplicateBookInput,
   type LongListBooksResult,
   type LongOpenBookInput,
@@ -309,25 +313,14 @@ import { appearance } from "./appearance-api";
 import { searchLongDocuments } from "./long-api";
 import {
   abort,
-  clearOfficialModelToken,
   getChatAssistantProjectConfig,
   listChatAssistantProjectConfigs,
-  listModels,
-  listRemoteModels,
+  models as sessionModels,
   prompt,
   queryModelUsage,
-  queryOfficialModelBalance,
-  refreshFreeModels,
-  refreshOfficialModels,
   resetChatAssistantProjectConfig,
   saveChatAssistantProjectConfig,
-  saveModels,
-  saveOfficialModelToken,
-  setFreeModelEnabled,
-  setOfficialModelEnabled,
-  submitUserInput,
-  testModel,
-  resolveModelCapacity
+  submitUserInput
 } from "./session-models-api";
 
 async function getHealth(): Promise<SystemHealthPayload> {
@@ -828,6 +821,22 @@ async function commitLongChapter(
   return LongCommitChapterResultSchema.parse(
     await invokeCommand<LongCommitChapterResult>(
       createEnvelope("long.commitChapter", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function deleteLongLedgerCommit(
+  rawInput: LongDeleteLedgerCommitInput
+): Promise<LongDeleteLedgerCommitResult> {
+  const input = LongDeleteLedgerCommitInputSchema.parse(rawInput);
+  const id = browserId("cmd_long_delete_ledger_commit");
+  return LongDeleteLedgerCommitResultSchema.parse(
+    await invokeCommand<LongDeleteLedgerCommitResult>(
+      createEnvelope("long.deleteLedgerCommit", input, {
         id,
         correlationId: id,
         context: { resourceId: input.bookId }
@@ -1962,6 +1971,7 @@ const api: DeepWriteApi = {
     applyOperations: applyLongOperations,
     writeChapter: writeLongChapter,
     commitChapter: commitLongChapter,
+    deleteLedgerCommit: deleteLongLedgerCommit,
     unregister: unregisterLongBook,
     delete: deleteLongBook
   },
@@ -1970,20 +1980,7 @@ const api: DeepWriteApi = {
     abort,
     submitUserInput
   },
-  models: {
-    list: listModels,
-    refreshFree: refreshFreeModels,
-    refreshOfficial: refreshOfficialModels,
-    queryOfficialBalance: queryOfficialModelBalance,
-    saveOfficialToken: saveOfficialModelToken,
-    clearOfficialToken: clearOfficialModelToken,
-    setFreeModelEnabled,
-    setOfficialModelEnabled,
-    save: saveModels,
-    test: testModel,
-    resolveCapacity: resolveModelCapacity,
-    listRemote: listRemoteModels
-  },
+  models: sessionModels,
   modelUsage: {
     query: queryModelUsage
   },

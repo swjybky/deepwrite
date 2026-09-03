@@ -36,6 +36,7 @@ import {
   appendDeepSeekWebSearchTool,
   assertDeepSeekWebSearchCompatible
 } from "./deepseek-web-search";
+import { applyGoogleClaudeThinkingCompatibility } from "./google-claude-thinking";
 
 function providerStreams(
   api: AgentProviderRuntimeConfig["api"]
@@ -245,7 +246,7 @@ export function buildProviderRuntime(
         config.toolSchemaProfile,
         compatibility.portableToolSchemaProfile
       ),
-      {
+      applyGoogleClaudeThinkingCompatibility(config.api, requestModel.id, {
         ...options,
         ...(compatibility.webSearchEnabled
           ? {
@@ -273,7 +274,7 @@ export function buildProviderRuntime(
             : options?.apiKey
               ? { apiKey: options.apiKey }
               : {})
-      }
+      })
     );
   };
   return { model, streamFn: streamFn as StreamFn };

@@ -228,6 +228,7 @@ function createHarness(options: HarnessOptions = {}) {
     remove: vi.fn(async () => undefined)
   };
   const ensureDocumentsLoaded = vi.fn(async () => true);
+  const writeClipboardText = vi.fn(async (_text: string) => undefined);
   const notifications = {
     error: vi.fn(),
     info: vi.fn(),
@@ -276,6 +277,7 @@ function createHarness(options: HarnessOptions = {}) {
       api: () => manuscriptApi as unknown as DeepWriteApi["manuscript"],
       ensureDocumentsLoaded
     },
+    clipboard: { writeText: writeClipboardText },
     notifications
   });
 
@@ -320,6 +322,7 @@ function createHarness(options: HarnessOptions = {}) {
     fallbackCreationResourceId,
     legacy,
     ensureDocumentsLoaded,
+    writeClipboardText,
     notifications,
     showDialog
   };
@@ -603,6 +606,23 @@ describe("useShortBookLifecycleCoordinator", () => {
       })
     );
     expect(harness.exportBookTarget.value).toBeNull();
+  });
+
+  it("copies the hydrated live manuscript without opening a save dialog", async () => {
+    const harness = createHarness();
+    harness.exportBookTarget.value = harness.target;
+    harness.books.set("book-1", fixtureBook("book-1", 4, "实时书名"));
+
+    await harness.coordinator.exportBookManuscript("clipboard");
+
+    expect(harness.writeClipboardText).toHaveBeenCalledWith(
+      expect.stringContaining("《实时书名》\n\n编辑器新标题\n\n编辑器实时正文")
+    );
+    expect(harness.manuscriptApi.exportShort).not.toHaveBeenCalled();
+    expect(harness.exportBookTarget.value).toBeNull();
+    expect(harness.notifications.success).toHaveBeenCalledWith(
+      "已复制“实时书名”的导语和全部小节正文，可直接粘贴"
+    );
   });
 
   it("delegates duplicate and structure commands without stealing their catalog lease", async () => {

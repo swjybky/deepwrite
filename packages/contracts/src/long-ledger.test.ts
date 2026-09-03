@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   LongCommitChapterInputSchema,
+  LongDeleteLedgerCommitInputSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongLedgerCommitRecordSchema,
   LongWriteChapterInputSchema
 } from "./index";
@@ -72,6 +74,38 @@ const record = {
 };
 
 describe("long ledger contracts", () => {
+  it("validates deletion commands and reports every chapter in the removed record", () => {
+    expect(
+      LongDeleteLedgerCommitInputSchema.parse({
+        bookId: "longbook_alpha",
+        commitId: "commit_first"
+      })
+    ).toEqual({ bookId: "longbook_alpha", commitId: "commit_first" });
+    expect(
+      LongDeleteLedgerCommitResultSchema.parse({
+        bookId: "longbook_alpha",
+        deletedCommitId: "commit_first",
+        chapterCardIds: ["chapter_one", "chapter_two"]
+      })
+    ).toMatchObject({
+      deletedCommitId: "commit_first",
+      chapterCardIds: ["chapter_one", "chapter_two"]
+    });
+    expect(
+      LongDeleteLedgerCommitInputSchema.safeParse({
+        bookId: "longbook_alpha",
+        commitId: ""
+      }).success
+    ).toBe(false);
+    expect(
+      LongDeleteLedgerCommitResultSchema.safeParse({
+        bookId: "longbook_alpha",
+        deletedCommitId: "commit_first",
+        chapterCardIds: []
+      }).success
+    ).toBe(false);
+  });
+
   it("stores semantic audit records without rollback state", () => {
     const parsed = LongLedgerCommitRecordSchema.parse(record);
     expect(parsed.id).toBe("commit_first");

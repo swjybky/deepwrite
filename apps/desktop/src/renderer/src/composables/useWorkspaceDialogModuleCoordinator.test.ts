@@ -87,6 +87,10 @@ function createHarness() {
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["longStructure"]["treeDeletion"]["value"]
     >(null);
+  const ledgerCommitDeletion =
+    shallowRef<
+      WorkspaceDialogModuleCoordinatorOptions["longStructure"]["ledgerCommitDeletion"]["value"]
+    >(null);
   const volumeCreation =
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["longStructure"]["volumeCreation"]["value"]
@@ -198,6 +202,7 @@ function createHarness() {
       chapterCardCreation,
       draftDeletion,
       treeDeletion,
+      ledgerCommitDeletion,
       volumeCreation,
       dialogOpen: longStructureDialogOpen,
       agentsMd: shallowRef<string | null>(null),
@@ -262,6 +267,7 @@ function createHarness() {
       chapterCardCreation,
       draftDeletion,
       treeDeletion,
+      ledgerCommitDeletion,
       volumeCreation,
       longStructureDialogOpen,
       syncBookOptions,
@@ -408,6 +414,16 @@ function setKindActive(
           })
         : null;
       return;
+    case "delete-long-ledger-commit":
+      state.ledgerCommitDeletion.value = active
+        ? {
+            bookId: "long-1",
+            commitId: "ledger-commit-1",
+            title: "第 2 章提交",
+            chapterCardIds: ["chapter-2"]
+          }
+        : null;
+      return;
     case "create-long-volume":
       state.volumeCreation.value = active
         ? { bookId: "long-1", source: "book-line" }
@@ -540,8 +556,8 @@ function trackedRef<Value>(
 
 describe("useWorkspaceDialogModuleCoordinator", () => {
   it("covers every dialog kind and preserves the complete strict priority", () => {
-    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(29);
-    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(29);
+    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(30);
+    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(30);
     expect(new Set(WORKSPACE_DIALOG_PRIORITY)).toEqual(
       new Set(WORKSPACE_DIALOG_KINDS)
     );

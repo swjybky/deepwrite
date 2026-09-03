@@ -334,6 +334,8 @@ export interface ComposerReferenceOption {
 
 export interface EditorTextReference {
   id: string;
+  source?: "editor" | "conversation";
+  conversationMessageId?: string;
   resourceId: string;
   documentId: string;
   documentTitle: string;

@@ -292,6 +292,59 @@ describe("long workspace resource-tree projection", () => {
     ]);
   });
 
+  it("marks every commit row for its menu and enables deletion only on the last row", () => {
+    const index = indexFixture();
+    const first = index.chapters.find(
+      ({ chapterCardId }) => chapterCardId === "chapter_one"
+    )!;
+    const second = index.chapters.find(
+      ({ chapterCardId }) => chapterCardId === "chapter_two"
+    )!;
+    first.commitId = "commit_first";
+    second.commitId = "commit_latest";
+    index.ledger.commits = [
+      {
+        id: "commit_first",
+        mode: "text_files",
+        sequence: 1,
+        chapterCardId: "chapter_one",
+        committedAt: updatedAt,
+        placementIds: [],
+        foreshadowingBeatIds: [],
+        recordFile: file(
+          "file_commit_first:ledger-record",
+          "long/ledger/commit_first.json"
+        )
+      },
+      {
+        id: "commit_latest",
+        mode: "text_files",
+        sequence: 2,
+        chapterCardId: "chapter_two",
+        committedAt: updatedAt,
+        placementIds: [],
+        foreshadowingBeatIds: [],
+        recordFile: file(
+          "file_commit_latest:ledger-record",
+          "long/ledger/commit_latest.json"
+        )
+      }
+    ];
+
+    const records = projectLongWorkspaceNavigation(summaryFixture(), index)
+      .find(({ label }) => label === "连续性账本")
+      ?.children?.find(({ label }) => label === "章节记录")?.children;
+    expect(records?.map(({ longLedgerCommit }) => longLedgerCommit)).toEqual([
+      { id: "commit_first", deletable: false },
+      { id: "commit_latest", deletable: true }
+    ]);
+    const fileRows = records?.flatMap(({ children = [] }) => children) ?? [];
+    expect(fileRows.length).toBeGreaterThan(0);
+    expect(
+      fileRows.every(({ longLedgerCommit }) => longLedgerCommit === undefined)
+    ).toBe(true);
+  });
+
   it("indexes repeated group and volume relationships before projection", () => {
     expect(source).toContain("const characterCountByGroup = new Map");
     expect(source).toContain("const arcCountByVolume = new Map");

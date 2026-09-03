@@ -20,6 +20,7 @@ import {
   type WritingWorkspaceSnapshot
 } from "./shared";
 import { buildShortUnifiedCreateTool } from "./unified-create-tool";
+import { buildShortUnifiedDeleteTool } from "./unified-delete-tool";
 import { buildShortUnifiedEditTool } from "./unified-edit-tool";
 import {
   buildShortUnifiedReadTool,
@@ -132,6 +133,7 @@ function buildUnifiedWritingWorkspaceTools(
     buildShortUnifiedCreateTool(toolInput, sharedState),
     buildShortUnifiedEditTool(toolInput, sharedState, readState),
     buildShortUnifiedWriteTool(toolInput, sharedState, readState),
+    buildShortUnifiedDeleteTool(toolInput, sharedState, readState),
     buildQueryLinkedMaterialEntriesTool(toolInput),
     buildLoadSkillTool(toolInput)
   ];

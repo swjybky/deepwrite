@@ -74,6 +74,7 @@ describe("long continuation TXT import", () => {
     expect(index.ledger.committedThroughChapterId).toBe(
       index.plot.chapterCards[1]!.id
     );
+    const latestImportCheckpoint = index.ledger.commits.at(-1)!;
     expect(index.chapters[2]!.commitId).toBeNull();
     expect(imported.pendingChapterCardId).toBe(index.plot.chapterCards[2]!.id);
     const body = await store.readDocument(imported.projectDirectory, {
@@ -107,6 +108,32 @@ describe("long continuation TXT import", () => {
       fileId: readyChapter.body.id,
       content: "提交后仍可直接改写正文。"
     });
+    await expect(
+      store.readDocument(imported.projectDirectory, {
+        fileId: readyChapter.body.id
+      })
+    ).resolves.toMatchObject({ content: "提交后仍可直接改写正文。" });
+
+    await store.deleteLedgerCommit(imported.projectDirectory, {
+      commitId: committed.record.id
+    });
+    const deletedCheckpoint = await store.deleteLedgerCommit(
+      imported.projectDirectory,
+      { commitId: latestImportCheckpoint.id }
+    );
+    expect(deletedCheckpoint.chapterCardIds).toEqual([
+      index.plot.chapterCards[1]!.id
+    ]);
+    const afterCheckpointDeletion = await store.openBook(
+      imported.projectDirectory
+    );
+    expect(
+      afterCheckpointDeletion.book.workspaceIndex.chapters[1]!.commitId
+    ).toBeNull();
+    expect(
+      afterCheckpointDeletion.book.workspaceIndex.ledger
+        .committedThroughChapterId
+    ).toBe(index.plot.chapterCards[0]!.id);
     await expect(
       store.readDocument(imported.projectDirectory, {
         fileId: readyChapter.body.id

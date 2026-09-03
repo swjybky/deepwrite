@@ -63,4 +63,16 @@ describe("mergeCustomModelSettings", () => {
 
     expect(result.defaultModelId).toBe(custom.id);
   });
+
+  it("preserves the user-configured official-site model outside custom edits", () => {
+    const site = model("deepwrite-site-official-deepseek-v4-flash");
+    const custom = model("custom");
+    const result = mergeCustomModelSettings(
+      [site, custom],
+      [{ ...custom, label: "edited" }],
+      custom.id
+    );
+
+    expect(result.models).toEqual([site, { ...custom, label: "edited" }]);
+  });
 });

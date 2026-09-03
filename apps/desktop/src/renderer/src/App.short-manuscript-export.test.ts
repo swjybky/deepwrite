@@ -5,6 +5,7 @@ import sectionSource from "./components/TreeSection.vue?raw";
 import dialogLayerSource from "./components/WorkspaceDialogLayer.vue?raw";
 import lazyLifecycleSource from "./composables/useLazyShortBookLifecycleCoordinator.ts?raw";
 import lifecycleSource from "./composables/useShortBookLifecycleCoordinator.ts?raw";
+import transactionSource from "./composables/short-manuscript-export-transaction.ts?raw";
 import dialogCoordinatorSource from "./composables/useWorkspaceDialogModuleCoordinator.ts?raw";
 import exportInputSource from "./utils/shortManuscriptExport.ts?raw";
 
@@ -27,8 +28,10 @@ describe("short manuscript export UI wiring", () => {
     expect(lazyLifecycleSource).toContain(
       'return import("./useShortBookLifecycleCoordinator")'
     );
-    expect(lifecycleSource).toContain("createShortManuscriptExportInput(");
-    expect(lifecycleSource).toContain("api.exportShort(input)");
+    expect(lifecycleSource).toContain("executeShortManuscriptExport({");
+    expect(transactionSource).toContain("createShortManuscriptExportInput(");
+    expect(transactionSource).toContain("transaction.api.exportShort(input)");
+    expect(transactionSource).toContain("createShortManuscriptClipboardText(");
     expect(exportInputSource).toContain("editorDrafts[document.id]");
     expect(appSource).not.toContain("createShortManuscriptExportInput(");
     expect(appSource).not.toContain('from "./utils/shortManuscriptExport"');

@@ -1480,29 +1480,70 @@ export class CatalogStore {
         return true;
       }
       if (mutation.type === "create") {
+        const title = mutation.title.trim();
+        const description = mutation.description.trim();
+        const existingDefinition = mutation.stageId
+          ? draft.creativePlotStages.find(({ id }) => id === mutation.stageId)
+          : undefined;
+        if (existingDefinition) {
+          if (
+            !input.force ||
+            existingDefinition.title !== title ||
+            existingDefinition.description !== description
+          ) {
+            throw new Error(
+              `剧情结构标识“${mutation.stageId}”已用于其他创建请求。`
+            );
+          }
+          const existingStage = book.plotStages.find(
+            ({ id }) => id === mutation.stageId
+          );
+          const existingDocument = book.documents.find(
+            ({ id }) => id === mutation.stageId
+          );
+          if (!existingStage || !existingDocument) {
+            throw new Error("剧情结构创建记录不完整，无法安全重放本次创建。");
+          }
+          if (
+            existingStage.title !== title ||
+            existingStage.description !== description ||
+            existingDocument.title !== title
+          ) {
+            throw new Error(
+              "剧情结构创建记录与本次创建意图不一致，无法安全重放。"
+            );
+          }
+          return false;
+        }
         if (draft.creativePlotStages.length >= 32) {
           throw new Error("剧情结构最多只能创建 32 项。");
         }
         if (
           draft.creativePlotStages.some(
             (stage) =>
-              stage.title.toLocaleLowerCase() ===
-              mutation.title.toLocaleLowerCase()
+              stage.title.toLocaleLowerCase() === title.toLocaleLowerCase()
           )
         ) {
-          throw new Error(`剧情结构“${mutation.title}”已经存在。`);
+          throw new Error(`剧情结构“${title}”已经存在。`);
         }
-        let stageId = createCatalogId("plot-stage");
         const ids = new Set(
           draft.books.flatMap((candidate) =>
             candidate.documents.map((document) => document.id)
           )
         );
-        while (ids.has(stageId)) stageId = createCatalogId("plot-stage");
+        if (mutation.stageId && ids.has(mutation.stageId)) {
+          throw new Error(
+            `剧情结构标识“${mutation.stageId}”已被其他文件占用。`
+          );
+        }
+        let stageId = mutation.stageId ?? createCatalogId("plot-stage");
+        while (!mutation.stageId && ids.has(stageId)) {
+          stageId = createCatalogId("plot-stage");
+        }
         const definition = {
           id: stageId,
-          title: mutation.title,
-          description: mutation.description
+          title,
+          description
         };
         draft.creativePlotStages.push(definition);
         for (const candidate of draft.books) {
@@ -1515,7 +1556,7 @@ export class CatalogStore {
           });
           candidate.documents.push({
             id: stageId,
-            title: mutation.title,
+            title,
             content: "",
             createdAt: now,
             updatedAt: now

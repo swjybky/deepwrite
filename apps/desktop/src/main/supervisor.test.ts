@@ -90,7 +90,7 @@ describe("UtilitySupervisor internal command bridge", () => {
       (
         _entryPath: string,
         _args: string[],
-        options: { serviceName: string }
+        options: { serviceName: string; env?: NodeJS.ProcessEnv }
       ) => {
         const worker = options.serviceName.replace(
           "deepwrite-",
@@ -125,6 +125,14 @@ describe("UtilitySupervisor internal command bridge", () => {
     supervisor.startAll();
     return supervisor;
   }
+
+  it("starts utility workers with the current process environment", () => {
+    createSupervisor();
+    expect(electronMocks.fork).toHaveBeenCalled();
+    for (const [, , options] of electronMocks.fork.mock.calls) {
+      expect(options.env).toEqual(expect.objectContaining(process.env));
+    }
+  });
 
   function dispatchInternalRequest(
     target: UtilityInternalCommandTarget,

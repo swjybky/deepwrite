@@ -64,7 +64,11 @@ const navigationDeleteCancelButton = defineModel<HTMLButtonElement | undefined>(
         <h3 id="long-story-plot-delete-title">
           确认删除“{{ pendingStoryPlotDelete.title }}”？
         </h3>
-        <p id="long-story-plot-delete-description">
+        <p
+          id="long-story-plot-delete-description"
+          class="delete-impact-description"
+          tabindex="0"
+        >
           {{
             pendingStoryPlotDelete.previewPending
               ? "正在核对关联关系与删除影响…"
@@ -119,7 +123,11 @@ const navigationDeleteCancelButton = defineModel<HTMLButtonElement | undefined>(
         <h3 id="long-worldbuilding-delete-title">
           确认删除“{{ pendingWorldbuildingDeleteItem.title }}”？
         </h3>
-        <p id="long-worldbuilding-delete-description">
+        <p
+          id="long-worldbuilding-delete-description"
+          class="delete-impact-description"
+          tabindex="0"
+        >
           {{
             pendingWorldbuildingDeleteItem.previewPending
               ? "正在核对关联关系与删除影响…"
@@ -175,7 +183,11 @@ const navigationDeleteCancelButton = defineModel<HTMLButtonElement | undefined>(
         <h3 id="long-navigation-delete-title">
           确认删除“{{ navigationDeleteTarget.title }}”？
         </h3>
-        <p id="long-navigation-delete-description">
+        <p
+          id="long-navigation-delete-description"
+          class="delete-impact-description"
+          tabindex="0"
+        >
           {{
             navigationDeleteTarget.previewPending
               ? "正在核对关联关系与删除影响…"
@@ -226,8 +238,12 @@ const navigationDeleteCancelButton = defineModel<HTMLButtonElement | undefined>(
 
 .long-worldbuilding-delete-dialog,
 .long-navigation-delete-dialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(420px, calc(100vw - 32px));
+  height: min(420px, calc(100vh - 40px));
   padding: 20px;
+  overflow: hidden;
   border: 1px solid var(--theme-line);
   border-radius: 14px;
   background: var(--surface-raised);
@@ -250,10 +266,20 @@ const navigationDeleteCancelButton = defineModel<HTMLButtonElement | undefined>(
 
 .long-worldbuilding-delete-dialog p,
 .long-navigation-delete-dialog p {
+  min-height: 0;
   margin: 12px 0 0;
   color: var(--text-secondary);
   font-size: 0.785714rem;
   line-height: 1.6;
+}
+
+.long-worldbuilding-delete-dialog .delete-impact-description,
+.long-navigation-delete-dialog .delete-impact-description {
+  padding-right: 8px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .long-worldbuilding-delete-dialog footer,

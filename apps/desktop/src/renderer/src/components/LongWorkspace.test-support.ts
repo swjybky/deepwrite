@@ -15,6 +15,7 @@ import editorSource from "./LongWorkspaceEditor.vue?raw";
 import editorSessionSource from "../composables/useLongEditorDocumentSession.ts?raw";
 import editorStructureSource from "../composables/useLongEditorStructureSelection.ts?raw";
 import editorDeleteSource from "../composables/useLongEditorDeleteDialogs.ts?raw";
+import storyPlotDeleteSource from "../composables/useLongStoryPlotDeleteConfirmation.ts?raw";
 import editorDeleteDialogsSource from "./LongEditorDeleteDialogs.vue?raw";
 import longWorkspaceModuleSource from "./LongWorkspaceModule.vue?raw";
 import manuscriptNavigationSource from "./LongManuscriptNavigation.vue?raw";
@@ -43,6 +44,8 @@ import longStructureTransactionsTreeSource from "../composables/long-structure-t
 import longStructureTransactionsCreateSource from "../composables/long-structure-transactions/create.ts?raw";
 import longStructureTransactionsRenameSaveSource from "../composables/long-structure-transactions/rename-save.ts?raw";
 import longStructureTransactionsDeleteSource from "../composables/long-structure-transactions/delete.ts?raw";
+import longStructureTransactionsDraftDeleteSelectionSource from "../composables/long-structure-transactions/draft-delete-selection.ts?raw";
+import longStructureTransactionsNavigationDeleteBatchSource from "../composables/long-structure-transactions/navigation-delete-batch.ts?raw";
 import longStructureTransactionsSyncSource from "../composables/long-structure-transactions/sync.ts?raw";
 const longStructureTransactionsSource = [
   longStructureTransactionsLeaseSource,
@@ -50,6 +53,8 @@ const longStructureTransactionsSource = [
   longStructureTransactionsCreateSource,
   longStructureTransactionsRenameSaveSource,
   longStructureTransactionsDeleteSource,
+  longStructureTransactionsDraftDeleteSelectionSource,
+  longStructureTransactionsNavigationDeleteBatchSource,
   longStructureTransactionsSyncSource,
   longStructureTransactionsFacadeSource
 ].join("\n");
@@ -92,6 +97,7 @@ export {
   editorSessionSource,
   editorSource,
   editorStructureSource,
+  storyPlotDeleteSource,
   expect,
   featureHostCoordinatorSource,
   foreshadowingFiltersSource,

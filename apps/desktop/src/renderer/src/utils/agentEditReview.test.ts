@@ -6,7 +6,6 @@ import {
   agentEditProposalId,
   agentEditProposalLaneId,
   classifyAgentEditAcceptance,
-  expectedMutationDurableRevision,
   expectedMutationBaseRevision,
   latestAgentEditProposalInLane,
   resolveAgentEditProposalGeneration,
@@ -116,28 +115,6 @@ describe("agent edit review", () => {
 
     expect(expectedMutationBaseRevision(existing, "尚未应用的页面文本")).toBe(
       existing.proposedRevision
-    );
-  });
-
-  it("expects the old durable base while a generation is applying", () => {
-    const existing = {
-      ...proposal("原文", "第一版"),
-      status: "accepting"
-    } as AgentEditProposal;
-
-    expect(expectedMutationDurableRevision(existing, "被忽略")).toBe(
-      createShortWorkspaceContentRevision("原文")
-    );
-  });
-
-  it("advances the durable base after a generation was accepted", () => {
-    const existing = {
-      ...proposal("原文", "第一版"),
-      status: "accepted"
-    } as AgentEditProposal;
-
-    expect(expectedMutationDurableRevision(existing, "被忽略")).toBe(
-      createShortWorkspaceContentRevision("第一版")
     );
   });
 

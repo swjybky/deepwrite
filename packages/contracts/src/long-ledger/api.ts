@@ -5,6 +5,7 @@ import {
   LongChapterCardIdSchema,
   LongFileIdSchema,
   LongForeshadowingBeatIdSchema,
+  LongLedgerCommitIdSchema,
   LongNarrativePlacementIdSchema
 } from "../long-workspace";
 import {
@@ -233,4 +234,25 @@ export const LongCommitChapterResultSchema = z
   .strict();
 export type LongCommitChapterResult = z.infer<
   typeof LongCommitChapterResultSchema
+>;
+
+export const LongDeleteLedgerCommitInputSchema = z
+  .object({
+    bookId: LongBookIdSchema,
+    commitId: LongLedgerCommitIdSchema
+  })
+  .strict();
+export type LongDeleteLedgerCommitInput = z.infer<
+  typeof LongDeleteLedgerCommitInputSchema
+>;
+
+export const LongDeleteLedgerCommitResultSchema = z
+  .object({
+    bookId: LongBookIdSchema,
+    deletedCommitId: LongLedgerCommitIdSchema,
+    chapterCardIds: z.array(LongChapterCardIdSchema).min(1).max(100_000)
+  })
+  .strict();
+export type LongDeleteLedgerCommitResult = z.infer<
+  typeof LongDeleteLedgerCommitResultSchema
 >;

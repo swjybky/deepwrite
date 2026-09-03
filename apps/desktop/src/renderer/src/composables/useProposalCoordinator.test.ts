@@ -102,7 +102,7 @@ describe("useProposalCoordinator extraction boundary", () => {
     expect(source).not.toContain("conversations.delete(conversationKey)");
   });
 
-  it("keeps the queue and revision bookkeeping private and ordered", () => {
+  it("keeps proposal decisions private and workspace writes ordered", () => {
     expect(source).toContain("const proposalQueue = createProposalQueue({");
     expect(queueSource).toContain(
       "const queuedAgentEdits = new Map<string, QueuedAgentEdit>()"
@@ -115,9 +115,22 @@ describe("useProposalCoordinator extraction boundary", () => {
     );
     expect(queueSource).toContain("stageAgentEditProposalRevision(");
     expect(queueSource).toContain("beginAgentEditProposalCommit(");
-    expect(source).toContain("expectedMutationDurableRevision(");
+    expect(source).not.toContain("expectedMutationDurableRevision(");
+    expect(source).toContain("shortAgentDirectDocumentWrite({");
     expect(queueSource).toContain(
       ".enqueue(workspaceId, () => drainWorkspace(workspaceId))"
+    );
+    expect(source).not.toContain(
+      'if (proposal.plotStructureTarget?.mutation.type === "create") return 0'
+    );
+    expect(source).not.toContain(
+      "if (proposal.draftSectionCreationTarget) return 0"
+    );
+    expect(source).not.toContain(
+      'if (proposal.characterStructureTarget?.mutation.type === "createItem")'
+    );
+    expect(source).not.toContain(
+      "if (proposal.provisionalExpertSection) return 1"
     );
     expect(queueSource).toContain("function hasQueuedAgentEdits(): boolean");
     expect(queueSource).toContain("activeAgentEditCommitTasks.add(task)");

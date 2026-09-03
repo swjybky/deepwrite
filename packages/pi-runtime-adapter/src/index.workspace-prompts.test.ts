@@ -140,6 +140,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     );
     expect(scriptSystemPrompt).toContain("叙事视角（narrative_perspective）");
     expect(scriptSystemPrompt).toContain("阶段边界与交付标准：确定叙事人称");
+    expect(scriptSystemPrompt).toContain(
+      "delete（kind=draft_section）会删除整个剧集"
+    );
+    expect(scriptSystemPrompt).toContain("正文至少保留一个剧集");
 
     const runtimePrompt = buildRuntimeUserPrompt(scriptInput);
     expect(runtimePrompt).toContain("【剧本上下文（AGENTS.md）】");
@@ -346,7 +350,8 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(draftPrompt).toContain(
       "kind=draft_section 必须同时给出 document=body 或 character_state"
     );
-    expect(draftPrompt).toContain("read、create、edit、write");
+    expect(draftPrompt).toContain("read、create、edit、write、delete");
+    expect(draftPrompt).toContain("delete（kind=draft_section）会删除整个小节");
 
     const characterPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_character_context",
@@ -378,6 +383,9 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(characterPrompt).toContain(
       "用 create（kind=character）为每个人物创建独立条目"
     );
+    expect(characterPrompt).toContain(
+      "用 delete（kind=character）删除指定人物条目及其文件"
+    );
     expect(draftPrompt).toContain(
       "当前人物结构是条目样式：创建人物时用 create（kind=character）"
     );
@@ -400,6 +408,9 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(textCharacterPrompt).toContain("创建人物就是把全部人设写入这份文本");
     expect(textCharacterPrompt).toContain("不要 create character");
     expect(textCharacterPrompt).toContain(
+      "delete 只会清空总稿内容并保留人物结构"
+    );
+    expect(textCharacterPrompt).toContain(
       "当前人物结构是文本样式：创建人物时不要用 create"
     );
 
@@ -419,6 +430,9 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(plotPrompt).toContain("【当前阶段：剧情】");
     expect(plotPrompt).toContain("剧情设计 (plot_design)");
     expect(plotPrompt).toContain("阶段边界与交付标准");
+    expect(plotPrompt).toContain(
+      "delete（kind=plot_stage）只会清空指定阶段正文"
+    );
 
     const autoApprovedPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_plot_auto_approved_context",

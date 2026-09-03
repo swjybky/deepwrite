@@ -203,6 +203,7 @@ export function useLongStructureTransactionsCoordinator(
             bookId,
             chapterCardId,
             volumeId: chapter.volumeId,
+            operationUpdatedAt: batch.updatedAt,
             title: chapter.title,
             description: longImpactConfirmationDescription(
               expectedImpact,

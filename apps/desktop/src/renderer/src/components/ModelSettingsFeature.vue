@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
-import type {
-  ModelConfigInput,
-  ModelSettings,
-  ModelSettingsInput
+import {
+  isDeepWriteSiteOfficialModel,
+  type ModelConfigInput,
+  type ModelSettings,
+  type ModelSettingsInput
 } from "@deepwrite/contracts";
 import { useModelSettingsDraft } from "../composables/useModelSettingsDraft";
 import AppIcon from "./AppIcon.vue";
@@ -140,9 +141,11 @@ const {
                 <small>
                   {{
                     row.model.managedBy === "deepwrite-official"
-                      ? "DeepWrite 官方模型"
+                      ? "旧官方小站模型"
                       : row.model.managedBy === "deepwrite-free"
-                        ? "DeepWrite 免费模型"
+                        ? isDeepWriteSiteOfficialModel(row.model)
+                          ? "新官方小站模型"
+                          : "DeepWrite 免费模型"
                         : row.model.provider
                   }}
                   · {{ row.model.modelId }} · {{ row.model.api }}

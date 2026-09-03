@@ -5,7 +5,6 @@ import {
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
   ModelUsageDashboardSchema,
-  OfficialModelBalanceSchema,
   RemoteModelListResultSchema,
   createEnvelope,
   type AgentRuntimeRef,
@@ -15,6 +14,8 @@ import {
 import { createUsageModelSnapshot } from "../usage-observation";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { handleOfficialModelCommands } from "./official-model-commands";
+import { handleSiteOfficialModelCommands } from "./site-official-model-commands";
 
 export type ModelCommandContext = Pick<
   IpcCommandContext,
@@ -22,12 +23,22 @@ export type ModelCommandContext = Pick<
   | "requireModelUsageStore"
   | "listRemoteModels"
   | "supervisor"
->;
+> & {
+  remoteFetch?: (input: string, init?: RequestInit) => Promise<Response>;
+};
 
 export async function handleModelCommands(
   ctx: ModelCommandContext,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
+  const siteOfficialResult = await handleSiteOfficialModelCommands(
+    ctx,
+    command
+  );
+  if (siteOfficialResult) return siteOfficialResult;
+  const officialResult = await handleOfficialModelCommands(ctx, command);
+  if (officialResult) return officialResult;
+
   if (command.type === "models.list") {
     try {
       return {
@@ -99,138 +110,6 @@ export async function handleModelCommands(
             error instanceof Error
               ? error.message
               : "更新免费模型启用状态失败。",
-          details: safeErrorDetails(error)
-        }
-      };
-    }
-  }
-
-  if (command.type === "models.refreshOfficial") {
-    try {
-      const settings = ModelSettingsSchema.parse(
-        await ctx.requireModelConfigStore().refreshOfficialModels()
-      );
-      await ctx.requireModelUsageStore().syncConfiguredModels(settings.models);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: settings
-      };
-    } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.refresh_official_failed",
-          message:
-            error instanceof Error ? error.message : "刷新官方模型配置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
-    }
-  }
-
-  if (command.type === "models.queryOfficialBalance") {
-    try {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: OfficialModelBalanceSchema.parse(
-          await ctx.requireModelConfigStore().queryOfficialBalance()
-        )
-      };
-    } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.query_official_balance_failed",
-          message:
-            error instanceof Error ? error.message : "查询官方模型余额失败。",
-          details: safeErrorDetails(error)
-        }
-      };
-    }
-  }
-
-  if (command.type === "models.saveOfficialToken") {
-    try {
-      const settings = ModelSettingsSchema.parse(
-        await ctx
-          .requireModelConfigStore()
-          .saveOfficialToken(command.payload.apiKey)
-      );
-      await ctx.requireModelUsageStore().syncConfiguredModels(settings.models);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: settings
-      };
-    } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.save_official_token_failed",
-          message:
-            error instanceof Error ? error.message : "保存官方令牌失败。",
-          details: safeErrorDetails(error)
-        }
-      };
-    }
-  }
-
-  if (command.type === "models.clearOfficialToken") {
-    try {
-      const settings = ModelSettingsSchema.parse(
-        await ctx.requireModelConfigStore().clearOfficialToken()
-      );
-      await ctx.requireModelUsageStore().syncConfiguredModels(settings.models);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: settings
-      };
-    } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.clear_official_token_failed",
-          message:
-            error instanceof Error ? error.message : "移除官方令牌失败。",
-          details: safeErrorDetails(error)
-        }
-      };
-    }
-  }
-
-  if (command.type === "models.setOfficialModelEnabled") {
-    try {
-      const settings = ModelSettingsSchema.parse(
-        await ctx
-          .requireModelConfigStore()
-          .setOfficialModelEnabled(
-            command.payload.modelId,
-            command.payload.enabled
-          )
-      );
-      await ctx.requireModelUsageStore().syncConfiguredModels(settings.models);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: settings
-      };
-    } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.set_official_model_enabled_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "更新官方模型启用状态失败。",
           details: safeErrorDetails(error)
         }
       };

@@ -16,6 +16,7 @@ import {
   longWorkspaceTypeSource,
   manuscriptNavigationSource,
   resourceTreeCoordinatorSource,
+  storyPlotDeleteSource,
   workspaceDialogLayerSource,
   workspaceTypeSource,
   worldbuildingNavigationSource,
@@ -221,19 +222,22 @@ describe("long-form renderer vertical slice: editor-and-layout", () => {
 
   it("persists the previewed impact for story-plot and worldbuilding-item deletion", () => {
     expect(editorStructureSource).toContain(
-      'emit(\n      "previewMutation",\n      storyPlotDeleteBatch(storyPlotId)'
+      "useLongStoryPlotDeleteConfirmation"
     );
-    expect(editorStructureSource).toContain(
-      "storyPlotDeleteBatch(storyPlotId, expectedImpact)"
+    expect(storyPlotDeleteSource).toContain(
+      "options.preview(deleteBatch(storyPlotId, updatedAt)"
     );
-    expect(editorStructureSource).toContain(
+    expect(storyPlotDeleteSource).toContain(
+      "options.mutate(deleteBatch(storyPlotId, updatedAt, expectedImpact)"
+    );
+    expect(storyPlotDeleteSource).toContain(
       "pendingStoryPlotDeleteImpact.value = changedImpact"
     );
     expect(editorDeleteSource).toContain(
-      "options.emitPreviewMutation(\n      worldbuildingDeleteBatch(categoryId, itemId)"
+      "options.emitPreviewMutation(\n      worldbuildingDeleteBatch(categoryId, itemId, updatedAt)"
     );
     expect(editorDeleteSource).toContain(
-      "worldbuildingDeleteBatch(categoryId, target.id, target.expectedImpact)"
+      "worldbuildingDeleteBatch(\n        categoryId,\n        target.id,\n        updatedAt,\n        target.expectedImpact"
     );
     expect(editorDeleteSource).toContain(
       "worldbuildingDeleteImpact.value = changedImpact"

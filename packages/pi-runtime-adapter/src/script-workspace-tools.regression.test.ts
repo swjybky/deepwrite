@@ -30,7 +30,7 @@ function resultText(result: AgentToolResult<unknown>): string {
 }
 
 describe("script workspace tool regression", () => {
-  it("uses the unified four tools in every script stage", () => {
+  it("uses the unified five tools in every script stage", () => {
     const { activeSectionId: _activeSectionId, ...draftWorkspace } =
       screenplayWorkspace();
     const plotWorkspace = {
@@ -49,6 +49,7 @@ describe("script workspace tool regression", () => {
       "create",
       "edit",
       "write",
+      "delete",
       "query_linked_material_entries",
       "load_skill"
     ]);
@@ -66,6 +67,93 @@ describe("script workspace tool regression", () => {
     expect(draftTools.map(({ name }) => name)).not.toContain(
       "delete_draft_section"
     );
+    expect(toolByName(draftTools, "delete").description).toContain(
+      "正文至少保留一个剧集"
+    );
+  });
+
+  it("uses script-aware deletion semantics for all three writing phases", async () => {
+    const workspace = screenplayWorkspace();
+    const characterStage = workspace.stages.find(
+      ({ stageId }) => stageId === "character_design"
+    )!;
+    characterStage.content = "人物总稿";
+    characterStage.revision = createShortWorkspaceContentRevision(
+      characterStage.content
+    );
+    const plotStage = workspace.stages.find(
+      ({ stageId }) => stageId === "plot_design"
+    )!;
+    plotStage.content = "剧情正文";
+    plotStage.revision = createShortWorkspaceContentRevision(plotStage.content);
+    const secondBody = "2. 外景 码头 - 黎明\n△雾散开。";
+    workspace.expertDraft.sections.push({
+      id: "episode-2",
+      title: "第二集",
+      wordCountRequirement: "15 分钟",
+      body: {
+        documentId: "draft:episode-2:body",
+        title: "第二集",
+        content: secondBody,
+        revision: createShortWorkspaceContentRevision(secondBody)
+      },
+      characterState: {
+        documentId: "draft:episode-2:state",
+        title: "第二集 · 人物状态",
+        content: "主角抵达码头。",
+        revision: createShortWorkspaceContentRevision("主角抵达码头。")
+      }
+    });
+    const sharedState = createScriptWorkspaceToolSharedState(workspace);
+    const tools = buildScriptWorkspaceTools({
+      workspace,
+      profile: scriptAgentProfile(),
+      sharedState,
+      autoApproveCrossStageOperations: true
+    });
+    const remove = toolByName(tools, "delete");
+
+    expect(
+      (
+        await remove.execute("clear-script-characters", {
+          kind: "character_overview",
+          id: "character_design"
+        })
+      ).details
+    ).toMatchObject({
+      kind: "workspace-editor-mutation",
+      stageId: "character_design",
+      text: ""
+    });
+    expect(
+      (
+        await remove.execute("clear-script-plot", {
+          kind: "plot_stage",
+          id: "plot_design"
+        })
+      ).details
+    ).toMatchObject({
+      kind: "workspace-editor-mutation",
+      stageId: "plot_design",
+      text: ""
+    });
+    const deletedEpisode = await remove.execute("delete-script-episode", {
+      kind: "draft_section",
+      id: "episode-2"
+    });
+    expect(deletedEpisode.details).toMatchObject({
+      kind: "workspace-expert-draft-section-deletion",
+      sectionId: "episode-2",
+      title: "第二集"
+    });
+    expect(resultText(deletedEpisode)).toContain("删除剧集《第二集》");
+    expect(sharedState.expertSections.has("episode-2")).toBe(false);
+
+    const finalEpisode = await remove.execute("delete-final-script-episode", {
+      kind: "draft_section",
+      id: "episode-1"
+    });
+    expect(resultText(finalEpisode)).toContain("至少需要保留一个剧集");
   });
 
   it("requires complete reads and explicit consent before overwriting a script body", async () => {

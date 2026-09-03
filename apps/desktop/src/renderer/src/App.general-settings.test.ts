@@ -50,8 +50,14 @@ describe("App general settings integration", () => {
     expect(coordinatorSource).toContain(
       "options.documentRoot.lang = resolvedLanguage"
     );
+    expect(coordinatorSource).toContain(
+      "function updateUseNetworkProxy(enabled: boolean)"
+    );
     expect(source).toContain('@update-language="updateAppLanguage"');
     expect(source).toContain('@update-show-in-menu-bar="updateShowInMenuBar"');
+    expect(source).toContain(
+      '@update-use-network-proxy="updateUseNetworkProxy"'
+    );
   });
 
   it("persists the context usage indicator visibility", () => {

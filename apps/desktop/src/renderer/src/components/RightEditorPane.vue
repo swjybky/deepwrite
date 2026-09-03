@@ -14,17 +14,13 @@ import {
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,
   type TextViewMode
 } from "@deepwrite/contracts";
-import { randomHex8 } from "@deepwrite/shared";
 import type {
   EditorTextReference,
   EditorTextReferenceNavigation
 } from "../types/conversation";
 import type { EditorEntrySearchSource } from "../types/editorEntrySearch";
 import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
-import {
-  createEditorTextReference,
-  resolveEditorTextReferenceRange
-} from "../utils/editorTextReferences";
+import { resolveEditorTextReferenceRange } from "../utils/editorTextReferences";
 import {
   editorScrollMemoryKey,
   recalledEditorScrollPosition,
@@ -45,6 +41,7 @@ import {
 import { parseSkillFrontmatter } from "../utils/skillFrontmatter";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { uiMessage } from "../ui-feedback";
+import { useEditorSelectionInsertion } from "../composables/useEditorSelectionInsertion";
 import { useEditorSaveViewport } from "../composables/useEditorSaveViewport";
 import {
   searchLocalEditorEntries,
@@ -54,6 +51,7 @@ import { useTextViewMode } from "../composables/useTextViewMode";
 import AppIcon from "./AppIcon.vue";
 import DocumentMetaRow from "./DocumentMetaRow.vue";
 import EditorEntrySearchRow from "./EditorEntrySearchRow.vue";
+import EditorSelectionMenu from "./EditorSelectionMenu.vue";
 import MarkdownContent from "./MarkdownContent.vue";
 
 const props = defineProps<{
@@ -97,15 +95,9 @@ const emit = defineEmits<{
 
 const editorInput = ref<HTMLTextAreaElement>();
 const documentPreview = ref<HTMLElement | null>(null);
-const selectionMenuElement = ref<HTMLElement>();
 const editorToolsElement = ref<HTMLElement>();
 const findPanelElement = ref<HTMLElement>();
 const findInput = ref<HTMLInputElement>();
-const selectionAction = ref<{
-  reference: EditorTextReference;
-  left: number;
-  top: number;
-} | null>(null);
 const title = ref(
   resolveWorkspaceDocumentTitle(props.document, props.draftState?.title)
 );
@@ -114,6 +106,23 @@ const nonWhitespaceCharacterCount = ref(
   countNonWhitespaceCharacters(content.value)
 );
 const dirty = ref(props.draftState?.dirty ?? false);
+const {
+  selectionAction,
+  closeSelectionAction,
+  handleEditorContextMenu,
+  handlePreviewContextMenu,
+  insertSelectedText
+} = useEditorSelectionInsertion({
+  source: () => ({
+    resourceId: props.resourceId,
+    document: {
+      ...props.document,
+      title: title.value,
+      content: content.value
+    }
+  }),
+  insert: (reference) => emit("insertSelection", reference)
+});
 const { resetToDefault, setViewMode, viewMode } = useTextViewMode({
   defaultMode: () => props.defaultViewMode
 });
@@ -512,10 +521,6 @@ function save(): void {
   });
 }
 
-function closeSelectionAction(): void {
-  selectionAction.value = null;
-}
-
 function currentDocumentScroller(
   view: EditorScrollView
 ): HTMLElement | null | undefined {
@@ -728,66 +733,9 @@ function replaceAllMatches(): void {
   uiMessage.success(`已替换 ${matches.length} 处文字`);
 }
 
-function captureEditorSelection(
-  input: HTMLTextAreaElement,
-  event?: MouseEvent
-): boolean {
-  const start = input.selectionStart ?? 0;
-  const end = input.selectionEnd ?? start;
-  const reference = createEditorTextReference({
-    id: randomHex8(),
-    resourceId: props.resourceId,
-    document: {
-      ...props.document,
-      title: title.value,
-      content: content.value
-    },
-    start,
-    end
-  });
-  if (!reference) {
-    closeSelectionAction();
-    return false;
-  }
-
-  const editorRect = input.getBoundingClientRect();
-  const menuWidth = 142;
-  const menuHeight = 42;
-  const anchorLeft = event?.clientX ?? editorRect.left + 24;
-  const anchorTop = event?.clientY ?? editorRect.top + 24;
-  selectionAction.value = {
-    reference,
-    left: Math.max(
-      8,
-      Math.min(globalThis.innerWidth - menuWidth - 8, anchorLeft + 8)
-    ),
-    top: Math.max(
-      8,
-      Math.min(globalThis.innerHeight - menuHeight - 8, anchorTop + 8)
-    )
-  };
-  return true;
-}
-
-function handleEditorContextMenu(event: MouseEvent): void {
-  if (
-    captureEditorSelection(event.currentTarget as HTMLTextAreaElement, event)
-  ) {
-    event.preventDefault();
-  }
-}
-
-function insertSelectedText(): void {
-  const reference = selectionAction.value?.reference;
-  if (!reference) return;
-  emit("insertSelection", reference);
-  closeSelectionAction();
-}
-
 function handleWindowPointerDown(event: PointerEvent): void {
   const target = event.target;
   if (!(target instanceof Node)) return;
-  if (!selectionMenuElement.value?.contains(target)) closeSelectionAction();
   if (
     !editorToolsElement.value?.contains(target) &&
     !findPanelElement.value?.contains(target)
@@ -1190,6 +1138,7 @@ onBeforeUnmount(() => {
         v-else
         ref="documentPreview"
         class="document-preview transient-scrollbar"
+        @contextmenu="handlePreviewContextMenu"
         @scroll="handleDocumentScroll"
       >
         <MarkdownContent
@@ -1256,27 +1205,10 @@ onBeforeUnmount(() => {
     </footer>
   </aside>
 
-  <Teleport to="body">
-    <div
-      v-if="selectionAction"
-      ref="selectionMenuElement"
-      class="editor-selection-menu"
-      role="menu"
-      aria-label="正文选区操作"
-      :style="{
-        left: `${selectionAction.left}px`,
-        top: `${selectionAction.top}px`
-      }"
-    >
-      <button
-        type="button"
-        role="menuitem"
-        @mousedown.prevent
-        @click="insertSelectedText"
-      >
-        <AppIcon name="message" :size="15" />
-        插入输入框
-      </button>
-    </div>
-  </Teleport>
+  <EditorSelectionMenu
+    v-if="selectionAction"
+    :left="selectionAction.left"
+    :top="selectionAction.top"
+    @insert="insertSelectedText"
+  />
 </template>

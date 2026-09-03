@@ -16,6 +16,7 @@ import {
   type LongWorkspaceRendererApi,
   type LongWorkspaceSelection
 } from "../types/longWorkspace";
+import type { EditorTextReference } from "../types/conversation";
 import {
   useLongWorkspaceStore,
   type LongWorkspaceFileContext,
@@ -35,6 +36,7 @@ export interface LongWorkspaceEditorPort {
   selectBookLineVolume(volumeId: string): void;
   focusFile(fileId: string): Promise<boolean>;
   focusTarget(target: LongApprovalEditorFocus): Promise<boolean>;
+  locateEditorReference(reference: EditorTextReference): Promise<boolean>;
   captureNavigationSelection(): Partial<LongWorkspaceSelection>;
   captureForeshadowingFocus(): LongForeshadowingFocus;
   ensureDocumentsLoaded(
@@ -47,6 +49,7 @@ const LONG_WORKSPACE_EDITOR_PORT_METHODS = [
   "selectBookLineVolume",
   "focusFile",
   "focusTarget",
+  "locateEditorReference",
   "captureNavigationSelection",
   "captureForeshadowingFocus",
   "ensureDocumentsLoaded"

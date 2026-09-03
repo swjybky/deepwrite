@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import type { ShortManuscriptExportFormat } from "@deepwrite/contracts";
 import type { IconName } from "../types/workspace";
+import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{
@@ -13,13 +13,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  export: [format: ShortManuscriptExportFormat];
+  export: [target: ShortManuscriptExportTarget];
 }>();
 
-const selectedFormat = ref<ShortManuscriptExportFormat>("docx");
+const selectedTarget = ref<ShortManuscriptExportTarget>("docx");
 
 const formats: ReadonlyArray<{
-  id: ShortManuscriptExportFormat;
+  id: ShortManuscriptExportTarget;
   label: string;
   description: string;
   icon: IconName;
@@ -41,13 +41,19 @@ const formats: ReadonlyArray<{
     label: "EPUB 电子书",
     description: "适合手机和电子书阅读器",
     icon: "book"
+  },
+  {
+    id: "clipboard",
+    label: "复制正文",
+    description: "复制全部正文，可自由选择粘贴位置",
+    icon: "copy"
   }
 ];
 
 watch(
   () => props.open,
   (open) => {
-    if (open) selectedFormat.value = "docx";
+    if (open) selectedTarget.value = "docx";
   }
 );
 
@@ -56,7 +62,7 @@ function requestClose(): void {
 }
 
 function submit(): void {
-  if (!props.submitting) emit("export", selectedFormat.value);
+  if (!props.submitting) emit("export", selectedTarget.value);
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -124,10 +130,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 v-for="format in formats"
                 :key="format.id"
                 class="export-manuscript-format-card"
-                :class="{ 'is-selected': selectedFormat === format.id }"
+                :class="{ 'is-selected': selectedTarget === format.id }"
               >
                 <input
-                  v-model="selectedFormat"
+                  v-model="selectedTarget"
                   type="radio"
                   name="short-manuscript-format"
                   :value="format.id"
@@ -161,8 +167,19 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               type="submit"
               :disabled="submitting"
             >
-              <AppIcon name="download" :size="15" />
-              {{ submitting ? "正在导出…" : "选择保存位置" }}
+              <AppIcon
+                :name="selectedTarget === 'clipboard' ? 'copy' : 'download'"
+                :size="15"
+              />
+              {{
+                submitting
+                  ? selectedTarget === "clipboard"
+                    ? "正在复制…"
+                    : "正在导出…"
+                  : selectedTarget === "clipboard"
+                    ? "复制正文"
+                    : "选择保存位置"
+              }}
             </button>
           </div>
         </form>
@@ -236,7 +253,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
 .export-manuscript-format-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
 }
 

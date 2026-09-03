@@ -24,7 +24,6 @@ import type {
   MaterialLibraryKind,
   MaterialStageId,
   PlotStructureMutation,
-  ShortManuscriptExportFormat,
   SkillLibrary,
   SkillLibraryGroup,
   UpdateLibraryGroupInput
@@ -44,6 +43,7 @@ import type {
   LongWorldbuildingSyncRequest
 } from "../types/longWorkspace";
 import type { LongWorldbuildingSyncBookOption } from "../utils/longWorldbuildingSync";
+import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 
 export interface DialogMutationCompletion {
   succeed(): void;
@@ -208,6 +208,13 @@ export interface DeleteLongTreeDialogModule {
   pending: boolean;
 }
 
+export interface DeleteLongLedgerCommitDialogModule {
+  kind: "delete-long-ledger-commit";
+  title: string;
+  chapterCount: number;
+  pending: boolean;
+}
+
 export interface CreateLongVolumeDialogModule {
   kind: "create-long-volume";
   source: "book-line" | "draft";
@@ -323,6 +330,7 @@ export type WorkspaceDialogModule =
   | CreateLongChapterCardDialogModule
   | DeleteLongDraftDialogModule
   | DeleteLongTreeDialogModule
+  | DeleteLongLedgerCommitDialogModule
   | CreateLongVolumeDialogModule
   | LongBindingsDialogModule
   | LongRenameDialogModule
@@ -356,6 +364,7 @@ export const WORKSPACE_DIALOG_KINDS = [
   "create-long-chapter-card",
   "delete-long-draft",
   "delete-long-tree",
+  "delete-long-ledger-commit",
   "create-long-volume",
   "long-bindings",
   "long-rename",
@@ -389,7 +398,7 @@ export interface WorkspaceDialogLayerEmits {
   closeCharacterItem: [];
   submitCharacterItem: [title: string];
   closeExportShort: [];
-  exportShort: [format: ShortManuscriptExportFormat];
+  exportShort: [target: ShortManuscriptExportTarget];
   closeExportLong: [];
   exportLong: [sections: LongManuscriptExportSection[]];
   closeLibraryRemoval: [];
@@ -432,6 +441,8 @@ export interface WorkspaceDialogLayerEmits {
   confirmDeleteLongDraft: [];
   closeDeleteLongTree: [];
   confirmDeleteLongTree: [];
+  closeDeleteLongLedgerCommit: [];
+  confirmDeleteLongLedgerCommit: [];
   closeCreateLongVolume: [];
   submitCreateLongVolume: [input: { title: string; summary: string }];
   closeLongBindings: [];

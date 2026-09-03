@@ -15,9 +15,6 @@ export function createProvisionalSectionHelpers(ctx: ProposalLaneContext) {
   const removeQueuedAgentEdit: ProposalLaneContext["removeQueuedAgentEdit"] = (
     ...args
   ) => ctx.removeQueuedAgentEdit(...args);
-  const rememberAcceptedDraftSectionCreation: ProposalLaneContext["rememberAcceptedDraftSectionCreation"] =
-    (...args) => ctx.rememberAcceptedDraftSectionCreation(...args);
-
   const acceptedProvisionalExpertSectionIds = new Map<
     string,
     Map<string, string>
@@ -157,14 +154,6 @@ export function createProvisionalSectionHelpers(ctx: ProposalLaneContext) {
           );
         }
         if (mapping.size === 0) continue;
-        const acceptedDirectoryRevision =
-          proposal.draftSectionCreationTarget.acceptedDirectoryRevision;
-        if (acceptedDirectoryRevision) {
-          rememberAcceptedDraftSectionCreation(
-            proposal,
-            acceptedDirectoryRevision
-          );
-        }
         remapProvisionalExpertSectionFileProposals(
           conversation,
           proposal.runId,

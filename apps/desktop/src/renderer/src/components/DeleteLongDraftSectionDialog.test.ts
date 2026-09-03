@@ -26,4 +26,13 @@ describe("DeleteLongDraftSectionDialog", () => {
     expect(source).toContain("var(--text-primary)");
     expect(source).toContain("var(--danger)");
   });
+
+  it("bounds long deletion impact details without moving the actions", () => {
+    expect(source).toContain("grid-template-rows: auto minmax(0, 1fr) auto");
+    expect(source).toContain("height: min(420px, calc(100vh - 2rem))");
+    expect(source).toContain("overflow-y: auto");
+    expect(source).toContain("overflow-wrap: anywhere");
+    expect(source).toContain("scrollbar-gutter: stable");
+    expect(source).toContain('tabindex="0"');
+  });
 });

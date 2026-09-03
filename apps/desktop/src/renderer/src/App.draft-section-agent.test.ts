@@ -27,7 +27,7 @@ describe("App agent chapter-file creation", () => {
     expect(source).toContain("legacyDraftSectionConversationKeys,");
   });
 
-  it("stages one structural proposal and atomically persists its chapters", () => {
+  it("stages structural proposals and directly persists their chapters", () => {
     const coordinatorSource = [
       draftSectionLaneSource,
       provisionalSource,
@@ -67,43 +67,34 @@ describe("App agent chapter-file creation", () => {
     );
     expect(coordinatorSource).toContain("await loadCatalogSnapshot()");
     expect(coordinatorSource).toContain(
-      "expectedDraftSectionCreationBaseRevision(proposal)"
-    );
-    expect(coordinatorSource).toContain(
-      "rememberAcceptedDraftSectionCreation(proposal, savedDirectoryRevision)"
-    );
-    expect(coordinatorSource).toContain(
       "remapProvisionalExpertSectionFileProposals("
     );
     expect(coordinatorSource).toContain(
       "restoreAcceptedDraftSectionCreationMappings("
     );
-    expect(coordinatorSource).toContain(
-      "acceptedDirectoryRevision: savedDirectoryRevision"
-    );
     expect(coordinatorSource).toContain("realSectionId: createdMapping.get(");
-    expect(coordinatorSource).toContain("requiresIdempotentRecoveryProbe");
-    expect(coordinatorSource).toContain(
-      "resolveDraftSectionCreationCommitPlan({"
-    );
-    expect(coordinatorSource).toContain("target.baseProjectRevision");
     expect(coordinatorSource).toContain(
       "pauseDependentProvisionalFileProposals("
     );
     expect(coordinatorSource).toContain("provisionalExpertSection: true");
-    expect(coordinatorSource).toContain("createExpertDraftDirectoryRevision(");
+    expect(coordinatorSource).toContain("shortAgentDirectDocumentWrite({");
+    expect(coordinatorSource).toContain("force: true");
     expect(coordinatorSource).toContain("options.priority(");
     expect(coordinatorSource).toContain("scheduleQueuedAgentEdits(");
     expect(coordinatorSource).toContain("agentEditCommitQueue");
     expect(coordinatorSource).toContain("decisionToken");
-    expect(coordinatorSource).toContain(
-      "section.hasBody && section.hasCharacterState"
-    );
-    expect(coordinatorSource).toContain("expectedDirectoryRevision");
     expect(coordinatorSource).toContain("resolveProvisionalWriteStagingMode(");
     expect(coordinatorSource).toContain('stagingMode === "mapped-real"');
-    expect(coordinatorSource).toContain("draftSectionCreationRevisionKey(");
     expect(coordinatorSource).toContain("resolveAgentEditProposalGeneration(");
-    expect(coordinatorSource).toContain("expectedMutationDurableRevision(");
+    expect(draftSectionLaneSource).toContain(
+      'directory?.workspaceType === "script" || book?.bookType === "script"'
+    );
+    expect(proposalCoordinatorSource).toContain(
+      'directory?.workspaceType === "script" || book?.bookType === "script"'
+    );
+    expect(draftSectionLaneSource).toContain(
+      "title: `删除${draftUnit}：${mutationTarget.title}`"
+    );
+    expect(draftSectionLaneSource).toContain("及其正文与人物状态文件");
   });
 });

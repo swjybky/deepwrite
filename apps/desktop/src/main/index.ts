@@ -63,6 +63,7 @@ import {
   LongApplyLegacySyncResultSchema,
   LongAgentSettingsSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongImportPortableResultSchema,
   LongChooseContinuationImportSourceResultSchema,
   LongImportContinuationResultSchema,
@@ -130,6 +131,8 @@ import {
 import { GeneralSettingsStore } from "./general-settings-store";
 import { ChatAssistantProjectConfigStore } from "./chat-assistant-project-config-store";
 import { ModelConfigStore } from "./model-config-store";
+import { electronRemoteFetch } from "./electron-remote-fetch";
+import { applyNetworkProxyPreference } from "./network-proxy-preference";
 import { listRemoteModels } from "./list-remote-models";
 import {
   createModelUsageRevisionId,
@@ -213,6 +216,7 @@ let longAgentConfigStore: LongAgentConfigStore | undefined;
 let cachedAppearanceSettings: AppearanceSettings =
   createDefaultAppearanceSettings();
 let cachedGeneralSettings: GeneralSettings = createDefaultGeneralSettings();
+let utilitiesStarted = false;
 let nativeAppearanceListenerBound = false;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
@@ -508,6 +512,16 @@ function isSafeExternalUrl(rawUrl: string): boolean {
   }
 }
 
+const ZHUQUE_DETECTION_ORIGIN = "https://matrix.tencent.com";
+
+function isAllowedZhuqueDetectionUrl(rawUrl: string): boolean {
+  try {
+    return new URL(rawUrl).origin === ZHUQUE_DETECTION_ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   const isDarwin = process.platform === "darwin";
   const window = new BrowserWindow({
@@ -530,7 +544,8 @@ function createMainWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webSecurity: true
+      webSecurity: true,
+      webviewTag: true
     }
   });
   const windowWebContentsId = window.webContents.id;
@@ -542,6 +557,39 @@ function createMainWindow(): BrowserWindow {
       void shell.openExternal(url);
     }
     return { action: "deny" };
+  });
+
+  window.webContents.on(
+    "will-attach-webview",
+    (event, webPreferences, params) => {
+      if (
+        typeof params.src !== "string" ||
+        !isAllowedZhuqueDetectionUrl(params.src)
+      ) {
+        event.preventDefault();
+        return;
+      }
+      delete webPreferences.preload;
+      webPreferences.nodeIntegration = false;
+      webPreferences.contextIsolation = true;
+      webPreferences.sandbox = true;
+    }
+  );
+
+  window.webContents.on("did-attach-webview", (_event, guestContents) => {
+    guestContents.setWindowOpenHandler(({ url }) => {
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      }
+      return { action: "deny" };
+    });
+    guestContents.on("will-navigate", (event, url) => {
+      if (isAllowedZhuqueDetectionUrl(url)) return;
+      event.preventDefault();
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      }
+    });
   });
 
   window.webContents.on("will-navigate", (event, url) => {
@@ -637,8 +685,15 @@ function syncMenuBarTray(): void {
 }
 
 function syncGeneralSettings(settings: GeneralSettings): void {
+  const shouldRestartAgent =
+    utilitiesStarted &&
+    cachedGeneralSettings.useNetworkProxy !== settings.useNetworkProxy;
   cachedGeneralSettings = settings;
   syncMenuBarTray();
+  applyNetworkProxyPreference(settings.useNetworkProxy);
+  if (shouldRestartAgent) {
+    void supervisor.restartWorker("agent", "network-proxy-preference");
+  }
 }
 
 function safeErrorDetails(error: unknown): Record<string, unknown> {
@@ -2048,6 +2103,7 @@ function registerIpc(): void {
         command.type === "long.applyOperations" ||
         command.type === "long.writeChapter" ||
         command.type === "long.commitChapter" ||
+        command.type === "long.deleteLedgerCommit" ||
         command.type === "long.unregister" ||
         command.type === "long.delete"
       ) {
@@ -2094,6 +2150,11 @@ function registerIpc(): void {
               break;
             case "long.commitChapter":
               payload = LongCommitChapterResultSchema.parse(result.payload);
+              break;
+            case "long.deleteLedgerCommit":
+              payload = LongDeleteLedgerCommitResultSchema.parse(
+                result.payload
+              );
               break;
             case "long.unregister":
             case "long.delete":
@@ -2349,7 +2410,16 @@ function registerIpc(): void {
         {
           requireModelConfigStore,
           requireModelUsageStore,
-          listRemoteModels,
+          listRemoteModels: (input) =>
+            listRemoteModels(
+              input,
+              cachedGeneralSettings.useNetworkProxy
+                ? fetch
+                : electronRemoteFetch
+            ),
+          remoteFetch: cachedGeneralSettings.useNetworkProxy
+            ? fetch
+            : electronRemoteFetch,
           supervisor
         },
         command
@@ -3284,6 +3354,8 @@ async function announceReady(window: BrowserWindow): Promise<void> {
   }
 }
 
+applyNetworkProxyPreference(false);
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   shutdownComplete = true;
@@ -3413,6 +3485,7 @@ if (!hasSingleInstanceLock) {
     });
     registerIpc();
     supervisor.startAll();
+    utilitiesStarted = true;
     mainWindow = createMainWindow();
     mainWindowStartupGate.markReady();
 

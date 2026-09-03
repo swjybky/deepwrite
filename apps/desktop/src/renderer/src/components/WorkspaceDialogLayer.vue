@@ -244,6 +244,24 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       @confirm="emit('confirmDeleteLongTree')"
     />
 
+    <DeleteLongDraftSectionDialog
+      v-else-if="module.kind === 'delete-long-ledger-commit'"
+      open
+      :section-title="module.title"
+      eyebrow="连续性账本"
+      item-label="提交记录"
+      :description="
+        module.chapterCount === 1
+          ? '删除后，该章节将重新回到待提交状态。正文和连续性 Markdown 文件保持不变；本条提交记录本身不可恢复，重新提交会生成新记录。'
+          : '删除后，本次涉及的 ' +
+            module.chapterCount +
+            ' 个章节将重新回到待提交状态。正文和连续性 Markdown 文件保持不变；本条提交记录本身不可恢复，重新提交会生成新记录。'
+      "
+      :pending="module.pending"
+      @close="emit('closeDeleteLongLedgerCommit')"
+      @confirm="emit('confirmDeleteLongLedgerCommit')"
+    />
+
     <CreateLongVolumeDialog
       v-else-if="module.kind === 'create-long-volume'"
       open

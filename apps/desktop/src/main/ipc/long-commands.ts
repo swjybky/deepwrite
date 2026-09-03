@@ -5,6 +5,7 @@ import {
   LongChooseContinuationImportSourceResultSchema,
   LongChooseLegacySyncSourceResultSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongImportContinuationResultSchema,
   LongImportPortableResultSchema,
   LongListBooksResultSchema,
@@ -407,6 +408,7 @@ export async function handleLongCommands(
     command.type === "long.applyOperations" ||
     command.type === "long.writeChapter" ||
     command.type === "long.commitChapter" ||
+    command.type === "long.deleteLedgerCommit" ||
     command.type === "long.unregister" ||
     command.type === "long.delete"
   ) {
@@ -453,6 +455,9 @@ export async function handleLongCommands(
           break;
         case "long.commitChapter":
           payload = LongCommitChapterResultSchema.parse(result.payload);
+          break;
+        case "long.deleteLedgerCommit":
+          payload = LongDeleteLedgerCommitResultSchema.parse(result.payload);
           break;
         case "long.unregister":
         case "long.delete":

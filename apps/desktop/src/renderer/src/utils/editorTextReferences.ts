@@ -4,14 +4,35 @@ import {
   type UserPromptAttachment
 } from "@deepwrite/contracts";
 import type { EditorTextReference } from "../types/conversation";
-import type { WorkspaceDocument } from "../types/workspace";
+
+export interface EditorTextReferenceDocument {
+  id: string;
+  title: string;
+  path: readonly string[];
+  content: string;
+}
 
 export interface EditorTextSelectionInput {
   id: string;
   resourceId: string;
-  document: WorkspaceDocument;
+  document: EditorTextReferenceDocument;
   start: number;
   end: number;
+}
+
+export interface ConversationTextSelectionInput {
+  id: string;
+  sessionId: string;
+  messageId: string;
+  messageLabel: string;
+  text: string;
+}
+
+export interface RenderedEditorTextSelectionInput {
+  id: string;
+  resourceId: string;
+  document: EditorTextReferenceDocument;
+  text: string;
 }
 
 export interface EditorTextRange {
@@ -49,6 +70,7 @@ export function createEditorTextReference(
   );
   return {
     id: input.id,
+    source: "editor",
     resourceId: input.resourceId,
     documentId: input.document.id,
     documentTitle: input.document.title,
@@ -60,6 +82,56 @@ export function createEditorTextReference(
     endLine,
     label: `${input.document.title} (${startLine}-${endLine})`
   };
+}
+
+export function createConversationTextReference(
+  input: ConversationTextSelectionInput
+): EditorTextReference | undefined {
+  if (!input.text.trim()) return undefined;
+  const endLine = lineNumberAt(input.text, input.text.length);
+  return {
+    id: input.id,
+    source: "conversation",
+    conversationMessageId: input.messageId,
+    resourceId: `conversation:${input.sessionId}`,
+    documentId: `conversation:${input.sessionId}:${input.messageId}`,
+    documentTitle: input.messageLabel,
+    documentPath: ["智能体对话", input.messageLabel],
+    text: input.text,
+    start: 0,
+    end: input.text.length,
+    startLine: 1,
+    endLine,
+    label: `${input.messageLabel} (1-${endLine})`
+  };
+}
+
+export function createRenderedEditorTextReference(
+  input: RenderedEditorTextSelectionInput
+): EditorTextReference | undefined {
+  const text = input.text.trim();
+  if (!text) return undefined;
+  const start = input.document.content.indexOf(text);
+  if (start >= 0) {
+    return createEditorTextReference({
+      id: input.id,
+      resourceId: input.resourceId,
+      document: input.document,
+      start,
+      end: start + text.length
+    });
+  }
+
+  return createEditorTextReference({
+    id: input.id,
+    resourceId: input.resourceId,
+    document: {
+      ...input.document,
+      content: text
+    },
+    start: 0,
+    end: text.length
+  });
 }
 
 export function resolveEditorTextReferenceRange(

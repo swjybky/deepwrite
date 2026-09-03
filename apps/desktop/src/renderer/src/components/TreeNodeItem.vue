@@ -31,6 +31,7 @@ const props = defineProps<{
   pinnedIds?: string[] | undefined;
   resourceDomain?: ResourceDomain | undefined;
   libraryEntryClipboardDomain?: "skill" | "material" | undefined;
+  creationBookDraggable?: boolean;
   expertSectionMoveUpDisabled?: boolean;
   expertSectionMoveDownDisabled?: boolean;
   longDraftSectionMoveUpDisabled?: boolean;
@@ -56,6 +57,7 @@ const emit = defineEmits<{
   ];
   createLongTreeItem: [node: ResourceTreeNode];
   longTreeItemAction: [action: LongTreeItemAction, node: ResourceTreeNode];
+  deleteLongLedgerCommit: [node: ResourceTreeNode];
   removeExpertSection: [node: ResourceTreeNode];
   expertSectionAction: [
     action: "move-up" | "move-down",
@@ -142,6 +144,12 @@ const isLongTreeItem = computed(
     props.node.workspaceType === "long" &&
     Boolean(props.node.longTreeItem)
 );
+const isLongLedgerCommit = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    props.node.workspaceType === "long" &&
+    Boolean(props.node.longLedgerCommit)
+);
 const isExpertDraftSection = computed(
   () =>
     props.resourceDomain === "creation" && Boolean(props.node.expertSectionId)
@@ -162,6 +170,7 @@ const hasActionMenu = computed(
     hasGroupAction.value ||
     hasBookAction.value ||
     hasLongBookAction.value ||
+    isLongLedgerCommit.value ||
     isLongTreeItem.value ||
     isLongDraftSection.value ||
     isExpertDraftSection.value ||
@@ -453,6 +462,11 @@ function longTreeItemAction(action: LongTreeItemAction): void {
   emit("longTreeItemAction", action, props.node);
 }
 
+function deleteLongLedgerCommit(): void {
+  actionMenuOpen.value = false;
+  emit("deleteLongLedgerCommit", props.node);
+}
+
 function removeExpertSection(): void {
   actionMenuOpen.value = false;
   emit("select", props.node);
@@ -528,7 +542,7 @@ onBeforeUnmount(() => {
       :data-resource-id="node.id"
       :aria-expanded="node.children?.length ? open : undefined"
       :aria-label="`${node.children?.length ? `${node.selectableBranch ? '选择并' : ''}${open ? '折叠' : '展开'}` : ''}${node.label}${node.categoryTag ? `，${node.categoryTag}` : ''}`"
-      :draggable="canDragLibraryEntry"
+      :draggable="canDragLibraryEntry || creationBookDraggable"
       @click="activate"
       @dragstart="startLibraryEntryDrag"
       @dragover="handleLibraryEntryDragOver"
@@ -636,7 +650,30 @@ onBeforeUnmount(() => {
           <AppIcon name="pin" :size="16" />
           <span>{{ pinned ? "取消置顶" : "置顶" }}</span>
         </button>
-        <template v-if="isLongTreeItem">
+        <template v-if="isLongLedgerCommit">
+          <button
+            class="tree-node-action-menu-item is-danger"
+            type="button"
+            role="menuitem"
+            :disabled="
+              longTreeActionsDisabled || !node.longLedgerCommit?.deletable
+            "
+            :title="
+              node.longLedgerCommit?.deletable
+                ? '删除最后一条提交记录'
+                : '请先删除最后一条提交记录'
+            "
+            @click.stop="deleteLongLedgerCommit"
+          >
+            <AppIcon name="trash" :size="16" />
+            <span>{{
+              node.longLedgerCommit?.deletable
+                ? "删除记录"
+                : "删除记录（请先删除最后一条）"
+            }}</span>
+          </button>
+        </template>
+        <template v-else-if="isLongTreeItem">
           <button
             class="tree-node-action-menu-item"
             type="button"
@@ -1125,6 +1162,7 @@ onBeforeUnmount(() => {
         @long-tree-item-action="
           (action, itemNode) => emit('longTreeItemAction', action, itemNode)
         "
+        @delete-long-ledger-commit="emit('deleteLongLedgerCommit', $event)"
         @remove-expert-section="emit('removeExpertSection', $event)"
         @expert-section-action="
           (action, sectionNode) =>

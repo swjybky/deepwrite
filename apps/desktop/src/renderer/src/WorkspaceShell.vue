@@ -14,8 +14,7 @@ import type {
   CreateLongBookInput,
   CreateScriptBookInput,
   CreateShortBookInput,
-  GeneralPermissionMode,
-  SystemEventEnvelope
+  GeneralPermissionMode
 } from "@deepwrite/contracts";
 import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
 import type {
@@ -33,10 +32,7 @@ import {
   WorkspaceDialogLayer,
   WorkspaceFeatureModules
 } from "./components/lazyAppComponents";
-import {
-  useAgentConversation,
-  type AgentConversationController
-} from "./composables/useAgentConversation";
+import { useAgentConversation } from "./composables/useAgentConversation";
 import { useAppearance } from "./composables/useAppearance";
 import { useCatalogDocumentLoader } from "./composables/useCatalogDocumentLoader";
 import { useCatalogDocumentPersistence } from "./composables/useCatalogDocumentPersistence";
@@ -63,6 +59,7 @@ import { useLazyLongBookLifecycleCoordinator } from "./composables/useLazyLongBo
 import { useLazyShortBookLifecycleCoordinator } from "./composables/useLazyShortBookLifecycleCoordinator";
 import { useLazyProposalCoordinator } from "./composables/useLazyProposalCoordinator";
 import { useLongConversationCoordinator } from "./composables/useLongConversationCoordinator";
+import { useLongLedgerCommitDeletionCoordinator } from "./composables/useLongLedgerCommitDeletionCoordinator";
 import { useLongWorkspacePresentationCoordinator } from "./composables/useLongWorkspacePresentationCoordinator";
 import { useLongProposalRuntimeCoordinator } from "./composables/useLongProposalRuntimeCoordinator";
 import { useLazyLongStructureTransactionsCoordinator } from "./composables/useLazyLongStructureTransactionsCoordinator";
@@ -75,6 +72,7 @@ import { useShortConversationCoordinator } from "./composables/useShortConversat
 import { useShortWorkspaceStructureCoordinatorWithContext } from "./composables/useShortWorkspaceStructureCoordinatorWithContext";
 import { useWorkspaceResourceCoordinator } from "./composables/useWorkspaceResourceCoordinator";
 import { useWorkspaceResourceTreeCoordinator } from "./composables/useWorkspaceResourceTreeCoordinator";
+import { useWorkspaceStageNavigator } from "./composables/useWorkspaceStageNavigator";
 import { useWorkspaceDialogModuleCoordinator } from "./composables/useWorkspaceDialogModuleCoordinator";
 import { useWorkspaceFeatureHostCoordinator } from "./composables/useWorkspaceFeatureHostCoordinator";
 import { useChatAssistant } from "./features/chat-assistant/useChatAssistant";
@@ -102,6 +100,7 @@ import {
   resolveLongWorkspaceApi
 } from "./types/longWorkspace";
 import { createConversationPersistenceAdapter } from "./utils/conversationPersistence";
+import { createBookConversationEntries } from "./utils/bookConversationEntries";
 import {
   editorEntrySearchDocuments,
   editorEntrySearchSources
@@ -316,6 +315,7 @@ const {
   updatePermissionMode,
   updateShowContextUsage,
   updateShowInMenuBar,
+  updateUseNetworkProxy,
   updateWorkspacePaneLayout
 } = useGeneralSettingsCoordinator({
   settings: generalSettings,
@@ -367,6 +367,7 @@ const {
   chapterCardCreateTarget: longChapterCardCreate,
   draftSectionDeleteTarget: longDraftSectionDelete,
   treeItemDeleteTarget: longTreeItemDelete,
+  ledgerCommitDeleteTarget: longLedgerCommitDelete,
   volumeCreateTarget: longVolumeCreate,
   bindingsDialogMode: longBindingsDialogMode,
   bookActionPending: longBookActionPending,
@@ -530,6 +531,7 @@ const {
   openAgentTeams,
   openMarketplace,
   openCloudBackup,
+  openZhuqueDetection,
   loadWorkspaceDirectory,
   chooseWorkspaceDirectory,
   closeSettings,
@@ -710,6 +712,21 @@ const {
     setTimeout: (task, delayMs) => window.setTimeout(task, delayMs),
     clearTimeout: (handle) => window.clearTimeout(handle)
   }
+});
+
+const {
+  request: requestDeleteLongLedgerCommit,
+  close: closeDeleteLongLedgerCommit,
+  confirm: confirmDeleteLongLedgerCommit
+} = useLongLedgerCommitDeletionCoordinator({
+  api: resolveLongWorkspaceApi,
+  activeBookId: activeLongBookId,
+  workspaceIndex: activeLongWorkspaceIndex,
+  target: longLedgerCommitDelete,
+  pending: longBookActionPending,
+  saveActiveEditorChanges: saveActiveLongEditorChanges,
+  refreshActiveWorkspace: refreshActiveLongWorkspace,
+  notifications: uiMessage
 });
 
 function updateLongWorkspaceEditorPort(
@@ -1079,15 +1096,10 @@ const {
   notifications: uiMessage
 });
 
-function shortBookConversationEntries(
-  bookId: string
-): [string, AgentConversationController][] {
-  const scope = `book:${bookId}`;
-  return [...conversations.entries()].filter(
-    ([key]) =>
-      key.startsWith(`${bookId}:`) || conversationScopes.get(key) === scope
-  );
-}
+const shortBookConversationEntries = createBookConversationEntries(
+  () => conversations.entries(),
+  conversationScopes
+);
 
 const shortBookLifecycle = useLazyShortBookLifecycleCoordinator({
   state: {
@@ -1229,6 +1241,9 @@ const shortBookLifecycle = useLazyShortBookLifecycleCoordinator({
     api: () => window.deepwrite?.manuscript,
     ensureDocumentsLoaded: ensureCatalogDocumentsLoaded
   },
+  clipboard: {
+    writeText: (text) => navigator.clipboard.writeText(text)
+  },
   notifications: uiMessage
 });
 const {
@@ -1320,6 +1335,7 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
     chapterCardCreation: longChapterCardCreate,
     draftDeletion: longDraftSectionDelete,
     treeDeletion: longTreeItemDelete,
+    ledgerCommitDeletion: longLedgerCommitDelete,
     volumeCreation: longVolumeCreate,
     dialogOpen: longStructureDialogOpen,
     agentsMd: longStructureAgentsMd,
@@ -1380,8 +1396,13 @@ const {
   closeStartupAlert,
   loadModelUsage,
   loadOfficialModels,
+  loadSiteOfficialModels,
   saveOfficialToken,
   clearOfficialToken,
+  saveSiteOfficialToken,
+  clearSiteOfficialToken,
+  refreshSiteOfficialModels,
+  setSiteOfficialModelEnabled,
   setOfficialModelEnabled,
   saveModelSettings,
   refreshFreeModels,
@@ -2288,22 +2309,13 @@ const {
 });
 proposalEditQueueBridge.hasQueued = hasQueuedAgentEdits;
 
-function navigateToWorkspaceStage(
-  event: Extract<SystemEventEnvelope, { type: "workspace.stage_selection" }>
-): void {
-  const sourceConversation = allConversations().find((conversation) =>
-    conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
-  );
-  const target = liveWorkspaceDocuments.value.find(
-    (document) =>
-      document.workspaceId === event.payload.workspaceId &&
-      document.stageId === event.payload.stageId
-  );
-  if (!sourceConversation || !target) return;
-  selectedResourceId.value = target.id;
-  activeCreationResourceId.value = target.id;
-  revealTextPane();
-}
+const navigateToWorkspaceStage = useWorkspaceStageNavigator({
+  conversations: allConversations,
+  documents: liveWorkspaceDocuments,
+  selectedResourceId,
+  activeCreationResourceId,
+  revealTextPane
+});
 
 function startWorkspaceSystemEvents(): () => void {
   const removeRoutes = registerWorkspaceSystemEventRoutes(systemEventCenter, {
@@ -2474,6 +2486,7 @@ onBeforeUnmount(() => {
     @update-language="updateAppLanguage"
     @update-show-context-usage="updateShowContextUsage"
     @update-show-in-menu-bar="updateShowInMenuBar"
+    @update-use-network-proxy="updateUseNetworkProxy"
     @update-workspace-pane-layout="updateWorkspacePaneLayout"
     @update-default-text-view-mode="updateDefaultTextViewMode"
     @save-workspace-agents="saveWorkspaceAgentSettings"
@@ -2488,8 +2501,13 @@ onBeforeUnmount(() => {
     @save-models="saveModelSettings"
     @test-model="testModel"
     @load-official-models="loadOfficialModels"
+    @load-site-official-models="loadSiteOfficialModels"
     @save-official-token="saveOfficialToken"
     @clear-official-token="clearOfficialToken"
+    @save-site-official-token="saveSiteOfficialToken"
+    @clear-site-official-token="clearSiteOfficialToken"
+    @refresh-site-official-models="refreshSiteOfficialModels"
+    @set-site-official-model-enabled="setSiteOfficialModelEnabled"
     @set-official-model-enabled="setOfficialModelEnabled"
     @refresh-free-models="refreshFreeModels"
     @set-free-model-enabled="setFreeModelEnabled"
@@ -2527,6 +2545,7 @@ onBeforeUnmount(() => {
       @open-agent-teams="openAgentTeams"
       @open-marketplace="openMarketplace"
       @open-cloud-backup="openCloudBackup"
+      @open-zhuque-detection="openZhuqueDetection"
       @open-settings="openSettings"
       @select-resource="selectResource"
       @book-action="openBookDialog"
@@ -2540,6 +2559,7 @@ onBeforeUnmount(() => {
       @long-draft-section-action="handleLongDraftSectionAction"
       @create-long-tree-item="handleCreateLongTreeItem"
       @long-tree-item-action="handleLongTreeItemAction"
+      @delete-long-ledger-commit="requestDeleteLongLedgerCommit"
       @remove-expert-section="requestRemoveExpertSection"
       @expert-section-action="moveExpertSection"
       @create-character-item="requestCreateCharacterItem"
@@ -2744,6 +2764,8 @@ onBeforeUnmount(() => {
     @confirm-delete-long-draft="confirmDeleteLongDraftSection"
     @close-delete-long-tree="closeLongTreeItemDelete"
     @confirm-delete-long-tree="confirmDeleteLongTreeItem"
+    @close-delete-long-ledger-commit="closeDeleteLongLedgerCommit"
+    @confirm-delete-long-ledger-commit="confirmDeleteLongLedgerCommit"
     @close-create-long-volume="closeLongVolumeCreate"
     @submit-create-long-volume="createLongVolume"
     @close-long-bindings="closeLongBookBindingsDialog"

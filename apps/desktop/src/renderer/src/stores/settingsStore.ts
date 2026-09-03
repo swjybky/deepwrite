@@ -11,6 +11,7 @@ import type {
   ModelUsageDashboard,
   ModelUsageQueryInput,
   OfficialModelBalance,
+  SiteOfficialQuota,
   WorkspaceAgentSettings,
   WorkspaceDirectorySettings
 } from "@deepwrite/contracts";
@@ -101,6 +102,9 @@ export const useSettingsStore = defineStore("settings", () => {
   const modelsLoaded = ref(false);
   const freeModelsRefreshing = ref(false);
   const freeModelsSaving = ref(false);
+  const siteOfficialModelsRefreshing = ref(false);
+  const siteOfficialModelsSaving = ref(false);
+  const siteOfficialQuota = shallowRef<SiteOfficialQuota | null>(null);
   const modelError = ref<string | null>(null);
   const modelTestMessage = ref<string | null>(null);
   const testingModelId = ref<string | null>(null);
@@ -452,6 +456,9 @@ export const useSettingsStore = defineStore("settings", () => {
     modelsLoaded,
     freeModelsRefreshing,
     freeModelsSaving,
+    siteOfficialModelsRefreshing,
+    siteOfficialModelsSaving,
+    siteOfficialQuota,
     modelError,
     modelTestMessage,
     testingModelId,

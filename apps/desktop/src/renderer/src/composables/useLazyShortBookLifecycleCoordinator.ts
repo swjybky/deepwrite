@@ -1,9 +1,9 @@
-import type { ShortManuscriptExportFormat } from "@deepwrite/contracts";
 import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
 import type {
   BookResourceDialogMode,
   ResourceTreeNode
 } from "../types/workspace";
+import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import type {
   CreateShortOrScriptBookInput,
   ShortBookBindingsUpdate,
@@ -54,7 +54,7 @@ export interface LazyShortBookLifecycleCoordinator {
   updateBookBindings(payload: ShortBookBindingsUpdate): Promise<void>;
   removeBook(bookId: string): Promise<void>;
   deleteBook(bookId: string): Promise<void>;
-  exportBookManuscript(format: ShortManuscriptExportFormat): Promise<void>;
+  exportBookManuscript(target: ShortManuscriptExportTarget): Promise<void>;
   drain(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -293,11 +293,11 @@ export function useLazyShortBookLifecycleCoordinator(
   }
 
   function exportBookManuscript(
-    format: ShortManuscriptExportFormat
+    target: ShortManuscriptExportTarget
   ): Promise<void> {
     const requestId = exportBookTarget.value?.requestId;
     if (requestId === undefined) return Promise.resolve();
-    return invoke((loaded) => loaded.exportBookManuscript(format), requestId);
+    return invoke((loaded) => loaded.exportBookManuscript(target), requestId);
   }
 
   async function drain(): Promise<void> {

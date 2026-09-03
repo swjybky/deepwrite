@@ -109,6 +109,12 @@ export interface CatalogLibraryEntryDragPayload {
   targetStageId?: import("@deepwrite/contracts").MaterialStageId;
 }
 
+export interface CreationBookDragPayload {
+  sourceId: string;
+  targetId: string;
+  position: "before" | "after";
+}
+
 export type LongBookResourceNodeAction =
   | "manage-structure"
   | "sync-legacy"
@@ -200,6 +206,11 @@ export interface ResourceTreeNode {
   longTreeCollection?: LongTreeCollectionTarget;
   /** Identifies a mutable long-form item rendered inside a left-tree collection. */
   longTreeItem?: LongTreeItemTarget;
+  /** Identifies a continuity ledger row and whether it is the current tail. */
+  longLedgerCommit?: {
+    id: string;
+    deletable: boolean;
+  };
   catalogNodeType?:
     "book" | "long-book" | "library" | "group" | "category" | "document";
   libraryId?: string;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type {
   BookResourceDialogMode,
   CatalogResourceNodeActionPayload,
@@ -8,24 +8,14 @@ import type {
   IconName,
   LongBookResourceNodeActionPayload,
   LongTreeItemAction,
-  ResourceDomain,
   ResourceSectionActionPayload,
   ResourceTreeNode,
   ResourceTreeSection
 } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
-import TreeSection from "./TreeSection.vue";
-import TreeNodeItem from "./TreeNodeItem.vue";
+import SidebarResourceList from "./SidebarResourceList.vue";
 import { uiMessage } from "../ui-feedback";
 import type { UpdateState } from "@deepwrite/contracts";
-import {
-  collectPinnedResourceNodes,
-  excludePinnedResourceNodes,
-  flattenResourceNodes,
-  parsePinnedResourceIds,
-  pinnableResourceNodes,
-  PINNED_RESOURCE_STORAGE_KEY
-} from "../utils/pinnedResources";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 
 const props = defineProps<{
@@ -35,7 +25,11 @@ const props = defineProps<{
   longBookAnalysisRunning?: boolean;
   libraryEntryClipboardDomain?: "skill" | "material" | undefined;
   activePrimaryFeature:
-    PrimaryFeatureId | "skill-marketplace" | "cloud-backup" | undefined;
+    | PrimaryFeatureId
+    | "skill-marketplace"
+    | "cloud-backup"
+    | "zhuque-detection"
+    | undefined;
   marketplaceDisplayName?: string | undefined;
   longTreeActionsDisabled?: boolean;
 }>();
@@ -48,6 +42,7 @@ const emit = defineEmits<{
   openAgentTeams: [];
   openMarketplace: [];
   openCloudBackup: [];
+  openZhuqueDetection: [];
   openSettings: [];
   selectResource: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
@@ -64,6 +59,7 @@ const emit = defineEmits<{
   ];
   createLongTreeItem: [node: ResourceTreeNode];
   longTreeItemAction: [action: LongTreeItemAction, node: ResourceTreeNode];
+  deleteLongLedgerCommit: [node: ResourceTreeNode];
   removeExpertSection: [node: ResourceTreeNode];
   expertSectionAction: [
     action: "move-up" | "move-down",
@@ -255,49 +251,14 @@ const navItems: Array<{
   { id: "chat-assistant", label: "聊天", icon: "message" }
 ];
 
-function loadPinnedResourceIds(): string[] {
-  try {
-    const stored = localStorage.getItem(PINNED_RESOURCE_STORAGE_KEY);
-    if (pinnableResourceNodes(props.sections).length) {
-      return parsePinnedResourceIds(stored, props.sections);
-    }
-    const parsed: unknown = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed)
-      ? [
-          ...new Set(
-            parsed.filter((id): id is string => typeof id === "string")
-          )
-        ]
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 const moreExpanded = ref(false);
-const pinnedResourceIds = ref(loadPinnedResourceIds());
-const pinnedResourceNodes = computed(() =>
-  collectPinnedResourceNodes(props.sections, pinnedResourceIds.value)
-);
-const unpinnedSections = computed(() =>
-  excludePinnedResourceNodes(props.sections, pinnedResourceIds.value)
-);
-const resourceDomainsByNodeId = computed(
-  () =>
-    new Map(
-      props.sections.flatMap((section) =>
-        flattenResourceNodes(section.nodes).map(
-          (node) => [node.id, section.id] as const
-        )
-      )
-    )
-);
 const moreFeatures: Array<{
   id:
     | "imitation"
     | "long-book-analysis"
     | "skill-marketplace"
     | "cloud-backup"
+    | "zhuque-detection"
     | "runtime";
   label: string;
   description: string;
@@ -328,6 +289,12 @@ const moreFeatures: Array<{
     icon: "archive"
   },
   {
+    id: "zhuque-detection",
+    label: "朱雀检测",
+    description: "检测文本中的 AI 生成内容",
+    icon: "globe"
+  },
+  {
     id: "runtime",
     label: "运行设置",
     description: "智能体与工具边界",
@@ -341,6 +308,7 @@ function activateMoreFeature(
     | "long-book-analysis"
     | "skill-marketplace"
     | "cloud-backup"
+    | "zhuque-detection"
     | "runtime"
 ): void {
   if (id === "imitation") {
@@ -357,6 +325,10 @@ function activateMoreFeature(
   }
   if (id === "cloud-backup") {
     emit("openCloudBackup");
+    return;
+  }
+  if (id === "zhuque-detection") {
+    emit("openZhuqueDetection");
     return;
   }
   openSettings();
@@ -377,53 +349,6 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
   }
   emit("openDialog", id);
 }
-
-function toggleResourcePin(node: ResourceTreeNode): void {
-  const pinned = pinnedResourceIds.value.includes(node.id);
-  pinnedResourceIds.value = pinned
-    ? pinnedResourceIds.value.filter((id) => id !== node.id)
-    : [...pinnedResourceIds.value, node.id];
-
-  try {
-    localStorage.setItem(
-      PINNED_RESOURCE_STORAGE_KEY,
-      JSON.stringify(pinnedResourceIds.value)
-    );
-  } catch {
-    uiMessage.warning("置顶状态暂时无法保存，但本次操作仍然有效");
-  }
-
-  uiMessage.success(
-    pinned ? `已取消置顶“${node.label}”` : `已置顶“${node.label}”`
-  );
-}
-
-function resourceDomainFor(node: ResourceTreeNode): ResourceDomain {
-  return resourceDomainsByNodeId.value.get(node.id) ?? "creation";
-}
-
-watch(
-  () => pinnableResourceNodes(props.sections).map((node) => node.id),
-  (validIds) => {
-    const validIdSet = new Set(validIds);
-    if (validIdSet.size === 0) {
-      return;
-    }
-    const nextIds = pinnedResourceIds.value.filter((id) => validIdSet.has(id));
-    if (nextIds.length === pinnedResourceIds.value.length) {
-      return;
-    }
-    pinnedResourceIds.value = nextIds;
-    try {
-      localStorage.setItem(
-        PINNED_RESOURCE_STORAGE_KEY,
-        JSON.stringify(nextIds)
-      );
-    } catch {
-      // The in-memory state is still kept in sync when storage is unavailable.
-    }
-  }
-);
 </script>
 
 <template>
@@ -539,105 +464,39 @@ watch(
         </div>
       </nav>
 
-      <div class="resource-list">
-        <section
-          v-if="pinnedResourceNodes.length"
-          class="resource-section pinned-resource-section"
-        >
-          <div class="pinned-resource-heading">
-            <AppIcon name="pin" :size="15" />
-            <span>置顶</span>
-          </div>
-          <ul
-            class="resource-tree pinned-resource-tree"
-            aria-label="置顶的书籍、技能库和素材库"
-          >
-            <TreeNodeItem
-              v-for="node in pinnedResourceNodes"
-              :key="node.id"
-              :node="node"
-              :depth="0"
-              :selected-id="selectedId"
-              pinnable
-              pinned
-              :pinned-ids="pinnedResourceIds"
-              :resource-domain="resourceDomainFor(node)"
-              :library-entry-clipboard-domain="libraryEntryClipboardDomain"
-              :long-tree-actions-disabled="longTreeActionsDisabled"
-              @select="emit('selectResource', $event)"
-              @toggle-pin="toggleResourcePin"
-              @book-action="(mode, book) => emit('bookAction', mode, book)"
-              @export-book="emit('exportBook', $event)"
-              @long-book-action="emit('longBookAction', $event)"
-              @resource-node-action="emit('resourceNodeAction', $event)"
-              @move-library-entry="emit('moveLibraryEntry', $event)"
-              @create-expert-section="emit('createExpertSection', $event)"
-              @create-long-draft-section="
-                emit('createLongDraftSection', $event)
-              "
-              @long-draft-section-action="
-                (action, sectionNode) =>
-                  emit('longDraftSectionAction', action, sectionNode)
-              "
-              @create-long-tree-item="emit('createLongTreeItem', $event)"
-              @long-tree-item-action="
-                (action, itemNode) =>
-                  emit('longTreeItemAction', action, itemNode)
-              "
-              @remove-expert-section="emit('removeExpertSection', $event)"
-              @expert-section-action="
-                (action, sectionNode) =>
-                  emit('expertSectionAction', action, sectionNode)
-              "
-              @create-character-item="emit('createCharacterItem', $event)"
-              @character-item-action="
-                (action, itemNode) =>
-                  emit('characterItemAction', action, itemNode)
-              "
-            />
-          </ul>
-        </section>
-
-        <TreeSection
-          v-for="section in unpinnedSections"
-          :key="section.id"
-          :section="section"
-          :selected-id="selectedId"
-          :long-tree-actions-disabled="longTreeActionsDisabled"
-          :pinned-ids="pinnedResourceIds"
-          :library-entry-clipboard-domain="libraryEntryClipboardDomain"
-          @select="emit('selectResource', $event)"
-          @toggle-pin="toggleResourcePin"
-          @book-action="(mode, book) => emit('bookAction', mode, book)"
-          @export-book="emit('exportBook', $event)"
-          @long-book-action="emit('longBookAction', $event)"
-          @resource-action="emit('resourceAction', $event)"
-          @resource-node-action="emit('resourceNodeAction', $event)"
-          @move-library-entry="emit('moveLibraryEntry', $event)"
-          @create-expert-section="emit('createExpertSection', $event)"
-          @create-long-draft-section="emit('createLongDraftSection', $event)"
-          @long-draft-section-action="
-            (
-              action: 'move-up' | 'move-down' | 'delete',
-              sectionNode: ResourceTreeNode
-            ) => emit('longDraftSectionAction', action, sectionNode)
-          "
-          @create-long-tree-item="emit('createLongTreeItem', $event)"
-          @long-tree-item-action="
-            (action: LongTreeItemAction, itemNode: ResourceTreeNode) =>
-              emit('longTreeItemAction', action, itemNode)
-          "
-          @remove-expert-section="emit('removeExpertSection', $event)"
-          @expert-section-action="
-            (action: 'move-up' | 'move-down', sectionNode: ResourceTreeNode) =>
-              emit('expertSectionAction', action, sectionNode)
-          "
-          @create-character-item="emit('createCharacterItem', $event)"
-          @character-item-action="
-            (action, itemNode) => emit('characterItemAction', action, itemNode)
-          "
-        />
-      </div>
+      <SidebarResourceList
+        :sections="sections"
+        :selected-id="selectedId"
+        :long-tree-actions-disabled="longTreeActionsDisabled"
+        :library-entry-clipboard-domain="libraryEntryClipboardDomain"
+        @select-resource="emit('selectResource', $event)"
+        @book-action="(mode, book) => emit('bookAction', mode, book)"
+        @export-book="emit('exportBook', $event)"
+        @long-book-action="emit('longBookAction', $event)"
+        @resource-action="emit('resourceAction', $event)"
+        @resource-node-action="emit('resourceNodeAction', $event)"
+        @move-library-entry="emit('moveLibraryEntry', $event)"
+        @create-expert-section="emit('createExpertSection', $event)"
+        @create-long-draft-section="emit('createLongDraftSection', $event)"
+        @long-draft-section-action="
+          (action, sectionNode) =>
+            emit('longDraftSectionAction', action, sectionNode)
+        "
+        @create-long-tree-item="emit('createLongTreeItem', $event)"
+        @long-tree-item-action="
+          (action, itemNode) => emit('longTreeItemAction', action, itemNode)
+        "
+        @delete-long-ledger-commit="emit('deleteLongLedgerCommit', $event)"
+        @remove-expert-section="emit('removeExpertSection', $event)"
+        @expert-section-action="
+          (action, sectionNode) =>
+            emit('expertSectionAction', action, sectionNode)
+        "
+        @create-character-item="emit('createCharacterItem', $event)"
+        @character-item-action="
+          (action, itemNode) => emit('characterItemAction', action, itemNode)
+        "
+      />
     </div>
 
     <footer class="sidebar-footer">

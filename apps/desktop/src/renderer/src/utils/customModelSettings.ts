@@ -1,6 +1,7 @@
-import type {
-  ModelConfigInput,
-  ModelSettingsInput
+import {
+  isDeepWriteSiteOfficialModel,
+  type ModelConfigInput,
+  type ModelSettingsInput
 } from "@deepwrite/contracts";
 
 export function mergeCustomModelSettings(
@@ -10,12 +11,16 @@ export function mergeCustomModelSettings(
 ): ModelSettingsInput {
   const customById = new Map(customModels.map((model) => [model.id, model]));
   const originalCustomIds = new Set(
-    existingModels.filter((model) => !model.managedBy).map((model) => model.id)
+    existingModels
+      .filter(
+        (model) => !model.managedBy && !isDeepWriteSiteOfficialModel(model)
+      )
+      .map((model) => model.id)
   );
   const models: ModelConfigInput[] = [];
 
   for (const model of existingModels) {
-    if (model.managedBy) {
+    if (model.managedBy || isDeepWriteSiteOfficialModel(model)) {
       models.push(model);
       continue;
     }
@@ -23,6 +28,7 @@ export function mergeCustomModelSettings(
     if (draft) models.push(draft);
   }
   for (const model of customModels) {
+    if (model.managedBy || isDeepWriteSiteOfficialModel(model)) continue;
     if (!originalCustomIds.has(model.id)) models.push(model);
   }
 

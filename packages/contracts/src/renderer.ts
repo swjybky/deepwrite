@@ -45,6 +45,7 @@ export type * from "./workspace-directory";
 export type * from "./writing-context";
 
 export { CHAT_ASSISTANT_PROJECT_PROMPT_MAX_LENGTH } from "./chat-assistant-base";
+export { isDeepWriteSiteOfficialModel } from "./models";
 export {
   APPEARANCE_CUSTOM_FONT_DISPLAY_NAME_MAX_LENGTH,
   APPEARANCE_CUSTOM_FONT_MAX_COUNT,
@@ -220,6 +221,7 @@ export {
   longChapterFilePath,
   longChapterForeshadowingChangesFileId,
   longChapterHandoffFileId,
+  longLedgerCommitChapterIds,
   longCharacterCoreProfileFileId,
   longCharacterCurrentStateFileId,
   longCharacterFilePath,

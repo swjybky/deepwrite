@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, type ComponentPublicInstance } from "vue";
+import { computed, watch } from "vue";
 import type {
   AgentTeamRunMode,
   LongArcId,
@@ -17,11 +17,10 @@ import type {
   WorkspacePaneLayout
 } from "@deepwrite/contracts";
 import type { AgentConversationController } from "../composables/useAgentConversation";
+import { useLongWorkspaceModuleEditorBridge } from "../composables/useLongWorkspaceModuleEditorBridge";
+import { usePendingEditorReferences } from "../composables/usePendingEditorReferences";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
-import {
-  isLongWorkspaceEditorPort,
-  type LongWorkspaceEditorPort
-} from "../composables/useLongWorkspaceSessionCoordinator";
+import type { LongWorkspaceEditorPort } from "../composables/useLongWorkspaceSessionCoordinator";
 import type {
   LongWorkspaceFileContext,
   LongWorkspaceRefreshStatus
@@ -36,6 +35,7 @@ import type {
   LongWorkspaceSelection
 } from "../types/longWorkspace";
 import { LONG_WORKSPACE_ROOT_LABELS } from "../utils/longWorkspaceResourceTree";
+import { uiMessage } from "../ui-feedback";
 import AgentConversation from "./AgentConversation.vue";
 import AppIcon from "./AppIcon.vue";
 import LongWorkspaceEditor from "./LongWorkspaceEditor.vue";
@@ -186,6 +186,17 @@ const canRewriteHistory = computed(
       props.sendContextReady
     ) && props.proposalItems.every((item) => item.status === "accepted")
 );
+const {
+  editorReferences,
+  insertEditorReference,
+  removeEditorReference,
+  clearEditorReferences
+} = usePendingEditorReferences(uiMessage);
+
+watch(
+  () => [props.book?.id, props.selection?.key] as const,
+  clearEditorReferences
+);
 
 function submitEditedMessage(
   request: ConversationMessageRewriteRequest
@@ -194,16 +205,11 @@ function submitEditedMessage(
   return new Promise((resolve) => emit("send", request, resolve));
 }
 
-let currentEditorPort: LongWorkspaceEditorPort | null = null;
-
-function captureEditorPort(
-  instance: Element | ComponentPublicInstance | null
-): void {
-  const nextPort = isLongWorkspaceEditorPort(instance) ? instance : null;
-  if (nextPort === currentEditorPort) return;
-  currentEditorPort = nextPort;
-  emit("editorPortChange", nextPort);
-}
+const { captureEditorPort, locateEditorReference } =
+  useLongWorkspaceModuleEditorBridge({
+    publish: (port) => emit("editorPortChange", port),
+    warn: (message) => uiMessage.warning(message)
+  });
 
 function forwardSelectCharacter(
   characterId: LongCharacterId,
@@ -287,12 +293,6 @@ function forwardPreviewMutation(
 ): void {
   emit("previewMutation", batch, completion);
 }
-
-onBeforeUnmount(() => {
-  if (!currentEditorPort) return;
-  currentEditorPort = null;
-  emit("editorPortChange", null);
-});
 </script>
 
 <template>
@@ -348,7 +348,7 @@ onBeforeUnmount(() => {
         :welcome-shortcuts="agentProfile.welcomeShortcuts"
         :available-skills="availableSkillReferences"
         :available-materials="availableMaterialReferences"
-        :editor-references="[]"
+        :editor-references="editorReferences"
         :long-proposal-items="proposalItems"
         :long-workspace-index="workspaceIndex"
         :user-input-request="conversationController.pendingUserInput.value"
@@ -379,6 +379,9 @@ onBeforeUnmount(() => {
         @reject-long-proposal="emit('rejectLongProposal', $event)"
         @retry-long-proposal-preview="emit('retryLongProposalPreview', $event)"
         @locate-long-proposal="emit('locateLongProposal', $event)"
+        @clear-editor-references="clearEditorReferences"
+        @remove-editor-reference="removeEditorReference"
+        @locate-editor-reference="locateEditorReference"
         @submit-user-input="conversationController.submitUserInput($event)"
       />
       <section
@@ -404,6 +407,7 @@ onBeforeUnmount(() => {
         :right-pane="paneLayout === 'agent-editor'"
         :right-pane-collapsed="rightPane.collapsed"
         :default-view-mode="defaultTextViewMode"
+        @insert-selection="insertEditorReference"
         @saved="emit('saved', $event)"
         @context-change="emit('contextChange', $event)"
         @collapse="emit('collapseRight')"

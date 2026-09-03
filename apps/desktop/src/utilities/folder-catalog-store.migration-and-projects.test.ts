@@ -768,6 +768,32 @@ describe("FolderCatalogStore: migration-and-projects", () => {
         { id: "character-fixed-id", title: "苏遥", order: 2 }
       ]
     });
+    const replayedCreation = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: 0,
+      force: true,
+      mutation: {
+        type: "createItem",
+        itemId: "character-fixed-id",
+        title: "苏遥"
+      }
+    });
+    expect(replayedCreation.characterStructure).toEqual(
+      created.characterStructure
+    );
+    expect(await store.getProjectRevision(opened.resource.id, "book")).toBe(3);
+    await expect(
+      store.mutateCharacterStructure({
+        bookId: opened.resource.id,
+        baseProjectRevision: 0,
+        force: true,
+        mutation: {
+          type: "createItem",
+          itemId: "character-fixed-id",
+          title: "不同人物"
+        }
+      })
+    ).rejects.toThrow(/人物条目标识已存在/u);
     await store.saveDocument({
       bookId: opened.resource.id,
       documentId: "character-fixed-id",

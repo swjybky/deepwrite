@@ -489,6 +489,9 @@ function createDeferredApi(): {
       commitChapter: vi.fn(async () => {
         throw new Error("Long workspace is not used by conversation tests.");
       }),
+      deleteLedgerCommit: vi.fn(async () => {
+        throw new Error("Long workspace is not used by conversation tests.");
+      }),
       unregister: vi.fn(async () => {
         throw new Error("Long workspace is not used by conversation tests.");
       }),
@@ -552,6 +555,27 @@ function createDeferredApi(): {
         return { models: [], defaultModelId: "" };
       },
       async clearOfficialToken() {
+        return { models: [], defaultModelId: "" };
+      },
+      async saveSiteOfficialToken() {
+        return { models: [], defaultModelId: "" };
+      },
+      async clearSiteOfficialToken() {
+        return { models: [], defaultModelId: "" };
+      },
+      async refreshSiteOfficial() {
+        return { models: [], defaultModelId: "" };
+      },
+      async querySiteOfficialQuota() {
+        return {
+          queriedAt: "2026-09-01T00:00:00.000Z",
+          remaining: 0,
+          used: 0,
+          total: 0,
+          unlimited: false
+        };
+      },
+      async setSiteOfficialModelEnabled() {
         return { models: [], defaultModelId: "" };
       },
       async setOfficialModelEnabled() {
@@ -793,6 +817,7 @@ function createDeferredApi(): {
             language: "auto" as const,
             showInMenuBar: true,
             showContextUsage: true,
+            useNetworkProxy: false,
             workspacePaneLayout: "agent-editor" as const,
             defaultTextViewMode: "edit" as const
           }

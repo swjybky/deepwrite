@@ -93,6 +93,23 @@ describe("SettingsPage", () => {
     expectSourceToContain(generalSettingsSource, "emit('updateShowInMenuBar'");
   });
 
+  it("offers a persisted network proxy switch that defaults to direct access", () => {
+    expectSourceToContain(generalSettingsSource, "网络设置");
+    expectSourceToContain(generalSettingsSource, "<strong>网络代理</strong>");
+    expect(generalSettingsSource).toContain(':checked="useNetworkProxy"');
+    expect(generalSettingsSource).toContain("'updateUseNetworkProxy'");
+    expect(source).toContain(':use-network-proxy="useNetworkProxy"');
+    expect(featureModulesSource).toContain(
+      ':use-network-proxy="module.useNetworkProxy"'
+    );
+    expect(featureHostSource).toContain(
+      "settingsStore.generalSettings.useNetworkProxy"
+    );
+    expect(appSource).toContain(
+      '@update-use-network-proxy="updateUseNetworkProxy"'
+    );
+  });
+
   it("offers both persisted creative-workspace pane layouts", () => {
     expectSourceToContain(generalSettingsSource, "<strong>页面布局</strong>");
     expect(generalSettingsSource).toContain('value: "agent-editor"');
@@ -182,7 +199,7 @@ describe("SettingsPage", () => {
     expect(source).toContain("emit('resetLibraryAgent', $event)");
   });
 
-  it("orders usage, free, custom, and internal model settings", () => {
+  it("orders usage, free, custom, old-site, and new-site model settings", () => {
     const usageIndex = source.indexOf('{ id: "usage", label: "用量"');
     const freeModelsIndex = source.indexOf(
       '{ id: "free-models", label: "免费模型"'
@@ -191,13 +208,17 @@ describe("SettingsPage", () => {
       '{ id: "custom-models", label: "自定义模型配置"'
     );
     const officialModelsIndex = source.indexOf(
-      '{ id: "official-models", label: "内部提供模型"'
+      '{ id: "official-models", label: "旧官方小站模型"'
+    );
+    const siteOfficialModelsIndex = source.indexOf(
+      'id: "site-official-models"'
     );
 
     expect(usageIndex).toBeGreaterThan(-1);
     expect(freeModelsIndex).toBeGreaterThan(usageIndex);
     expect(customModelsIndex).toBeGreaterThan(freeModelsIndex);
     expect(officialModelsIndex).toBeGreaterThan(customModelsIndex);
+    expect(siteOfficialModelsIndex).toBeGreaterThan(officialModelsIndex);
     expect(source).toContain('model-scope="custom"');
     expect(source).toContain('emit("loadModels")');
     expect(source).toContain("emit('saveModels', $event)");
@@ -211,6 +232,15 @@ describe("SettingsPage", () => {
     expect(source).toContain("emit('saveOfficialToken', $event)");
     expect(source).toContain('if (id === "official-models")');
     expect(source).toContain('emit("loadOfficialModels")');
+    expect(source).toContain('if (id === "site-official-models")');
+    expect(source).toContain("<SiteOfficialModelsPanel");
+    expect(source).toContain('label: "新官方小站模型"');
+    expect(source).toContain("emit('saveSiteOfficialToken', $event)");
+    expect(source).toContain("emit('clearSiteOfficialToken')");
+    expect(source).toContain('emit("loadSiteOfficialModels")');
+    expect(source).toContain("emit('refreshSiteOfficialModels')");
+    expect(source).toContain("emit('setSiteOfficialModelEnabled'");
+    expect(source).toContain(':quota="siteOfficialQuota"');
   });
 
   it("connects custom model management to the existing app model state and actions", () => {
@@ -230,12 +260,18 @@ describe("SettingsPage", () => {
       ':free-models-refreshing="module.freeModelsRefreshing"'
     );
     expect(featureModulesSource).toContain(
+      ':site-official-quota="module.siteOfficialQuota"'
+    );
+    expect(featureModulesSource).toContain(
       "@load-models=\"emit('loadModels')\""
     );
     expect(appSource).toContain('@load-models="loadModelSettings"');
     expect(appSource).toContain('@save-models="saveModelSettings"');
     expect(appSource).toContain('@test-model="testModel"');
     expect(appSource).toContain('@refresh-free-models="refreshFreeModels"');
+    expect(appSource).toContain(
+      '@refresh-site-official-models="refreshSiteOfficialModels"'
+    );
     expect(appSource).toContain(
       '@set-free-model-enabled="setFreeModelEnabled"'
     );

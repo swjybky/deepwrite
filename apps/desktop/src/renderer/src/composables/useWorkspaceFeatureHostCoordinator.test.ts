@@ -6,6 +6,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { ref, shallowRef } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "../stores/settingsStore";
+import type { WorkspaceMainView } from "../stores/layoutStore";
 import type { LearningImitationController } from "./useLearningImitation";
 import type { LongBookAnalysisController } from "../extras/long-book-analysis/useLongBookAnalysis";
 import type { SubagentAuthoringController } from "./useSubagentAuthoring";
@@ -64,16 +65,7 @@ function createHarness(overrides: HarnessOverrides = {}) {
   setActivePinia(createPinia());
   const currentView = ref<"workspace" | "settings">("workspace");
   const settingsInitialCategory = ref("general");
-  const workspaceMainView = ref<
-    | "conversation"
-    | "directory"
-    | "models"
-    | "imitation"
-    | "long-book-analysis"
-    | "agent-team"
-    | "marketplace"
-    | "cloud-backup"
-  >("conversation");
+  const workspaceMainView = ref<WorkspaceMainView>("conversation");
   const activeLongBookId = ref<string | null>(null);
   const settingsStore = useSettingsStore();
   const catalogSnapshot = shallowRef(null);
@@ -206,7 +198,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     expect(harness.coordinator.activeFeature.value).toBe("models");
   });
 
-  it("projects all seven feature descriptors and leaves both writing surfaces unwrapped", () => {
+  it("projects every feature descriptor and leaves both writing surfaces unwrapped", () => {
     const harness = createHarness();
 
     expect(harness.coordinator.workspaceFeatureModule.value).toBeNull();
@@ -220,7 +212,8 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
       "imitation",
       "agent-team",
       "marketplace",
-      "cloud-backup"
+      "cloud-backup",
+      "zhuque-detection"
     ] as const;
     for (const feature of featureKinds) {
       harness.workspaceMainView.value = feature;

@@ -56,7 +56,7 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
     expect(longStructureTransactionsSource).toContain(
       "node.longWorkspaceSelection"
     );
-    expect(leftSidebarSource).toContain("<TreeSection");
+    expect(leftSidebarSource).toContain("<SidebarResourceList");
     expect(leftSidebarSource).not.toContain('<slot name="long-workspace" />');
     expect(treeNodeSource).toContain("<TreeNodeItem");
     expect(treeNodeSource).toContain(':depth="depth + 1"');

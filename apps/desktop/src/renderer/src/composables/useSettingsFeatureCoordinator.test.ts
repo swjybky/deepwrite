@@ -247,6 +247,64 @@ describe("settings feature coordinator", () => {
     expect(onModelsLoaded).toHaveBeenCalledWith(enabled);
   });
 
+  it("refreshes the new-site page with quota and hides disabled models from selectors", async () => {
+    const refreshed = {
+      defaultModelId: "deepwrite-site-official-disabled",
+      models: [
+        {
+          id: "deepwrite-site-official-disabled",
+          label: "Disabled site model",
+          provider: "example",
+          modelId: "site-disabled",
+          api: "openai-completions",
+          baseUrl: "https://models.example.test/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off",
+          thinkingLevelOptions: ["low"],
+          temperatureOptions: [0.1, 0.7, 1],
+          hasApiKey: true,
+          enabled: false
+        },
+        {
+          id: "custom-enabled",
+          label: "Custom",
+          provider: "example",
+          modelId: "custom",
+          api: "openai-completions",
+          baseUrl: "https://models.example.test/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off",
+          thinkingLevelOptions: ["low"],
+          temperatureOptions: [0.1, 0.7, 1],
+          hasApiKey: true
+        }
+      ]
+    } satisfies ModelSettings;
+    const quota = {
+      queriedAt: "2026-09-01T00:00:00.000Z",
+      remaining: 80,
+      used: 20,
+      total: 100,
+      unlimited: false
+    };
+    const refreshSiteOfficial = vi.fn(async () => refreshed);
+    const querySiteOfficialQuota = vi.fn(async () => quota);
+    const api = createApi({
+      models: { refreshSiteOfficial, querySiteOfficialQuota }
+    });
+    const { coordinator, onModelsLoaded, settingsStore } = createHarness(api);
+
+    await coordinator.refreshSiteOfficialModels();
+
+    expect(settingsStore.siteOfficialModelsRefreshing).toBe(false);
+    expect(settingsStore.siteOfficialQuota).toEqual(quota);
+    expect(onModelsLoaded).toHaveBeenCalledWith({
+      ...refreshed,
+      defaultModelId: "custom-enabled",
+      models: [refreshed.models[1]]
+    });
+  });
+
   it("tests a model with shared progress state and reports success through notifications", async () => {
     const test = vi.fn(async () => ({
       ok: true,

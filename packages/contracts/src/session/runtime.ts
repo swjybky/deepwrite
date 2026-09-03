@@ -111,7 +111,7 @@ function matchesActiveResourceContent(
 }
 
 export const ATTACHED_CONTEXT_MAX_ITEMS = 64;
-export const ATTACHED_CONTEXT_MAX_CONTENT_LENGTH = 20_000;
+export const ATTACHED_CONTEXT_MAX_CONTENT_LENGTH = 100_000;
 
 const AttachedContextSnapshotBaseSchema = z.object({
   id: z.string().min(1),

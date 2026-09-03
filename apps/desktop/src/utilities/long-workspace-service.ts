@@ -8,6 +8,8 @@ import {
   LongBookSummarySchema,
   LongCommitChapterInputSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitInputSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongDuplicateBookInputSchema,
   LongPreviewContinuationImportAtPathResultSchema,
   LongPreviewLegacySyncAtPathResultSchema,
@@ -41,6 +43,8 @@ import {
   type LongBookSummary,
   type LongCommitChapterInput,
   type LongCommitChapterResult,
+  type LongDeleteLedgerCommitInput,
+  type LongDeleteLedgerCommitResult,
   type LongDuplicateBookInput,
   type LongImportContinuationAtPathInput,
   type LongPreviewContinuationImportAtPathResult,
@@ -110,6 +114,7 @@ export interface LongWorkspaceServiceDiagnostic {
     | "write-document"
     | "write-chapter"
     | "commit-chapter"
+    | "delete-ledger-commit"
     | "apply-operations";
   message: string;
   occurredAt: string;
@@ -531,6 +536,24 @@ export class LongWorkspaceService {
       opened.projectDirectory,
       parsed.bookId,
       "commit-chapter"
+    );
+    return result;
+  }
+
+  async deleteLedgerCommit(
+    input: LongDeleteLedgerCommitInput
+  ): Promise<LongDeleteLedgerCommitResult> {
+    const parsed = LongDeleteLedgerCommitInputSchema.parse(input);
+    const opened = await this.openProject(parsed);
+    const result = LongDeleteLedgerCommitResultSchema.parse(
+      await this.store.deleteLedgerCommit(opened.projectDirectory, {
+        commitId: parsed.commitId
+      })
+    );
+    await this.refreshCatalogSummaryBestEffort(
+      opened.projectDirectory,
+      parsed.bookId,
+      "delete-ledger-commit"
     );
     return result;
   }

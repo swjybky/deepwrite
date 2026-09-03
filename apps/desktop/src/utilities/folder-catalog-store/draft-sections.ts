@@ -220,11 +220,16 @@ export async function saveDocument(
   rawInput: SaveFolderDocumentInput
 ): Promise<SaveDocumentResult> {
   const input = SaveDocumentInputSchema.parse(rawInput);
-  assertTextByteLength(
-    input.content,
-    store.maxMarkdownBytes,
-    "Markdown content"
-  );
+  if (input.preserveCurrentContent && input.title === undefined) {
+    throw new Error("保留正文内容时必须同时提供新标题。");
+  }
+  if (!input.preserveCurrentContent) {
+    assertTextByteLength(
+      input.content,
+      store.maxMarkdownBytes,
+      "Markdown content"
+    );
+  }
   return await mutate(store, async () => {
     const registry = await ensureRegistry(store);
     const registration = findRegistration(registry, input.bookId, "book");
@@ -340,6 +345,21 @@ export async function saveDocument(
         );
         if (draftTarget.kind === "body") {
           const sectionTitle = input.title ?? section.title;
+          if (
+            input.title !== undefined &&
+            sectionTitle !== section.title &&
+            draft.sections.some(
+              (candidate, index) =>
+                index !== draftTarget.sectionIndex &&
+                candidate.title === sectionTitle
+            )
+          ) {
+            throw new Error(
+              `正文目录已存在同名${
+                manifest.bookType === "script" ? "剧集" : "章节"
+              }「${sectionTitle}」。`
+            );
+          }
           documentManifest = {
             ...existing,
             title: sectionTitle,
@@ -412,6 +432,12 @@ export async function saveDocument(
       projectDirectory,
       documentManifest.path
     );
+    if (input.preserveCurrentContent && !existingPhysicalFile) {
+      throw new Error("目标文档不存在，无法只修改标题。");
+    }
+    const committedContent = input.preserveCurrentContent
+      ? currentContent
+      : input.content;
     const next = FolderCurrentBookProjectManifestSchema.parse({
       ...manifest,
       revision: manifest.revision + 1,
@@ -423,7 +449,7 @@ export async function saveDocument(
     });
     await commitProjectMarkdownUpdate(
       target,
-      input.content,
+      committedContent,
       existingPhysicalFile ? currentContent : undefined,
       join(projectDirectory, MANIFEST_FILE),
       next,
@@ -434,7 +460,7 @@ export async function saveDocument(
     return SaveDocumentResultSchema.parse({
       id: documentManifest.id,
       title: documentManifest.title,
-      content: input.content,
+      content: committedContent,
       createdAt: documentManifest.createdAt,
       updatedAt: documentManifest.updatedAt,
       projectRevision: next.revision
@@ -718,6 +744,20 @@ export async function createDraftSections(
       });
     }
 
+    const seenDraftSectionTitles = new Set(
+      manifest.draft.sections.map(({ title }) => title)
+    );
+    for (const section of createdSections) {
+      if (seenDraftSectionTitles.has(section.title)) {
+        throw new Error(
+          `正文目录已存在同名${
+            manifest.bookType === "script" ? "剧集" : "小节"
+          }“${section.title}”。`
+        );
+      }
+      seenDraftSectionTitles.add(section.title);
+    }
+
     sections.splice(insertionIndex, 0, ...createdSections);
     const operationSections = input.sections.map(
       ({ clientSectionId }, index) => ({
@@ -804,7 +844,9 @@ export async function deleteDraftSection(
       };
     }
     if (manifest.draft.sections.length <= 1) {
-      throw new Error("正文至少需要保留一个小节。");
+      throw new Error(
+        `正文至少需要保留一个${manifest.bookType === "script" ? "剧集" : "小节"}。`
+      );
     }
     const deletedSection = manifest.draft.sections[sectionIndex]!;
     const deletedFileTargets = await Promise.all(

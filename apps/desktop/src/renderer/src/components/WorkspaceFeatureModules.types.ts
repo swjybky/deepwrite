@@ -12,6 +12,7 @@ import type {
   ModelSettings,
   ModelUsageDashboard,
   OfficialModelBalance,
+  SiteOfficialQuota,
   SkillLibrary,
   TextViewMode,
   WorkspacePaneLayout,
@@ -30,6 +31,7 @@ export interface SettingsFeatureModule {
   language: AppLanguage;
   showContextUsage: boolean;
   showInMenuBar: boolean;
+  useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;
   workspaceAgentSettings: readonly WorkspaceAgentSettings[];
@@ -53,6 +55,9 @@ export interface SettingsFeatureModule {
   modelSaving: boolean;
   freeModelsRefreshing: boolean;
   freeModelsSaving: boolean;
+  siteOfficialModelsRefreshing: boolean;
+  siteOfficialModelsSaving: boolean;
+  siteOfficialQuota: SiteOfficialQuota | null;
   modelError: string | null;
   modelTestMessage: string | null;
   testingModelId: string | null;
@@ -119,6 +124,10 @@ export interface CloudBackupFeatureModule {
   kind: "cloud-backup";
 }
 
+export interface ZhuqueDetectionFeatureModule {
+  kind: "zhuque-detection";
+}
+
 export type WorkspaceFeatureModule =
   | SettingsFeatureModule
   | AgentTeamFeatureModule
@@ -127,4 +136,5 @@ export type WorkspaceFeatureModule =
   | ImitationFeatureModule
   | LongBookAnalysisFeatureModule
   | MarketplaceFeatureModule
-  | CloudBackupFeatureModule;
+  | CloudBackupFeatureModule
+  | ZhuqueDetectionFeatureModule;

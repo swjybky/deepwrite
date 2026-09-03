@@ -96,6 +96,21 @@ export const ModelManagedBySchema = z.enum([
 ]);
 export type ModelManagedBy = z.infer<typeof ModelManagedBySchema>;
 
+export const DEEPWRITE_SITE_OFFICIAL_MODEL_ID_PREFIX =
+  "deepwrite-site-official-";
+
+export function isDeepWriteSiteOfficialModel(
+  model: string | { id: string } | { configId: string }
+): boolean {
+  const id =
+    typeof model === "string"
+      ? model
+      : "id" in model
+        ? model.id
+        : model.configId;
+  return id.startsWith(DEEPWRITE_SITE_OFFICIAL_MODEL_ID_PREFIX);
+}
+
 /** Fallback context window for custom models that are not in the runtime catalog. */
 export const DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW = 272_000;
 /** Fallback max output tokens for custom models that are not in the runtime catalog. */
@@ -142,6 +157,8 @@ const ModelIdentitySchema = z
     contextWindow: ModelContextWindowSchema.optional(),
     /** Optional custom max output tokens. Must be set together with contextWindow. */
     maxTokens: ModelMaxTokensSchema.optional(),
+    /** User visibility toggle for separately managed model catalogs. */
+    enabled: z.boolean().optional(),
     managedBy: ModelManagedBySchema.optional(),
     /** Remote official-catalog availability: 0 = available, 1 = unavailable. */
     status: z.union([z.literal(0), z.literal(1)]).optional(),
@@ -270,6 +287,15 @@ export const OfficialModelBalanceSchema = z.object({
 });
 export type OfficialModelBalance = z.infer<typeof OfficialModelBalanceSchema>;
 
+export const SiteOfficialQuotaSchema = z.object({
+  queriedAt: z.string().datetime(),
+  remaining: z.number().nonnegative().nullable(),
+  used: z.number().nonnegative(),
+  total: z.number().nonnegative().nullable(),
+  unlimited: z.boolean()
+});
+export type SiteOfficialQuota = z.infer<typeof SiteOfficialQuotaSchema>;
+
 export const ModelSettingsInputSchema = z
   .object({
     models: z.array(ModelConfigInputSchema).max(100),
@@ -384,6 +410,41 @@ export const ModelsClearOfficialTokenCommandEnvelopeSchema =
     payload: z.object({})
   });
 
+export const ModelsSaveSiteOfficialTokenCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("models.saveSiteOfficialToken"),
+    payload: z.object({
+      apiKey: z.string().trim().min(1).max(16_000)
+    })
+  });
+
+export const ModelsClearSiteOfficialTokenCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("models.clearSiteOfficialToken"),
+    payload: z.object({})
+  });
+
+export const ModelsRefreshSiteOfficialCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("models.refreshSiteOfficial"),
+    payload: z.object({})
+  });
+
+export const ModelsQuerySiteOfficialQuotaCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("models.querySiteOfficialQuota"),
+    payload: z.object({})
+  });
+
+export const ModelsSetSiteOfficialModelEnabledCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("models.setSiteOfficialModelEnabled"),
+    payload: z.object({
+      modelId: z.string().trim().min(1).max(120),
+      enabled: z.boolean()
+    })
+  });
+
 export const ModelsSetOfficialModelEnabledCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("models.setOfficialModelEnabled"),
@@ -428,7 +489,22 @@ export type RemoteModelListInput = z.infer<typeof RemoteModelListInputSchema>;
 
 export const RemoteModelListItemSchema = z.object({
   id: z.string().trim().min(1).max(240),
-  label: z.string().trim().min(1).max(240).optional()
+  label: z.string().trim().min(1).max(240).optional(),
+  provider: z.string().trim().min(1).max(120).optional(),
+  requestModelId: z.string().trim().min(1).max(240).optional(),
+  supportsDeveloperRole: z.boolean().optional(),
+  toolSchemaProfile: ToolSchemaProfileSchema.optional(),
+  reasoning: z.boolean().optional(),
+  defaultThinkingLevel: ThinkingLevelSchema.optional(),
+  thinkingLevelOptions: ThinkingLevelOptionsSchema.removeDefault().optional(),
+  temperatureOptions: TemperatureOptionsSchema.removeDefault().optional(),
+  contextWindow: ModelContextWindowSchema.optional(),
+  maxTokens: ModelMaxTokensSchema.optional(),
+  status: z.union([z.literal(0), z.literal(1)]).optional(),
+  discount: z.number().finite().positive().max(1).optional(),
+  input: z.number().finite().nonnegative().optional(),
+  output: z.number().finite().nonnegative().optional(),
+  cache: z.number().finite().nonnegative().optional()
 });
 export type RemoteModelListItem = z.infer<typeof RemoteModelListItemSchema>;
 

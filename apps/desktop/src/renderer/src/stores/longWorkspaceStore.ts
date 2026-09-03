@@ -82,6 +82,7 @@ export interface LongDraftSectionDeleteTarget {
   readonly bookId: string;
   readonly chapterCardId: string;
   readonly volumeId: string;
+  readonly operationUpdatedAt: string;
   readonly title: string;
   readonly description: string;
   readonly expectedImpact: LongWorkspaceImpactConfirmation;
@@ -90,10 +91,18 @@ export interface LongDraftSectionDeleteTarget {
 export interface LongTreeItemDeleteTarget {
   readonly bookId: string;
   readonly node: ResourceTreeNode;
+  readonly operationUpdatedAt: string;
   readonly label: string;
   readonly title: string;
   readonly description: string;
   readonly expectedImpact: LongWorkspaceImpactConfirmation;
+}
+
+export interface LongLedgerCommitDeleteTarget {
+  readonly bookId: string;
+  readonly commitId: string;
+  readonly title: string;
+  readonly chapterCardIds: readonly string[];
 }
 
 export interface LongBookRenameTarget {
@@ -165,6 +174,8 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
   const treeItemDeleteTarget = shallowRef<LongTreeItemDeleteTarget | null>(
     null
   );
+  const ledgerCommitDeleteTarget =
+    shallowRef<LongLedgerCommitDeleteTarget | null>(null);
   const volumeCreateTarget = shallowRef<LongVolumeCreateTarget | null>(null);
   const bindingsDialogMode = ref<"skill" | "material" | null>(null);
   const exportTarget = shallowRef<LongBookRenameTarget | null>(null);
@@ -519,6 +530,7 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
     chapterCardCreateTarget.value = null;
     draftSectionDeleteTarget.value = null;
     treeItemDeleteTarget.value = null;
+    ledgerCommitDeleteTarget.value = null;
     volumeCreateTarget.value = null;
     bindingsDialogMode.value = null;
     exportTarget.value = null;
@@ -634,6 +646,7 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
     chapterCardCreateTarget,
     draftSectionDeleteTarget,
     treeItemDeleteTarget,
+    ledgerCommitDeleteTarget,
     volumeCreateTarget,
     bindingsDialogMode,
     exportTarget,

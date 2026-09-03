@@ -15,7 +15,7 @@ import {
 } from "./short-agent-tools.test-support";
 
 describe("unified short workspace tools", () => {
-  it("exposes only four workspace tools plus on-demand resources", () => {
+  it("exposes five workspace tools plus on-demand resources", () => {
     const tools = buildShortWorkspaceTools({
       workspace: shortWorkspace(),
       profile: shortProfile()
@@ -28,6 +28,7 @@ describe("unified short workspace tools", () => {
     ]);
     expect(names).not.toContain("switch_storyline_stage");
     expect(names).not.toContain("delete_expert_draft_section");
+    expect(names).toContain("delete");
     expect(JSON.stringify(toolByName(tools, "read").parameters)).not.toMatch(
       /offset|max_characters|page_size/u
     );
@@ -52,6 +53,9 @@ describe("unified short workspace tools", () => {
     expect(JSON.stringify(toolByName(tools, "read").parameters)).toContain(
       "不传 document 时默认 body"
     );
+    expect(
+      JSON.stringify(toolByName(tools, "delete").parameters)
+    ).not.toContain('"document"');
   });
 
   it("reads every target kind and asks before a cross-stage mutation", async () => {
@@ -315,7 +319,7 @@ describe("unified short workspace tools", () => {
     });
   });
 
-  it("edits allowed metadata without exposing deletion or stage switching", async () => {
+  it("edits allowed metadata without exposing stage switching", async () => {
     const characterTools = buildShortWorkspaceTools({
       workspace: shortWorkspace("character_design", { characterList: true }),
       profile: shortProfile()

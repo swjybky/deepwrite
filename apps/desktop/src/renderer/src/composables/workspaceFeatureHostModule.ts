@@ -4,6 +4,7 @@ import type {
   ActiveFeature,
   WorkspaceFeatureHostCoordinatorOptions
 } from "./workspaceFeatureHostTypes";
+import { selectableModelSettings } from "../utils/selectableModelSettings";
 
 export function buildWorkspaceFeatureModule(
   feature: ActiveFeature,
@@ -12,6 +13,9 @@ export function buildWorkspaceFeatureModule(
   marketplaceSession: MarketplaceSession | null
 ): WorkspaceFeatureModule | null {
   const { settingsStore } = options;
+  const modelSelectionSettings = settingsStore.modelSettings
+    ? selectableModelSettings(settingsStore.modelSettings)
+    : null;
   switch (feature) {
     case "settings":
       return {
@@ -24,6 +28,7 @@ export function buildWorkspaceFeatureModule(
         language: settingsStore.generalSettings.language,
         showContextUsage: settingsStore.generalSettings.showContextUsage,
         showInMenuBar: settingsStore.generalSettings.showInMenuBar,
+        useNetworkProxy: settingsStore.generalSettings.useNetworkProxy,
         workspacePaneLayout: settingsStore.generalSettings.workspacePaneLayout,
         defaultTextViewMode: settingsStore.generalSettings.defaultTextViewMode,
         workspaceAgentSettings: settingsStore.workspaceAgentSettings,
@@ -48,6 +53,10 @@ export function buildWorkspaceFeatureModule(
         modelSaving: settingsStore.modelSaving,
         freeModelsRefreshing: settingsStore.freeModelsRefreshing,
         freeModelsSaving: settingsStore.freeModelsSaving,
+        siteOfficialModelsRefreshing:
+          settingsStore.siteOfficialModelsRefreshing,
+        siteOfficialModelsSaving: settingsStore.siteOfficialModelsSaving,
+        siteOfficialQuota: settingsStore.siteOfficialQuota,
         modelError: settingsStore.modelError,
         modelTestMessage: settingsStore.modelTestMessage,
         testingModelId: settingsStore.testingModelId,
@@ -62,9 +71,9 @@ export function buildWorkspaceFeatureModule(
         kind: "agent-team",
         navigationEpoch: agentTeamNavigationEpoch,
         catalog: settingsStore.agentTeamCatalog,
-        models: settingsStore.modelSettings?.models ?? [],
+        models: modelSelectionSettings?.models ?? [],
         skills: options.catalogSnapshot.value?.skills ?? [],
-        preferredModelId: settingsStore.modelSettings?.defaultModelId ?? null,
+        preferredModelId: modelSelectionSettings?.defaultModelId ?? null,
         loading: settingsStore.agentTeamLoading,
         saving: settingsStore.agentTeamSaving,
         loadError: settingsStore.agentTeamLoadError,
@@ -111,6 +120,8 @@ export function buildWorkspaceFeatureModule(
       };
     case "cloud-backup":
       return { kind: "cloud-backup" };
+    case "zhuque-detection":
+      return { kind: "zhuque-detection" };
     case "conversation":
     case "long-workspace":
       return null;

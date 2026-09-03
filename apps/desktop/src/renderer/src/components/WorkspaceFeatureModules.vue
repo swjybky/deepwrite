@@ -29,6 +29,7 @@ import {
   ModelSettingsFeature,
   SettingsPage,
   SkillMarketplacePage,
+  ZhuqueDetectionPage,
   WorkspaceDirectoryFeature
 } from "./lazyAppComponents";
 import type { WorkspaceFeatureModule } from "./WorkspaceFeatureModules.types";
@@ -53,6 +54,7 @@ const emit = defineEmits<{
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
   updateShowInMenuBar: [enabled: boolean];
+  updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
   saveWorkspaceAgents: [settings: WorkspaceAgentSettingsInput];
@@ -67,8 +69,13 @@ const emit = defineEmits<{
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
   loadOfficialModels: [];
+  loadSiteOfficialModels: [];
   saveOfficialToken: [apiKey: string];
   clearOfficialToken: [];
+  saveSiteOfficialToken: [apiKey: string];
+  clearSiteOfficialToken: [];
+  refreshSiteOfficialModels: [];
+  setSiteOfficialModelEnabled: [modelId: string, enabled: boolean];
   setOfficialModelEnabled: [modelId: string, enabled: boolean];
   setFreeModelEnabled: [modelId: string, enabled: boolean];
   retryAgentTeam: [];
@@ -99,6 +106,7 @@ const emit = defineEmits<{
     :language="module.language"
     :show-context-usage="module.showContextUsage"
     :show-in-menu-bar="module.showInMenuBar"
+    :use-network-proxy="module.useNetworkProxy"
     :workspace-pane-layout="module.workspacePaneLayout"
     :default-text-view-mode="module.defaultTextViewMode"
     :workspace-agent-settings="module.workspaceAgentSettings"
@@ -122,6 +130,9 @@ const emit = defineEmits<{
     :model-saving="module.modelSaving"
     :free-models-refreshing="module.freeModelsRefreshing"
     :free-models-saving="module.freeModelsSaving"
+    :site-official-models-refreshing="module.siteOfficialModelsRefreshing"
+    :site-official-models-saving="module.siteOfficialModelsSaving"
+    :site-official-quota="module.siteOfficialQuota"
     :model-error="module.modelError"
     :model-test-message="module.modelTestMessage"
     :testing-model-id="module.testingModelId"
@@ -139,6 +150,7 @@ const emit = defineEmits<{
     @update-language="emit('updateLanguage', $event)"
     @update-show-context-usage="emit('updateShowContextUsage', $event)"
     @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
+    @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
     @update-workspace-pane-layout="emit('updateWorkspacePaneLayout', $event)"
     @update-default-text-view-mode="emit('updateDefaultTextViewMode', $event)"
     @save-workspace-agents="emit('saveWorkspaceAgents', $event)"
@@ -153,8 +165,16 @@ const emit = defineEmits<{
     @save-models="emit('saveModels', $event)"
     @test-model="emit('testModel', $event)"
     @load-official-models="emit('loadOfficialModels')"
+    @load-site-official-models="emit('loadSiteOfficialModels')"
     @save-official-token="emit('saveOfficialToken', $event)"
     @clear-official-token="emit('clearOfficialToken')"
+    @save-site-official-token="emit('saveSiteOfficialToken', $event)"
+    @clear-site-official-token="emit('clearSiteOfficialToken')"
+    @refresh-site-official-models="emit('refreshSiteOfficialModels')"
+    @set-site-official-model-enabled="
+      (modelId, enabled) =>
+        emit('setSiteOfficialModelEnabled', modelId, enabled)
+    "
     @set-official-model-enabled="
       (modelId, enabled) => emit('setOfficialModelEnabled', modelId, enabled)
     "
@@ -313,5 +333,22 @@ const emit = defineEmits<{
       <AppIcon name="panel-left" :size="18" />
     </button>
     <CloudBackupPage active @refresh-catalog="emit('refreshCatalog')" />
+  </main>
+
+  <main
+    v-else-if="module.kind === 'zhuque-detection'"
+    class="zhuque-detection-main-view"
+    aria-label="朱雀检测"
+  >
+    <button
+      v-if="leftCollapsed"
+      class="icon-button zhuque-detection-expand-sidebar"
+      type="button"
+      aria-label="展开左侧栏"
+      @click="emit('expandLeft')"
+    >
+      <AppIcon name="panel-left" :size="18" />
+    </button>
+    <ZhuqueDetectionPage />
   </main>
 </template>

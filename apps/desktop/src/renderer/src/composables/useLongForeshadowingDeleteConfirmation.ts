@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef } from "vue";
+import { computed, ref, shallowRef, type ComputedRef } from "vue";
 import type {
   LongWorkspaceImpactConfirmation,
   LongWorkspaceIndexSnapshot,
@@ -48,7 +48,8 @@ interface Options {
 }
 
 export function useLongForeshadowingDeleteConfirmation(options: Options) {
-  const deleteTarget = ref<LongForeshadowingDeleteTarget | null>(null);
+  // The target is compared by identity and later crosses the Electron IPC boundary.
+  const deleteTarget = shallowRef<LongForeshadowingDeleteTarget | null>(null);
   const submitting = ref(false);
   const deleteTitle = computed(() => {
     const target = deleteTarget.value;

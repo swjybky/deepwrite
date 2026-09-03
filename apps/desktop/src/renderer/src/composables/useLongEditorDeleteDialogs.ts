@@ -1,4 +1,11 @@
-import { computed, nextTick, ref, type ComputedRef, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  ref,
+  shallowRef,
+  type ComputedRef,
+  type Ref
+} from "vue";
 import type {
   LongChapterCardId,
   LongWorkspaceImpactConfirmation,
@@ -9,18 +16,13 @@ import type {
   LongStructureMutationCompletion,
   LongWorkspaceSelection
 } from "../types/longWorkspace";
-import { longDeletionDescription } from "../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../utils/longImpactConfirmation";
+import {
+  useLongNavigationDeleteConfirmation,
+  type LongNavigationDeleteTarget
+} from "./useLongNavigationDeleteConfirmation";
 
-export interface LongNavigationDeleteTarget {
-  kind: "character" | "volume" | "plotPoint" | "chapterCard";
-  id: string;
-  title: string;
-  label: string;
-  description: string;
-  previewPending?: boolean;
-  expectedImpact?: LongWorkspaceImpactConfirmation;
-}
+export type { LongNavigationDeleteTarget } from "./useLongNavigationDeleteConfirmation";
 
 export function useLongEditorDeleteDialogs(options: {
   props: {
@@ -91,16 +93,21 @@ export function useLongEditorDeleteDialogs(options: {
   const { props } = options;
   const worldbuildingDeleteDialog = ref<HTMLElement>();
   const worldbuildingDeleteCancelButton = ref<HTMLButtonElement>();
-  const navigationDeleteTarget = ref<LongNavigationDeleteTarget | null>(null);
-  const navigationDeletePending = ref(false);
-  const navigationDeleteDialog = ref<HTMLElement>();
-  const navigationDeleteCancelButton = ref<HTMLButtonElement>();
   let worldbuildingDeletePreviousFocus: HTMLElement | null = null;
-  let navigationDeletePreviousFocus: HTMLElement | null = null;
   const worldbuildingDeletePreviewPending = ref(false);
   const worldbuildingDeletePending = ref(false);
-  const worldbuildingDeleteImpact = ref<LongWorkspaceImpactConfirmation>();
+  const worldbuildingDeleteImpact =
+    shallowRef<LongWorkspaceImpactConfirmation>();
   let worldbuildingDeleteRequest = 0;
+  let worldbuildingDeleteUpdatedAt: string | undefined;
+  const navigationDelete = useLongNavigationDeleteConfirmation({
+    locked: () => Boolean(props.locked),
+    workspaceIndex: () => props.workspaceIndex,
+    currentReadOnly: options.currentReadOnly,
+    currentTarget: options.currentNavigationDeleteTarget,
+    preview: options.emitPreviewDeleteStructure,
+    remove: options.emitDeleteStructure
+  });
 
   const pendingWorldbuildingDeleteItem = computed(() => {
     const item = options.currentWorldbuildingItems.value.find(
@@ -125,10 +132,11 @@ export function useLongEditorDeleteDialogs(options: {
   function worldbuildingDeleteBatch(
     categoryId: string,
     itemId: string,
+    updatedAt: string,
     expectedImpact?: LongWorkspaceImpactConfirmation
   ): LongWorkspaceOperationBatch {
     return {
-      updatedAt: new Date().toISOString(),
+      updatedAt,
       operations: [
         {
           type: "worldbuildingItem.delete",
@@ -150,12 +158,14 @@ export function useLongEditorDeleteDialogs(options: {
     const categoryId = props.selection?.key.slice("worldbuilding:".length);
     if (!categoryId) return;
     const request = ++worldbuildingDeleteRequest;
+    const updatedAt = new Date().toISOString();
+    worldbuildingDeleteUpdatedAt = updatedAt;
     options.pendingWorldbuildingDeleteId.value = itemId;
     worldbuildingDeleteImpact.value = undefined;
     worldbuildingDeletePending.value = false;
     worldbuildingDeletePreviewPending.value = true;
     options.emitPreviewMutation(
-      worldbuildingDeleteBatch(categoryId, itemId),
+      worldbuildingDeleteBatch(categoryId, itemId, updatedAt),
       (expectedImpact) => {
         if (
           request !== worldbuildingDeleteRequest ||
@@ -178,6 +188,7 @@ export function useLongEditorDeleteDialogs(options: {
     options.pendingWorldbuildingDeleteId.value = null;
     worldbuildingDeletePreviewPending.value = false;
     worldbuildingDeleteImpact.value = undefined;
+    worldbuildingDeleteUpdatedAt = undefined;
     const previousFocus = worldbuildingDeletePreviousFocus;
     worldbuildingDeletePreviousFocus = null;
     void nextTick(() => {
@@ -228,10 +239,16 @@ export function useLongEditorDeleteDialogs(options: {
     const targetIndex = items.findIndex(({ id }) => id === target.id);
     const nextItems = items.filter(({ id }) => id !== target.id);
     const categoryId = props.selection?.key.slice("worldbuilding:".length);
-    if (!categoryId) return;
+    const updatedAt = worldbuildingDeleteUpdatedAt;
+    if (!categoryId || !updatedAt) return;
     worldbuildingDeletePending.value = true;
     options.emitMutation(
-      worldbuildingDeleteBatch(categoryId, target.id, target.expectedImpact),
+      worldbuildingDeleteBatch(
+        categoryId,
+        target.id,
+        updatedAt,
+        target.expectedImpact
+      ),
       {
         succeed() {
           worldbuildingDeletePending.value = false;
@@ -258,160 +275,14 @@ export function useLongEditorDeleteDialogs(options: {
     );
   }
 
-  function showNavigationDelete(target: LongNavigationDeleteTarget): void {
-    navigationDeletePreviousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    const pendingTarget: LongNavigationDeleteTarget = {
-      ...target,
-      previewPending: true
-    };
-    navigationDeleteTarget.value = pendingTarget;
-    options.emitPreviewDeleteStructure(
-      { kind: target.kind, id: target.id, title: target.title },
-      (expectedImpact) => {
-        if (navigationDeleteTarget.value !== pendingTarget) return;
-        navigationDeleteTarget.value = {
-          ...pendingTarget,
-          previewPending: false,
-          ...(expectedImpact
-            ? {
-                description: longImpactConfirmationDescription(
-                  expectedImpact,
-                  pendingTarget.description
-                )
-              }
-            : {}),
-          ...(expectedImpact ? { expectedImpact } : {})
-        };
-      }
-    );
-    void nextTick(() => {
-      navigationDeleteCancelButton.value?.focus({ preventScroll: true });
-    });
-  }
-
-  function openNavigationDelete(): void {
-    const target = options.currentNavigationDeleteTarget.value;
-    if (!target || props.locked || options.currentReadOnly.value) return;
-    showNavigationDelete(target);
-  }
-
-  function closeNavigationDelete(): void {
-    if (navigationDeletePending.value) return;
-    navigationDeleteTarget.value = null;
-    const previousFocus = navigationDeletePreviousFocus;
-    navigationDeletePreviousFocus = null;
-    void nextTick(() => {
-      if (previousFocus?.isConnected) {
-        previousFocus.focus({ preventScroll: true });
-      }
-    });
-  }
-
-  function handleNavigationDeleteKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      closeNavigationDelete();
-      return;
-    }
-    if (event.key !== "Tab" || !navigationDeleteDialog.value) return;
-    const focusable = Array.from(
-      navigationDeleteDialog.value.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), [tabindex]:not([tabindex="-1"])'
-      )
-    );
-    if (!focusable.length) {
-      event.preventDefault();
-      navigationDeleteDialog.value.focus({ preventScroll: true });
-      return;
-    }
-    const first = focusable[0]!;
-    const last = focusable.at(-1)!;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus({ preventScroll: true });
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus({ preventScroll: true });
-    }
-  }
-
-  function confirmNavigationDelete(): void {
-    const target = navigationDeleteTarget.value;
-    if (
-      !target ||
-      target.previewPending ||
-      !target.expectedImpact ||
-      navigationDeletePending.value
-    )
-      return;
-    navigationDeletePending.value = true;
-    options.emitDeleteStructure(
-      {
-        kind: target.kind,
-        id: target.id,
-        title: target.title,
-        expectedImpact: target.expectedImpact
-      },
-      (succeeded, changedImpact) => {
-        navigationDeletePending.value = false;
-        if (succeeded) {
-          closeNavigationDelete();
-          return;
-        }
-        if (changedImpact && navigationDeleteTarget.value === target) {
-          const refreshed = options.currentNavigationDeleteTarget.value;
-          navigationDeleteTarget.value = {
-            ...(refreshed ?? target),
-            description: longImpactConfirmationDescription(
-              changedImpact,
-              (refreshed ?? target).description
-            ),
-            expectedImpact: changedImpact,
-            previewPending: false
-          };
-        }
-      }
-    );
-  }
-
-  function openChapterCardDelete(chapterCardId: LongChapterCardId): void {
-    if (props.locked || options.currentReadOnly.value) {
-      return;
-    }
-    const index = props.workspaceIndex;
-    const chapterCard = index?.plot.chapterCards.find(
-      ({ id }) => id === chapterCardId
-    );
-    if (!index || !chapterCard) return;
-    showNavigationDelete({
-      kind: "chapterCard",
-      id: chapterCard.id,
-      title: chapterCard.title,
-      label: "章卡",
-      description: longDeletionDescription(index, "chapterCard", chapterCard.id)
-    });
-  }
-
   return {
     worldbuildingDeleteDialog,
     worldbuildingDeleteCancelButton,
-    navigationDeleteTarget,
-    navigationDeletePending,
-    navigationDeleteDialog,
-    navigationDeleteCancelButton,
     pendingWorldbuildingDeleteItem,
     openWorldbuildingItemDelete,
     closeWorldbuildingItemDelete,
     handleWorldbuildingDeleteKeydown,
     confirmWorldbuildingItemDelete,
-    showNavigationDelete,
-    openNavigationDelete,
-    closeNavigationDelete,
-    handleNavigationDeleteKeydown,
-    confirmNavigationDelete,
-    openChapterCardDelete
+    ...navigationDelete
   };
 }

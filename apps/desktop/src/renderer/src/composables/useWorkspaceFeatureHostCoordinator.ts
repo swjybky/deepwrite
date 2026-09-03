@@ -219,6 +219,12 @@ export function useWorkspaceFeatureHostCoordinator(
     options.view.workspaceMain.value = "cloud-backup";
   }
 
+  async function openZhuqueDetection(): Promise<void> {
+    const generation = beginNavigation();
+    if (!(await canApplyNavigation(generation))) return;
+    options.view.workspaceMain.value = "zhuque-detection";
+  }
+
   async function loadWorkspaceDirectory(): Promise<void> {
     const api = options.api();
     if (!active || !api) return;
@@ -354,6 +360,7 @@ export function useWorkspaceFeatureHostCoordinator(
     openAgentTeams,
     openMarketplace,
     openCloudBackup,
+    openZhuqueDetection,
     loadWorkspaceDirectory,
     chooseWorkspaceDirectory,
     closeSettings,

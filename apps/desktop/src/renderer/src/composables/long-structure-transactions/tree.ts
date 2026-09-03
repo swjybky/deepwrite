@@ -337,6 +337,7 @@ export function createLongStructureTree(
           longTreeItemDelete.value = {
             bookId: prepared.bookId,
             node,
+            operationUpdatedAt: batch.updatedAt,
             label: details.label,
             title: details.title,
             description: longImpactConfirmationDescription(

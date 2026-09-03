@@ -26,6 +26,7 @@ export const GeneralSettingsSchema = z.object({
   language: AppLanguageSchema,
   showInMenuBar: z.boolean(),
   showContextUsage: z.boolean().default(true),
+  useNetworkProxy: z.boolean().default(false),
   workspacePaneLayout: WorkspacePaneLayoutSchema.default("agent-editor"),
   defaultTextViewMode: TextViewModeSchema.default("edit")
 });
@@ -47,6 +48,7 @@ export function createDefaultGeneralSettings(): GeneralSettings {
     language: "auto",
     showInMenuBar: true,
     showContextUsage: true,
+    useNetworkProxy: false,
     workspacePaneLayout: "agent-editor",
     defaultTextViewMode: "edit"
   };

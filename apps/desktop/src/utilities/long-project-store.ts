@@ -1,5 +1,6 @@
 import type { LongWorkspaceOperationBatch } from "@deepwrite/contracts";
 import { commitChapter } from "./long-project-store/commit-chapter";
+import { deleteLedgerCommit } from "./long-project-store/delete-ledger-commit";
 import { deriveLongForeshadowingStatus } from "./long-project-store/continuity";
 import {
   inspectBookManifest,
@@ -34,6 +35,7 @@ import type {
   RenameLongBookInput,
   SearchLongProjectInput,
   StoreCommitLongChapterInput,
+  StoreDeleteLongLedgerCommitInput,
   StoreWriteLongChapterInput,
   UpdateLongBookBindingsInput,
   WriteLongDocumentInput
@@ -176,5 +178,12 @@ export class LongProjectStore {
     input: StoreCommitLongChapterInput
   ) {
     return await commitChapter(this.context, projectDirectory, input);
+  }
+
+  async deleteLedgerCommit(
+    projectDirectory: string,
+    input: StoreDeleteLongLedgerCommitInput
+  ) {
+    return await deleteLedgerCommit(this.context, projectDirectory, input);
   }
 }

@@ -8,6 +8,7 @@ import {
 describe("general settings contracts", () => {
   it("keeps edit as the default text view mode", () => {
     expect(createDefaultGeneralSettings().defaultTextViewMode).toBe("edit");
+    expect(createDefaultGeneralSettings().useNetworkProxy).toBe(false);
     expect(
       GeneralSettingsSchema.parse({
         permissionMode: "request-approval",
@@ -18,6 +19,7 @@ describe("general settings contracts", () => {
     ).toMatchObject({
       autoApproveCrossStageOperations: false,
       showContextUsage: true,
+      useNetworkProxy: false,
       workspacePaneLayout: "agent-editor",
       defaultTextViewMode: "edit"
     });

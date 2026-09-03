@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import shellSource from "../WorkspaceShell.vue?raw";
+import editorBridgeSource from "../composables/useLongWorkspaceModuleEditorBridge.ts?raw";
 import editorSource from "./LongWorkspaceEditor.vue?raw";
 import source from "./LongWorkspaceModule.vue?raw";
 
@@ -51,11 +52,12 @@ describe("LongWorkspaceModule boundary", () => {
     expect(source).toContain(
       'import LongWorkspaceEditor from "./LongWorkspaceEditor.vue"'
     );
-    expect(source).toContain("isLongWorkspaceEditorPort(instance)");
+    expect(source).toContain("useLongWorkspaceModuleEditorBridge({");
+    expect(editorBridgeSource).toContain("isLongWorkspaceEditorPort(instance)");
     expect(source).not.toContain(
       'import { LongWorkspaceEditor } from "./lazyAppComponents"'
     );
-    expect(source).toContain('emit("editorPortChange", null)');
+    expect(editorBridgeSource).toContain("options.publish(null)");
     expect(shellSource).toContain(
       '@editor-port-change="updateLongWorkspaceEditorPort"'
     );

@@ -1,5 +1,4 @@
 import type { DeepWriteApi } from "@deepwrite/contracts";
-import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
 
 type CatalogDocumentWriter = Pick<DeepWriteApi["catalog"], "saveDocument">;
 
@@ -17,24 +16,50 @@ interface CreatedDraftSectionContentTarget {
   };
 }
 
+interface CreatedDraftSectionVisibilityTarget {
+  section: {
+    id: string;
+  };
+}
+
+interface RefreshedDraftDirectory {
+  sections: readonly {
+    id: string;
+    bodyDocumentId: string;
+    characterStateDocumentId: string;
+  }[];
+}
+
+export function createdDraftSectionsAreVisible(
+  directory: RefreshedDraftDirectory | undefined,
+  created: readonly CreatedDraftSectionVisibilityTarget[]
+): boolean {
+  return Boolean(
+    directory &&
+    created.every((result) =>
+      directory.sections.some((section) => section.id === result.section.id)
+    )
+  );
+}
+
 export async function saveCreatedCharacterContent(
   catalog: CatalogDocumentWriter,
   input: {
     bookId: string;
     itemId: string;
+    currentContent: string;
     content: string;
-    projectRevision?: number;
   }
 ): Promise<void> {
-  if (!input.content.trim()) return;
+  if (!input.content.trim() || input.currentContent === input.content) return;
+  if (input.currentContent.trim()) {
+    throw new Error("新建人物条目已有不同内容，未覆盖现有文件。");
+  }
   await catalog.saveDocument({
     bookId: input.bookId,
     documentId: input.itemId,
     content: input.content,
-    baseRevision: createShortWorkspaceContentRevision(""),
-    ...(input.projectRevision === undefined
-      ? {}
-      : { baseProjectRevision: input.projectRevision })
+    force: true
   });
 }
 
@@ -45,24 +70,21 @@ async function saveCreatedDraftDocument(
     documentId: string;
     currentContent: string;
     content: string | undefined;
-    projectRevision: number;
     label: string;
   }
-): Promise<number> {
+): Promise<void> {
   if (!input.content?.trim() || input.currentContent === input.content) {
-    return input.projectRevision;
+    return;
   }
   if (input.currentContent.trim()) {
     throw new Error(`新建章节${input.label}已有不同内容，未覆盖现有文件。`);
   }
-  const saved = await catalog.saveDocument({
+  await catalog.saveDocument({
     bookId: input.bookId,
     documentId: input.documentId,
     content: input.content,
-    baseRevision: createShortWorkspaceContentRevision(""),
-    baseProjectRevision: input.projectRevision
+    force: true
   });
-  return saved.projectRevision;
 }
 
 export async function saveCreatedDraftSectionContents(
@@ -71,30 +93,25 @@ export async function saveCreatedDraftSectionContents(
     bookId: string;
     requested: readonly RequestedDraftSectionContent[];
     created: readonly CreatedDraftSectionContentTarget[];
-    projectRevision: number;
   }
-): Promise<number> {
-  let projectRevision = input.projectRevision;
+): Promise<void> {
   for (const result of input.created) {
     const requested = input.requested.find(
       (section) => section.provisionalSectionId === result.clientSectionId
     );
-    projectRevision = await saveCreatedDraftDocument(catalog, {
+    await saveCreatedDraftDocument(catalog, {
       bookId: input.bookId,
       documentId: result.section.body.id,
       currentContent: result.section.body.content,
       content: requested?.bodyContent,
-      projectRevision,
       label: "正文"
     });
-    projectRevision = await saveCreatedDraftDocument(catalog, {
+    await saveCreatedDraftDocument(catalog, {
       bookId: input.bookId,
       documentId: result.section.characterState.id,
       currentContent: result.section.characterState.content,
       content: requested?.characterStateContent,
-      projectRevision,
       label: "人物状态"
     });
   }
-  return projectRevision;
 }

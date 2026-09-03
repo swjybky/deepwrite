@@ -153,6 +153,7 @@ function editorPort(overrides: Partial<LongWorkspaceEditorPort> = {}) {
     selectBookLineVolume: vi.fn(),
     focusFile: vi.fn(async () => true),
     focusTarget: vi.fn(async () => true),
+    locateEditorReference: vi.fn(async () => true),
     captureNavigationSelection: vi.fn(() => ({})),
     captureForeshadowingFocus: vi.fn(() => ({
       threadId: null,

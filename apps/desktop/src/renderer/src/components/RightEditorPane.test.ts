@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { expectSourceToContain } from "../../../test-utils/sourceText";
 import appSource from "../WorkspaceShell.vue?raw";
 import source from "./RightEditorPane.vue?raw";
+import selectionMenuSource from "./EditorSelectionMenu.vue?raw";
 import writingWorkspaceSource from "./WritingWorkspaceModule.vue?raw";
 import persistenceSource from "../composables/useCatalogDocumentPersistence.ts?raw";
 import resourceSource from "../composables/useWorkspaceResourceCoordinator.ts?raw";
@@ -11,6 +12,7 @@ import dialogCoordinatorSource from "../composables/useWorkspaceDialogModuleCoor
 import fixedTitleSource from "../utils/fixedWorkspaceDocumentTitle.ts?raw";
 import saveViewportSource from "../composables/useEditorSaveViewport.ts?raw";
 import textViewModeSource from "../composables/useTextViewMode.ts?raw";
+import selectionInsertionSource from "../composables/useEditorSelectionInsertion.ts?raw";
 
 describe("RightEditorPane expert draft navigation", () => {
   it("expands a collapsed right-side agent when the editor is centered", () => {
@@ -250,17 +252,38 @@ describe("RightEditorPane expert draft navigation", () => {
   });
 
   it("offers one insert action only after right-clicking a selected editor range", () => {
-    expect(source).toContain('aria-label="正文选区操作"');
-    expect(source).toContain("插入输入框");
-    expect(source.match(/role="menuitem"/g)).toHaveLength(1);
+    expect(selectionMenuSource).toContain('aria-label="正文选区操作"');
+    expect(selectionMenuSource).toContain("插入输入框");
+    expect(selectionMenuSource.match(/role="menuitem"/g)).toHaveLength(1);
     expect(source).toContain('@contextmenu="handleEditorContextMenu"');
-    expect(source).toContain("event.preventDefault()");
-    expect(source).not.toContain('@mouseup="handleEditorMouseup"');
-    expect(source).not.toContain('@keyup="handleEditorKeyup"');
+    expect(source).toContain('@contextmenu="handlePreviewContextMenu"');
+    expect(selectionInsertionSource).toContain("event.preventDefault()");
+    expect(selectionInsertionSource).toContain(
+      "function handlePreviewContextMenu"
+    );
+    expect(selectionInsertionSource).toContain(
+      "preview.contains(selection.getRangeAt(0).commonAncestorContainer)"
+    );
+    expect(selectionInsertionSource).not.toContain("handleEditorMouseup");
+    expect(selectionInsertionSource).not.toContain("handleEditorKeyup");
     expect(source).toContain('emit("insertSelection", reference)');
     expect(source).toContain(
       'input.setSelectionRange(range.start, range.end, "forward")'
     );
+  });
+
+  it("shares selection insertion across creation, material, and skill documents", () => {
+    expect(writingWorkspaceSource).toContain("<RightEditorPane");
+    expect(writingWorkspaceSource).toContain(
+      "@insert-selection=\"emit('insertSelection', $event)\""
+    );
+    expect(appSource).toContain(
+      '@insert-selection="insertEditorSelectionReference"'
+    );
+    expect(source).toContain(
+      'props.document.domain === "material" ||\n      props.document.domain === "skill"'
+    );
+    expect(source).toContain("<EditorSelectionMenu");
   });
 
   it("provides working text undo, redo, find, and replace controls", () => {

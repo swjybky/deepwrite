@@ -228,6 +228,20 @@ export async function mutateCharacterStructure(
       const documents = manifest.documents.map((document) => ({ ...document }));
       if (mutation.type === "createItem") {
         const title = mutation.title.trim();
+        const existingItem = mutation.itemId
+          ? items.find(({ id }) => id === mutation.itemId)
+          : undefined;
+        if (existingItem) {
+          const hasDocument = documents.some(
+            ({ id }) => id === existingItem.id
+          );
+          if (input.force && existingItem.title === title && hasDocument) {
+            return (
+              await readProject(store, projectDirectory, "book", input.bookId)
+            ).resource as Book;
+          }
+          throw new Error("人物条目标识已存在。");
+        }
         if (
           items.some(
             (item) =>

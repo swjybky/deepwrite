@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
+import { randomHex8 } from "@deepwrite/shared";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
+import { useSelectionInsertionMenu } from "../composables/useSelectionInsertionMenu";
 import type { AgentWelcomeContent } from "../data/agentWelcome";
 import type {
   ChatMessage,
-  ConversationMessageRewriteRequest
+  ConversationMessageRewriteRequest,
+  EditorTextReference
 } from "../types/conversation";
+import { createConversationTextReference } from "../utils/editorTextReferences";
 import AppIcon from "./AppIcon.vue";
 import ConversationMessageItem from "./ConversationMessageItem.vue";
+import EditorSelectionMenu from "./EditorSelectionMenu.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -57,6 +62,7 @@ const emit = defineEmits<{
   rejectLongProposal: [eventId: string];
   retryLongProposalPreview: [eventId: string];
   locateLongProposal: [eventId: string];
+  insertSelection: [reference: EditorTextReference];
 }>();
 
 const hasStreamingAssistant = computed(() =>
@@ -66,6 +72,54 @@ const hasStreamingAssistant = computed(() =>
 );
 const editingMessageId = ref<string | null>(null);
 const editingMessageFingerprint = ref<string | null>(null);
+const {
+  selectionAction,
+  closeSelectionAction,
+  openSelectionAction,
+  insertSelectedText
+} = useSelectionInsertionMenu({
+  insert: (reference) => emit("insertSelection", reference)
+});
+
+function handleConversationContextMenu(event: MouseEvent): void {
+  const target = event.target;
+  const list = event.currentTarget;
+  if (!(target instanceof Element) || !(list instanceof HTMLElement)) return;
+  const response = target.closest<HTMLElement>(
+    "[data-assistant-response-message-id]"
+  );
+  const selection = globalThis.getSelection?.();
+  if (
+    !response ||
+    !list.contains(response) ||
+    !selection ||
+    selection.isCollapsed ||
+    selection.rangeCount !== 1 ||
+    !response.contains(selection.getRangeAt(0).commonAncestorContainer)
+  ) {
+    closeSelectionAction();
+    return;
+  }
+
+  const messageId = response.dataset.assistantResponseMessageId;
+  const sessionId = props.conversationSessionId;
+  if (!messageId || !sessionId) return;
+  const responseNumber =
+    props.messages
+      .filter(({ role }) => role === "assistant")
+      .findIndex(({ id }) => id === messageId) + 1;
+  if (responseNumber < 1) return;
+  const reference = createConversationTextReference({
+    id: randomHex8(),
+    sessionId,
+    messageId,
+    messageLabel: `智能体回复 ${responseNumber}`,
+    text: selection.toString()
+  });
+  if (!reference) return;
+  openSelectionAction(reference, event);
+  event.preventDefault();
+}
 
 function messageFingerprint(message: ChatMessage): string {
   return [
@@ -136,6 +190,7 @@ watch(
     aria-live="polite"
     @wheel.passive="handleConversationWheel"
     @scroll.passive="handleConversationScroll"
+    @contextmenu="handleConversationContextMenu"
   >
     <slot v-if="messages.length === 0" name="empty">
       <div v-if="welcomeContent" class="conversation-empty">
@@ -187,4 +242,10 @@ watch(
       </article>
     </div>
   </section>
+  <EditorSelectionMenu
+    v-if="selectionAction"
+    :left="selectionAction.left"
+    :top="selectionAction.top"
+    @insert="insertSelectedText"
+  />
 </template>

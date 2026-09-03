@@ -26,6 +26,8 @@ const emit = defineEmits<{
   beforeinput: [event: InputEvent];
   input: [event: Event];
   keydown: [event: KeyboardEvent];
+  contextmenu: [event: MouseEvent];
+  previewContextmenu: [event: MouseEvent];
   editorElementChange: [element: HTMLTextAreaElement | null];
   previewElementChange: [element: HTMLElement | null];
   editorScroll: [event: Event];
@@ -104,12 +106,14 @@ function updateTitle(event: Event): void {
       @beforeinput="emit('beforeinput', $event)"
       @input="emit('input', $event)"
       @keydown="emit('keydown', $event)"
+      @contextmenu="emit('contextmenu', $event)"
       @scroll="emit('editorScroll', $event)"
     />
     <article
       v-else
       ref="previewElement"
       class="long-document-preview"
+      @contextmenu="emit('previewContextmenu', $event)"
       @scroll="emit('editorScroll', $event)"
     >
       <MarkdownContent

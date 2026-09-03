@@ -110,4 +110,29 @@ describe("PiAgentRuntimeAdapter connection-test thinking payload", () => {
       expect(payload).not.toHaveProperty("temperature");
     }
   );
+
+  it("keeps Google Claude connection-test output above its thinking budget", async () => {
+    const payload = await captureConnectionTestPayload(
+      runtimeConfig({
+        provider: "google",
+        modelId: "claude-opus-4-6-thinking",
+        api: "google-generative-ai",
+        baseUrl: "https://provider.example.test/gemini/v1beta",
+        reasoning: true,
+        defaultThinkingLevel: "max",
+        thinkingLevelOptions: ["low", "high", "max"],
+        maxTokens: 65_535
+      })
+    );
+
+    expect(payload).toMatchObject({
+      generationConfig: {
+        maxOutputTokens: 32_769,
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingBudget: 32_768
+        }
+      }
+    });
+  });
 });

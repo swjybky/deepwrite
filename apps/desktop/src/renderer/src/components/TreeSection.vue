@@ -4,6 +4,7 @@ import type {
   BookResourceDialogMode,
   CatalogResourceNodeActionPayload,
   CatalogLibraryEntryDragPayload,
+  CreationBookDragPayload,
   IconName,
   LongBookResourceNodeActionPayload,
   LongTreeItemAction,
@@ -14,6 +15,7 @@ import type {
 } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
 import TreeNodeItem from "./TreeNodeItem.vue";
+import { useCreationBookDrag } from "../composables/useCreationBookDrag";
 
 const props = defineProps<{
   section: ResourceTreeSection;
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   resourceAction: [payload: ResourceSectionActionPayload];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   moveLibraryEntry: [payload: CatalogLibraryEntryDragPayload];
+  reorderCreationBook: [payload: CreationBookDragPayload];
   createExpertSection: [node: ResourceTreeNode];
   createLongDraftSection: [node: ResourceTreeNode];
   longDraftSectionAction: [
@@ -40,6 +43,7 @@ const emit = defineEmits<{
   ];
   createLongTreeItem: [node: ResourceTreeNode];
   longTreeItemAction: [action: LongTreeItemAction, node: ResourceTreeNode];
+  deleteLongLedgerCommit: [node: ResourceTreeNode];
   removeExpertSection: [node: ResourceTreeNode];
   expertSectionAction: [
     action: "move-up" | "move-down",
@@ -55,6 +59,10 @@ const emit = defineEmits<{
 const collapsed = ref(false);
 const actionMenuOpen = ref(false);
 const actionArea = ref<HTMLElement | null>(null);
+const creationBookDrag = useCreationBookDrag(
+  () => props.section.id,
+  (payload) => emit("reorderCreationBook", payload)
+);
 
 const actionItems = computed<
   Array<{
@@ -210,6 +218,13 @@ onBeforeUnmount(() => {
         :resource-domain="section.id"
         :library-entry-clipboard-domain="libraryEntryClipboardDomain"
         :long-tree-actions-disabled="longTreeActionsDisabled"
+        :creation-book-draggable="creationBookDrag.canDrag(node)"
+        :class="creationBookDrag.dropClass(node)"
+        @dragstart="creationBookDrag.start($event, node)"
+        @dragover="creationBookDrag.over($event, node)"
+        @dragleave="creationBookDrag.leave($event, node)"
+        @drop="creationBookDrag.drop($event, node)"
+        @dragend="creationBookDrag.end"
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
         @book-action="(mode, book) => emit('bookAction', mode, book)"
@@ -227,6 +242,7 @@ onBeforeUnmount(() => {
         @long-tree-item-action="
           (action, itemNode) => emit('longTreeItemAction', action, itemNode)
         "
+        @delete-long-ledger-commit="emit('deleteLongLedgerCommit', $event)"
         @remove-expert-section="emit('removeExpertSection', $event)"
         @expert-section-action="
           (action, sectionNode) =>

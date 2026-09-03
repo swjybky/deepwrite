@@ -70,6 +70,19 @@ describe("catalog contracts", () => {
         }
       }).success
     ).toBe(false);
+    expect(
+      MutatePlotStructureInputSchema.safeParse({
+        bookId: "book_1",
+        baseProjectRevision: 0,
+        force: true,
+        mutation: {
+          type: "create",
+          stageId: "plot-stage-agent:stable-1",
+          title: "自定义结构",
+          description: "结构说明"
+        }
+      }).success
+    ).toBe(true);
     const newBookStages = createDefaultBookPlotStages();
     expect(newBookStages.map(({ id }) => id)).toEqual([
       "worldbuilding",

@@ -16,7 +16,6 @@ import type {
 } from "../../types/workspace";
 import type { AgentEditProposalCommitSnapshot } from "../../utils/agentEditProposalRevisionLane";
 import type { WorkspaceDocumentBaseline } from "../../utils/catalogSaveReconciliation";
-import type { DraftSectionCreationRevisionCursor } from "../../utils/draftSectionCreationRevision";
 import type { KeyedSerialTaskQueue } from "../../utils/keyedSerialTaskQueue";
 import type { AgentConversationController } from "../useAgentConversation";
 import type { LongWorkspaceProposalEvent } from "../useLongWorkspaceProposals";
@@ -197,10 +196,6 @@ export interface ProposalLaneContext {
   activeCoordinatorInvocations: Set<Promise<void>>;
   activeAgentEditCommitTasks: Set<Promise<void>>;
   acceptedLibraryMutationCounts: Map<string, number>;
-  acceptedDraftSectionCreationRevisions: Map<
-    string,
-    DraftSectionCreationRevisionCursor
-  >;
   acceptedProvisionalExpertSectionIds: Map<string, Map<string, string>>;
   queueAgentEdit(
     conversation: Conv,
@@ -222,19 +217,6 @@ export interface ProposalLaneContext {
     runId: string,
     laneId: string
   ): Prop | undefined;
-  expectedLaneDurableRevision(
-    conversation: Conv,
-    runId: string,
-    existing: Prop | undefined,
-    currentText: string
-  ): string;
-  laneDurableRevisionMatches(
-    conversation: Conv,
-    runId: string,
-    existing: Prop | undefined,
-    currentText: string,
-    currentRevision: string
-  ): boolean;
   autoApproveEditPriority(
     conversation: Conv,
     runId: string,
@@ -321,12 +303,6 @@ export interface ProposalLaneContext {
     runId: string,
     sectionId: string,
     message: string
-  ): void;
-  currentExpertDraftDirectoryRevision(workspaceId: string): string | undefined;
-  expectedDraftSectionCreationBaseRevision(proposal: Prop): string;
-  rememberAcceptedDraftSectionCreation(
-    proposal: Prop,
-    currentRevision: string
   ): void;
   draftSectionCreationOperationId(proposal: Prop): string;
   acceptCharacterStructureProposal(

@@ -130,11 +130,11 @@ function formatPrice(value: number | undefined): string {
     <header class="official-models-header">
       <div>
         <span class="official-models-kicker">
-          <AppIcon name="model" :size="15" /> DeepWrite 托管接入
+          <AppIcon name="model" :size="15" /> DeepWrite 旧官方小站托管接入
         </span>
-        <h2 id="official-models-title">官方模型与令牌</h2>
+        <h2 id="official-models-title">旧官方小站模型与令牌</h2>
         <p>
-          官方模型来源于国内模型厂商直连，随着软件整体调用量越多，价格会逐渐降低，目前和官方价格一致。
+          旧官方小站模型来源于国内模型厂商直连，随着软件整体调用量越多，价格会逐渐降低，目前和官方价格一致。
         </p>
       </div>
       <div class="official-models-header-actions">

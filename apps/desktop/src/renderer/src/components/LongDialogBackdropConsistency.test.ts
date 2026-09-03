@@ -45,4 +45,17 @@ describe("long-form dialog backdrops", () => {
       ".long-structure-dialog.is-suspended"
     );
   });
+
+  it("keeps editor deletion cards fixed while their impact details scroll", () => {
+    expect(workspaceEditorSource).toContain(
+      "grid-template-rows: auto auto minmax(0, 1fr) auto"
+    );
+    expect(workspaceEditorSource).toContain(
+      "height: min(420px, calc(100vh - 40px))"
+    );
+    expect(workspaceEditorSource.match(/tabindex="0"/gu)).toHaveLength(3);
+    expect(workspaceEditorSource).toContain("overflow-y: auto");
+    expect(workspaceEditorSource).toContain("overflow-wrap: anywhere");
+    expect(workspaceEditorSource).toContain("scrollbar-gutter: stable");
+  });
 });

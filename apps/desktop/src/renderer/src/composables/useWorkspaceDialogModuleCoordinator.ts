@@ -31,6 +31,7 @@ import type {
   LongChapterCardCreateTarget,
   LongCharacterCreateTarget,
   LongDraftSectionDeleteTarget,
+  LongLedgerCommitDeleteTarget,
   LongPlotPointCreateTarget,
   LongTreeItemDeleteTarget,
   LongVolumeCreateTarget,
@@ -54,6 +55,7 @@ export const WORKSPACE_DIALOG_PRIORITY = [
   "create-long-chapter-card",
   "delete-long-draft",
   "delete-long-tree",
+  "delete-long-ledger-commit",
   "create-long-volume",
   "long-bindings",
   "long-rename",
@@ -102,6 +104,7 @@ export interface WorkspaceDialogLongStructureState {
   chapterCardCreation: Readonly<Ref<LongChapterCardCreateTarget | null>>;
   draftDeletion: Readonly<Ref<LongDraftSectionDeleteTarget | null>>;
   treeDeletion: Readonly<Ref<LongTreeItemDeleteTarget | null>>;
+  ledgerCommitDeletion: Readonly<Ref<LongLedgerCommitDeleteTarget | null>>;
   volumeCreation: Readonly<Ref<LongVolumeCreateTarget | null>>;
   dialogOpen: Readonly<Ref<boolean>>;
   agentsMd: Readonly<Ref<string | null>>;
@@ -293,6 +296,17 @@ export function useWorkspaceDialogModuleCoordinator(
         sectionTitle: treeDeletion.title,
         itemLabel: treeDeletion.label,
         description: treeDeletion.description,
+        pending: options.longLifecycle.bookActionPending.value
+      };
+    }
+
+    const ledgerCommitDeletion =
+      options.longStructure.ledgerCommitDeletion.value;
+    if (ledgerCommitDeletion) {
+      return {
+        kind: "delete-long-ledger-commit",
+        title: ledgerCommitDeletion.title,
+        chapterCount: ledgerCommitDeletion.chapterCardIds.length,
         pending: options.longLifecycle.bookActionPending.value
       };
     }

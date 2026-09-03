@@ -26,6 +26,7 @@ import {
   LongApplyOperationsResultSchema,
   LongApplyLegacySyncResultSchema,
   LongCommitChapterResultSchema,
+  LongDeleteLedgerCommitResultSchema,
   LongImportPortableResultSchema,
   LongImportContinuationResultSchema,
   LongWorkspaceOperationError,
@@ -377,6 +378,15 @@ async function handleCatalogCommand(
         requestId: command.id,
         payload: LongCommitChapterResultSchema.parse(
           await longWorkspaceService.commitChapter(command.payload)
+        )
+      };
+    }
+    if (command.type === "long.deleteLedgerCommit") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: LongDeleteLedgerCommitResultSchema.parse(
+          await longWorkspaceService.deleteLedgerCommit(command.payload)
         )
       };
     }

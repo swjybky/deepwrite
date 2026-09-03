@@ -14,7 +14,8 @@ import type {
   ModelSettings,
   ModelSettingsInput,
   RemoteModelListInput,
-  RemoteModelListResult
+  RemoteModelListResult,
+  SiteOfficialQuota
 } from "./models";
 import type { ModelUsageDashboard, ModelUsageQueryInput } from "./model-usage";
 import type { SystemEventEnvelope, SystemHealthPayload } from "./system";
@@ -104,8 +105,10 @@ import type {
   DeleteCatalogProjectResult,
   DuplicateCatalogProjectInput,
   DuplicateCatalogProjectResult,
-  ExternalSkillSelectionResult,
-  ExternalSkillSourceKind,
+  ExternalLibrarySelectionResult,
+  ExternalLibrarySourceKind,
+  ImportLibraryEntriesInput,
+  ImportLibraryEntriesResult,
   DeleteBookResult,
   DeleteDraftSectionInput,
   DeleteDraftSectionResult,
@@ -165,6 +168,8 @@ import type {
 import type {
   LongCommitChapterInput,
   LongCommitChapterResult,
+  LongDeleteLedgerCommitInput,
+  LongDeleteLedgerCommitResult,
   LongWriteChapterInput,
   LongWriteChapterResult
 } from "./long-ledger";
@@ -303,9 +308,12 @@ export interface DeepWriteApi {
     createLibraryEntry(
       input: CreateLibraryEntryInput
     ): Promise<CatalogLibraryEntry>;
-    chooseExternalSkills(
-      sourceKind: ExternalSkillSourceKind
-    ): Promise<ExternalSkillSelectionResult | null>;
+    chooseExternalLibraryEntries(
+      sourceKind: ExternalLibrarySourceKind
+    ): Promise<ExternalLibrarySelectionResult | null>;
+    importLibraryEntries(
+      input: ImportLibraryEntriesInput
+    ): Promise<ImportLibraryEntriesResult>;
     removeLibraryEntry(
       input: RemoveLibraryEntryInput
     ): Promise<RemoveLibraryEntryResult>;
@@ -361,6 +369,9 @@ export interface DeepWriteApi {
     commitChapter(
       input: LongCommitChapterInput
     ): Promise<LongCommitChapterResult>;
+    deleteLedgerCommit(
+      input: LongDeleteLedgerCommitInput
+    ): Promise<LongDeleteLedgerCommitResult>;
     unregister(input: LongRemoveBookInput): Promise<LongRemoveBookResult>;
     delete(input: LongRemoveBookInput): Promise<LongRemoveBookResult>;
   };
@@ -386,6 +397,14 @@ export interface DeepWriteApi {
     queryOfficialBalance(): Promise<OfficialModelBalance>;
     saveOfficialToken(apiKey: string): Promise<ModelSettings>;
     clearOfficialToken(): Promise<ModelSettings>;
+    saveSiteOfficialToken(apiKey: string): Promise<ModelSettings>;
+    clearSiteOfficialToken(): Promise<ModelSettings>;
+    refreshSiteOfficial(): Promise<ModelSettings>;
+    querySiteOfficialQuota(): Promise<SiteOfficialQuota>;
+    setSiteOfficialModelEnabled(
+      modelId: string,
+      enabled: boolean
+    ): Promise<ModelSettings>;
     setOfficialModelEnabled(
       modelId: string,
       enabled: boolean

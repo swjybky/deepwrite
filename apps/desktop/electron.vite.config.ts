@@ -77,7 +77,15 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(appRoot, "src/renderer"),
-    plugins: [vue()],
+    plugins: [
+      vue({
+        template: {
+          compilerOptions: {
+            isCustomElement: (tag) => tag === "webview"
+          }
+        }
+      })
+    ],
     resolve: { alias: rendererAliases },
     build: {
       // Vite's Rolldown environment currently preserves readable identifiers

@@ -35,7 +35,7 @@ describe("DeepWrite Pi runtime adapter: subagent-event-projection", () => {
       {
         type: "tool_execution_end",
         toolCallId: "delete-chapter",
-        toolName: "delete_draft_section",
+        toolName: "delete",
         isError: false,
         result: {
           content: [{ type: "text", text: "等待审阅" }],

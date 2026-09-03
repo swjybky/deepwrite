@@ -4,7 +4,7 @@ import typesSource from "./WorkspaceFeatureModules.types.ts?raw";
 import source from "./WorkspaceFeatureModules.vue?raw";
 
 describe("WorkspaceFeatureModules boundary", () => {
-  it("owns the seven mutually exclusive non-writing feature branches", () => {
+  it("owns the mutually exclusive non-writing feature branches", () => {
     for (const kind of [
       "settings",
       "agent-team",
@@ -12,7 +12,8 @@ describe("WorkspaceFeatureModules boundary", () => {
       "models",
       "imitation",
       "marketplace",
-      "cloud-backup"
+      "cloud-backup",
+      "zhuque-detection"
     ]) {
       expect(source).toContain(`module.kind === '${kind}'`);
     }
@@ -23,6 +24,7 @@ describe("WorkspaceFeatureModules boundary", () => {
     expect(source).toContain("<LearningImitationDialog");
     expect(source).toContain("<SkillMarketplacePage");
     expect(source).toContain("<CloudBackupPage");
+    expect(source).toContain("<ZhuqueDetectionPage");
     expect(source).not.toContain("v-show");
     expect(source).not.toContain("KeepAlive");
   });

@@ -65,7 +65,7 @@ describe("LeftSidebar account controls", () => {
   it("moves learning imitation into more features and keeps its state feedback", () => {
     const primaryFeatures = source.slice(
       source.indexOf("const navItems"),
-      source.indexOf("function loadPinnedResourceIds")
+      source.indexOf("const moreFeatures")
     );
     const moreFeatures = source.slice(
       source.indexOf("const moreFeatures"),
@@ -92,6 +92,11 @@ describe("LeftSidebar account controls", () => {
     expect(source).toContain('emit("openMarketplace")');
     expectSourceToContain(source, '{ id: "cloud-backup", label: "云端备份"');
     expect(source).toContain('emit("openCloudBackup")');
+    expectSourceToContain(
+      source,
+      '{ id: "zhuque-detection", label: "朱雀检测"'
+    );
+    expect(source).toContain('emit("openZhuqueDetection")');
     expectSourceToContain(source, '{ id: "runtime", label: "运行设置"');
     expect(source).not.toContain('{ id: "history", label: "版本历史"');
     expect(source).not.toContain('{ id: "search", label: "全局检索"');

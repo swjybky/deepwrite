@@ -20,8 +20,12 @@ describe("App character structure agent approvals", () => {
       "findPendingCharacterCreationForProvisional("
     );
     expect(coordinatorSource).toContain(
-      'proposal.characterStructureTarget?.mutation.type === "createItem"'
+      'target.mutation.type === "createItem" && !createdItemId'
     );
+    expect(coordinatorSource).toContain(
+      "document.catalogDocumentId === createdItemId"
+    );
+    expect(coordinatorSource).toContain("force: true");
     expect(coordinatorSource).toContain("await loadCatalogSnapshot()");
     expect(appSource).toContain("useLazyProposalCoordinator({");
   });

@@ -23,6 +23,9 @@ export const SkillMarketplacePage = defineAsyncComponent(
 export const CloudBackupPage = defineAsyncComponent(
   () => import("../extras/cloud-backup/CloudBackupPage.vue")
 );
+export const ZhuqueDetectionPage = defineAsyncComponent(
+  () => import("../extras/zhuque-detection/ZhuqueDetectionPage.vue")
+);
 export const ModelSettingsFeature = defineAsyncComponent(
   () => import("./ModelSettingsFeature.vue")
 );

@@ -25,7 +25,8 @@ export type WorkspaceMainView =
   | "long-book-analysis"
   | "agent-team"
   | "marketplace"
-  | "cloud-backup";
+  | "cloud-backup"
+  | "zhuque-detection";
 
 export type PaneSide = "left" | "right";
 
@@ -37,7 +38,8 @@ export type PrimaryFeature =
   | "chat-assistant"
   | "agent-teams"
   | "skill-marketplace"
-  | "cloud-backup";
+  | "cloud-backup"
+  | "zhuque-detection";
 
 export const LEFT_PANE_MIN = 220;
 export const LEFT_PANE_MAX = 480;
@@ -103,6 +105,7 @@ export const useLayoutStore = defineStore("layout", () => {
       case "marketplace":
         return "skill-marketplace";
       case "cloud-backup":
+      case "zhuque-detection":
       case "directory":
       case "models":
       case "imitation":

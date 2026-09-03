@@ -41,16 +41,16 @@ const proposalStatusLabels: Record<AgentEditProposal["status"], string> = {
   accepting: "正在应用",
   accepted: "已接受",
   rejected: "已拒绝",
-  conflict: "版本冲突",
+  conflict: "变更冲突",
   error: "应用失败"
 };
 
 const proposalStatusMessages: Record<AgentEditProposal["status"], string> = {
   pending: "接受后将应用到当前文稿并自动保存到本机。",
-  accepting: "正在校验版本、应用变更并保存……",
+  accepting: "正在应用变更并保存……",
   accepted: "变更已应用并保存到本机。",
   rejected: "已保留当前文稿，未应用这次变更。",
-  conflict: "文稿版本已经变化，未覆盖你的最新内容。",
+  conflict: "变更无法应用，未覆盖当前内容。",
   error: "变更未能应用，请检查运行详情。"
 };
 

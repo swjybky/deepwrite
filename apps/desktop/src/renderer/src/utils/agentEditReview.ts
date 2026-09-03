@@ -87,24 +87,6 @@ export function expectedMutationBaseRevision(
   );
 }
 
-/**
- * The agent overlay may already be ahead of disk while a generation is being
- * committed. This is the revision the physical file must currently have.
- */
-export function expectedMutationDurableRevision(
-  existingProposal: AgentEditProposal | undefined,
-  currentText: string
-): string {
-  if (!existingProposal) {
-    return createShortWorkspaceContentRevision(currentText);
-  }
-  return existingProposal.status === "accepted"
-    ? (existingProposal.proposedRevision ??
-        createShortWorkspaceContentRevision(currentText))
-    : (existingProposal.baseRevision ??
-        createShortWorkspaceContentRevision(currentText));
-}
-
 export function resolveAgentEditorMutationText(
   _baseText: string,
   mutation: Pick<

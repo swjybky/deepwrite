@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import type {
-  ModelUsageDashboard,
-  ModelUsageModule,
-  ModelUsageQueryInput
+import {
+  isDeepWriteSiteOfficialModel,
+  type ModelUsageDashboard,
+  type ModelUsageModule,
+  type ModelUsageQueryInput
 } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
 
@@ -229,7 +230,8 @@ function modelStatusLabel(status: "current" | "historical" | "faux"): string {
 function modelProviderLabel(
   model: ModelUsageDashboard["models"][number]["model"]
 ): string {
-  if (model.managedBy === "deepwrite-official") return "DeepWrite 官方";
+  if (model.managedBy === "deepwrite-official") return "旧官方小站";
+  if (isDeepWriteSiteOfficialModel(model)) return "新官方小站";
   if (model.managedBy === "deepwrite-free") return "DeepWrite 免费";
   return model.provider;
 }

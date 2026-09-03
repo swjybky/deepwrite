@@ -1,4 +1,6 @@
 import type { ModelApi, RemoteModelListItem } from "@deepwrite/contracts";
+export { parseRemoteModelList } from "./remote-model-list-parser";
+import { parseRemoteModelList } from "./remote-model-list-parser";
 
 export const REMOTE_MODEL_LIST_TIMEOUT_MS = 15_000;
 export const REMOTE_MODEL_LIST_MAX_RESPONSE_BYTES = 2 * 1_024 * 1_024;
@@ -75,6 +77,9 @@ function buildHeaders(input: ListRemoteModelsInput): Headers {
   const headers = new Headers({ Accept: "application/json" });
   const apiKey = input.apiKey.trim();
   if (input.api === "google-generative-ai") {
+    if (apiKey) {
+      headers.set("x-goog-api-key", apiKey);
+    }
     return headers;
   }
   if (input.api === "anthropic-messages") {
@@ -90,72 +95,6 @@ function buildHeaders(input: ListRemoteModelsInput): Headers {
     headers.set("Authorization", `Bearer ${token}`);
   }
   return headers;
-}
-
-function normalizeModelId(raw: string): string {
-  const trimmed = raw.trim().replace(/^models\//u, "");
-  if (!trimmed || trimmed.length > 240) {
-    return "";
-  }
-  return trimmed;
-}
-
-function parseRemoteModelItem(item: unknown): RemoteModelListItem | null {
-  if (typeof item === "string") {
-    const id = normalizeModelId(item);
-    return id ? { id } : null;
-  }
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-  const record = item as Record<string, unknown>;
-  const rawId =
-    typeof record.id === "string"
-      ? record.id
-      : typeof record.name === "string"
-        ? record.name
-        : "";
-  const id = normalizeModelId(rawId);
-  if (!id) {
-    return null;
-  }
-  const label =
-    typeof record.display_name === "string"
-      ? record.display_name.trim()
-      : typeof record.displayName === "string"
-        ? record.displayName.trim()
-        : "";
-  return label && label !== id ? { id, label } : { id };
-}
-
-export function parseRemoteModelList(payload: unknown): RemoteModelListItem[] {
-  const items: unknown[] = [];
-  if (Array.isArray(payload)) {
-    items.push(...payload);
-  } else if (payload && typeof payload === "object") {
-    const record = payload as Record<string, unknown>;
-    if (Array.isArray(record.data)) {
-      items.push(...record.data);
-    } else if (Array.isArray(record.models)) {
-      items.push(...record.models);
-    }
-  }
-
-  const seen = new Set<string>();
-  const models: RemoteModelListItem[] = [];
-  for (const item of items) {
-    const parsed = parseRemoteModelItem(item);
-    if (!parsed || seen.has(parsed.id)) {
-      continue;
-    }
-    seen.add(parsed.id);
-    models.push(parsed);
-    if (models.length >= REMOTE_MODEL_LIST_MAX_ITEMS) {
-      break;
-    }
-  }
-  models.sort((left, right) => left.id.localeCompare(right.id));
-  return models;
 }
 
 async function readLimitedResponse(response: Response): Promise<string> {
@@ -209,6 +148,32 @@ function httpErrorMessage(status: number): string {
   return `拉取模型失败（HTTP ${status}）。`;
 }
 
+function errorChainText(error: unknown): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (current instanceof Error) {
+      parts.push(current.message);
+      current = current.cause;
+      continue;
+    }
+    parts.push(String(current));
+    break;
+  }
+  return parts.join(" ");
+}
+
+function networkErrorMessage(error: unknown): string {
+  if (
+    /ECONNREFUSED\s+(?:127\.0\.0\.1|::1|localhost):\d+/iu.test(
+      errorChainText(error)
+    )
+  ) {
+    return "无法连接本地网络代理。这个接口不需要 VPN，请先关闭失效的 HTTP 代理后再刷新。";
+  }
+  return "无法连接模型服务，请检查 API 地址后重试。";
+}
+
 export async function listRemoteModels(
   input: ListRemoteModelsInput,
   fetcher: RemoteModelsFetcher = fetch
@@ -244,9 +209,7 @@ export async function listRemoteModels(
       (error.name === "TimeoutError" || error.name === "AbortError");
     throw new RemoteModelListError(
       timedOut ? "models.list_remote_timeout" : "models.list_remote_network",
-      timedOut
-        ? "拉取模型超时，请稍后重试。"
-        : "无法连接模型服务，请检查 API 地址后重试。"
+      timedOut ? "拉取模型超时，请稍后重试。" : networkErrorMessage(error)
     );
   }
 

@@ -18,6 +18,7 @@ import {
   type ModelUsageDashboard,
   type ModelUsageQueryInput,
   type OfficialModelBalance,
+  type SiteOfficialQuota,
   type TextViewMode,
   type WorkspacePaneLayout,
   type WorkspaceAgentSettings,
@@ -33,6 +34,7 @@ import ModelSettingsFeature from "./ModelSettingsFeature.vue";
 import ModelUsagePanel from "./ModelUsagePanel.vue";
 import OfficialModelsPanel from "./OfficialModelsPanel.vue";
 import ShortAgentSettingsPanel from "./ShortAgentSettingsPanel.vue";
+import SiteOfficialModelsPanel from "./SiteOfficialModelsPanel.vue";
 
 interface SettingsCategory {
   id: string;
@@ -64,6 +66,7 @@ const props = defineProps<{
   language: AppLanguage;
   showContextUsage: boolean;
   showInMenuBar: boolean;
+  useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;
   workspaceAgentSettings: readonly WorkspaceAgentSettings[];
@@ -84,6 +87,9 @@ const props = defineProps<{
   modelSaving: boolean;
   freeModelsRefreshing: boolean;
   freeModelsSaving: boolean;
+  siteOfficialModelsRefreshing: boolean;
+  siteOfficialModelsSaving: boolean;
+  siteOfficialQuota: SiteOfficialQuota | null;
   modelError: string | null;
   modelTestMessage: string | null;
   testingModelId: string | null;
@@ -105,6 +111,7 @@ const emit = defineEmits<{
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
   updateShowInMenuBar: [enabled: boolean];
+  updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
   saveWorkspaceAgents: [settings: WorkspaceAgentSettingsInput];
@@ -119,8 +126,13 @@ const emit = defineEmits<{
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
   loadOfficialModels: [];
+  loadSiteOfficialModels: [];
   saveOfficialToken: [apiKey: string];
   clearOfficialToken: [];
+  saveSiteOfficialToken: [apiKey: string];
+  clearSiteOfficialToken: [];
+  refreshSiteOfficialModels: [];
+  setSiteOfficialModelEnabled: [modelId: string, enabled: boolean];
   setOfficialModelEnabled: [modelId: string, enabled: boolean];
   refreshFreeModels: [];
   setFreeModelEnabled: [modelId: string, enabled: boolean];
@@ -146,7 +158,12 @@ const sections: SettingsSection[] = [
       { id: "usage", label: "用量", icon: "ledger" },
       { id: "free-models", label: "免费模型", icon: "model" },
       { id: "custom-models", label: "自定义模型配置", icon: "model" },
-      { id: "official-models", label: "内部提供模型", icon: "model" }
+      { id: "official-models", label: "旧官方小站模型", icon: "model" },
+      {
+        id: "site-official-models",
+        label: "新官方小站模型",
+        icon: "model"
+      }
     ]
   },
   {
@@ -193,6 +210,9 @@ async function selectCategory(id: string): Promise<void> {
   }
   if (id === "custom-models") {
     emit("loadModels");
+  }
+  if (id === "site-official-models") {
+    emit("loadSiteOfficialModels");
   }
   activeCategory.value = id;
 }
@@ -340,6 +360,22 @@ async function selectCategory(id: string): Promise<void> {
           "
         />
 
+        <SiteOfficialModelsPanel
+          v-else-if="activeCategory === 'site-official-models'"
+          :settings="modelSettings"
+          :saving="siteOfficialModelsSaving"
+          :refreshing="siteOfficialModelsRefreshing"
+          :quota="siteOfficialQuota"
+          :testing-model-id="testingModelId"
+          @test="emit('testModel', $event)"
+          @save-token="emit('saveSiteOfficialToken', $event)"
+          @clear-token="emit('clearSiteOfficialToken')"
+          @refresh="emit('refreshSiteOfficialModels')"
+          @set-model-enabled="
+            emit('setSiteOfficialModelEnabled', $event.modelId, $event.enabled)
+          "
+        />
+
         <GeneralSettingsPanel
           v-else-if="activeCategory === 'general'"
           :permission-mode="permissionMode"
@@ -348,6 +384,7 @@ async function selectCategory(id: string): Promise<void> {
           :language="language"
           :show-context-usage="showContextUsage"
           :show-in-menu-bar="showInMenuBar"
+          :use-network-proxy="useNetworkProxy"
           :workspace-pane-layout="workspacePaneLayout"
           :default-text-view-mode="defaultTextViewMode"
           @update-permission-mode="emit('updatePermissionMode', $event)"
@@ -358,6 +395,7 @@ async function selectCategory(id: string): Promise<void> {
           @update-language="emit('updateLanguage', $event)"
           @update-show-context-usage="emit('updateShowContextUsage', $event)"
           @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
+          @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
           @update-workspace-pane-layout="
             emit('updateWorkspacePaneLayout', $event)
           "

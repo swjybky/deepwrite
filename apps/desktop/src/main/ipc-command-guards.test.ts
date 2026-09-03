@@ -116,6 +116,16 @@ describe("IPC command requestId handling", () => {
     expect(modelCommandSource).toContain(
       "RemoteModelListResultSchema.parse({ models })"
     );
+    expect(mainSource).toContain("electronRemoteFetch");
+    expect(mainSource).toContain("cachedGeneralSettings.useNetworkProxy");
+    expect(mainSource).toContain("applyNetworkProxyPreference(");
+    expect(mainSource).toContain('restartWorker("agent"');
+    const supervisorSource = readFileSync(
+      new URL("./supervisor.ts", import.meta.url),
+      "utf8"
+    );
+    expect(supervisorSource).toContain("env: { ...process.env }");
+    expect(supervisorSource).toContain("async restartWorker(");
   });
 
   it("routes model capacity resolution through preload, main, and the agent utility", () => {

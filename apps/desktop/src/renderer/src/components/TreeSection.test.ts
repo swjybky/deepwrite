@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { expectSourceToContain } from "../../../test-utils/sourceText";
 import sidebarSource from "./LeftSidebar.vue?raw";
+import resourceListSource from "./SidebarResourceList.vue?raw";
 import source from "./TreeSection.vue?raw";
 
 describe("TreeSection resource actions", () => {
@@ -29,7 +30,7 @@ describe("TreeSection resource actions", () => {
     expect(source).toContain(
       "@long-book-action=\"emit('longBookAction', $event)\""
     );
-    expect(sidebarSource.match(/@long-book-action=/gu)).toHaveLength(2);
+    expect(resourceListSource.match(/@long-book-action=/gu)).toHaveLength(2);
     expect(source).not.toContain("longStructureAction");
     expect(sidebarSource).not.toContain("longStructureAction");
     expect(sidebarSource).toContain(
@@ -47,9 +48,9 @@ describe("TreeSection resource actions", () => {
     expect(sidebarSource).toContain(
       "createLongDraftSection: [node: ResourceTreeNode]"
     );
-    expect(sidebarSource.match(/@create-long-draft-section=/gu)).toHaveLength(
-      2
-    );
+    expect(
+      resourceListSource.match(/@create-long-draft-section=/gu)
+    ).toHaveLength(2);
   });
 
   it("forwards long draft section move and delete actions through the sidebar tree", () => {
@@ -65,9 +66,9 @@ describe("TreeSection resource actions", () => {
       sidebarSource,
       'longDraftSectionAction: [action: "move-up" | "move-down" | "delete", node: ResourceTreeNode]'
     );
-    expect(sidebarSource.match(/@long-draft-section-action=/gu)).toHaveLength(
-      2
-    );
+    expect(
+      resourceListSource.match(/@long-draft-section-action=/gu)
+    ).toHaveLength(2);
   });
 
   it("forwards draft section ordering actions through the normal resource tree", () => {
@@ -79,6 +80,8 @@ describe("TreeSection resource actions", () => {
       source,
       "@expert-section-action=\"(action, sectionNode) => emit('expertSectionAction', action, sectionNode)\""
     );
-    expect(sidebarSource.match(/@expert-section-action=/gu)).toHaveLength(2);
+    expect(resourceListSource.match(/@expert-section-action=/gu)).toHaveLength(
+      2
+    );
   });
 });

@@ -35,6 +35,7 @@ describe("GeneralSettingsStore", () => {
       autoApproveCrossStageOperations: false,
       autoSave: true,
       showContextUsage: true,
+      useNetworkProxy: false,
       defaultTextViewMode: "edit"
     });
   });
@@ -48,6 +49,7 @@ describe("GeneralSettingsStore", () => {
       language: "zh-CN" as const,
       showInMenuBar: false,
       showContextUsage: false,
+      useNetworkProxy: true,
       workspacePaneLayout: "editor-agent" as const,
       defaultTextViewMode: "preview" as const
     };
@@ -91,6 +93,7 @@ describe("GeneralSettingsStore", () => {
         language: "zh-CN",
         showInMenuBar: false,
         showContextUsage: true,
+        useNetworkProxy: false,
         workspacePaneLayout: "agent-editor",
         defaultTextViewMode: "edit"
       }

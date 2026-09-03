@@ -69,7 +69,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
         <div class="dialog-body">
           <strong>确认删除“{{ sectionTitle }}”？</strong>
-          <p id="delete-long-draft-section-description">{{ description }}</p>
+          <p id="delete-long-draft-section-description" tabindex="0">
+            {{ description }}
+          </p>
         </div>
 
         <footer>
@@ -95,7 +97,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 }
 
 .delete-long-draft-section-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(32rem, 94vw);
+  height: min(420px, calc(100vh - 2rem));
   overflow: hidden;
   border: 1px solid var(--theme-line);
   border-radius: 1rem;
@@ -138,8 +143,11 @@ h2 {
 
 .dialog-body {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   gap: 0.5rem;
   padding: 1.1rem;
+  overflow: hidden;
 }
 
 .dialog-body strong {
@@ -147,7 +155,13 @@ h2 {
 }
 
 .dialog-body p {
+  min-height: 0;
   margin: 0;
+  padding-right: 0.5rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.55;

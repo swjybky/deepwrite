@@ -17,6 +17,7 @@ import resourceSource from "./composables/useWorkspaceResourceCoordinator.ts?raw
 import resourceTreeSource from "./composables/useWorkspaceResourceTreeCoordinator.ts?raw";
 import shortConversationSource from "./composables/useShortConversationCoordinator.ts?raw";
 import shortBookLifecycleSource from "./composables/useShortBookLifecycleCoordinator.ts?raw";
+import shortManuscriptExportTransactionSource from "./composables/short-manuscript-export-transaction.ts?raw";
 import shortStructureSource from "./composables/useShortWorkspaceStructureCoordinator.ts?raw";
 import dialogCoordinatorSource from "./composables/useWorkspaceDialogModuleCoordinator.ts?raw";
 import { WORKSPACE_DIALOG_PRIORITY } from "./composables/useWorkspaceDialogModuleCoordinator";
@@ -171,6 +172,9 @@ describe("App performance boundaries", () => {
       'await import("../../utils/longWorldbuildingSync")'
     );
     expect(shortBookLifecycleSource).toContain(
+      'from "./short-manuscript-export-transaction"'
+    );
+    expect(shortManuscriptExportTransactionSource).toContain(
       'from "../utils/shortManuscriptExport"'
     );
     expect(shortManuscriptExportSource).toContain(

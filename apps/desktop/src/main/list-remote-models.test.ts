@@ -51,6 +51,69 @@ describe("listRemoteModels", () => {
     ).toEqual([{ id: "gemini-flash", label: "Gemini Flash" }]);
   });
 
+  it("keeps validated remote runtime metadata and understands common aliases", () => {
+    expect(
+      parseRemoteModelList({
+        data: [
+          {
+            id: "writer-pro",
+            label: "Writer Pro",
+            provider: "deepseek",
+            request_model_id: "writer-pro-20260901",
+            supports_developer_role: false,
+            tool_schema_profile: "portable",
+            reasoning: true,
+            default_thinking_level: "medium",
+            thinking_level_options: ["low", "medium", "high"],
+            temperature_options: [0.1, 0.6, 1],
+            context_window: 1_000_000,
+            max_output_tokens: 128_000,
+            discount: 0.8,
+            input: 2,
+            output: 5,
+            cache: 0.2
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        id: "writer-pro",
+        label: "Writer Pro",
+        provider: "deepseek",
+        requestModelId: "writer-pro-20260901",
+        supportsDeveloperRole: false,
+        toolSchemaProfile: "portable",
+        reasoning: true,
+        defaultThinkingLevel: "medium",
+        thinkingLevelOptions: ["low", "medium", "high"],
+        temperatureOptions: [0.1, 0.6, 1],
+        contextWindow: 1_000_000,
+        maxTokens: 128_000,
+        discount: 0.8,
+        input: 2,
+        output: 5,
+        cache: 0.2
+      }
+    ]);
+  });
+
+  it("ignores one invalid metadata field without dropping valid capacity", () => {
+    expect(
+      parseRemoteModelList({
+        data: [
+          {
+            id: "writer-pro",
+            context_window: 500_000,
+            max_tokens: 64_000,
+            discount: 8
+          }
+        ]
+      })
+    ).toEqual([
+      { id: "writer-pro", contextWindow: 500_000, maxTokens: 64_000 }
+    ]);
+  });
+
   it("fetches and returns available model ids", async () => {
     const requested: Array<{ url: string; authorization: string | null }> = [];
     const models = await listRemoteModels(
@@ -78,6 +141,25 @@ describe("listRemoteModels", () => {
       }
     ]);
     expect(models).toEqual([{ id: "model-a" }, { id: "model-b" }]);
+  });
+
+  it("sends Google credentials in the header accepted by the DeepWriteApi gateway", async () => {
+    await listRemoteModels(
+      {
+        api: "google-generative-ai",
+        baseUrl: "https://gateway.example.test/v1beta",
+        apiKey: "dw_sk_test_only_invalid",
+        provider: "google"
+      },
+      async (_url, init) => {
+        expect(new Headers(init?.headers).get("x-goog-api-key")).toBe(
+          "dw_sk_test_only_invalid"
+        );
+        return Response.json({
+          models: [{ name: "models/gemini-3.7-flash" }]
+        });
+      }
+    );
   });
 
   it("allows Ollama without an API key", async () => {
@@ -131,5 +213,24 @@ describe("listRemoteModels", () => {
         async () => new Response("denied", { status: 401 })
       )
     ).rejects.toThrow("密钥无效或没有权限拉取模型列表。");
+  });
+
+  it("explains a dead local HTTP proxy instead of blaming the API address", async () => {
+    const proxyError = new TypeError("fetch failed", {
+      cause: new Error("connect ECONNREFUSED 127.0.0.1:17891")
+    });
+    await expect(
+      listRemoteModels(
+        {
+          api: "openai-completions",
+          baseUrl: "https://gateway.example.test/v1",
+          apiKey: "dw_sk_test_only_invalid",
+          provider: "deepwrite-site"
+        },
+        async () => {
+          throw proxyError;
+        }
+      )
+    ).rejects.toThrow("无法连接本地网络代理");
   });
 });

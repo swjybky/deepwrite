@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch
+} from "vue";
 import {
   type LongArcId,
   type LongChapterCardId,
@@ -17,6 +24,8 @@ import { longDeletionDescription } from "../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../utils/longImpactConfirmation";
 import { countNonWhitespaceCharacters } from "../utils/boundedTextHistory";
 import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
+import { resolveEditorTextReferenceRange } from "../utils/editorTextReferences";
+import type { EditorTextReference } from "../types/conversation";
 import {
   isEditableLongFile,
   resolveLongWorkspaceApi,
@@ -26,6 +35,7 @@ import {
 } from "../types/longWorkspace";
 import AppIcon from "./AppIcon.vue";
 import DocumentMetaRow from "./DocumentMetaRow.vue";
+import EditorSelectionMenu from "./EditorSelectionMenu.vue";
 import LongCharacterNavigation from "./LongCharacterNavigation.vue";
 import LongContinuityLedgerNavigation from "./LongContinuityLedgerNavigation.vue";
 import LongEditorDeleteDialogs from "./LongEditorDeleteDialogs.vue";
@@ -40,6 +50,7 @@ import {
   useLongEditorDeleteDialogs,
   type LongNavigationDeleteTarget
 } from "../composables/useLongEditorDeleteDialogs";
+import { useEditorSelectionInsertion } from "../composables/useEditorSelectionInsertion";
 import {
   useLongEditorDocumentSession,
   type LongDocumentState,
@@ -76,6 +87,7 @@ const emit = defineEmits<{
   collapse: [];
   toggleRight: [];
   saved: [result: LongWriteDocumentResult];
+  insertSelection: [reference: EditorTextReference];
   contextChange: [
     context: {
       bookId: string;
@@ -1070,6 +1082,32 @@ const activeEditorScrollMemoryKey = computed(() =>
     chapterCardId: props.selection?.chapterCardId ?? ""
   })
 );
+const currentReferenceDocumentId = computed(
+  () => currentSelectionFile.value?.file.id ?? activeEditorScrollMemoryKey.value
+);
+const {
+  selectionAction,
+  closeSelectionAction,
+  handleEditorContextMenu,
+  handlePreviewContextMenu,
+  insertSelectedText
+} = useEditorSelectionInsertion({
+  source: () => {
+    const selection = props.selection;
+    if (!selection || !canUseTextTools.value) return undefined;
+    const format = currentDocumentFormat.value;
+    return {
+      resourceId: `${props.bookId}:${selection.key}`,
+      document: {
+        id: currentReferenceDocumentId.value,
+        title: currentDocumentTitle.value,
+        path: [...selection.breadcrumbs, ...(format ? [format] : [])],
+        content: currentVisibleContent.value
+      }
+    };
+  },
+  insert: (reference) => emit("insertSelection", reference)
+});
 const {
   handleScroll: handleEditorScroll,
   rememberScroll: rememberCurrentEditorScroll,
@@ -1254,11 +1292,41 @@ function captureForeshadowingFocus(): LongForeshadowingFocus {
   );
 }
 
+async function locateEditorReference(
+  reference: EditorTextReference
+): Promise<boolean> {
+  closeSelectionAction();
+  if (reference.documentId !== currentReferenceDocumentId.value) {
+    const isCurrentSelectionFile = props.selection?.files.some(
+      ({ file }) => file.id === reference.documentId
+    );
+    if (!isCurrentSelectionFile || !(await focusFile(reference.documentId))) {
+      return false;
+    }
+  }
+
+  setViewMode("edit");
+  await nextTick();
+  const input = editorInput.value;
+  if (!input || reference.documentId !== currentReferenceDocumentId.value) {
+    return false;
+  }
+  const range = resolveEditorTextReferenceRange(
+    currentVisibleContent.value,
+    reference
+  );
+  input.focus();
+  input.setSelectionRange(range.start, range.end, "forward");
+  findApi.scrollEditorToRange(input, range.start);
+  return true;
+}
+
 defineExpose({
   saveAllChanges,
   selectBookLineVolume,
   focusFile,
   focusTarget,
+  locateEditorReference,
   captureNavigationSelection,
   captureForeshadowingFocus,
   ensureDocumentsLoaded
@@ -2093,12 +2161,14 @@ onBeforeUnmount(() => {
                   @beforeinput="handleEditorBeforeInput"
                   @input="handleEditorInput"
                   @keydown="handleEditorKeydown"
+                  @contextmenu="handleEditorContextMenu"
                   @scroll="handleEditorScroll"
                 />
                 <article
                   v-else
                   ref="documentPreview"
                   class="long-document-preview long-story-plot-editor"
+                  @contextmenu="handlePreviewContextMenu"
                   @scroll="handleEditorScroll"
                 >
                   <MarkdownContent
@@ -2165,6 +2235,8 @@ onBeforeUnmount(() => {
           @beforeinput="handleEditorBeforeInput"
           @input="handleEditorInput"
           @keydown="handleEditorKeydown"
+          @contextmenu="handleEditorContextMenu"
+          @preview-contextmenu="handlePreviewContextMenu"
           @editor-element-change="setEditorInputElement"
           @preview-element-change="setDocumentPreviewElement"
           @editor-scroll="handleEditorScroll"
@@ -2313,12 +2385,14 @@ onBeforeUnmount(() => {
               @beforeinput="handleEditorBeforeInput"
               @input="handleEditorInput"
               @keydown="handleEditorKeydown"
+              @contextmenu="handleEditorContextMenu"
               @scroll="handleEditorScroll"
             />
             <article
               v-else
               ref="documentPreview"
               class="long-document-preview"
+              @contextmenu="handlePreviewContextMenu"
               @scroll="handleEditorScroll"
             >
               <MarkdownContent
@@ -2647,6 +2721,12 @@ onBeforeUnmount(() => {
       @close-navigation-delete="closeNavigationDelete"
       @navigation-delete-keydown="handleNavigationDeleteKeydown"
       @confirm-navigation-delete="confirmNavigationDelete"
+    />
+    <EditorSelectionMenu
+      v-if="selectionAction"
+      :left="selectionAction.left"
+      :top="selectionAction.top"
+      @insert="insertSelectedText"
     />
   </section>
 </template>

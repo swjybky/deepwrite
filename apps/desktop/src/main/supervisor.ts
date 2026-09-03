@@ -315,6 +315,14 @@ class UtilityWorker {
     });
   }
 
+  async restart(): Promise<void> {
+    if (this.child) {
+      await this.shutdown();
+    }
+    this.isStopping = false;
+    this.start();
+  }
+
   private snapshot(status: WorkerStatus = this.status): UtilityHealthPayload {
     return {
       name: this.name,
@@ -532,6 +540,13 @@ export class UtilitySupervisor {
       this.workers.get("tool")?.shutdown(1800),
       this.workers.get("core")?.shutdown(30_000)
     ]);
+  }
+
+  async restartWorker(name: UtilityWorkerName, reason: string): Promise<void> {
+    const worker = this.workers.get(name);
+    if (!worker || this.shuttingDown) return;
+    this.restartReasons.set(name, reason);
+    await worker.restart();
   }
 
   private handleInternalCommandRequest(

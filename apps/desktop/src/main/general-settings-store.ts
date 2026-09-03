@@ -14,12 +14,14 @@ interface DiskGeneralSettings extends Omit<
   | "autoApproveCrossStageOperations"
   | "defaultTextViewMode"
   | "showContextUsage"
+  | "useNetworkProxy"
 > {
   version: 1;
   permissionMode: GeneralSettings["permissionMode"] | "full-access";
   autoApproveCrossStageOperations?: boolean;
   defaultTextViewMode?: GeneralSettings["defaultTextViewMode"];
   showContextUsage?: boolean;
+  useNetworkProxy?: boolean;
 }
 
 function isNodeError(error: unknown, code: string): boolean {
@@ -75,6 +77,7 @@ export class GeneralSettingsStore {
         language: candidate.language,
         showInMenuBar: candidate.showInMenuBar,
         showContextUsage: candidate.showContextUsage,
+        useNetworkProxy: candidate.useNetworkProxy,
         workspacePaneLayout: candidate.workspacePaneLayout,
         defaultTextViewMode: candidate.defaultTextViewMode
       });

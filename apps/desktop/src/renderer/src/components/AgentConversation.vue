@@ -24,6 +24,7 @@ import {
   type UserPromptAttachment
 } from "@deepwrite/contracts";
 import { resolveAgentWelcome } from "../data/agentWelcome";
+import { useConversationTextReferences } from "../composables/useConversationTextReferences";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
 import type {
   AgentApprovalMode,
@@ -34,6 +35,7 @@ import type {
   EditorTextReference
 } from "../types/conversation";
 import type { IconName } from "../types/workspace";
+import { uiMessage } from "../ui-feedback";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { useConversationTurnNavigator } from "../composables/useConversationTurnNavigator";
 import AppIcon from "./AppIcon.vue";
@@ -157,6 +159,23 @@ function setConversationScroller(element: unknown): void {
 function setConversationMessageList(element: unknown): void {
   messageList.value = element instanceof HTMLElement ? element : undefined;
 }
+const {
+  composerReferences,
+  insertConversationReference,
+  clearComposerReferences,
+  removeComposerReference,
+  locateComposerReference
+} = useConversationTextReferences({
+  sessionId: () => props.currentSessionId,
+  externalReferences: () => props.editorReferences,
+  messageList,
+  clearExternalReferences: () => emit("clearEditorReferences"),
+  removeExternalReference: (referenceId) =>
+    emit("removeEditorReference", referenceId),
+  locateExternalReference: (reference) =>
+    emit("locateEditorReference", reference),
+  notifications: uiMessage
+});
 const clock = ref(Date.now());
 const hasLiveProcessing = computed(
   () =>
@@ -701,6 +720,7 @@ function selectHistoryConversation(item: ConversationHistoryItem): void {
         @reject-long-proposal="emit('rejectLongProposal', $event)"
         @retry-long-proposal-preview="emit('retryLongProposalPreview', $event)"
         @locate-long-proposal="emit('locateLongProposal', $event)"
+        @insert-selection="insertConversationReference"
       />
 
       <ConversationTurnNavigator
@@ -748,7 +768,7 @@ function selectHistoryConversation(item: ConversationHistoryItem): void {
       :library-domain="libraryDomain"
       :available-skills="availableSkills"
       :available-materials="availableMaterials"
-      :editor-references="editorReferences"
+      :editor-references="composerReferences"
       :model-options="modelOptions"
       :available-thinking-options="availableThinkingOptions"
       :shows-temperature="showsTemperature"
@@ -758,9 +778,9 @@ function selectHistoryConversation(item: ConversationHistoryItem): void {
       @update:draft="emit('update:draft', $event)"
       @send="emit('send', $event)"
       @stop="emit('stop')"
-      @clear-editor-references="emit('clearEditorReferences')"
-      @remove-editor-reference="emit('removeEditorReference', $event)"
-      @locate-editor-reference="emit('locateEditorReference', $event)"
+      @clear-editor-references="clearComposerReferences"
+      @remove-editor-reference="removeComposerReference"
+      @locate-editor-reference="locateComposerReference"
       @select-model="emit('selectModel', $event)"
       @select-thinking="emit('selectThinking', $event)"
       @toggle-web-search="emit('toggleWebSearch', $event)"

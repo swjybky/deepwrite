@@ -17,5 +17,6 @@ describe("general settings native behavior", () => {
   it("destroys the tray immediately when the setting is disabled", () => {
     expect(source).toContain("destroyMenuBarTray();");
     expect(source).toContain("syncGeneralSettings(snapshot.settings);");
+    expect(source).toContain("applyNetworkProxyPreference(");
   });
 });
