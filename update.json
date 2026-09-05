@@ -2,18 +2,17 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.4.0",
-  "title": "DeepWrite 1.4.0",
-  "publishedAt": "2026-08-30T15:39:40+08:00",
+  "version": "1.4.4",
+  "title": "DeepWrite 1.4.4",
+  "publishedAt": "2026-09-05T13:14:45+08:00",
   "releaseNotes": [
-    "重构长篇书籍分析流程，完善分析源文件、预设管理、执行过程与结果展示",
-    "优化会话模型与思考配置选择、上下文提示及相关交互体验",
-    "强化长篇结构删除与同步、连续性定稿、台账索引和批量章节提交的一致性",
-    "完善跨进程契约、存储迁移与相关自动化测试",
-    "本版本提供 Windows x64、macOS Intel（x64）和 Apple Silicon（arm64）测试安装包；macOS 测试包采用 ad-hoc 签名，未进行 Apple 公证"
+    "完善素材库与技能库的外部内容选择、预览和批量导入流程",
+    "新增编辑器查找结果高亮，优化长篇连续性记录导航和文档保护",
+    "优化云备份同步预览，并完善模型目录与思考配置适配",
+    "提供 Windows x64、macOS Intel（x64）和 Apple Silicon（arm64）测试安装包；macOS 包采用 ad-hoc 签名，未进行 Apple 公证"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.4.0",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.4.4",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
