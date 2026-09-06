@@ -325,12 +325,16 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
     />
 
     <ExternalSkillImportDialog
-      v-else-if="module.kind === 'external-skill-import'"
+      v-else-if="module.kind === 'external-library-import'"
       open
-      :library-title="module.libraryTitle"
+      :domain="module.domain"
+      :libraries="module.libraries"
+      :preselected-library-id="module.preselectedLibraryId"
+      :selection="module.selection"
       :pending="module.pending"
-      @close="emit('closeExternalSkillImport')"
-      @choose="emit('chooseExternalSkillImport', $event)"
+      @close="emit('closeExternalLibraryImport')"
+      @choose="emit('chooseExternalLibraryImport', $event)"
+      @submit="emit('submitExternalLibraryImport', $event)"
     />
 
     <LibraryEntryMoveDialog

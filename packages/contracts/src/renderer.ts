@@ -96,6 +96,7 @@ export {
 export {
   CATALOG_LIBRARY_ENTRY_MAX_CHARACTERS,
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,
+  CATALOG_PROJECT_MAX_CONTENT_ITEMS,
   CatalogIndexSnapshotSchema,
   CatalogSnapshotSchema,
   CharacterStructureMutationSchema,

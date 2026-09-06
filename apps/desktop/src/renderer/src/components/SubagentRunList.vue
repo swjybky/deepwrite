@@ -255,7 +255,11 @@ const runs = computed(() => props.message.subagentRuns ?? []);
             :content="run.summary"
             format="markdown"
           />
-          <p v-if="run.errorMessage">{{ run.errorMessage }}</p>
+          <p
+            v-if="run.errorMessage && !run.summary?.includes(run.errorMessage)"
+          >
+            {{ run.errorMessage }}
+          </p>
           <small v-if="subagentUsageLabel(run)">{{
             subagentUsageLabel(run)
           }}</small>

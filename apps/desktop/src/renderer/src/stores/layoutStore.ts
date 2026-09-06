@@ -7,6 +7,7 @@ import {
   watch
 } from "vue";
 import { defineStore } from "pinia";
+import { createPanePointerCapture } from "../utils/panePointerCapture";
 import {
   RIGHT_PANE_MAX_WIDTH,
   RIGHT_PANE_MIN_WIDTH,
@@ -93,6 +94,7 @@ export const useLayoutStore = defineStore("layout", () => {
   const activeRightPanePreferenceKey = ref<string>();
   const resizingPane = ref<PaneSide | null>(null);
   const paneTransitionSuppressed = ref(false);
+  const pointerCapture = createPanePointerCapture(stopPaneResize);
 
   let resizeInitialPaneWidth: number | undefined;
   let paneTransitionSuppressionClock = 0;
@@ -300,6 +302,7 @@ export const useLayoutStore = defineStore("layout", () => {
   }
 
   function stopPaneResize(): void {
+    pointerCapture.release();
     const resizedPane = resizingPane.value;
     const initialWidth = resizeInitialPaneWidth;
     resizingPane.value = null;
@@ -317,6 +320,7 @@ export const useLayoutStore = defineStore("layout", () => {
     event.preventDefault();
     stopPaneResize();
     resizingPane.value = side;
+    pointerCapture.start(event);
     resizeInitialPaneWidth =
       side === "left" ? leftPaneWidth.value : rightPaneWidth.value;
     const currentWindow = runtimeWindow();

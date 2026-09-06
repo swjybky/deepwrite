@@ -995,6 +995,9 @@ describe("independent long-form workspace contracts", () => {
       "current_state or history read without chapter_id"
     );
     expect(systemPrompt).toContain("may be written at create time");
+    expect(systemPrompt).toContain(
+      "meta.category_id and a non-empty meta.title are both mandatory"
+    );
     expect(systemPrompt).toContain("plot-point summary");
     expect(systemPrompt).toContain(
       "do not create a story plot to hold that summary"

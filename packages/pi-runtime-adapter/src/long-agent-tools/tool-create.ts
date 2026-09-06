@@ -22,7 +22,12 @@ import {
 } from "./create-file-entities";
 import { createContinuityFiles } from "./create-continuity-files";
 import { createPlotRecord } from "./create-plot-records";
-import type { LongCreateInput, LongCreateResult } from "./create-support";
+import {
+  resolveWorldbuildingItemTitle,
+  type LongCreateInput,
+  type LongCreateMeta,
+  type LongCreateResult
+} from "./create-support";
 import { formLongProposal } from "./proposals";
 import type { LongToolContext } from "./context";
 import { confirmCrossStageWrite, crossStageWriteCancelled } from "./user-input";
@@ -62,13 +67,26 @@ function buildCreate(input: LongCreateInput): LongCreateResult {
   return createPlotRecord(input);
 }
 
+function normalizeCreateMeta(
+  kind: LongCreateKind,
+  meta: LongCreateMeta,
+  content: string
+): LongCreateMeta {
+  if (kind !== "worldbuilding_item") return meta;
+  const title = resolveWorldbuildingItemTitle(meta.title, content);
+  if (title) return { ...meta, title };
+  const normalizedMeta = { ...meta };
+  delete normalizedMeta.title;
+  return normalizedMeta;
+}
+
 export function buildCreateTool(ctx: LongToolContext): AgentTool {
   const { writableRoots, loadIndex } = ctx;
   return defineTool({
     name: "create",
     label: "新建对象",
     description:
-      "一次新建一个对象：kind 决定类型，meta 只放必要的标题与关系字段，content 是该对象的正文，创建时即可直接写入。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；故事情节用 kind=story_plot，只写该剧情点下的场景链。排序与 id 由系统生成，不要自己指定。世界观分类与人物类型这类容器不能新建，请提示用户在界面上操作。连续性文件同样在 create 时携带正文：continuity_world_reveals 的 content 即世界观揭露；continuity_character 必须提供 meta.character_id 与 meta.document=current_state|history，content 写入该文档。",
+      "一次新建一个对象：kind 决定类型，meta 只放必要的标题与关系字段，content 是该对象的正文，创建时即可直接写入。创建 worldbuilding_item 时，meta.category_id 与 meta.title 都必须提供；即使 content 已含同名 Markdown 标题，也不能省略 meta.title。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；故事情节用 kind=story_plot，只写该剧情点下的场景链。排序与 id 由系统生成，不要自己指定。世界观分类与人物类型这类容器不能新建，请提示用户在界面上操作。连续性文件同样在 create 时携带正文：continuity_world_reveals 的 content 即世界观揭露；continuity_character 必须提供 meta.character_id 与 meta.document=current_state|history，content 写入该文档。",
     parameters: strictObject({
       kind: StringEnum(LONG_CREATE_KINDS),
       meta: createMetaParameter,
@@ -78,6 +96,8 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
     executionMode: "sequential",
     execute: async (toolCallId, params, signal) => {
       const kind = params.kind as LongCreateKind;
+      const content = params.content ?? "";
+      const meta = normalizeCreateMeta(kind, params.meta, content);
       const stageKind = CREATE_KIND_STAGES[kind];
       const stage =
         stageKind === "continuity"
@@ -90,10 +110,10 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
         toolCallId,
         targetStage: stage,
         targetTitle:
-          typeof params.meta.title === "string"
-            ? params.meta.title
-            : typeof params.meta.name === "string"
-              ? params.meta.name
+          typeof meta.title === "string"
+            ? meta.title
+            : typeof meta.name === "string"
+              ? meta.name
               : kind,
         operationLabel: "新建",
         signal
@@ -103,8 +123,8 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
       const timestamp = new Date().toISOString();
       const result = buildCreate({
         kind,
-        meta: params.meta,
-        content: params.content ?? "",
+        meta,
+        content,
         index,
         timestamp,
         idSeed: `${ctx.workspace.bookId}:${ctx.input.runId}:${toolCallId}`,

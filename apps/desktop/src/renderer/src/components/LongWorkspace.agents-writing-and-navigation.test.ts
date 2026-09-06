@@ -1,3 +1,4 @@
+import treeNodeFactorySource from "../utils/longWorkspaceTreeNode.ts?raw";
 import {
   agentConversationSource,
   agentRunPreferencesSource,
@@ -29,7 +30,7 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
     expect(longWorkspaceResourceTreeSource).toContain(
       "function projectLongWorkspaceNavigation("
     );
-    expect(longWorkspaceResourceTreeSource).toContain(
+    expect(treeNodeFactorySource).toContain(
       "longWorkspaceSelection: selection"
     );
     expect(resourceTreeCoordinatorSource).toContain(

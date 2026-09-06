@@ -4,6 +4,7 @@ import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
 import { BookCharacterFormatSchema } from "./character-structure";
 import { CatalogDraftSectionSchema } from "./draft-directory";
 import {
+  CATALOG_PROJECT_MAX_CONTENT_ITEMS,
   CATALOG_PROJECT_DOMAINS,
   CatalogDocumentSchema,
   CatalogIdSchema,

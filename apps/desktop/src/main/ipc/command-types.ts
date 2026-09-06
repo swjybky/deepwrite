@@ -9,7 +9,7 @@ import type { AgentTeamConfigStore } from "../agent-team-config-store";
 import type { AppearanceService } from "../appearance-service";
 import type { ChatAssistantProjectConfigStore } from "../chat-assistant-project-config-store";
 import type { ContinuationImportPreviewRegistry } from "../continuation-import-preview-registry";
-import type { readExternalSkills } from "../external-skill-import";
+import type { readExternalLibraryEntries } from "../external-library-import";
 import type { GeneralSettingsStore } from "../general-settings-store";
 import type {
   authorizeMainInternalCommand,
@@ -72,7 +72,7 @@ export interface IpcCommandContext {
   exportLongManuscript: typeof exportLongManuscript;
   listRemoteModels: typeof listRemoteModels;
   resolveDraftApiKey: ModelConfigStore["resolveDraftApiKey"];
-  readExternalSkills: typeof readExternalSkills;
+  readExternalLibraryEntries: typeof readExternalLibraryEntries;
   importLegacyLibraryArchives: typeof importLegacyLibraryArchives;
   cachedAppearanceSettings: () => AppearanceSettings;
   syncNativeAppearanceChrome: (settings: AppearanceSettings) => void;

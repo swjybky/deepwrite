@@ -34,7 +34,7 @@ describe("WorkspaceDialogLayer boundary", () => {
       "long-rename": "LongBookRenameDialog",
       "long-removal": "LongBookRemovalDialog",
       "library-project": "LibraryProjectDialog",
-      "external-skill-import": "ExternalSkillImportDialog",
+      "external-library-import": "ExternalSkillImportDialog",
       "library-entry-move": "LibraryEntryMoveDialog",
       "library-group": "LibraryGroupDialog",
       "save-conflict": "SaveConflictDialog",

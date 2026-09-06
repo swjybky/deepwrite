@@ -21,10 +21,26 @@ import {
 } from "./types";
 
 export function assertMutableChapterDocument(
-  _index: LongWorkspaceIndexSnapshot,
-  _fileId: string
+  index: LongWorkspaceIndexSnapshot,
+  fileId: string
 ): void {
-  // Committed chapters and continuity notes remain ordinary editable files.
+  const committedContinuity = index.chapters.some(
+    (chapter) =>
+      chapter.commitId !== null &&
+      [
+        chapter.characterState,
+        chapter.handoff,
+        chapter.foreshadowingChanges,
+        chapter.worldReveals,
+        ...chapter.characterContinuity.flatMap((character) => [
+          character.currentState,
+          character.history
+        ])
+      ].some((file) => file?.id === fileId)
+  );
+  if (committedContinuity) {
+    throw new Error("已提交的连续性文件为只读，请先删除对应提交记录再修改。");
+  }
 }
 
 export function assertDirectlyMutableDocument(

@@ -3,7 +3,7 @@ import dialogSource from "./LongContinuationImportDialog.vue?raw";
 import transferSource from "./BookTransferDialog.vue?raw";
 import appSource from "../WorkspaceShell.vue?raw";
 import longBookLifecycleSource from "../composables/useLongBookLifecycleCoordinator.ts?raw";
-import resourceTreeSource from "../utils/longWorkspaceResourceTree.ts?raw";
+import resourceTreeSource from "../utils/longWorkspaceContinuityTree.ts?raw";
 
 describe("LongContinuationImportDialog", () => {
   it("adds the continuation import entry and uses the protected preview API", () => {

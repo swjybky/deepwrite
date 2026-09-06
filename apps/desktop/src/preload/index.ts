@@ -49,8 +49,10 @@ import {
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptInputSchema,
   ExportShortManuscriptResultSchema,
-  ExternalSkillSelectionResultSchema,
-  ExternalSkillSourceKindSchema,
+  ExternalLibrarySelectionResultSchema,
+  ExternalLibrarySourceKindSchema,
+  ImportLibraryEntriesInputSchema,
+  ImportLibraryEntriesResultSchema,
   GeneralSettingsSchema,
   GeneralSettingsSnapshotSchema,
   ImportLegacyLibraryResultSchema,
@@ -212,8 +214,10 @@ import {
   type ExportLongManuscriptResult,
   type ExportShortManuscriptInput,
   type ExportShortManuscriptResult,
-  type ExternalSkillSelectionResult,
-  type ExternalSkillSourceKind,
+  type ExternalLibrarySelectionResult,
+  type ExternalLibrarySourceKind,
+  type ImportLibraryEntriesInput,
+  type ImportLibraryEntriesResult,
   type GeneralSettings,
   type GeneralSettingsSnapshot,
   type ImportLegacyLibraryResult,
@@ -1130,21 +1134,37 @@ async function createLibraryEntry(
   );
 }
 
-async function chooseExternalSkills(
-  rawSourceKind: ExternalSkillSourceKind
-): Promise<ExternalSkillSelectionResult | null> {
-  const sourceKind = ExternalSkillSourceKindSchema.parse(rawSourceKind);
-  const id = browserId("cmd_catalog_choose_external_skills");
-  const result = await invokeCommand<ExternalSkillSelectionResult | null>(
+async function chooseExternalLibraryEntries(
+  rawSourceKind: ExternalLibrarySourceKind
+): Promise<ExternalLibrarySelectionResult | null> {
+  const sourceKind = ExternalLibrarySourceKindSchema.parse(rawSourceKind);
+  const id = browserId("cmd_catalog_choose_external_library_entries");
+  const result = await invokeCommand<ExternalLibrarySelectionResult | null>(
     createEnvelope(
-      "catalog.chooseExternalSkills",
+      "catalog.chooseExternalLibraryEntries",
       { sourceKind },
       { id, correlationId: id }
     )
   );
   return result === null
     ? null
-    : ExternalSkillSelectionResultSchema.parse(result);
+    : ExternalLibrarySelectionResultSchema.parse(result);
+}
+
+async function importLibraryEntries(
+  rawInput: ImportLibraryEntriesInput
+): Promise<ImportLibraryEntriesResult> {
+  const input = ImportLibraryEntriesInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_import_library_entries");
+  return ImportLibraryEntriesResultSchema.parse(
+    await invokeCommand<ImportLibraryEntriesResult>(
+      createEnvelope("catalog.importLibraryEntries", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.libraryId }
+      })
+    )
+  );
 }
 
 async function updateLibrary(
@@ -1941,7 +1961,8 @@ const api: DeepWriteApi = {
     moveDraftSection,
     saveLibraryEntry,
     createLibraryEntry,
-    chooseExternalSkills,
+    chooseExternalLibraryEntries,
+    importLibraryEntries,
     removeLibraryEntry,
     moveLibraryEntry,
     unregisterProject,

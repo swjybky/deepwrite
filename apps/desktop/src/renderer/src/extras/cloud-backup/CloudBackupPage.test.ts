@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { expectSourceToContain } from "../../../../test-utils/sourceText";
 import source from "./CloudBackupPage.vue?raw";
+import previewDialogSource from "./CloudBackupPreviewDialog.vue?raw";
 import appSource from "../../WorkspaceShell.vue?raw";
 import sidebarSource from "../../components/LeftSidebar.vue?raw";
 import featureModulesSource from "../../components/WorkspaceFeatureModules.vue?raw";
@@ -33,12 +34,11 @@ describe("CloudBackupPage", () => {
   });
 
   it("requires a confirmation dialog before backup or restore writes data", () => {
-    expect(source).toContain("确认同步内容");
-    expect(source).toContain("将新增");
-    expect(source).toContain("将覆盖");
-    expect(source).toContain("不会改动");
+    expect(previewDialogSource).toContain("确认同步内容");
+    expect(previewDialogSource).toContain("文件列表概览");
+    expect(previewDialogSource).toContain("文件总数");
     expect(source).toContain("confirmPreview");
-    expect(source).toContain("danger-button");
+    expect(previewDialogSource).toContain("danger-button");
     expect(source).toContain("100 MB");
   });
 

@@ -21,8 +21,11 @@ import {
   type LongWorldbuildingItemId,
   type LongWorldbuildingFormat
 } from "@deepwrite/contracts";
+import { indexedVolume, indexedChapterCard } from "./longIndexedChapter";
+import { createLongContinuitySelection } from "./longContinuitySelection";
 import { latestCommittedContinuityChapter } from "../utils/longLatestContinuityChapter";
 
+export { createLongContinuitySelection } from "./longContinuitySelection";
 export { latestCommittedContinuityChapter } from "../utils/longLatestContinuityChapter";
 
 export type LongWorkspaceFileRole =
@@ -305,28 +308,6 @@ export function createLongCharacterOverviewSelection(
     description:
       "人物设计阶段概览；统计全部人物的简单信息，供智能体先读后定位。"
   };
-}
-
-function indexedVolume(
-  summary: LongBookSummary,
-  workspaceIndex: LongWorkspaceIndexSnapshot,
-  volumeId: LongVolumeId
-) {
-  return (
-    summary.navigation.volumes.find(({ id }) => id === volumeId) ??
-    workspaceIndex.plot.volumes?.find(({ id }) => id === volumeId)
-  );
-}
-
-function indexedChapterCard(
-  summary: LongBookSummary,
-  workspaceIndex: LongWorkspaceIndexSnapshot,
-  chapterCardId: LongChapterCardId
-) {
-  return (
-    summary.navigation.chapterCards.find(({ id }) => id === chapterCardId) ??
-    workspaceIndex.plot.chapterCards?.find(({ id }) => id === chapterCardId)
-  );
 }
 
 function indexedCharacters(
@@ -643,130 +624,6 @@ export function createLongChapterSelection(
         : nextWritable === chapter.id
           ? "这是连续下一张空白章卡，可启动单章写作。"
           : "本章仍为空白；自动写作需先完成前面的空白章节。"
-  };
-}
-
-/**
- * Keeps chapter authoring and continuity review as two distinct entry points.
- * A continuity chapter is a read-only group of Markdown evidence and outputs;
- * the internal commit JSON is never part of the visible selection.
- */
-export function createLongContinuitySelection(
-  summary: LongBookSummary,
-  workspaceIndex: LongWorkspaceIndexSnapshot,
-  chapterCardId: LongChapterCardId
-): LongWorkspaceSelection | undefined {
-  const chapter = indexedChapterCard(summary, workspaceIndex, chapterCardId);
-  const volume = chapter
-    ? indexedVolume(summary, workspaceIndex, chapter.volumeId)
-    : undefined;
-  const entry = workspaceIndex.chapters.find(
-    (candidate) => candidate.chapterCardId === chapterCardId
-  );
-  if (!chapter || !volume || !entry) {
-    return undefined;
-  }
-  const committed = entry.commitId !== null;
-  const commit = committed
-    ? workspaceIndex.ledger.commits.find(({ id }) => id === entry.commitId)
-    : undefined;
-  const importCheckpoint = commit?.mode === "import_checkpoint";
-  if (!committed && entry.bodyStatus !== "written") {
-    return undefined;
-  }
-  const characterNameById = new Map(
-    summary.navigation.characters.map(({ id, name }) => [id, name] as const)
-  );
-  const characterContinuityFiles = [...(entry.characterContinuity ?? [])]
-    .sort((left, right) =>
-      (
-        characterNameById.get(left.characterId) ?? left.characterId
-      ).localeCompare(
-        characterNameById.get(right.characterId) ?? right.characterId,
-        "zh-CN"
-      )
-    )
-    .flatMap<LongWorkspaceSelectionFile>((character) => {
-      const name =
-        characterNameById.get(character.characterId) ?? character.characterId;
-      return [
-        {
-          role: "current-state",
-          label: `${name} · 当前状态`,
-          file: character.currentState,
-          readOnly: true
-        },
-        {
-          role: "history",
-          label: `${name} · 历史轨迹`,
-          file: character.history,
-          readOnly: true
-        }
-      ];
-    });
-  return {
-    key: `continuity:${chapter.id}`,
-    root: "continuity_ledger",
-    continuityView: committed ? "history" : "inbox",
-    chapterCardId: chapter.id,
-    title: chapter.title || chapter.id,
-    breadcrumbs: [
-      summary.title,
-      "连续性账本",
-      volume.title,
-      chapter.title || chapter.id
-    ],
-    files: [
-      {
-        role: "body",
-        label: "正文证据",
-        file: entry.body,
-        readOnly: true
-      },
-      ...(importCheckpoint ? [] : characterContinuityFiles),
-      ...(entry.worldReveals && !importCheckpoint
-        ? [
-            {
-              role: "world-reveals" as const,
-              label: "世界观揭露",
-              file: entry.worldReveals,
-              readOnly: true
-            }
-          ]
-        : []),
-      ...(!importCheckpoint
-        ? [
-            {
-              role: "foreshadowing-changes" as const,
-              label: "伏笔变化",
-              file: entry.foreshadowingChanges,
-              readOnly: true
-            }
-          ]
-        : []),
-      ...(importCheckpoint
-        ? []
-        : [
-            {
-              role: "character-state" as const,
-              label: "章末状态",
-              file: entry.characterState,
-              readOnly: true
-            },
-            {
-              role: "handoff" as const,
-              label: "接续包",
-              file: entry.handoff,
-              readOnly: true
-            }
-          ])
-    ],
-    preferredRole: "body",
-    description: importCheckpoint
-      ? "续写导入检查点仅表示历史正文已封存，不代表已经生成连续性事实、章末状态或接续包。"
-      : committed
-        ? "按章保留正文证据、人物状态与历史、世界观揭露、既有伏笔触点变化、章末状态和接续包。"
-        : "待处理章节；伏笔只核验总览中已关联本章的既有触点，没有候选时不生成伏笔记录。"
   };
 }
 

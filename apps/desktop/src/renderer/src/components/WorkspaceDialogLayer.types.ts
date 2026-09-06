@@ -7,7 +7,9 @@ import type {
   CreateLongBookInput,
   CreateScriptBookInput,
   CreateShortBookInput,
-  ExternalSkillSourceKind,
+  CatalogLibrary,
+  ExternalLibrarySelectionResult,
+  ExternalLibrarySourceKind,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   LongLinkedResourceStageScopes,
@@ -259,9 +261,12 @@ export interface LibraryProjectDialogModule {
   submitting: boolean;
 }
 
-export interface ExternalSkillImportDialogModule {
-  kind: "external-skill-import";
-  libraryTitle: string;
+export interface ExternalLibraryImportDialogModule {
+  kind: "external-library-import";
+  domain: LibraryDomain;
+  libraries: readonly CatalogLibrary[];
+  preselectedLibraryId?: string;
+  selection?: ExternalLibrarySelectionResult;
   pending: boolean;
 }
 
@@ -336,7 +341,7 @@ export type WorkspaceDialogModule =
   | LongRenameDialogModule
   | LongRemovalDialogModule
   | LibraryProjectDialogModule
-  | ExternalSkillImportDialogModule
+  | ExternalLibraryImportDialogModule
   | LibraryEntryMoveDialogModule
   | LibraryGroupDialogModule
   | SaveConflictDialogModule
@@ -370,7 +375,7 @@ export const WORKSPACE_DIALOG_KINDS = [
   "long-rename",
   "long-removal",
   "library-project",
-  "external-skill-import",
+  "external-library-import",
   "library-entry-move",
   "library-group",
   "save-conflict",
@@ -482,8 +487,11 @@ export interface WorkspaceDialogLayerEmits {
       entryId: string;
     }
   ];
-  closeExternalSkillImport: [];
-  chooseExternalSkillImport: [sourceKind: ExternalSkillSourceKind];
+  closeExternalLibraryImport: [];
+  chooseExternalLibraryImport: [sourceKind: ExternalLibrarySourceKind];
+  submitExternalLibraryImport: [
+    payload: { libraryId: string; candidateIds: string[] }
+  ];
   closeLibraryEntryMove: [];
   submitLibraryEntryMove: [stageId: MaterialStageId];
   closeLibraryGroup: [];

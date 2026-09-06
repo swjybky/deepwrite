@@ -1,5 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { findLongestModelIdBoundaryMatch } from "./model-id-matching";
+import { OPENAI_RUNTIME_MODELS } from "./runtime-model-catalog-openai";
 
 /**
  * Runtime model metadata that DeepWrite needs before the pinned pi-ai catalog
@@ -258,61 +259,7 @@ const DEEPWRITE_RUNTIME_MODELS = [
     contextWindow: 500_000,
     maxTokens: 500_000
   } satisfies Model<"openai-responses">,
-  {
-    id: "gpt-5.6-sol",
-    name: "GPT-5.6 Sol",
-    api: "openai-responses",
-    provider: "openai",
-    baseUrl: "https://api.openai.com/v1",
-    reasoning: true,
-    // The Codex model catalog exposes low through ultra for Sol. Pi carries
-    // custom max/ultra values through xhigh at request time.
-    thinkingLevelMap: {
-      off: null,
-      minimal: null,
-      xhigh: "xhigh"
-    },
-    input: ["text", "image"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 272_000,
-    maxTokens: 128_000
-  } satisfies Model<"openai-responses">,
-  {
-    id: "gpt-5.6-terra",
-    name: "GPT-5.6 Terra",
-    api: "openai-responses",
-    provider: "openai",
-    baseUrl: "https://api.openai.com/v1",
-    reasoning: true,
-    // Terra supports the same low-through-ultra reasoning range as Sol.
-    thinkingLevelMap: {
-      off: null,
-      minimal: null,
-      xhigh: "xhigh"
-    },
-    input: ["text", "image"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 272_000,
-    maxTokens: 128_000
-  } satisfies Model<"openai-responses">,
-  {
-    id: "gpt-5.6-luna",
-    name: "GPT-5.6 Luna",
-    api: "openai-responses",
-    provider: "openai",
-    baseUrl: "https://api.openai.com/v1",
-    reasoning: true,
-    // Luna tops out at max; max is carried through Pi's xhigh slot.
-    thinkingLevelMap: {
-      off: null,
-      minimal: null,
-      xhigh: "max"
-    },
-    input: ["text", "image"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 272_000,
-    maxTokens: 128_000
-  } satisfies Model<"openai-responses">,
+  ...OPENAI_RUNTIME_MODELS,
   {
     id: "kimi-k3",
     name: "Kimi K3",

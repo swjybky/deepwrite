@@ -53,6 +53,7 @@ import {
   MaterialLibraryProjectManifestSchema,
   MarketplaceInstallPackageSchema,
   CatalogInstallMarketplaceSkillContentResultSchema,
+  ImportLibraryEntriesInputSchema,
   SaveLibraryEntryInputSchema,
   MoveLibraryEntryInputSchema,
   SkillGroupProjectManifestSchema,
@@ -116,6 +117,8 @@ import {
   type MaterialStageId,
   type MarketplaceInstallPackage,
   type CatalogInstallMarketplaceSkillContentResult,
+  type ImportLibraryEntriesInput,
+  type ImportLibraryEntriesResult,
   type MutateCharacterStructureInput,
   type MutatePlotStructureInput,
   type ReadWritingContextInput,
@@ -283,6 +286,31 @@ export type CreateFolderLibraryEntryInput =
       domain: "skill";
       stageId?: SkillStageId | undefined;
     });
+
+function nextImportedEntryTitle(
+  sourceTitle: string,
+  occupiedTitles: Set<string>
+): string {
+  const comparable = (value: string): string =>
+    value.normalize("NFC").toLocaleLowerCase("en-US");
+  const base = [...sourceTitle.normalize("NFC").trim()].slice(0, 256).join("");
+  if (!occupiedTitles.has(comparable(base))) {
+    occupiedTitles.add(comparable(base));
+    return base;
+  }
+  for (let index = 2; index < 100_000; index += 1) {
+    const suffix = ` (${index})`;
+    const shortened = [...base]
+      .slice(0, Math.max(1, 256 - [...suffix].length))
+      .join("")
+      .trimEnd();
+    const candidate = `${shortened || "未命名条目"}${suffix}`;
+    if (occupiedTitles.has(comparable(candidate))) continue;
+    occupiedTitles.add(comparable(candidate));
+    return candidate;
+  }
+  throw new Error("无法为导入条目生成不重复的标题。");
+}
 
 export interface RemoveFolderLibraryEntryInput {
   domain: FolderCatalogLibraryDomain;
@@ -3153,6 +3181,138 @@ export class FolderCatalogStore {
         createdAt: entry.createdAt,
         updatedAt: entry.updatedAt
       };
+    });
+  }
+
+  async importLibraryEntries(
+    rawInput: ImportLibraryEntriesInput
+  ): Promise<ImportLibraryEntriesResult> {
+    const input = ImportLibraryEntriesInputSchema.parse(rawInput);
+    for (const entry of input.entries) {
+      assertTextByteLength(
+        entry.content,
+        this.maxMarkdownBytes,
+        "Markdown content"
+      );
+    }
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(
+        registry,
+        input.libraryId,
+        libraryProjectDomain(input.domain)
+      );
+      const projectDirectory = await secureProjectRoot(
+        registration.projectDirectory
+      );
+      const manifest = await this.readManifest(
+        projectDirectory,
+        input.domain === "material"
+          ? "deepwrite.material-library"
+          : "deepwrite.skill-library",
+        input.libraryId
+      );
+      assertBaseRevision(input.baseProjectRevision, manifest.revision);
+      if (manifest.kind === "deepwrite.skill-library" && manifest.isBuiltin) {
+        throw new Error("内置技能库为只读内容，不能导入条目。");
+      }
+      if (
+        manifest.entries.length + input.entries.length >
+        CATALOG_PROJECT_MAX_CONTENT_ITEMS
+      ) {
+        throw new Error("导入条目数量超过资料库容量，请减少选择后重试。");
+      }
+
+      const now = this.now();
+      const occupiedTitles = new Set(
+        manifest.entries.map((entry) =>
+          entry.title.normalize("NFC").toLocaleLowerCase("en-US")
+        )
+      );
+      const usedPaths = new Set(
+        manifest.entries.map((entry) => portableContentPathKey(entry.path))
+      );
+      const createdEntries: Array<MaterialEntry | SkillEntry> = [];
+      const manifestEntries: Array<
+        | MaterialLibraryProjectManifest["entries"][number]
+        | SkillLibraryProjectManifest["entries"][number]
+      > = [];
+      const files: Array<{ target: string; content: string }> = [];
+
+      for (const source of input.entries) {
+        const title = nextImportedEntryTitle(source.title, occupiedTitles);
+        const id = createCatalogId(`${input.domain}-entry`);
+        const path = await uniqueRelativeMarkdownPath(
+          projectDirectory,
+          "entries",
+          id,
+          usedPaths
+        );
+        usedPaths.add(portableContentPathKey(path));
+        files.push({
+          target: await secureWritableProjectPath(projectDirectory, path),
+          content: source.content
+        });
+        if (manifest.kind === "deepwrite.material-library") {
+          const stageId: MaterialStageId =
+            manifest.materialKind === "character"
+              ? "character"
+              : manifest.materialKind === "gimmick"
+                ? "gimmick"
+                : manifest.materialKind === "plot"
+                  ? "pacing"
+                  : manifest.materialKind === "draft"
+                    ? "draft_excerpt"
+                    : "other";
+          const entry = {
+            id,
+            stageId,
+            title,
+            path,
+            createdAt: now,
+            updatedAt: now
+          };
+          manifestEntries.push(entry);
+          createdEntries.push({ ...entry, body: source.content });
+        } else {
+          const stageId: SkillStageId =
+            manifest.skillKind === "plot" ? "plot_design" : "draft";
+          const entry = {
+            id,
+            stageId,
+            title,
+            path,
+            createdAt: now,
+            updatedAt: now
+          };
+          manifestEntries.push(entry);
+          createdEntries.push({ ...entry, body: source.content });
+        }
+      }
+
+      const nextManifest =
+        manifest.kind === "deepwrite.material-library"
+          ? FolderMaterialProjectManifestSchema.parse({
+              ...manifest,
+              revision: manifest.revision + 1,
+              updatedAt: now,
+              entries: [...manifest.entries, ...manifestEntries]
+            })
+          : FolderSkillProjectManifestSchema.parse({
+              ...manifest,
+              revision: manifest.revision + 1,
+              updatedAt: now,
+              entries: [...manifest.entries, ...manifestEntries]
+            });
+      await commitProjectFileCreations(
+        files,
+        join(projectDirectory, MANIFEST_FILE),
+        nextManifest,
+        this.maxMarkdownBytes,
+        this.maxManifestBytes
+      );
+      await this.bumpRegistry(registry, now);
+      return { entries: createdEntries };
     });
   }
 

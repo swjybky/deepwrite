@@ -116,6 +116,13 @@ const actionItems = computed<
             id: "import-legacy-library",
             label: `导入旧版${resourceName}`,
             icon: "archive"
+          },
+          {
+            id: "import-external-library",
+            label: `从文件或文件夹导入${
+              props.section.id === "skill" ? "技能" : "素材"
+            }`,
+            icon: "download"
           }
         ] as const))
   ];

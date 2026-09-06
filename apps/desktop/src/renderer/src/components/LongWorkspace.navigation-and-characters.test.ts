@@ -1,3 +1,5 @@
+import treeNodeFactorySource from "../utils/longWorkspaceTreeNode.ts?raw";
+import continuityTreeSource from "../utils/longWorkspaceContinuityTree.ts?raw";
 import {
   appSource,
   chapterCardDialogSource,
@@ -110,7 +112,7 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
       expect(longWorkspaceResourceTreeSource).toContain(`${root}:`);
     }
     expect(longWorkspaceResourceTreeSource).toContain("book.navigation.counts");
-    expect(longWorkspaceResourceTreeSource).toContain("index.ledger.commits");
+    expect(continuityTreeSource).toContain("index.ledger.commits");
     expect(longWorkspaceTypeSource).toContain(
       "isLongMigrationEvidenceCategoryId"
     );
@@ -134,7 +136,7 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(longWorkspaceResourceTreeSource).toContain(
       "longCharacterGroup: group.id"
     );
-    expect(longWorkspaceResourceTreeSource).toContain(
+    expect(treeNodeFactorySource).toContain(
       "label: options.label ?? selection.title"
     );
     expect(longWorkspaceResourceTreeSource).toContain("label: group.title");

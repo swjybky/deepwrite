@@ -57,7 +57,6 @@ export function useCreationBookDrag(
 
   function start(event: DragEvent, node: ResourceTreeNode): void {
     if (!canDrag(node) || !eventRow(event, node)) {
-      event.preventDefault();
       return;
     }
     sourceId.value = node.id;

@@ -2,6 +2,7 @@
 import type { TextViewMode } from "@deepwrite/contracts";
 import { onBeforeUnmount, ref, watch } from "vue";
 import DocumentMetaRow from "./DocumentMetaRow.vue";
+import EditorSearchHighlight from "./EditorSearchHighlight.vue";
 import MarkdownContent from "./MarkdownContent.vue";
 
 defineProps<{
@@ -17,6 +18,9 @@ defineProps<{
   readOnly: boolean;
   busy: boolean;
   committedNotice: string | undefined;
+  searchMatches: readonly { start: number; end: number }[];
+  activeSearchIndex: number;
+  searchHighlightVisible: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -95,20 +99,27 @@ function updateTitle(event: Event): void {
       {{ title }}
     </h1>
 
-    <textarea
+    <EditorSearchHighlight
       v-if="viewMode === 'edit'"
-      ref="editorElement"
-      :value="content"
-      class="long-document-editor"
-      :readonly="readOnly || busy"
-      :aria-label="`${title}${format || '正文'}`"
-      spellcheck="false"
-      @beforeinput="emit('beforeinput', $event)"
-      @input="emit('input', $event)"
-      @keydown="emit('keydown', $event)"
-      @contextmenu="emit('contextmenu', $event)"
-      @scroll="emit('editorScroll', $event)"
-    />
+      :content="content"
+      :matches="searchMatches"
+      :active-index="activeSearchIndex"
+      :visible="searchHighlightVisible"
+    >
+      <textarea
+        ref="editorElement"
+        :value="content"
+        class="long-document-editor"
+        :readonly="readOnly || busy"
+        :aria-label="`${title}${format || '正文'}`"
+        spellcheck="false"
+        @beforeinput="emit('beforeinput', $event)"
+        @input="emit('input', $event)"
+        @keydown="emit('keydown', $event)"
+        @contextmenu="emit('contextmenu', $event)"
+        @scroll="emit('editorScroll', $event)"
+      />
+    </EditorSearchHighlight>
     <article
       v-else
       ref="previewElement"

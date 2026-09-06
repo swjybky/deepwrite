@@ -61,6 +61,49 @@ describe("unified long-form tools: mutations", () => {
     });
   });
 
+  it("recovers a missing worldbuilding title from an unambiguous leading H1", async () => {
+    const index = fixtureWorldbuildingIndex();
+    const create = toolByName(
+      longTools({ executor: documentExecutor(index) }),
+      "create"
+    );
+    const content =
+      "\uFEFF\n# 混沌灵根\n\n## 本源定义\n灵根可循环吸纳天地灵气。";
+
+    const created = await create.execute("create-heading-item", {
+      kind: "worldbuilding_item",
+      meta: { category_id: "world_magic" },
+      content
+    });
+
+    expect(created.details).toMatchObject({
+      kind: "long-worldbuilding-file-proposal",
+      batch: {
+        operations: [
+          expect.objectContaining({
+            type: "worldbuildingItem.create",
+            item: expect.objectContaining({ title: "混沌灵根" })
+          })
+        ],
+        documentWrites: [expect.objectContaining({ content })]
+      },
+      files: [
+        expect.objectContaining({
+          title: "魔法体系 / 混沌灵根",
+          afterText: content
+        })
+      ]
+    });
+
+    await expect(
+      create.execute("create-ambiguous-item", {
+        kind: "worldbuilding_item",
+        meta: { category_id: "world_magic", title: "   " },
+        content: "## 本源定义\n灵根来自天地循环。"
+      })
+    ).rejects.toThrow("创建该对象必须提供 meta.title。");
+  });
+
   it("carries initial content for every Markdown-backed create kind", async () => {
     const tools = longTools({ executor: documentExecutor(fixtureIndex()) });
     const create = toolByName(tools, "create");

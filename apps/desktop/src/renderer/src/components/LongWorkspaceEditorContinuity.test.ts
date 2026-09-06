@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import resourceTreeSource from "../utils/longWorkspaceResourceTree.ts?raw";
+import resourceTreeSource from "../utils/longWorkspaceContinuityTree.ts?raw";
 import selectionSource from "../types/longWorkspace.ts?raw";
 import ledgerNavigationSource from "./LongContinuityLedgerNavigation.vue?raw";
 import source from "./LongWorkspaceEditor.vue?raw";

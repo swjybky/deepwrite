@@ -6,6 +6,7 @@ import {
   type LongWriteChapterResult
 } from "@deepwrite/contracts";
 import { loadIndexedFile } from "./cache";
+import { assertMutableChapterDocument } from "./integrity";
 import {
   commitLongProjectTransaction,
   secureDirectory,
@@ -38,6 +39,8 @@ export async function writeChapter(
     if (!entry) {
       throw new Error("当前长篇章卡不存在。");
     }
+    assertMutableChapterDocument(loaded.index, entry.characterState.id);
+    assertMutableChapterDocument(loaded.index, entry.handoff.id);
     const nextChapter = firstEmptyChapter(loaded.index);
     if (
       entry.bodyStatus === "empty" &&

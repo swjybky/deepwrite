@@ -1,3 +1,5 @@
+import continuityTreeSource from "../utils/longWorkspaceContinuityTree.ts?raw";
+import continuitySelectionSource from "../types/longContinuitySelection.ts?raw";
 import {
   appSource,
   bindingsSource,
@@ -14,7 +16,6 @@ import {
   longWorkspaceDraftTreeSource,
   longWorkspaceModuleSource,
   longWorkspaceRefreshSource,
-  longWorkspaceResourceTreeSource,
   longWorkspaceSessionSource,
   longWorkspaceStoreSource,
   longWorkspaceTypeSource,
@@ -51,12 +52,10 @@ describe("long-form renderer vertical slice: bindings-and-structure", () => {
     expect(longWorkspaceDraftTreeSource).toContain(
       "createLongChapterSelection"
     );
-    expect(longWorkspaceResourceTreeSource).toContain(
-      "createLongContinuitySelection"
-    );
-    expect(longWorkspaceResourceTreeSource).toContain('title: "待处理章节"');
-    expect(longWorkspaceTypeSource).toContain("没有候选时不生成伏笔记录");
-    expect(longWorkspaceTypeSource).toContain('root: "continuity_ledger"');
+    expect(continuityTreeSource).toContain("createLongContinuitySelection");
+    expect(continuityTreeSource).toContain('title: "待处理章节"');
+    expect(continuitySelectionSource).toContain("没有候选时不生成伏笔记录");
+    expect(continuitySelectionSource).toContain('root: "continuity_ledger"');
     expect(longWorkspaceTypeSource).toContain("chapterCardId: chapter.id");
     expect(longWorkspaceTypeSource).toContain("正文仍可继续修改");
     expect(editorSource).not.toContain("回滚最后提交");

@@ -445,7 +445,9 @@ describe("long workspace resource-tree projection", () => {
     expect(pendingChapter?.children?.length).toBeGreaterThan(0);
     expect(
       pendingChapter?.children?.every(
-        (child) => child.readOnly && child.longTreeItem === undefined
+        (child) =>
+          Boolean(child.readOnly) === (child.label === "正文证据") &&
+          child.longTreeItem === undefined
       )
     ).toBe(true);
     expect(pendingChapter?.children?.[0]?.longWorkspaceSelection).toMatchObject(
@@ -472,4 +474,58 @@ describe("long workspace resource-tree projection", () => {
       parentId: "world_geography"
     });
   });
+  it.each(["left-tree", "right-list", "top-tabs"] as const)(
+    "reflects continuity commit deletion and resubmission in %s layout",
+    (layout) => {
+      const index = indexFixture();
+      index.featureSettings.characterAndContinuityItemLayout = layout;
+      const chapter = index.chapters[0]!;
+      const select = (label: string) =>
+        projectLongWorkspaceNavigation(summaryFixture(), index)
+          .find(({ label }) => label === "连续性账本")
+          ?.children?.find((node) => node.label === label)?.children?.[0];
+      const assertPermissions = (label: string, committed: boolean) => {
+        const node = select(label)!;
+        expect(
+          node.longWorkspaceSelection?.files.find(({ role }) => role === "body")
+            ?.readOnly
+        ).toBe(true);
+        expect(
+          node.longWorkspaceSelection?.files
+            .filter(({ role }) => role !== "body")
+            .every(({ readOnly }) => readOnly === committed)
+        ).toBe(true);
+        if (layout === "left-tree") {
+          const handoff = node.children?.find(
+            ({ label }) => label === "接续包"
+          );
+          expect(handoff).toBeDefined();
+          expect(Boolean(handoff?.readOnly)).toBe(committed);
+        }
+      };
+      assertPermissions("待处理章节", false);
+      const commit = {
+        id: "commit_permissions",
+        mode: "text_files" as const,
+        sequence: 1,
+        chapterCardId: chapter.chapterCardId,
+        committedAt: updatedAt,
+        placementIds: [],
+        foreshadowingBeatIds: [],
+        recordFile: file(
+          "file_permissions_record",
+          "long/ledger/commit_permissions.json"
+        )
+      };
+      chapter.commitId = commit.id;
+      index.ledger.commits = [commit];
+      assertPermissions("章节记录", true);
+      chapter.commitId = null;
+      index.ledger.commits = [];
+      assertPermissions("待处理章节", false);
+      chapter.commitId = commit.id;
+      index.ledger.commits = [commit];
+      assertPermissions("章节记录", true);
+    }
+  );
 });

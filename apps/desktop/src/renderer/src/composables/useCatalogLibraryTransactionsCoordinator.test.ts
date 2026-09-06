@@ -124,7 +124,8 @@ function createHarness(options: HarnessOptions = {}) {
     saveLibraryEntry: vi.fn(),
     moveLibraryEntry: vi.fn(),
     removeLibraryEntry: vi.fn(),
-    chooseExternalSkills: vi.fn(),
+    chooseExternalLibraryEntries: vi.fn(),
+    importLibraryEntries: vi.fn(),
     unregisterProject: vi.fn(),
     deleteProject: vi.fn(),
     duplicateProject: vi.fn()
@@ -395,7 +396,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
     });
   });
 
-  it("deduplicates external skills and advances optimistic revisions", async () => {
+  it("scans external skills and imports the selected batch", async () => {
     const library = skillLibrary(
       "skill-a",
       [
@@ -411,18 +412,41 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
       10
     );
     const harness = createHarness({ skills: [library] });
-    harness.apiMocks.chooseExternalSkills.mockResolvedValue({
+    harness.apiMocks.chooseExternalLibraryEntries.mockResolvedValue({
       scanned: 3,
       candidates: [
-        { title: "Existing", content: "old" },
-        { title: "Fresh", content: "new" },
-        { title: "Fresh", content: "duplicate" }
+        {
+          id: "candidate-1",
+          title: "Existing",
+          sourceName: "Existing.md",
+          content: "old"
+        },
+        {
+          id: "candidate-2",
+          title: "Fresh",
+          sourceName: "Fresh.md",
+          content: "new"
+        }
       ],
-      skipped: { invalid: 0 }
+      skipped: {
+        unsupported: 0,
+        unreadable: 0,
+        empty: 0,
+        tooLarge: 0,
+        limitExceeded: 0
+      }
     });
-    harness.apiMocks.createLibraryEntry.mockResolvedValue({
-      id: "fresh-id",
-      title: "Fresh"
+    harness.apiMocks.importLibraryEntries.mockResolvedValue({
+      entries: [
+        {
+          id: "fresh-id",
+          title: "Fresh",
+          body: "new",
+          stageId: "plot_design",
+          createdAt: NOW,
+          updatedAt: NOW
+        }
+      ]
     });
     harness.coordinator.handleResourceNodeAction(
       action(
@@ -432,21 +456,65 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
       )
     );
 
-    await harness.coordinator.importExternalSkills("directory");
+    await harness.coordinator.externalLibraryImport.chooseSource("directory");
+    await harness.coordinator.externalLibraryImport.submit({
+      libraryId: library.id,
+      candidateIds: ["candidate-2"]
+    });
 
-    expect(harness.apiMocks.createLibraryEntry).toHaveBeenCalledTimes(1);
-    expect(harness.apiMocks.createLibraryEntry).toHaveBeenCalledWith({
+    expect(harness.apiMocks.importLibraryEntries).toHaveBeenCalledWith({
       domain: "skill",
       libraryId: library.id,
-      title: "Fresh",
-      content: "new",
-      stageId: "plot_design",
+      entries: [{ title: "Fresh", content: "new" }],
       baseProjectRevision: 10
     });
     expect(harness.notifications.success).toHaveBeenCalledWith(
-      "已导入 1 条技能，跳过 2 条"
+      `已导入 1 条到“${library.title}”`
     );
-    expect(harness.coordinator.externalSkillImportDialog.value).toBeNull();
+    expect(harness.refreshWorkspaceDirectory).toHaveBeenCalledOnce();
+    expect(harness.coordinator.externalLibraryImport.dialog.value).toBeNull();
+  });
+
+  it("keeps the import dialog open and refreshes after a revision conflict", async () => {
+    const library = skillLibrary("skill-a", [], 10);
+    const harness = createHarness({ skills: [library] });
+    harness.apiMocks.chooseExternalLibraryEntries.mockResolvedValue({
+      scanned: 1,
+      candidates: [
+        {
+          id: "candidate-1",
+          title: "Fresh",
+          sourceName: "Fresh.md",
+          content: "new"
+        }
+      ],
+      skipped: {
+        unsupported: 0,
+        unreadable: 0,
+        empty: 0,
+        tooLarge: 0,
+        limitExceeded: 0
+      }
+    });
+    harness.apiMocks.importLibraryEntries.mockRejectedValue(
+      harness.conflictError
+    );
+    harness.coordinator.externalLibraryImport.open("skill", library.id);
+    await harness.coordinator.externalLibraryImport.chooseSource("file");
+
+    await harness.coordinator.externalLibraryImport.submit({
+      libraryId: library.id,
+      candidateIds: ["candidate-1"]
+    });
+
+    expect(harness.refreshWorkspaceDirectory).toHaveBeenCalledOnce();
+    expect(harness.refreshCatalog).toHaveBeenCalledOnce();
+    expect(
+      harness.coordinator.externalLibraryImport.dialog.value
+    ).not.toBeNull();
+    expect(harness.notifications.warning).toHaveBeenCalledWith(
+      "目标资料库已在外部更新，已刷新重名结果；请确认后重试"
+    );
   });
 
   it("refreshes and closes a group dialog after a revision conflict", async () => {

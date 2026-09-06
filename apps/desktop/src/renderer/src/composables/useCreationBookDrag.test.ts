@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ResourceTreeNode } from "../types/workspace";
 import {
   canDragCreationBook,
-  creationBookDropPosition
+  creationBookDropPosition,
+  useCreationBookDrag
 } from "./useCreationBookDrag";
 
 describe("creation book drag", () => {
@@ -38,5 +39,20 @@ describe("creation book drag", () => {
     expect(creationBookDropPosition(119, bounds)).toBe("before");
     expect(creationBookDropPosition(120, bounds)).toBe("after");
     expect(creationBookDropPosition(139, bounds)).toBe("after");
+  });
+
+  it("does not cancel drag starts from skill and material tree entries", () => {
+    for (const domain of ["skill", "material"] as const) {
+      const preventDefault = vi.fn();
+      const drag = useCreationBookDrag(() => domain, vi.fn());
+
+      drag.start({ preventDefault } as unknown as DragEvent, {
+        id: `${domain}-library`,
+        label: `${domain} library`,
+        catalogNodeType: "library"
+      });
+
+      expect(preventDefault).not.toHaveBeenCalled();
+    }
   });
 });

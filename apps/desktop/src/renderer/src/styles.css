@@ -989,6 +989,14 @@ html[data-platform="darwin"] .sidebar-brand-row {
   color: var(--text-primary);
 }
 
+.tree-row[draggable="true"] {
+  cursor: grab;
+}
+
+.tree-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .tree-node:is(.is-creation-book-drop-before, .is-creation-book-drop-after)
   > .tree-row {
   position: relative;

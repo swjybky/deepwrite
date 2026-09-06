@@ -45,7 +45,8 @@ import {
   DuplicateCatalogProjectResultSchema,
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptResultSchema,
-  ExternalSkillSelectionResultSchema,
+  ExternalLibrarySelectionResultSchema,
+  ImportLibraryEntriesResultSchema,
   GeneralSettingsSnapshotSchema,
   IPC_COMMAND_CHANNEL,
   IPC_EVENT_CHANNEL,
@@ -170,7 +171,7 @@ import {
 } from "../extras/cloud-backup";
 import { ContinuationImportPreviewRegistry } from "./continuation-import-preview-registry";
 import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
-import { readExternalSkills } from "./external-skill-import";
+import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
 import { resolveDeepWriteAppMode } from "./app-run-mode";
 import { handleModelCommands } from "./ipc/model-commands";
@@ -2176,29 +2177,53 @@ function registerIpc(): void {
         }
       }
 
-      if (command.type === "catalog.chooseExternalSkills") {
+      if (command.type === "catalog.chooseExternalLibraryEntries") {
         try {
           const selection =
             command.payload.sourceKind === "directory"
               ? mainWindow
                 ? await dialog.showOpenDialog(mainWindow, {
-                    title: "选择 skills 文件夹",
+                    title: "选择包含技能或素材的文件夹",
                     properties: ["openDirectory"]
                   })
                 : await dialog.showOpenDialog({
-                    title: "选择 skills 文件夹",
+                    title: "选择包含技能或素材的文件夹",
                     properties: ["openDirectory"]
                   })
               : mainWindow
                 ? await dialog.showOpenDialog(mainWindow, {
-                    title: "选择 SKILL.md",
-                    properties: ["openFile"],
-                    filters: [{ name: "SKILL.md", extensions: ["md"] }]
+                    title: "选择技能或素材文件",
+                    properties: ["openFile", "multiSelections"],
+                    filters: [
+                      {
+                        name: "文本与文档",
+                        extensions: [
+                          "txt",
+                          "md",
+                          "markdown",
+                          "doc",
+                          "docx",
+                          "pdf"
+                        ]
+                      }
+                    ]
                   })
                 : await dialog.showOpenDialog({
-                    title: "选择 SKILL.md",
-                    properties: ["openFile"],
-                    filters: [{ name: "SKILL.md", extensions: ["md"] }]
+                    title: "选择技能或素材文件",
+                    properties: ["openFile", "multiSelections"],
+                    filters: [
+                      {
+                        name: "文本与文档",
+                        extensions: [
+                          "txt",
+                          "md",
+                          "markdown",
+                          "doc",
+                          "docx",
+                          "pdf"
+                        ]
+                      }
+                    ]
                   });
           if (selection.canceled || selection.filePaths.length === 0) {
             return {
@@ -2210,10 +2235,10 @@ function registerIpc(): void {
           return {
             status: "accepted",
             requestId: command.id,
-            payload: ExternalSkillSelectionResultSchema.parse(
-              await readExternalSkills(
+            payload: ExternalLibrarySelectionResultSchema.parse(
+              await readExternalLibraryEntries(
                 command.payload.sourceKind,
-                selection.filePaths[0]!
+                selection.filePaths
               )
             )
           };
@@ -2222,9 +2247,9 @@ function registerIpc(): void {
             status: "rejected",
             requestId: command.id,
             error: {
-              code: "catalog.choose_external_skills_failed",
+              code: "catalog.choose_external_library_entries_failed",
               message:
-                error instanceof Error ? error.message : "读取外部技能失败。",
+                error instanceof Error ? error.message : "读取外部资料失败。",
               details: safeErrorDetails(error)
             }
           };
@@ -2292,6 +2317,7 @@ function registerIpc(): void {
         command.type === "catalog.moveDraftSection" ||
         command.type === "catalog.saveLibraryEntry" ||
         command.type === "catalog.createLibraryEntry" ||
+        command.type === "catalog.importLibraryEntries" ||
         command.type === "catalog.removeLibraryEntry" ||
         command.type === "catalog.moveLibraryEntry" ||
         command.type === "catalog.unregisterProject" ||
@@ -2353,6 +2379,9 @@ function registerIpc(): void {
             case "catalog.saveLibraryEntry":
             case "catalog.createLibraryEntry":
               payload = CatalogLibraryEntrySchema.parse(result.payload);
+              break;
+            case "catalog.importLibraryEntries":
+              payload = ImportLibraryEntriesResultSchema.parse(result.payload);
               break;
             case "catalog.removeLibraryEntry":
               payload = RemoveLibraryEntryResultSchema.parse(result.payload);

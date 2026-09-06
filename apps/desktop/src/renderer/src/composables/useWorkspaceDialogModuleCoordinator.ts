@@ -12,12 +12,12 @@ import type {
 import type { ResourceTreeNode } from "../types/workspace";
 import type { LongWorldbuildingSyncBookOption } from "../utils/longWorldbuildingSync";
 import type {
-  ExternalSkillImportDialogState,
   LibraryGroupDialogState,
   LibraryProjectDialogState,
   LibraryRemovalDialogState,
   PendingLibraryEntryMove
 } from "./useCatalogLibraryTransactionsCoordinator";
+import type { ExternalLibraryImportDialogState } from "./useExternalLibraryImportCoordinator";
 import type { SaveConflictState } from "./useCatalogDocumentPersistence";
 import type { ShortBookLifecycleTarget } from "./useShortBookLifecycleCoordinator";
 import type {
@@ -67,7 +67,7 @@ export const WORKSPACE_DIALOG_PRIORITY = [
   "export-long",
   "library-removal",
   "library-project",
-  "external-skill-import",
+  "external-library-import",
   "library-entry-move",
   "library-group",
   "create-book",
@@ -142,8 +142,8 @@ export interface WorkspaceDialogShortLifecycleState {
 export interface WorkspaceDialogLibraryState {
   removalDialog: Readonly<Ref<LibraryRemovalDialogState | null>>;
   projectDialog: Readonly<Ref<LibraryProjectDialogState | null>>;
-  externalSkillImportDialog: Readonly<
-    Ref<ExternalSkillImportDialogState | null>
+  externalLibraryImportDialog: Readonly<
+    Ref<ExternalLibraryImportDialogState | null>
   >;
   entryMove: Readonly<Ref<PendingLibraryEntryMove | null>>;
   groupDialog: Readonly<Ref<LibraryGroupDialogState | null>>;
@@ -453,11 +453,26 @@ export function useWorkspaceDialogModuleCoordinator(
       };
     }
 
-    const externalSkillImport = options.library.externalSkillImportDialog.value;
-    if (externalSkillImport) {
+    const externalLibraryImport =
+      options.library.externalLibraryImportDialog.value;
+    if (externalLibraryImport) {
+      const snapshot = options.catalog.snapshot.value;
+      const libraries =
+        externalLibraryImport.domain === "skill"
+          ? (snapshot?.skills ?? []).filter((library) => !library.isBuiltin)
+          : (snapshot?.materials ?? []);
       return {
-        kind: "external-skill-import",
-        libraryTitle: externalSkillImport.libraryTitle,
+        kind: "external-library-import",
+        domain: externalLibraryImport.domain,
+        libraries,
+        ...(externalLibraryImport.preselectedLibraryId
+          ? {
+              preselectedLibraryId: externalLibraryImport.preselectedLibraryId
+            }
+          : {}),
+        ...(externalLibraryImport.selection
+          ? { selection: externalLibraryImport.selection }
+          : {}),
         pending: options.catalog.mutationPending.value
       };
     }

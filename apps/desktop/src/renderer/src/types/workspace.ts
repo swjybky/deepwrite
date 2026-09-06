@@ -72,7 +72,8 @@ export type ResourceSectionAction =
   | "refresh-long-books"
   | "import-portable-long-book"
   | "import-continuation-long-book"
-  | "import-legacy-library";
+  | "import-legacy-library"
+  | "import-external-library";
 
 export interface ResourceSectionActionPayload {
   domain: ResourceDomain;

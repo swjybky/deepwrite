@@ -185,7 +185,7 @@ describe("LongProjectStore: commit recovery and direct writes", () => {
     ).not.toMatch(/"(?:revision|[^"]*Revision|[^"]*Revisions)"\s*:/u);
   });
 
-  it("recovers an interrupted chapter commit atomically and leaves committed files editable", async () => {
+  it("recovers an interrupted chapter commit atomically and keeps body editable and continuity protected", async () => {
     const { projectStore, created } = await createFixture("commit-recovery");
     const chapter = created.book.workspaceIndex.chapters[0]!;
     await projectStore.writeChapter(created.projectDirectory, {
@@ -246,10 +246,12 @@ describe("LongProjectStore: commit recovery and direct writes", () => {
       fileId: chapter.body.id,
       content: "提交后直接精修正文。"
     });
-    await projectStore.writeDocument(created.projectDirectory, {
-      fileId: chapter.characterState.id,
-      content: "提交后直接精修章末状态。"
-    });
+    await expect(
+      projectStore.writeDocument(created.projectDirectory, {
+        fileId: chapter.characterState.id,
+        content: "提交后直接精修章末状态。"
+      })
+    ).rejects.toThrow("已提交的连续性文件为只读");
     const edited = await projectStore.openBook(created.projectDirectory);
     expect(edited.book.workspaceIndex.chapters[0]!.commitId).toBe(commitId);
     await expect(

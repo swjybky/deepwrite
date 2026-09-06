@@ -176,6 +176,46 @@ describe("layout store", () => {
     );
   });
 
+  it.each(["pointerup", "pointercancel", "lostpointercapture", "dispose"])(
+    "captures the separator while dragging across chat controls and releases on %s",
+    (completion) => {
+      const runtime = installRuntime(1400);
+      const store = useLayoutStore();
+      store.desktopShell = shell(1400, 0);
+      const target = new EventTarget();
+      const setPointerCapture = vi.fn();
+      const releasePointerCapture = vi.fn();
+      Object.assign(target, {
+        setPointerCapture,
+        hasPointerCapture: () => true,
+        releasePointerCapture
+      });
+
+      store.startPaneResize("right", {
+        currentTarget: target,
+        pointerId: 7,
+        preventDefault: vi.fn()
+      } as unknown as PointerEvent);
+      expect(setPointerCapture).toHaveBeenCalledWith(7);
+      store.handleResizeMove({ clientX: 800 } as PointerEvent);
+      expect(store.rightPaneWidth).toBe(600);
+      expect(releasePointerCapture).not.toHaveBeenCalled();
+
+      if (completion === "dispose") store.$dispose();
+      else if (completion === "lostpointercapture") {
+        target.dispatchEvent(new Event(completion));
+      } else {
+        runtime.addEventListener.mock.calls.find(
+          ([type]) => type === completion
+        )?.[1]();
+      }
+      expect(store.resizingPane).toBeNull();
+      expect(releasePointerCapture).toHaveBeenCalledExactlyOnceWith(7);
+      store.stopPaneResize();
+      expect(releasePointerCapture).toHaveBeenCalledOnce();
+    }
+  );
+
   it("persists keyboard-resized right-pane widths by workspace key", () => {
     const runtime = installRuntime(1400);
     const store = useLayoutStore();

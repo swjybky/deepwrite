@@ -51,6 +51,7 @@ import { useTextViewMode } from "../composables/useTextViewMode";
 import AppIcon from "./AppIcon.vue";
 import DocumentMetaRow from "./DocumentMetaRow.vue";
 import EditorEntrySearchRow from "./EditorEntrySearchRow.vue";
+import EditorSearchHighlight from "./EditorSearchHighlight.vue";
 import EditorSelectionMenu from "./EditorSelectionMenu.vue";
 import MarkdownContent from "./MarkdownContent.vue";
 
@@ -1120,20 +1121,27 @@ onBeforeUnmount(() => {
         @input="markDirty"
       />
 
-      <textarea
+      <EditorSearchHighlight
         v-if="viewMode === 'edit'"
-        ref="editorInput"
-        :value="content"
-        class="document-editor transient-scrollbar"
-        :readonly="document.readOnly || locked"
-        aria-label="文本内容编辑器"
-        spellcheck="false"
-        @beforeinput="handleEditorBeforeInput"
-        @input="handleEditorInput"
-        @keydown="handleEditorKeydown"
-        @contextmenu="handleEditorContextMenu"
-        @scroll="handleDocumentScroll"
-      />
+        :content="content"
+        :matches="searchMatches"
+        :active-index="currentMatchIndex"
+        :visible="findPanelOpen"
+      >
+        <textarea
+          ref="editorInput"
+          :value="content"
+          class="document-editor transient-scrollbar"
+          :readonly="document.readOnly || locked"
+          aria-label="文本内容编辑器"
+          spellcheck="false"
+          @beforeinput="handleEditorBeforeInput"
+          @input="handleEditorInput"
+          @keydown="handleEditorKeydown"
+          @contextmenu="handleEditorContextMenu"
+          @scroll="handleDocumentScroll"
+        />
+      </EditorSearchHighlight>
       <article
         v-else
         ref="documentPreview"

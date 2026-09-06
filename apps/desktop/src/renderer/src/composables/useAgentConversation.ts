@@ -1,3 +1,7 @@
+import {
+  expireIdleConversation,
+  type IdleTimeoutScope
+} from "./agent-conversation/idle-timeout";
 import { computed, ref, shallowRef, toRaw, watch, type Ref } from "vue";
 import type {
   AgentRuntimeRef,
@@ -2114,50 +2118,31 @@ export function useAgentConversation(
     }
   }
 
-  function scheduleIdleTimeout(scope: {
-    expectedEpoch: number;
-    expectedSessionId: string;
-    attemptId?: number;
-    runId?: string;
-  }): void {
+  function scheduleIdleTimeout(scope: IdleTimeoutScope): void {
     clearIdleTimer();
     idleTimer = globalThis.setTimeout(
       () => {
-        if (
-          epoch !== scope.expectedEpoch ||
-          sessionId.value !== scope.expectedSessionId
-        ) {
-          return;
-        }
-        const ownsRun =
-          scope.runId !== undefined && activeRunId.value === scope.runId;
-        const ownsAttempt =
-          scope.attemptId !== undefined &&
-          pendingAttemptId.value === scope.attemptId;
-        if (!ownsRun && !ownsAttempt) {
-          return;
-        }
-
-        const messageText = "智能体长时间没有返回新事件，请稍后重试。";
-        if (scope.runId) {
-          markRunError(scope.runId, messageText, runtime.value ?? undefined);
-          invalidateAttemptForRun(scope.runId);
-          if (activeRunId.value === scope.runId) {
-            activeRunId.value = null;
-          }
-        }
-        if (
-          scope.attemptId !== undefined &&
-          pendingAttemptId.value === scope.attemptId
-        ) {
-          pendingAttemptId.value = null;
-          observedRunByAttempt.delete(scope.attemptId);
-          approvalModeByAttempt.delete(scope.attemptId);
-        }
-        submitting.value = false;
-        stopping.value = false;
-        conversationError.value = messageText;
         idleTimer = undefined;
+        expireIdleConversation(
+          {
+            epoch,
+            sessionId,
+            activeRunId,
+            pendingAttemptId,
+            messages,
+            runtime,
+            observedRunByAttempt,
+            approvalModeByAttempt,
+            submitting,
+            stopping,
+            conversationError
+          },
+          scope,
+          (runId, message, eventRuntime) => {
+            markRunError(runId, message, eventRuntime);
+            invalidateAttemptForRun(runId);
+          }
+        );
       },
       options.idleTimeoutMs ?? 5 * 60_000
     );

@@ -124,7 +124,6 @@ import { useConversationStore } from "./stores/conversationStore";
 import { useLongWorkspaceStore } from "./stores/longWorkspaceStore";
 
 useAppearance();
-
 const layoutStore = useLayoutStore();
 const {
   currentView,
@@ -381,7 +380,7 @@ const {
 } = storeToRefs(longWorkspaceStore);
 const {
   libraryProjectDialog,
-  externalSkillImportDialog,
+  externalLibraryImport,
   libraryGroupDialog,
   libraryRemovalDialog,
   libraryEntryClipboardDomain,
@@ -395,7 +394,6 @@ const {
   removeCatalogLibraryEntry,
   requestCatalogLibraryEntryMove,
   confirmCatalogLibraryEntryMove,
-  importExternalSkills,
   confirmLibraryRemoval,
   handleResourceNodeAction
 } = useCatalogLibraryTransactionsCoordinator({
@@ -1306,10 +1304,6 @@ const materialLibraries = computed<ResourceTreeNode[]>(() => {
       ?.nodes ?? []
   );
 });
-
-// A single descriptor decides which dialog subtree exists. Parent dialogs may
-// keep state while a child confirmation is active, but only the highest
-// priority descriptor reaches the lazy dialog layer.
 const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
   startup: {
     messages: startupAlertMessages
@@ -1368,7 +1362,7 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
   library: {
     removalDialog: libraryRemovalDialog,
     projectDialog: libraryProjectDialog,
-    externalSkillImportDialog,
+    externalLibraryImportDialog: externalLibraryImport.dialog,
     entryMove: pendingLibraryEntryMove,
     groupDialog: libraryGroupDialog,
     activeGroup: activeLibraryGroup
@@ -1912,6 +1906,12 @@ async function handleResourceAction(
     } finally {
       catalogMutationPending.value = false;
     }
+    return;
+  }
+
+  if (payload.action === "import-external-library") {
+    if (payload.domain !== "creation")
+      externalLibraryImport.open(payload.domain);
     return;
   }
 
@@ -2780,8 +2780,9 @@ onBeforeUnmount(() => {
     @rename-library="renameCatalogLibrary"
     @rename-library-entry="renameCatalogLibraryEntry"
     @remove-library-entry="removeCatalogLibraryEntry"
-    @close-external-skill-import="externalSkillImportDialog = null"
-    @choose-external-skill-import="importExternalSkills"
+    @close-external-library-import="externalLibraryImport.close"
+    @choose-external-library-import="externalLibraryImport.chooseSource"
+    @submit-external-library-import="externalLibraryImport.submit"
     @close-library-entry-move="pendingLibraryEntryMove = null"
     @submit-library-entry-move="confirmCatalogLibraryEntryMove"
     @close-library-group="libraryGroupDialog = null"

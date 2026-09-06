@@ -35,6 +35,7 @@ import {
 } from "../types/longWorkspace";
 import AppIcon from "./AppIcon.vue";
 import DocumentMetaRow from "./DocumentMetaRow.vue";
+import EditorSearchHighlight from "./EditorSearchHighlight.vue";
 import EditorSelectionMenu from "./EditorSelectionMenu.vue";
 import LongCharacterNavigation from "./LongCharacterNavigation.vue";
 import LongContinuityLedgerNavigation from "./LongContinuityLedgerNavigation.vue";
@@ -1192,6 +1193,8 @@ const {
   findPanelMode,
   searchQuery,
   replacementText,
+  currentMatchIndex,
+  searchMatches,
   searchResultLabel,
   closeFindPanel,
   toggleFindPanel,
@@ -2150,20 +2153,27 @@ onBeforeUnmount(() => {
                     />
                   </div>
                 </div>
-                <textarea
+                <EditorSearchHighlight
                   v-if="viewMode === 'edit'"
-                  ref="editorInput"
-                  :value="currentVisibleContent"
-                  class="long-document-editor long-story-plot-editor"
-                  :readonly="currentReadOnly || isDocumentContentBusy"
-                  :aria-label="`${currentStoryPlot.title}正文`"
-                  spellcheck="false"
-                  @beforeinput="handleEditorBeforeInput"
-                  @input="handleEditorInput"
-                  @keydown="handleEditorKeydown"
-                  @contextmenu="handleEditorContextMenu"
-                  @scroll="handleEditorScroll"
-                />
+                  :content="currentVisibleContent"
+                  :matches="searchMatches"
+                  :active-index="currentMatchIndex"
+                  :visible="findPanelOpen"
+                >
+                  <textarea
+                    ref="editorInput"
+                    :value="currentVisibleContent"
+                    class="long-document-editor long-story-plot-editor"
+                    :readonly="currentReadOnly || isDocumentContentBusy"
+                    :aria-label="`${currentStoryPlot.title}正文`"
+                    spellcheck="false"
+                    @beforeinput="handleEditorBeforeInput"
+                    @input="handleEditorInput"
+                    @keydown="handleEditorKeydown"
+                    @contextmenu="handleEditorContextMenu"
+                    @scroll="handleEditorScroll"
+                  />
+                </EditorSearchHighlight>
                 <article
                   v-else
                   ref="documentPreview"
@@ -2225,6 +2235,9 @@ onBeforeUnmount(() => {
           :view-mode="viewMode"
           :read-only="currentReadOnly"
           :busy="isDocumentContentBusy"
+          :search-matches="searchMatches"
+          :active-search-index="currentMatchIndex"
+          :search-highlight-visible="findPanelOpen"
           :committed-notice="
             currentIsCommittedEditableDocument
               ? currentCommittedEditNotice
@@ -2366,28 +2379,35 @@ onBeforeUnmount(() => {
             <h1 v-else class="long-document-title">
               {{ currentDocumentTitle }}
             </h1>
-            <textarea
+            <EditorSearchHighlight
               v-if="viewMode === 'edit'"
-              ref="editorInput"
-              :value="currentVisibleContent"
-              class="long-document-editor"
-              :readonly="currentReadOnly || isDocumentContentBusy"
-              :aria-label="`${currentDocumentTitle}${currentDocumentFormat || '内容'}`"
-              :maxlength="
-                currentIsStructuredText
-                  ? 200000
-                  : currentIsWorldbuildingList &&
-                      !currentWorldbuildingListState.error
-                    ? 1000000
-                    : undefined
-              "
-              spellcheck="false"
-              @beforeinput="handleEditorBeforeInput"
-              @input="handleEditorInput"
-              @keydown="handleEditorKeydown"
-              @contextmenu="handleEditorContextMenu"
-              @scroll="handleEditorScroll"
-            />
+              :content="currentVisibleContent"
+              :matches="searchMatches"
+              :active-index="currentMatchIndex"
+              :visible="findPanelOpen"
+            >
+              <textarea
+                ref="editorInput"
+                :value="currentVisibleContent"
+                class="long-document-editor"
+                :readonly="currentReadOnly || isDocumentContentBusy"
+                :aria-label="`${currentDocumentTitle}${currentDocumentFormat || '内容'}`"
+                :maxlength="
+                  currentIsStructuredText
+                    ? 200000
+                    : currentIsWorldbuildingList &&
+                        !currentWorldbuildingListState.error
+                      ? 1000000
+                      : undefined
+                "
+                spellcheck="false"
+                @beforeinput="handleEditorBeforeInput"
+                @input="handleEditorInput"
+                @keydown="handleEditorKeydown"
+                @contextmenu="handleEditorContextMenu"
+                @scroll="handleEditorScroll"
+              />
+            </EditorSearchHighlight>
             <article
               v-else
               ref="documentPreview"

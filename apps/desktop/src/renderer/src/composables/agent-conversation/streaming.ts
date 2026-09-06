@@ -1,3 +1,4 @@
+import { expireIdleConversation, type IdleTimeoutScope } from "./idle-timeout";
 import type { AgentConversationContext } from "./context";
 import {
   invalidateAttemptForRun,
@@ -19,56 +20,16 @@ export function clearIdleTimer(ctx: AgentConversationContext): void {
 
 export function scheduleIdleTimeout(
   ctx: AgentConversationContext,
-  scope: {
-    expectedEpoch: number;
-    expectedSessionId: string;
-    attemptId?: number;
-    runId?: string;
-  }
+  scope: IdleTimeoutScope
 ): void {
   clearIdleTimer(ctx);
   ctx.idleTimer = globalThis.setTimeout(
     () => {
-      if (
-        ctx.epoch !== scope.expectedEpoch ||
-        ctx.sessionId.value !== scope.expectedSessionId
-      ) {
-        return;
-      }
-      const ownsRun =
-        scope.runId !== undefined && ctx.activeRunId.value === scope.runId;
-      const ownsAttempt =
-        scope.attemptId !== undefined &&
-        ctx.pendingAttemptId.value === scope.attemptId;
-      if (!ownsRun && !ownsAttempt) {
-        return;
-      }
-
-      const messageText = "智能体长时间没有返回新事件，请稍后重试。";
-      if (scope.runId) {
-        markRunError(
-          ctx,
-          scope.runId,
-          messageText,
-          ctx.runtime.value ?? undefined
-        );
-        invalidateAttemptForRun(ctx, scope.runId);
-        if (ctx.activeRunId.value === scope.runId) {
-          ctx.activeRunId.value = null;
-        }
-      }
-      if (
-        scope.attemptId !== undefined &&
-        ctx.pendingAttemptId.value === scope.attemptId
-      ) {
-        ctx.pendingAttemptId.value = null;
-        ctx.observedRunByAttempt.delete(scope.attemptId);
-        ctx.approvalModeByAttempt.delete(scope.attemptId);
-      }
-      ctx.submitting.value = false;
-      ctx.stopping.value = false;
-      ctx.conversationError.value = messageText;
       ctx.idleTimer = undefined;
+      expireIdleConversation(ctx, scope, (runId, message, runtime) => {
+        markRunError(ctx, runId, message, runtime);
+        invalidateAttemptForRun(ctx, runId);
+      });
     },
     ctx.options.idleTimeoutMs ?? 5 * 60_000
   );

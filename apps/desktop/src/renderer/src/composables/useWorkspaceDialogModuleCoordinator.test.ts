@@ -156,9 +156,9 @@ function createHarness() {
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["library"]["projectDialog"]["value"]
     >(null);
-  const externalSkillImportDialog =
+  const externalLibraryImportDialog =
     shallowRef<
-      WorkspaceDialogModuleCoordinatorOptions["library"]["externalSkillImportDialog"]["value"]
+      WorkspaceDialogModuleCoordinatorOptions["library"]["externalLibraryImportDialog"]["value"]
     >(null);
   const entryMove =
     shallowRef<
@@ -235,7 +235,7 @@ function createHarness() {
     library: {
       removalDialog,
       projectDialog,
-      externalSkillImportDialog,
+      externalLibraryImportDialog,
       entryMove,
       groupDialog,
       activeGroup
@@ -292,7 +292,7 @@ function createHarness() {
       activeBookTarget,
       removalDialog,
       projectDialog,
-      externalSkillImportDialog,
+      externalLibraryImportDialog,
       entryMove,
       groupDialog,
       activeGroup,
@@ -504,9 +504,9 @@ function setKindActive(
         ? { operation: "create-library", domain: "material" }
         : null;
       return;
-    case "external-skill-import":
-      state.externalSkillImportDialog.value = active
-        ? { libraryId: "skill-1", libraryTitle: "技能库" }
+    case "external-library-import":
+      state.externalLibraryImportDialog.value = active
+        ? { domain: "skill", preselectedLibraryId: "skill-1" }
         : null;
       return;
     case "library-entry-move":

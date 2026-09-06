@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import type {
-  CloudBackupChange,
-  CloudBackupPreview
-} from "@deepwrite/contracts";
+import type { CloudBackupPreview } from "@deepwrite/contracts";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { uiMessage } from "../../ui-feedback";
+import CloudBackupPreviewDialog from "./CloudBackupPreviewDialog.vue";
 
 const props = defineProps<{
   active: boolean;
@@ -24,22 +22,6 @@ const remoteKey = ref("");
 const preview = ref<CloudBackupPreview | null>(null);
 const copied = ref(false);
 
-const KIND_LABELS: Record<CloudBackupChange["kind"], string> = {
-  book: "创作空间",
-  "long-book": "长篇创作空间",
-  "material-library": "素材库",
-  "material-group": "素材分组",
-  "skill-library": "技能库",
-  "skill-group": "技能分组"
-};
-
-const CHANGE_LABELS: Record<CloudBackupChange["change"], string> = {
-  add: "将新增",
-  overwrite: "将覆盖",
-  keep: "不会改动",
-  drop: "云端将移除"
-};
-
 const apiAvailable = computed(() => Boolean(window.deepwrite?.cloudBackup));
 
 const usedPercent = computed(() => {
@@ -49,25 +31,6 @@ const usedPercent = computed(() => {
     Math.round((status.value.usedBytes / status.value.quotaBytes) * 100)
   );
 });
-
-const previewGroups = computed(() => {
-  if (!preview.value) return [];
-  return (["add", "overwrite", "keep", "drop"] as const)
-    .map((change) => ({
-      change,
-      label: CHANGE_LABELS[change],
-      items: preview.value!.changes.filter((item) => item.change === change)
-    }))
-    .filter((group) => group.items.length > 0);
-});
-
-const confirmIsDangerous = computed(() =>
-  Boolean(
-    preview.value?.changes.some(
-      (change) => change.change === "overwrite" || change.change === "drop"
-    )
-  )
-);
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -280,93 +243,13 @@ watch(
       </section>
     </template>
 
-    <Teleport to="body">
-      <div
-        v-if="preview"
-        class="backup-modal-backdrop"
-        @mousedown.self="!pending && (preview = null)"
-      >
-        <section
-          class="backup-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="确认同步内容"
-        >
-          <header>
-            <div>
-              <span>{{
-                preview.direction === "upload" ? "备份预览" : "同步预览"
-              }}</span>
-              <h2>
-                {{
-                  preview.direction === "upload"
-                    ? "确认上传到云端"
-                    : "确认写入本机"
-                }}
-              </h2>
-            </div>
-            <button
-              type="button"
-              aria-label="关闭"
-              :disabled="pending"
-              @click="preview = null"
-            >
-              ×
-            </button>
-          </header>
-          <p class="modal-summary">
-            密钥 {{ preview.machineKey }} ·
-            {{ formatBytes(preview.totalBytes) }} /
-            {{ formatBytes(preview.quotaBytes) }}
-          </p>
-          <div class="modal-scroll">
-            <section
-              v-for="group in previewGroups"
-              :key="group.change"
-              class="change-group"
-            >
-              <h3>{{ group.label }}（{{ group.items.length }}）</h3>
-              <ul>
-                <li
-                  v-for="item in group.items"
-                  :key="`${item.kind}:${item.id}`"
-                >
-                  <strong>{{ item.title }}</strong>
-                  <small
-                    >{{ KIND_LABELS[item.kind] }} ·
-                    {{ formatBytes(item.sizeBytes) }}</small
-                  >
-                </li>
-              </ul>
-            </section>
-          </div>
-          <footer>
-            <button
-              class="secondary-button"
-              type="button"
-              :disabled="pending"
-              @click="preview = null"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              :class="confirmIsDangerous ? 'danger-button' : 'primary-button'"
-              :disabled="pending"
-              @click="confirmPreview"
-            >
-              {{
-                pending
-                  ? "正在同步…"
-                  : preview.direction === "upload"
-                    ? "确认备份"
-                    : "确认同步"
-              }}
-            </button>
-          </footer>
-        </section>
-      </div>
-    </Teleport>
+    <CloudBackupPreviewDialog
+      v-if="preview"
+      :preview="preview"
+      :pending="pending"
+      @close="preview = null"
+      @confirm="confirmPreview"
+    />
   </section>
 </template>
 
@@ -509,88 +392,6 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-.backup-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--text-primary) 28%, transparent);
-}
-.backup-modal {
-  width: min(640px, 100%);
-  max-height: min(80vh, 760px);
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  overflow: hidden;
-  border: 1px solid var(--theme-line);
-  border-radius: 16px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
-}
-.backup-modal header,
-.backup-modal footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 18px;
-}
-.backup-modal header {
-  border-bottom: 1px solid var(--theme-line-soft);
-}
-.backup-modal header h2,
-.backup-modal header span {
-  margin: 0;
-}
-.backup-modal header span,
-.modal-summary,
-.change-group small {
-  color: var(--text-tertiary);
-  font-size: 12px;
-}
-.backup-modal header button {
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 22px;
-  cursor: pointer;
-}
-.modal-summary {
-  margin: 0;
-  padding: 0 18px 8px;
-}
-.modal-scroll {
-  overflow: auto;
-  padding: 0 18px 12px;
-}
-.change-group + .change-group {
-  margin-top: 14px;
-}
-.change-group h3 {
-  margin: 0 0 8px;
-  font-size: 13px;
-}
-.change-group ul {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.change-group li {
-  display: grid;
-  gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 10px;
-  background: var(--surface-main);
-}
-.backup-modal footer {
-  border-top: 1px solid var(--theme-line-soft);
 }
 @media (max-width: 820px) {
   .backup-page {

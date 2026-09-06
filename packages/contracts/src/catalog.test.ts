@@ -715,6 +715,21 @@ describe("catalog contracts", () => {
         { id: "catalog-create-library-entry" }
       ),
       createEnvelope(
+        "catalog.chooseExternalLibraryEntries",
+        { sourceKind: "directory" as const },
+        { id: "catalog-choose-external-library-entries" }
+      ),
+      createEnvelope(
+        "catalog.importLibraryEntries",
+        {
+          domain: "skill" as const,
+          libraryId: "skill-1",
+          baseProjectRevision: 2,
+          entries: [{ title: "节奏检查", content: "检查正文节奏。" }]
+        },
+        { id: "catalog-import-library-entries" }
+      ),
+      createEnvelope(
         "catalog.updateLibrary",
         {
           domain: "material" as const,
@@ -777,6 +792,8 @@ describe("catalog contracts", () => {
       "catalog.deleteDraftSection",
       "catalog.saveLibraryEntry",
       "catalog.createLibraryEntry",
+      "catalog.chooseExternalLibraryEntries",
+      "catalog.importLibraryEntries",
       "catalog.updateLibrary",
       "catalog.moveLibraryEntry",
       "catalog.removeLibraryEntry",

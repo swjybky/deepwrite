@@ -89,6 +89,7 @@ import type {
   AgentUserInputRequester,
   PiRuntimeAdapterOptions
 } from "./runtime-types";
+import { RunLifecycle } from "./run-lifecycle";
 import { AgentUserInputBroker } from "./user-input-broker";
 import {
   buildScriptWorkspaceTools,
@@ -311,6 +312,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     const portableToolSchemaProfile = resolvePortableToolSchemaProfile(
       input.workspaceContext
     );
+    const lifecycle = new RunLifecycle();
     let userInputRequestSequence = 0;
     const requestUserInput: AgentUserInputRequester = async (
       request,
@@ -327,10 +329,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         signal
       );
       userInputWaiting += 1;
-      if (idleTimeout) {
-        clearTimeout(idleTimeout);
-        idleTimeout = undefined;
-      }
+      lifecycle.clearIdleTimer();
       emit({
         type: "agent.user_input_requested",
         runId: input.runId,
@@ -705,7 +704,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
     let idleModelRequestTimedOut = false;
     let currentTurnAttempt = 0;
     let currentTurnMaxAttempts = 1;
-    let idleTimeout: NodeJS.Timeout | undefined;
     let scheduleIdleTimeout = (): void => {};
     const retryWaitController = new AbortController();
     const pendingToolDeltas = new Map<
@@ -713,10 +711,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       Extract<AgentRuntimeEvent, { type: "agent.tool_stream" }>
     >();
     const streamedToolArguments = new Map<string, string>();
-    const activeSubagents = new Map<
-      string,
-      Extract<AgentRuntimeEvent, { type: "subagent.started" }>["payload"]
-    >();
     let toolDeltaTimer: NodeJS.Timeout | undefined;
 
     const emit = (event: AgentRuntimeEvent): void => {
@@ -725,42 +719,10 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       if (terminalEmitted && event.type !== "agent.evaluation_snapshot") {
         return;
       }
-      if (event.type === "subagent.started") {
-        activeSubagents.set(event.payload.subagentRunId, event.payload);
-      } else if (event.type === "subagent.completed") {
-        activeSubagents.delete(event.payload.subagentRunId);
+      for (const childTerminal of lifecycle.observe(event)) {
+        queue.push(childTerminal);
       }
-      if (terminal) {
-        const aborted =
-          event.type === "agent.error" &&
-          event.payload.code === "pi_agent.aborted";
-        for (const active of activeSubagents.values()) {
-          const summary = aborted
-            ? "父智能体运行已中止，子智能体同步停止。"
-            : "父智能体运行已结束，子智能体未返回完整终态。";
-          queue.push({
-            type: "subagent.completed",
-            runId: input.runId,
-            sessionId: input.sessionId,
-            payload: {
-              parentToolCallId: active.parentToolCallId,
-              subagentRunId: active.subagentRunId,
-              subagentId: active.subagentId,
-              name: active.name,
-              status: aborted ? "aborted" : "error",
-              summary,
-              errorMessage: summary,
-              runtime: active.runtime
-            }
-          });
-        }
-        activeSubagents.clear();
-        terminalEmitted = true;
-        if (idleTimeout) {
-          clearTimeout(idleTimeout);
-          idleTimeout = undefined;
-        }
-      }
+      if (terminal) terminalEmitted = true;
       queue.push(event);
       if (!terminal && !terminalEmitted) {
         scheduleIdleTimeout();
@@ -839,17 +801,14 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         return;
       }
       settled = true;
-      if (idleTimeout) {
-        clearTimeout(idleTimeout);
-        idleTimeout = undefined;
-      }
+      lifecycle.clearIdleTimer();
       if (toolDeltaTimer) {
         clearTimeout(toolDeltaTimer);
         toolDeltaTimer = undefined;
       }
       pendingToolDeltas.clear();
       streamedToolArguments.clear();
-      activeSubagents.clear();
+      lifecycle.dispose();
       this.userInputBroker.cancelRun(input.runId);
       retryWaitController.abort();
       if (abortListener && input.signal) {
@@ -890,11 +849,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       ) {
         return;
       }
-      if (idleTimeout) {
-        clearTimeout(idleTimeout);
-      }
-      idleTimeout = setTimeout(() => {
-        idleTimeout = undefined;
+      lifecycle.scheduleIdleTimeout(this.idleTimeoutMs, () => {
         if (
           input.runtimeConfig &&
           modelRequestInFlight &&
@@ -919,8 +874,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           }
         });
         cleanup();
-      }, this.idleTimeoutMs);
-      idleTimeout.unref();
+      });
     };
 
     if (!settled) {
@@ -1032,18 +986,12 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         onRetryRollback: () => {
           modelRequestInFlight = false;
           idleModelRequestTimedOut = false;
-          if (idleTimeout) {
-            clearTimeout(idleTimeout);
-            idleTimeout = undefined;
-          }
+          lifecycle.clearIdleTimer();
           discardAttemptToolDeltas();
         },
         onRetryScheduled: (schedule) => {
           retryWaiting = true;
-          if (idleTimeout) {
-            clearTimeout(idleTimeout);
-            idleTimeout = undefined;
-          }
+          lifecycle.clearIdleTimer();
           emit({
             type: "agent.retry_scheduled",
             runId: input.runId,

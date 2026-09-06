@@ -9,10 +9,8 @@ import {
   type CreateLibraryGroupInput,
   type CreateLibraryInput,
   type DeepWriteApi,
-  type ExternalSkillSourceKind,
   type MaterialLibraryKind,
   type MaterialStageId,
-  type SkillKind,
   type SkillStageId,
   type UpdateLibraryGroupInput
 } from "@deepwrite/contracts";
@@ -24,6 +22,7 @@ import type {
   ResourceTreeNode,
   WorkspaceDocument
 } from "../types/workspace";
+import { useExternalLibraryImportCoordinator } from "./useExternalLibraryImportCoordinator";
 
 export interface LibraryProjectDialogState {
   operation:
@@ -45,11 +44,6 @@ export interface LibraryProjectDialogState {
 export type CreateLibraryEntryDraft =
   | Omit<Extract<CreateLibraryEntryInput, { domain: "material" }>, "content">
   | Omit<Extract<CreateLibraryEntryInput, { domain: "skill" }>, "content">;
-
-export interface ExternalSkillImportDialogState {
-  libraryId: string;
-  libraryTitle: string;
-}
 
 export interface LibraryGroupDialogState {
   domain: "material" | "skill";
@@ -153,9 +147,7 @@ export function useCatalogLibraryTransactionsCoordinator(
   } = context;
 
   const libraryProjectDialog = ref<LibraryProjectDialogState | null>(null);
-  const externalSkillImportDialog = ref<ExternalSkillImportDialogState | null>(
-    null
-  );
+  const externalLibraryImport = useExternalLibraryImportCoordinator(context);
   const libraryGroupDialog = ref<LibraryGroupDialogState | null>(null);
   const libraryRemovalDialog = ref<LibraryRemovalDialogState | null>(null);
   const libraryEntryClipboard = ref<LibraryEntryClipboard | null>(null);
@@ -736,108 +728,6 @@ export function useCatalogLibraryTransactionsCoordinator(
     }
   }
 
-  function externalSkillStageId(skillKind: SkillKind): SkillStageId {
-    return skillKind === "plot" ? "plot_design" : "draft";
-  }
-
-  async function importExternalSkills(
-    sourceKind: ExternalSkillSourceKind
-  ): Promise<void> {
-    const api = context.api();
-    const target = externalSkillImportDialog.value;
-    if (!api || !target || catalogMutationPending.value) return;
-    const library = context.findLibrary("skill", target.libraryId);
-    if (!library || !("skillKind" in library) || library.isBuiltin) {
-      externalSkillImportDialog.value = null;
-      uiMessage.warning("目标技能库已不可用或为只读内容");
-      return;
-    }
-
-    catalogMutationPending.value = true;
-    try {
-      const selection = await api.chooseExternalSkills(sourceKind);
-      if (!selection) return;
-
-      const existingTitles = new Set(
-        library.entries.map((entry) => entry.title.trim())
-      );
-      const candidates = selection.candidates.filter((candidate) => {
-        const title = candidate.title.trim();
-        if (existingTitles.has(title)) return false;
-        existingTitles.add(title);
-        return true;
-      });
-      const duplicateCount = selection.candidates.length - candidates.length;
-      let createdCount = 0;
-      let failedCount = 0;
-      let conflicted = false;
-      let nextRevision = library.projectRevision;
-      let firstCreatedId: string | undefined;
-
-      for (const candidate of candidates) {
-        try {
-          const created = await api.createLibraryEntry({
-            domain: "skill",
-            libraryId: library.id,
-            title: candidate.title,
-            content: candidate.content,
-            stageId: externalSkillStageId(library.skillKind),
-            ...(nextRevision === undefined
-              ? {}
-              : { baseProjectRevision: nextRevision })
-          });
-          firstCreatedId ??= created.id;
-          createdCount += 1;
-          if (nextRevision !== undefined) nextRevision += 1;
-        } catch (error: unknown) {
-          if (context.isConflict(error)) {
-            conflicted = true;
-            break;
-          }
-          failedCount += 1;
-        }
-      }
-
-      await context.refreshCatalog();
-      if (createdCount > 0) {
-        externalSkillImportDialog.value = null;
-        const targetDocument = documents.value.find(
-          (document) =>
-            document.libraryId === library.id &&
-            document.catalogEntryId === firstCreatedId
-        );
-        if (targetDocument) context.selectDocument(targetDocument.id, true);
-      }
-
-      const sourceSkipped = Object.values(selection.skipped).reduce(
-        (total, count) => total + count,
-        0
-      );
-      const skippedCount = sourceSkipped + duplicateCount + failedCount;
-      if (conflicted) {
-        uiMessage.warning(
-          `已导入 ${createdCount} 条；技能库已在外部更新，剩余项目未导入，请重试`
-        );
-      } else if (createdCount > 0) {
-        uiMessage.success(
-          skippedCount > 0
-            ? `已导入 ${createdCount} 条技能，跳过 ${skippedCount} 条`
-            : `已导入 ${createdCount} 条技能到“${library.title}”`
-        );
-      } else if (selection.scanned === 0) {
-        uiMessage.warning("所选位置中没有找到可导入的 SKILL.md");
-      } else {
-        uiMessage.warning(`没有可导入的技能，已跳过 ${skippedCount} 条`);
-      }
-    } catch (error: unknown) {
-      uiMessage.error(
-        error instanceof Error ? error.message : "导入外部技能失败。"
-      );
-    } finally {
-      catalogMutationPending.value = false;
-    }
-  }
-
   async function unregisterCatalogLibrary(
     payload: CatalogResourceNodeActionPayload
   ): Promise<void> {
@@ -1063,10 +953,7 @@ export function useCatalogLibraryTransactionsCoordinator(
     }
     if (payload.action === "import-external-skills") {
       if (payload.domain !== "skill") return;
-      externalSkillImportDialog.value = {
-        libraryId,
-        libraryTitle: payload.node.label
-      };
+      externalLibraryImport.open("skill", libraryId);
       return;
     }
     if (payload.action === "unregister-library") {
@@ -1129,7 +1016,7 @@ export function useCatalogLibraryTransactionsCoordinator(
 
   return {
     libraryProjectDialog,
-    externalSkillImportDialog,
+    externalLibraryImport,
     libraryGroupDialog,
     libraryRemovalDialog,
     libraryEntryClipboard,
@@ -1144,7 +1031,6 @@ export function useCatalogLibraryTransactionsCoordinator(
     removeCatalogLibraryEntry,
     requestCatalogLibraryEntryMove,
     confirmCatalogLibraryEntryMove,
-    importExternalSkills,
     confirmLibraryRemoval,
     handleResourceNodeAction
   };

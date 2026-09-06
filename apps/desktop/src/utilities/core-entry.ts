@@ -7,6 +7,7 @@ import {
   CatalogLibrarySchema,
   CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
+  ImportLibraryEntriesResultSchema,
   CatalogOpenProjectResultSchema,
   CatalogIndexSnapshotSchema,
   CatalogReadDocumentResultSchema,
@@ -674,6 +675,15 @@ async function handleCatalogCommand(
         requestId: command.id,
         payload: CatalogLibraryEntrySchema.parse(
           await catalogStore.createLibraryEntry(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.importLibraryEntries") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: ImportLibraryEntriesResultSchema.parse(
+          await catalogStore.importLibraryEntries(command.payload)
         )
       };
     }

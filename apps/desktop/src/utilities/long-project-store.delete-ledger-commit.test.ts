@@ -474,5 +474,34 @@ describe("LongProjectStore: delete last ledger commit", () => {
     expect(await snapshotMarkdown(created.projectDirectory)).toEqual(
       beforeMarkdown
     );
+    const checkpoint = rolledBack.book.workspaceIndex.chapters.find(
+      ({ chapterCardId }) => chapterCardId === secondChapterId
+    )!;
+    await projectStore.writeDocument(created.projectDirectory, {
+      fileId: checkpoint.handoff.id,
+      content: "人工修订整批结束后的接续包。"
+    });
+    const resubmitted = await projectStore.commitChapter(
+      created.projectDirectory,
+      {
+        mode: "text_files_batch",
+        chapterCardIds: [firstChapter.chapterCardId, secondChapterId],
+        checkpointChapterCardId: secondChapterId,
+        foreshadowingBeatDecisions: {},
+        commitMessage: "人工修订后再次提交整批章节"
+      }
+    );
+    expect(resubmitted.record.id).not.toBe(committed.record.id);
+    await expect(
+      projectStore.readDocument(created.projectDirectory, {
+        fileId: checkpoint.handoff.id
+      })
+    ).resolves.toMatchObject({ content: "人工修订整批结束后的接续包。" });
+    await expect(
+      projectStore.writeDocument(created.projectDirectory, {
+        fileId: checkpoint.handoff.id,
+        content: "重新提交后禁止直接修改"
+      })
+    ).rejects.toThrow("已提交的连续性文件为只读");
   }, 15_000);
 });

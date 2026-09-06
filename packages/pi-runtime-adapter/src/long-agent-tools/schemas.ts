@@ -75,6 +75,13 @@ export const explicitTrueParameter = Type.Unsafe<true>({
 
 export const titleParameter = Type.String({ minLength: 1, maxLength: 256 });
 
+const createTitleParameter = Type.String({
+  minLength: 1,
+  maxLength: 256,
+  description:
+    "对象标题。创建 worldbuilding_item、volume、arc、story_plot、chapter_card、story_event 或 foreshadowing 时必填，不能只写在 content 中。"
+});
+
 export const characterTypeIdParameter = Type.Union([
   StringEnum([
     "protagonist",
@@ -141,7 +148,7 @@ export const foreshadowingSpanParameter = StringEnum([
  * decided per kind at runtime so providers only ever see a single object.
  */
 export const createMetaParameter = strictObject({
-  title: Type.Optional(titleParameter),
+  title: Type.Optional(createTitleParameter),
   name: Type.Optional(titleParameter),
   aliases: Type.Optional(
     Type.Array(Type.String({ minLength: 1, maxLength: 120 }), {

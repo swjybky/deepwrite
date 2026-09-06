@@ -9,6 +9,11 @@ describe("TreeSection resource actions", () => {
     expect(source).toContain('id: "import-legacy-library"');
     expect(source).toContain("label: `导入旧版${resourceName}`");
     expect(source).toContain('icon: "archive"');
+    expect(source).toContain('id: "import-external-library"');
+    expect(source).toContain("从文件或文件夹导入");
+    expect(source.indexOf('id: "import-external-library"')).toBeGreaterThan(
+      source.indexOf('id: "import-legacy-library"')
+    );
   });
 
   it("uses unified creation, opening, and importing entries", () => {

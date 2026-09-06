@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import source from "./ExternalSkillImportDialog.vue?raw";
 import treeSource from "./TreeNodeItem.vue?raw";
-import libraryTransactionsSource from "../composables/useCatalogLibraryTransactionsCoordinator.ts?raw";
+import importCoordinatorSource from "../composables/useExternalLibraryImportCoordinator.ts?raw";
 
-describe("external skill import UI", () => {
-  it("offers directory and SKILL.md choices for a concrete target library", () => {
-    expect(source).toContain("选择 skills 文件夹");
-    expect(source).toContain("选择 SKILL.md");
-    expect(source).toContain("libraryTitle");
+describe("external library import UI", () => {
+  it("offers multi-file and recursive directory choices", () => {
+    expect(source).toContain("选择文件夹");
+    expect(source).toContain("选择文件");
+    expect(source).toContain("递归扫描其子目录");
     expect(source).toContain("emit('choose', 'directory')");
     expect(source).toContain("emit('choose', 'file')");
   });
@@ -22,13 +22,14 @@ describe("external skill import UI", () => {
     );
   });
 
-  it("imports through the selected library and preserves complete content", () => {
-    expect(libraryTransactionsSource).toContain(
-      "api.chooseExternalSkills(sourceKind)"
+  it("previews titles only and submits selected candidate ids", () => {
+    expect(source).toContain("candidate.title");
+    expect(source).not.toContain("candidate.content");
+    expect(source).toContain("selectedCandidateIds");
+    expect(source).toContain("无法读取或提取");
+    expect(importCoordinatorSource).toContain(
+      "api.chooseExternalLibraryEntries(sourceKind)"
     );
-    expect(libraryTransactionsSource).toContain("content: candidate.content");
-    expect(libraryTransactionsSource).toContain(
-      "externalSkillStageId(library.skillKind)"
-    );
+    expect(importCoordinatorSource).toContain("api.importLibraryEntries({");
   });
 });
