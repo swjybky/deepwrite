@@ -61,9 +61,7 @@ const {
   openAdvancedConfig,
   closeAdvancedConfig,
   saveAdvancedConfig,
-  setDefaultModel,
-  submitModelSettings,
-  discardModelChanges
+  setDefaultModel
 } = useModelSettingsDraft(props, {
   saveModels: (settings) => emit("saveModels", settings),
   testModel: (model) => emit("testModel", model),
@@ -122,6 +120,7 @@ const {
               v-if="row.type === 'editor' && modelEditor"
               :model="modelEditor"
               :editing="Boolean(modelEditor.originalId)"
+              :saving="modelSaving"
               :testing-model-id="testingModelId"
               @cancel="modelEditor = null"
               @save="saveModelEditor"
@@ -184,6 +183,7 @@ const {
                 <button
                   v-if="!row.model.managedBy"
                   type="button"
+                  :disabled="modelSaving"
                   @click="editModel(row.model)"
                 >
                   编辑
@@ -209,6 +209,7 @@ const {
                   v-if="!row.model.managedBy"
                   class="is-danger"
                   type="button"
+                  :disabled="modelSaving || Boolean(modelEditor)"
                   @click="removeModel(row.model.id)"
                 >
                   删除
@@ -221,29 +222,12 @@ const {
             v-if="!modelEditor"
             class="dialog-secondary-button model-add-button"
             type="button"
+            :disabled="modelSaving"
             @click="createModel"
           >
             <AppIcon name="plus" :size="15" />添加模型
           </button>
         </template>
-      </div>
-
-      <div v-if="!modelLoading" class="dialog-actions model-save-actions">
-        <button
-          class="dialog-secondary-button"
-          type="button"
-          @click="discardModelChanges"
-        >
-          还原未保存
-        </button>
-        <button
-          class="dialog-primary-button"
-          type="button"
-          :disabled="modelSaving || Boolean(modelEditor)"
-          @click="submitModelSettings"
-        >
-          {{ modelSaving ? "保存中…" : "保存模型配置" }}
-        </button>
       </div>
     </div>
   </section>

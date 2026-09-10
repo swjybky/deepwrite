@@ -11,6 +11,7 @@ import PopupSelect from "./PopupSelect.vue";
 const props = defineProps<{
   model: DraftModel;
   editing: boolean;
+  saving: boolean;
   testingModelId: string | null;
 }>();
 
@@ -55,7 +56,7 @@ watch(fetchHintDialog, (message) => {
 </script>
 
 <template>
-  <section class="model-editor">
+  <section class="model-editor" :inert="saving">
     <div class="model-editor-heading">
       <strong>{{ editing ? "编辑模型" : "添加模型" }}</strong>
       <button type="button" @click="emit('cancel')">取消</button>
@@ -259,7 +260,7 @@ watch(fetchHintDialog, (message) => {
         {{ testingModelId === editor.id ? "测试中…" : "测试当前填写" }}
       </button>
       <button class="dialog-primary-button" type="button" @click="save">
-        应用到配置
+        {{ saving ? "保存中…" : "应用并保存配置" }}
       </button>
     </div>
   </section>

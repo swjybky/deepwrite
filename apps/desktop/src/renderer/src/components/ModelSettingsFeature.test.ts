@@ -54,7 +54,7 @@ describe("ModelSettingsFeature DeepWrite free models", () => {
 
   it("delegates model result feedback to the shared coordinator", () => {
     expect(draftSource).not.toContain("props.modelTestMessage");
-    expect(draftSource).not.toContain("props.modelError");
+    expect(draftSource).not.toContain("uiMessage.error(");
   });
 
   it("renders the editor immediately after the model being edited", () => {

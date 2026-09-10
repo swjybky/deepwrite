@@ -118,7 +118,9 @@ export function useModelSettingsDraft(
   watch(
     () => [props.modelSettings, props.modelSaving] as const,
     ([settings, saving]) => {
-      if (props.active && !saving) resetModelDraft(settings);
+      if (props.active && !saving && !(props.modelError && modelEditor.value)) {
+        resetModelDraft(settings);
+      }
     }
   );
 
@@ -131,6 +133,7 @@ export function useModelSettingsDraft(
   );
 
   function createModel(): void {
+    if (props.modelSaving) return;
     modelEditor.value = {
       id: createId("model"),
       label: "",
@@ -150,7 +153,7 @@ export function useModelSettingsDraft(
   }
 
   function editModel(model: DraftModel): void {
-    if (model.managedBy) return;
+    if (props.modelSaving || model.managedBy) return;
     modelEditor.value = {
       ...cloneDraftModel(model),
       apiKey: "",
@@ -161,6 +164,7 @@ export function useModelSettingsDraft(
   }
 
   function saveModelEditor(payload: ModelEditorSavePayload): void {
+    if (props.modelSaving) return;
     const index = draftModels.value.findIndex(
       (model) => model.id === (payload.originalId ?? payload.model.id)
     );
@@ -172,12 +176,10 @@ export function useModelSettingsDraft(
       uiMessage.warning("模型配置 ID 不能重复。");
       return;
     }
-    if (index >= 0) draftModels.value[index] = payload.model;
-    else draftModels.value.push(payload.model);
-    if (!draftDefaultModelId.value) {
-      draftDefaultModelId.value = payload.model.id;
-    }
-    modelEditor.value = null;
+    const models = [...draftModels.value];
+    if (index >= 0) models[index] = payload.model;
+    else models.push(payload.model);
+    submitModelSettings(models, draftDefaultModelId.value || payload.model.id);
   }
 
   function testDraftModel(model: DraftModel): void {
@@ -193,6 +195,7 @@ export function useModelSettingsDraft(
   }
 
   function removeModel(modelId: string): void {
+    if (props.modelSaving || modelEditor.value) return;
     if (draftModels.value.find((model) => model.id === modelId)?.managedBy) {
       return;
     }
@@ -216,10 +219,10 @@ export function useModelSettingsDraft(
         draftDefaultModelId.value = draftModels.value[0]?.id ?? "";
       }
     }
-    if (modelEditor.value?.id === modelId) modelEditor.value = null;
     if (advancedConfigModel.value?.id === modelId) {
       advancedConfigModel.value = null;
     }
+    submitModelSettings();
   }
 
   function openAdvancedConfig(model: DraftModel): void {
@@ -261,15 +264,18 @@ export function useModelSettingsDraft(
     submitModelSettings();
   }
 
-  function submitModelSettings(): void {
-    const draftInputs = draftModels.value.map(toModelInput);
+  function submitModelSettings(
+    models = draftModels.value,
+    defaultModelId = draftDefaultModelId.value
+  ): void {
+    const draftInputs = models.map(toModelInput);
     actions.saveModels(
       mergeCustomModelSettings(
         (props.modelSettings?.models ?? []).map((model) =>
           toModelInput(cloneDraftModel(model))
         ),
         draftInputs,
-        draftDefaultModelId.value || draftInputs[0]?.id || ""
+        defaultModelId || draftInputs[0]?.id || ""
       )
     );
   }
@@ -286,10 +292,6 @@ export function useModelSettingsDraft(
     submitModelSettings();
   }
 
-  function discardModelChanges(): void {
-    resetModelDraft(props.modelSettings);
-  }
-
   return {
     draftModels,
     draftDefaultModelId,
@@ -304,8 +306,6 @@ export function useModelSettingsDraft(
     openAdvancedConfig,
     closeAdvancedConfig,
     saveAdvancedConfig,
-    setDefaultModel,
-    submitModelSettings,
-    discardModelChanges
+    setDefaultModel
   };
 }
