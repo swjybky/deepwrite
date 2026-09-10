@@ -1,3 +1,4 @@
+import { longBookConversationKey } from "../utils/bookConversationKey";
 import type {
   LongBookSummary,
   LongWorkspaceIndexSnapshot,
@@ -79,14 +80,10 @@ export function useLongProposalRuntimeCoordinator(
 
   function conversationKey(
     bookId: string,
-    activeRoot: LongWorkspaceRuntimeContext["activeRoot"],
-    chapterCardId?: string
+    _activeRoot: LongWorkspaceRuntimeContext["activeRoot"],
+    _chapterCardId?: string
   ): string {
-    const conversationChapterCardId =
-      activeRoot === "continuity_ledger" ? chapterCardId : undefined;
-    return `long:${encodeURIComponent(bookId)}:${activeRoot}:${encodeURIComponent(
-      conversationChapterCardId ?? "__book__"
-    )}`;
+    return longBookConversationKey(bookId);
   }
 
   function conversationForProposalEvent(

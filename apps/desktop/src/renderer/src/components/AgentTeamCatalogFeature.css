@@ -69,6 +69,11 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
+.team-section-title {
+  margin: 0 0 14px;
+  font-size: 1em;
+  color: var(--text-primary);
+}
 .team-grid {
   display: grid;
   gap: 12px;

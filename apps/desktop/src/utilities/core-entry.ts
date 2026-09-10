@@ -1,3 +1,8 @@
+import { legacyDataRootsFromEnvironment } from "./legacy-data-roots";
+import { withDeviceSyncCommands } from "./device-sync-core";
+import { handleRendererStateCommand } from "./renderer-state-commands";
+import { LibraryManagementService } from "./library-management-service";
+import { MaterialQueryService } from "./material-query-service";
 import {
   SaveDocumentResultSchema,
   CatalogDraftSectionSchema,
@@ -44,8 +49,6 @@ import {
   LongWriteChapterResultSchema,
   LongWriteDocumentResultSchema,
   LongWriteAgentsMdResultSchema,
-  RendererStateLoadResultSchema,
-  RendererStateMutationResultSchema,
   UnregisterCatalogProjectResultSchema,
   WriteWritingContextResultSchema,
   type CommandEnvelope,
@@ -68,33 +71,12 @@ if (!userDataPath) {
 }
 const resolvedUserDataPath = userDataPath;
 
-function legacyDataRootsFromEnvironment(): string[] {
-  const encodedRoots = process.env.DEEPWRITE_LEGACY_DATA_ROOTS?.trim();
-  if (encodedRoots) {
-    try {
-      const parsed = JSON.parse(encodedRoots) as unknown;
-      if (Array.isArray(parsed)) {
-        const roots = parsed.filter(
-          (value): value is string =>
-            typeof value === "string" && value.trim() !== ""
-        );
-        if (roots.length > 0) {
-          return roots;
-        }
-      }
-    } catch {
-      // Fall back to the single-root environment variable for older launchers.
-    }
-  }
-  const legacyDataRoot = process.env.DEEPWRITE_LEGACY_DATA_ROOT?.trim();
-  return legacyDataRoot ? [legacyDataRoot] : [];
-}
-
 const legacyDataRoots = legacyDataRootsFromEnvironment();
 const legacyCatalogStore = new CatalogStore({
   userDataPath: resolvedUserDataPath,
   ...(legacyDataRoots.length > 0 ? { legacyDataRoots } : {})
 });
+let materialQueryService: MaterialQueryService | undefined;
 let catalogStoreInitialization: Promise<FolderCatalogStore> | undefined;
 const draftRecoveryStore = new FolderCatalogStore({
   userDataPath: resolvedUserDataPath
@@ -134,32 +116,11 @@ async function handleCatalogCommand(
   command: CommandEnvelope
 ): Promise<CommandResult> {
   try {
-    if (command.type === "rendererState.load") {
-      const value = await rendererStateStore.load(command.payload.key);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: RendererStateLoadResultSchema.parse(
-          value === undefined ? { found: false } : { found: true, value }
-        )
-      };
-    }
-    if (command.type === "rendererState.save") {
-      await rendererStateStore.save(command.payload.key, command.payload.value);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: RendererStateMutationResultSchema.parse({ ok: true })
-      };
-    }
-    if (command.type === "rendererState.remove") {
-      await rendererStateStore.remove(command.payload.key);
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: RendererStateMutationResultSchema.parse({ ok: true })
-      };
-    }
+    const rendererStateResult = await handleRendererStateCommand(
+      rendererStateStore,
+      command
+    );
+    if (rendererStateResult) return rendererStateResult;
     if (command.type === "long.list") {
       return {
         status: "accepted",
@@ -427,6 +388,44 @@ async function handleCatalogCommand(
       };
     }
     const catalogStore = await requireCatalogStore();
+    if (
+      (command.type === "catalog.createLibraryEntry" ||
+        command.type === "catalog.saveLibraryEntry" ||
+        command.type === "catalog.updateLibrary") &&
+      command.payload.managementScope
+    ) {
+      await new LibraryManagementService(
+        catalogStore,
+        longWorkspaceService
+      ).assertWritable(
+        command.payload.managementScope,
+        command.payload.domain,
+        command.payload.libraryId
+      );
+    }
+
+    if (command.type === "catalog.queryLibraryManagement") {
+      const service = new LibraryManagementService(
+        await requireCatalogStore(),
+        longWorkspaceService
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await service.query(command.payload)
+      };
+    }
+    if (command.type === "catalog.queryMaterials") {
+      materialQueryService ??= new MaterialQueryService(
+        catalogStore,
+        longWorkspaceService
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await materialQueryService.query(command.payload)
+      };
+    }
     if (command.type === "catalog.index") {
       return {
         status: "accepted",
@@ -817,5 +816,10 @@ async function handleCatalogCommand(
 
 bootUtility("core", {
   mode: "catalog-store",
-  commandHandler: handleCatalogCommand
+  commandHandler: withDeviceSyncCommands(
+    resolvedUserDataPath,
+    requireCatalogStore,
+    longWorkspaceService,
+    handleCatalogCommand
+  )
 });

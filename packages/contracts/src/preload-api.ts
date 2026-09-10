@@ -1,3 +1,4 @@
+import type { BuiltinSubagentSettings } from "./builtin-subagents";
 import type {
   SessionAbortAcceptedPayload,
   SessionAbortCommandPayload,
@@ -6,17 +7,7 @@ import type {
   SessionPromptAcceptedPayload,
   SessionPromptCommandPayload
 } from "./session";
-import type {
-  ModelCapacityResult,
-  ModelConnectionTestResult,
-  ModelConfigInput,
-  OfficialModelBalance,
-  ModelSettings,
-  ModelSettingsInput,
-  RemoteModelListInput,
-  RemoteModelListResult,
-  SiteOfficialQuota
-} from "./models";
+import type { ModelPreloadApi } from "./model-preload-api";
 import type { ModelUsageDashboard, ModelUsageQueryInput } from "./model-usage";
 import type { SystemEventEnvelope, SystemHealthPayload } from "./system";
 import type {
@@ -246,6 +237,11 @@ export interface DeepWriteApi {
     ): Promise<MarketplaceInstallPreview>;
     install(input: MarketplaceInstallInput): Promise<MarketplaceInstallResult>;
   };
+  deviceSync?: {
+    request(
+      input: import("./device-sync").SyncRequest
+    ): Promise<import("./device-sync").SyncResponse>;
+  };
   cloudBackup: {
     status(): Promise<CloudBackupStatus>;
     previewBackup(): Promise<CloudBackupPreview>;
@@ -386,34 +382,7 @@ export interface DeepWriteApi {
       payload: SessionUserInputResponsePayload
     ): Promise<SessionUserInputResponseAcceptedPayload>;
   };
-  models: {
-    list(): Promise<ModelSettings>;
-    refreshFree(): Promise<ModelSettings>;
-    setFreeModelEnabled(
-      modelId: string,
-      enabled: boolean
-    ): Promise<ModelSettings>;
-    refreshOfficial(): Promise<ModelSettings>;
-    queryOfficialBalance(): Promise<OfficialModelBalance>;
-    saveOfficialToken(apiKey: string): Promise<ModelSettings>;
-    clearOfficialToken(): Promise<ModelSettings>;
-    saveSiteOfficialToken(apiKey: string): Promise<ModelSettings>;
-    clearSiteOfficialToken(): Promise<ModelSettings>;
-    refreshSiteOfficial(): Promise<ModelSettings>;
-    querySiteOfficialQuota(): Promise<SiteOfficialQuota>;
-    setSiteOfficialModelEnabled(
-      modelId: string,
-      enabled: boolean
-    ): Promise<ModelSettings>;
-    setOfficialModelEnabled(
-      modelId: string,
-      enabled: boolean
-    ): Promise<ModelSettings>;
-    save(settings: ModelSettingsInput): Promise<ModelSettings>;
-    test(model: ModelConfigInput): Promise<ModelConnectionTestResult>;
-    resolveCapacity(model: ModelConfigInput): Promise<ModelCapacityResult>;
-    listRemote(input: RemoteModelListInput): Promise<RemoteModelListResult>;
-  };
+  models: ModelPreloadApi;
   modelUsage: {
     query(input?: ModelUsageQueryInput): Promise<ModelUsageDashboard>;
   };
@@ -444,6 +413,9 @@ export interface DeepWriteApi {
     reset(agentId?: LongAgentId): Promise<LongAgentSettings>;
   };
   agentTeams: {
+    saveBuiltins(
+      input: BuiltinSubagentSettings
+    ): Promise<AgentTeamCatalogSnapshot>;
     list(): Promise<AgentTeamCatalogSnapshot>;
     create(
       input: AgentTeamProfileCreateInput

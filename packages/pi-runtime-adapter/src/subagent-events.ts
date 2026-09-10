@@ -95,17 +95,30 @@ export function toSubagentRuntimeEvents(
       isError: progress.isError
     },
     input,
-    runtime,
+    progressRuntime,
     messageId
-  ).filter(
-    (event) =>
-      event.type === "workspace.editor_mutation" ||
-      event.type === "workspace.stage_selection" ||
-      event.type === "long.mutation_proposal" ||
-      event.type === "long.worldbuilding_file_proposal" ||
-      event.type === "long.character_file_proposal" ||
-      event.type === "long.continuity_file_proposal" ||
-      event.type === "long.chapter_write_proposal" ||
-      event.type === "long.ledger_commit_proposal"
-  );
+  )
+    .map((event) =>
+      event.type === "library.editor_mutation" && input.libraryManagement
+        ? {
+            ...event,
+            payload: {
+              ...event.payload,
+              managementScope: input.libraryManagement.scope
+            }
+          }
+        : event
+    )
+    .filter(
+      (event) =>
+        event.type === "library.editor_mutation" ||
+        event.type === "workspace.editor_mutation" ||
+        event.type === "workspace.stage_selection" ||
+        event.type === "long.mutation_proposal" ||
+        event.type === "long.worldbuilding_file_proposal" ||
+        event.type === "long.character_file_proposal" ||
+        event.type === "long.continuity_file_proposal" ||
+        event.type === "long.chapter_write_proposal" ||
+        event.type === "long.ledger_commit_proposal"
+    );
 }

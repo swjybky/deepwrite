@@ -1,3 +1,7 @@
+import {
+  BuiltinSubagentSettingsSchema,
+  type BuiltinSubagentSettings
+} from "@deepwrite/contracts";
 import { join } from "node:path";
 import {
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
@@ -191,6 +195,15 @@ export class AgentTeamConfigStore {
         throw new Error("团队类型与保存的配置类型不一致。");
       }
       team.settings = input.settings as never;
+    });
+  }
+
+  async saveBuiltins(
+    rawInput: BuiltinSubagentSettings
+  ): Promise<AgentTeamCatalogSnapshot> {
+    const input = BuiltinSubagentSettingsSchema.parse(rawInput);
+    return this.mutate((snapshot) => {
+      snapshot.builtinSubagents = input;
     });
   }
 

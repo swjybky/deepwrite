@@ -22,7 +22,9 @@ describe("CloudBackupPage", () => {
       '{ id: "cloud-backup", label: "云端备份"'
     );
     expect(sidebarSource).toContain('emit("openCloudBackup")');
-    expect(appSource).toContain('@open-cloud-backup="openCloudBackup"');
+    expect(appSource).toContain(
+      '@open-cloud-backup="featureHost.openCloudBackup"'
+    );
     expect(featureHostSource).toContain('case "cloud-backup":');
     expect(featureHostSource).toContain('return { kind: "cloud-backup" };');
     expect(featureHostSource).toContain(

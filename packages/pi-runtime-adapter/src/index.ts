@@ -40,3 +40,6 @@ export {
   buildRuntimeUserPrompt,
   buildRawUserMessage
 } from "./prompts";
+export type { MaterialCommandExecutor } from "./material-query-runtime";
+
+export type { LibraryManagementCommandExecutor } from "./library-management-runtime";

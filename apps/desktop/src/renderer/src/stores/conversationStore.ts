@@ -1,4 +1,24 @@
 import {
+  captureRunSettings,
+  validModelSelection,
+  normalizeRunPreferencesByScope
+} from "./conversationPreferences";
+import { createConversationPersistenceState } from "./conversationPersistenceState";
+import { watchConversationCheckpoints } from "../composables/watchConversationCheckpoints";
+import {
+  conversationHistoryPersistenceKey,
+  MODEL_SELECTION_PERSISTENCE_KEY,
+  RUN_PREFERENCES_PERSISTENCE_KEY
+} from "../utils/conversationPersistenceKeys";
+export {
+  MODEL_SELECTION_PERSISTENCE_KEY,
+  RUN_PREFERENCES_PERSISTENCE_KEY
+} from "../utils/conversationPersistenceKeys";
+export type {
+  ConversationPersistenceAdapter,
+  ConversationPersistenceOptions
+} from "./conversationPersistenceTypes";
+import {
   computed,
   markRaw,
   onScopeDispose,
@@ -8,46 +28,16 @@ import {
   type ShallowRef
 } from "vue";
 import { defineStore } from "pinia";
-import type {
-  AgentConversationController,
-  AgentRunSettings
-} from "../composables/useAgentConversation";
+import type { AgentConversationController } from "../composables/useAgentConversation";
 import {
-  normalizeAgentRunPreferences,
   type AgentModelSelection,
   type AgentRunPreferences,
   type AgentRunPreferencesByScope
 } from "../utils/agentRunPreferences";
 
-export const MODEL_SELECTION_PERSISTENCE_KEY =
-  "conversation-preferences:model-selection:v1";
-export const RUN_PREFERENCES_PERSISTENCE_KEY =
-  "conversation-preferences:run-options:v1";
-
-export interface ConversationPersistenceAdapter {
-  load(key: string): Promise<unknown | undefined>;
-  save(key: string, value: unknown): Promise<void>;
-  remove?(key: string): Promise<void>;
-}
-
-export interface ConversationPersistenceOptions {
-  debounceMs?: number;
-  onError?: (key: string, error: unknown) => void;
-}
-
 export interface DisposeConversationStoreOptions {
   flush?: boolean;
   clearControllerPersistence?: boolean;
-}
-
-interface PersistenceQueue {
-  key: string;
-  hasPending: boolean;
-  pendingValue: unknown;
-  pendingValueFactory: (() => unknown) | undefined;
-  timer: number | undefined;
-  inFlight: Promise<void> | undefined;
-  lastError: unknown;
 }
 
 interface PreferenceUpdateOptions {
@@ -59,82 +49,44 @@ function rawValue<Value>(value: Value): Value {
   return typeof value === "object" && value !== null ? markRaw(value) : value;
 }
 
-function captureRunSettings(
-  controller: AgentConversationController
-): AgentRunSettings {
-  return {
-    selectedModelId: controller.selectedModelId.value,
-    thinkingLevel: controller.thinkingLevel.value,
-    temperature: controller.temperature.value,
-    approvalMode: controller.approvalMode.value,
-    agentTeamMode: controller.agentTeamMode.value,
-    webSearchEnabled: controller.webSearchEnabled.value
-  };
-}
-
-function validModelSelection(value: unknown): value is AgentModelSelection {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.selectedModelId === "string" &&
-    candidate.selectedModelId.length <= 120 &&
-    typeof candidate.thinkingLevel === "string" &&
-    candidate.thinkingLevel.length > 0 &&
-    candidate.thinkingLevel.length <= 64 &&
-    (candidate.webSearchEnabled === undefined ||
-      typeof candidate.webSearchEnabled === "boolean")
-  );
-}
-
-function normalizeRunPreferencesByScope(
-  value: unknown
-): AgentRunPreferencesByScope | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-  const normalized = normalizeAgentRunPreferences(value);
-  return Object.keys(normalized).length === Object.keys(value).length
-    ? normalized
-    : undefined;
-}
-
 export const useConversationStore = defineStore("conversation", () => {
   const controllers = shallowRef<Map<string, AgentConversationController>>(
     new Map()
   );
   const scopesByKey = shallowRef<Map<string, string>>(new Map());
-  const persistenceCache = shallowRef<Map<string, unknown>>(new Map());
-  const persistenceErrors = shallowRef<Map<string, string>>(new Map());
+  const checkpointWatchers = new Map<string, () => void>();
   const controllerRegistryRevision = ref(0);
   const sessionAgentModelSelection = shallowRef<AgentModelSelection>();
   const agentRunPreferences = shallowRef<AgentRunPreferencesByScope>({});
-  const persistenceStateVersion = ref(0);
 
-  const controllerCount = computed(() => controllers.value.size);
-  const persistenceBusy = computed(() => {
-    void persistenceStateVersion.value;
-    return [...persistenceQueues.values()].some(
-      (queue) =>
-        queue.hasPending ||
-        queue.timer !== undefined ||
-        queue.inFlight !== undefined
+  const persistence = createConversationPersistenceState(async (flush) => {
+    const { flushConversationsBeforeClose } =
+      await import("./conversationClose");
+    await flushConversationsBeforeClose(
+      controllers.value,
+      (key, snapshot) =>
+        schedulePersistenceFactory(
+          conversationHistoryPersistenceKey(key),
+          snapshot
+        ),
+      flush
     );
   });
 
-  let persistenceAdapter: ConversationPersistenceAdapter | null = null;
-  let persistenceDebounceMs = 180;
-  let persistenceErrorHandler:
-    ((key: string, error: unknown) => void) | undefined;
-  let persistenceAdapterEpoch = 0;
-  let acceptsPersistenceSchedules = true;
-  const persistenceQueues = new Map<string, PersistenceQueue>();
-  const loadPromises = new Map<string, Promise<unknown | undefined>>();
-  const loadEpochs = new Map<string, number>();
+  const {
+    persistenceCache,
+    persistenceErrors,
+    persistenceBusy,
+    configurePersistenceAdapter,
+    schedulePersistence,
+    schedulePersistenceFactory,
+    flushPersistence,
+    loadPersistence,
+    invalidatePersistenceCache,
+    removePersistence
+  } = persistence;
 
-  function touchPersistenceState(): void {
-    persistenceStateVersion.value += 1;
-  }
-
+  const controllerCount = computed(() => controllers.value.size);
   function replaceMapEntry<Key, Value>(
     target: ShallowRef<Map<Key, Value>>,
     key: Key,
@@ -153,23 +105,6 @@ export const useConversationStore = defineStore("conversation", () => {
     if (!target.value.has(key)) return;
     target.value.delete(key);
     triggerRef(target);
-  }
-
-  function cachePersistenceValue(key: string, value: unknown): void {
-    replaceMapEntry(persistenceCache, key, rawValue(value));
-  }
-
-  function setPersistenceError(key: string, error: unknown): void {
-    replaceMapEntry(
-      persistenceErrors,
-      key,
-      error instanceof Error ? error.message : "保存会话状态失败。"
-    );
-    persistenceErrorHandler?.(key, error);
-  }
-
-  function clearPersistenceError(key: string): void {
-    deleteMapEntry(persistenceErrors, key);
   }
 
   function applyGlobalPreferences(
@@ -197,11 +132,18 @@ export const useConversationStore = defineStore("conversation", () => {
     if (!normalizedKey) throw new Error("会话 key 不能为空。");
     if (!normalizedScope) throw new Error("会话 scope 不能为空。");
     const existing = controllers.value.get(normalizedKey);
+    checkpointWatchers.get(normalizedKey)?.();
     if (existing && existing !== controller) {
       existing.dispose();
     }
     replaceMapEntry(controllers, normalizedKey, markRaw(controller));
     replaceMapEntry(scopesByKey, normalizedKey, normalizedScope);
+    checkpointWatchers.set(
+      normalizedKey,
+      watchConversationCheckpoints(controller, () =>
+        flushPersistence(conversationHistoryPersistenceKey(normalizedKey))
+      )
+    );
     controllerRegistryRevision.value += 1;
     if (options.applyPreferences !== false) {
       applyGlobalPreferences(controller, normalizedScope);
@@ -244,6 +186,8 @@ export const useConversationStore = defineStore("conversation", () => {
   ): AgentConversationController | undefined {
     const controller = controllers.value.get(key);
     if (!controller) return undefined;
+    checkpointWatchers.get(key)?.();
+    checkpointWatchers.delete(key);
     deleteMapEntry(controllers, key);
     deleteMapEntry(scopesByKey, key);
     controllerRegistryRevision.value += 1;
@@ -261,6 +205,8 @@ export const useConversationStore = defineStore("conversation", () => {
     options: { clearPersistence?: boolean } = {}
   ): void {
     const existing = [...controllers.value.values()];
+    for (const stop of checkpointWatchers.values()) stop();
+    checkpointWatchers.clear();
     controllers.value.clear();
     scopesByKey.value.clear();
     triggerRef(controllers);
@@ -342,237 +288,6 @@ export const useConversationStore = defineStore("conversation", () => {
     return true;
   }
 
-  function configurePersistenceAdapter(
-    adapter: ConversationPersistenceAdapter | null,
-    options: ConversationPersistenceOptions = {}
-  ): void {
-    persistenceAdapter = adapter;
-    persistenceAdapterEpoch += 1;
-    persistenceDebounceMs = Math.max(0, Math.round(options.debounceMs ?? 180));
-    persistenceErrorHandler = options.onError;
-    acceptsPersistenceSchedules = true;
-    if (!adapter) return;
-    for (const queue of persistenceQueues.values()) {
-      if (queue.hasPending && queue.timer === undefined && !queue.inFlight) {
-        scheduleQueueTimer(queue, 0);
-      }
-    }
-    touchPersistenceState();
-  }
-
-  function queueForKey(key: string): PersistenceQueue {
-    const existing = persistenceQueues.get(key);
-    if (existing) return existing;
-    const created: PersistenceQueue = {
-      key,
-      hasPending: false,
-      pendingValue: undefined,
-      pendingValueFactory: undefined,
-      timer: undefined,
-      inFlight: undefined,
-      lastError: undefined
-    };
-    persistenceQueues.set(key, created);
-    touchPersistenceState();
-    return created;
-  }
-
-  function scheduleQueueTimer(queue: PersistenceQueue, delay: number): void {
-    if (queue.timer !== undefined) {
-      globalThis.clearTimeout(queue.timer);
-    }
-    queue.timer = globalThis.setTimeout(() => {
-      queue.timer = undefined;
-      touchPersistenceState();
-      void startQueueSave(queue);
-    }, delay);
-    touchPersistenceState();
-  }
-
-  function startQueueSave(queue: PersistenceQueue): Promise<void> | undefined {
-    if (queue.inFlight || !queue.hasPending || !persistenceAdapter) {
-      return queue.inFlight;
-    }
-    const adapter = persistenceAdapter;
-    const adapterEpoch = persistenceAdapterEpoch;
-    const value = queue.pendingValue;
-    const valueFactory = queue.pendingValueFactory;
-    queue.pendingValue = undefined;
-    queue.pendingValueFactory = undefined;
-    queue.hasPending = false;
-    queue.lastError = undefined;
-    clearPersistenceError(queue.key);
-
-    const task = Promise.resolve()
-      .then(() => {
-        const resolvedValue = valueFactory ? valueFactory() : value;
-        cachePersistenceValue(queue.key, resolvedValue);
-        return adapter.save(queue.key, resolvedValue);
-      })
-      .then(() => {
-        if (adapterEpoch === persistenceAdapterEpoch) {
-          clearPersistenceError(queue.key);
-        }
-      })
-      .catch((error: unknown) => {
-        queue.lastError = error;
-        if (adapterEpoch === persistenceAdapterEpoch) {
-          setPersistenceError(queue.key, error);
-        }
-      })
-      .finally(() => {
-        if (queue.inFlight === task) {
-          queue.inFlight = undefined;
-        }
-        touchPersistenceState();
-        if (queue.hasPending && queue.timer === undefined) {
-          void startQueueSave(queue);
-        }
-      });
-    queue.inFlight = task;
-    touchPersistenceState();
-    return task;
-  }
-
-  function schedulePersistence<Value>(key: string, value: Value): void {
-    if (!acceptsPersistenceSchedules) {
-      throw new Error("会话持久化调度器已经关闭。");
-    }
-    const normalizedKey = key.trim();
-    if (!normalizedKey) throw new Error("持久化 key 不能为空。");
-    // A local change wins over an older read that is still in flight. The
-    // pending caller may inspect that stale value, but it can no longer
-    // replace the newer shallow cache entry when it resolves.
-    loadEpochs.set(normalizedKey, (loadEpochs.get(normalizedKey) ?? 0) + 1);
-    const queue = queueForKey(normalizedKey);
-    queue.pendingValue = rawValue(value);
-    queue.pendingValueFactory = undefined;
-    queue.hasPending = true;
-    queue.lastError = undefined;
-    cachePersistenceValue(normalizedKey, value);
-    clearPersistenceError(normalizedKey);
-    scheduleQueueTimer(queue, persistenceDebounceMs);
-  }
-
-  function schedulePersistenceFactory(
-    key: string,
-    valueFactory: () => unknown
-  ): void {
-    if (!acceptsPersistenceSchedules) {
-      throw new Error("会话持久化调度器已经关闭。");
-    }
-    const normalizedKey = key.trim();
-    if (!normalizedKey) throw new Error("持久化 key 不能为空。");
-    loadEpochs.set(normalizedKey, (loadEpochs.get(normalizedKey) ?? 0) + 1);
-    const queue = queueForKey(normalizedKey);
-    queue.pendingValue = undefined;
-    queue.pendingValueFactory = valueFactory;
-    queue.hasPending = true;
-    queue.lastError = undefined;
-    clearPersistenceError(normalizedKey);
-    scheduleQueueTimer(queue, persistenceDebounceMs);
-  }
-
-  async function flushPersistenceKey(key: string): Promise<void> {
-    const queue = persistenceQueues.get(key);
-    if (!queue) return;
-    if (queue.timer !== undefined) {
-      globalThis.clearTimeout(queue.timer);
-      queue.timer = undefined;
-      touchPersistenceState();
-    }
-    while (queue.hasPending || queue.inFlight) {
-      if (!queue.inFlight && queue.hasPending) {
-        if (!persistenceAdapter) {
-          throw new Error("会话持久化适配器尚未配置。");
-        }
-        startQueueSave(queue);
-      }
-      if (queue.inFlight) {
-        await queue.inFlight;
-      }
-    }
-    if (queue.lastError !== undefined) {
-      throw queue.lastError;
-    }
-  }
-
-  async function flushPersistence(key?: string): Promise<void> {
-    if (key) {
-      await flushPersistenceKey(key);
-      return;
-    }
-    const failures: unknown[] = [];
-    for (const queueKey of persistenceQueues.keys()) {
-      try {
-        await flushPersistenceKey(queueKey);
-      } catch (error: unknown) {
-        failures.push(error);
-      }
-    }
-    if (failures.length) throw failures[0];
-  }
-
-  async function loadPersistence<Value>(
-    key: string,
-    options: { force?: boolean } = {}
-  ): Promise<Value | undefined> {
-    if (!options.force && persistenceCache.value.has(key)) {
-      return persistenceCache.value.get(key) as Value;
-    }
-    const existing = loadPromises.get(key);
-    if (existing) return existing as Promise<Value | undefined>;
-    if (!persistenceAdapter) return undefined;
-
-    const epoch = loadEpochs.get(key) ?? 0;
-    const adapterEpoch = persistenceAdapterEpoch;
-    const adapter = persistenceAdapter;
-    const pending = adapter
-      .load(key)
-      .then((value) => {
-        if (
-          value !== undefined &&
-          (loadEpochs.get(key) ?? 0) === epoch &&
-          persistenceAdapterEpoch === adapterEpoch
-        ) {
-          cachePersistenceValue(key, value);
-        }
-        return value;
-      })
-      .finally(() => {
-        if (loadPromises.get(key) === pending) {
-          loadPromises.delete(key);
-        }
-      });
-    loadPromises.set(key, pending);
-    return pending as Promise<Value | undefined>;
-  }
-
-  function invalidatePersistenceCache(key: string): void {
-    loadEpochs.set(key, (loadEpochs.get(key) ?? 0) + 1);
-    loadPromises.delete(key);
-    deleteMapEntry(persistenceCache, key);
-  }
-
-  async function removePersistence(key: string): Promise<void> {
-    const queue = persistenceQueues.get(key);
-    if (queue?.timer !== undefined) {
-      globalThis.clearTimeout(queue.timer);
-      queue.timer = undefined;
-    }
-    if (queue) {
-      queue.hasPending = false;
-      queue.pendingValue = undefined;
-      queue.pendingValueFactory = undefined;
-      if (queue.inFlight) await queue.inFlight;
-      persistenceQueues.delete(key);
-      touchPersistenceState();
-    }
-    invalidatePersistenceCache(key);
-    clearPersistenceError(key);
-    await persistenceAdapter?.remove?.(key);
-  }
-
   async function hydratePreferences(): Promise<void> {
     const [selection, preferences] = await Promise.all([
       loadPersistence<AgentModelSelection>(MODEL_SELECTION_PERSISTENCE_KEY),
@@ -602,28 +317,15 @@ export const useConversationStore = defineStore("conversation", () => {
     }
   }
 
-  function discardPendingPersistence(): void {
-    for (const queue of persistenceQueues.values()) {
-      if (queue.timer !== undefined) {
-        globalThis.clearTimeout(queue.timer);
-      }
-      queue.timer = undefined;
-      queue.hasPending = false;
-      queue.pendingValue = undefined;
-      queue.pendingValueFactory = undefined;
-    }
-    touchPersistenceState();
-  }
-
   async function dispose(
     options: DisposeConversationStoreOptions = {}
   ): Promise<void> {
-    acceptsPersistenceSchedules = false;
+    persistence.stopScheduling();
     try {
       if (options.flush !== false) {
         await flushPersistence();
       } else {
-        discardPendingPersistence();
+        persistence.discardPendingPersistence();
       }
     } finally {
       disposeAllControllers(
@@ -631,16 +333,15 @@ export const useConversationStore = defineStore("conversation", () => {
           ? {}
           : { clearPersistence: options.clearControllerPersistence }
       );
-      persistenceAdapter = null;
-      persistenceAdapterEpoch += 1;
-      loadPromises.clear();
+      persistence.disconnect();
     }
   }
 
   onScopeDispose(() => {
-    acceptsPersistenceSchedules = false;
-    discardPendingPersistence();
+    persistence.stopScheduling();
+    persistence.discardPendingPersistence();
     disposeAllControllers();
+    persistence.disconnect();
   });
 
   return {

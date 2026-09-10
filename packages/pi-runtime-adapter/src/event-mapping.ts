@@ -364,6 +364,9 @@ export function toRuntimeEvents(
               ? {
                   toolCallId: event.toolCallId,
                   operation: details.operation,
+                  ...(details.creationId
+                    ? { creationId: details.creationId }
+                    : {}),
                   domain: details.domain,
                   libraryId: details.libraryId,
                   stageId: details.stageId,

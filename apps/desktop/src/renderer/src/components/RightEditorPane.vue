@@ -38,7 +38,6 @@ import {
   resolveWorkspaceDocumentTitle,
   workspaceDocumentHasFixedTitle
 } from "../utils/fixedWorkspaceDocumentTitle";
-import { parseSkillFrontmatter } from "../utils/skillFrontmatter";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { uiMessage } from "../ui-feedback";
 import { useEditorSelectionInsertion } from "../composables/useEditorSelectionInsertion";
@@ -49,7 +48,7 @@ import {
 } from "../composables/useEditorEntrySearch";
 import { useTextViewMode } from "../composables/useTextViewMode";
 import AppIcon from "./AppIcon.vue";
-import DocumentMetaRow from "./DocumentMetaRow.vue";
+import EditorDocumentMetadata from "./EditorDocumentMetadata.vue";
 import EditorEntrySearchRow from "./EditorEntrySearchRow.vue";
 import EditorSearchHighlight from "./EditorSearchHighlight.vue";
 import EditorSelectionMenu from "./EditorSelectionMenu.vue";
@@ -248,13 +247,6 @@ const isTitleReadOnly = computed(
 const isLibraryDocument = computed(
   () => isLibraryEntry.value || isLibraryOverview.value
 );
-const skillFormatError = computed(() => {
-  if (props.document.domain !== "skill" || !props.document.catalogEntryId) {
-    return undefined;
-  }
-  const result = parseSkillFrontmatter(content.value);
-  return result.valid ? undefined : result.message;
-});
 const recommendedContentLength = computed(() =>
   isLibraryOverview.value
     ? CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS
@@ -339,6 +331,12 @@ function markDirty(): void {
     title: title.value,
     content: content.value
   });
+}
+
+function applyLibraryMetadata(nextContent: string): void {
+  if (editorReadOnly.value) return;
+  const delta = recordProgrammaticChange(nextContent, { start: 0, end: 0 });
+  updateContent(nextContent, delta);
 }
 
 function getEditorSelection(
@@ -1088,30 +1086,17 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="editor-document" :class="{ 'is-readonly': document.readOnly }">
-      <DocumentMetaRow
-        :view-mode="viewMode"
+      <EditorDocumentMetadata
+        :document="document"
+        :title="title"
         :content="content"
+        :view-mode="viewMode"
         :preview-element="documentPreview"
         :document-key="activeScrollMemoryKey"
-      >
-        <span>{{ document.eyebrow }}</span>
-        <span v-if="document.format" class="document-format">{{
-          document.format
-        }}</span>
-        <span v-if="document.readOnly" class="readonly-badge">只读内容</span>
-        <span v-if="document.domain !== 'creation'" class="readonly-badge">
-          {{ boundToCurrentBook ? "已绑定到当前书籍" : "仅浏览 · 未绑定" }}
-        </span>
-        <span
-          v-if="skillFormatError"
-          class="skill-format-error-badge"
-          role="status"
-          :title="skillFormatError"
-          :aria-label="skillFormatError"
-        >
-          {{ skillFormatError }}
-        </span>
-      </DocumentMetaRow>
+        :bound-to-current-book="boundToCurrentBook"
+        :locked="locked"
+        @change="applyLibraryMetadata"
+      />
 
       <input
         v-model="title"

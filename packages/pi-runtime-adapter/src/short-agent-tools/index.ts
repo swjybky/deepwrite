@@ -1,3 +1,4 @@
+import { buildAskUserQuestionTool } from "../ask-user-question-tool";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
   SHORT_MATERIAL_KINDS,
@@ -135,7 +136,10 @@ function buildUnifiedWritingWorkspaceTools(
     buildShortUnifiedWriteTool(toolInput, sharedState, readState),
     buildShortUnifiedDeleteTool(toolInput, sharedState, readState),
     buildQueryLinkedMaterialEntriesTool(toolInput),
-    buildLoadSkillTool(toolInput)
+    buildLoadSkillTool(toolInput),
+    ...(input.includeAskUserQuestion === false
+      ? []
+      : [buildAskUserQuestionTool(input.requestUserInput)])
   ];
 }
 

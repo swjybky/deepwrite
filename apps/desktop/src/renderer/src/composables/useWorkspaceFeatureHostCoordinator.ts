@@ -149,7 +149,8 @@ export function useWorkspaceFeatureHostCoordinator(
     if (
       (mode === "models" ||
         mode === "imitation" ||
-        mode === "long-book-analysis") &&
+        mode === "long-book-analysis" ||
+        mode === "style-comparison") &&
       !settingsStore.modelSettings &&
       options.api()
     ) {
@@ -211,6 +212,12 @@ export function useWorkspaceFeatureHostCoordinator(
     if (options.api() && !options.catalogSnapshot.value) {
       issueBackground(options.loaders.loadCatalogSnapshot);
     }
+  }
+
+  async function openDeviceSync(): Promise<void> {
+    const generation = beginNavigation();
+    if (!(await canApplyNavigation(generation))) return;
+    options.view.workspaceMain.value = "device-sync";
   }
 
   async function openCloudBackup(): Promise<void> {
@@ -359,6 +366,7 @@ export function useWorkspaceFeatureHostCoordinator(
     openOfficialModelsSettings,
     openAgentTeams,
     openMarketplace,
+    openDeviceSync,
     openCloudBackup,
     openZhuqueDetection,
     loadWorkspaceDirectory,

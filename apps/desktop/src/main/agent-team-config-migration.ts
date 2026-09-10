@@ -24,7 +24,7 @@ export {
 export { invalidAgentTeamConfig } from "./agent-team-config-error";
 export { createAgentTeamProfile } from "./agent-team-profile-factory";
 
-export const AGENT_TEAM_CATALOG_DISK_VERSION = 4 as const;
+export const AGENT_TEAM_CATALOG_DISK_VERSION = 5 as const;
 
 export interface AgentTeamDiskCatalog extends AgentTeamCatalogSnapshot {
   version: typeof AGENT_TEAM_CATALOG_DISK_VERSION;

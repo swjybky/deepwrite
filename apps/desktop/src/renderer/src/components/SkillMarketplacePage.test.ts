@@ -157,7 +157,9 @@ describe("SkillMarketplacePage", () => {
     expect(sidebarSource).toContain('id: "skill-marketplace"');
     expect(sidebarSource).toContain('emit("openMarketplace")');
     expect(featureModulesSource).toContain("<SkillMarketplacePage");
-    expect(appSource).toContain('@open-marketplace="openMarketplace"');
+    expect(appSource).toContain(
+      '@open-marketplace="featureHost.openMarketplace"'
+    );
   });
 
   it("keeps the sidebar identity synchronized with marketplace sessions", () => {
@@ -177,7 +179,7 @@ describe("SkillMarketplacePage", () => {
       "@session-change=\"emit('marketplaceSessionChange', $event)\""
     );
     expect(appSource).toContain(
-      '@marketplace-session-change="applyMarketplaceSession"'
+      '@marketplace-session-change="featureHost.applyMarketplaceSession"'
     );
   });
 });

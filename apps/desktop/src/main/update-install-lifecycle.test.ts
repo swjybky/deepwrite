@@ -5,7 +5,7 @@ const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
 
 describe("update install lifecycle", () => {
   it("finishes the graceful shutdown before handing control to the updater", () => {
-    const helperStart = source.indexOf("function beginGracefulShutdown(");
+    const helperStart = source.indexOf("const gracefulShutdown =");
     const helperEnd = source.indexOf(
       "function broadcastEvent",
       helperStart + 1
@@ -18,8 +18,10 @@ describe("update install lifecycle", () => {
     );
 
     expect(helperStart).toBeGreaterThanOrEqual(0);
-    expect(helper).toContain("await supervisor.shutdownAll()");
-    expect(helper).toContain("await modelUsageStore?.flush()");
+    expect(helper).toContain(
+      "shutdownUtilities: () => supervisor.shutdownAll()"
+    );
+    expect(helper).toContain("flushUsage: () => modelUsageStore?.flush()");
     const shutdownCompleteIndex = helper.indexOf("shutdownComplete = true");
     expect(shutdownCompleteIndex).toBeLessThan(
       helper.indexOf("updateService.quitAndInstall()", shutdownCompleteIndex)
@@ -45,10 +47,10 @@ describe("update install lifecycle", () => {
     const helper = source.slice(helperStart, helperEnd);
 
     expect(helper).toContain(
-      "if (shutdownComplete && installUpdateAfterShutdown && updateService)"
+      "if (shutdownComplete && options.installUpdate && updateService)"
     );
     expect(helper.indexOf("updateService.quitAndInstall()")).toBeLessThan(
-      helper.indexOf("return;", helper.indexOf("if (quitting)"))
+      helper.indexOf("return;")
     );
   });
 

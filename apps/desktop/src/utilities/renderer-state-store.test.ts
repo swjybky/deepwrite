@@ -34,6 +34,17 @@ async function createStore(
 }
 
 describe("RendererStateStore", () => {
+  it("lists persisted history keys without including preferences", async () => {
+    const { root, store } = await createStore();
+    await store.save("conversation-history:book-one", { version: 1 });
+    await store.save("conversation-preferences:options", {});
+    expect(await new RendererStateStore(root).listHistoryKeys()).toEqual([
+      "conversation-history:book-one"
+    ]);
+    await store.remove("conversation-history:book-one");
+    expect(await store.listHistoryKeys()).toEqual([]);
+  });
+
   it("persists JSON values in the application data directory and reloads them", async () => {
     const { root, store } = await createStore();
     const key = "conversation-history:book%3Aplaceholder";
@@ -169,24 +180,22 @@ describe("RendererStateStore", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("treats malformed on-disk JSON as empty and can recover on the next save", async () => {
+  it("preserves malformed on-disk JSON and refuses to overwrite it", async () => {
     const { store } = await createStore();
     await mkdir(dirname(store.statePath), { recursive: true });
-    await writeFile(store.statePath, "{ malformed placeholder", "utf8");
-
+    const original = "{ malformed placeholder";
+    await writeFile(store.statePath, original, "utf8");
     await expect(
       store.load("conversation-history:recovered")
-    ).resolves.toBeUndefined();
-    await store.save("conversation-history:recovered", { revision: 1 });
+    ).rejects.toBeInstanceOf(RendererStateSerializationError);
     await expect(
-      new RendererStateStore(dirname(dirname(store.statePath))).load(
-        "conversation-history:recovered"
-      )
-    ).resolves.toEqual({ revision: 1 });
+      store.save("conversation-history:recovered", { revision: 1 })
+    ).rejects.toBeInstanceOf(RendererStateSerializationError);
+    expect(await readFile(store.statePath, "utf8")).toBe(original);
   });
 
   it("keeps evaluation-sized conversation envelopes under the default limits", () => {
-    expect(DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES).toBe(8 * 1024 * 1024);
-    expect(DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES).toBe(64 * 1024 * 1024);
+    expect(DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES).toBe(64 * 1024 * 1024);
+    expect(DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES).toBe(256 * 1024 * 1024);
   });
 });

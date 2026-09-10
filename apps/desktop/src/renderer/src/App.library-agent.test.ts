@@ -1,3 +1,4 @@
+import libraryStagingSource from "./composables/proposal-coordinator/library-staging.ts?raw";
 import { describe, expect, it } from "vitest";
 import appSource from "./WorkspaceShell.vue?raw";
 import coordinatorSource from "./composables/useProposalCoordinator.ts?raw";
@@ -47,7 +48,7 @@ describe("library management agent wiring", () => {
     expect(coordinatorSource).toContain(
       "...(createdDocument ? { documentId: createdDocument.id } : {})"
     );
-    expect(coordinatorSource).toContain(
+    expect(libraryStagingSource).toContain(
       'event.payload.operation === "edit-overview"'
     );
     expect(coordinatorSource).toContain(

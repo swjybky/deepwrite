@@ -16,31 +16,17 @@ import {
   type RightPanePreferences
 } from "../utils/rightPanePreferences";
 
-export type AppView = "workspace" | "settings";
-
-export type WorkspaceMainView =
-  | "conversation"
-  | "directory"
-  | "models"
-  | "imitation"
-  | "long-book-analysis"
-  | "agent-team"
-  | "marketplace"
-  | "cloud-backup"
-  | "zhuque-detection";
-
+export type {
+  AppView,
+  WorkspaceMainView,
+  PrimaryFeature
+} from "./layoutFeatureNavigation";
+import {
+  primaryFeatureForView,
+  type AppView,
+  type WorkspaceMainView
+} from "./layoutFeatureNavigation";
 export type PaneSide = "left" | "right";
-
-export type PrimaryFeature =
-  | "directory"
-  | "models"
-  | "imitation"
-  | "long-book-analysis"
-  | "chat-assistant"
-  | "agent-teams"
-  | "skill-marketplace"
-  | "cloud-backup"
-  | "zhuque-detection";
 
 export const LEFT_PANE_MIN = 220;
 export const LEFT_PANE_MAX = 480;
@@ -100,23 +86,9 @@ export const useLayoutStore = defineStore("layout", () => {
   let paneTransitionSuppressionClock = 0;
   let paneTransitionReleaseFrame: number | undefined;
 
-  const activePrimaryFeature = computed<PrimaryFeature | undefined>(() => {
-    switch (workspaceMainView.value) {
-      case "agent-team":
-        return "agent-teams";
-      case "marketplace":
-        return "skill-marketplace";
-      case "cloud-backup":
-      case "zhuque-detection":
-      case "directory":
-      case "models":
-      case "imitation":
-      case "long-book-analysis":
-        return workspaceMainView.value;
-      default:
-        return undefined;
-    }
-  });
+  const activePrimaryFeature = computed(() =>
+    primaryFeatureForView(workspaceMainView.value)
+  );
 
   const shellClasses = computed(() => ({
     "is-left-collapsed": leftCollapsed.value,

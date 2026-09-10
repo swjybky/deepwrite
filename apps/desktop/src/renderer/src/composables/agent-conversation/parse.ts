@@ -22,17 +22,8 @@ import type {
   AgentToolTrace,
   ChatMessage
 } from "../../types/conversation";
-import {
-  MAX_STORED_CONVERSATIONS,
-  isRecord,
-  nonnegativeInteger,
-  validDate
-} from "./shared";
-import type {
-  AgentConversationPersistenceRecord,
-  AgentConversationPersistenceSnapshot,
-  ConversationStorage
-} from "./types";
+import { isRecord, nonnegativeInteger, validDate } from "./shared";
+
 import {
   parseStoredDiscardSnapshot,
   parseStoredDiscardState
@@ -43,39 +34,7 @@ import {
   normalizeStoredLongProposalTarget
 } from "./long-proposal-persistence-compatibility";
 
-function parseStoredLibraryTarget(
-  value: unknown
-): AgentEditProposal["libraryTarget"] | undefined {
-  if (
-    !isRecord(value) ||
-    (value.operation !== "create" &&
-      value.operation !== "edit" &&
-      value.operation !== "edit-overview") ||
-    (value.domain !== "material" && value.domain !== "skill") ||
-    typeof value.libraryId !== "string" ||
-    (value.operation === "edit-overview"
-      ? value.stageId !== undefined
-      : typeof value.stageId !== "string") ||
-    (value.baseProjectRevision !== undefined &&
-      !nonnegativeInteger(value.baseProjectRevision)) ||
-    (value.entryId !== undefined && typeof value.entryId !== "string") ||
-    (value.operation === "edit" && typeof value.entryId !== "string")
-  ) {
-    return undefined;
-  }
-  return {
-    operation: value.operation,
-    domain: value.domain,
-    libraryId: value.libraryId,
-    ...(value.operation === "edit-overview"
-      ? {}
-      : { stageId: value.stageId as string }),
-    ...(value.baseProjectRevision === undefined
-      ? {}
-      : { baseProjectRevision: value.baseProjectRevision }),
-    ...(value.entryId === undefined ? {} : { entryId: value.entryId })
-  };
-}
+import { parseStoredLibraryTarget } from "./library-target";
 
 function parseStoredTextDiffLine(
   value: unknown
@@ -888,7 +847,7 @@ function parseStoredSubagentRun(value: unknown): AgentSubagentRun | undefined {
   };
 }
 
-function parseStoredMessage(value: unknown): ChatMessage | undefined {
+export function parseStoredMessage(value: unknown): ChatMessage | undefined {
   if (!isRecord(value)) return undefined;
   if (
     typeof value.id !== "string" ||
@@ -1059,155 +1018,4 @@ function parseStoredMessage(value: unknown): ChatMessage | undefined {
     message.processingCompletedAt = new Date().toISOString();
   }
   return message;
-}
-
-function parsePersistenceRecord(
-  value: unknown
-): AgentConversationPersistenceRecord | undefined {
-  if (
-    !isRecord(value) ||
-    typeof value.sessionId !== "string" ||
-    !Array.isArray(value.messages) ||
-    !validDate(value.createdAt) ||
-    !validDate(value.updatedAt) ||
-    (value.approvalMode !== undefined &&
-      value.approvalMode !== "request-approval" &&
-      value.approvalMode !== "auto-approve") ||
-    (value.draft !== undefined && typeof value.draft !== "string") ||
-    (value.temperature !== undefined &&
-      (typeof value.temperature !== "number" ||
-        !Number.isFinite(value.temperature)))
-  ) {
-    return undefined;
-  }
-  const messages = value.messages
-    .map(parseStoredMessage)
-    .filter((message): message is ChatMessage => message !== undefined);
-  if (messages.length !== value.messages.length) return undefined;
-  return {
-    sessionId: value.sessionId,
-    messages,
-    draft: typeof value.draft === "string" ? value.draft : "",
-    approvalMode:
-      value.approvalMode === "auto-approve"
-        ? "auto-approve"
-        : "request-approval",
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-    temperature:
-      typeof value.temperature === "number" &&
-      Number.isFinite(value.temperature)
-        ? value.temperature
-        : 0.7
-  };
-}
-
-export function parseAgentConversationPersistenceSnapshot(
-  value: unknown
-): AgentConversationPersistenceSnapshot | undefined {
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    typeof value.activeSessionId !== "string" ||
-    !Array.isArray(value.conversations)
-  ) {
-    return undefined;
-  }
-  const conversations = value.conversations
-    .map(parsePersistenceRecord)
-    .filter(
-      (conversation): conversation is AgentConversationPersistenceRecord =>
-        conversation !== undefined
-    );
-  if (!conversations.length && value.conversations.length > 0) {
-    return undefined;
-  }
-  const limited = conversations
-    .sort(
-      (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-    )
-    .slice(0, MAX_STORED_CONVERSATIONS);
-  const activeSessionId = limited.some(
-    (conversation) => conversation.sessionId === value.activeSessionId
-  )
-    ? value.activeSessionId
-    : (limited[0]?.sessionId ?? value.activeSessionId);
-  return {
-    version: 1,
-    activeSessionId,
-    conversations: limited
-  };
-}
-
-export function mergeAgentConversationPersistenceSnapshots(
-  targetValue: unknown,
-  sourceValues: readonly unknown[]
-): AgentConversationPersistenceSnapshot | undefined {
-  const target = parseAgentConversationPersistenceSnapshot(targetValue);
-  const sources = sourceValues
-    .map(parseAgentConversationPersistenceSnapshot)
-    .filter(
-      (envelope): envelope is AgentConversationPersistenceSnapshot =>
-        envelope !== undefined && envelope.conversations.length > 0
-    );
-  if (!sources.length) return target;
-
-  const conversationBySessionId = new Map<
-    string,
-    AgentConversationPersistenceRecord
-  >();
-  for (const envelope of [...(target ? [target] : []), ...sources]) {
-    for (const conversation of envelope.conversations) {
-      const existing = conversationBySessionId.get(conversation.sessionId);
-      if (
-        !existing ||
-        Date.parse(conversation.updatedAt) > Date.parse(existing.updatedAt)
-      ) {
-        conversationBySessionId.set(conversation.sessionId, conversation);
-      }
-    }
-  }
-  const sortedConversations = [...conversationBySessionId.values()].sort(
-    (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-  );
-  const preferredActiveConversation = target
-    ? conversationBySessionId.get(target.activeSessionId)
-    : undefined;
-  let conversations = sortedConversations.slice(0, MAX_STORED_CONVERSATIONS);
-  if (
-    preferredActiveConversation &&
-    !conversations.some(
-      (conversation) =>
-        conversation.sessionId === preferredActiveConversation.sessionId
-    )
-  ) {
-    conversations = [
-      ...conversations.slice(0, MAX_STORED_CONVERSATIONS - 1),
-      preferredActiveConversation
-    ].sort(
-      (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-    );
-  }
-  if (!conversations.length) return undefined;
-  const activeSessionId =
-    target &&
-    conversations.some(
-      (conversation) => conversation.sessionId === target.activeSessionId
-    )
-      ? target.activeSessionId
-      : conversations[0]!.sessionId;
-  return { version: 1, activeSessionId, conversations };
-}
-
-/**
- * @deprecated Text-storage migration belongs in the persistence adapter. This
- * compatibility export remains temporarily so callers can migrate without a
- * flag day; it deliberately performs no synchronous reads or writes.
- */
-export function mergeStoredConversationHistories(
-  _storage: ConversationStorage,
-  _targetKey: string,
-  _sourceKeys: readonly string[]
-): boolean {
-  return false;
 }

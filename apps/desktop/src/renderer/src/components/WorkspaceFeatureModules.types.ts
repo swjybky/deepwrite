@@ -120,6 +120,12 @@ export interface MarketplaceFeatureModule {
   session: MarketplaceSession | null;
 }
 
+export interface DeviceSyncFeatureModule {
+  kind: "device-sync";
+  prepareSync(): Promise<boolean>;
+  refreshSync(): Promise<void>;
+}
+
 export interface CloudBackupFeatureModule {
   kind: "cloud-backup";
 }
@@ -134,7 +140,13 @@ export type WorkspaceFeatureModule =
   | DirectoryFeatureModule
   | ModelsFeatureModule
   | ImitationFeatureModule
+  | {
+      kind: "style-comparison";
+      models: readonly ModelConfig[];
+      preferredModelId: string | null;
+    }
   | LongBookAnalysisFeatureModule
   | MarketplaceFeatureModule
+  | DeviceSyncFeatureModule
   | CloudBackupFeatureModule
   | ZhuqueDetectionFeatureModule;

@@ -1,4 +1,8 @@
-import type { CommandEnvelope } from "@deepwrite/contracts";
+import type {
+  CommandEnvelope,
+  MaterialReadScope,
+  LibraryManagementScope
+} from "@deepwrite/contracts";
 import type {
   UtilityInternalCommandAuthorizationContext,
   UtilityInternalCommandAuthorizationResult
@@ -9,6 +13,12 @@ export const AGENT_CORE_LONG_QUERY_COMMANDS = [
   "long.readDocument",
   "long.search"
 ] as const satisfies readonly CommandEnvelope["type"][];
+
+export const AGENT_CORE_QUERY_COMMANDS = [
+  ...AGENT_CORE_LONG_QUERY_COMMANDS,
+  "catalog.queryMaterials",
+  "catalog.queryLibraryManagement"
+] as const;
 
 const LONG_QUERY_COMMAND_TYPES = new Set<string>(
   AGENT_CORE_LONG_QUERY_COMMANDS
@@ -21,6 +31,8 @@ export interface MainInternalCommandActiveRun {
   /** Main->Agent transport request that created the accepted run. */
   promptRequestId?: string;
   accepted: boolean;
+  materialScope?: MaterialReadScope;
+  libraryManagementScope?: LibraryManagementScope;
 }
 
 function denied(
@@ -46,6 +58,65 @@ export function authorizeMainInternalCommand(
       "main.invalid_bridge_route",
       "Only Agent-to-Core internal commands are authorized."
     );
+  }
+  if (message.command.type === "catalog.queryLibraryManagement") {
+    const command = message.command;
+    const run = command.context.runId
+      ? activeRuns.get(command.context.runId)
+      : undefined;
+    const scope = run?.libraryManagementScope;
+    if (
+      !run?.accepted ||
+      !scope ||
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId ||
+      command.context.sessionId !== run.sessionId ||
+      command.context.resourceId !== scope.bookId ||
+      command.payload.scope.bookId !== scope.bookId ||
+      command.payload.scope.bookType !== scope.bookType
+    ) {
+      return denied(
+        "main.library_management_not_authorized",
+        "Library management queries require the accepted owning work and prompt."
+      );
+    }
+    return true;
+  }
+  if (
+    message.target === "core" &&
+    message.command.type === "catalog.queryMaterials"
+  ) {
+    const command = message.command;
+    const run = command.context.runId
+      ? activeRuns.get(command.context.runId)
+      : undefined;
+    const scope = run?.materialScope;
+    const requested = command.payload.scope;
+    if (
+      !run?.accepted ||
+      !scope ||
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId ||
+      command.context.sessionId !== run.sessionId ||
+      command.context.resourceId !== scope.bookId
+    ) {
+      return denied(
+        "main.material_run_not_authorized",
+        "Material queries require the active accepted run and its prompt context."
+      );
+    }
+    if (
+      requested.bookId !== scope.bookId ||
+      requested.bookType !== scope.bookType ||
+      requested.stageId !== scope.stageId ||
+      requested.kinds.some((kind) => !scope.kinds.includes(kind))
+    ) {
+      return denied(
+        "main.material_scope_mismatch",
+        "Material queries cannot expand the accepted book, stage or kinds."
+      );
+    }
+    return true;
   }
   if (
     message.target !== "core" ||

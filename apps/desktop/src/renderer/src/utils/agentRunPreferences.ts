@@ -1,6 +1,5 @@
+import { shortBookConversationKey } from "./bookConversationKey";
 import {
-  resolveScriptWorkspaceConversationLaneIdForStage,
-  resolveShortWorkspaceConversationLaneIdForStage,
   type AgentTeamRunMode,
   type ThinkingLevel
 } from "@deepwrite/contracts";
@@ -54,18 +53,9 @@ export function agentConversationKeyForDocument(
   ) {
     return `library:${document.domain}:${document.libraryId}`;
   }
-  if (
-    (document.workspaceType !== "short" &&
-      document.workspaceType !== "script") ||
-    !document.workspaceId ||
-    !document.stageId
-  ) {
-    return document.workspaceId ? `${document.workspaceId}:general` : "general";
-  }
-  if (document.workspaceType === "short") {
-    return `${document.workspaceId}:${resolveShortWorkspaceConversationLaneIdForStage(document.stageId)}`;
-  }
-  return `${document.workspaceId}:${resolveScriptWorkspaceConversationLaneIdForStage(document.stageId)}`;
+  return document.workspaceId
+    ? shortBookConversationKey(document.workspaceId)
+    : "general";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

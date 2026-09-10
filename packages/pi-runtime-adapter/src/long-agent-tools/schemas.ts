@@ -202,11 +202,12 @@ export const createMetaParameter = strictObject({
   planned_scope: Type.Optional(Type.String({ maxLength: 4_000 }))
 });
 
-/** Meta accepted by `edit`; relocation fields stay under the UI structure editor. */
+/** Character type changes use a dedicated move operation; other relocation stays in the UI. */
 export const editMetaParameter = strictObject(
   {
     title: Type.Optional(titleParameter),
     name: Type.Optional(titleParameter),
+    type_id: Type.Optional(characterTypeIdParameter),
     aliases: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 120 }), {
         maxItems: 64,

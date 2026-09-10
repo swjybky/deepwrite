@@ -1,7 +1,9 @@
+import { buildRunTools } from "./run-tools";
+import { libraryManagementParentPrompt } from "./library-management-runtime";
+
 import {
   Agent,
   type AgentMessage,
-  type AgentTool,
   type StreamFn,
   type ThinkingLevel as PiThinkingLevel
 } from "@earendil-works/pi-agent-core";
@@ -31,7 +33,7 @@ import {
   runAgentWithTurnRetries,
   type AgentTurnRetryPolicyOptions
 } from "./agent-turn-retry";
-import { buildChatAssistantTools } from "./chat-assistant-tools";
+
 import {
   isAssistantMessage,
   normalizeUsage,
@@ -49,13 +51,7 @@ import {
   buildLocalThinking,
   buildLocalWritingResponse
 } from "./faux-local";
-import { buildLearningImitationTools } from "./learning-imitation-tools";
-import { buildLibraryAgentTools } from "./library-agent-tools";
-import { buildLongBookAnalysisTools } from "./long-book-analysis/tools";
-import {
-  buildLongWorkspaceTools,
-  createLongWorkspaceToolSharedState
-} from "./long-agent-tools";
+
 import {
   applyProviderToolSchemaCompatibility,
   resolvePortableToolSchemaProfile
@@ -66,9 +62,7 @@ import {
   buildLongFollowUpTurnUserMessageContent,
   buildRawUserMessage,
   buildRuntimeUserMessageContent,
-  longAgentRefreshesDesignContextOnLaterTurns,
-  scriptRuntimeSystemRequirements,
-  shortRuntimeSystemRequirements
+  longAgentRefreshesDesignContextOnLaterTurns
 } from "./prompts";
 import {
   buildProviderRuntime,
@@ -91,17 +85,8 @@ import type {
 } from "./runtime-types";
 import { RunLifecycle } from "./run-lifecycle";
 import { AgentUserInputBroker } from "./user-input-broker";
-import {
-  buildScriptWorkspaceTools,
-  buildShortWorkspaceTools,
-  createScriptWorkspaceToolSharedState,
-  createShortWorkspaceToolSharedState
-} from "./short-agent-tools";
-import { buildSubagentAuthoringTools } from "./subagent-authoring-tools";
-import {
-  buildSpawnSubagentTool,
-  type AgentToolExecutionHooks
-} from "./subagent-runtime";
+
+import { type AgentToolExecutionHooks } from "./subagent-runtime";
 import {
   interceptToolCallStream,
   type ToolCallAssistantEvent
@@ -460,11 +445,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
 
     const shortWorkspace = input.workspaceContext?.shortWorkspace;
     const scriptWorkspace = input.workspaceContext?.scriptWorkspace;
-    const longWorkspace = input.workspaceContext?.longWorkspace;
-    const libraryWorkspace = input.workspaceContext?.libraryWorkspace;
-    const learningImitation = input.workspaceContext?.learningImitation;
-    const longBookAnalysis = input.workspaceContext?.longBookAnalysis;
-    const subagentAuthoring = input.workspaceContext?.subagentAuthoring;
     const imageAttachments =
       input.attachments?.filter((attachment) => attachment.kind === "image") ??
       [];
@@ -475,168 +455,28 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
           : `当前模型 ${runtime.model} 不支持图片输入，请更换支持多模态的模型。`
       );
     }
-    const systemPrompt = buildEffectiveSystemPrompt(this.systemPrompt, input);
-    const writingToolSharedState =
-      scriptWorkspace && input.scriptAgentProfile
-        ? createScriptWorkspaceToolSharedState(scriptWorkspace)
-        : shortWorkspace && input.agentProfile
-          ? createShortWorkspaceToolSharedState(shortWorkspace)
-          : undefined;
-    const longToolSharedState =
-      longWorkspace && input.longAgentProfile
-        ? createLongWorkspaceToolSharedState()
-        : undefined;
-    const buildWritingTools = (): AgentTool[] => {
-      if (scriptWorkspace && input.scriptAgentProfile) {
-        return buildScriptWorkspaceTools({
-          workspace: scriptWorkspace,
-          profile: input.scriptAgentProfile,
-          writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-          autoApproveCrossStageOperations:
-            input.autoApproveCrossStageOperations === true,
-          attachedSkills: input.workspaceContext?.attachedSkills,
-          attachedMaterials: input.workspaceContext?.attachedMaterials,
-          requestUserInput,
-          ...(writingToolSharedState
-            ? { sharedState: writingToolSharedState }
-            : {})
-        });
-      }
-      return shortWorkspace && input.agentProfile
-        ? buildShortWorkspaceTools({
-            workspace: shortWorkspace,
-            profile: input.agentProfile,
-            writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-            autoApproveCrossStageOperations:
-              input.autoApproveCrossStageOperations === true,
-            attachedSkills: input.workspaceContext?.attachedSkills,
-            attachedMaterials: input.workspaceContext?.attachedMaterials,
-            requestUserInput,
-            ...(writingToolSharedState
-              ? { sharedState: writingToolSharedState }
-              : {})
-          })
-        : [];
-    };
-    const buildLongTools = (includeAskUserQuestion = true): AgentTool[] =>
-      longWorkspace && input.longAgentProfile
-        ? buildLongWorkspaceTools({
-            workspace: longWorkspace,
-            profile: input.longAgentProfile,
-            sessionId: input.sessionId,
-            runId: input.runId,
-            writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-            autoApproveCrossStageOperations:
-              input.autoApproveCrossStageOperations === true,
-            attachedSkills: input.workspaceContext?.attachedSkills,
-            attachedMaterials: input.workspaceContext?.attachedMaterials,
-            ...(input.longCommandExecutor
-              ? { executor: input.longCommandExecutor }
-              : {}),
-            requestUserInput,
-            includeAskUserQuestion,
-            ...(longToolSharedState ? { sharedState: longToolSharedState } : {})
-          })
-        : [];
-    let tools: AgentTool[] =
-      input.mode === "chat-assistant"
-        ? input.chatAssistantRuntimeContext
-          ? buildChatAssistantTools({
-              runId: input.runId,
-              sessionId: input.sessionId,
-              context: input.chatAssistantRuntimeContext,
-              ...(input.longCommandExecutor
-                ? { longCommandExecutor: input.longCommandExecutor }
-                : {})
-            })
-          : []
-        : subagentAuthoring
-          ? buildSubagentAuthoringTools(subagentAuthoring)
-          : learningImitation && input.learningImitationProfile
-            ? buildLearningImitationTools(
-                learningImitation,
-                input.writeApprovalMode ?? "request-approval"
-              )
-            : longBookAnalysis && input.longBookAnalysisProfile
-              ? buildLongBookAnalysisTools(longBookAnalysis)
-              : libraryWorkspace && input.libraryAgentProfile
-                ? buildLibraryAgentTools({
-                    workspace: libraryWorkspace,
-                    profile: input.libraryAgentProfile,
-                    writeApprovalMode:
-                      input.writeApprovalMode ?? "request-approval",
-                    attachedSkills: input.workspaceContext?.attachedSkills
-                  })
-                : longWorkspace && input.longAgentProfile
-                  ? buildLongTools()
-                  : (scriptWorkspace && input.scriptAgentProfile) ||
-                      (shortWorkspace && input.agentProfile)
-                    ? buildWritingTools()
-                    : [];
-    if (
-      ((scriptWorkspace && input.scriptAgentProfile) ||
-        (shortWorkspace && input.agentProfile) ||
-        (longWorkspace && input.longAgentProfile)) &&
-      !subagentAuthoring
-    ) {
-      const spawnTool = buildSpawnSubagentTool({
-        parentSessionId: input.sessionId,
-        parentRuntime: runtime,
-        model,
-        thinkingLevel: effectiveThinkingLevel,
-        streamFn: spawnStreamFn,
-        definitions: input.subagentDefinitions ?? [],
-        ...(input.subagentRuntimeConfigs
-          ? { subagentRuntimeConfigs: input.subagentRuntimeConfigs }
-          : {}),
-        buildCustomModelRuntime: (config, options) => {
-          const childThinking =
-            options?.thinkingLevel ?? config.defaultThinkingLevel ?? "medium";
-          const childTemperature =
-            childThinking === "off"
-              ? (options?.temperature ?? config.temperatureOptions[1])
-              : undefined;
-          const childRuntime = buildProviderRuntime(
-            config,
-            childTemperature,
-            childThinking,
-            { portableToolSchemaProfile }
-          );
-          return {
-            model: childRuntime.model,
-            streamFn: childRuntime.streamFn,
-            thinkingLevel: toPiThinkingLevel(childThinking)
-          };
-        },
-        buildChildTools:
-          longWorkspace && input.longAgentProfile
-            ? () => buildLongTools(false)
-            : buildWritingTools,
-        ...(scriptWorkspace
-          ? {
-              systemPromptRequirements: scriptRuntimeSystemRequirements(input)
-            }
-          : shortWorkspace
-            ? {
-                systemPromptRequirements: shortRuntimeSystemRequirements(input)
-              }
-            : longWorkspace
-              ? {
-                  systemPromptRequirements:
-                    input.writeApprovalMode === "auto-approve"
-                      ? "这是长篇主智能体委派的单层子任务。只能使用继承的长篇查询/提案工具和当前 bookId；提案会进入实时自动保存队列，在客户端确认成功前不能宣称已落盘或已提交连续性账本。"
-                      : "这是长篇主智能体委派的单层子任务。只能使用继承的长篇查询/提案工具和当前 bookId；任何写入仍须形成可审阅提案，不能宣称已落盘或已提交连续性账本。"
-                }
-              : {}),
-        toolExecutionHooks: this.toolExecutionHooks,
-        ...(this.retryPolicy ? { retryPolicy: this.retryPolicy } : {}),
-        ...(this.subagentTimeoutMs === undefined
-          ? {}
-          : { timeoutMs: this.subagentTimeoutMs }),
-        depth: 0
-      });
-      if (spawnTool) tools = [...tools, spawnTool];
-    }
+    const systemPrompt = [
+      buildEffectiveSystemPrompt(this.systemPrompt, input),
+      libraryManagementParentPrompt(input)
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    let agent = reusableConversationAgent;
+    const tools = buildRunTools(input, {
+      model,
+      thinkingLevel: effectiveThinkingLevel,
+      streamFn: spawnStreamFn,
+      parentRuntime: runtime,
+      parentSignal: lifecycle.signal,
+      requestUserInput,
+      portableToolSchemaProfile,
+      toolExecutionHooks: this.toolExecutionHooks,
+      ...(this.retryPolicy ? { retryPolicy: this.retryPolicy } : {}),
+      ...(this.subagentTimeoutMs === undefined
+        ? {}
+        : { subagentTimeoutMs: this.subagentTimeoutMs }),
+      getParentMessages: () => agent?.state.messages ?? []
+    });
     let emitToolCallEvent: (
       event: ToolCallAssistantEvent,
       assistantTurnIndex: number
@@ -646,7 +486,6 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       (event, assistantTurnIndex) =>
         emitToolCallEvent(event, assistantTurnIndex)
     );
-    let agent = reusableConversationAgent;
     const createdAgent = agent === undefined;
     if (agent) {
       if (agent.state.isStreaming) {
@@ -811,13 +650,10 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       lifecycle.dispose();
       this.userInputBroker.cancelRun(input.runId);
       retryWaitController.abort();
-      if (abortListener && input.signal) {
-        input.signal.removeEventListener("abort", abortListener);
-      }
       queue.close();
     };
 
-    const abortListener = () => {
+    lifecycle.bindAbort(input.signal, () => {
       idleModelRequestTimedOut = false;
       retryWaitController.abort();
       agent.abort();
@@ -832,12 +668,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
         }
       });
       cleanup();
-    };
-    if (input.signal?.aborted) {
-      abortListener();
-    } else {
-      input.signal?.addEventListener("abort", abortListener, { once: true });
-    }
+    });
 
     scheduleIdleTimeout = (): void => {
       if (

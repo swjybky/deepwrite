@@ -1,8 +1,11 @@
 import { z } from "zod";
+import { MaterialMetadataSchema } from "../material-metadata";
+import { MaterialCatalogContextSchema } from "../material-query";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "../expert-draft";
 import { LongWorkspaceRuntimeContextSchema } from "../long-workspace-api";
 import { LearningImitationRuntimeContextSchema } from "../learning-imitation";
 import { LongBookAnalysisRuntimeContextSchema } from "../long-book-analysis";
+import { StyleComparisonInputSchema } from "../style-comparison";
 import { LibraryAgentWorkspaceSnapshotSchema } from "../library-agent";
 import { SubagentAuthoringRuntimeContextSchema } from "../subagent-authoring";
 import { ScriptWorkspaceSnapshotSchema } from "../script-workspace";
@@ -128,6 +131,7 @@ export const AttachedSkillSnapshotSchema =
 export const AttachedMaterialSnapshotSchema =
   AttachedContextSnapshotBaseSchema.extend({
     source: z.literal("attached-material"),
+    metadata: MaterialMetadataSchema.optional(),
     kind: ShortMaterialKindSchema.optional()
   });
 
@@ -148,11 +152,14 @@ export const WorkspaceRuntimeContextSchema = z
     libraryWorkspace: LibraryAgentWorkspaceSnapshotSchema.optional(),
     learningImitation: LearningImitationRuntimeContextSchema.optional(),
     longBookAnalysis: LongBookAnalysisRuntimeContextSchema.optional(),
+    styleComparison: StyleComparisonInputSchema.optional(),
     subagentAuthoring: SubagentAuthoringRuntimeContextSchema.optional(),
     attachedSkills: z
       .array(AttachedSkillSnapshotSchema)
       .max(ATTACHED_CONTEXT_MAX_ITEMS)
       .optional(),
+    materialCatalog: MaterialCatalogContextSchema.optional(),
+    materialReadNotice: z.string().max(2000).optional(),
     attachedMaterials: z
       .array(AttachedMaterialSnapshotSchema)
       .max(ATTACHED_CONTEXT_MAX_ITEMS)
@@ -166,6 +173,7 @@ export const WorkspaceRuntimeContextSchema = z
       value.libraryWorkspace,
       value.learningImitation,
       value.longBookAnalysis,
+      value.styleComparison,
       value.subagentAuthoring
     ].filter(Boolean).length;
     if (exclusiveContexts > 1) {

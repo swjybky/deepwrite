@@ -21,7 +21,7 @@ export type TextViewMode = z.infer<typeof TextViewModeSchema>;
 
 export const GeneralSettingsSchema = z.object({
   permissionMode: GeneralPermissionModeSchema,
-  autoApproveCrossStageOperations: z.boolean().default(false),
+  autoApproveCrossStageOperations: z.boolean().default(true),
   autoSave: z.boolean(),
   language: AppLanguageSchema,
   showInMenuBar: z.boolean(),
@@ -43,7 +43,7 @@ export type GeneralSettingsSnapshot = z.infer<
 export function createDefaultGeneralSettings(): GeneralSettings {
   return {
     permissionMode: "auto-approve",
-    autoApproveCrossStageOperations: false,
+    autoApproveCrossStageOperations: true,
     autoSave: true,
     language: "auto",
     showInMenuBar: true,

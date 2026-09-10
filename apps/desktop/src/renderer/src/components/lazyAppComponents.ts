@@ -129,3 +129,11 @@ export const SaveConflictDialog = defineAsyncComponent(
 export const StartupAlertDialog = defineAsyncComponent(
   () => import("./StartupAlertDialog.vue")
 );
+
+export const DeviceSyncPage = defineAsyncComponent(
+  () => import("../extras/device-sync/DeviceSyncPage.vue")
+);
+
+export const StyleComparisonPage = defineAsyncComponent(
+  () => import("../extras/style-comparison/StyleComparisonPage.vue")
+);

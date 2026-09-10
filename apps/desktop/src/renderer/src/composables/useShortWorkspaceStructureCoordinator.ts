@@ -1,3 +1,4 @@
+import { hasBusyBookConversation } from "../utils/bookConversationKey";
 import type {
   Book,
   CharacterStructureMutation,
@@ -234,18 +235,6 @@ export function useShortWorkspaceStructureCoordinator(
     }
   }
 
-  function hasBusyExpertConversation(workspaceId: string): boolean {
-    for (const [key, conversation] of conversations.entries()) {
-      if (
-        key.startsWith(`${workspaceId}:expert_`) &&
-        conversation.isBusy.value
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   function expertDraftMutationBlocked(source: WorkspaceDocument): boolean {
     return (
       state.savingDocumentIds.value.has(source.id) ||
@@ -253,7 +242,7 @@ export function useShortWorkspaceStructureCoordinator(
       Boolean(
         source.workspaceId &&
         (state.acceptingWorkspaceIds.value.has(source.workspaceId) ||
-          hasBusyExpertConversation(source.workspaceId))
+          hasBusyBookConversation(conversations.entries(), source.workspaceId))
       )
     );
   }

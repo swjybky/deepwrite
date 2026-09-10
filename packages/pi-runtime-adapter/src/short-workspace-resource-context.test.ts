@@ -50,14 +50,14 @@ const attachedMaterials = [
     title: "素材库 · 人物档案",
     source: "attached-material" as const,
     kind: "character" as const,
-    content: "不应直接注入的人物素材正文"
+    content: "人物关系设计参考。\n\n不应直接注入的人物素材正文"
   },
   {
     id: "material-plot",
     title: "素材库 · 反转桥段",
     source: "attached-material" as const,
     kind: "plot" as const,
-    content: "不应直接注入的剧情素材正文"
+    content: "剧情反转参考。\n\n不应直接注入的剧情素材正文"
   }
 ];
 
@@ -109,6 +109,7 @@ describe("short workspace on-demand resource context", () => {
     );
     expect(character).not.toContain("风格库 · 冷峻文风");
     expect(character).not.toContain("素材库 · 反转桥段");
+    expect(character).toContain("正文摘录：人物关系设计参考。");
     expect(character).not.toContain("不应直接注入");
 
     const plot = promptFor("plot_design");
@@ -128,6 +129,7 @@ describe("short workspace on-demand resource context", () => {
     expect(character).toContain("素材库 · 人物档案");
     expect(character).not.toContain("素材库 · 反转桥段");
     expect(character).not.toContain("风格库 · 冷峻文风");
+    expect(character).toContain("正文摘录：人物关系设计参考。");
     expect(character).not.toContain("不应直接注入");
 
     const draft = scriptPromptFor("draft");

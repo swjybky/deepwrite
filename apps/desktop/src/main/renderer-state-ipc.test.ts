@@ -5,7 +5,7 @@ import { expectSourceToContain } from "../test-utils/sourceText";
 describe("renderer state IPC wiring", () => {
   it("exposes an asynchronous conversation persistence API without renderer serialization", () => {
     const preloadSource = readFileSync(
-      new URL("../preload/index.ts", import.meta.url),
+      new URL("../preload/conversation-persistence-api.ts", import.meta.url),
       "utf8"
     );
     const apiContractSource = readFileSync(
@@ -23,7 +23,8 @@ describe("renderer state IPC wiring", () => {
     expect(apiContractSource).toContain(
       "conversationPersistence?: ConversationPersistenceApi"
     );
-    expect(preloadSource).toContain("conversationPersistence: {");
+    expect(preloadSource).toContain("export const conversationPersistence");
+    expect(preloadSource).toContain('"rendererState.listHistoryKeys"');
     expect(preloadSource).toContain('"rendererState.load"');
     expect(preloadSource).toContain('"rendererState.save"');
     expect(preloadSource).toContain('"rendererState.remove"');
@@ -34,27 +35,25 @@ describe("renderer state IPC wiring", () => {
 
   it("forwards renderer state commands through main to the core utility", () => {
     const mainSource = readFileSync(
-      new URL("./index.ts", import.meta.url),
+      new URL("./ipc/renderer-state-commands.ts", import.meta.url),
       "utf8"
     );
     const coreSource = readFileSync(
-      new URL("../utilities/core-entry.ts", import.meta.url),
+      new URL("../utilities/renderer-state-commands.ts", import.meta.url),
       "utf8"
     );
     const forwarding = mainSource.slice(
       mainSource.indexOf('command.type === "rendererState.load"'),
-      mainSource.indexOf('command.type === "catalog.snapshot"')
+      mainSource.length
     );
 
     expectSourceToContain(
       forwarding,
-      'supervisor.requestCommand("core", command, 60_000)'
+      'ctx.supervisor.requestCommand("core", command, 60_000)'
     );
     expect(forwarding).toContain("RendererStateLoadResultSchema.parse");
     expect(forwarding).toContain("RendererStateMutationResultSchema.parse");
-    expect(coreSource).toContain(
-      "const rendererStateStore = new RendererStateStore(resolvedUserDataPath)"
-    );
+    expect(coreSource).toContain("await rendererStateStore.listHistoryKeys()");
     expect(coreSource).toContain(
       "await rendererStateStore.load(command.payload.key)"
     );

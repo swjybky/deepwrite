@@ -1,4 +1,9 @@
 import type {
+  LibraryManagementRuntimeContext,
+  LibraryManagementScope
+} from "@deepwrite/contracts";
+import type { LibraryManagementCommandExecutor } from "./library-management-runtime";
+import type {
   AgentEvaluationSnapshot,
   AgentProviderRuntimeConfig,
   AgentRuntimeRef,
@@ -25,6 +30,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { AgentTurnRetryPolicyOptions } from "./agent-turn-retry";
 import type { LongCommandExecutor } from "./long-agent-tools";
+import type { MaterialCommandExecutor } from "./material-query-runtime";
 import type { ShortWorkspaceToolDetails } from "./short-agent-tools";
 import type { AgentToolExecutionHooks } from "./subagent-runtime";
 
@@ -49,6 +55,8 @@ export interface AgentRunInput {
   subagentDefinitions?: ShortAgentSubagentDefinition[];
   subagentRuntimeConfigs?: Readonly<Record<string, AgentProviderRuntimeConfig>>;
   libraryAgentProfile?: LibraryAgentProfile;
+  libraryManagement?: LibraryManagementRuntimeContext;
+  libraryManagementCommandExecutor?: LibraryManagementCommandExecutor;
   learningImitationProfile?: LearningImitationAgentProfile;
   longBookAnalysisProfile?: LongBookAnalysisAgentProfile;
   workspaceContext?: WorkspaceRuntimeContext;
@@ -57,6 +65,7 @@ export interface AgentRunInput {
    * Proposal tools never use this callback for mutation commands.
    */
   longCommandExecutor?: LongCommandExecutor;
+  materialCommandExecutor?: MaterialCommandExecutor;
   signal?: AbortSignal;
 }
 
@@ -429,6 +438,8 @@ export type AgentRuntimeEvent =
             operation: "create";
             domain: "material" | "skill";
             libraryId: string;
+            managementScope?: LibraryManagementScope;
+            creationId?: string;
             stageId: string;
             title: string;
             text: string;
@@ -442,6 +453,8 @@ export type AgentRuntimeEvent =
             operation: "edit";
             domain: "material" | "skill";
             libraryId: string;
+            managementScope?: LibraryManagementScope;
+            creationId?: string;
             entryId: string;
             documentId: string;
             stageId: string;
@@ -457,6 +470,8 @@ export type AgentRuntimeEvent =
             operation: "edit-overview";
             domain: "material" | "skill";
             libraryId: string;
+            managementScope?: LibraryManagementScope;
+            creationId?: string;
             documentId: string;
             title: string;
             text: string;

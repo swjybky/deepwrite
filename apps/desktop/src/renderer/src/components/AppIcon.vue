@@ -142,6 +142,9 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
       <rect x="9" y="3" width="6" height="12" rx="3" />
       <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" />
     </template>
+    <template v-else-if="name === 'arrow-left'">
+      <path d="m11 7-5 5 5 5M6 12h12" />
+    </template>
     <template v-else-if="name === 'arrow-up'">
       <path d="m7 11 5-5 5 5M12 6v12" />
     </template>

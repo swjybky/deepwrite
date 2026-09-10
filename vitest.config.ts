@@ -22,8 +22,9 @@ export default defineConfig({
   test: {
     include: [
       "packages/**/*.test.ts",
+      "tools/**/*.test.mjs",
       "apps/desktop/src/main/**/*.test.ts",
-      "apps/desktop/src/utilities/**/*.test.ts",
+      "apps/desktop/src/utilities/**/*.test.{ts,mjs}",
       "apps/desktop/src/extras/**/*.test.ts",
       "apps/desktop/src/renderer/**/*.test.ts"
     ],

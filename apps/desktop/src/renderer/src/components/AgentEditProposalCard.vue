@@ -342,6 +342,14 @@ function diffLineMark(type: "context" | "addition" | "deletion"): string {
             "
           />
         </div>
+        <p v-if="proposal.libraryTarget">
+          目标{{
+            proposal.libraryTarget.domain === "skill" ? "技能库" : "素材库"
+          }}：{{
+            proposal.libraryTarget.libraryTitle ??
+            proposal.libraryTarget.libraryId
+          }}
+        </p>
         <p>{{ proposal.summary }}</p>
       </div>
       <div

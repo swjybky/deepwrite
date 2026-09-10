@@ -287,15 +287,6 @@ export const OfficialModelBalanceSchema = z.object({
 });
 export type OfficialModelBalance = z.infer<typeof OfficialModelBalanceSchema>;
 
-export const SiteOfficialQuotaSchema = z.object({
-  queriedAt: z.string().datetime(),
-  remaining: z.number().nonnegative().nullable(),
-  used: z.number().nonnegative(),
-  total: z.number().nonnegative().nullable(),
-  unlimited: z.boolean()
-});
-export type SiteOfficialQuota = z.infer<typeof SiteOfficialQuotaSchema>;
-
 export const ModelSettingsInputSchema = z
   .object({
     models: z.array(ModelConfigInputSchema).max(100),
@@ -410,41 +401,6 @@ export const ModelsClearOfficialTokenCommandEnvelopeSchema =
     payload: z.object({})
   });
 
-export const ModelsSaveSiteOfficialTokenCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("models.saveSiteOfficialToken"),
-    payload: z.object({
-      apiKey: z.string().trim().min(1).max(16_000)
-    })
-  });
-
-export const ModelsClearSiteOfficialTokenCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("models.clearSiteOfficialToken"),
-    payload: z.object({})
-  });
-
-export const ModelsRefreshSiteOfficialCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("models.refreshSiteOfficial"),
-    payload: z.object({})
-  });
-
-export const ModelsQuerySiteOfficialQuotaCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("models.querySiteOfficialQuota"),
-    payload: z.object({})
-  });
-
-export const ModelsSetSiteOfficialModelEnabledCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("models.setSiteOfficialModelEnabled"),
-    payload: z.object({
-      modelId: z.string().trim().min(1).max(120),
-      enabled: z.boolean()
-    })
-  });
-
 export const ModelsSetOfficialModelEnabledCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("models.setOfficialModelEnabled"),
@@ -528,3 +484,5 @@ export const AgentModelCapacityCommandEnvelopeSchema =
     type: z.literal("agent.model_capacity"),
     payload: z.object({ runtimeConfig: AgentProviderRuntimeConfigSchema })
   });
+
+export * from "./site-official-models";

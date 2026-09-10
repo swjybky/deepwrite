@@ -119,7 +119,7 @@ describe("agent conversation controller: conversation-model-settings", () => {
     ]);
 
     expect(merged?.activeSessionId).toBe(activeSessionId);
-    expect(merged?.conversations).toHaveLength(20);
+    expect(merged?.conversations).toHaveLength(40);
     expect(
       merged?.conversations.find(
         (conversation) => conversation.sessionId === activeSessionId
@@ -129,40 +129,7 @@ describe("agent conversation controller: conversation-model-settings", () => {
       merged?.conversations.some(
         (conversation) => conversation.sessionId === "session-source-0"
       )
-    ).toBe(false);
-  });
-
-  it("keeps only the 20 most recent conversations", () => {
-    const storage = createMemoryStorage();
-    const controller = useAgentConversation({
-      api: () => undefined,
-      ...storage.options("conversation-history-limit-test")
-    });
-
-    for (let index = 0; index < 22; index += 1) {
-      controller.messages.value = [
-        {
-          id: `user-${index}`,
-          role: "user",
-          content: `历史对话 ${index}`,
-          createdAt: new Date(Date.UTC(2026, 6, 19, 10, index)).toISOString(),
-          status: "completed"
-        }
-      ];
-      controller.newConversation();
-    }
-
-    expect(controller.history.value).toHaveLength(20);
-    expect(
-      controller.history.value.some((item) => item.title === "历史对话 0")
-    ).toBe(false);
-    expect(
-      controller.history.value.some((item) => item.title === "历史对话 1")
-    ).toBe(false);
-    expect(
-      controller.history.value.some((item) => item.title === "历史对话 21")
     ).toBe(true);
-    controller.dispose();
   });
 
   it("uses the configured default model thinking level and carries model identity", async () => {

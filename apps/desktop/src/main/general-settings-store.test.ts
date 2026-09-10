@@ -32,7 +32,7 @@ describe("GeneralSettingsStore", () => {
     });
     expect(createDefaultGeneralSettings()).toMatchObject({
       permissionMode: "auto-approve",
-      autoApproveCrossStageOperations: false,
+      autoApproveCrossStageOperations: true,
       autoSave: true,
       showContextUsage: true,
       useNetworkProxy: false,
@@ -66,10 +66,10 @@ describe("GeneralSettingsStore", () => {
       JSON.parse(
         await readFile(join(root, "config", "general-settings.json"), "utf8")
       )
-    ).toEqual({ version: 1, ...settings });
+    ).toEqual({ version: 2, ...settings });
   });
 
-  it("defaults new v1 fields without discarding legacy preferences", async () => {
+  it("migrates v1 approval defaults without discarding other preferences", async () => {
     const { root, store } = await createStore();
     const configDirectory = join(root, "config");
     await mkdir(configDirectory);
@@ -87,8 +87,8 @@ describe("GeneralSettingsStore", () => {
     await expect(store.list()).resolves.toEqual({
       persisted: true,
       settings: {
-        permissionMode: "request-approval",
-        autoApproveCrossStageOperations: false,
+        permissionMode: "auto-approve",
+        autoApproveCrossStageOperations: true,
         autoSave: false,
         language: "zh-CN",
         showInMenuBar: false,
@@ -97,6 +97,62 @@ describe("GeneralSettingsStore", () => {
         workspacePaneLayout: "agent-editor",
         defaultTextViewMode: "edit"
       }
+    });
+  });
+
+  it("enables explicitly disabled legacy approvals only once", async () => {
+    const { root, store } = await createStore();
+    const settings = {
+      ...createDefaultGeneralSettings(),
+      permissionMode: "request-approval" as const,
+      autoApproveCrossStageOperations: false,
+      autoSave: false,
+      workspacePaneLayout: "editor-agent" as const
+    };
+    await mkdir(join(root, "config"));
+    await writeFile(
+      store.settingsPath,
+      JSON.stringify({ version: 1, ...settings })
+    );
+
+    const migrated = {
+      ...settings,
+      permissionMode: "auto-approve",
+      autoApproveCrossStageOperations: true
+    };
+    await expect(store.list()).resolves.toEqual({
+      persisted: true,
+      settings: migrated
+    });
+    expect(JSON.parse(await readFile(store.settingsPath, "utf8"))).toEqual({
+      version: 2,
+      ...migrated
+    });
+
+    await store.save(settings);
+    await expect(new GeneralSettingsStore(root).list()).resolves.toEqual({
+      persisted: true,
+      settings
+    });
+  });
+
+  it("preserves a save queued while legacy settings are being read", async () => {
+    const { root, store } = await createStore();
+    await mkdir(join(root, "config"));
+    await writeFile(
+      store.settingsPath,
+      JSON.stringify({ version: 1, ...createDefaultGeneralSettings() })
+    );
+    const settings = {
+      ...createDefaultGeneralSettings(),
+      permissionMode: "request-approval" as const,
+      autoApproveCrossStageOperations: false
+    };
+
+    await Promise.all([store.list(), store.save(settings)]);
+    await expect(new GeneralSettingsStore(root).list()).resolves.toEqual({
+      persisted: true,
+      settings
     });
   });
 

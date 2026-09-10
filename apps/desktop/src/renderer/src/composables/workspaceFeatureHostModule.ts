@@ -112,11 +112,24 @@ export function buildWorkspaceFeatureModule(
         models: settingsStore.modelSettings?.models ?? [],
         catalogSnapshot: options.catalogSnapshot.value
       };
+    case "style-comparison":
+      return {
+        kind: "style-comparison",
+        models: modelSelectionSettings?.models ?? [],
+        preferredModelId: modelSelectionSettings?.defaultModelId ?? null
+      };
     case "marketplace":
       return {
         kind: "marketplace",
         catalogSnapshot: options.catalogSnapshot.value,
         session: marketplaceSession
+      };
+    case "device-sync":
+      return {
+        kind: "device-sync",
+        prepareSync: () =>
+          options.actions.prepareDeviceSync?.() ?? Promise.resolve(false),
+        refreshSync: () => refreshDeviceSyncFeature(options)
       };
     case "cloud-backup":
       return { kind: "cloud-backup" };
@@ -126,4 +139,13 @@ export function buildWorkspaceFeatureModule(
     case "long-workspace":
       return null;
   }
+}
+
+async function refreshDeviceSyncFeature(
+  options: WorkspaceFeatureHostCoordinatorOptions
+): Promise<void> {
+  await options.loaders.loadCatalogSnapshot();
+  await options.loaders.loadSyncLongBooks?.();
+  const id = options.view.activeLongBookId.value;
+  if (id) await options.loaders.refreshSyncLongBook?.(id);
 }

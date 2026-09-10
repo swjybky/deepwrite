@@ -24,8 +24,10 @@ import AppIcon from "./AppIcon.vue";
 import {
   AgentTeamSettingsPanel,
   CloudBackupPage,
+  DeviceSyncPage,
   LearningImitationDialog,
   LongBookAnalysisPage,
+  StyleComparisonPage,
   ModelSettingsFeature,
   SettingsPage,
   SkillMarketplacePage,
@@ -295,6 +297,20 @@ const emit = defineEmits<{
     />
   </WorkspaceFeatureFrame>
 
+  <WorkspaceFeatureFrame
+    v-else-if="module.kind === 'style-comparison'"
+    class="style-comparison-main-view"
+    :left-collapsed="leftCollapsed"
+    expand-button-class="marketplace-expand-sidebar"
+    label="文风比对"
+    @expand-left="emit('expandLeft')"
+  >
+    <StyleComparisonPage
+      :models="module.models"
+      :preferred-model-id="module.preferredModelId"
+    />
+  </WorkspaceFeatureFrame>
+
   <main
     v-else-if="module.kind === 'marketplace'"
     class="marketplace-main-view"
@@ -315,6 +331,26 @@ const emit = defineEmits<{
       :initial-session="module.session"
       @refresh-catalog="emit('refreshCatalog')"
       @session-change="emit('marketplaceSessionChange', $event)"
+    />
+  </main>
+
+  <main
+    v-else-if="module.kind === 'device-sync'"
+    class="marketplace-main-view"
+    aria-label="双端同步"
+  >
+    <button
+      v-if="leftCollapsed"
+      class="pane-toggle-button"
+      aria-label="展开侧栏"
+      @click="emit('expandLeft')"
+    >
+      <AppIcon name="panel-left" :size="18" />
+    </button>
+    <DeviceSyncPage
+      :prepare-sync="module.prepareSync"
+      :refresh-sync="module.refreshSync"
+      @refresh-catalog="emit('refreshCatalog')"
     />
   </main>
 

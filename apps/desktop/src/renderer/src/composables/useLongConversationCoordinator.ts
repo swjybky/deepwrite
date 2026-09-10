@@ -1,4 +1,8 @@
 import {
+  withoutMaterialBindings,
+  withoutMaterialBodies
+} from "../utils/library-attachments/sending";
+import {
   ATTACHED_CONTEXT_MAX_ITEMS,
   MATERIAL_KINDS,
   SKILL_KINDS,
@@ -735,14 +739,20 @@ export function useLongConversationCoordinator(
           return;
         }
         const documentsLoaded = await options.catalog.ensureDocumentsLoaded(
-          options.catalog.documentsForProfile(summary, profile)
+          withoutMaterialBodies(
+            options.catalog.documentsForProfile(summary, profile)
+          )
         );
         if (!confirmSendTarget(target)) return;
         if (!documentsLoaded) return;
 
         const contextSnapshot = options.catalog.hydratedSnapshot();
         const attachmentResult = contextSnapshot
-          ? options.catalog.buildAttachments(summary, contextSnapshot, profile)
+          ? options.catalog.buildAttachments(
+              withoutMaterialBindings(summary),
+              contextSnapshot,
+              profile
+            )
           : null;
         const readableAttachments = attachmentResult
           ? options.catalog.filterReadableAttachments(attachmentResult, profile)

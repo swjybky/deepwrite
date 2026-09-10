@@ -1,3 +1,4 @@
+import editorMetadataSource from "./EditorDocumentMetadata.vue?raw";
 import { describe, expect, it } from "vitest";
 import longManuscriptSource from "./LongManuscriptEditor.vue?raw";
 import longWorkspaceSource from "./LongWorkspaceEditor.vue?raw";
@@ -34,7 +35,8 @@ describe("preview document outline", () => {
   });
 
   it("covers short, library, long-form, and story-plot text previews", () => {
-    expect(rightEditorSource).toContain("<DocumentMetaRow");
+    expect(rightEditorSource).toContain("<EditorDocumentMetadata");
+    expect(editorMetadataSource).toContain("<DocumentMetaRow");
     expect(rightEditorSource).toContain("annotate-headings");
     expect(longManuscriptSource).toContain("<DocumentMetaRow");
     expect(longManuscriptSource).toContain("annotate-headings");

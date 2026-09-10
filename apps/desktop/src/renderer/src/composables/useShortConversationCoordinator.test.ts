@@ -200,6 +200,25 @@ function createHarness(
 }
 
 describe("useShortConversationCoordinator", () => {
+  it("hydrates writing and skill documents without loading linked material bodies before a writing run", async () => {
+    const test = createHarness();
+    const material = workspaceDocument({
+      id: "material-entry",
+      domain: "material"
+    });
+    const skill = workspaceDocument({ id: "skill-entry", domain: "skill" });
+    vi.mocked(test.options.resource.contextDocuments).mockReturnValue([
+      test.activeDocument.value,
+      material,
+      skill
+    ]);
+    await test.coordinator.sendMessage();
+    expect(test.ensureDocumentsLoaded).toHaveBeenCalledWith([
+      test.activeDocument.value,
+      skill
+    ]);
+    expect(test.conversation.sendMessage).toHaveBeenCalledOnce();
+  });
   it("keeps full Catalog context construction on the send cold path", async () => {
     const test = createHarness();
 

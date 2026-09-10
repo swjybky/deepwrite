@@ -38,6 +38,9 @@ function controller(name: string) {
   });
   const dispose = vi.fn();
   return {
+    sessionId: ref(name),
+    messages: ref([]),
+    isBusy: ref(false),
     selectedModelId,
     thinkingLevel,
     temperature,

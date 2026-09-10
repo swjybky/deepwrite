@@ -79,7 +79,9 @@ function resolveDocumentDescriptor(
     conversationKey,
     agentLabel: agentLabel ?? "智能体对话",
     contextLabel:
-      owner === document.title ? owner : `${owner} · ${document.title}`,
+      document.workspaceId || owner === document.title
+        ? owner
+        : `${owner} · ${document.title}`,
     targetResourceId: resourceIdForDocument(document, sources.resourceTree)
   };
 }
@@ -94,13 +96,18 @@ function decodeSegment(value: string): string | undefined {
 
 export interface ParsedLongAgentActivityKey {
   bookId: string;
-  root: LongWorkspaceRoot;
+  root?: LongWorkspaceRoot;
   chapterCardId?: string;
 }
 
 export function parseLongAgentActivityKey(
   conversationKey: string
 ): ParsedLongAgentActivityKey | undefined {
+  const bookMatch = conversationKey.match(/^long:([^:]+):chat$/u);
+  if (bookMatch) {
+    const bookId = decodeSegment(bookMatch[1]!);
+    return bookId ? { bookId } : undefined;
+  }
   const match = conversationKey.match(/^long:([^:]+):([^:]+):(.+)$/u);
   if (!match) return undefined;
   const bookId = decodeSegment(match[1]!);
@@ -174,7 +181,7 @@ function isCompatibleLongActivityNode(
 ): boolean {
   return (
     node.longBookId === parsed.bookId &&
-    node.longWorkspaceSelection?.root === parsed.root
+    (!parsed.root || node.longWorkspaceSelection?.root === parsed.root)
   );
 }
 
@@ -186,21 +193,26 @@ function resolveLongDescriptor(
   if (!parsed) return undefined;
   const book = sources.longBooks.find(({ id }) => id === parsed.bookId);
   const agent = sources.longAgents.agents[0];
-  const matchingNode = parsed.chapterCardId
-    ? findChapterCardNode(
-        sources.resourceTree,
-        parsed.bookId,
-        parsed.root,
-        parsed.chapterCardId
-      )
-    : undefined;
+  const matchingNode =
+    parsed.root && parsed.chapterCardId
+      ? findChapterCardNode(
+          sources.resourceTree,
+          parsed.bookId,
+          parsed.root,
+          parsed.chapterCardId
+        )
+      : undefined;
   return {
     conversationKey,
     agentLabel: agent?.label ?? "长篇智能体",
-    contextLabel: `${book?.title ?? "长篇作品"} · ${LONG_WORKSPACE_ROOT_LABELS[parsed.root]}`,
+    contextLabel: parsed.root
+      ? `${book?.title ?? "长篇作品"} · ${LONG_WORKSPACE_ROOT_LABELS[parsed.root]}`
+      : (book?.title ?? "长篇作品"),
     targetResourceId:
       matchingNode?.id ??
-      longStageResourceId(sources.resourceTree, parsed.bookId, parsed.root),
+      (parsed.root
+        ? longStageResourceId(sources.resourceTree, parsed.bookId, parsed.root)
+        : longBookResourceId(parsed.bookId)),
     ...(parsed.chapterCardId ? { chapterCardId: parsed.chapterCardId } : {})
   };
 }
@@ -216,7 +228,7 @@ export function resolveAgentActivityNavigationNode(
   const stored = lookup.nodeById.get(item.targetResourceId);
   const parsed = parseLongAgentActivityKey(item.conversationKey);
   const chapterCardId = item.chapterCardId ?? parsed?.chapterCardId;
-  if (parsed && chapterCardId) {
+  if (parsed?.root && chapterCardId) {
     const chapterNode = findChapterCardNode(
       lookup,
       parsed.bookId,

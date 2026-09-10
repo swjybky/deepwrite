@@ -99,7 +99,7 @@ const actionItems = computed<
       ? ([
           {
             id: "choose-import-book",
-            label: "导入作品",
+            label: "导入已有作品",
             icon: "archive"
           },
           {

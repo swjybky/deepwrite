@@ -1,4 +1,8 @@
 import {
+  withoutMaterialBindings,
+  withoutMaterialBodies
+} from "../utils/library-attachments/sending";
+import {
   ATTACHED_CONTEXT_MAX_ITEMS,
   resolveScriptWorkspaceStageReadAccess,
   resolveShortWorkspaceStageReadAccess,
@@ -669,8 +673,11 @@ export function useShortConversationCoordinator(
             }
             return true;
           });
-        const contextReady =
-          await options.resource.ensureDocumentsLoaded(contextDocuments);
+        const contextReady = await options.resource.ensureDocumentsLoaded(
+          options.resource.activeAgentDocument.value.domain === "creation"
+            ? withoutMaterialBodies(contextDocuments)
+            : contextDocuments
+        );
         if (!sendTargetIsCurrent(target)) {
           notifyCanceledSend();
           return;
@@ -692,7 +699,9 @@ export function useShortConversationCoordinator(
           readAccess
             ? buildLibraryAttachments(
                 contextSnapshot,
-                scopeBookLibrariesToReadAccess(workspaceBook, readAccess)
+                withoutMaterialBindings(
+                  scopeBookLibrariesToReadAccess(workspaceBook, readAccess)
+                )
               )
             : null;
         const attachments = allAttachments

@@ -1,4 +1,4 @@
-import { parseAgentConversationPersistenceSnapshot as parseExtractedPersistenceSnapshot } from "./agent-conversation/parse";
+import { parseAgentConversationPersistenceSnapshot as parseExtractedPersistenceSnapshot } from "./agent-conversation/persistence-snapshot";
 import {
   createDeferredApi,
   createEditProposal,

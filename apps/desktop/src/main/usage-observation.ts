@@ -107,6 +107,7 @@ export function usageModuleForPrompt(
   }
   if (context.learningImitation) return "learning-imitation";
   if (context.longBookAnalysis) return "long-book-analysis";
+  if (context.styleComparison) return "style-comparison";
   if (context.subagentAuthoring) return "subagent-authoring";
   return "unknown";
 }

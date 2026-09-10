@@ -1,3 +1,6 @@
+import { resolveAgentTeamRuntime } from "../agent-team-run-mode";
+import { prepareLibraryManagementRunContext } from "../library-management-run-context";
+import { prepareMaterialRunContext } from "../material-run-context";
 import {
   CommandEnvelopeSchema,
   SessionAbortAcceptedPayloadSchema,
@@ -5,15 +8,11 @@ import {
   SessionPromptAcceptedPayloadSchema,
   createEnvelope,
   isDeepSeekWebSearchCompatible,
-  type AgentProviderRuntimeConfig,
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
 import { resolveChatAssistantRuntimeContext } from "../chat-assistant-runtime-context";
-import {
-  assertModelRunSettings,
-  resolveModelRunSettings
-} from "../model-run-settings";
+import { resolveModelRunSettings } from "../model-run-settings";
 import { createUsageRunContext } from "../usage-observation";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
@@ -166,37 +165,26 @@ export async function handleSessionCommands(
             .requireLongAgentConfigStore()
             .resolve(longWorkspace.activeAgentId)
         : undefined;
-      const subagentDefinitions = agentProfile
-        ? await ctx
-            .requireAgentTeamConfigStore()
-            .resolve(creativeWorkspaceType, agentProfile.id)
-        : longAgentProfile
-          ? await ctx
-              .requireAgentTeamConfigStore()
-              .resolve("long", longAgentProfile.id)
-          : undefined;
-      const subagentRuntimeConfigs: Record<string, AgentProviderRuntimeConfig> =
-        {};
-      if (subagentDefinitions?.length) {
-        for (const definition of subagentDefinitions) {
-          if (definition.modelMode !== "custom" || !definition.modelId) {
-            continue;
+      const { subagentDefinitions, subagentRuntimeConfigs } =
+        await resolveAgentTeamRuntime(
+          command.payload.agentTeamMode,
+          agentProfile
+            ? {
+                workspaceType: creativeWorkspaceType,
+                parentAgentId: agentProfile.id
+              }
+            : longAgentProfile
+              ? { workspaceType: "long", parentAgentId: longAgentProfile.id }
+              : undefined,
+          {
+            resolveDefinitions: (workspaceType, parentAgentId) =>
+              ctx
+                .requireAgentTeamConfigStore()
+                .resolve(workspaceType, parentAgentId),
+            resolveModel: (modelId) =>
+              ctx.requireModelConfigStore().resolve(modelId)
           }
-          const resolved =
-            subagentRuntimeConfigs[definition.modelId] ??
-            (await ctx.requireModelConfigStore().resolve(definition.modelId));
-          if (!resolved) {
-            throw new Error(
-              `子智能体「${definition.name}」配置的模型不存在，请刷新模型配置后重试。`
-            );
-          }
-          assertModelRunSettings(resolved, {
-            thinkingLevel: definition.thinkingLevel,
-            temperature: definition.temperature
-          });
-          subagentRuntimeConfigs[definition.modelId] = resolved;
-        }
-      }
+        );
       const libraryAgentProfile = libraryWorkspace
         ? await ctx
             .requireLibraryAgentConfigStore()
@@ -220,6 +208,7 @@ export async function handleSessionCommands(
         }
       );
       const {
+        agentTeamMode: _requestedAgentTeamMode,
         thinkingLevel: _requestedThinkingLevel,
         temperature: _requestedTemperature,
         ...promptPayload
@@ -230,11 +219,30 @@ export async function handleSessionCommands(
         subagentRuntimeConfigs
       );
       ctx.pendingUsageContexts.set(command.context.correlationId, usageContext);
+      const libraryManagement = await prepareLibraryManagementRunContext(
+        command.payload.workspaceContext,
+        ctx.requireAgentTeamConfigStore(),
+        ctx.requireLibraryAgentConfigStore(),
+        (query) => ctx.supervisor.requestCommand("core", query, 60_000)
+      );
+      const materialWorkspaceContext = await prepareMaterialRunContext(
+        {
+          workspaceContext: command.payload.workspaceContext,
+          ...(agentProfile ? { agentProfile } : {}),
+          ...(longAgentProfile ? { longAgentProfile } : {}),
+          snapshotMode: process.env.DEEPWRITE_MATERIAL_SNAPSHOT_MODE === "1"
+        },
+        (query) => ctx.supervisor.requestCommand("core", query, 60_000)
+      );
       const internalCommand = CommandEnvelopeSchema.parse(
         createEnvelope(
           "agent.prompt",
           {
             ...promptPayload,
+            ...(libraryManagement ? { libraryManagement } : {}),
+            ...(materialWorkspaceContext
+              ? { workspaceContext: materialWorkspaceContext }
+              : {}),
             ...(thinkingLevel ? { thinkingLevel } : {}),
             ...(temperature !== undefined ? { temperature } : {}),
             ...(runtimeConfig ? { runtimeConfig } : {}),
@@ -299,6 +307,14 @@ export async function handleSessionCommands(
             runtime: accepted.runtime,
             accepted: true,
             promptRequestId: internalCommand.id,
+            ...(libraryManagement
+              ? { libraryManagementScope: libraryManagement.scope }
+              : {}),
+            ...(materialWorkspaceContext?.materialCatalog
+              ? {
+                  materialScope: materialWorkspaceContext.materialCatalog.scope
+                }
+              : {}),
             usageContext,
             ...(longWorkspace
               ? { resourceId: longWorkspace.bookId }

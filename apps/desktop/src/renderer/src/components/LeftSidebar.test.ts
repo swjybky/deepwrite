@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { expectSourceToContain } from "../../../test-utils/sourceText";
-import source from "./LeftSidebar.vue?raw";
+import sidebarSource from "./LeftSidebar.vue?raw";
+import profileSource from "./SidebarProfileMenu.vue?raw";
+const source = `${sidebarSource}\n${profileSource}`;
 
 describe("LeftSidebar account controls", () => {
   it("separates the account menu from the settings-page button", () => {

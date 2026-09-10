@@ -1,3 +1,4 @@
+import { MATERIAL_STAGE_KINDS } from "@deepwrite/contracts/renderer";
 import {
   MATERIAL_KINDS,
   SKILL_KINDS,
@@ -39,15 +40,7 @@ export const MATERIAL_STAGE_LABELS: Record<MaterialStageId, string> = {
   other: "其他素材"
 };
 
-export const MATERIAL_STAGE_KINDS: Record<MaterialStageId, MaterialKind> = {
-  gimmick: "gimmick",
-  character: "character",
-  pacing: "plot",
-  intro: "plot",
-  plot_refine: "plot",
-  draft_excerpt: "draft",
-  other: "other"
-};
+export { MATERIAL_STAGE_KINDS } from "@deepwrite/contracts/renderer";
 
 export const SKILL_KIND_LABELS: Record<SkillKind, string> = {
   general: "通用技能库",

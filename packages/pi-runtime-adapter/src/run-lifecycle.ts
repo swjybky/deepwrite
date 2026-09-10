@@ -2,11 +2,30 @@ import type { AgentRuntimeEvent } from "./runtime-types";
 
 /** Owns child bookkeeping and idle detection for one parent invocation. */
 export class RunLifecycle {
+  private readonly cancellation = new AbortController();
+  private detachAbort: (() => void) | undefined;
   private readonly children = new Map<
     string,
     Extract<AgentRuntimeEvent, { type: "subagent.started" }>
   >();
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  get signal(): AbortSignal {
+    return this.cancellation.signal;
+  }
+
+  bindAbort(signal: AbortSignal | undefined, onAbort: () => void): void {
+    this.detachAbort?.();
+    const abort = () => {
+      this.cancellation.abort();
+      onAbort();
+    };
+    if (signal?.aborted) abort();
+    else if (signal) {
+      signal.addEventListener("abort", abort, { once: true });
+      this.detachAbort = () => signal.removeEventListener("abort", abort);
+    }
+  }
 
   clearIdleTimer(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
@@ -35,6 +54,8 @@ export class RunLifecycle {
     if (event.type !== "agent.completed" && event.type !== "agent.error") {
       return [];
     }
+    // Stop actual child requests before projecting their terminal statuses.
+    this.cancellation.abort();
     this.clearIdleTimer();
     const aborted =
       event.type === "agent.error" && event.payload.code === "pi_agent.aborted";
@@ -67,6 +88,9 @@ export class RunLifecycle {
   }
 
   dispose(): void {
+    this.cancellation.abort();
+    this.detachAbort?.();
+    this.detachAbort = undefined;
     this.clearIdleTimer();
     this.children.clear();
   }

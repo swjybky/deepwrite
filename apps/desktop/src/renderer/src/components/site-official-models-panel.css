@@ -385,3 +385,16 @@
     justify-self: start;
   }
 }
+
+.site-quota-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.site-quota-footer small {
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}

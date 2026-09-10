@@ -532,6 +532,8 @@ describe("useLongWorkspacePresentationCoordinator", () => {
     const store = useConversationStore();
     const { controllers, scopesByKey } = storeToRefs(store);
     const pendingReviewController = {
+      sessionId: ref("pending-review"),
+      messages: ref([]),
       isBusy: ref(false),
       hasPendingEditReview: ref(true),
       dispose: vi.fn()

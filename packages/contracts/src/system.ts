@@ -1,4 +1,9 @@
+import { SiteOfficialModelCommandSchemas } from "./site-official-models";
+import { DeviceSyncWorkspaceCommandEnvelopeSchema } from "./device-sync-commands";
+import { AgentTeamsSaveBuiltinsCommandEnvelopeSchema } from "./builtin-subagents";
+import { CatalogQueryLibraryManagementCommandEnvelopeSchema } from "./library-management";
 import { z } from "zod";
+import { CatalogQueryMaterialsCommandEnvelopeSchema } from "./material-query";
 import {
   ChatAssistantProjectConfigGetCommandEnvelopeSchema,
   ChatAssistantProjectConfigListCommandEnvelopeSchema,
@@ -97,10 +102,6 @@ import {
   AgentModelCapacityCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema,
   ModelsClearOfficialTokenCommandEnvelopeSchema,
-  ModelsClearSiteOfficialTokenCommandEnvelopeSchema,
-  ModelsRefreshSiteOfficialCommandEnvelopeSchema,
-  ModelsQuerySiteOfficialQuotaCommandEnvelopeSchema,
-  ModelsSetSiteOfficialModelEnabledCommandEnvelopeSchema,
   ModelsSetOfficialModelEnabledCommandEnvelopeSchema,
   ModelsListCommandEnvelopeSchema,
   ModelsQueryOfficialBalanceCommandEnvelopeSchema,
@@ -108,7 +109,6 @@ import {
   ModelsSetFreeModelEnabledCommandEnvelopeSchema,
   ModelsRefreshOfficialCommandEnvelopeSchema,
   ModelsSaveOfficialTokenCommandEnvelopeSchema,
-  ModelsSaveSiteOfficialTokenCommandEnvelopeSchema,
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema,
   ModelsResolveCapacityCommandEnvelopeSchema,
@@ -192,9 +192,8 @@ import {
   CatalogWriteWritingContextCommandEnvelopeSchema
 } from "./writing-context";
 import {
-  RendererStateLoadCommandEnvelopeSchema,
-  RendererStateRemoveCommandEnvelopeSchema,
-  RendererStateSaveCommandEnvelopeSchema
+  RendererStateCommandEnvelopeSchemas,
+  RendererStateFlushRequestedEventEnvelopeSchema
 } from "./renderer-state";
 import {
   LongApplyOperationsCommandEnvelopeSchema,
@@ -260,10 +259,10 @@ export const SystemHealthCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 });
 
 export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
+  DeviceSyncWorkspaceCommandEnvelopeSchema,
+  CatalogQueryMaterialsCommandEnvelopeSchema,
   SystemHealthCommandEnvelopeSchema,
-  RendererStateLoadCommandEnvelopeSchema,
-  RendererStateSaveCommandEnvelopeSchema,
-  RendererStateRemoveCommandEnvelopeSchema,
+  ...RendererStateCommandEnvelopeSchemas,
   CatalogIndexCommandEnvelopeSchema,
   CatalogReadDocumentCommandEnvelopeSchema,
   CatalogReadWritingContextCommandEnvelopeSchema,
@@ -346,11 +345,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ModelsRefreshOfficialCommandEnvelopeSchema,
   ModelsSaveOfficialTokenCommandEnvelopeSchema,
   ModelsClearOfficialTokenCommandEnvelopeSchema,
-  ModelsSaveSiteOfficialTokenCommandEnvelopeSchema,
-  ModelsClearSiteOfficialTokenCommandEnvelopeSchema,
-  ModelsRefreshSiteOfficialCommandEnvelopeSchema,
-  ModelsQuerySiteOfficialQuotaCommandEnvelopeSchema,
-  ModelsSetSiteOfficialModelEnabledCommandEnvelopeSchema,
+  ...SiteOfficialModelCommandSchemas,
   ModelsSetOfficialModelEnabledCommandEnvelopeSchema,
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema,
@@ -375,6 +370,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   LongBookAnalysisSettingsListCommandEnvelopeSchema,
   LongBookAnalysisSettingsSaveCommandEnvelopeSchema,
   LongBookAnalysisSettingsResetCommandEnvelopeSchema,
+  AgentTeamsSaveBuiltinsCommandEnvelopeSchema,
+  CatalogQueryLibraryManagementCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
   AgentTeamsCreateCommandEnvelopeSchema,
   AgentTeamsRenameCommandEnvelopeSchema,
@@ -456,6 +453,7 @@ export const SystemWorkerRestartingEventEnvelopeSchema =
   });
 
 export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
+  RendererStateFlushRequestedEventEnvelopeSchema,
   SystemReadyEventEnvelopeSchema,
   SystemWorkerRestartingEventEnvelopeSchema,
   SystemWorkerRestartedEventEnvelopeSchema,
@@ -502,6 +500,7 @@ export type SystemWorkerRestartingEventEnvelope = Envelope<
   "system.worker_restarting"
 >;
 export type SystemEventEnvelope =
+  | z.infer<typeof RendererStateFlushRequestedEventEnvelopeSchema>
   | SystemReadyEventEnvelope
   | SystemWorkerRestartingEventEnvelope
   | SystemWorkerRestartedEventEnvelope

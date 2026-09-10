@@ -28,7 +28,7 @@ describe("App remote alerts", () => {
       ':model-alert-messages="module.alertMessages"'
     );
     expect(source).toContain(
-      '@open-official-models="openOfficialModelsSettings"'
+      '@open-official-models="featureHost.openOfficialModelsSettings"'
     );
     expect(featureHostSource).toContain(
       'issueBackground(() => openSettings("official-models"))'

@@ -1,3 +1,4 @@
+import libraryStage from "./composables/proposal-coordinator/library-staging.ts?raw";
 import { describe, expect, it } from "vitest";
 import source from "./WorkspaceShell.vue?raw";
 import longWorkspaceSource from "./components/LongWorkspaceModule.vue?raw";
@@ -5,6 +6,7 @@ import writingWorkspaceSource from "./components/WritingWorkspaceModule.vue?raw"
 import autoSaveSource from "./composables/useEditorAutoSaveCoordinator.ts?raw";
 import presentationCoordinatorSource from "./composables/useLongWorkspacePresentationCoordinator.ts?raw";
 import coordinatorSource from "./composables/useProposalCoordinator.ts?raw";
+import worldbuildingLaneSource from "./composables/proposal-coordinator/long-worldbuilding-lane.ts?raw";
 import longImpactApprovalSource from "./composables/proposal-coordinator/long-impact-approval.ts?raw";
 import shortConversationSource from "./composables/useShortConversationCoordinator.ts?raw";
 import eventRoutesSource from "./events/registerWorkspaceSystemEventRoutes.ts?raw";
@@ -88,7 +90,7 @@ describe("App agent realtime auto persistence", () => {
     );
     expect(source).toContain("stageLongWorldbuildingEditProposal,");
     expect(coordinatorSource).toContain('stageId: "long-worldbuilding"');
-    expect(coordinatorSource).toContain(
+    expect(worldbuildingLaneSource).toContain(
       "async function acceptLongWorldbuildingFileProposal"
     );
     expect(coordinatorSource).toContain(
@@ -143,26 +145,15 @@ describe("App agent realtime auto persistence", () => {
   it("immediately schedules ordinary workspace and library auto approvals", () => {
     const workspaceQueueStart = coordinatorSource.lastIndexOf(
       "queueAgentEdit(",
-      coordinatorSource.indexOf("function stageLibraryEditProposal")
+      coordinatorSource.indexOf("const stageLibraryEditProposal")
     );
     const workspaceQueue = coordinatorSource.slice(
       workspaceQueueStart,
-      coordinatorSource.indexOf("function stageLibraryEditProposal")
+      coordinatorSource.indexOf("const stageLibraryEditProposal")
     );
     expect(workspaceQueue).toContain("proposal.id");
     expect(workspaceQueue).toMatch(/proposal\.id,\s*true,\s*true/s);
 
-    const libraryStageStart = coordinatorSource.indexOf(
-      "function stageLibraryEditProposal"
-    );
-    const libraryStageEnd = coordinatorSource.indexOf(
-      "async function acceptDraftSectionCreationProposal",
-      libraryStageStart
-    );
-    const libraryStage = coordinatorSource.slice(
-      libraryStageStart,
-      libraryStageEnd
-    );
     expect(libraryStage).toMatch(/proposalId,\s*true,\s*true/s);
   });
 

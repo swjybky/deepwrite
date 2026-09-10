@@ -1,16 +1,20 @@
+import { canonicalBookConversationKey } from "../utils/bookConversationKey";
+import type { ConversationRuntimeRegistryCoordinatorOptions } from "./conversationRuntimeRegistryTypes";
+export type {
+  ConversationRuntimeRegistryCoordinatorOptions,
+  ConversationRuntimeRegistryStorePort,
+  ConversationControllerPersistenceHooks
+} from "./conversationRuntimeRegistryTypes";
 import type {
   GeneralPermissionMode,
   ModelSettings
 } from "@deepwrite/contracts";
-import type { Ref } from "vue";
+
 import type {
   AgentConversationController,
   AgentRunSettings
 } from "./useAgentConversation";
-import type {
-  ConversationPersistenceAdapter,
-  ConversationPersistenceOptions
-} from "../stores/conversationStore";
+
 import { RUN_PREFERENCES_PERSISTENCE_KEY } from "../stores/conversationStore";
 import type {
   AgentModelSelection,
@@ -18,71 +22,6 @@ import type {
   AgentRunPreferencesByScope
 } from "../utils/agentRunPreferences";
 import { conversationHistoryPersistenceKey } from "../utils/conversationPersistence";
-
-interface ConversationRuntimeRegistryNotifications {
-  warning(message: string): void;
-}
-
-export interface ConversationControllerPersistenceHooks {
-  onPersistenceChange(): void | Promise<void>;
-  onPersistenceRemove(): void | Promise<void>;
-}
-
-export interface ConversationRuntimeRegistryStorePort {
-  sessionAgentModelSelection: Readonly<Ref<AgentModelSelection | undefined>>;
-  agentRunPreferences: Readonly<Ref<AgentRunPreferencesByScope>>;
-  configurePersistenceAdapter(
-    adapter: ConversationPersistenceAdapter | null,
-    options?: ConversationPersistenceOptions
-  ): void;
-  registerController(
-    key: string,
-    scope: string,
-    controller: AgentConversationController,
-    options?: { applyPreferences?: boolean }
-  ): AgentConversationController;
-  controllerForKey(key: string): AgentConversationController | undefined;
-  scopeForKey(key: string): string | undefined;
-  setControllerScope(key: string, scope: string): boolean;
-  listControllers(): AgentConversationController[];
-  controllerEntries(): Iterable<readonly [string, AgentConversationController]>;
-  setSessionAgentModelSelection(
-    selection: AgentModelSelection | undefined,
-    options?: {
-      source?: AgentConversationController;
-      persist?: boolean;
-    }
-  ): void;
-  setAgentRunPreferences(
-    scope: string,
-    preferences: AgentRunPreferences,
-    options?: {
-      source?: AgentConversationController;
-      persist?: boolean;
-    }
-  ): void;
-  removeAgentRunPreferences(
-    scope: string,
-    options?: { persist?: boolean }
-  ): boolean;
-  schedulePersistence<Value>(key: string, value: Value): void;
-  schedulePersistenceFactory(key: string, valueFactory: () => unknown): void;
-  loadPersistence<Value>(key: string): Promise<Value | undefined>;
-  removePersistence(key: string): Promise<void>;
-  hydratePreferences(): Promise<void>;
-}
-
-export interface ConversationRuntimeRegistryCoordinatorOptions {
-  store: ConversationRuntimeRegistryStorePort;
-  persistenceAdapter: ConversationPersistenceAdapter | null;
-  modelSettings: Readonly<Ref<ModelSettings | null>>;
-  permissionMode(): GeneralPermissionMode;
-  createController(
-    hooks: ConversationControllerPersistenceHooks
-  ): AgentConversationController;
-  resumeRecovered(conversations: readonly AgentConversationController[]): void;
-  notifications: ConversationRuntimeRegistryNotifications;
-}
 
 /**
  * Owns the shared conversation-controller registry, persisted hydration, and
@@ -93,6 +32,8 @@ export function useConversationRuntimeRegistryCoordinator(
   options: ConversationRuntimeRegistryCoordinatorOptions
 ) {
   const inFlightHydrates = new Set<Promise<unknown>>();
+  const failedHydrates = new Set<AgentConversationController>();
+  const hydratingControllers = new WeakSet<AgentConversationController>();
   const persistenceEnabled = options.persistenceAdapter !== null;
   let disposed = false;
   let lifecycleGeneration = 0;
@@ -246,18 +187,34 @@ export function useConversationRuntimeRegistryCoordinator(
     conversation: AgentConversationController,
     generation: number
   ): Promise<void> {
+    const retry = failedHydrates.has(conversation);
+    hydratingControllers.add(conversation);
+    let failed = false;
     try {
-      const snapshot = await options.store.loadPersistence(persistenceKey);
+      try {
+        await options.persistenceAdapter?.prepareHistory?.(key);
+      } catch {
+        failed = true;
+        warnPersistenceOnce("历史对话迁移暂未完成，原始记录已保留");
+      }
+      if (!controllerIsCurrent(key, conversation, generation)) return;
+      const snapshot = await options.store.loadPersistence(persistenceKey, {
+        force: retry
+      });
       if (!controllerIsCurrent(key, conversation, generation)) return;
       if (snapshot !== undefined) {
         await conversation.restorePersistenceSnapshot(snapshot);
         if (!controllerIsCurrent(key, conversation, generation)) return;
       }
     } catch {
+      failed = true;
       if (controllerIsCurrent(key, conversation, generation)) {
         warnPersistenceOnce("历史对话暂时无法读取，本次运行仍可正常使用");
       }
     } finally {
+      hydratingControllers.delete(conversation);
+      if (failed) failedHydrates.add(conversation);
+      else failedHydrates.delete(conversation);
       conversation.releasePersistenceEmits();
       applyConversationRuntimeSettings(key, scope, conversation, generation);
     }
@@ -270,12 +227,25 @@ export function useConversationRuntimeRegistryCoordinator(
     if (disposed) {
       throw new Error("会话运行时注册表已经关闭。");
     }
+    key = canonicalBookConversationKey(key, scope);
     const existing = options.store.controllerForKey(key);
     if (existing) {
       if (options.store.scopeForKey(key) !== scope) {
         options.store.setControllerScope(key, scope);
       }
       existing.selectApprovalMode(options.permissionMode());
+      if (failedHydrates.has(existing) && !hydratingControllers.has(existing)) {
+        existing.holdPersistenceEmits();
+        void trackHydrate(
+          hydrateConversation(
+            key,
+            scope,
+            conversationHistoryPersistenceKey(key),
+            existing,
+            lifecycleGeneration
+          )
+        );
+      }
       return existing;
     }
 

@@ -210,6 +210,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
       "directory",
       "models",
       "imitation",
+      "style-comparison",
       "agent-team",
       "marketplace",
       "cloud-backup",
@@ -231,6 +232,21 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
         ? settingsModule.initialCategory
         : undefined
     ).toBe("appearance");
+  });
+
+  it("opens style comparison through the save guard and loads available models", async () => {
+    const harness = createHarness();
+    await harness.coordinator.openWorkspaceDialog("style-comparison");
+    expect(harness.saveBeforeLeaving).toHaveBeenCalledOnce();
+    expect(harness.loaders.loadModelSettings).toHaveBeenCalledOnce();
+    expect(harness.coordinator.workspaceFeatureModule.value).toEqual({
+      kind: "style-comparison",
+      models: [],
+      preferredModelId: null
+    });
+    const blocked = createHarness({ saveBeforeLeaving: async () => false });
+    await blocked.coordinator.openWorkspaceDialog("style-comparison");
+    expect(blocked.workspaceMainView.value).toBe("conversation");
   });
 
   it("routes new conversations using the current long-book identity", () => {

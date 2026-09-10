@@ -51,7 +51,8 @@ describe("script workspace tool regression", () => {
       "write",
       "delete",
       "query_linked_material_entries",
-      "load_skill"
+      "load_skill",
+      "ask_user_question"
     ]);
 
     const draftTools = buildScriptWorkspaceTools({

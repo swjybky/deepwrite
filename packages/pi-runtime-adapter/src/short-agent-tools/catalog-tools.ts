@@ -1,3 +1,7 @@
+import {
+  MATERIAL_QUERY_DESCRIPTION,
+  queryAttachedMaterials
+} from "../material-catalog";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import {
@@ -15,43 +19,6 @@ import {
 import { defineTool, literalUnion } from "./schema";
 import { textResult, type BuildWritingWorkspaceToolsInput } from "./shared";
 
-type AttachedMaterial = NonNullable<
-  BuildWritingWorkspaceToolsInput["attachedMaterials"]
->[number];
-
-function materialShortName(title: string): string {
-  const separator = title.lastIndexOf(" · ");
-  return separator < 0 ? title : title.slice(separator + 3).trim() || title;
-}
-
-function resolveMaterialEntry(
-  rawName: string,
-  items: readonly AttachedMaterial[]
-):
-  | { status: "found"; item: AttachedMaterial }
-  | { status: "ambiguous"; items: AttachedMaterial[] }
-  | { status: "not_found" } {
-  const name = rawName.trim();
-  const candidateGroups = [
-    items.filter((item) => item.title === name),
-    items.filter((item) => item.id === name),
-    items.filter((item) => materialShortName(item.title) === name)
-  ];
-  for (const candidates of candidateGroups) {
-    if (candidates.length === 1) {
-      return { status: "found", item: candidates[0]! };
-    }
-    if (candidates.length > 1) {
-      return { status: "ambiguous", items: candidates };
-    }
-  }
-  return { status: "not_found" };
-}
-
-function materialIndexLine(item: AttachedMaterial): string {
-  return `- ${item.title}${item.kind ? ` [${item.kind}]` : ""}（id=${item.id}）`;
-}
-
 export function buildQueryLinkedMaterialEntriesTool(
   input: BuildWritingWorkspaceToolsInput
 ): AgentTool {
@@ -65,64 +32,30 @@ export function buildQueryLinkedMaterialEntriesTool(
   return defineTool({
     name: "query_linked_material_entries",
     label: "查询关联素材条目",
-    description:
-      "列出、搜索或按完整标题、唯一短名、稳定 id 读取本轮显式附加且位于当前智能体读取范围内的素材。多候选时必须改用稳定 id；未显式附加的素材不会被读取。",
+    description: MATERIAL_QUERY_DESCRIPTION,
     parameters: Type.Object({
       mode: Type.Union([
         Type.Literal("list"),
         Type.Literal("search"),
         Type.Literal("read")
       ]),
+      cursor: Type.Optional(Type.Integer({ minimum: 0 })),
       query: Type.Optional(Type.String({ maxLength: 300 })),
+      entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
       entry_name: Type.Optional(Type.String({ maxLength: 512 })),
       material_kind: Type.Optional(
         literalUnion(allowedKinds.length ? allowedKinds : SHORT_MATERIAL_KINDS)
       )
     }),
-    execute: async (_toolCallId, params) => {
+    execute: async (_toolCallId, params, signal) => {
+      if (input.queryMaterials)
+        return textResult(
+          await input.queryMaterials(params, allowedKinds, signal)
+        );
       const items = (input.attachedMaterials ?? []).filter(
         (item) => item.kind !== undefined && allowedKinds.includes(item.kind)
       );
-      const kind = params.material_kind ? String(params.material_kind) : "";
-      const scoped = kind ? items.filter((item) => item.kind === kind) : items;
-      if (params.mode === "read") {
-        const name = String(params.entry_name ?? params.query ?? "").trim();
-        const resolved = resolveMaterialEntry(name, scoped);
-        if (resolved.status === "ambiguous") {
-          return textResult(
-            [
-              `名称「${name}」匹配到多个素材条目，请改用稳定 id：`,
-              ...resolved.items.map(materialIndexLine)
-            ].join("\n")
-          );
-        }
-        return textResult(
-          resolved.status === "found"
-            ? `【${resolved.item.title}】${resolved.item.kind ? `（${resolved.item.kind}）` : ""}\n\n${resolved.item.content}`
-            : "没有找到同名的已附加素材条目。"
-        );
-      }
-      if (params.mode === "search") {
-        const query = String(params.query ?? "").trim();
-        const found = scoped.filter(
-          (item) => item.title.includes(query) || item.content.includes(query)
-        );
-        return textResult(
-          found.length
-            ? found
-                .map(
-                  (item) =>
-                    `${materialIndexLine(item)}: ${item.content.slice(0, 220)}`
-                )
-                .join("\n")
-            : "已附加素材中没有匹配条目。"
-        );
-      }
-      return textResult(
-        scoped.length
-          ? scoped.map(materialIndexLine).join("\n")
-          : "本轮没有附加当前智能体可读的素材。"
-      );
+      return textResult(queryAttachedMaterials(items, params));
     }
   });
 }

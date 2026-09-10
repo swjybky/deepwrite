@@ -85,10 +85,10 @@ describe("resolveAgentActivityDescriptor", () => {
     };
 
     expect(
-      resolveAgentActivityDescriptor("book-one:character_design", sources)
+      resolveAgentActivityDescriptor("book-one:chat", sources)
     ).toMatchObject({
       agentLabel: "短篇智能体",
-      contextLabel: "测试短篇 · 人物概览",
+      contextLabel: "测试短篇",
       targetResourceId: "character-node"
     });
     expect(
@@ -98,6 +98,37 @@ describe("resolveAgentActivityDescriptor", () => {
       contextLabel: "写作技能库 · 节奏控制",
       targetResourceId: "skill-node"
     });
+  });
+
+  it("navigates a unified long conversation to its book without a stage label", () => {
+    const bookId = "long:shared-book";
+    const bookNode = {
+      id: longBookResourceId(bookId),
+      label: "统一长篇",
+      longBookId: bookId,
+      workspaceType: "long" as const
+    };
+    const sources = {
+      ...defaults,
+      documents: [],
+      longBooks: [{ id: bookId, title: "统一长篇" } as LongBookSummary],
+      resourceTree: createResourceTreeLookup([
+        { id: "creation", label: "创作", icon: "book", nodes: [bookNode] }
+      ])
+    };
+    const conversationKey = `long:${encodeURIComponent(bookId)}:chat`;
+    const descriptor = resolveAgentActivityDescriptor(conversationKey, sources);
+    expect(descriptor).toMatchObject({
+      agentLabel: "长篇智能体",
+      contextLabel: "统一长篇",
+      targetResourceId: bookNode.id
+    });
+    expect(
+      resolveAgentActivityNavigationNode(
+        { conversationKey, targetResourceId: "removed-node" },
+        sources
+      )?.id
+    ).toBe(bookNode.id);
   });
 
   it("resolves automatic long-form runs to their chapter or root", () => {

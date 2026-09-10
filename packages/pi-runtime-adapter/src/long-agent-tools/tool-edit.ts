@@ -12,6 +12,7 @@ import {
   strictObject,
   summaryParameter
 } from "./schemas";
+import { characterMetadataOperations } from "./character-metadata";
 import { LONG_STAGE_ROOTS } from "./entity-registry";
 import {
   longEntityContentPatch,
@@ -94,7 +95,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
     name: "edit",
     label: "修改对象",
     description:
-      "修改一个已有对象：目标正文为空时可直接给 content 整篇写入；覆盖已有非空正文必须先 read 完整读取并设置 allow_overwrite_existing=true；局部修改用 replacements 替换完整读取后的唯一原文片段。人物 current_state/history 必须传 chapter_id 才能修改指定章文件，不传时是只读的最新账本映射。meta 用于改标题或关系字段；文档对象的 meta 修改要单独调用。",
+      "修改一个已有对象：目标正文为空时可直接给 content 整篇写入；覆盖已有非空正文必须先 read 完整读取并设置 allow_overwrite_existing=true；局部修改用 replacements 替换完整读取后的唯一原文片段。人物 current_state/history 必须传 chapter_id 才能修改指定章文件，不传时是只读的最新账本映射。meta 用于改标题或关系字段；人物 meta 支持 name、aliases、type_id，type_id 将人物移到已有类型末尾，仅修改人物 meta 时可省略 document。文档对象的 meta 修改要单独调用。",
     parameters: strictObject({
       id: entityIdParameter,
       document: Type.Optional(documentParameter),
@@ -117,10 +118,19 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
     execute: async (toolCallId, params, signal) => {
       const summary = params.summary.trim();
       if (!summary) throw new Error("summary 必须非空。");
+      const document =
+        params.document ??
+        (params.id.startsWith("character_") &&
+        params.meta &&
+        params.content === undefined &&
+        !params.replacements &&
+        !params.chapter_id
+          ? "core_profile"
+          : undefined);
       let index = await loadIndex(signal);
       let target = resolveLongTarget(index, {
         id: params.id,
-        ...(params.document ? { document: params.document } : {}),
+        ...(document ? { document } : {}),
         ...(params.chapter_id ? { chapter_id: params.chapter_id } : {})
       });
       if (!writableRoots.has(LONG_STAGE_ROOTS[target.stage])) {
@@ -140,7 +150,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         index = await reloadIndex(signal);
         target = resolveLongTarget(index, {
           id: params.id,
-          ...(params.document ? { document: params.document } : {}),
+          ...(document ? { document } : {}),
           ...(params.chapter_id ? { chapter_id: params.chapter_id } : {})
         });
         if (!writableRoots.has(LONG_STAGE_ROOTS[target.stage])) {
@@ -200,10 +210,16 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
       }
 
       if (params.meta) {
+        const characterEdit =
+          target.kind === "character"
+            ? characterMetadataOperations(index, target.id, params.meta)
+            : undefined;
+        if (characterEdit?.operations.length === 0)
+          return textResult("无需修改：人物信息和类型归属未变化。");
         return formLongProposal(ctx, {
           toolCallId,
           changes: [],
-          operations: [
+          operations: characterEdit?.operations ?? [
             longStructureUpdateOperation(
               index,
               target,
@@ -211,7 +227,9 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             )
           ],
           timestamp,
-          summary,
+          summary: characterEdit?.relocation
+            ? `${summary}（${characterEdit.relocation}）`.slice(0, 1_000)
+            : summary,
           message: `已形成《${target.title}》信息修改提案，等待客户端审阅。`,
           index
         });

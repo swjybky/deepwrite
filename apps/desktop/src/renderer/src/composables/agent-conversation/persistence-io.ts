@@ -1,66 +1,16 @@
-import {
-  cloneJsonRecord,
-  cloneMessage,
-  cloneMessageForPersistence
-} from "./clone";
+import { capturePersistenceSnapshot } from "./persistence-history";
+export {
+  capturePersistenceSnapshot,
+  currentStoredConversation,
+  hasConversationContent,
+  storeCurrentConversation
+} from "./persistence-history";
+import { preserveLoadedConversations } from "./deferred-history";
+import { cloneMessage } from "./clone";
 import type { AgentConversationContext } from "./context";
 import { nextConversationTimestamp } from "./context";
-import { parseAgentConversationPersistenceSnapshot } from "./parse";
+import { parseAgentConversationPersistenceSnapshot } from "./persistence-snapshot";
 import { resetTransientConversationState } from "./streaming";
-import { MAX_STORED_CONVERSATIONS } from "./shared";
-import type {
-  AgentConversationPersistenceRecord,
-  AgentConversationPersistenceSnapshot
-} from "./types";
-
-export function currentStoredConversation(
-  ctx: AgentConversationContext
-): AgentConversationPersistenceRecord {
-  return {
-    sessionId: ctx.sessionId.value,
-    messages: ctx.messages.value.map(cloneMessageForPersistence),
-    draft: ctx.draft.value,
-    approvalMode: ctx.approvalMode.value,
-    createdAt: ctx.currentCreatedAt.value,
-    updatedAt: ctx.currentUpdatedAt.value,
-    temperature: ctx.temperature.value
-  };
-}
-
-export function hasConversationContent(
-  ctx: AgentConversationContext,
-  conversation: AgentConversationPersistenceRecord
-): boolean {
-  return (
-    conversation.messages.length > 0 || conversation.draft.trim().length > 0
-  );
-}
-
-export function storeCurrentConversation(ctx: AgentConversationContext): void {
-  const current = currentStoredConversation(ctx);
-  const next = ctx.storedConversations.value.filter(
-    (conversation) => conversation.sessionId !== current.sessionId
-  );
-  if (hasConversationContent(ctx, current)) {
-    next.push(current);
-  }
-  ctx.storedConversations.value = next
-    .sort(
-      (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-    )
-    .slice(0, MAX_STORED_CONVERSATIONS);
-}
-
-export function capturePersistenceSnapshot(
-  ctx: AgentConversationContext
-): AgentConversationPersistenceSnapshot {
-  storeCurrentConversation(ctx);
-  return cloneJsonRecord({
-    version: 1 as const,
-    activeSessionId: ctx.sessionId.value,
-    conversations: [...ctx.storedConversations.value]
-  });
-}
 
 export function reportPersistenceError(ctx: AgentConversationContext): void {
   if (ctx.persistenceErrorReported) return;
@@ -142,8 +92,8 @@ export async function restorePersistenceSnapshot(
   // Yield once so edits made while an asynchronously loaded snapshot is
   // being handed to the controller win over the older persisted state.
   await Promise.resolve();
+  if (!ctx.persistenceNotificationsEnabled) return false;
   if (
-    !ctx.persistenceNotificationsEnabled ||
     expectedRevision !== 0 ||
     ctx.persistenceMutationRevision !== expectedRevision ||
     ctx.storedEnvelope !== undefined ||
@@ -153,6 +103,10 @@ export async function restorePersistenceSnapshot(
     ctx.storedConversations.value.length > 0 ||
     ctx.isBusy.value
   ) {
+    ctx.storedConversations.value = preserveLoadedConversations(
+      capturePersistenceSnapshot(ctx),
+      parsed
+    );
     return false;
   }
 

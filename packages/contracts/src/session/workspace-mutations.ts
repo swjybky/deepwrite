@@ -1,3 +1,4 @@
+import { LibraryManagementScopeSchema } from "../library-management-scope";
 import { z } from "zod";
 import { MaterialStageIdSchema, SkillStageIdSchema } from "../catalog";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "../expert-draft";
@@ -171,6 +172,8 @@ const LibraryEditorMutationBaseSchema = z.object({
   runId: z.string().min(1),
   toolCallId: z.string().min(1),
   domain: z.enum(["material", "skill"]),
+  managementScope: LibraryManagementScopeSchema.optional(),
+  creationId: z.string().min(1).max(512).optional(),
   libraryId: z.string().trim().min(1).max(512),
   title: z.string().trim().min(1).max(256),
   text: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS),

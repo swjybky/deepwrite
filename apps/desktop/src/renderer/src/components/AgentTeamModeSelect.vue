@@ -36,7 +36,7 @@ const options = computed<PopupSelectOption[]>(() => [
   {
     value: "normal",
     label: "普通模式",
-    description: "只运行当前主智能体，不调用智能体团队。"
+    description: "使用当前主智能体，也可调用已启用的内置资料库管理子智能体。"
   },
   {
     value: "team",

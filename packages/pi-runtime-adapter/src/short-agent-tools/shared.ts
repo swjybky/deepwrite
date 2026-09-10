@@ -1,3 +1,4 @@
+import type { MaterialQueryRunner } from "../material-query-runtime";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import {
   SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS,
@@ -144,7 +145,9 @@ export interface BuildShortWorkspaceToolsInput {
   autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
+  includeAskUserQuestion?: boolean;
   /**
    * Mutable content shared by every agent participating in the same parent run.
    * Read evidence deliberately stays outside this object and is recreated by
@@ -160,7 +163,9 @@ export interface BuildScriptWorkspaceToolsInput {
   autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
+  includeAskUserQuestion?: boolean;
   /** Shared across the parent and its children during one script run. */
   sharedState?: ScriptWorkspaceToolSharedState;
 }
@@ -196,7 +201,9 @@ export interface BuildWritingWorkspaceToolsInput {
   autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
+  includeAskUserQuestion?: boolean;
   sharedState?: ShortWorkspaceToolSharedState;
 }
 

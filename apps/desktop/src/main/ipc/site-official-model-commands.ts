@@ -1,4 +1,12 @@
 import {
+  mergeDeepWriteSiteOfficialQuota,
+  SiteQuotaMergeError
+} from "../deepwrite-site-quota-merge";
+import {
+  siteOfficialOperationState,
+  rejectSiteOfficialOperation
+} from "./site-official-operation";
+import {
   ModelSettingsSchema,
   isDeepWriteSiteOfficialModel,
   type CommandEnvelope,
@@ -136,11 +144,20 @@ export async function handleSiteOfficialModelCommands(
 
   if (command.type === "models.querySiteOfficialQuota") {
     try {
+      const state = siteOfficialOperationState(ctx.requireModelConfigStore());
+      if (state.busy) throw new SiteQuotaMergeError("models_busy");
+      const revision = state.revision;
       const { apiKey } = await resolveConfiguredKey(ctx);
+      const quota = await queryDeepWriteSiteOfficialQuota(
+        apiKey,
+        ctx.remoteFetch
+      );
+      if (state.revision !== revision || state.busy)
+        throw new SiteQuotaMergeError("target_changed");
       return {
         status: "accepted",
         requestId: command.id,
-        payload: await queryDeepWriteSiteOfficialQuota(apiKey, ctx.remoteFetch)
+        payload: { ...quota, targetRevision: revision }
       };
     } catch (error: unknown) {
       return rejected(
@@ -149,6 +166,31 @@ export async function handleSiteOfficialModelCommands(
         "查询新官方小站额度失败。",
         error
       );
+    }
+  }
+
+  if (command.type === "models.mergeSiteOfficialQuota") {
+    try {
+      const state = siteOfficialOperationState(ctx.requireModelConfigStore());
+      if (command.payload.targetRevision !== state.revision) {
+        throw new SiteQuotaMergeError("target_changed");
+      }
+      const { apiKey } = await resolveConfiguredKey(ctx);
+      const result = await mergeDeepWriteSiteOfficialQuota(
+        apiKey,
+        command.payload.sourceKey,
+        ctx.remoteFetch
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: {
+          ...result,
+          quota: { ...result.quota, targetRevision: state.revision }
+        }
+      };
+    } catch (error: unknown) {
+      return rejectSiteOfficialOperation(command, error);
     }
   }
 

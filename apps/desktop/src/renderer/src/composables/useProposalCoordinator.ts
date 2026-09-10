@@ -1,3 +1,5 @@
+import { createLongWorldbuildingProposalLane } from "./proposal-coordinator/long-worldbuilding-lane";
+import { createLibraryProposalStager } from "./proposal-coordinator/library-staging";
 import { nextTick, type ComputedRef, type Ref, type ShallowRef } from "vue";
 import {
   LongWorkspaceOperationBatchSchema,
@@ -29,7 +31,6 @@ import {
   agentEditProposalGenerationId,
   agentEditProposalId,
   classifyAgentEditAcceptance,
-  expectedMutationBaseRevision,
   latestAgentEditProposalInLane,
   resolveAgentEditProposalGeneration,
   resolveAgentEditorMutationText
@@ -40,7 +41,6 @@ import {
   type WorkspaceDocumentBaseline
 } from "../utils/catalogSaveReconciliation";
 import { draftCharacterStateTitle } from "../utils/draftFileTitles";
-import { findLongWorldbuildingFile } from "../utils/longWorldbuildingFiles";
 import { resolveProvisionalWriteStagingMode } from "../utils/provisionalExpertSectionStaging";
 import { textEditDiscardSnapshot } from "../utils/acceptedEditDiscard";
 import {
@@ -244,10 +244,6 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     SystemEventEnvelope,
     { type: "workspace.editor_mutation" }
   >;
-  type LibraryEditorMutationEvent = Extract<
-    SystemEventEnvelope,
-    { type: "library.editor_mutation" }
-  >;
   type LongWorldbuildingFileMutationEvent = Extract<
     SystemEventEnvelope,
     { type: "long.worldbuilding_file_proposal" }
@@ -285,7 +281,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
 
   function libraryMutationCountKey(proposal: AgentEditProposal): string {
     const target = proposal.libraryTarget!;
-    return `${proposal.runId}\u0000${target.domain}\u0000${target.libraryId}`;
+    return `${proposal.runId}\u0000${target.domain}\u0000${target.libraryId}\u0000${target.baseProjectRevision ?? "legacy"}`;
   }
 
   function currentLibraryProjectRevisionMatches(
@@ -386,6 +382,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     try {
       const commonInput = {
         libraryId: target.libraryId,
+        ...(target.managementScope
+          ? { managementScope: target.managementScope }
+          : {}),
         title: proposal.title,
         content: proposal.proposedText,
         ...(library.projectRevision === undefined
@@ -433,7 +432,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           ? "已自动批准并创建资料库条目。"
           : "已创建并保存到本地 Markdown。"
       });
-      if (createdDocument) {
+      if (createdDocument && !target.managementScope) {
         selectedResourceId.value = createdDocument.id;
         rightCollapsed.value = false;
       }
@@ -2278,175 +2277,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
-  function stageLibraryEditProposal(event: LibraryEditorMutationEvent): void {
-    if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = allConversations().find((conversation) =>
-      conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
-    );
-    if (!sourceConversation) return;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
-
-    const library = findCatalogLibrary(
-      event.payload.domain,
-      event.payload.libraryId
-    );
-    const libraryReadOnly =
-      !library ||
-      (event.payload.domain === "skill" &&
-        "isBuiltin" in library &&
-        library.isBuiltin);
-    let target: WorkspaceDocument | undefined;
-    if (event.payload.operation === "edit") {
-      const editPayload = event.payload;
-      target = liveWorkspaceDocuments.value.find(
-        (document) =>
-          document.id === editPayload.documentId &&
-          document.domain === editPayload.domain &&
-          document.libraryId === editPayload.libraryId &&
-          document.catalogEntryId === editPayload.entryId
-      );
-    } else if (event.payload.operation === "edit-overview") {
-      const overviewPayload = event.payload;
-      target = liveWorkspaceDocuments.value.find(
-        (document) =>
-          document.id === overviewPayload.documentId &&
-          document.domain === overviewPayload.domain &&
-          document.libraryId === overviewPayload.libraryId &&
-          document.catalogLibraryField === "overview"
-      );
-    }
-    if (
-      libraryReadOnly ||
-      (event.payload.operation !== "create" && (!target || target.readOnly))
-    ) {
-      const message = "目标资料库或条目不可写，本次智能体变更未进入审阅。";
-      sourceConversation.markToolConflict(
-        event.payload.runId,
-        event.payload.toolCallId,
-        message
-      );
-      uiMessage.warning(message);
-      return;
-    }
-
-    const scopeId = `library:${event.payload.domain}:${event.payload.libraryId}`;
-    const documentId =
-      event.payload.operation !== "create"
-        ? event.payload.documentId
-        : `library-create:${event.payload.toolCallId}`;
-    const proposalId = agentEditProposalId(
-      event.payload.runId,
-      scopeId,
-      "library",
-      documentId
-    );
-    const existing = sourceConversation.getEditProposal(
-      event.payload.runId,
-      proposalId
-    );
-    if (existing?.toolCallIds.includes(event.payload.toolCallId)) return;
-
-    const currentText = target?.content ?? "";
-    const currentRevision = createShortWorkspaceContentRevision(currentText);
-    const expectedBaseRevision = expectedMutationBaseRevision(
-      existing,
-      currentText
-    );
-    if (
-      event.payload.baseRevision !== expectedBaseRevision ||
-      (existing !== undefined && currentRevision !== existing.baseRevision)
-    ) {
-      const message =
-        "资料库内容版本已变化，本次智能体变更未进入审阅，也没有覆盖你的最新编辑。";
-      if (existing) {
-        sourceConversation.updateEditProposal(event.payload.runId, proposalId, {
-          status: "conflict",
-          statusMessage: message,
-          updatedAt: event.timestamp
-        });
-      }
-      sourceConversation.markToolConflict(
-        event.payload.runId,
-        event.payload.toolCallId,
-        message
-      );
-      uiMessage.warning(message);
-      return;
-    }
-
-    const proposedText = event.payload.text;
-    const proposedRevision = createShortWorkspaceContentRevision(proposedText);
-    const diff = buildAgentTextDiff(currentText, proposedText);
-    const noChanges =
-      event.payload.operation !== "create" &&
-      proposedRevision === (existing?.baseRevision ?? currentRevision) &&
-      event.payload.title === target?.title;
-    const proposal: AgentEditProposal = {
-      id: proposalId,
-      approvalMode: runApprovalMode,
-      runId: event.payload.runId,
-      workspaceId: scopeId,
-      stageId: "library",
-      documentId,
-      title: event.payload.title,
-      summary: event.payload.summary,
-      status: noChanges ? "accepted" : "pending",
-      baseRevision: existing?.baseRevision ?? event.payload.baseRevision,
-      proposedRevision,
-      ...(noChanges ? {} : { proposedText }),
-      toolCallIds: [
-        ...new Set([...(existing?.toolCallIds ?? []), event.payload.toolCallId])
-      ],
-      additions: diff.additions,
-      deletions: diff.deletions,
-      hunks: diff.hunks,
-      ...(diff.truncated ? { truncated: true } : {}),
-      ...(noChanges
-        ? { statusMessage: "资料库内容没有实际变化，无需保存。" }
-        : {}),
-      createdAt: existing?.createdAt ?? event.timestamp,
-      updatedAt: event.timestamp,
-      ...(event.payload.operation === "create"
-        ? {}
-        : {
-            discardSnapshot: textEditDiscardSnapshot(
-              existing,
-              existing?.status === "pending" || existing?.status === "error",
-              currentText,
-              target?.title ?? event.payload.title
-            )
-          }),
-      libraryTarget: {
-        operation: event.payload.operation,
-        domain: event.payload.domain,
-        libraryId: event.payload.libraryId,
-        ...(event.payload.operation === "edit-overview"
-          ? {}
-          : { stageId: event.payload.stageId }),
-        ...(event.payload.baseProjectRevision === undefined
-          ? {}
-          : { baseProjectRevision: event.payload.baseProjectRevision }),
-        ...(event.payload.operation === "edit"
-          ? { entryId: event.payload.entryId }
-          : {})
-      }
-    };
-    sourceConversation.upsertEditProposal(event.payload.runId, proposal);
-    if (!noChanges && runApprovalMode === "auto-approve") {
-      queueAgentEdit(
-        sourceConversation,
-        event.payload.sessionId,
-        event.payload.runId,
-        proposalId,
-        true,
-        true
-      );
-    }
-  }
+  const stageLibraryEditProposal = createLibraryProposalStager(
+    context,
+    queueAgentEdit,
+    () => proposalQueue.isDisposed(),
+    drain
+  );
 
   async function acceptDraftSectionCreationProposal(
     conversation: AgentConversationController,
@@ -3225,229 +3061,17 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
-  async function acceptLongWorldbuildingFileProposal(
-    conversation: AgentConversationController,
-    request: AgentEditReviewRequest,
-    proposal: AgentEditProposal,
-    automatic: boolean
-  ): Promise<void> {
-    const target = proposal.longWorldbuildingTarget;
-    const api = resolveLongWorkspaceApi();
-    if (!target || !api) {
-      const message = "长篇世界观文件服务当前不可用。";
-      conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: "error",
-        statusMessage: message
-      });
-      uiMessage.error(message);
-      return;
-    }
-    if (acceptingAgentEditWorkspaceIds.value.has(proposal.workspaceId)) {
-      const message = automatic
-        ? "检测到本书正在保存其他内容，实时自动落盘已暂停，请稍后重试。"
-        : "同一本书正在保存其他修改，请稍候再接受";
-      conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: automatic ? "error" : "pending",
-        statusMessage: message
-      });
-      uiMessage.info(message);
-      return;
-    }
-
-    conversation.updateEditProposal(request.runId, request.proposalId, {
-      status: "accepting",
-      statusMessage:
-        target.file.operation === "create"
-          ? automatic
-            ? "正在自动批准并创建世界观文件…"
-            : "正在创建世界观文件…"
-          : automatic
-            ? "正在自动批准并保存世界观文件…"
-            : "正在保存世界观文件…"
+  const { accept: acceptLongWorldbuildingFileProposal } =
+    createLongWorldbuildingProposalLane({
+      acceptingAgentEditWorkspaceIds,
+      setAgentEditWorkspaceAccepting,
+      activeLongBookId,
+      longBooks,
+      saveActiveLongEditorChanges,
+      refreshLongProposalWorkspace,
+      removeQueuedAgentEdit,
+      uiMessage
     });
-    setAgentEditWorkspaceAccepting(proposal.workspaceId, true);
-    let applied = false;
-    let attemptedBatch: LongWorkspaceOperationBatch | undefined;
-    try {
-      if (activeLongBookId.value === target.bookId) {
-        await nextTick();
-        if (!(await saveActiveLongEditorChanges())) {
-          throw new Error("当前长篇编辑内容尚未保存，未覆盖世界观文件。");
-        }
-      }
-      const latest = await api.getWorkspaceIndex({
-        bookId: target.bookId
-      });
-      const currentFile = findLongWorldbuildingFile(
-        latest.workspaceIndex.worldbuilding,
-        target.file.fileId
-      );
-      if (target.file.operation === "create") {
-        if (currentFile) {
-          const message = "世界观目录已存在同一文件，未重复创建。";
-          conversation.updateEditProposal(request.runId, request.proposalId, {
-            status: "conflict",
-            statusMessage: message
-          });
-          uiMessage.warning(message);
-          return;
-        }
-      } else if (!currentFile) {
-        const message = "目标世界观文件已经不存在，无法保存本次修改。";
-        conversation.updateEditProposal(request.runId, request.proposalId, {
-          status: "conflict",
-          statusMessage: message
-        });
-        await refreshLongProposalWorkspace(target.bookId);
-        uiMessage.warning(message);
-        return;
-      }
-
-      const batch = target.expectedImpact
-        ? LongWorkspaceOperationBatchSchema.parse(target.batch)
-        : LongWorkspaceOperationBatchSchema.parse({
-            ...target.batch,
-            operations: (() => {
-              const nextOrderByCategory = new Map<string, number>();
-              return target.batch.operations.map((operation) => {
-                if (operation.type !== "worldbuildingItem.create") {
-                  return operation;
-                }
-                const category = latest.workspaceIndex.worldbuilding.find(
-                  ({ id }) => id === operation.categoryId
-                );
-                if (!category || category.format !== "list") {
-                  throw new Error(
-                    "世界观文件的目标分类已不存在或不再是列表型。"
-                  );
-                }
-                const nextOrder =
-                  (nextOrderByCategory.get(category.id) ??
-                    category.items.length) + 1;
-                nextOrderByCategory.set(category.id, nextOrder);
-                return {
-                  ...operation,
-                  item: { ...operation.item, order: nextOrder }
-                };
-              });
-            })()
-          });
-      attemptedBatch = batch;
-      let expectedImpact = target.expectedImpact;
-      if (!expectedImpact) {
-        expectedImpact = await previewLongProposalImpact(
-          api,
-          target.bookId,
-          batch,
-          "世界观文件"
-        );
-      }
-      if (
-        holdLongProposalForManualReview({
-          automatic,
-          hadExpectedImpact: Boolean(target.expectedImpact),
-          batch,
-          confirmation: expectedImpact,
-          conversation,
-          runId: request.runId,
-          proposalId: request.proposalId,
-          patch: {
-            longWorldbuildingTarget: { ...target, batch, expectedImpact }
-          },
-          statusMessage:
-            "已读取本次文件与关联影响，请核对下方影响后再次确认保存。",
-          notificationMessage: "请核对世界观文件及关联影响后再次确认保存",
-          removeQueued: removeQueuedAgentEdit,
-          notify: uiMessage.info
-        })
-      ) {
-        return;
-      }
-      const result = await api.applyOperations({
-        bookId: target.bookId,
-        batch: LongWorkspaceOperationBatchSchema.parse({
-          ...batch,
-          expectedImpact
-        })
-      });
-      applied = true;
-      longBooks.value = replaceLongBookSummary(longBooks.value, result.summary);
-      const refreshed = await refreshLongProposalWorkspace(target.bookId);
-      conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: "accepted",
-        proposedText: undefined,
-        statusMessage:
-          target.file.operation === "create"
-            ? automatic
-              ? "已自动批准并创建世界观文件。"
-              : "已创建世界观文件并保存到本地 Markdown。"
-            : refreshed
-              ? `${automatic ? "已自动批准并" : "已接受并"}保存到本地 Markdown。`
-              : "已保存到本地 Markdown，但界面刷新失败；请手动刷新长篇工作区。"
-      });
-      if (!automatic) {
-        uiMessage.success(
-          target.file.operation === "create"
-            ? "已创建世界观文件"
-            : "已接受并保存世界观文件"
-        );
-      }
-    } catch (error: unknown) {
-      let currentError = error;
-      if (
-        !applied &&
-        target.expectedImpact &&
-        attemptedBatch &&
-        isLongImpactMismatch(error)
-      ) {
-        try {
-          const expectedImpact = await previewLongProposalImpact(
-            api,
-            target.bookId,
-            attemptedBatch,
-            "世界观文件"
-          );
-          moveLongProposalToManualReview({
-            conversation,
-            runId: request.runId,
-            proposalId: request.proposalId,
-            patch: {
-              longWorldbuildingTarget: {
-                ...target,
-                batch: attemptedBatch,
-                expectedImpact
-              }
-            },
-            statusMessage:
-              "关联影响已变化，已更新下方影响；请重新核对并再次确认保存。",
-            notificationMessage: "世界观文件的关联影响已变化，请重新确认",
-            removeQueued: removeQueuedAgentEdit,
-            notify: uiMessage.warning
-          });
-          return;
-        } catch (previewError: unknown) {
-          currentError = previewError;
-        }
-      }
-      const message =
-        currentError instanceof Error
-          ? currentError.message
-          : "保存世界观文件失败，原文件保持不变。";
-      conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: applied ? "accepted" : "error",
-        statusMessage: applied
-          ? `世界观文件已经保存，但刷新失败：${message}`
-          : message
-      });
-      if (applied) {
-        uiMessage.warning(`世界观文件已经保存，但刷新失败：${message}`);
-      } else {
-        uiMessage.error(message);
-      }
-    } finally {
-      setAgentEditWorkspaceAccepting(proposal.workspaceId, false);
-    }
-  }
 
   async function acceptLongCharacterFileProposal(
     conversation: AgentConversationController,
@@ -4407,6 +4031,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           throw new Error("桌面文件服务当前不可用。");
         }
         const updated = await currentApi.catalog.updateLibrary({
+          ...(proposal.libraryTarget.managementScope
+            ? { managementScope: proposal.libraryTarget.managementScope }
+            : {}),
           domain: persistedDocument.domain,
           libraryId: persistedDocument.libraryId,
           overview: payload.content,
@@ -4453,6 +4080,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         }
         const projectRevision = library.projectRevision;
         const saved = await currentApi.catalog.saveLibraryEntry({
+          ...(proposal.libraryTarget.managementScope
+            ? { managementScope: proposal.libraryTarget.managementScope }
+            : {}),
           domain: persistedDocument.domain,
           libraryId: persistedDocument.libraryId,
           entryId: persistedDocument.catalogEntryId,
@@ -4610,7 +4240,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     stageLibraryEditProposal: (
       ...args: Parameters<typeof stageLibraryEditProposal>
     ) => {
-      if (!proposalQueue.isDisposed()) stageLibraryEditProposal(...args);
+      if (!proposalQueue.isDisposed()) return stageLibraryEditProposal(...args);
     },
     stageLongCharacterEditProposal: (
       ...args: Parameters<typeof stageLongCharacterEditProposal>

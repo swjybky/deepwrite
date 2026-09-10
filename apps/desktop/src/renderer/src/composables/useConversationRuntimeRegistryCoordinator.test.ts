@@ -117,7 +117,9 @@ function controllerFixture(name: string) {
   };
 }
 
-function createHarness(input: { persistence?: boolean } = {}) {
+function createHarness(
+  input: { persistence?: boolean; prepareHistory?: () => Promise<void> } = {}
+) {
   const controllers = new Map<string, AgentConversationController>();
   const scopes = new Map<string, string>();
   const sessionAgentModelSelection = shallowRef<AgentModelSelection>();
@@ -125,7 +127,9 @@ function createHarness(input: { persistence?: boolean } = {}) {
   const configurePersistenceAdapter = vi.fn();
   const schedulePersistence = vi.fn();
   const schedulePersistenceFactory = vi.fn();
-  const loadPersistence = vi.fn(async (_key: string) => undefined as unknown);
+  const loadPersistence = vi.fn(
+    async (_key: string, _options?: { force?: boolean }) => undefined as unknown
+  );
   const removePersistence = vi.fn(async () => undefined);
   const hydratePreferences = vi.fn(async () => undefined);
   const registerController = vi.fn(
@@ -213,8 +217,11 @@ function createHarness(input: { persistence?: boolean } = {}) {
     removeAgentRunPreferences,
     schedulePersistence,
     schedulePersistenceFactory,
-    async loadPersistence<Value>(key: string): Promise<Value | undefined> {
-      return (await loadPersistence(key)) as Value | undefined;
+    async loadPersistence<Value>(
+      key: string,
+      options?: { force?: boolean }
+    ): Promise<Value | undefined> {
+      return (await loadPersistence(key, options)) as Value | undefined;
     },
     removePersistence,
     hydratePreferences
@@ -222,6 +229,9 @@ function createHarness(input: { persistence?: boolean } = {}) {
   const persistenceAdapter: ConversationPersistenceAdapter | null =
     input.persistence
       ? {
+          ...(input.prepareHistory
+            ? { prepareHistory: input.prepareHistory }
+            : {}),
           load: vi.fn(async () => undefined),
           save: vi.fn(async () => undefined),
           remove: vi.fn(async () => undefined)
@@ -291,6 +301,50 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("useConversationRuntimeRegistryCoordinator", () => {
+  it("reuses the book controller across stages and chapters while isolating books", () => {
+    const test = createHarness();
+    const short = test.coordinator.conversationForKey(
+      "short-one:chat",
+      "book:short-one"
+    );
+    for (const lane of [
+      "character_design",
+      "plot_design",
+      "expert_draft_coordinator:section-one"
+    ]) {
+      expect(
+        test.coordinator.conversationForKey(
+          `short-one:${lane}`,
+          "book:short-one"
+        )
+      ).toBe(short);
+    }
+    const long = test.coordinator.conversationForKey(
+      "long:long-one:chat",
+      "long:long-one"
+    );
+    for (const lane of [
+      "worldbuilding:__book__",
+      "draft:__book__",
+      "continuity_ledger:chapter-one",
+      "continuity_ledger:chapter-two"
+    ]) {
+      expect(
+        test.coordinator.conversationForKey(
+          `long:long-one:${lane}`,
+          "long:long-one"
+        )
+      ).toBe(long);
+    }
+    expect(
+      test.coordinator.conversationForKey("short-two:chat", "book:short-two")
+    ).not.toBe(short);
+    expect(
+      test.coordinator.conversationForKey("long:long-two:chat", "long:long-two")
+    ).not.toBe(long);
+    expect(test.controllers.size).toBe(4);
+  });
+
   it("creates once, applies runtime settings, and reuses controller identity", async () => {
     const test = createHarness();
     test.modelSettingsRef.value = modelSettings();
@@ -428,6 +482,34 @@ describe("useConversationRuntimeRegistryCoordinator", () => {
     expect(saveTest.notifications.warning).toHaveBeenCalledTimes(1);
     expect(saveTest.notifications.warning).toHaveBeenCalledWith(
       "历史对话暂时无法保存到本机，本次运行中仍可继续切换"
+    );
+  });
+
+  it("restores readable history after migration fails and retries with a fresh read on reopening", async () => {
+    const prepareHistory = vi
+      .fn(async () => undefined)
+      .mockRejectedValueOnce(new Error("test migration failed"));
+    const test = createHarness({ persistence: true, prepareHistory });
+    test.loadPersistence.mockResolvedValue({ persisted: true });
+    const controller = test.coordinator.conversationForKey(
+      "book:chat",
+      "book:book"
+    );
+    await test.coordinator.drain();
+    expect(
+      test.createdControllers[0]!.restorePersistenceSnapshot
+    ).toHaveBeenCalledWith({ persisted: true });
+    expect(test.notifications.warning).toHaveBeenCalledWith(
+      "历史对话迁移暂未完成，原始记录已保留"
+    );
+    expect(test.coordinator.conversationForKey("book:chat", "book:book")).toBe(
+      controller
+    );
+    await test.coordinator.drain();
+    expect(prepareHistory).toHaveBeenCalledTimes(2);
+    expect(test.loadPersistence).toHaveBeenLastCalledWith(
+      conversationHistoryPersistenceKey("book:chat"),
+      { force: true }
     );
   });
 

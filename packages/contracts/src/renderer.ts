@@ -20,6 +20,7 @@ export type * from "./library-agent";
 export type * from "./long-agent-settings";
 export type * from "./long-agent-team";
 export type * from "./long-book-analysis";
+export * from "./style-comparison";
 export type * from "./long-ledger";
 export type * from "./long-manuscript-export";
 export type * from "./long-workspace";
@@ -27,6 +28,9 @@ export type * from "./long-workspace-api";
 export type * from "./long-worldbuilding-markdown";
 export type * from "./long-workspace-operations";
 export type * from "./marketplace";
+export type * from "./material-markdown";
+export type * from "./material-query";
+export { MATERIAL_STAGE_KINDS } from "./material-stages";
 export type * from "./models";
 export type * from "./model-usage";
 export type * from "./preload-api";
@@ -45,6 +49,11 @@ export type * from "./workspace-directory";
 export type * from "./writing-context";
 
 export { CHAT_ASSISTANT_PROJECT_PROMPT_MAX_LENGTH } from "./chat-assistant-base";
+export {
+  parseMaterialMarkdown,
+  resolveMaterialMetadata
+} from "./material-markdown";
+export { updateMaterialMarkdownMetadata } from "./material-markdown-edit";
 export { isDeepWriteSiteOfficialModel } from "./models";
 export {
   APPEARANCE_CUSTOM_FONT_DISPLAY_NAME_MAX_LENGTH,
@@ -264,24 +273,33 @@ export {
   resolveScriptWorkspaceAgentIdForStage,
   resolveScriptWorkspaceConversationLaneIdForStage
 } from "./script-workspace";
+// Use the defining modules: the session barrel also evaluates Agent commands.
 export {
   ATTACHED_CONTEXT_MAX_CONTENT_LENGTH,
   ATTACHED_CONTEXT_MAX_ITEMS,
-  AgentEvaluationSnapshotSchema,
+  WorkspaceRuntimeContextSchema
+} from "./session/runtime";
+export { AgentEvaluationSnapshotSchema } from "./session/evaluation";
+export {
   LongChapterBodyChangeSchema,
   LongCharacterFileChangeSchema,
-  LongMutationProposalEventEnvelopeSchema,
-  LongWorldbuildingFileChangeSchema,
+  LongWorldbuildingFileChangeSchema
+} from "./session/long-proposals";
+export { LongMutationProposalEventEnvelopeSchema } from "./session/envelopes";
+export {
   PROMPT_ATTACHMENT_MAX_ITEMS,
   PROMPT_IMAGE_ATTACHMENTS_MAX_BYTES,
   PROMPT_IMAGE_ATTACHMENT_MAX_BYTES,
   PROMPT_TEXT_ATTACHMENTS_MAX_CONTENT_LENGTH,
   PROMPT_TEXT_ATTACHMENT_MAX_CONTENT_LENGTH,
   PromptImageAttachmentSchema,
-  PromptTextAttachmentSchema,
-  WorkspaceRuntimeContextSchema
-} from "./session";
+  PromptTextAttachmentSchema
+} from "./session/attachments";
 export { parseSkillMarkdown } from "./skill-markdown";
+export {
+  readSkillMarkdownMetadata,
+  updateSkillMarkdownMetadata
+} from "./skill-markdown-edit";
 export {
   SUBAGENT_AUTHORING_MAX_SKILLS,
   SUBAGENT_AUTHORING_OUTPUT_MODE_LABELS,
@@ -312,3 +330,22 @@ export {
   WRITING_CONTEXT_MAX_CHARACTERS,
   writingContextCharacterCount
 } from "./writing-context";
+
+export type * from "./builtin-subagents";
+export type * from "./library-management";
+export type * from "./library-management-scope";
+export {
+  BUILTIN_SUBAGENT_NAMES,
+  BuiltinSubagentSettingsSchema,
+  defaultBuiltinSubagentSettings
+} from "./builtin-subagents";
+
+export { LibraryManagementScopeSchema } from "./library-management-scope";
+
+export type * from "./device-sync";
+export { syncRequestSchema } from "./device-sync/api";
+export {
+  syncConfigSchema,
+  syncJoinCodeSchema
+} from "./device-sync/connection-schemas";
+export { syncVersionPreview, resolveSyncVersion } from "./device-sync/preview";

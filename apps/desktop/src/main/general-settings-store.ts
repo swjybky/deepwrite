@@ -16,7 +16,7 @@ interface DiskGeneralSettings extends Omit<
   | "showContextUsage"
   | "useNetworkProxy"
 > {
-  version: 1;
+  version: 1 | 2;
   permissionMode: GeneralSettings["permissionMode"] | "full-access";
   autoApproveCrossStageOperations?: boolean;
   defaultTextViewMode?: GeneralSettings["defaultTextViewMode"];
@@ -47,7 +47,15 @@ export class GeneralSettingsStore {
   }
 
   async list(): Promise<GeneralSettingsSnapshot> {
-    await this.writeChain;
+    const operation = this.writeChain.then(() => this.readSettings());
+    this.writeChain = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    return operation;
+  }
+
+  private async readSettings(): Promise<GeneralSettingsSnapshot> {
     try {
       const raw = JSON.parse(
         await readFile(this.settingsPath, "utf8")
@@ -57,7 +65,7 @@ export class GeneralSettingsStore {
         typeof raw !== "object" ||
         Array.isArray(raw) ||
         !("version" in raw) ||
-        raw.version !== 1
+        (raw.version !== 1 && raw.version !== 2)
       ) {
         return GeneralSettingsSnapshotSchema.parse({
           persisted: false,
@@ -87,9 +95,16 @@ export class GeneralSettingsStore {
           settings: createDefaultGeneralSettings()
         });
       }
+      const settings = parsed.data;
+      if (candidate.version === 1) {
+        // Apply the new approval defaults once; later user choices stay intact.
+        settings.permissionMode = "auto-approve";
+        settings.autoApproveCrossStageOperations = true;
+        await atomicWriteJson(this.settingsPath, { version: 2, ...settings });
+      }
       return GeneralSettingsSnapshotSchema.parse({
         persisted: true,
-        settings: parsed.data
+        settings
       });
     } catch (error: unknown) {
       if (isNodeError(error, "ENOENT") || error instanceof SyntaxError) {
@@ -107,7 +122,7 @@ export class GeneralSettingsStore {
     let saved: GeneralSettingsSnapshot | undefined;
     const operation = this.writeChain.then(async () => {
       const disk: DiskGeneralSettings = {
-        version: 1,
+        version: 2,
         ...settings
       };
       await atomicWriteJson(this.settingsPath, disk);

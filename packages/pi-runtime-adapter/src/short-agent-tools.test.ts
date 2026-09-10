@@ -24,7 +24,8 @@ describe("unified short workspace tools", () => {
     expect(names).toEqual([
       ...SHORT_WORKSPACE_TOOL_MANIFEST.unified,
       "query_linked_material_entries",
-      "load_skill"
+      "load_skill",
+      "ask_user_question"
     ]);
     expect(names).not.toContain("switch_storyline_stage");
     expect(names).not.toContain("delete_expert_draft_section");

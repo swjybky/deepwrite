@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BuiltinSubagentSettings from "./BuiltinSubagentSettings.vue";
 import {
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
   type AgentTeamCatalogSnapshot,
@@ -258,6 +259,12 @@ function leaveEditor(): void {
       </div>
     </header>
 
+    <BuiltinSubagentSettings
+      v-if="catalog"
+      :settings="catalog.builtinSubagents"
+      :disabled="loading || saving || !runtimeAvailable"
+    />
+    <h2 id="creative-teams-title" class="team-section-title">创作团队</h2>
     <div v-if="loading" class="catalog-state">正在加载智能体团队…</div>
     <div v-else-if="loadError && !catalog" class="catalog-state" role="alert">
       <strong>智能体团队未加载</strong>

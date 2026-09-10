@@ -1,3 +1,4 @@
+import type { MaterialQueryRunner } from "../material-query-runtime";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type {
   AgentWriteApprovalMode,
@@ -98,6 +99,7 @@ export interface BuildLongWorkspaceToolsInput {
   autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  queryMaterials?: MaterialQueryRunner | undefined;
   executor?: LongCommandExecutor;
   requestUserInput?: AgentUserInputRequester;
   includeAskUserQuestion?: boolean;

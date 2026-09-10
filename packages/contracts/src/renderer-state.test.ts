@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createEnvelope } from "./envelope";
 import {
   RENDERER_STATE_KEY_MAX_LENGTH,
+  RendererStateHistoryKeysResultSchema,
   RendererStateKeySchema,
   RendererStateLoadResultSchema,
   RendererStateSaveCommandEnvelopeSchema
@@ -9,6 +10,77 @@ import {
 import { CommandEnvelopeSchema } from "./system";
 
 describe("renderer state contracts", () => {
+  it("validates atomic history migration and rejects duplicate or non-history sources", () => {
+    const payload = {
+      key: "conversation-history:book-chat",
+      value: { version: 1 },
+      expected: { found: false },
+      sources: [
+        { key: "conversation-history:book-plot", value: { version: 1 } }
+      ]
+    };
+    const command = (value: unknown) =>
+      createEnvelope("rendererState.migrateHistory", value, {
+        id: "test-migration"
+      });
+    expect(CommandEnvelopeSchema.safeParse(command(payload)).success).toBe(
+      true
+    );
+    for (const sourceKey of [
+      payload.key,
+      "conversation-preferences:run-options:v1"
+    ]) {
+      expect(
+        CommandEnvelopeSchema.safeParse(
+          command({ ...payload, sources: [{ key: sourceKey, value: {} }] })
+        ).success
+      ).toBe(false);
+    }
+    expect(
+      CommandEnvelopeSchema.safeParse(
+        command({
+          ...payload,
+          sources: [{ key: "conversation-history:book-plot" }]
+        })
+      ).success
+    ).toBe(false);
+    const { value: _value, ...missingValue } = payload;
+    expect(CommandEnvelopeSchema.safeParse(command(missingValue)).success).toBe(
+      false
+    );
+  });
+
+  it("validates the history-key discovery command and its returned keys", () => {
+    expect(
+      CommandEnvelopeSchema.safeParse(
+        createEnvelope(
+          "rendererState.listHistoryKeys",
+          {},
+          { id: "list-history", correlationId: "list-history" }
+        )
+      ).success
+    ).toBe(true);
+    expect(
+      CommandEnvelopeSchema.safeParse(
+        createEnvelope(
+          "rendererState.listHistoryKeys",
+          { path: "/example.test/private" },
+          { id: "list-history", correlationId: "list-history" }
+        )
+      ).success
+    ).toBe(false);
+    expect(
+      RendererStateHistoryKeysResultSchema.parse([
+        "conversation-history:book%3Aone"
+      ])
+    ).toEqual(["conversation-history:book%3Aone"]);
+    expect(
+      RendererStateHistoryKeysResultSchema.safeParse([
+        "unrelated-state:example"
+      ]).success
+    ).toBe(false);
+  });
+
   it("accepts only bounded conversation persistence keys", () => {
     expect(
       RendererStateKeySchema.parse("conversation-history:book%3Aone")

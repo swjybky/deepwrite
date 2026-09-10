@@ -1,6 +1,6 @@
 {
   "name": "@deepwrite/desktop",
-  "version": "1.4.4",
+  "version": "1.4.7",
   "description": "DeepWrite local desktop writing client",
   "private": true,
   "type": "module",
@@ -14,12 +14,15 @@
     "presmoke": "node ../../tools/ensure-electron-runtime.mjs",
     "smoke": "node scripts/electron-smoke.mjs"
   },
-  "dependencies": {},
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
   "devDependencies": {
     "@deepwrite/contracts": "workspace:*",
     "@deepwrite/pi-runtime-adapter": "workspace:*",
     "@deepwrite/shared": "workspace:*",
     "@types/node": "catalog:",
+    "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "catalog:",
     "electron": "catalog:",
     "electron-builder": "catalog:",

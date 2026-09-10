@@ -91,7 +91,26 @@ export default defineConfig({
       // Vite's Rolldown environment currently preserves readable identifiers
       // unless minification is explicit. Shipping that output adds roughly a
       // megabyte of parse work to the workspace shell.
-      minify: true
+      minify: true,
+      rollupOptions: {
+        input: resolve(appRoot, "src/renderer/index.html"),
+        treeshake: {
+          // Sync contracts only construct schemas and pure helpers. Re-exporting
+          // them must not eagerly evaluate the unopened sync feature.
+          moduleSideEffects: (id) =>
+            !id.includes("/packages/contracts/src/device-sync/")
+        },
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "qr-code",
+                test: /node_modules[\\/](?:qrcode|dijkstrajs)[\\/]/
+              }
+            ]
+          }
+        }
+      }
     }
   }
 });

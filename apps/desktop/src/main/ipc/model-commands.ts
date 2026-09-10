@@ -1,3 +1,4 @@
+import { runSiteOfficialOperation } from "./site-official-operation";
 import {
   AgentProviderRuntimeConfigSchema,
   CommandEnvelopeSchema,
@@ -27,7 +28,7 @@ export type ModelCommandContext = Pick<
   remoteFetch?: (input: string, init?: RequestInit) => Promise<Response>;
 };
 
-export async function handleModelCommands(
+async function dispatchModelCommand(
   ctx: ModelCommandContext,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
@@ -314,4 +315,15 @@ export async function handleModelCommands(
     }
   }
   return undefined;
+}
+
+export async function handleModelCommands(
+  ctx: ModelCommandContext,
+  command: CommandEnvelope
+): Promise<CommandResult | undefined> {
+  if (!command.type.startsWith("models."))
+    return dispatchModelCommand(ctx, command);
+  return runSiteOfficialOperation(ctx.requireModelConfigStore(), command, () =>
+    dispatchModelCommand(ctx, command)
+  );
 }

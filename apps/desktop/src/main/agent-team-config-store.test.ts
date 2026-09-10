@@ -49,7 +49,7 @@ afterEach(async () => {
 });
 
 describe("AgentTeamConfigStore", () => {
-  it("creates three blank disabled default profiles and persists version four", async () => {
+  it("creates three blank disabled default profiles and persists version five", async () => {
     const root = await temporaryRoot();
     const snapshot = await new AgentTeamConfigStore(root).list();
 
@@ -71,7 +71,7 @@ describe("AgentTeamConfigStore", () => {
       JSON.parse(
         await readFile(join(root, "config", "agent-team-profiles.json"), "utf8")
       )
-    ).toMatchObject({ version: 4, enabledTeamIds: {} });
+    ).toMatchObject({ version: 5, enabledTeamIds: {} });
   });
 
   it("migrates each legacy type into its own enabled team without deleting sources", async () => {
@@ -239,7 +239,7 @@ describe("AgentTeamConfigStore", () => {
       JSON.parse(
         await readFile(join(config, "agent-team-profiles.json"), "utf8")
       ).version
-    ).toBe(4);
+    ).toBe(5);
   });
 
   it("accepts recognizable separate legacy files with unknown versions", async () => {

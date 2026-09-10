@@ -11,6 +11,7 @@ export const MODEL_USAGE_MODULES = [
   "material-library",
   "learning-imitation",
   "long-book-analysis",
+  "style-comparison",
   "subagent-authoring",
   "assistant-chat",
   "model-test",

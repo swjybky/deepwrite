@@ -1,7 +1,12 @@
-import type { AgentPromptCommandPayload } from "@deepwrite/contracts";
+import type {
+  AgentPromptCommandPayload,
+  CommandResult
+} from "@deepwrite/contracts";
 import type {
   AgentRunInput,
-  LongCommandExecutor
+  LongCommandExecutor,
+  LibraryManagementCommandExecutor,
+  MaterialCommandExecutor
 } from "@deepwrite/pi-runtime-adapter";
 import type { UtilityCommandHandlerContext } from "./runtime";
 
@@ -11,9 +16,15 @@ function abortedError(): Error {
   return error;
 }
 
-function createLongCommandExecutor(
+function createCoreCommandExecutor(
   context: UtilityCommandHandlerContext
-): LongCommandExecutor {
+): (
+  command:
+    | Parameters<LongCommandExecutor>[0]
+    | Parameters<MaterialCommandExecutor>[0]
+    | Parameters<LibraryManagementCommandExecutor>[0],
+  signal?: AbortSignal
+) => Promise<CommandResult> {
   return (command, signal) => {
     if (signal?.aborted) return Promise.reject(abortedError());
     const request = context.requestInternalCommand("core", command, {
@@ -95,13 +106,22 @@ export function createAgentRunInput(
       ? { longAgentProfile: payload.longAgentProfile }
       : {}),
     ...(needsLongCommandExecutor && context
-      ? { longCommandExecutor: createLongCommandExecutor(context) }
+      ? { longCommandExecutor: createCoreCommandExecutor(context) }
+      : {}),
+    ...(payload.workspaceContext?.materialCatalog && context
+      ? { materialCommandExecutor: createCoreCommandExecutor(context) }
       : {}),
     ...(payload.subagentDefinitions
       ? { subagentDefinitions: payload.subagentDefinitions }
       : {}),
     ...(payload.subagentRuntimeConfigs
       ? { subagentRuntimeConfigs: payload.subagentRuntimeConfigs }
+      : {}),
+    ...(payload.libraryManagement && context
+      ? {
+          libraryManagement: payload.libraryManagement,
+          libraryManagementCommandExecutor: createCoreCommandExecutor(context)
+        }
       : {}),
     ...(payload.libraryAgentProfile
       ? { libraryAgentProfile: payload.libraryAgentProfile }

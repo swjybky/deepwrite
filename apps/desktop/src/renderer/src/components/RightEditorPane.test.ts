@@ -1,3 +1,4 @@
+import metadataSource from "./EditorDocumentMetadata.vue?raw";
 import { describe, expect, it } from "vitest";
 import { expectSourceToContain } from "../../../test-utils/sourceText";
 import appSource from "../WorkspaceShell.vue?raw";
@@ -66,22 +67,24 @@ describe("RightEditorPane expert draft navigation", () => {
   });
 
   it("shows a live, non-blocking format reason after the binding badge for skill entries", () => {
-    expect(source).toContain(
+    expect(metadataSource).toContain(
       'import { parseSkillFrontmatter } from "../utils/skillFrontmatter"'
     );
-    expect(source).toContain(
+    expect(metadataSource).toContain(
       'props.document.domain !== "skill" || !props.document.catalogEntryId'
     );
-    expect(source).toContain("parseSkillFrontmatter(content.value)");
+    expect(metadataSource).toContain("parseSkillFrontmatter(props.content)");
 
-    const bindingBadge = source.indexOf("仅浏览 · 未绑定");
-    const formatBadge = source.indexOf('class="skill-format-error-badge"');
+    const bindingBadge = metadataSource.indexOf("仅浏览 · 未绑定");
+    const formatBadge = metadataSource.indexOf(
+      'class="skill-format-error-badge"'
+    );
     expect(bindingBadge).toBeGreaterThan(-1);
     expect(formatBadge).toBeGreaterThan(bindingBadge);
-    expect(source).toContain('v-if="skillFormatError"');
-    expect(source).toContain(':title="skillFormatError"');
-    expect(source).toContain(':aria-label="skillFormatError"');
-    expect(source).not.toContain(
+    expect(metadataSource).toContain('v-if="skillFormatError"');
+    expect(metadataSource).toContain(':title="skillFormatError"');
+    expect(metadataSource).toContain(':aria-label="skillFormatError"');
+    expect(metadataSource).not.toContain(
       "!dirty || contentExceedsRecommendedLength || skillFormatError"
     );
   });

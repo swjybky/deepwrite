@@ -4,6 +4,7 @@ import catalogProjectionSource from "./useCatalogWorkspaceProjectionCoordinator.
 import lazySource from "./useLazyProposalCoordinator.ts?raw";
 import longImpactApprovalSource from "./proposal-coordinator/long-impact-approval.ts?raw";
 import plotStructureLaneSource from "./proposal-coordinator/plot-structure-lane.ts?raw";
+import worldbuildingLaneSource from "./proposal-coordinator/long-worldbuilding-lane.ts?raw";
 import queueSource from "./proposal-coordinator/queue.ts?raw";
 import source from "./useProposalCoordinator.ts?raw";
 
@@ -186,7 +187,7 @@ describe("useProposalCoordinator extraction boundary", () => {
     );
     expect(source).toContain("async function acceptLongPlotDesignProposal(");
     expect(source).toContain("async function acceptLongCharacterFileProposal(");
-    expect(source).toContain(
+    expect(worldbuildingLaneSource).toContain(
       "async function acceptLongWorldbuildingFileProposal("
     );
   });

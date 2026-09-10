@@ -61,6 +61,14 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
         );
       }
 
+      const character = index.characters.find((item) => item.id === params.id);
+      const characterMeta = character
+        ? metaLines({
+            name: character.name,
+            aliases: character.aliases,
+            type_id: character.group
+          })
+        : [];
       if (target.inlineContent !== undefined) {
         const publicId = target.publicId ?? target.id;
         const publicDocument = target.publicDocument ?? target.document;
@@ -69,6 +77,7 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
             `${target.title}（${publicId}${
               publicDocument ? `／${publicDocument}` : ""
             }）`,
+            ...characterMeta,
             "",
             target.inlineContent || "（正文为空）"
           ].join("\n")
@@ -86,6 +95,7 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
           `${target.title}（${publicId}${
             publicDocument ? `／${publicDocument}` : ""
           }）`,
+          ...characterMeta,
           "",
           live.content || "（正文为空）"
         ].join("\n")

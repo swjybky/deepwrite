@@ -54,11 +54,14 @@ export interface WorkspaceFeatureHostCoordinatorOptions {
     };
   };
   actions: {
+    prepareDeviceSync?(): Promise<boolean>;
     saveActiveLongEditorBeforeLeaving(): Promise<boolean>;
     newShortConversation(): void;
     newLongConversation(): void;
   };
   loaders: {
+    loadSyncLongBooks?(): Promise<unknown>;
+    refreshSyncLongBook?(id: string): Promise<unknown>;
     loadModelSettings(): Promise<unknown>;
     loadOfficialModels(): Promise<unknown>;
     loadShortAndScriptAgentSettings(): Promise<unknown>;
@@ -84,6 +87,7 @@ export interface WorkspaceFeatureHostCoordinator {
   openOfficialModelsSettings(): void;
   openAgentTeams(): Promise<void>;
   openMarketplace(): Promise<void>;
+  openDeviceSync(): Promise<void>;
   openCloudBackup(): Promise<void>;
   openZhuqueDetection(): Promise<void>;
   loadWorkspaceDirectory(): Promise<void>;

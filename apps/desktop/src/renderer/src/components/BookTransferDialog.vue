@@ -67,7 +67,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
           <div>
             <span class="dialog-eyebrow">创作空间</span>
             <h2 id="book-transfer-title">
-              {{ mode === "open" ? "打开已有作品" : "导入作品" }}
+              {{ mode === "open" ? "打开已有作品" : "导入已有作品" }}
             </h2>
           </div>
           <button

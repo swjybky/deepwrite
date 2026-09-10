@@ -9,6 +9,9 @@ import {
 import { isDeepWriteSiteOfficialModel } from "@deepwrite/contracts/renderer";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
+import SiteOfficialQuotaMergeDialog from "./SiteOfficialQuotaMergeDialog.vue";
+import { useSettingsStore } from "../stores/settingsStore";
+import { useSiteOfficialQuotaMerge } from "../composables/useSiteOfficialQuotaMerge";
 import { toModelInput } from "./modelSettingsDraft";
 
 const props = defineProps<{
@@ -27,6 +30,21 @@ const emit = defineEmits<{
   test: [model: ModelConfigInput];
 }>();
 
+const quotaMerge = useSiteOfficialQuotaMerge({
+  api: () => window.deepwrite,
+  settingsStore: useSettingsStore(),
+  notifications: uiMessage
+});
+const {
+  open: mergeOpen,
+  sourceKey,
+  pending: mergePending,
+  disabledReason: mergeDisabledReason
+} = quotaMerge;
+const controlsBusy = computed(
+  () =>
+    props.saving || props.refreshing || mergeOpen.value || mergePending.value
+);
 const tokenEditorOpen = ref(false);
 const tokenDraft = ref("");
 const configuredModels = computed(
@@ -129,7 +147,7 @@ function quotaSummary(): string {
         <button
           class="site-models-refresh"
           type="button"
-          :disabled="refreshing || saving || !tokenConfigured"
+          :disabled="controlsBusy || !tokenConfigured"
           @click="emit('refresh')"
         >
           <AppIcon name="history" :size="15" />
@@ -175,22 +193,18 @@ function quotaSummary(): string {
             type="password"
             autocomplete="new-password"
             placeholder="请输入新官方小站模型密钥"
-            :disabled="saving || refreshing"
+            :disabled="controlsBusy"
           />
         </label>
         <div class="site-token-form-actions">
           <button
             type="button"
-            :disabled="saving || refreshing"
+            :disabled="controlsBusy"
             @click="closeTokenEditor"
           >
             取消
           </button>
-          <button
-            class="is-primary"
-            type="submit"
-            :disabled="saving || refreshing"
-          >
+          <button class="is-primary" type="submit" :disabled="controlsBusy">
             {{ saving ? "保存中…" : tokenConfigured ? "更新密钥" : "添加密钥" }}
           </button>
         </div>
@@ -200,7 +214,7 @@ function quotaSummary(): string {
         <button
           class="is-primary"
           type="button"
-          :disabled="saving || refreshing"
+          :disabled="controlsBusy"
           @click="openTokenEditor"
         >
           <AppIcon name="plus" :size="15" />
@@ -210,7 +224,7 @@ function quotaSummary(): string {
           v-if="tokenConfigured"
           class="is-remove"
           type="button"
-          :disabled="saving || refreshing"
+          :disabled="controlsBusy"
           @click="emit('clearToken')"
         >
           移除密钥
@@ -248,7 +262,18 @@ function quotaSummary(): string {
       >
         <span :style="{ width: `${quotaUsedPercentage}%` }" />
       </div>
-      <small>{{ quotaSummary() }}</small>
+      <div class="site-quota-footer">
+        <small>{{ quotaSummary() }}</small>
+        <button
+          class="site-models-refresh"
+          type="button"
+          :disabled="!!mergeDisabledReason || controlsBusy"
+          :title="mergeDisabledReason || '将来源 Key 的剩余额度转入当前密钥'"
+          @click="quotaMerge.show"
+        >
+          增加额度
+        </button>
+      </div>
     </section>
 
     <section class="site-model-card" aria-labelledby="site-model-list-title">
@@ -293,7 +318,7 @@ function quotaSummary(): string {
           <button
             class="site-model-test"
             type="button"
-            :disabled="saving || refreshing || testingModelId !== null"
+            :disabled="controlsBusy || testingModelId !== null"
             @click="testModel(model)"
           >
             {{ testingModelId === model.id ? "测试中…" : "测试联通" }}
@@ -304,7 +329,7 @@ function quotaSummary(): string {
             role="switch"
             :aria-checked="model.enabled !== false"
             :aria-label="`${model.label}启用状态`"
-            :disabled="saving || refreshing"
+            :disabled="controlsBusy"
             @click="toggleModel(model)"
           >
             <span />
@@ -315,6 +340,13 @@ function quotaSummary(): string {
         添加模型密钥后，新官方小站的相关模型会在这里出现。
       </p>
     </section>
+    <SiteOfficialQuotaMergeDialog
+      v-if="mergeOpen"
+      v-model:source-key="sourceKey"
+      :pending="mergePending"
+      @close="quotaMerge.close"
+      @submit="quotaMerge.submit"
+    />
   </section>
 </template>
 

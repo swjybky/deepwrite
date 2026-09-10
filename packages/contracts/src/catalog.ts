@@ -1,3 +1,4 @@
+import { LibraryManagementScopeSchema } from "./library-management-scope";
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import {
@@ -2306,6 +2307,7 @@ export const UpdateLibraryInputSchema = z
   .object({
     domain: CatalogLibraryProjectDomainSchema,
     libraryId: CatalogIdSchema,
+    managementScope: LibraryManagementScopeSchema.optional(),
     title: CatalogTitleSchema.optional(),
     overview: z.string().optional(),
     baseProjectRevision: z.number().int().nonnegative().optional(),
@@ -2389,6 +2391,7 @@ export type CreateLibraryGroupAtPathInput = z.infer<
 const CreateMaterialLibraryEntryInputSchema = z.object({
   domain: z.literal("material"),
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   title: CatalogTitleSchema,
   content: z.string(),
   stageId: MaterialStageIdSchema.optional(),
@@ -2399,6 +2402,7 @@ const CreateMaterialLibraryEntryInputSchema = z.object({
 const CreateSkillLibraryEntryInputSchema = z.object({
   domain: z.literal("skill"),
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   title: CatalogTitleSchema,
   content: z.string(),
   stageId: SkillStageIdSchema.optional(),
@@ -2579,6 +2583,7 @@ export type DuplicateCatalogProjectResult = z.infer<
 export const SaveLibraryEntryInputSchema = z.object({
   domain: CatalogLibraryProjectDomainSchema,
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   entryId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
   content: z.string(),

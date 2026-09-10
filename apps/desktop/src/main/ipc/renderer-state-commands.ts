@@ -1,6 +1,8 @@
 import {
+  RendererStateHistoryKeysResultSchema,
   RendererStateLoadResultSchema,
   RendererStateMutationResultSchema,
+  RendererStateMigrationResultSchema,
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
@@ -9,10 +11,12 @@ import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
 
 export async function handleRendererStateCommands(
-  ctx: IpcCommandContext,
+  ctx: Pick<IpcCommandContext, "supervisor">,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
   if (
+    command.type === "rendererState.listHistoryKeys" ||
+    command.type === "rendererState.migrateHistory" ||
     command.type === "rendererState.load" ||
     command.type === "rendererState.save" ||
     command.type === "rendererState.remove"
@@ -28,9 +32,13 @@ export async function handleRendererStateCommands(
         status: "accepted",
         requestId: command.id,
         payload:
-          command.type === "rendererState.load"
-            ? RendererStateLoadResultSchema.parse(result.payload)
-            : RendererStateMutationResultSchema.parse(result.payload)
+          command.type === "rendererState.listHistoryKeys"
+            ? RendererStateHistoryKeysResultSchema.parse(result.payload)
+            : command.type === "rendererState.migrateHistory"
+              ? RendererStateMigrationResultSchema.parse(result.payload)
+              : command.type === "rendererState.load"
+                ? RendererStateLoadResultSchema.parse(result.payload)
+                : RendererStateMutationResultSchema.parse(result.payload)
       };
     } catch (error: unknown) {
       const timedOut = error instanceof UtilityCommandTimeoutError;

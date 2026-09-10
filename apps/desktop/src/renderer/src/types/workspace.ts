@@ -1,5 +1,6 @@
 export type IconName =
   | "archive"
+  | "arrow-left"
   | "arrow-up"
   | "attach"
   | "bold"
@@ -288,4 +289,8 @@ export interface EditorDraftState {
 }
 
 export type DialogMode =
-  "directory" | "models" | "imitation" | "long-book-analysis";
+  | "directory"
+  | "models"
+  | "imitation"
+  | "long-book-analysis"
+  | "style-comparison";

@@ -1,3 +1,7 @@
+import {
+  BuiltinSubagentSettingsSchema,
+  defaultBuiltinSubagentSettings
+} from "./builtin-subagents";
 import { z } from "zod";
 import {
   AgentTeamSettingsSchema,
@@ -60,6 +64,9 @@ export type EnabledAgentTeamIds = z.infer<typeof EnabledAgentTeamIdsSchema>;
 export const AgentTeamCatalogSnapshotSchema = z
   .object({
     enabledTeamIds: EnabledAgentTeamIdsSchema,
+    builtinSubagents: BuiltinSubagentSettingsSchema.default(
+      defaultBuiltinSubagentSettings
+    ),
     teams: z.array(AgentTeamProfileSchema).min(1)
   })
   .strict()

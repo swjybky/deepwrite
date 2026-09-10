@@ -1,3 +1,7 @@
+import {
+  beginSiteOfficialQuotaRequest,
+  invalidateSiteOfficialQuota
+} from "./siteOfficialQuotaRequests";
 import type { DeepWriteApi, ModelSettings } from "@deepwrite/contracts";
 import { isDeepWriteSiteOfficialModel } from "@deepwrite/contracts/renderer";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -26,19 +30,34 @@ export function useSiteOfficialModelSettings(
 ) {
   const { settingsStore, notifications: uiMessage } = context;
 
-  async function queryQuota(api: DeepWriteApi, notifyFailure = true) {
+  async function queryQuota(api: DeepWriteApi): Promise<boolean> {
+    const current = beginSiteOfficialQuotaRequest(settingsStore);
     try {
-      return await api.models.querySiteOfficialQuota();
+      const quota = await api.models.querySiteOfficialQuota();
+      if (!current()) return false;
+      settingsStore.siteOfficialQuota = quota;
+      return true;
     } catch (error: unknown) {
-      if (notifyFailure) {
+      if (current()) {
+        settingsStore.siteOfficialQuota = null;
         uiMessage.warning(errorMessage(error, "查询新官方小站额度失败。"));
       }
-      return null;
+      return false;
     }
   }
 
   async function loadSiteOfficialModels(): Promise<void> {
+    if (
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
     await context.loadModelSettings();
+    if (
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
     const api = context.api();
     const configured = settingsStore.modelSettings?.models.some(
       (model) => isDeepWriteSiteOfficialModel(model) && model.hasApiKey
@@ -47,18 +66,25 @@ export function useSiteOfficialModelSettings(
       settingsStore.siteOfficialQuota = null;
       return;
     }
-    settingsStore.siteOfficialQuota = await queryQuota(api, false);
+    await queryQuota(api);
   }
 
   async function saveSiteOfficialToken(apiKey: string): Promise<void> {
     const api = context.api();
-    if (!api || settingsStore.siteOfficialModelsSaving) return;
+    if (
+      !api ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
+    invalidateSiteOfficialQuota(settingsStore);
+    settingsStore.siteOfficialQuota = null;
     settingsStore.siteOfficialModelsSaving = true;
     settingsStore.modelError = null;
     try {
       const settings = await api.models.saveSiteOfficialToken(apiKey);
       context.applyLoadedModelSettings(settings);
-      settingsStore.siteOfficialQuota = await queryQuota(api);
+      await queryQuota(api);
       uiMessage.success("新官方小站模型密钥已安全保存，模型现在可以直接使用。");
     } catch (error: unknown) {
       settingsStore.modelError = errorMessage(
@@ -73,7 +99,14 @@ export function useSiteOfficialModelSettings(
 
   async function clearSiteOfficialToken(): Promise<void> {
     const api = context.api();
-    if (!api || settingsStore.siteOfficialModelsSaving) return;
+    if (
+      !api ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
+    invalidateSiteOfficialQuota(settingsStore);
+    settingsStore.siteOfficialQuota = null;
     settingsStore.siteOfficialModelsSaving = true;
     settingsStore.modelError = null;
     try {
@@ -94,15 +127,31 @@ export function useSiteOfficialModelSettings(
 
   async function refreshSiteOfficialModels(): Promise<void> {
     const api = context.api();
-    if (!api || settingsStore.siteOfficialModelsRefreshing) return;
+    if (
+      !api ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
+    invalidateSiteOfficialQuota(settingsStore);
     settingsStore.siteOfficialModelsRefreshing = true;
     try {
-      const settings = await api.models.refreshSiteOfficial();
-      context.applyLoadedModelSettings(settings);
-      settingsStore.siteOfficialQuota = await queryQuota(api);
-      uiMessage.success("新官方小站模型页面已刷新。");
-    } catch (error: unknown) {
-      uiMessage.error(errorMessage(error, "刷新新官方小站模型失败。"));
+      let catalogRefreshed = false;
+      try {
+        const settings = await api.models.refreshSiteOfficial();
+        context.applyLoadedModelSettings(settings);
+        catalogRefreshed = true;
+      } catch (error: unknown) {
+        uiMessage.error(errorMessage(error, "刷新新官方小站模型失败。"));
+      }
+      // A catalog failure must not prevent querying the saved key's quota.
+      // Wait for the catalog operation to release the Main process key lock.
+      const configured = settingsStore.modelSettings?.models.some(
+        (model) => isDeepWriteSiteOfficialModel(model) && model.hasApiKey
+      );
+      if (configured && (await queryQuota(api)) && catalogRefreshed) {
+        uiMessage.success("新官方小站模型页面已刷新。");
+      }
     } finally {
       settingsStore.siteOfficialModelsRefreshing = false;
     }
@@ -113,7 +162,14 @@ export function useSiteOfficialModelSettings(
     enabled: boolean
   ): Promise<void> {
     const api = context.api();
-    if (!api || settingsStore.siteOfficialModelsSaving) return;
+    if (
+      !api ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
+    invalidateSiteOfficialQuota(settingsStore);
+    settingsStore.siteOfficialQuota = null;
     settingsStore.siteOfficialModelsSaving = true;
     try {
       const settings = await api.models.setSiteOfficialModelEnabled(
@@ -121,6 +177,7 @@ export function useSiteOfficialModelSettings(
         enabled
       );
       context.applyLoadedModelSettings(settings);
+      await queryQuota(api);
       uiMessage.success(
         enabled
           ? "模型已启用，并显示在模型选择中。"

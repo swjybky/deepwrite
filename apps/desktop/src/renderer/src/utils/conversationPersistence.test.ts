@@ -105,17 +105,22 @@ describe("conversation persistence adapter", () => {
   });
 
   it("forwards structured values without serialization", async () => {
+    const stored = snapshot(
+      "stored",
+      "placeholder",
+      "2026-09-01T00:00:00.000Z"
+    );
     const api = {
-      load: vi.fn(async () => ({ version: 1 })),
+      load: vi.fn(async () => stored),
       save: vi.fn(async () => undefined),
       remove: vi.fn(async () => undefined)
     };
     const adapter = createConversationPersistenceAdapter(api)!;
     const value = { conversations: [{ messages: ["占位内容"] }] };
 
-    await expect(adapter.load("conversation-history:test")).resolves.toEqual({
-      version: 1
-    });
+    await expect(adapter.load("conversation-history:test")).resolves.toEqual(
+      stored
+    );
     await adapter.save("conversation-history:test", value);
     await adapter.remove!("conversation-history:test");
 
@@ -125,6 +130,30 @@ describe("conversation persistence adapter", () => {
 
   it("returns null when the preload capability is unavailable", () => {
     expect(createConversationPersistenceAdapter(undefined)).toBeNull();
+  });
+
+  it("retains a browser history copy containing an unknown record instead of dropping it during migration", async () => {
+    const storage = new MemoryStorage();
+    const value = snapshot(
+      "readable",
+      "placeholder",
+      "2026-09-01T00:00:00.000Z"
+    );
+    const original = JSON.stringify({
+      ...value,
+      conversations: [
+        ...value.conversations,
+        { sessionId: "legacy", legacyContent: "test original" }
+      ]
+    });
+    const storageKey = legacyConversationHistoryStorageKey("book:plot_design");
+    storage.setItem(storageKey, original);
+    const api = memoryApi();
+    await createConversationPersistenceAdapter(api, { storage })!
+      .prepareHistory!("book:chat");
+    expect(storage.getItem(storageKey)).toBe(original);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(api.remove).not.toHaveBeenCalled();
   });
 
   it("migrates Chromium localStorage conversations into renderer-state keys", async () => {

@@ -7,10 +7,15 @@ import {
   writeFile
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { RendererStateKeySchema } from "@deepwrite/contracts";
+import { backupRendererStateHistory } from "./renderer-state-history-backup";
+import {
+  RendererStateKeySchema,
+  RendererStateHistoryMigrationSchema,
+  type RendererStateHistoryMigration
+} from "@deepwrite/contracts";
 
-export const DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES = 8 * 1024 * 1024;
-export const DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+export const DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES = 64 * 1024 * 1024;
+export const DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
 
 interface RendererStateDiskDocument {
   readonly version: 1;
@@ -163,6 +168,13 @@ export class RendererStateStore {
     );
   }
 
+  async listHistoryKeys(): Promise<string[]> {
+    await this.writeChain;
+    return [...(await this.requireState()).keys()].filter((key) =>
+      key.startsWith("conversation-history:")
+    );
+  }
+
   async load(rawKey: string): Promise<unknown | undefined> {
     const key = RendererStateKeySchema.parse(rawKey);
     await this.writeChain;
@@ -196,6 +208,48 @@ export class RendererStateStore {
       await this.persist(next);
       this.statePromise = Promise.resolve(next);
     });
+  }
+
+  async migrateHistory(input: RendererStateHistoryMigration): Promise<boolean> {
+    const migration = RendererStateHistoryMigrationSchema.parse(input);
+    const serialized = serializeJsonValue(migration.value);
+    if (serialized.bytes > this.maxItemBytes) {
+      throw new RendererStateCapacityError(
+        `Renderer state item exceeds the ${this.maxItemBytes} byte limit.`
+      );
+    }
+    let committed = false;
+    await this.enqueueWrite(async () => {
+      const current = await this.requireState();
+      const expected = migration.expected;
+      if (
+        current.has(migration.key) !== expected.found ||
+        (expected.found &&
+          JSON.stringify(current.get(migration.key)) !==
+            JSON.stringify(expected.value)) ||
+        migration.sources.some(
+          (source) =>
+            !current.has(source.key) ||
+            JSON.stringify(current.get(source.key)) !==
+              JSON.stringify(source.value)
+        )
+      )
+        return;
+      const next = new Map(current);
+      next.set(migration.key, serialized.value);
+      for (const source of migration.sources) next.delete(source.key);
+      const originals = new Map(
+        migration.sources.map((source) => [source.key, current.get(source.key)])
+      );
+      if (current.has(migration.key))
+        originals.set(migration.key, current.get(migration.key));
+      await backupRendererStateHistory(this.statePath, originals);
+      // Capacity is measured on the final state; rename commits save and cleanup together.
+      await this.persist(next);
+      this.statePromise = Promise.resolve(next);
+      committed = true;
+    });
+    return committed;
   }
 
   private async enqueueWrite(operation: () => Promise<void>): Promise<void> {
@@ -234,22 +288,32 @@ export class RendererStateStore {
         parsed.version !== 1 ||
         !isPlainRecord(parsed.entries)
       ) {
-        return new Map();
+        throw new RendererStateSerializationError(
+          "History file format is invalid; existing data has been preserved."
+        );
       }
 
       const entries = new Map<string, unknown>();
       for (const [rawKey, value] of Object.entries(parsed.entries)) {
         const key = RendererStateKeySchema.safeParse(rawKey);
-        if (!key.success) return new Map();
+        if (!key.success)
+          throw new RendererStateSerializationError(
+            "History file contains an invalid key; existing data has been preserved."
+          );
         const serializedValue = serializeJsonValue(value);
-        if (serializedValue.bytes > this.maxItemBytes) return new Map();
+        if (serializedValue.bytes > this.maxItemBytes)
+          throw new RendererStateCapacityError(
+            "History file contains an oversized entry; existing data has been preserved."
+          );
         entries.set(key.data, serializedValue.value);
       }
       return entries;
     } catch (error: unknown) {
-      if (isNodeError(error, "ENOENT") || error instanceof SyntaxError) {
-        return new Map();
-      }
+      if (isNodeError(error, "ENOENT")) return new Map();
+      if (error instanceof SyntaxError)
+        throw new RendererStateSerializationError(
+          "History file JSON is invalid; existing data has been preserved."
+        );
       throw error;
     }
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { prepareDeviceSyncEditors } from "./composables/deviceSyncEditorGate";
 import {
   computed,
   nextTick,
@@ -406,7 +407,7 @@ const {
   ensureDocumentLoaded: (document) => ensureCatalogDocumentLoaded(document),
   refreshCatalog: loadCatalogSnapshot,
   refreshWorkspaceDirectory() {
-    return loadWorkspaceDirectory();
+    return featureHost.loadWorkspaceDirectory();
   },
   advanceDraftProjectRevision: advanceLibraryDraftProjectRevision,
   isConflict: isCatalogConflict,
@@ -516,28 +517,7 @@ const {
   notifications: uiMessage
 });
 
-const {
-  isLongWorkspaceActive,
-  activeFeature,
-  workspaceFeatureModule,
-  marketplaceDisplayName,
-  showConversation,
-  newConversation,
-  openWorkspaceDialog,
-  openSettings,
-  openOfficialModelsSettings,
-  openAgentTeams,
-  openMarketplace,
-  openCloudBackup,
-  openZhuqueDetection,
-  loadWorkspaceDirectory,
-  chooseWorkspaceDirectory,
-  closeSettings,
-  applyMarketplaceSession,
-  loadMarketplaceSession,
-  ensureActiveFeatureDependencies,
-  dispose: disposeWorkspaceFeatureHost
-} = useWorkspaceFeatureHostCoordinator({
+const featureHost = useWorkspaceFeatureHostCoordinator({
   api: () => window.deepwrite,
   view: {
     current: currentView,
@@ -553,12 +533,21 @@ const {
     subagentAuthoring: subagentAuthoringFeature
   },
   actions: {
+    prepareDeviceSync: () =>
+      prepareDeviceSyncEditors({
+        drafts: editorDrafts,
+        drain: drainEditorSaves,
+        save: persistEditorDocumentWithOutcome,
+        saveLong: () => saveActiveLongEditorBeforeLeaving()
+      }),
     saveActiveLongEditorBeforeLeaving: () =>
       saveActiveLongEditorBeforeLeaving(),
     newShortConversation: () => newShortConversation(),
     newLongConversation: () => newLongConversation()
   },
   loaders: {
+    loadSyncLongBooks: () => loadLongBookList(),
+    refreshSyncLongBook: (id) => refreshActiveLongWorkspace(id),
     loadModelSettings: () => loadModelSettings(),
     loadOfficialModels: () => loadOfficialModels(),
     loadShortAndScriptAgentSettings: () => loadShortAndScriptAgentSettings(),
@@ -571,6 +560,13 @@ const {
   },
   notifications: uiMessage
 });
+
+const {
+  isLongWorkspaceActive,
+  activeFeature,
+  workspaceFeatureModule,
+  marketplaceDisplayName
+} = featureHost;
 
 const longWorkspacePresentation = useLongWorkspacePresentationCoordinator({
   isLongWorkspaceActive,
@@ -809,7 +805,7 @@ const {
     deactivateActiveBook: deactivateActiveLongBook
   },
   emptyDocument: EMPTY_WORKSPACE_DOCUMENT,
-  showConversation,
+  showConversation: featureHost.showConversation,
   revealEditor: () => {
     revealTextPane();
   },
@@ -888,7 +884,7 @@ const {
   },
   catalog: {
     loadBookList: loadLongBookList,
-    refreshWorkspaceDirectory: loadWorkspaceDirectory
+    refreshWorkspaceDirectory: featureHost.loadWorkspaceDirectory
   },
   resources: {
     async selectBook(bookId) {
@@ -897,7 +893,7 @@ const {
       );
       if (target) await selectResource(target);
     },
-    showConversation,
+    showConversation: featureHost.showConversation,
     revealEditor: () => {
       revealTextPane();
     }
@@ -1090,7 +1086,7 @@ const {
     hasWriteBarrier: agentRunScopeHasWriteBarrier,
     remove: (key, options) => conversationStore.removeController(key, options)
   },
-  refreshWorkspaceDirectory: loadWorkspaceDirectory,
+  refreshWorkspaceDirectory: featureHost.loadWorkspaceDirectory,
   notifications: uiMessage
 });
 
@@ -1114,7 +1110,7 @@ const shortBookLifecycle = useLazyShortBookLifecycleCoordinator({
     api: () => window.deepwrite?.catalog,
     book: catalogBook,
     refresh: loadCatalogSnapshot,
-    refreshWorkspaceDirectory: loadWorkspaceDirectory,
+    refreshWorkspaceDirectory: featureHost.loadWorkspaceDirectory,
     isConflict: isCatalogConflict
   },
   preparation: {
@@ -1507,7 +1503,7 @@ const {
   commands: {
     stopGeneration: stopLongGenerationCommand
   },
-  showConversation,
+  showConversation: featureHost.showConversation,
   notifications: uiMessage
 });
 const hasDesktopRuntime = computed(() => Boolean(window.deepwrite));
@@ -1570,7 +1566,7 @@ const {
     updatePermissionMode
   },
   runtimeAvailable: () => hasDesktopRuntime.value,
-  showConversation,
+  showConversation: featureHost.showConversation,
   notifications: uiMessage
 });
 const shortAgentActivityResourceId = computed(
@@ -1870,7 +1866,7 @@ async function handleResourceAction(
       if (!result) {
         return;
       }
-      await loadWorkspaceDirectory();
+      await featureHost.loadWorkspaceDirectory();
       await loadCatalogSnapshot();
       const imported = result.imported.at(-1);
       const target = documents.value.find(
@@ -1935,7 +1931,7 @@ async function handleResourceAction(
       if (!opened) {
         return;
       }
-      await loadWorkspaceDirectory();
+      await featureHost.loadWorkspaceDirectory();
       await loadCatalogSnapshot();
       const targetResourceId =
         opened.domain === "book"
@@ -2133,7 +2129,7 @@ const approvalNavigation = useLazyApprovalNavigationCoordinator({
           [directoryId]: fileKind
         };
       },
-      showConversation,
+      showConversation: featureHost.showConversation,
       expandRightPane() {
         revealTextPane();
       },
@@ -2367,7 +2363,7 @@ function handleGlobalKeydown(event: KeyboardEvent): void {
     closeBookDialog();
     closeShortStructureDialog();
     if (currentView.value === "settings") {
-      closeSettings();
+      featureHost.closeSettings();
     }
   }
 }
@@ -2415,10 +2411,10 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   loadGeneralSettings,
   startSystemEvents: startWorkspaceSystemEvents,
   startDesktopSideEffects: async () => {
-    await Promise.all([loadAppAlerts(), loadMarketplaceSession()]);
+    await Promise.all([loadAppAlerts(), featureHost.loadMarketplaceSession()]);
   },
   loadCatalog: loadCatalogSnapshot,
-  ensureFeatureDependencies: ensureActiveFeatureDependencies,
+  ensureFeatureDependencies: featureHost.ensureActiveFeatureDependencies,
   scheduleDirtyDraftAutoSave: scheduleDirtyEditorDraftsForAutoSave,
   loadLongBookList: () => loadLongBookList({ notify: false }),
   refreshOnFocus: refreshWorkspaceOnWindowFocus,
@@ -2426,7 +2422,7 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   notifyRecoveredDrafts,
   cleanupBeforeDraftRecovery: [
     disposeLayout,
-    disposeWorkspaceFeatureHost,
+    featureHost.dispose,
     disposeCatalogWorkspaceProjection,
     disposeLazyApprovalNavigationCoordinator,
     disposeShortBookLifecycle,
@@ -2477,7 +2473,7 @@ onBeforeUnmount(() => {
     v-if="workspaceFeatureModule?.kind === 'settings'"
     :module="workspaceFeatureModule"
     :left-collapsed="leftCollapsed"
-    @back="closeSettings"
+    @back="featureHost.closeSettings"
     @update-permission-mode="updatePermissionMode"
     @update-auto-approve-cross-stage-operations="
       updateAutoApproveCrossStageOperations
@@ -2540,13 +2536,14 @@ onBeforeUnmount(() => {
       :long-tree-actions-disabled="longBookActionPending"
       @collapse="leftCollapsed = true"
       @create-book="openCreateBookDialog"
-      @open-dialog="openWorkspaceDialog"
+      @open-dialog="featureHost.openWorkspaceDialog"
       @open-chat-assistant="chatAssistant.open"
-      @open-agent-teams="openAgentTeams"
-      @open-marketplace="openMarketplace"
-      @open-cloud-backup="openCloudBackup"
-      @open-zhuque-detection="openZhuqueDetection"
-      @open-settings="openSettings"
+      @open-agent-teams="featureHost.openAgentTeams"
+      @open-marketplace="featureHost.openMarketplace"
+      @open-cloud-backup="featureHost.openCloudBackup"
+      @open-device-sync="featureHost.openDeviceSync"
+      @open-zhuque-detection="featureHost.openZhuqueDetection"
+      @open-settings="featureHost.openSettings"
       @select-resource="selectResource"
       @book-action="openBookDialog"
       @export-book="openBookExportDialog"
@@ -2578,12 +2575,12 @@ onBeforeUnmount(() => {
       @install-agent-team="installAgentTeam"
       @set-agent-team-enabled="setAgentTeamEnabled"
       @save-agent-team="saveAgentTeamSettings"
-      @choose-workspace-directory="chooseWorkspaceDirectory"
+      @choose-workspace-directory="featureHost.chooseWorkspaceDirectory"
       @save-models="saveModelSettings"
       @test-model="testModel"
-      @open-official-models="openOfficialModelsSettings"
+      @open-official-models="featureHost.openOfficialModelsSettings"
       @refresh-catalog="loadCatalogSnapshot"
-      @marketplace-session-change="applyMarketplaceSession"
+      @marketplace-session-change="featureHost.applyMarketplaceSession"
     />
 
     <LongWorkspaceModule
@@ -2661,7 +2658,7 @@ onBeforeUnmount(() => {
       :right-pane="writingRightPaneViewModel"
       :pane-layout="generalSettings.workspacePaneLayout"
       @update:draft="updateComposerDraft"
-      @new-conversation="newConversation"
+      @new-conversation="featureHost.newConversation"
       @select-conversation="selectConversation"
       @send="sendMessage"
       @stop="stopGeneration"

@@ -1,3 +1,15 @@
+import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
+import { createGracefulShutdown } from "./graceful-shutdown";
+import { guardConversationWindowClose } from "./conversation-window-close";
+import { createCloudBackupFeature } from "../extras/cloud-backup/create-service";
+import {
+  createDesktopDeviceSync,
+  registerDeviceSyncIpc
+} from "../extras/device-sync";
+import { handleRendererStateCommands } from "./ipc/renderer-state-commands";
+import { handleAgentTeamCommands } from "./ipc/agent-team-commands";
+import { prepareLibraryManagementRunContext } from "./library-management-run-context";
+import { prepareMaterialRunContext } from "./material-run-context";
 import {
   app,
   BrowserWindow,
@@ -13,9 +25,6 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  AgentTeamCatalogSnapshotSchema,
-  AgentTeamPackageExportResultSchema,
-  AgentTeamPackageInstallResultSchema,
   BookSchema,
   SaveDocumentResultSchema,
   CatalogDraftSectionSchema,
@@ -83,8 +92,6 @@ import {
   LongWriteDocumentResultSchema,
   LongWriteAgentsMdResultSchema,
   ModelSettingsSchema,
-  RendererStateLoadResultSchema,
-  RendererStateMutationResultSchema,
   ModelUsageDashboardSchema,
   RemoveLibraryEntryResultSchema,
   MoveLibraryEntryResultSchema,
@@ -125,10 +132,7 @@ import {
 import { AppearanceService } from "./appearance-service";
 import { AgentTeamConfigStore } from "./agent-team-config-store";
 import { resolveAgentTeamRuntime } from "./agent-team-run-mode";
-import {
-  downloadAgentTeamPackage,
-  installAgentTeamPackage
-} from "./agent-team-package-service";
+
 import { GeneralSettingsStore } from "./general-settings-store";
 import { ChatAssistantProjectConfigStore } from "./chat-assistant-project-config-store";
 import { ModelConfigStore } from "./model-config-store";
@@ -156,7 +160,7 @@ import {
   catalogCommandTimeoutMs
 } from "./catalog-command-timeout";
 import {
-  AGENT_CORE_LONG_QUERY_COMMANDS,
+  AGENT_CORE_QUERY_COMMANDS,
   authorizeMainInternalCommand,
   type MainInternalCommandActiveRun
 } from "./internal-command-authorizer";
@@ -228,8 +232,8 @@ let updateService: UpdateService | undefined;
 let appAlertStore: AppAlertStore | undefined;
 let marketplaceClient: MarketplaceClient | undefined;
 let cloudBackupService: CloudBackupService | undefined;
-let installUpdateAfterShutdown = false;
-const RENDERER_DRAFT_FLUSH_GRACE_MS = 500;
+let deviceSyncService: ReturnType<typeof createDesktopDeviceSync> | undefined;
+const rendererStateFlush = createRendererStateFlushCoordinator();
 const continuationImportPreviews = new ContinuationImportPreviewRegistry();
 const legacySyncPreviews = new LegacySyncPreviewRegistry();
 const mainWindowStartupGate = createMainWindowStartupGate(() =>
@@ -244,52 +248,38 @@ function broadcastEvent(event: SystemEventEnvelope): void {
   }
 }
 
+const gracefulShutdown = createGracefulShutdown({
+  flushRenderer: async () => {
+    await rendererStateFlush.request(mainWindow);
+    mainWindow?.close();
+  },
+  shutdownUtilities: () => supervisor.shutdownAll(),
+  flushUsage: () => modelUsageStore?.flush(),
+  reportUsage: () => softwareTokenUsageReporter?.reportBeforeShutdown(),
+  complete(installUpdate) {
+    shutdownComplete = true;
+    destroyMenuBarTray();
+    if (installUpdate && updateService) updateService.quitAndInstall();
+    else app.quit();
+  },
+  cancel(error) {
+    quitting = false;
+    console.warn(
+      "DeepWrite shutdown was canceled before conversations were saved:",
+      error
+    );
+  }
+});
+
 function beginGracefulShutdown(
   options: { installUpdate?: boolean } = {}
 ): void {
-  installUpdateAfterShutdown ||= options.installUpdate === true;
-  if (quitting) {
-    if (shutdownComplete && installUpdateAfterShutdown && updateService) {
-      updateService.quitAndInstall();
-    }
+  if (shutdownComplete && options.installUpdate && updateService) {
+    updateService.quitAndInstall();
     return;
   }
   quitting = true;
-  destroyMenuBarTray();
-  setTimeout(() => {
-    void (async () => {
-      try {
-        await supervisor.shutdownAll();
-      } catch (error: unknown) {
-        console.warn(
-          "DeepWrite utilities did not shut down cleanly:",
-          error instanceof Error ? error.message : "unknown error"
-        );
-      } finally {
-        try {
-          await modelUsageStore?.flush();
-        } catch (error: unknown) {
-          console.warn(
-            "DeepWrite model usage records could not finish flushing:",
-            error instanceof Error ? error.message : "unknown error"
-          );
-        }
-        try {
-          await softwareTokenUsageReporter?.reportBeforeShutdown();
-        } catch {
-          console.warn(
-            "DeepWrite software token usage was not reported before shutdown."
-          );
-        }
-        shutdownComplete = true;
-        if (installUpdateAfterShutdown && updateService) {
-          updateService.quitAndInstall();
-        } else {
-          app.quit();
-        }
-      }
-    })();
-  }, RENDERER_DRAFT_FLUSH_GRACE_MS);
+  gracefulShutdown.begin(options);
 }
 
 type AgentEventEnvelope = Extract<
@@ -499,7 +489,7 @@ const supervisor = new UtilitySupervisor({
   onUnexpectedExit: handleUnexpectedExit,
   onWorkerRestarted: handleWorkerRestarted,
   internalCommandAllowlist: {
-    core: AGENT_CORE_LONG_QUERY_COMMANDS
+    core: AGENT_CORE_QUERY_COMMANDS
   },
   internalCommandAuthorize: (context) =>
     authorizeMainInternalCommand(context, activeRuns)
@@ -621,7 +611,18 @@ function createMainWindow(): BrowserWindow {
       window.hide();
     }
   });
+  guardConversationWindowClose(window, {
+    skip: () =>
+      quitting || shutdownComplete || cachedGeneralSettings.showInMenuBar,
+    flush: () => rendererStateFlush.request(window),
+    onError: (error) =>
+      console.warn("DeepWrite window close was canceled:", error)
+  });
+  window.webContents.on("did-start-loading", () =>
+    rendererStateFlush.reset(windowWebContentsId)
+  );
   window.on("closed", () => {
+    rendererStateFlush.reset(windowWebContentsId);
     continuationImportPreviews.clearForWebContents(windowWebContentsId);
     legacySyncPreviews.clearForWebContents(windowWebContentsId);
     if (mainWindow === window) {
@@ -1264,6 +1265,11 @@ function registerIpc(): void {
     }
   );
 
+  registerDeviceSyncIpc(
+    () => deviceSyncService,
+    () => mainWindow,
+    () => activeRuns.size > 0
+  );
   registerCloudBackupIpc(
     () => cloudBackupService,
     () => mainWindow
@@ -1315,6 +1321,7 @@ function registerIpc(): void {
 
       const command = parsed.data;
       if (
+        command.type === "deviceSync.workspace" ||
         command.type === "agent.prompt" ||
         command.type === "agent.abort" ||
         command.type === "agent.user_input_response" ||
@@ -2256,45 +2263,17 @@ function registerIpc(): void {
         }
       }
 
-      if (
-        command.type === "rendererState.load" ||
-        command.type === "rendererState.save" ||
-        command.type === "rendererState.remove"
-      ) {
-        try {
-          const result = await supervisor.requestCommand(
-            "core",
-            command,
-            60_000
-          );
-          if (result.status === "rejected") return result;
-          return {
-            status: "accepted",
-            requestId: command.id,
-            payload:
-              command.type === "rendererState.load"
-                ? RendererStateLoadResultSchema.parse(result.payload)
-                : RendererStateMutationResultSchema.parse(result.payload)
-          };
-        } catch (error: unknown) {
-          const timedOut = error instanceof UtilityCommandTimeoutError;
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: timedOut
-                ? "renderer_state.command_timeout"
-                : "renderer_state.forward_failed",
-              message: timedOut
-                ? "会话历史持久化操作超时。"
-                : error instanceof Error
-                  ? error.message
-                  : "会话历史持久化操作失败。",
-              details: safeErrorDetails(error)
-            }
-          };
-        }
-      }
+      const rendererFlushResult = rendererStateFlush.handleCommand(
+        event.sender.id,
+        command
+      );
+      if (rendererFlushResult) return rendererFlushResult;
+
+      const rendererStateResult = await handleRendererStateCommands(
+        { supervisor },
+        command
+      );
+      if (rendererStateResult) return rendererStateResult;
 
       if (
         command.type === "catalog.index" ||
@@ -2484,128 +2463,16 @@ function registerIpc(): void {
         }
       }
 
-      if (command.type === "agentTeams.list") {
-        try {
-          return {
-            status: "accepted",
-            requestId: command.id,
-            payload: AgentTeamCatalogSnapshotSchema.parse(
-              await requireAgentTeamConfigStore().list()
-            )
-          };
-        } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "agent_teams.list_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "加载智能体团队设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
-        }
-      }
-
-      if (command.type === "agentTeams.exportPackage") {
-        try {
-          return {
-            status: "accepted",
-            requestId: command.id,
-            payload: AgentTeamPackageExportResultSchema.parse(
-              await downloadAgentTeamPackage(
-                mainWindow,
-                dialog,
-                requireAgentTeamConfigStore(),
-                command.payload,
-                app.getPath("documents")
-              )
-            )
-          };
-        } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "agent_teams.export_failed",
-              message:
-                error instanceof Error ? error.message : "下载智能体团队失败。",
-              details: safeErrorDetails(error)
-            }
-          };
-        }
-      }
-
-      if (command.type === "agentTeams.installPackage") {
-        try {
-          return {
-            status: "accepted",
-            requestId: command.id,
-            payload: AgentTeamPackageInstallResultSchema.parse(
-              await installAgentTeamPackage(
-                mainWindow,
-                dialog,
-                requireAgentTeamConfigStore(),
-                app.getPath("documents")
-              )
-            )
-          };
-        } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "agent_teams.install_failed",
-              message:
-                error instanceof Error ? error.message : "安装智能体团队失败。",
-              details: safeErrorDetails(error)
-            }
-          };
-        }
-      }
-
-      if (
-        command.type === "agentTeams.create" ||
-        command.type === "agentTeams.rename" ||
-        command.type === "agentTeams.delete" ||
-        command.type === "agentTeams.setEnabled" ||
-        command.type === "agentTeams.save"
-      ) {
-        try {
-          const store = requireAgentTeamConfigStore();
-          const snapshot =
-            command.type === "agentTeams.create"
-              ? await store.create(command.payload)
-              : command.type === "agentTeams.rename"
-                ? await store.rename(command.payload)
-                : command.type === "agentTeams.delete"
-                  ? await store.delete(command.payload)
-                  : command.type === "agentTeams.setEnabled"
-                    ? await store.setEnabled(command.payload)
-                    : await store.save(command.payload);
-          return {
-            status: "accepted",
-            requestId: command.id,
-            payload: AgentTeamCatalogSnapshotSchema.parse(snapshot)
-          };
-        } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "agent_teams.save_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "保存智能体团队设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
-        }
-      }
-
+      const teamResult = await handleAgentTeamCommands(
+        {
+          requireAgentTeamConfigStore,
+          getMainWindow: () => mainWindow,
+          dialog,
+          getDocumentsPath: () => app.getPath("documents")
+        },
+        command
+      );
+      if (teamResult) return teamResult;
       if (command.type === "workspaceAgents.save") {
         try {
           return {
@@ -3130,11 +2997,30 @@ function registerIpc(): void {
             subagentRuntimeConfigs
           );
           pendingUsageContexts.set(command.context.correlationId, usageContext);
+          const libraryManagement = await prepareLibraryManagementRunContext(
+            command.payload.workspaceContext,
+            requireAgentTeamConfigStore(),
+            requireLibraryAgentConfigStore(),
+            (query) => supervisor.requestCommand("core", query, 60_000)
+          );
+          const materialWorkspaceContext = await prepareMaterialRunContext(
+            {
+              workspaceContext: command.payload.workspaceContext,
+              ...(agentProfile ? { agentProfile } : {}),
+              ...(longAgentProfile ? { longAgentProfile } : {}),
+              snapshotMode: process.env.DEEPWRITE_MATERIAL_SNAPSHOT_MODE === "1"
+            },
+            (query) => supervisor.requestCommand("core", query, 60_000)
+          );
           const internalCommand = CommandEnvelopeSchema.parse(
             createEnvelope(
               "agent.prompt",
               {
                 ...promptPayload,
+                ...(libraryManagement ? { libraryManagement } : {}),
+                ...(materialWorkspaceContext
+                  ? { workspaceContext: materialWorkspaceContext }
+                  : {}),
                 ...(thinkingLevel ? { thinkingLevel } : {}),
                 ...(temperature !== undefined ? { temperature } : {}),
                 ...(runtimeConfig ? { runtimeConfig } : {}),
@@ -3201,6 +3087,15 @@ function registerIpc(): void {
                 runtime: accepted.runtime,
                 accepted: true,
                 promptRequestId: internalCommand.id,
+                ...(libraryManagement
+                  ? { libraryManagementScope: libraryManagement.scope }
+                  : {}),
+                ...(materialWorkspaceContext?.materialCatalog
+                  ? {
+                      materialScope:
+                        materialWorkspaceContext.materialCatalog.scope
+                    }
+                  : {}),
                 usageContext,
                 ...(longWorkspace
                   ? { resourceId: longWorkspace.bookId }
@@ -3444,39 +3339,16 @@ if (!hasSingleInstanceLock) {
       beginGracefulShutdown({ installUpdate: true });
     });
     appAlertStore = new AppAlertStore(userDataPath);
-    cloudBackupService = new CloudBackupService(userDataPath, {
-      getWorkspaceDirectory: async () => {
-        const current = await requireWorkspaceDirectoryStore().list();
-        return current.path;
-      },
-      registerCatalogProject: async ({ projectDirectory, domain }) => {
-        const id = createId("cmd_cloud_backup_open");
-        const command = CommandEnvelopeSchema.parse(
-          createEnvelope(
-            "catalog.openProjectAtPath",
-            { projectDirectory, domain },
-            { id, correlationId: id }
-          )
-        );
-        const result = await supervisor.requestCommand("core", command, 0);
-        if (result.status === "rejected") {
-          throw new Error(result.error.message);
-        }
-      },
-      registerLongBook: async (projectDirectory) => {
-        const id = createId("cmd_cloud_backup_open_long");
-        const command = CommandEnvelopeSchema.parse(
-          createEnvelope(
-            "long.openAtPath",
-            { projectDirectory },
-            { id, correlationId: id }
-          )
-        );
-        const result = await supervisor.requestCommand("core", command, 0);
-        if (result.status === "rejected") {
-          throw new Error(result.error.message);
-        }
-      }
+    cloudBackupService = createCloudBackupFeature(
+      userDataPath,
+      async () => (await requireWorkspaceDirectoryStore().list()).path,
+      (command) => supervisor.requestCommand("core", command, 0)
+    );
+    deviceSyncService = createDesktopDeviceSync(userDataPath, {
+      workspaceDirectory: async () =>
+        (await requireWorkspaceDirectoryStore().list()).path,
+      command: (command) => supervisor.requestCommand("core", command, 0),
+      busy: () => activeRuns.size > 0
     });
     marketplaceClient = new MarketplaceClient(userDataPath, {
       loadCatalogSnapshot: async () => {

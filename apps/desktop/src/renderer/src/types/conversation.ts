@@ -1,3 +1,4 @@
+import type { LibraryManagementScope } from "@deepwrite/contracts";
 import type {
   AgentEvaluationSnapshot,
   AgentRuntimeRef,
@@ -87,6 +88,8 @@ export interface AgentEditProposal {
     updatedAt: string;
   };
   libraryTarget?: {
+    managementScope?: LibraryManagementScope;
+    libraryTitle?: string;
     operation: "create" | "edit" | "edit-overview";
     domain: "material" | "skill";
     libraryId: string;

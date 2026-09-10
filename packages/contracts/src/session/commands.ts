@@ -1,3 +1,4 @@
+import { LibraryManagementRuntimeContextSchema } from "../library-management";
 import { z } from "zod";
 import { ShortAgentSubagentDefinitionsSchema } from "../agent-team";
 import type { ChatAssistantRuntimeContext } from "../chat-assistant";
@@ -289,6 +290,7 @@ export const AgentPromptCommandPayloadSchema =
     agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
     scriptAgentProfile: ScriptWorkspaceAgentProfileSchema.optional(),
     longAgentProfile: LongAgentProfileSchema.optional(),
+    libraryManagement: LibraryManagementRuntimeContextSchema.optional(),
     subagentDefinitions: ShortAgentSubagentDefinitionsSchema.optional(),
     /**
      * Runtime-only map of model config id → resolved provider config for
@@ -343,7 +345,8 @@ export const AgentPromptCommandPayloadSchema =
     const scriptWorkspace = value.workspaceContext?.scriptWorkspace;
     const longWorkspace = value.workspaceContext?.longWorkspace;
     if (
-      value.subagentDefinitions !== undefined &&
+      (value.subagentDefinitions !== undefined ||
+        value.libraryManagement !== undefined) &&
       !(
         (shortWorkspace && value.agentProfile) ||
         (scriptWorkspace && value.scriptAgentProfile) ||
@@ -356,6 +359,22 @@ export const AgentPromptCommandPayloadSchema =
         message:
           "Subagent definitions require a short, script or long workspace and its agent profile."
       });
+    }
+    if (value.libraryManagement) {
+      const scope = value.libraryManagement.scope;
+      const expectedBookId =
+        scope.bookType === "long"
+          ? longWorkspace?.bookId
+          : scope.bookType === "script"
+            ? scriptWorkspace?.id
+            : shortWorkspace?.id;
+      if (expectedBookId !== scope.bookId)
+        context.addIssue({
+          code: "custom",
+          path: ["libraryManagement", "scope"],
+          message:
+            "Library management must be bound to the active writing work."
+        });
     }
     if (
       value.subagentRuntimeConfigs !== undefined &&

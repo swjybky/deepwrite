@@ -13,7 +13,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { AgentApprovalMode, ChatMessage } from "../../types/conversation";
 import { cloneMessage } from "./clone";
-import { parseAgentConversationPersistenceSnapshot } from "./parse";
+import { parseAgentConversationPersistenceSnapshot } from "./persistence-snapshot";
 import { id } from "./shared";
 import type {
   AgentConversationPersistenceRecord,

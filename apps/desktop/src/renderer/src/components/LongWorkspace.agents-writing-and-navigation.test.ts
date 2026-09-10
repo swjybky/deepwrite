@@ -302,29 +302,16 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
     );
   });
 
-  it("shares plot-design and draft history across chapters while preserving other isolation", () => {
+  it("uses book-level history while retaining the current chapter as writing context", () => {
     expect(proposalRuntimeSource).toContain(
-      'activeRoot: LongWorkspaceRuntimeContext["activeRoot"]'
-    );
-    expect(proposalRuntimeSource).toContain(
-      'activeRoot === "continuity_ledger" ? chapterCardId : undefined'
-    );
-    expect(proposalRuntimeSource).toContain(
-      'conversationChapterCardId ?? "__book__"'
+      "return longBookConversationKey(bookId)"
     );
     expect(presentationCoordinatorSource).toContain(
       "options.long.selection.value?.chapterCardId"
     );
-    expect(proposalRuntimeSource).toContain(
-      "const prefix = `long:${encodeURIComponent(event.payload.bookId)}:`"
-    );
     expect(agentRunPreferencesSource).toContain(
-      "resolveShortWorkspaceConversationLaneIdForStage(document.stageId)"
+      "shortBookConversationKey(document.workspaceId)"
     );
-    expect(agentRunPreferencesSource).toContain(
-      "resolveScriptWorkspaceConversationLaneIdForStage(document.stageId)"
-    );
-    expect(agentRunPreferencesSource).not.toContain("longConversationKey");
   });
 
   it("does not expose the removed long-form rollback surface", () => {

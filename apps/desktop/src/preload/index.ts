@@ -1,14 +1,20 @@
+import { cloudBackup } from "./cloud-backup-api";
+import { deviceSync } from "./device-sync-api";
+import { conversationPersistence } from "./conversation-persistence-api";
+import {
+  listAgentTeams,
+  createAgentTeam,
+  renameAgentTeam,
+  deleteAgentTeam,
+  setAgentTeamEnabled,
+  saveAgentTeams,
+  downloadAgentTeam,
+  installAgentTeam,
+  saveBuiltinSubagents
+} from "./agent-teams-api";
 import { contextBridge, ipcRenderer } from "electron";
 import {
   BookSchema,
-  AgentTeamCatalogSnapshotSchema,
-  AgentTeamPackageExportResultSchema,
-  AgentTeamPackageInstallResultSchema,
-  AgentTeamProfileCreateInputSchema,
-  AgentTeamProfileRenameInputSchema,
-  AgentTeamProfileSaveInputSchema,
-  AgentTeamProfileSetEnabledInputSchema,
-  AgentTeamProfileTargetInputSchema,
   SaveDocumentResultSchema,
   CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
@@ -25,7 +31,6 @@ import {
   ReadWritingContextInputSchema,
   ReadWritingContextResultSchema,
   CatalogSnapshotSchema,
-  CommandEnvelopeSchema,
   CreateLibraryEntryInputSchema,
   CreateDraftSectionInputSchema,
   CreateDraftSectionsInputSchema,
@@ -72,11 +77,6 @@ import {
   LongBookAnalysisSavedSourceIdSchema,
   LongBookAnalysisSourceKindSchema,
   LongBookAnalysisSourceSchema,
-  CLOUD_BACKUP_IPC_CHANNEL,
-  CloudBackupApplyResultSchema,
-  CloudBackupIpcRequestSchema,
-  CloudBackupPreviewSchema,
-  CloudBackupStatusSchema,
   MARKETPLACE_IPC_CHANNEL,
   MarketplaceContentDetailSchema,
   MarketplaceContentPageSchema,
@@ -98,9 +98,6 @@ import {
   LibraryAgentDomainSchema,
   LibraryAgentSettingsInputSchema,
   LibraryAgentSettingsSchema,
-  RendererStateKeySchema,
-  RendererStateLoadResultSchema,
-  RendererStateMutationResultSchema,
   CreateLongBookInputSchema,
   LongImportPortableResultSchema,
   LongApplyLegacySyncInputSchema,
@@ -168,14 +165,6 @@ import {
   WriteWritingContextInputSchema,
   WriteWritingContextResultSchema,
   createEnvelope,
-  type AgentTeamCatalogSnapshot,
-  type AgentTeamPackageExportResult,
-  type AgentTeamPackageInstallResult,
-  type AgentTeamProfileCreateInput,
-  type AgentTeamProfileRenameInput,
-  type AgentTeamProfileSaveInput,
-  type AgentTeamProfileSetEnabledInput,
-  type AgentTeamProfileTargetInput,
   type Book,
   type CatalogDraftSection,
   type CatalogDraftRecovery,
@@ -332,46 +321,6 @@ async function getHealth(): Promise<SystemHealthPayload> {
   return SystemHealthPayloadSchema.parse(
     await invokeCommand<SystemHealthPayload>(
       createEnvelope("system.health", {}, { id, correlationId: id })
-    )
-  );
-}
-
-async function loadConversationPersistence(
-  rawKey: string
-): Promise<unknown | undefined> {
-  const key = RendererStateKeySchema.parse(rawKey);
-  const id = browserId("cmd_renderer_state_load");
-  const result = RendererStateLoadResultSchema.parse(
-    await invokeCommand(
-      createEnvelope("rendererState.load", { key }, { id, correlationId: id })
-    )
-  );
-  return result.found ? result.value : undefined;
-}
-
-async function saveConversationPersistence(
-  rawKey: string,
-  value: unknown
-): Promise<void> {
-  const key = RendererStateKeySchema.parse(rawKey);
-  const id = browserId("cmd_renderer_state_save");
-  RendererStateMutationResultSchema.parse(
-    await invokeCommand(
-      createEnvelope(
-        "rendererState.save",
-        { key, value },
-        { id, correlationId: id }
-      )
-    )
-  );
-}
-
-async function removeConversationPersistence(rawKey: string): Promise<void> {
-  const key = RendererStateKeySchema.parse(rawKey);
-  const id = browserId("cmd_renderer_state_remove");
-  RendererStateMutationResultSchema.parse(
-    await invokeCommand(
-      createEnvelope("rendererState.remove", { key }, { id, correlationId: id })
     )
   );
 }
@@ -1328,95 +1277,6 @@ async function resetLongAgents(
   );
 }
 
-async function listAgentTeams(): Promise<AgentTeamCatalogSnapshot> {
-  const id = browserId("cmd_agent_teams_list");
-  return AgentTeamCatalogSnapshotSchema.parse(
-    await invokeCommand<AgentTeamCatalogSnapshot>(
-      createEnvelope("agentTeams.list", {}, { id, correlationId: id })
-    )
-  );
-}
-
-async function mutateAgentTeams(
-  type:
-    | "agentTeams.create"
-    | "agentTeams.rename"
-    | "agentTeams.delete"
-    | "agentTeams.setEnabled"
-    | "agentTeams.save",
-  payload: object
-): Promise<AgentTeamCatalogSnapshot> {
-  const id = browserId(`cmd_${type.replace(".", "_")}`);
-  return AgentTeamCatalogSnapshotSchema.parse(
-    await invokeCommand<AgentTeamCatalogSnapshot>(
-      CommandEnvelopeSchema.parse(
-        createEnvelope(type, payload, { id, correlationId: id })
-      )
-    )
-  );
-}
-
-const createAgentTeam = (input: AgentTeamProfileCreateInput) =>
-  mutateAgentTeams(
-    "agentTeams.create",
-    AgentTeamProfileCreateInputSchema.parse(input)
-  );
-const renameAgentTeam = (input: AgentTeamProfileRenameInput) =>
-  mutateAgentTeams(
-    "agentTeams.rename",
-    AgentTeamProfileRenameInputSchema.parse(input)
-  );
-const deleteAgentTeam = (input: AgentTeamProfileTargetInput) =>
-  mutateAgentTeams(
-    "agentTeams.delete",
-    AgentTeamProfileTargetInputSchema.parse(input)
-  );
-const setAgentTeamEnabled = (input: AgentTeamProfileSetEnabledInput) =>
-  mutateAgentTeams(
-    "agentTeams.setEnabled",
-    AgentTeamProfileSetEnabledInputSchema.parse(input)
-  );
-const saveAgentTeams = (input: AgentTeamProfileSaveInput) =>
-  mutateAgentTeams(
-    "agentTeams.save",
-    AgentTeamProfileSaveInputSchema.parse(input)
-  );
-
-async function downloadAgentTeam(
-  rawInput: AgentTeamProfileTargetInput
-): Promise<AgentTeamPackageExportResult> {
-  const payload = AgentTeamProfileTargetInputSchema.parse(rawInput);
-  const id = browserId("cmd_agent_teams_export_package");
-  return AgentTeamPackageExportResultSchema.parse(
-    await invokeCommand<AgentTeamPackageExportResult>(
-      CommandEnvelopeSchema.parse(
-        createEnvelope("agentTeams.exportPackage", payload, {
-          id,
-          correlationId: id
-        })
-      )
-    )
-  );
-}
-
-async function installAgentTeam(): Promise<AgentTeamPackageInstallResult> {
-  const id = browserId("cmd_agent_teams_install_package");
-  return AgentTeamPackageInstallResultSchema.parse(
-    await invokeCommand<AgentTeamPackageInstallResult>(
-      CommandEnvelopeSchema.parse(
-        createEnvelope(
-          "agentTeams.installPackage",
-          {},
-          {
-            id,
-            correlationId: id
-          }
-        )
-      )
-    )
-  );
-}
-
 async function saveWorkspaceAgents(
   rawSettings: ShortWorkspaceAgentSettingsInput
 ): Promise<ShortWorkspaceAgentSettings>;
@@ -1741,23 +1601,11 @@ async function invokeMarketplace(rawRequest: unknown): Promise<unknown> {
   ) as Promise<unknown>;
 }
 
-async function invokeCloudBackup(rawRequest: unknown): Promise<unknown> {
-  const request = CloudBackupIpcRequestSchema.parse(rawRequest);
-  return ipcRenderer.invoke(
-    CLOUD_BACKUP_IPC_CHANNEL,
-    request
-  ) as Promise<unknown>;
-}
-
 const api: DeepWriteApi = {
   system: {
     health: getHealth
   },
-  conversationPersistence: {
-    load: loadConversationPersistence,
-    save: saveConversationPersistence,
-    remove: removeConversationPersistence
-  },
+  conversationPersistence,
   updates: {
     getState: getUpdateState,
     check: checkForUpdates,
@@ -1898,42 +1746,8 @@ const api: DeepWriteApi = {
       );
     }
   },
-  cloudBackup: {
-    async status() {
-      return CloudBackupStatusSchema.parse(
-        await invokeCloudBackup({ operation: "status" })
-      );
-    },
-    async previewBackup() {
-      return CloudBackupPreviewSchema.parse(
-        await invokeCloudBackup({ operation: "previewBackup" })
-      );
-    },
-    async applyBackup(previewId: string) {
-      return CloudBackupApplyResultSchema.parse(
-        await invokeCloudBackup({
-          operation: "applyBackup",
-          previewId
-        })
-      );
-    },
-    async previewRestore(machineKey: string) {
-      return CloudBackupPreviewSchema.parse(
-        await invokeCloudBackup({
-          operation: "previewRestore",
-          machineKey
-        })
-      );
-    },
-    async applyRestore(previewId: string) {
-      return CloudBackupApplyResultSchema.parse(
-        await invokeCloudBackup({
-          operation: "applyRestore",
-          previewId
-        })
-      );
-    }
-  },
+  deviceSync,
+  cloudBackup,
   catalog: {
     index: getCatalogIndex,
     readDocument: readCatalogDocument,
@@ -2022,6 +1836,7 @@ const api: DeepWriteApi = {
     reset: resetLongAgents
   },
   agentTeams: {
+    saveBuiltins: saveBuiltinSubagents,
     list: listAgentTeams,
     create: createAgentTeam,
     rename: renameAgentTeam,

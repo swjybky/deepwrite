@@ -5,12 +5,12 @@ import featureModulesSource from "./components/WorkspaceFeatureModules.vue?raw";
 import featureHostSource from "./composables/useWorkspaceFeatureHostCoordinator.ts?raw";
 import coordinatorSource from "./composables/useSettingsFeatureCoordinator.ts?raw";
 import lifecycleSource from "./composables/useWorkspaceLifecycleCoordinator.ts?raw";
-import layoutSource from "./stores/layoutStore.ts?raw";
+import layoutSource from "./stores/layoutFeatureNavigation.ts?raw";
 import settingsSource from "./stores/settingsStore.ts?raw";
 
 describe("App agent-team integration", () => {
   it("opens agent-team management through the feature-host boundary", () => {
-    expect(source).toContain('@open-agent-teams="openAgentTeams"');
+    expect(source).toContain('@open-agent-teams="featureHost.openAgentTeams"');
     expect(source).toContain("useWorkspaceFeatureHostCoordinator({");
     expect(featureHostSource).toContain(
       'options.view.workspaceMain.value = "agent-team"'
@@ -54,7 +54,8 @@ describe("App agent-team integration", () => {
       'options.view.workspaceMain.value = "conversation"'
     );
     expect(
-      source.match(/^\s+showConversation,$/gm)?.length ?? 0
+      source.match(/^\s+showConversation: featureHost\.showConversation,$/gm)
+        ?.length ?? 0
     ).toBeGreaterThanOrEqual(4);
     expect(source).toContain("<WritingWorkspaceModule");
     expect(source).toContain("activeFeature === 'conversation'");

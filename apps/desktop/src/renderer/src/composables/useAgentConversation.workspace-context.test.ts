@@ -178,7 +178,7 @@ describe("agent conversation controller: workspace-context", () => {
 
     controller.draft.value = "这条消息不应进入新会话";
     const sending = controller.sendMessage(activeDocument, workspaceDocuments);
-    await Promise.resolve();
+    await vi.waitFor(() => expect(resolveContext).toBeTypeOf("function"));
     controller.newConversation();
     resolveContext({
       bookId: activeDocument.workspaceId!,

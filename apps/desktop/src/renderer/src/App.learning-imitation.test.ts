@@ -25,7 +25,7 @@ describe("App learning-imitation integration", () => {
   });
 
   it("opens learning imitation as a persistent workspace page", () => {
-    expect(source).toContain('@open-dialog="openWorkspaceDialog"');
+    expect(source).toContain('@open-dialog="featureHost.openWorkspaceDialog"');
     expect(featureHostSource).toContain(
       "async function openWorkspaceDialog(mode: DialogMode)"
     );

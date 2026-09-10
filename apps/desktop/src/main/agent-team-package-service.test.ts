@@ -142,7 +142,7 @@ describe("agent team package service", () => {
       JSON.parse(
         await readFile(join(config, "agent-team-profiles.json"), "utf8")
       )
-    ).toMatchObject({ version: 4 });
+    ).toMatchObject({ version: 5 });
     await expect(
       readFile(join(config, "agent-teams.json"), "utf8")
     ).resolves.toContain("expert_section_writer");
