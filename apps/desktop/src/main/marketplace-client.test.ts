@@ -500,7 +500,8 @@ describe("MarketplaceClient", () => {
       secureStorage: {
         ...encryptedStorage,
         isEncryptionAvailable: () => false
-      }
+      },
+      now: () => Date.parse(NOW)
     });
     await client.login({
       username: "writer-test",
