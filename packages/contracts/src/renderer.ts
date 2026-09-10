@@ -20,7 +20,15 @@ export type * from "./library-agent";
 export type * from "./long-agent-settings";
 export type * from "./long-agent-team";
 export type * from "./long-book-analysis";
-export * from "./style-comparison";
+export type * from "./style-comparison";
+export {
+  STYLE_COMPARISON_TEXT_LIMIT,
+  STYLE_COMPARISON_METHOD_LIMIT,
+  StyleComparisonInputSchema,
+  StyleComparisonDimensionSchema,
+  StyleComparisonResultSchema
+} from "./style-comparison";
+export { loadDefaultStyleComparisonMethod } from "./load-style-comparison-method";
 export type * from "./long-ledger";
 export type * from "./long-manuscript-export";
 export type * from "./long-workspace";

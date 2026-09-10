@@ -7,10 +7,10 @@ import type {
   SystemEventEnvelope
 } from "@deepwrite/contracts";
 import {
-  DEFAULT_STYLE_COMPARISON_METHOD,
   StyleComparisonInputSchema,
   type StyleComparisonResult
 } from "@deepwrite/contracts/renderer";
+import { DEFAULT_STYLE_COMPARISON_METHOD } from "./method";
 import { parseStyleComparisonResult, styleComparisonPreview } from "./result";
 
 type Status =

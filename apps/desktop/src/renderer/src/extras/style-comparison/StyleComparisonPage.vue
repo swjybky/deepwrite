@@ -2,10 +2,10 @@
 import { computed, watch } from "vue";
 import type { ModelConfig } from "@deepwrite/contracts";
 import {
-  DEFAULT_STYLE_COMPARISON_METHOD,
   STYLE_COMPARISON_TEXT_LIMIT,
   STYLE_COMPARISON_METHOD_LIMIT
 } from "@deepwrite/contracts/renderer";
+import { DEFAULT_STYLE_COMPARISON_METHOD } from "./method";
 import AppIcon from "../../components/AppIcon.vue";
 import PopupSelect from "../../components/PopupSelect.vue";
 import { thinkingLabel } from "../../components/modelSettingsDraft";

@@ -14,6 +14,7 @@ export * from "./long-agent-settings";
 export * from "./long-agent-team";
 export * from "./long-book-analysis";
 export * from "./style-comparison";
+export { DEFAULT_STYLE_COMPARISON_METHOD } from "./style-comparison-method";
 export * from "./long-ledger";
 export * from "./long-manuscript-export";
 export * from "./long-workspace";

@@ -1,9 +1,10 @@
 import { onScopeDispose, watch } from "vue";
 import { defineStore } from "pinia";
+import { STYLE_COMPARISON_METHOD_LIMIT } from "@deepwrite/contracts/renderer";
 import {
   DEFAULT_STYLE_COMPARISON_METHOD,
-  STYLE_COMPARISON_METHOD_LIMIT
-} from "@deepwrite/contracts/renderer";
+  PREVIOUS_DEFAULT_STYLE_COMPARISON_METHOD
+} from "./method";
 import { uiMessage } from "../../ui-feedback";
 import { createStyleComparisonController } from "./controller";
 
@@ -16,8 +17,14 @@ export const useStyleComparisonStore = defineStore("style-comparison", () => {
   });
   try {
     const saved = localStorage.getItem(METHOD_KEY);
-    if (saved !== null && saved.length <= STYLE_COMPARISON_METHOD_LIMIT)
+    if (
+      saved === null ||
+      saved.trim() === PREVIOUS_DEFAULT_STYLE_COMPARISON_METHOD
+    ) {
+      localStorage.setItem(METHOD_KEY, DEFAULT_STYLE_COMPARISON_METHOD);
+    } else if (saved.length <= STYLE_COMPARISON_METHOD_LIMIT) {
       controller.method.value = saved;
+    }
   } catch {
     controller.method.value = DEFAULT_STYLE_COMPARISON_METHOD;
   }
