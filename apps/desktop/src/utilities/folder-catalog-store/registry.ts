@@ -24,7 +24,7 @@ import {
   readOptionalUtf8File,
   secureProjectRoot
 } from "./paths-io";
-import { mergeCreativePlotStageDefinitions } from "./plot-stages";
+import { mergeCreativePlotStageDefinitions } from "./plot-stage-definitions";
 import {
   type FolderCatalogProjectDomain,
   type FolderCatalogRegistry,

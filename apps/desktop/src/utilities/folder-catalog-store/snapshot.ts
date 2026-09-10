@@ -46,7 +46,7 @@ import {
 import {
   mergeCreativePlotStageDefinitions,
   sameCreativePlotStageDefinitions
-} from "./plot-stages";
+} from "./plot-stage-definitions";
 import {
   emptyRegistry,
   ensureRegistry,

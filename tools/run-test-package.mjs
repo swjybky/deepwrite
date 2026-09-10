@@ -35,22 +35,55 @@ function run(command, args, cwd = workspaceRoot) {
 function parseTarget(args) {
   const [platform, arch] = args;
   if (platform === "all" && arch === undefined) {
-    return { buildMacArm64: true, buildMacX64: true, buildWinX64: true };
+    return {
+      buildLinuxX64: true,
+      buildMacArm64: true,
+      buildMacX64: true,
+      buildWinX64: true
+    };
   }
   if (platform === "mac" && arch === "all") {
-    return { buildMacArm64: true, buildMacX64: true, buildWinX64: false };
+    return {
+      buildLinuxX64: false,
+      buildMacArm64: true,
+      buildMacX64: true,
+      buildWinX64: false
+    };
   }
   if (platform === "mac" && arch === "arm64") {
-    return { buildMacArm64: true, buildMacX64: false, buildWinX64: false };
+    return {
+      buildLinuxX64: false,
+      buildMacArm64: true,
+      buildMacX64: false,
+      buildWinX64: false
+    };
   }
   if (platform === "mac" && arch === "x64") {
-    return { buildMacArm64: false, buildMacX64: true, buildWinX64: false };
+    return {
+      buildLinuxX64: false,
+      buildMacArm64: false,
+      buildMacX64: true,
+      buildWinX64: false
+    };
   }
   if (platform === "win" && arch === "x64") {
-    return { buildMacArm64: false, buildMacX64: false, buildWinX64: true };
+    return {
+      buildLinuxX64: false,
+      buildMacArm64: false,
+      buildMacX64: false,
+      buildWinX64: true
+    };
+  }
+  if (platform === "linux" && arch === "x64") {
+    return {
+      buildLinuxX64: true,
+      buildMacArm64: false,
+      buildMacX64: false,
+      buildWinX64: false
+    };
   }
   throw new Error(
-    "Usage: node tools/run-test-package.mjs <all | mac arm64 | mac x64 | mac all | win x64>"
+    "Usage: node tools/run-test-package.mjs <all | linux x64 | mac arm64 | mac x64 | mac all | win x64>"
   );
 }
 
@@ -128,6 +161,32 @@ async function buildWindows(target, version) {
   );
 }
 
+async function buildLinux(target, version) {
+  if (!target.buildLinuxX64) return;
+  await run(
+    pnpmCommand,
+    [
+      "exec",
+      "electron-builder",
+      "--config",
+      "electron-builder.yml",
+      `--config.electronVersion=${version}`,
+      "--linux",
+      "AppImage",
+      "deb",
+      "--x64",
+      "--publish",
+      "never"
+    ],
+    appDirectory
+  );
+  await run(
+    pnpmCommand,
+    ["exec", "node", "scripts/verify-test-package.mjs", "linux", "x64"],
+    appDirectory
+  );
+}
+
 async function main() {
   const target = parseTarget(process.argv.slice(2));
   const initialRuntime = await ensureElectronRuntime();
@@ -139,6 +198,7 @@ async function main() {
   let packagingError;
   try {
     await run(pnpmCommand, ["verify"]);
+    await buildLinux(target, version);
     await buildMac(target, version);
     await buildWindows(target, version);
   } catch (error) {

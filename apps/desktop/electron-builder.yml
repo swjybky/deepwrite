@@ -13,6 +13,10 @@ files:
 asar: true
 beforeBuild: ./scripts/electron-builder-before-build.cjs
 
+extraMetadata:
+  homepage: https://github.com/swjybky/deepwrite
+  desktopName: DeepWrite
+
 publish:
   provider: generic
   url: https://github.com/swjybky/deepwrite/releases/latest/download
@@ -33,6 +37,17 @@ win:
   icon: build/icon.ico
   requestedExecutionLevel: asInvoker
   forceCodeSigning: false
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icon.png
+  category: Office
+  executableName: deepwrite
+  maintainer: carswj <wenjia@wenjiadeMacBook-Air.local>
+  vendor: DeepWrite
+  syncDesktopName: true
 
 nsis:
   oneClick: false

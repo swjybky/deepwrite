@@ -2,6 +2,7 @@ import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
 import { createGracefulShutdown } from "./graceful-shutdown";
 import { guardConversationWindowClose } from "./conversation-window-close";
 import { createCloudBackupFeature } from "../extras/cloud-backup/create-service";
+import { loadWindowRenderer } from "./window-renderer";
 import {
   createDesktopDeviceSync,
   registerDeviceSyncIpc
@@ -597,12 +598,11 @@ function createMainWindow(): BrowserWindow {
     window.once("ready-to-show", () => window.show());
   }
 
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  if (rendererUrl) {
-    void window.loadURL(rendererUrl);
-  } else {
-    void window.loadFile(join(__dirname, "../renderer/index.html"));
-  }
+  void loadWindowRenderer(
+    window,
+    join(__dirname, "../renderer/index.html"),
+    process.env.ELECTRON_RENDERER_URL
+  ).catch((error: unknown) => console.error("加载工作台失败", error));
 
   window.webContents.once("did-finish-load", () => void announceReady(window));
   window.on("close", (event) => {

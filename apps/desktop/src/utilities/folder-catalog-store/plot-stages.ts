@@ -1,3 +1,4 @@
+import { mergeCreativePlotStageDefinitions } from "./plot-stage-definitions";
 import {
   BookPlotStagesSchema,
   createDefaultCreativePlotStages,
@@ -42,45 +43,6 @@ import {
   type FolderCatalogRegistry,
   type FolderCatalogStoreContext
 } from "./types";
-
-export function mergeCreativePlotStageDefinitions(
-  ...groups: ReadonlyArray<
-    ReadonlyArray<{ id: string; title: string; description: string }>
-  >
-): CreativePlotStage[] {
-  const definitions = new Map<string, CreativePlotStage>();
-  for (const group of groups) {
-    for (const stage of group) {
-      if (!definitions.has(stage.id)) {
-        definitions.set(stage.id, {
-          id: stage.id,
-          title: stage.title,
-          description: stage.description
-        });
-      }
-    }
-  }
-  for (const stage of createDefaultCreativePlotStages()) {
-    if (!definitions.has(stage.id)) definitions.set(stage.id, stage);
-  }
-  return CreativePlotStagesSchema.parse([...definitions.values()]);
-}
-
-export function sameCreativePlotStageDefinitions(
-  left: readonly CreativePlotStage[],
-  right: readonly CreativePlotStage[]
-): boolean {
-  if (left.length !== right.length) return false;
-  const rightById = new Map(right.map((stage) => [stage.id, stage]));
-  return left.every((stage) => {
-    const other = rightById.get(stage.id);
-    return (
-      other !== undefined &&
-      other.title === stage.title &&
-      other.description === stage.description
-    );
-  });
-}
 
 export function applyGlobalPlotStagesToNewBook<Resource extends Book>(
   book: Resource,

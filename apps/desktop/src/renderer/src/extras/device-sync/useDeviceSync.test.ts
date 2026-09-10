@@ -4,10 +4,12 @@ import type {
   SyncConfig,
   SyncItem,
   SyncRequest,
-  SyncResponse
+  SyncResponse,
+  SyncStatus
 } from "@deepwrite/contracts/renderer";
 import { uiMessage } from "../../ui-feedback";
 import { useDeviceSync } from "./useDeviceSync";
+import { prepareDeviceSyncEditors } from "../../composables/deviceSyncEditorGate";
 
 vi.mock("vue", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue")>()),
@@ -50,6 +52,98 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("device sync renderer bridge", () => {
+  function initialStatus(): SyncStatus {
+    return {
+      config: config(),
+      credentialSaved: true,
+      deviceId: "test-device",
+      firstSyncConfirmed: false,
+      lastSuccessAt: null,
+      lastCheckedAt: null,
+      progress: { phase: "idle", completed: 0, total: 0, title: "" },
+      items: [],
+      issues: [],
+      devices: [],
+      history: []
+    };
+  }
+
+  it("previews first sync without saving or reloading local drafts", async () => {
+    const prepare = vi.fn(async () => false);
+    const changed = vi.fn(async () => undefined);
+    const sync = useDeviceSync(changed, prepare);
+    sync.status.value = initialStatus();
+
+    await sync.run({ operation: "sync", confirmFirst: false });
+
+    expect(bridgeRequest).toHaveBeenCalledWith({
+      operation: "sync",
+      confirmFirst: false
+    });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    expect(uiMessage.info).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true, null])(
+    "still blocks actual sync when saving fails (confirmed status: %s)",
+    async (confirmed) => {
+      const prepare = vi.fn(async () => false);
+      const changed = vi.fn(async () => undefined);
+      const sync = useDeviceSync(changed, prepare);
+      if (confirmed !== null)
+        sync.status.value = {
+          ...initialStatus(),
+          firstSyncConfirmed: confirmed
+        };
+
+      await sync.run({ operation: "sync", confirmFirst: confirmed === false });
+
+      expect(prepare).toHaveBeenCalledOnce();
+      expect(
+        bridgeRequest.mock.calls.some(([input]) => input.operation === "sync")
+      ).toBe(false);
+      expect(changed).not.toHaveBeenCalled();
+      expect(uiMessage.info).toHaveBeenCalledWith(
+        "请先保存正文并处理保存冲突。"
+      );
+    }
+  );
+
+  it("allows remote initialization with an orphaned recovery draft in an empty workspace", async () => {
+    const save = vi.fn();
+    const changed = vi.fn(async () => undefined);
+    const drafts = ref({
+      "missing-document": {
+        title: "旧草稿",
+        content: "待恢复正文",
+        dirty: true
+      }
+    });
+    const before = { ...drafts.value["missing-document"] };
+    const sync = useDeviceSync(changed, () =>
+      prepareDeviceSyncEditors({
+        documents: ref([]),
+        drafts,
+        drain: async () => undefined,
+        save,
+        saveLong: async () => true
+      })
+    );
+    sync.status.value = initialStatus();
+
+    await sync.run({ operation: "sync", confirmFirst: true });
+
+    expect(bridgeRequest).toHaveBeenCalledWith({
+      operation: "sync",
+      confirmFirst: true
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(drafts.value["missing-document"]).toEqual(before);
+    expect(changed).toHaveBeenCalledOnce();
+    expect(uiMessage.info).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])(
     "connects with a shallow-copied reactive form (excluded items: %s)",
     async (hasExcluded) => {

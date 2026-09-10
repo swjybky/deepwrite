@@ -12,10 +12,11 @@ const [targetPlatform, targetArch] = process.argv.slice(2);
 if (!(
   (targetPlatform === "mac" &&
     (targetArch === "arm64" || targetArch === "x64")) ||
+  (targetPlatform === "linux" && targetArch === "x64") ||
   (targetPlatform === "win" && targetArch === "x64")
 )) {
   console.error(
-    "Usage: node scripts/verify-test-package.mjs <mac arm64|mac x64|win x64>"
+    "Usage: node scripts/verify-test-package.mjs <linux x64|mac arm64|mac x64|win x64>"
   );
   process.exit(1);
 }
@@ -23,14 +24,28 @@ if (!(
 const packageJson = JSON.parse(
   await readFile(join(appDir, "package.json"), "utf8")
 );
-const extension = targetPlatform === "mac" ? "dmg" : "exe";
+const extension =
+  targetPlatform === "mac" ? "dmg" : targetPlatform === "linux" ? "deb" : "exe";
+const artifactArch =
+  targetPlatform === "linux" && targetArch === "x64" ? "amd64" : targetArch;
 const artifact = join(
   releaseDir,
-  `DeepWrite-${packageJson.version}-${targetPlatform}-${targetArch}-test.${extension}`
+  `DeepWrite-${packageJson.version}-${targetPlatform}-${artifactArch}-test.${extension}`
 );
 const artifactStat = await stat(artifact);
 if (!artifactStat.isFile() || artifactStat.size === 0) {
   throw new Error(`Test package is missing or empty: ${artifact}`);
+}
+
+if (targetPlatform === "linux") {
+  const appImage = join(
+    releaseDir,
+    `DeepWrite-${packageJson.version}-linux-x86_64-test.AppImage`
+  );
+  const appImageStat = await stat(appImage);
+  if (!appImageStat.isFile() || appImageStat.size === 0) {
+    throw new Error(`Test package is missing or empty: ${appImage}`);
+  }
 }
 
 if (targetPlatform === "mac") {
@@ -86,6 +101,7 @@ if (targetPlatform === "mac") {
 
 const hostCanRunTarget =
   (targetPlatform === "mac" && process.platform === "darwin") ||
+  (targetPlatform === "linux" && process.platform === "linux") ||
   (targetPlatform === "win" && process.platform === "win32");
 
 if (!hostCanRunTarget) {
@@ -105,7 +121,9 @@ const executable =
         "MacOS",
         "DeepWrite"
       )
-    : join(releaseDir, "win-unpacked", "DeepWrite.exe");
+    : targetPlatform === "linux"
+      ? join(releaseDir, "linux-unpacked", "deepwrite")
+      : join(releaseDir, "win-unpacked", "DeepWrite.exe");
 await stat(executable);
 
 const smokeUserData = await mkdtemp(

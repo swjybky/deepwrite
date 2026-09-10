@@ -132,6 +132,31 @@ async function pair() {
   return { dav, pc, phone };
 }
 
+test("空本机先预览，再确认从远端初始化作品", async () => {
+  const dav = new MemoryDav();
+  const remoteItem = item("远端初始化正文");
+  const remote = device("remote", dav, [remoteItem]);
+  const local = device("local", dav);
+  const space = await connect(remote);
+  await remote.service.sync([], true);
+  await connect(local, space);
+
+  const writes = dav.puts.length;
+  const preview = await local.service.sync([], false);
+  expect(preview.firstSyncConfirmed).toBe(false);
+  expect(preview.issues.some((issue) => issue.reason === "first-sync")).toBe(
+    true
+  );
+  expect(local.workspace.size).toBe(0);
+  expect(dav.puts).toHaveLength(writes);
+
+  const initialized = await local.service.sync([], true);
+  expect(initialized.firstSyncConfirmed).toBe(true);
+  expect(initialized.progress.phase).toBe("complete");
+  expect(local.workspace.get(syncKey(remoteItem))).toEqual(remoteItem);
+  expect(remote.workspace.get(syncKey(remoteItem))).toEqual(remoteItem);
+});
+
 test("首次对齐后仅展示本机实际修改；进页检查不上传、不下载、不推进基线", async () => {
   const { dav, pc, phone } = await pair();
   expect(syncPresentation(await phone.service.status()).uploads).toEqual([]);

@@ -32,21 +32,26 @@ export function useDeviceSync(
   };
   const run = async (input: SyncRequest): Promise<SyncResponse | null> => {
     if (pending.value && input.operation !== "cancel") return null;
+    // The first sync only previews the plan until explicitly confirmed.
+    // It neither saves editor drafts nor reloads the local workspace.
+    const previewOnly =
+      input.operation === "sync" &&
+      status.value?.firstSyncConfirmed === false &&
+      !input.confirmFirst;
+    const changesWorkspace =
+      ["sync", "restore"].includes(input.operation) && !previewOnly;
     const mutation = input.operation !== "cancel";
     if (mutation) {
       epoch++;
       pending.value = true;
     }
     try {
-      if (
-        ["sync", "restore"].includes(input.operation) &&
-        !(await prepareSync())
-      ) {
+      if (changesWorkspace && !(await prepareSync())) {
         uiMessage.info("请先保存正文并处理保存冲突。");
         return null;
       }
       const response = await request(input);
-      if (["sync", "restore"].includes(input.operation)) await changed();
+      if (changesWorkspace) await changed();
       if (input.operation === "restore")
         uiMessage.success("已恢复到本机，下次手动同步时上传。");
       if (input.operation === "sync" && response.kind === "status") {

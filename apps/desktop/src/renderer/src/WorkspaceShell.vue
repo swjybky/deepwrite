@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { prepareDeviceSyncEditors } from "./composables/deviceSyncEditorGate";
 import {
   computed,
   nextTick,
@@ -533,13 +532,17 @@ const featureHost = useWorkspaceFeatureHostCoordinator({
     subagentAuthoring: subagentAuthoringFeature
   },
   actions: {
-    prepareDeviceSync: () =>
-      prepareDeviceSyncEditors({
+    prepareDeviceSync: async () => {
+      const { prepareDeviceSyncEditors } =
+        await import("./composables/deviceSyncEditorGate");
+      return prepareDeviceSyncEditors({
+        documents,
         drafts: editorDrafts,
         drain: drainEditorSaves,
         save: persistEditorDocumentWithOutcome,
         saveLong: () => saveActiveLongEditorBeforeLeaving()
-      }),
+      });
+    },
     saveActiveLongEditorBeforeLeaving: () =>
       saveActiveLongEditorBeforeLeaving(),
     newShortConversation: () => newShortConversation(),

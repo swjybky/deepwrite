@@ -25,6 +25,7 @@
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "pack:test": "node tools/run-test-package.mjs all",
     "pack:test:win": "node tools/run-test-package.mjs win x64",
+    "pack:test:linux": "node tools/run-test-package.mjs linux x64",
     "pack:test:mac:arm64": "node tools/run-test-package.mjs mac arm64",
     "pack:test:mac:x64": "node tools/run-test-package.mjs mac x64",
     "pack:test:mac": "node tools/run-test-package.mjs mac all"
