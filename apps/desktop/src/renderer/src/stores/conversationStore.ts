@@ -1,15 +1,8 @@
-import {
-  captureRunSettings,
-  validModelSelection,
-  normalizeRunPreferencesByScope
-} from "./conversationPreferences";
+import { createConversationPreferenceState } from "./conversationPreferenceState";
 import { createConversationPersistenceState } from "./conversationPersistenceState";
+import { flushConversationsBeforeClose } from "./conversationClose";
 import { watchConversationCheckpoints } from "../composables/watchConversationCheckpoints";
-import {
-  conversationHistoryPersistenceKey,
-  MODEL_SELECTION_PERSISTENCE_KEY,
-  RUN_PREFERENCES_PERSISTENCE_KEY
-} from "../utils/conversationPersistenceKeys";
+import { conversationHistoryPersistenceKey } from "../utils/conversationPersistenceKeys";
 export {
   MODEL_SELECTION_PERSISTENCE_KEY,
   RUN_PREFERENCES_PERSISTENCE_KEY
@@ -29,24 +22,10 @@ import {
 } from "vue";
 import { defineStore } from "pinia";
 import type { AgentConversationController } from "../composables/useAgentConversation";
-import {
-  type AgentModelSelection,
-  type AgentRunPreferences,
-  type AgentRunPreferencesByScope
-} from "../utils/agentRunPreferences";
 
 export interface DisposeConversationStoreOptions {
   flush?: boolean;
   clearControllerPersistence?: boolean;
-}
-
-interface PreferenceUpdateOptions {
-  source?: AgentConversationController;
-  persist?: boolean;
-}
-
-function rawValue<Value>(value: Value): Value {
-  return typeof value === "object" && value !== null ? markRaw(value) : value;
 }
 
 export const useConversationStore = defineStore("conversation", () => {
@@ -56,19 +35,24 @@ export const useConversationStore = defineStore("conversation", () => {
   const scopesByKey = shallowRef<Map<string, string>>(new Map());
   const checkpointWatchers = new Map<string, () => void>();
   const controllerRegistryRevision = ref(0);
-  const sessionAgentModelSelection = shallowRef<AgentModelSelection>();
-  const agentRunPreferences = shallowRef<AgentRunPreferencesByScope>({});
 
   const persistence = createConversationPersistenceState(async (flush) => {
-    const { flushConversationsBeforeClose } =
-      await import("./conversationClose");
+    // Closing must still save when the development server or lazy assets are gone.
     await flushConversationsBeforeClose(
       controllers.value,
-      (key, snapshot) =>
-        schedulePersistenceFactory(
-          conversationHistoryPersistenceKey(key),
-          snapshot
-        ),
+      (key, snapshot) => {
+        const controller = controllers.value.get(key);
+        if (controller)
+          persistence.scheduleControllerPersistence(
+            conversationHistoryPersistenceKey(key),
+            controller
+          );
+        else
+          persistence.schedulePersistenceFactory(
+            conversationHistoryPersistenceKey(key),
+            snapshot
+          );
+      },
       flush
     );
   });
@@ -77,6 +61,8 @@ export const useConversationStore = defineStore("conversation", () => {
     persistenceCache,
     persistenceErrors,
     persistenceBusy,
+    persistenceProgress,
+    scheduleControllerPersistence,
     configurePersistenceAdapter,
     schedulePersistence,
     schedulePersistenceFactory,
@@ -85,6 +71,16 @@ export const useConversationStore = defineStore("conversation", () => {
     invalidatePersistenceCache,
     removePersistence
   } = persistence;
+
+  const {
+    sessionAgentModelSelection,
+    agentRunPreferences,
+    applyGlobalPreferences,
+    setSessionAgentModelSelection,
+    setAgentRunPreferences,
+    removeAgentRunPreferences,
+    hydratePreferences
+  } = createConversationPreferenceState(controllers, scopesByKey, persistence);
 
   const controllerCount = computed(() => controllers.value.size);
   function replaceMapEntry<Key, Value>(
@@ -105,20 +101,6 @@ export const useConversationStore = defineStore("conversation", () => {
     if (!target.value.has(key)) return;
     target.value.delete(key);
     triggerRef(target);
-  }
-
-  function applyGlobalPreferences(
-    controller: AgentConversationController,
-    scope: string
-  ): void {
-    const selection = sessionAgentModelSelection.value;
-    const preferences = agentRunPreferences.value[scope];
-    if (!selection && !preferences) return;
-    controller.applyRunSettings({
-      ...captureRunSettings(controller),
-      ...(selection ?? {}),
-      ...(preferences ?? {})
-    });
   }
 
   function registerController(
@@ -221,120 +203,19 @@ export const useConversationStore = defineStore("conversation", () => {
     }
   }
 
-  function setSessionAgentModelSelection(
-    selection: AgentModelSelection | undefined,
-    options: PreferenceUpdateOptions = {}
-  ): void {
-    sessionAgentModelSelection.value = selection
-      ? rawValue({ ...selection })
-      : undefined;
-    if (selection) {
-      for (const controller of controllers.value.values()) {
-        if (controller === options.source) continue;
-        controller.applyRunSettings({
-          ...captureRunSettings(controller),
-          ...selection
-        });
-      }
-      if (options.persist !== false) {
-        schedulePersistence(MODEL_SELECTION_PERSISTENCE_KEY, { ...selection });
-      }
-    } else if (options.persist !== false) {
-      schedulePersistence(MODEL_SELECTION_PERSISTENCE_KEY, null);
-    }
-  }
-
-  function setAgentRunPreferences(
-    scope: string,
-    preferences: AgentRunPreferences,
-    options: PreferenceUpdateOptions = {}
-  ): void {
-    const normalizedScope = scope.trim();
-    if (!normalizedScope) throw new Error("会话 scope 不能为空。");
-    agentRunPreferences.value = rawValue({
-      ...agentRunPreferences.value,
-      [normalizedScope]: { ...preferences }
-    });
-    for (const [key, controller] of controllers.value) {
-      if (
-        scopesByKey.value.get(key) !== normalizedScope ||
-        controller === options.source
-      ) {
-        continue;
-      }
-      controller.applyRunSettings({
-        ...captureRunSettings(controller),
-        ...preferences
-      });
-    }
-    if (options.persist !== false) {
-      schedulePersistence(RUN_PREFERENCES_PERSISTENCE_KEY, {
-        ...agentRunPreferences.value
-      });
-    }
-  }
-
-  function removeAgentRunPreferences(
-    scope: string,
-    options: { persist?: boolean } = {}
-  ): boolean {
-    if (!(scope in agentRunPreferences.value)) return false;
-    const next = { ...agentRunPreferences.value };
-    delete next[scope];
-    agentRunPreferences.value = rawValue(next);
-    if (options.persist !== false) {
-      schedulePersistence(RUN_PREFERENCES_PERSISTENCE_KEY, { ...next });
-    }
-    return true;
-  }
-
-  async function hydratePreferences(): Promise<void> {
-    const [selection, preferences] = await Promise.all([
-      loadPersistence<AgentModelSelection>(MODEL_SELECTION_PERSISTENCE_KEY),
-      loadPersistence<AgentRunPreferencesByScope>(
-        RUN_PREFERENCES_PERSISTENCE_KEY
-      )
-    ]);
-    if (validModelSelection(selection)) {
-      setSessionAgentModelSelection(selection, { persist: false });
-    }
-    const normalizedPreferences = normalizeRunPreferencesByScope(preferences);
-    if (normalizedPreferences) {
-      agentRunPreferences.value = rawValue(
-        Object.fromEntries(
-          Object.entries(normalizedPreferences).map(([scope, preference]) => [
-            scope,
-            { ...preference }
-          ])
-        )
-      );
-      for (const [key, controller] of controllers.value) {
-        applyGlobalPreferences(
-          controller,
-          scopesByKey.value.get(key) ?? "general"
-        );
-      }
-    }
-  }
-
   async function dispose(
     options: DisposeConversationStoreOptions = {}
   ): Promise<void> {
+    // A failed flush leaves the live controllers and recovery queue available.
+    if (options.flush !== false) await flushPersistence();
+    else persistence.discardPendingPersistence();
     persistence.stopScheduling();
-    try {
-      if (options.flush !== false) {
-        await flushPersistence();
-      } else {
-        persistence.discardPendingPersistence();
-      }
-    } finally {
-      disposeAllControllers(
-        options.clearControllerPersistence === undefined
-          ? {}
-          : { clearPersistence: options.clearControllerPersistence }
-      );
-      persistence.disconnect();
-    }
+    disposeAllControllers(
+      options.clearControllerPersistence === undefined
+        ? {}
+        : { clearPersistence: options.clearControllerPersistence }
+    );
+    persistence.disconnect();
   }
 
   onScopeDispose(() => {
@@ -352,6 +233,8 @@ export const useConversationStore = defineStore("conversation", () => {
     persistenceCache,
     persistenceErrors,
     persistenceBusy,
+    persistenceProgress,
+    scheduleControllerPersistence,
     sessionAgentModelSelection,
     agentRunPreferences,
     registerController,

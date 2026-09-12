@@ -160,6 +160,14 @@ describe("long workspace operation engine: worldbuilding conversion impact", () 
         })
       })
     );
+    const createdFiles = preview.fileIntents
+      .filter(({ action }) => action === "create")
+      .map(({ file }) => file);
+    expect(createdFiles).toHaveLength(2);
+    for (const createdFile of createdFiles) {
+      // A path produced on macOS must also be writable on Windows.
+      expect(createdFile.path).not.toMatch(/[<>:"\\|?*]/u);
+    }
     expectImpactMismatch(() => applyLongWorkspaceOperations(source, batch));
 
     const applied = applyLongWorkspaceOperations(source, {
@@ -171,6 +179,9 @@ describe("long workspace operation engine: worldbuilding conversion impact", () 
       format: "list",
       items: [expect.objectContaining({ title: "原文本内容" })]
     });
+    const category = applied.snapshot.worldbuilding[0]!;
+    if (category.format !== "list") throw new Error("Expected list category.");
+    expect([category.overview, category.items[0]!.file]).toEqual(createdFiles);
 
     const changed = structuredClone(source);
     changed.worldbuilding[0]!.title = "已经变化的规则";

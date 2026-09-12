@@ -438,59 +438,66 @@ describe("useLongBookLifecycleCoordinator", () => {
     expect(test.state.bindingsDialogMode.value).toBeNull();
   });
 
-  it("removes a book in stop, quarantine, API, workflow-state and conversation cleanup order", async () => {
-    const events: string[] = [];
-    const test = createHarness({
-      activeBookId: null,
-      api: {
-        delete: vi.fn(async ({ bookId }) => {
-          events.push("api");
-          return { bookId, removed: true };
-        })
-      },
-      workflow: {
-        stopBookAgentRuns: vi.fn(async () => {
-          events.push("stop");
-        }),
-        quarantineBook: vi.fn(async () => {
-          events.push("quarantine");
-        }),
-        disposeBookProposalState: vi.fn(async () => {
-          events.push("workflow-state-dispose");
-        })
-      },
-      conversations: {
-        disposeBookConversations: vi.fn(async () => {
-          events.push("conversation-dispose");
-        })
-      },
-      session: {
-        clearActiveBook: vi.fn(async () => {
-          events.push("clear-active");
-        })
-      },
-      catalog: {
-        loadBookList: vi.fn(async () => {
-          events.push("book-list");
-        })
-      }
-    });
+  it.each(["delete", "unregister"] as const)(
+    "handles %s with ordered cleanup and preserves history only on unregister",
+    async (action) => {
+      const events: string[] = [];
+      const test = createHarness({
+        activeBookId: null,
+        api: {
+          [action]: vi.fn(async ({ bookId }: { bookId: string }) => {
+            events.push("api");
+            return { bookId, removed: true };
+          })
+        },
+        workflow: {
+          stopBookAgentRuns: vi.fn(async () => {
+            events.push("stop");
+          }),
+          quarantineBook: vi.fn(async () => {
+            events.push("quarantine");
+          }),
+          disposeBookProposalState: vi.fn(async () => {
+            events.push("workflow-state-dispose");
+          })
+        },
+        conversations: {
+          disposeBookConversations: vi.fn(async () => {
+            events.push("conversation-dispose");
+          })
+        },
+        session: {
+          clearActiveBook: vi.fn(async () => {
+            events.push("clear-active");
+          })
+        },
+        catalog: {
+          loadBookList: vi.fn(async () => {
+            events.push("book-list");
+          })
+        }
+      });
 
-    await test.coordinator.handleLongBookAction(bookAction("delete"));
-    await test.coordinator.confirmLongBookRemoval();
+      await test.coordinator.handleLongBookAction(bookAction(action));
+      await test.coordinator.confirmLongBookRemoval();
 
-    expect(events).toEqual([
-      "stop",
-      "quarantine",
-      "api",
-      "workflow-state-dispose",
-      "conversation-dispose",
-      "clear-active",
-      "book-list"
-    ]);
-    expect(test.state.longBooks.value).toEqual([]);
-    expect(test.state.bookRemovalTarget.value).toBeNull();
-  });
+      expect(events).toEqual([
+        "stop",
+        "quarantine",
+        "api",
+        "workflow-state-dispose",
+        "conversation-dispose",
+        "clear-active",
+        "book-list"
+      ]);
+      expect(test.state.longBooks.value).toEqual([]);
+      expect(test.state.bookRemovalTarget.value).toBeNull();
+      expect(test.conversations.disposeBookConversations).toHaveBeenCalledWith(
+        BOOK_A,
+        { clearPersistence: action === "delete" }
+      );
+    }
+  );
 
   it("reactivates a quarantined book when the removal API fails", async () => {
     const events: string[] = [];

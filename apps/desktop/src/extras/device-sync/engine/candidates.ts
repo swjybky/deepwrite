@@ -17,7 +17,12 @@ export async function readSyncCandidates(
       try {
         const item = await remote.item(spaceId, revision);
         const entries = candidates.get(key) ?? [];
-        entries.push({ revision, item, deviceName: device.commit.deviceName });
+        entries.push({
+          revision,
+          item,
+          deviceName: device.commit.deviceName,
+          deviceId: device.commit.deviceId
+        });
         candidates.set(key, entries);
       } catch {
         if (signal.aborted) throw new Error("同步已取消。");

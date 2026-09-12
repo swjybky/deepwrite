@@ -7,6 +7,58 @@ import { handleLongWorkspaceCommands } from "./long-workspace-commands";
 afterEach(() => vi.useRealTimers());
 
 describe("bounded long workspace requests", () => {
+  it("routes explicit conflict recovery to Core and retains its rejection", async () => {
+    const command = createEnvelope(
+      "long.resolveConflicts",
+      { bookId: "longbook-conflict" },
+      { id: "resolve-command" }
+    );
+    const rejected = {
+      status: "rejected",
+      requestId: command.id,
+      error: {
+        code: "catalog.command_failed",
+        message: "长篇工作区索引不是有效 JSON。"
+      }
+    } as const;
+    const requestCommand = vi.fn(async () => rejected);
+    const context = { supervisor: { requestCommand } } as unknown as Pick<
+      IpcCommandContext,
+      "supervisor"
+    >;
+    await expect(
+      handleLongWorkspaceCommands(context, command)
+    ).resolves.toEqual(rejected);
+    expect(requestCommand).toHaveBeenCalledExactlyOnceWith(
+      "core",
+      command,
+      60_000
+    );
+  });
+
+  it("rejects malformed successful conflict recovery results", async () => {
+    const command = createEnvelope(
+      "long.resolveConflicts",
+      { bookId: "longbook-conflict" },
+      { id: "resolve-malformed" }
+    );
+    const requestCommand = vi.fn(async () => ({
+      status: "accepted",
+      requestId: command.id,
+      payload: {}
+    }));
+    const context = { supervisor: { requestCommand } } as unknown as Pick<
+      IpcCommandContext,
+      "supervisor"
+    >;
+    await expect(
+      handleLongWorkspaceCommands(context, command)
+    ).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "long.forward_failed" }
+    });
+  });
+
   it("returns an unresolved-result error for a stalled save without replaying it", async () => {
     vi.useFakeTimers();
     const requestCommand = vi.fn(

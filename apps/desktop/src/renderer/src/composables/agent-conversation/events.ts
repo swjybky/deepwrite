@@ -1,33 +1,45 @@
-import { AgentEvaluationSnapshotSchema } from "@deepwrite/contracts";
-import type { SystemEventEnvelope } from "@deepwrite/contracts";
-import { finalizeUnfinishedMessageTools } from "./attempt-state";
+import { handleToolEvent } from "./tool-events";
 import type { AgentConversationContext } from "./context";
+import type { SystemEventEnvelope } from "@deepwrite/contracts";
+import { AgentEvaluationSnapshotSchema } from "@deepwrite/contracts/renderer";
+import { finalizeUnfinishedMessageTools } from "./attempt-state";
 import { rememberBounded } from "./shared";
-import {
-  clearIdleTimer,
-  flushPendingAgentTextDelta,
-  queueAgentTextDelta,
-  scheduleIdleTimeout
-} from "./streaming";
-import {
-  acceptsRetryActivity,
-  ensureActivityMessage,
-  ensureAssistantMessage,
-  ensurePendingSubagentRunForTool,
-  failProtocol,
-  finalizeRunningSubagents,
-  finishRun,
-  handleRetryScheduled,
-  handleSubagentEvent,
-  handleTurnStarted,
-  markRunError,
-  markRunStopped
-} from "./retry-subagent";
-import { rememberRunApprovalMode } from "./approvals";
-import type { SubagentEventEnvelope } from "./types";
+import { isAgentEvent, isSubagentEvent } from "./event-kinds";
 
+type EventsContext = Pick<
+  AgentConversationContext,
+  | "sessionId"
+  | "handledEventIds"
+  | "finishedRunIds"
+  | "messages"
+  | "activeRunId"
+  | "pendingAttemptId"
+  | "observedRunByAttempt"
+  | "failProtocol"
+  | "runtime"
+  | "approvalModeByAttempt"
+  | "rememberRunApprovalMode"
+  | "submitting"
+  | "scheduleIdleTimeout"
+  | "epoch"
+  | "flushPendingAgentTextDelta"
+  | "handleSubagentEvent"
+  | "userInput"
+  | "clearIdleTimer"
+  | "ensureAssistantMessage"
+  | "handleTurnStarted"
+  | "handleRetryScheduled"
+  | "acceptsRetryActivity"
+  | "queueAgentTextDelta"
+  | "finalizeRunningSubagents"
+  | "finishRun"
+  | "markRunStopped"
+  | "conversationError"
+  | "markRunError"
+> &
+  Parameters<typeof handleToolEvent>[0];
 export function handleEvent(
-  ctx: AgentConversationContext,
+  ctx: EventsContext,
   event: SystemEventEnvelope
 ): void {
   if (!isAgentEvent(event) || event.payload.sessionId !== ctx.sessionId.value) {
@@ -36,7 +48,6 @@ export function handleEvent(
   if (ctx.handledEventIds.has(event.id)) {
     return;
   }
-
   const runId = event.payload.runId;
   const subagentEvent = isSubagentEvent(event);
   const lateSubagentEvent =
@@ -74,8 +85,7 @@ export function handleEvent(
       ctx.pendingAttemptId.value
     );
     if (observedRunId && observedRunId !== runId) {
-      failProtocol(
-        ctx,
+      ctx.failProtocol(
         observedRunId,
         "同一次请求收到了多个运行标识。",
         ctx.runtime.value ?? undefined
@@ -86,44 +96,44 @@ export function handleEvent(
     const pendingMode = ctx.approvalModeByAttempt.get(
       ctx.pendingAttemptId.value
     );
-    if (pendingMode) rememberRunApprovalMode(ctx, runId, pendingMode);
+    if (pendingMode) ctx.rememberRunApprovalMode(runId, pendingMode);
     ctx.activeRunId.value = runId;
   }
-
   rememberBounded(ctx.handledEventIds, event.id);
   if (!lateSubagentEvent && !lateEvaluationSnapshot) {
     ctx.submitting.value = false;
-    scheduleIdleTimeout(ctx, {
+    ctx.scheduleIdleTimeout({
       expectedEpoch: ctx.epoch,
       expectedSessionId: ctx.sessionId.value,
       runId
     });
   }
-
   if (
     event.type !== "agent.message_delta" &&
     event.type !== "agent.thinking_delta"
   ) {
     // Terminal, retry, tool, and subagent events are ordering boundaries.
     // Settle every preceding text fragment before applying that event.
-    flushPendingAgentTextDelta(ctx);
+    ctx.flushPendingAgentTextDelta();
   }
-
   if (subagentEvent) {
-    handleSubagentEvent(ctx, event);
+    ctx.handleSubagentEvent(event);
     return;
   }
-
   if (event.type === "agent.user_input_requested") {
-    ctx.pendingUserInput.value = event.payload;
-    ctx.submittingUserInput.value = false;
-    clearIdleTimer(ctx);
+    ctx.userInput.receive(event.payload);
+    ctx.clearIdleTimer();
     return;
   }
-
+  if (
+    event.type === "agent.message_delta" ||
+    event.type === "agent.thinking_delta" ||
+    event.type === "agent.message_completed"
+  ) {
+    ctx.userInput.clearSubmitted(runId);
+  }
   if (event.type === "agent.evaluation_snapshot") {
-    const message = ensureAssistantMessage(
-      ctx,
+    const message = ctx.ensureAssistantMessage(
       runId,
       event.payload.messageId,
       event.payload.runtime,
@@ -139,256 +149,33 @@ export function handleEvent(
     }
     return;
   }
-
   if (event.type === "agent.turn_started") {
-    handleTurnStarted(ctx, event);
+    ctx.handleTurnStarted(event);
     return;
   }
-
   if (event.type === "agent.retry_scheduled") {
-    handleRetryScheduled(ctx, event);
+    ctx.handleRetryScheduled(event);
     return;
   }
-
   if (
     event.type === "agent.message_delta" ||
     event.type === "agent.thinking_delta"
   ) {
-    if (!acceptsRetryActivity(ctx, runId, event.timestamp)) return;
-    queueAgentTextDelta(ctx, event);
+    if (!ctx.acceptsRetryActivity(runId, event.timestamp)) return;
+    ctx.queueAgentTextDelta(event);
     return;
   }
-
-  if (event.type === "tool.call_stream") {
-    if (!acceptsRetryActivity(ctx, runId, event.timestamp)) return;
-    const message = ensureActivityMessage(
-      ctx,
-      runId,
-      event.payload.runtime,
-      event.timestamp
-    );
-    message.processingStartedAt ??= event.timestamp;
-    let toolCall = event.payload.toolCallId
-      ? message.toolCalls?.find(
-          (candidate) => candidate.id === event.payload.toolCallId
-        )
-      : undefined;
-    if (!toolCall) {
-      const streamCandidate = message.toolCalls?.find(
-        (candidate) => candidate.streamId === event.payload.streamId
-      );
-      const hasCompatibleIdentity =
-        !event.payload.toolCallId ||
-        streamCandidate?.id === event.payload.toolCallId ||
-        streamCandidate?.id === event.payload.streamId;
-      if (streamCandidate && hasCompatibleIdentity) {
-        toolCall = streamCandidate;
-      }
-    }
-    if (!toolCall) {
-      toolCall = {
-        id: event.payload.toolCallId ?? event.payload.streamId,
-        streamId: event.payload.streamId,
-        name: event.payload.toolName ?? "tool_call",
-        args: event.payload.args,
-        argumentsText: event.payload.argumentsDelta,
-        argumentsComplete: event.payload.phase === "end",
-        status: "preparing",
-        requestedAt: event.timestamp
-      };
-      (message.toolCalls ??= []).push(toolCall);
-      (message.processingSteps ??= []).push({
-        id: event.id,
-        type: "tool",
-        toolCallId: toolCall.id,
-        createdAt: event.timestamp
-      });
-    } else {
-      const previousId = toolCall.id;
-      toolCall.streamId = event.payload.streamId;
-      toolCall.name = event.payload.toolName ?? toolCall.name;
-      toolCall.argumentsText = `${toolCall.argumentsText ?? ""}${event.payload.argumentsDelta}`;
-      toolCall.argumentsComplete = event.payload.phase === "end";
-      if (event.payload.args !== undefined) {
-        toolCall.args = event.payload.args;
-      }
-      if (event.payload.toolCallId && previousId !== event.payload.toolCallId) {
-        toolCall.id = event.payload.toolCallId;
-        for (const step of message.processingSteps ?? []) {
-          if (step.type === "tool" && step.toolCallId === previousId) {
-            step.toolCallId = event.payload.toolCallId;
-          }
-        }
-      }
-    }
-    if (!message.tools?.some((tool) => tool.id === toolCall.id)) {
-      message.tools = [
-        ...(message.tools ?? []),
-        {
-          id: toolCall.id,
-          name: toolCall.name,
-          status: "running"
-        }
-      ];
-    }
+  if (
+    event.type === "tool.call_stream" ||
+    event.type === "tool.call_requested" ||
+    event.type === "tool.execution_completed"
+  ) {
+    handleToolEvent(ctx, event);
     return;
   }
-
-  if (event.type === "tool.call_requested") {
-    if (!acceptsRetryActivity(ctx, runId, event.timestamp)) return;
-    const message = ensureActivityMessage(
-      ctx,
-      runId,
-      event.payload.runtime,
-      event.timestamp
-    );
-    if (event.payload.toolName === "spawn_subagent") {
-      ensurePendingSubagentRunForTool(
-        ctx,
-        message,
-        event.payload.toolCallId,
-        event.payload.args,
-        event.payload.runtime,
-        event.timestamp
-      );
-    }
-    if (!message.tools?.some((tool) => tool.id === event.payload.toolCallId)) {
-      message.tools = [
-        ...(message.tools ?? []),
-        {
-          id: event.payload.toolCallId,
-          name: event.payload.toolName,
-          status: "running"
-        }
-      ];
-    }
-    message.processingStartedAt ??= event.timestamp;
-    const existing =
-      message.toolCalls?.find(
-        (toolCall) => toolCall.id === event.payload.toolCallId
-      ) ??
-      [...(message.toolCalls ?? [])]
-        .reverse()
-        .find(
-          (toolCall) =>
-            toolCall.status === "preparing" &&
-            toolCall.name === event.payload.toolName
-        );
-    if (existing) {
-      const previousId = existing.id;
-      existing.id = event.payload.toolCallId;
-      existing.name = event.payload.toolName;
-      existing.args = event.payload.args;
-      existing.status = "running";
-      existing.argumentsComplete = true;
-      for (const step of message.processingSteps ?? []) {
-        if (step.type === "tool" && step.toolCallId === previousId) {
-          step.toolCallId = event.payload.toolCallId;
-        }
-      }
-    } else {
-      (message.toolCalls ??= []).push({
-        id: event.payload.toolCallId,
-        name: event.payload.toolName,
-        args: event.payload.args,
-        status: "running",
-        requestedAt: event.timestamp
-      });
-    }
-    if (
-      !message.processingSteps?.some(
-        (step) =>
-          step.type === "tool" && step.toolCallId === event.payload.toolCallId
-      )
-    ) {
-      (message.processingSteps ??= []).push({
-        id: event.id,
-        type: "tool",
-        toolCallId: event.payload.toolCallId,
-        createdAt: event.timestamp
-      });
-    }
-    return;
-  }
-
-  if (event.type === "tool.execution_completed") {
-    if (!acceptsRetryActivity(ctx, runId, event.timestamp)) return;
-    const message = ensureActivityMessage(
-      ctx,
-      runId,
-      event.payload.runtime,
-      event.timestamp
-    );
-    if (event.payload.toolName === "spawn_subagent") {
-      const subagentRun = message.subagentRuns?.find(
-        (candidate) => candidate.parentToolCallId === event.payload.toolCallId
-      );
-      if (subagentRun?.status === "running") {
-        subagentRun.status = event.payload.isError ? "error" : "completed";
-        subagentRun.completedAt = event.timestamp;
-        subagentRun.summary = event.payload.resultSummary;
-        if (event.payload.isError) {
-          subagentRun.errorMessage = event.payload.resultSummary;
-        }
-      }
-    }
-    const tools = message.tools ?? [];
-    const existingTool = tools.find(
-      (tool) => tool.id === event.payload.toolCallId
-    );
-    if (existingTool) {
-      existingTool.status = event.payload.isError ? "error" : "completed";
-      existingTool.summary = event.payload.resultSummary;
-    } else {
-      message.tools = [
-        ...tools,
-        {
-          id: event.payload.toolCallId,
-          name: event.payload.toolName,
-          status: event.payload.isError ? "error" : "completed",
-          summary: event.payload.resultSummary
-        }
-      ];
-    }
-    message.processingStartedAt ??= event.timestamp;
-    let toolCall = message.toolCalls?.find(
-      (item) => item.id === event.payload.toolCallId
-    );
-    if (!toolCall) {
-      toolCall = {
-        id: event.payload.toolCallId,
-        name: event.payload.toolName,
-        args: undefined,
-        status: event.payload.isError ? "error" : "completed",
-        requestedAt: event.timestamp
-      };
-      (message.toolCalls ??= []).push(toolCall);
-    }
-    if (
-      !message.processingSteps?.some(
-        (step) =>
-          step.type === "tool" && step.toolCallId === event.payload.toolCallId
-      )
-    ) {
-      (message.processingSteps ??= []).push({
-        id: event.id,
-        type: "tool",
-        toolCallId: event.payload.toolCallId,
-        createdAt: event.timestamp
-      });
-    }
-    toolCall.name = event.payload.toolName;
-    toolCall.status = event.payload.isError ? "error" : "completed";
-    toolCall.completedAt = event.timestamp;
-    toolCall.resultSummary = event.payload.resultSummary;
-    toolCall.isError = event.payload.isError;
-    return;
-  }
-
   if (event.type === "agent.message_completed") {
-    if (!acceptsRetryActivity(ctx, runId, event.timestamp)) return;
-    const message = ensureAssistantMessage(
-      ctx,
+    if (!ctx.acceptsRetryActivity(runId, event.timestamp)) return;
+    const message = ctx.ensureAssistantMessage(
       runId,
       event.payload.messageId,
       event.payload.runtime,
@@ -423,8 +210,7 @@ export function handleEvent(
         });
       }
     }
-    finalizeRunningSubagents(
-      ctx,
+    ctx.finalizeRunningSubagents(
       message,
       "error",
       event.timestamp,
@@ -444,70 +230,19 @@ export function handleEvent(
     if (event.payload.usage !== undefined) {
       message.usage = event.payload.usage;
     }
-    finishRun(ctx, runId);
+    ctx.finishRun(runId);
     return;
   }
-
   if (event.type !== "agent.error") {
     return;
   }
-
   if (event.payload.code === "pi_agent.aborted") {
-    markRunStopped(ctx, runId, event.payload.runtime);
+    ctx.markRunStopped(runId, event.payload.runtime);
     ctx.conversationError.value = null;
-    finishRun(ctx, runId);
+    ctx.finishRun(runId);
     return;
   }
-
-  markRunError(ctx, runId, event.payload.message, event.payload.runtime);
+  ctx.markRunError(runId, event.payload.message, event.payload.runtime);
   ctx.conversationError.value = event.payload.message;
-  finishRun(ctx, runId);
-}
-
-export function isAgentEvent(event: SystemEventEnvelope): event is Extract<
-  SystemEventEnvelope,
-  {
-    type:
-      | "agent.evaluation_snapshot"
-      | "agent.turn_started"
-      | "agent.retry_scheduled"
-      | "agent.message_delta"
-      | "agent.thinking_delta"
-      | "agent.message_completed"
-      | "agent.user_input_requested"
-      | "agent.error"
-      | "tool.call_stream"
-      | "tool.call_requested"
-      | "tool.execution_completed"
-      | "subagent.started"
-      | "subagent.activity"
-      | "subagent.completed";
-  }
-> {
-  return (
-    event.type === "agent.evaluation_snapshot" ||
-    event.type === "agent.turn_started" ||
-    event.type === "agent.retry_scheduled" ||
-    event.type === "agent.message_delta" ||
-    event.type === "agent.thinking_delta" ||
-    event.type === "agent.message_completed" ||
-    event.type === "agent.user_input_requested" ||
-    event.type === "agent.error" ||
-    event.type === "tool.call_stream" ||
-    event.type === "tool.call_requested" ||
-    event.type === "tool.execution_completed" ||
-    event.type === "subagent.started" ||
-    event.type === "subagent.activity" ||
-    event.type === "subagent.completed"
-  );
-}
-
-export function isSubagentEvent(
-  event: SystemEventEnvelope
-): event is SubagentEventEnvelope {
-  return (
-    event.type === "subagent.started" ||
-    event.type === "subagent.activity" ||
-    event.type === "subagent.completed"
-  );
+  ctx.finishRun(runId);
 }

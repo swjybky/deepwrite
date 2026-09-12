@@ -1,6 +1,6 @@
 {
   "name": "deepwrite",
-  "version": "1.4.7",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -21,6 +21,8 @@
     "format:check": "prettier . --check",
     "test": "vitest run",
     "smoke": "pnpm --filter @deepwrite/desktop smoke",
+    "smoke:conversation": "node apps/desktop/scripts/electron-conversation-smoke.mjs",
+    "smoke:shutdown": "node apps/desktop/scripts/electron-shutdown-smoke.mjs",
     "smoke:renderer": "node tools/check-renderer-build.mjs",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "pack:test": "node tools/run-test-package.mjs all",

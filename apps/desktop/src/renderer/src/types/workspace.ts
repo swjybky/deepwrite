@@ -117,25 +117,10 @@ export interface CreationBookDragPayload {
   position: "before" | "after";
 }
 
-export type LongBookResourceNodeAction =
-  | "manage-structure"
-  | "sync-legacy"
-  | "rename"
-  | "duplicate"
-  | "export"
-  | "bind-skill"
-  | "bind-material"
-  | "unregister"
-  | "delete";
-
-export interface LongBookResourceNodeActionPayload {
-  action: LongBookResourceNodeAction;
-  node: ResourceTreeNode & {
-    catalogNodeType: "long-book";
-    longBookId: string;
-    workspaceType: "long";
-  };
-}
+export type {
+  LongBookResourceNodeAction,
+  LongBookResourceNodeActionPayload
+} from "./longBookAction";
 
 export type LongTreeCollectionKind =
   "worldbuilding-item" | "character" | "volume" | "plot-point" | "chapter-card";

@@ -7,6 +7,7 @@ import type {
   WorkspaceFeatureHostCoordinatorOptions
 } from "./workspaceFeatureHostTypes";
 import { buildWorkspaceFeatureModule } from "./workspaceFeatureHostModule";
+import type { buildSettingsFeatureModule } from "./settingsFeatureModule";
 export type {
   ActiveFeature,
   WorkspaceFeatureHostApi,
@@ -37,6 +38,7 @@ export function useWorkspaceFeatureHostCoordinator(
   let marketplaceRequestGeneration = 0;
   let directoryChooseGeneration = 0;
   let directoryChoosePending = false;
+  let buildSettingsModule: typeof buildSettingsFeatureModule | undefined;
 
   const isLongWorkspaceActive = computed(
     () =>
@@ -56,7 +58,8 @@ export function useWorkspaceFeatureHostCoordinator(
       activeFeature.value,
       options,
       agentTeamNavigationEpoch.value,
-      knownMarketplaceSession.value
+      knownMarketplaceSession.value,
+      buildSettingsModule
     )
   );
 
@@ -161,6 +164,20 @@ export function useWorkspaceFeatureHostCoordinator(
   async function openSettings(initialCategory = "general"): Promise<void> {
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
+    try {
+      const { loadSettingsFeature } =
+        await import("../components/loadSettingsFeature");
+      const buildSettings = await loadSettingsFeature();
+      if (!navigationIsCurrent(generation)) return;
+      buildSettingsModule = buildSettings;
+    } catch {
+      if (navigationIsCurrent(generation)) {
+        options.notifications.error(
+          "设置页面加载失败，请稍后重试或重新启动应用。"
+        );
+      }
+      return;
+    }
     options.view.settingsInitialCategory.value = initialCategory;
     options.view.current.value = "settings";
     if (!options.api()) return;

@@ -1,3 +1,4 @@
+import { unwrapMessageValue } from "./message-mutations";
 import { toRaw } from "vue";
 import { AgentEvaluationSnapshotSchema } from "@deepwrite/contracts";
 import type {
@@ -75,7 +76,7 @@ export function cloneEvaluationSnapshot(
 }
 
 export function cloneMessage(message: ChatMessage): ChatMessage {
-  message = toRaw(message);
+  message = unwrapMessageValue(message);
   const evaluationSnapshot = cloneEvaluationSnapshot(
     message.evaluationSnapshot
   );

@@ -1,3 +1,4 @@
+import { createConversationHistorySelection } from "./conversationHistorySelection";
 import {
   withoutMaterialBindings,
   withoutMaterialBodies
@@ -602,30 +603,30 @@ export function useShortConversationCoordinator(
     options.resource.clearEditorSelectionReferences();
   }
 
-  function selectConversation(sessionId: string): void {
-    invalidateSendTarget();
-    if (
-      options.edits.acceptingDocumentIds.value.size > 0 ||
-      options.edits.acceptingWorkspaceIds.value.size > 0 ||
-      options.edits.hasQueued()
-    ) {
-      options.notifications.info("请等待智能体修改保存完成后再切换对话");
-      return;
+  const selectConversation = createConversationHistorySelection({
+    prepare() {
+      invalidateSendTarget();
+      if (
+        options.edits.acceptingDocumentIds.value.size > 0 ||
+        options.edits.acceptingWorkspaceIds.value.size > 0 ||
+        options.edits.hasQueued()
+      ) {
+        options.notifications.info("请等待智能体修改保存完成后再切换对话");
+        return false;
+      }
+      return !disposed;
+    },
+    current: () => activeConversation.value,
+    warning: (message) => options.notifications.warning(message),
+    busyMessage: "请先停止当前回复，再切换历史对话",
+    unavailableMessage: "这条历史对话已不可用，请重新打开历史列表",
+    selected(conversation) {
+      options.resource.clearEditorSelectionReferences();
+      queueMicrotask(() => {
+        if (!disposed) options.edits.resumeRecovered([conversation]);
+      });
     }
-    const conversation = activeConversation.value;
-    if (!conversation.selectConversation(sessionId)) {
-      options.notifications.warning(
-        conversation.isBusy.value
-          ? "请先停止当前回复，再切换历史对话"
-          : "这条历史对话已不可用，请重新打开历史列表"
-      );
-      return;
-    }
-    options.resource.clearEditorSelectionReferences();
-    queueMicrotask(() => {
-      if (!disposed) options.edits.resumeRecovered([conversation]);
-    });
-  }
+  });
 
   function useSuggestion(value: string): void {
     activeConversation.value.useSuggestion(value);

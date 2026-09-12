@@ -490,6 +490,14 @@ describe("agent conversation controller: snapshot-persistence", () => {
     });
 
     controller.holdPersistenceEmits();
+    controller.messages.value = [
+      {
+        id: "sent-first",
+        role: "user",
+        content: "已发送的消息",
+        createdAt: "2026-09-07T00:00:00.000Z"
+      }
+    ];
     controller.draft.value = "水合完成前不应落盘";
     expect(snapshots).toEqual([]);
     controller.releasePersistenceEmits();
@@ -525,6 +533,14 @@ describe("agent conversation controller: snapshot-persistence", () => {
       }
     });
 
+    controller.messages.value = [
+      {
+        id: "sent-first",
+        role: "user",
+        content: "已发送的消息",
+        createdAt: "2026-09-07T00:00:00.000Z"
+      }
+    ];
     controller.draft.value = "需要持久化的草稿";
     expect(snapshots.at(-1)).toMatchObject({
       version: 1,
@@ -554,7 +570,7 @@ describe("agent conversation controller: snapshot-persistence", () => {
     expect(changes).toEqual(["changed"]);
     expect(eagerSnapshots).toEqual([]);
     expect(controller.capturePersistenceSnapshot()).toMatchObject({
-      conversations: [{ draft: "输入热路径不复制整份历史" }]
+      conversations: []
     });
     controller.dispose();
   });
@@ -567,6 +583,14 @@ describe("agent conversation controller: snapshot-persistence", () => {
       ...storage.options(persistenceKey)
     });
     expect(controller.approvalMode.value).toBe("request-approval");
+    controller.messages.value = [
+      {
+        id: "sent-first",
+        role: "user",
+        content: "已发送的消息",
+        createdAt: "2026-09-07T00:00:00.000Z"
+      }
+    ];
     controller.draft.value = "保留这份对话草稿";
     controller.selectApprovalMode("auto-approve");
     controller.dispose();

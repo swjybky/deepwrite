@@ -1,8 +1,10 @@
-import type { Ref } from "vue";
+import type { ConversationPersistenceChanges } from "./persistence-changes";
+import { type Ref } from "vue";
 import type {
   AgentRuntimeRef,
   AgentUserInputAnswer,
   AgentUserInputRequestedPayload,
+  AgentTeamRunMode,
   ChatAssistantRequestContext,
   DeepWriteApi,
   LongWorkspaceRuntimeContext,
@@ -22,13 +24,11 @@ import type {
   ConversationMessageRewriteRequest
 } from "../../types/conversation";
 import type { WorkspaceDocument } from "../../types/workspace";
-
 export interface ConversationStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem?(key: string): void;
 }
-
 export interface UseAgentConversationOptions {
   api: () => DeepWriteApi | undefined;
   autoApproveCrossStageOperations?: () => boolean;
@@ -44,6 +44,15 @@ export interface UseAgentConversationOptions {
    * eager snapshot callback above.
    */
   onPersistenceChange?: () => void | Promise<void>;
+  flushPersistence?: (options?: { allowDeferred?: boolean }) => Promise<void>;
+  loadHistoryRecord?: (
+    sessionId: string
+  ) => Promise<AgentConversationPersistenceRecord>;
+  historyManagement?: {
+    delete(sessionId: string): Promise<void>;
+    restore(sessionId: string): Promise<AgentConversationPersistenceRecord>;
+    listDeleted(): Promise<ConversationHistoryItem[]>;
+  };
   onPersistenceRemove?: () => void | Promise<void>;
   /** @deprecated Persistence is now coordinated through structured snapshots. */
   persistenceKey?: string;
@@ -52,14 +61,14 @@ export interface UseAgentConversationOptions {
   onPersistenceError?: () => void;
   onContextWarning?: (message: string) => void;
 }
-
 export interface AgentRunSettings {
   selectedModelId: string;
   thinkingLevel: ThinkingLevel;
   temperature: number;
   approvalMode: AgentApprovalMode;
+  agentTeamMode?: AgentTeamRunMode;
+  webSearchEnabled?: boolean;
 }
-
 export interface AgentConversationPersistenceRecord {
   sessionId: string;
   messages: ChatMessage[];
@@ -69,13 +78,16 @@ export interface AgentConversationPersistenceRecord {
   updatedAt: string;
   temperature: number;
 }
-
 export interface AgentConversationPersistenceSnapshot {
   version: 1;
   activeSessionId: string;
   conversations: AgentConversationPersistenceRecord[];
 }
-
+export interface AgentConversationHistorySnapshot {
+  activeSessionId: string;
+  items: ConversationHistoryItem[];
+  active?: AgentConversationPersistenceRecord;
+}
 export interface AgentTurnCheckpoint {
   turnId: string;
   messageId: string;
@@ -84,7 +96,6 @@ export interface AgentTurnCheckpoint {
   attemptStartedAt: string;
   message: ChatMessage | null;
 }
-
 export interface SubagentTurnCheckpoint {
   turnId: string;
   attempt: number;
@@ -92,21 +103,25 @@ export interface SubagentTurnCheckpoint {
   attemptStartedAt: string;
   run: AgentSubagentRun;
 }
-
 export type SubagentEventEnvelope = Extract<
   SystemEventEnvelope,
-  { type: "subagent.started" | "subagent.activity" | "subagent.completed" }
+  {
+    type: "subagent.started" | "subagent.activity" | "subagent.completed";
+  }
 >;
 export type SubagentEventPayload = SubagentEventEnvelope["payload"];
 export type SubagentActivityEventEnvelope = Extract<
   SubagentEventEnvelope,
-  { type: "subagent.activity" }
+  {
+    type: "subagent.activity";
+  }
 >;
 export type AgentTextDeltaEventEnvelope = Extract<
   SystemEventEnvelope,
-  { type: "agent.message_delta" | "agent.thinking_delta" }
+  {
+    type: "agent.message_delta" | "agent.thinking_delta";
+  }
 >;
-
 export interface PendingAgentTextDelta {
   type: AgentTextDeltaEventEnvelope["type"];
   runId: string;
@@ -116,14 +131,15 @@ export interface PendingAgentTextDelta {
   createdAt: string;
   chunks: string[];
 }
-
 export interface AgentConversationController {
   messages: Ref<ChatMessage[]>;
   draft: Ref<string>;
   sessionId: Ref<string>;
   approvalMode: Ref<AgentApprovalMode>;
+  agentTeamMode: Ref<AgentTeamRunMode>;
   thinkingLevel: Ref<ThinkingLevel>;
   temperature: Ref<number>;
+  webSearchEnabled: Ref<boolean>;
   configuredModels: Ref<ModelConfig[]>;
   selectedModelId: Ref<string>;
   runtime: Ref<AgentRuntimeRef | null>;
@@ -192,20 +208,32 @@ export interface AgentConversationController {
   cancelPendingGeneration(): boolean;
   newConversation(): void;
   selectConversation(sessionId: string): boolean;
+  openConversation(sessionId: string): Promise<boolean>;
+  restorePersistenceHistory(
+    snapshot: AgentConversationHistorySnapshot
+  ): Promise<boolean>;
+  historyManagementAvailable: boolean;
+  listDeletedConversations(): Promise<ConversationHistoryItem[]>;
+  deleteConversation(sessionId: string): Promise<boolean>;
+  restoreConversation(sessionId: string): Promise<boolean>;
   applyModelSettings(settings: ModelSettings): void;
   applyRunSettings(settings: AgentRunSettings): void;
   selectModel(modelId: string): void;
   selectThinkingLevel(level: ThinkingLevel): void;
+  selectWebSearchEnabled(enabled: boolean): void;
   selectTemperature(temperature: number): void;
   selectApprovalMode(mode: AgentApprovalMode): void;
+  selectAgentTeamMode(mode: AgentTeamRunMode): void;
   useSuggestion(value: string): void;
   capturePersistenceSnapshot(): AgentConversationPersistenceSnapshot;
+  capturePersistenceChanges(): ConversationPersistenceChanges;
+  acknowledgePersistenceChanges(revision: number): void;
+  initializePersistenceBaseline(): boolean;
   restorePersistenceSnapshot(snapshot: unknown): Promise<boolean>;
   holdPersistenceEmits(): void;
   releasePersistenceEmits(): void;
   dispose(options?: { clearPersistence?: boolean }): void;
 }
-
 export type WorkspaceContextAttachments = Pick<
   WorkspaceRuntimeContext,
   "attachedSkills" | "attachedMaterials" | "libraryWorkspace"

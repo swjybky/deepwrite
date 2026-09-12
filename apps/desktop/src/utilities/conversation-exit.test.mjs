@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RendererStateStore } from "./renderer-state-store.ts";
+import {
+  TestRendererStateStore as RendererStateStore,
+  closeRendererStateTestStores
+} from "./renderer-state-store.test-support.ts";
 import { createConversationPersistenceAdapter } from "../renderer/src/utils/conversationPersistence.ts";
 import { conversationHistoryPersistenceKey } from "../renderer/src/utils/conversationPersistenceKeys.ts";
 import { useConversationStore } from "../renderer/src/stores/conversationStore.ts";
@@ -17,6 +20,7 @@ import {
 
 const cleanups = [];
 afterEach(async () => {
+  await closeRendererStateTestStores();
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
   vi.restoreAllMocks();
 });

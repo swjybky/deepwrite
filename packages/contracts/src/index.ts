@@ -19,6 +19,8 @@ export * from "./long-ledger";
 export * from "./long-manuscript-export";
 export * from "./long-workspace";
 export * from "./long-workspace-api";
+export * from "./long-workspace-commands";
+export * from "./long-project-recovery";
 export * from "./long-worldbuilding-markdown";
 export * from "./long-workspace-operations";
 export * from "./marketplace";
@@ -53,3 +55,7 @@ export { LibraryManagementScopeSchema } from "./library-management-scope";
 
 export * from "./device-sync";
 export * from "./device-sync-commands";
+
+export * from "./conversation-history";
+
+export * from "./conversation-export";

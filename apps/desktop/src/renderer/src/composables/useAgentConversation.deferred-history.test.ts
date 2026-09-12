@@ -3,6 +3,14 @@ import { useAgentConversation } from "./useAgentConversation";
 
 it("retains loaded book history when the user types before hydration completes", async () => {
   const previous = useAgentConversation({ api: () => undefined });
+  previous.messages.value = [
+    {
+      id: "sent-first",
+      role: "user",
+      content: "已发送的消息",
+      createdAt: "2026-09-07T00:00:00.000Z"
+    }
+  ];
   previous.draft.value = "书本之前的对话";
   const previousId = previous.sessionId.value;
   const snapshot = previous.capturePersistenceSnapshot();
@@ -25,7 +33,7 @@ it("retains loaded book history when the user types before hydration completes",
       initialPersistenceSnapshot: current.capturePersistenceSnapshot()
     });
     try {
-      expect(restored.history.value).toHaveLength(2);
+      expect(restored.history.value).toHaveLength(1);
       expect(restored.selectConversation(previousId)).toBe(true);
       expect(restored.draft.value).toBe("书本之前的对话");
     } finally {

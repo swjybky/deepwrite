@@ -204,6 +204,7 @@ export function createConversationPersistenceAdapter(
   );
 
   return {
+    ...(api.history ? { history: api.history } : {}),
     ...(api.onBeforeClose
       ? { onBeforeClose: api.onBeforeClose.bind(api) }
       : {}),

@@ -98,7 +98,7 @@ const navItems: Array<{
   icon: "directory" | "model" | "wand" | "message" | "brain";
 }> = [
   { id: "directory", label: "工作目录", icon: "directory" },
-  { id: "models", label: "模型配置", icon: "model" },
+  { id: "models", label: "自定义模型配置", icon: "model" },
   { id: "agent-teams", label: "智能体团队", icon: "brain" },
   { id: "chat-assistant", label: "聊天", icon: "message" }
 ];

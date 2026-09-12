@@ -6,6 +6,7 @@ import writingWorkspaceSource from "./components/WritingWorkspaceModule.vue?raw"
 import stylesSource from "virtual:deepwrite-renderer-styles";
 import coordinatorSource from "./composables/useGeneralSettingsCoordinator.ts?raw";
 import lifecycleSource from "./composables/useWorkspaceLifecycleCoordinator.ts?raw";
+import registryPreferencesSource from "./composables/conversationRegistryPreferences.ts?raw";
 import runtimeRegistrySource from "./composables/useConversationRuntimeRegistryCoordinator.ts?raw";
 import shortConversationSource from "./composables/useShortConversationCoordinator.ts?raw";
 import longConversationSource from "./composables/useLongConversationCoordinator.ts?raw";
@@ -26,7 +27,7 @@ describe("App general settings integration", () => {
     expect(runtimeRegistrySource).toContain(
       "conversation.selectApprovalMode(options.permissionMode())"
     );
-    expect(runtimeRegistrySource).toContain(
+    expect(registryPreferencesSource).toContain(
       "conversation.selectApprovalMode(permissionMode)"
     );
     expect(source).toContain("applyApprovalMode: applyDefaultApprovalMode");

@@ -1,4 +1,5 @@
 const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
+  "conversationExport.prepare",
   "agent.prompt",
   "agent.abort",
   "agent.user_input_response",

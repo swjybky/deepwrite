@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { SHORT_MANUSCRIPT_PREVIEW_KEY } from "../composables/shortManuscriptPreviewContext";
+import { useShortManuscriptCharacterCount } from "../composables/useShortManuscriptCharacterCount";
 import type { IconName } from "../types/workspace";
 import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import AppIcon from "./AppIcon.vue";
@@ -17,6 +19,11 @@ const emit = defineEmits<{
 }>();
 
 const selectedTarget = ref<ShortManuscriptExportTarget>("docx");
+const { characterCount, loading: characterCountLoading } =
+  useShortManuscriptCharacterCount(
+    inject(SHORT_MANUSCRIPT_PREVIEW_KEY, null),
+    () => props.open
+  );
 
 const formats: ReadonlyArray<{
   id: ShortManuscriptExportTarget;
@@ -143,7 +150,22 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                   <AppIcon :name="format.icon" :size="20" />
                 </span>
                 <span class="export-manuscript-format-copy">
-                  <strong>{{ format.label }}</strong>
+                  <strong>
+                    {{ format.label }}
+                    <span
+                      v-if="format.id === 'clipboard'"
+                      class="export-manuscript-character-count"
+                      aria-live="polite"
+                    >
+                      {{
+                        characterCount !== null
+                          ? `全文 ${characterCount.toLocaleString("zh-CN")} 字`
+                          : characterCountLoading
+                            ? "全文字数统计中…"
+                            : "全文字数暂不可用"
+                      }}
+                    </span>
+                  </strong>
                   <small>{{ format.description }}</small>
                 </span>
                 <span class="export-manuscript-format-check" aria-hidden="true"
@@ -326,9 +348,20 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 }
 
 .export-manuscript-format-copy strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
   color: var(--text-primary, #303338);
   font-size: 0.785714rem;
   font-weight: 620;
+}
+
+.export-manuscript-character-count {
+  color: var(--text-secondary, #70747a);
+  font-size: 0.714286rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .export-manuscript-format-copy small {

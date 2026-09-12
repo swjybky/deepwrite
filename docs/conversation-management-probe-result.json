@@ -1,0 +1,69 @@
+{
+  "confirmationFirst": true,
+  "retainedBeforeAck": true,
+  "deletedAfterAck": true,
+  "restored": true,
+  "refusalRetained": true,
+  "unsavedExport": true,
+  "exportCount": 2,
+  "saveStatusWidths": [
+    107,
+    107,
+    107,
+    107,
+    107,
+    107
+  ],
+  "saveLabels": [
+    "等待保存",
+    "正在保存",
+    "保存失败",
+    "保存失败",
+    "保存失败",
+    "已保存"
+  ],
+  "themes": [
+    {
+      "scheme": "light",
+      "size": 10,
+      "background": "rgb(251, 251, 251)",
+      "text": "rgb(26, 28, 31)",
+      "clipped": false
+    },
+    {
+      "scheme": "light",
+      "size": 14,
+      "background": "rgb(251, 251, 251)",
+      "text": "rgb(26, 28, 31)",
+      "clipped": false
+    },
+    {
+      "scheme": "light",
+      "size": 24,
+      "background": "rgb(251, 251, 251)",
+      "text": "rgb(26, 28, 31)",
+      "clipped": false
+    },
+    {
+      "scheme": "dark",
+      "size": 10,
+      "background": "rgb(35, 37, 40)",
+      "text": "rgb(243, 244, 246)",
+      "clipped": false
+    },
+    {
+      "scheme": "dark",
+      "size": 14,
+      "background": "rgb(35, 37, 40)",
+      "text": "rgb(243, 244, 246)",
+      "clipped": false
+    },
+    {
+      "scheme": "dark",
+      "size": 24,
+      "background": "rgb(35, 37, 40)",
+      "text": "rgb(243, 244, 246)",
+      "clipped": false
+    }
+  ]
+}

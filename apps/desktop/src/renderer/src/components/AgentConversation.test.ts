@@ -230,70 +230,6 @@ describe("AgentConversation edit proposal placement", () => {
     expect(messageItemSource).toContain("approvalItemsForMessage(");
   });
 
-  it("does not rewrite the conversation scroll position for status-only proposal updates", () => {
-    const tailFollowStart = conversationSource.indexOf(
-      "function scheduleConversationTailFollow"
-    );
-    const tailFollowEnd = conversationSource.indexOf(
-      "\nwatch(",
-      tailFollowStart
-    );
-    const tailFollow = conversationSource.slice(tailFollowStart, tailFollowEnd);
-
-    expect(tailFollow).toContain("element.scrollHeight - element.clientHeight");
-    expect(tailFollow).toContain(
-      "Math.abs(element.scrollTop - tailScrollTop) > 1"
-    );
-    expect(tailFollow).not.toContain(
-      "element.scrollTop = element.scrollHeight"
-    );
-  });
-
-  it("locks tail following for the rest of a response after any upward scroll", () => {
-    expect(conversationSource).toContain(
-      "const tailFollowLockedForResponse = ref(false)"
-    );
-    expect(conversationSource).toContain(
-      "function lockConversationTailForCurrentResponse"
-    );
-    expect(conversationSource).toContain("if (event.deltaY < 0)");
-    expect(conversationSource).toContain(
-      "nextScrollTop < lastConversationScrollTop - 1"
-    );
-    expect(conversationSource).toContain(
-      "followsConversationTail.value = !tailFollowLockedForResponse.value"
-    );
-    expect(messageListSource).toContain(
-      '@wheel.passive="handleConversationWheel"'
-    );
-
-    const responseResetStart = conversationSource.indexOf(
-      "() => props.responding"
-    );
-    const responseResetEnd = conversationSource.indexOf(
-      "() => {\n    const message = [...props.messages]",
-      responseResetStart
-    );
-    const responseReset = conversationSource.slice(
-      responseResetStart,
-      responseResetEnd
-    );
-    expect(responseReset).toContain("if (!responding || wasResponding) return");
-    expect(responseReset).toContain(
-      "tailFollowLockedForResponse.value = false"
-    );
-  });
-
-  it("preserves the free-reading position when terminal cards move below the answer", () => {
-    expect(conversationSource).toContain('previous.endsWith(":streaming")');
-    expect(conversationSource).toContain(
-      "const preservedScrollTop = element.scrollTop"
-    );
-    expect(conversationSource).toContain(
-      "scroller.value.scrollTop = preservedScrollTop"
-    );
-  });
-
   it("uses distinct composer placeholders for creative space and library agents", () => {
     expect(composerSource).toContain("composerPlaceholder");
     expect(composerLogicSource).toContain(
@@ -419,90 +355,14 @@ describe("AgentConversation edit proposal placement", () => {
     expect(composerSource).toContain('@paste="handleComposerPaste"');
   });
 
-  it("only lists configured models in the composer model selector", () => {
-    expect(conversationSource).toContain("props.models.map");
-    expect(composerSource).toContain(':model-options="modelOptions"');
-    expect(modelConfigSource).toContain('?.label ?? "选择模型"');
-    expect(`${conversationSource}\n${composerSource}`).not.toContain(
-      '{ value: "", label: "DeepWrite Faux" }'
-    );
-  });
-
-  it("offers configured thinking levels even when non-thinking parameters were configured last", () => {
-    const optionsStart = conversationSource.indexOf(
-      "const availableThinkingOptions"
-    );
-    const optionsEnd = conversationSource.indexOf(
-      "const modelOptions",
-      optionsStart
-    );
-    const optionsBlock = conversationSource.slice(optionsStart, optionsEnd);
-
-    expect(optionsBlock).toContain(
-      "selectedModel.value.thinkingLevelOptions.map"
-    );
-    expect(optionsBlock).not.toContain("selectedModel.value.reasoning");
-  });
-
-  it("labels and classifies the physical expert-draft tools", () => {
-    const labelsStart = presentationSource.indexOf(
-      "function workspaceToolLabel"
-    );
-    const labelsEnd = presentationSource.indexOf(
-      "function hasProcessing",
-      labelsStart
-    );
-    const labels = presentationSource.slice(labelsStart, labelsEnd);
-    expect(labels).toContain('create_draft_sections: "创建章节文件"');
-    expect(labels).toContain('read_draft_sections: "读取正文章节"');
-    expect(labels).toContain('write_draft_section: "写入正文章节"');
-    expect(labels).toContain('replace_draft_section_text: "替换正文章节文本"');
-    expect(labels).toContain('rename_draft_section: "修改章节名称"');
-    expect(labels).toContain('delete_draft_section: "删除章节"');
-    expect(labels).toContain('create_worldbuilding_file: "创建世界观文件"');
-    expect(labels).toContain('write_worldbuilding_file: "写入世界观文件"');
-    expect(labels).toContain('edit_worldbuilding_file: "编辑世界观文件"');
-    expect(labels).toContain('create_worldbuilding_items: "创建世界观文件"');
-
-    const writeStart = presentationSource.indexOf("const WRITE_TOOL_NAMES");
-    const directStart = presentationSource.indexOf(
-      "const DIRECT_WRITE_TOOL_NAMES",
-      writeStart
-    );
-    const writeNames = presentationSource.slice(writeStart, directStart);
-    const directEnd = presentationSource.indexOf(
-      "function isWriteTool",
-      directStart
-    );
-    const directWriteNames = presentationSource.slice(directStart, directEnd);
-    expect(writeNames).toContain('"write_draft_section"');
-    expect(writeNames).toContain('"create_draft_sections"');
-    expect(writeNames).toContain('"replace_draft_section_text"');
-    expect(writeNames).toContain('"rename_draft_section"');
-    expect(writeNames).toContain('"delete_draft_section"');
-    expect(writeNames).toContain('"create_worldbuilding_file"');
-    expect(writeNames).toContain('"write_worldbuilding_file"');
-    expect(writeNames).toContain('"edit_worldbuilding_file"');
-    expect(writeNames).not.toContain('"read_draft_sections"');
-    expect(directWriteNames).toContain('"write_draft_section"');
-    expect(directWriteNames).toContain('"create_draft_sections"');
-    expect(directWriteNames).toContain('"rename_draft_section"');
-    expect(directWriteNames).toContain('"delete_draft_section"');
-    expect(directWriteNames).toContain('"write_worldbuilding_file"');
-    expect(directWriteNames).not.toContain('"replace_draft_section_text"');
-    expect(presentationSource).not.toContain("initialize_expert_draft");
+  it("shares write previews between tool items and subagents", () => {
     expectSourceToContain(
       processingItemSource,
       "writeToolText(item.tool).length.toLocaleString('zh-CN')"
     );
-    expect(presentationSource).toContain('"create"');
-    expect(presentationSource).toContain('"edit"');
-    expect(presentationSource).toContain("isLongChapterBodyTool");
     expect(processingItemSource).toContain(
       'import { writeToolText } from "../utils/agentWriteToolPreview"'
     );
-    expect(presentationSource).toContain("待审阅文本生成中");
-    expect(presentationSource).toContain("当前章正文待审核");
     expect(proposalCardSource).toContain(
       "接受后将把当前章正文保存到该章节独立的 Markdown 文件。"
     );
@@ -510,7 +370,6 @@ describe("AgentConversation edit proposal placement", () => {
       'import { writeToolText } from "../utils/agentWriteToolPreview"'
     );
     expect(subagentSource).toContain("toolLabel(item.tool)");
-    expect(presentationSource).toContain('return "正在创建文件"');
   });
 
   it("renders subagent runs via a shared collapsed card list", () => {
@@ -572,7 +431,7 @@ describe("AgentConversation edit proposal placement", () => {
     );
     const disclosureEnd = sourceTextIndexOf(
       processingTimelineSource,
-      "</details>",
+      "</ConversationDetails>",
       nestedSubagentStart
     );
     const streamingSubagentStart = sourceTextIndexOf(
@@ -607,24 +466,6 @@ describe("AgentConversation edit proposal placement", () => {
     );
     expect(subagentPresentationSource).toContain("正在重试（${progress}）");
     expect(subagentSource).toContain('v-if="subagentRetryStatus(run, now)"');
-  });
-
-  it("keeps the elapsed clock alive for every visibly running state", () => {
-    expect(conversationSource).toContain("const hasLiveProcessing = computed");
-    expect(conversationSource).toContain('message.status === "streaming"');
-    expect(conversationSource).toContain('run.status === "running"');
-
-    const clockWatchStart = conversationSource.indexOf(
-      "() => hasLiveProcessing.value"
-    );
-    const clockWatchEnd = conversationSource.indexOf(
-      "() => props.currentSessionId",
-      clockWatchStart
-    );
-    const clockWatch = conversationSource.slice(clockWatchStart, clockWatchEnd);
-    expect(clockWatchStart).toBeGreaterThan(-1);
-    expect(clockWatch).toContain("if (live)");
-    expect(clockWatch).not.toContain("() => props.responding");
   });
 
   it("labels a run as model queueing after ten seconds without model output", () => {

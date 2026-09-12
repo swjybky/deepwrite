@@ -1,5 +1,10 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import {
+  appendWritingContentCounts,
+  type WritingContentTarget
+} from "../writing-content-counts";
+import { longFileContentTargets } from "./content-counts";
+import {
   LONG_CHARACTER_OVERVIEW_CHANGE_ID,
   LongWorkspaceOperationBatchSchema,
   type LongChapterBodyChange,
@@ -145,6 +150,7 @@ export interface LongProposalInput {
   timestamp: string;
   summary: string;
   message: string;
+  contentTargets?: readonly WritingContentTarget[];
   index: Parameters<typeof preflightLongMutationProposal>[0];
 }
 
@@ -185,7 +191,10 @@ export function formLongProposal(
     timestamp: input.timestamp
   });
 
-  const message = longProposalResultSummary(ctx.input, input.message);
+  const message = appendWritingContentCounts(
+    longProposalResultSummary(ctx.input, input.message),
+    input.contentTargets ?? longFileContentTargets(input.changes)
+  );
   const base = {
     bookId: ctx.workspace.bookId,
     agentId: ctx.profile.id,

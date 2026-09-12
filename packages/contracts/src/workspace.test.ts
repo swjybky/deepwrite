@@ -160,7 +160,7 @@ describe("short workspace contracts", () => {
       short: DEFAULT_SHORT_SYSTEM_PROMPT
     });
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("read");
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("create、edit、write");
+    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("create、edit");
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("当前阶段");
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain(
       "文本样式下禁止 create character"

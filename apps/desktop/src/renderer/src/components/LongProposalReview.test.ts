@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import conversationItemSource from "./ConversationMessageItem.vue?raw";
 import processingItemSource from "./ConversationProcessingItem.vue?raw";
 import editProposalSource from "./AgentEditProposalCard.vue?raw";
+import editDiffSource from "./AgentEditProposalDiff.vue?raw";
 import ledgerFinalizationSource from "./LongLedgerFinalizationCard.vue?raw";
 import impactDetailsSource from "./LongProposalImpactDetails.vue?raw";
 import source from "./LongProposalReview.vue?raw";
@@ -59,9 +60,9 @@ describe("LongProposalReview content file cards", () => {
       "edit-review-button is-accept"
     ]) {
       expect(source).toContain(className);
-      expect(`${conversationSource}\n${editProposalSource}`).toContain(
-        className
-      );
+      expect(
+        `${conversationSource}\n${editProposalSource}\n${editDiffSource}`
+      ).toContain(className);
     }
     expect(source).not.toContain("worldbuilding-file-card");
     expect(source).not.toContain("查看提交内容");

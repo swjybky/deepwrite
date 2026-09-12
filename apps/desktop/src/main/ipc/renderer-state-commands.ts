@@ -1,3 +1,4 @@
+import { handleConversationHistoryCommands } from "./conversation-history-commands";
 import {
   RendererStateHistoryKeysResultSchema,
   RendererStateLoadResultSchema,
@@ -11,9 +12,11 @@ import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
 
 export async function handleRendererStateCommands(
-  ctx: Pick<IpcCommandContext, "supervisor">,
+  ctx: Pick<IpcCommandContext, "supervisor" | "activeRuns">,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
+  const historyResult = await handleConversationHistoryCommands(ctx, command);
+  if (historyResult) return historyResult;
   if (
     command.type === "rendererState.listHistoryKeys" ||
     command.type === "rendererState.migrateHistory" ||

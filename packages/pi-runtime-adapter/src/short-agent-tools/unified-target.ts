@@ -134,6 +134,19 @@ function resolveDraftTarget(
   };
 }
 
+export function resolveWritingMutationKind(
+  kind: ShortUnifiedTargetKind | undefined,
+  document: ShortUnifiedDocument | undefined
+): ShortUnifiedTargetKind {
+  if (kind !== undefined) return kind;
+  if (document === "body" || document === "character_state") {
+    return "draft_section";
+  }
+  throw new Error(
+    "省略 kind 时必须指定 document=body 或 character_state，并提供稳定小节 id。"
+  );
+}
+
 export function resolveShortUnifiedTarget(
   input: BuildWritingWorkspaceToolsInput,
   sharedState: ShortWorkspaceToolSharedState,

@@ -8,6 +8,9 @@ export function syncPresentation(status: SyncStatus) {
   const problems = status.issues.filter(
     (issue) => issue.reason !== "first-sync"
   );
+  const adoptionKeys = [
+    ...new Set([...both, ...problems].map((item) => item.key))
+  ].filter((key) => !status.config?.excludedKeys.includes(key));
   const peers = status.devices.filter(
     (device) => device.id !== status.deviceId
   );
@@ -32,5 +35,5 @@ export function syncPresentation(status: SyncStatus) {
     : awaiting.length
       ? `${awaiting.map((device) => device.name).join("、")}尚未确认取回本机最新提交`
       : "另一端已确认取回本机最新提交";
-  return { uploads, downloads, both, problems, title, receipt };
+  return { uploads, downloads, both, problems, adoptionKeys, title, receipt };
 }

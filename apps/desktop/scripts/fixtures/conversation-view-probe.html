@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  body {
+    margin: 0;
+    font: 14px/1.6 sans-serif;
+  }
+  #scroller {
+    height: 700px;
+    width: 820px;
+    overflow: auto;
+  }
+  article {
+    display: flow-root;
+    padding: 12px 20px;
+    border-bottom: 1px solid #ddd;
+  }
+  .auto article {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 480px;
+  }
+  p {
+    margin: 8px 0;
+  }
+  code {
+    background: #eee;
+  }
+</style>
+<div id="scroller"><div id="messages"></div></div>
+<script>
+  const scroller = document.querySelector("#scroller");
+  const messages = document.querySelector("#messages");
+  const frame = () => new Promise(requestAnimationFrame);
+  const percentile = (values, fraction) =>
+    [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
+  window.prepareProbe = async (mode, count) => {
+    getSelection().removeAllRanges();
+    scroller.className = mode;
+    scroller.scrollTop = 0;
+    const start = performance.now();
+    messages.innerHTML = Array.from(
+      { length: count },
+      (_, row) =>
+        `<article data-id="${row}"><h3>消息 ${row}</h3>${Array.from({ length: 16 }, (_, paragraph) => `<p><strong>段落 ${paragraph}</strong> <span>这是用于测试长对话滚动和选区的虚构文本。</span> <em>保留所有旧内容。</em> <code>sample_${row}_${paragraph}</code> <span>确认消息 ${row} 的完整正文可以被选择和复制。</span></p>`).join("")}<p>唯一定位标记_${row}_END</p></article>`
+    ).join("");
+    const height = scroller.scrollHeight;
+    const firstLayoutMs = performance.now() - start;
+    await frame();
+    await frame();
+    return {
+      mode,
+      count,
+      firstLayoutMs,
+      height,
+      nodeCount: document.querySelectorAll("*").length,
+      textBytes: new TextEncoder().encode(messages.textContent).length
+    };
+  };
+  window.measureProbe = async () => {
+    scroller.scrollTop = scroller.scrollHeight;
+    await frame();
+    await frame();
+    const last = messages.lastElementChild.lastElementChild;
+    const costs = [];
+    const intervals = [];
+    let previous;
+    for (let sample = 0; sample < 60; sample += 1) {
+      await frame();
+      const start = performance.now();
+      if (previous !== undefined) intervals.push(start - previous);
+      previous = start;
+      last.firstChild.appendData("新增文本");
+      void last.offsetHeight;
+      costs.push(performance.now() - start);
+    }
+    const resizeStart = performance.now();
+    scroller.style.width = "740px";
+    void scroller.scrollHeight;
+    const resizeMs = performance.now() - resizeStart;
+    const fontStart = performance.now();
+    scroller.style.fontSize = "18px";
+    void scroller.scrollHeight;
+    const fontResizeMs = performance.now() - fontStart;
+    const skipped = [...messages.children].filter(
+      (row) =>
+        !row.firstElementChild.checkVisibility({ contentVisibilityAuto: true })
+    ).length;
+    return {
+      updateP95Ms: percentile(costs, 0.95),
+      updateMaxMs: Math.max(...costs),
+      frameP95Ms: percentile(intervals, 0.95),
+      resizeMs,
+      fontResizeMs,
+      skipped
+    };
+  };
+  window.selectCrossHistoryRange = () => {
+    const first =
+      messages.firstElementChild.querySelector("p").firstChild.firstChild;
+    const last = messages.lastElementChild.lastElementChild.firstChild;
+    const range = document.createRange();
+    range.setStart(first, 2);
+    range.setEnd(last, last.length - 2);
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return selection.toString();
+  };
+</script>

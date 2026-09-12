@@ -1,8 +1,14 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { verifyPackagedRuntime } from "./package-runtime-files.mjs";
+import {
+  runPackagedSmoke,
+  validateSmokeSummary
+} from "./package-smoke-runner.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
@@ -99,6 +105,23 @@ if (targetPlatform === "mac") {
   }
 }
 
+const unpackedDirectory = join(
+  releaseDir,
+  targetPlatform === "mac"
+    ? targetArch === "arm64"
+      ? "mac-arm64"
+      : "mac"
+    : `${targetPlatform === "win" ? "win" : "linux"}-unpacked`
+);
+const resources =
+  targetPlatform === "mac"
+    ? join(unpackedDirectory, "DeepWrite.app", "Contents", "Resources")
+    : join(unpackedDirectory, "resources");
+const inventory = verifyPackagedRuntime(join(resources, "app.asar"));
+console.log(
+  `PACKAGE_RUNTIME_FILES_OK entries=${inventory.entries} checkedModules=${inventory.checkedModules}`
+);
+
 const hostCanRunTarget =
   (targetPlatform === "mac" && process.platform === "darwin") ||
   (targetPlatform === "linux" && process.platform === "linux") ||
@@ -111,7 +134,7 @@ if (!hostCanRunTarget) {
   process.exit(0);
 }
 
-const executable =
+let executable =
   targetPlatform === "mac"
     ? join(
         releaseDir,
@@ -129,78 +152,98 @@ await stat(executable);
 const smokeUserData = await mkdtemp(
   join(tmpdir(), "deepwrite-packaged-smoke-")
 );
-let output = "";
-
+let mountPoint;
+let mounted = false;
+const failures = [];
 try {
-  const result = await new Promise((resolveResult) => {
-    let timedOut = false;
-    const child = spawn(
-      executable,
+  if (targetPlatform === "mac") {
+    const quarantine = spawnSync(
+      "xattr",
+      ["-p", "com.apple.quarantine", artifact],
+      { encoding: "utf8" }
+    );
+    if (quarantine.status === 0) {
+      const cleared = spawnSync(
+        "xattr",
+        ["-d", "com.apple.quarantine", artifact],
+        { encoding: "utf8" }
+      );
+      if (cleared.status !== 0)
+        throw new Error(
+          `Cannot clear stale quarantine from test artifact: ${cleared.stderr}`
+        );
+    }
+    mountPoint = await mkdtemp(join(tmpdir(), "deepwrite-package-mount-"));
+    const attach = spawnSync(
+      "hdiutil",
       [
-        `--user-data-dir=${smokeUserData}`,
-        // The hidden smoke instance must not wait for an interactive macOS
-        // Keychain prompt. Its isolated profile contains no persisted secrets.
-        ...(targetPlatform === "mac" ? ["--use-mock-keychain"] : []),
-        "--password-store=basic"
+        "attach",
+        "-quiet",
+        "-readonly",
+        "-nobrowse",
+        "-mountpoint",
+        mountPoint,
+        artifact
       ],
-      {
-        cwd: appDir,
-        env: {
-          ...process.env,
-          DEEPWRITE_SMOKE: "1",
-          ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
-        },
-        stdio: ["ignore", "pipe", "pipe"]
-      }
+      { encoding: "utf8", timeout: 60_000 }
     );
-    child.stdout.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, 120_000);
-    child.once("error", (error) => {
-      clearTimeout(timeout);
-      resolveResult({ code: null, signal: null, timedOut, error });
-    });
-    child.once("close", (code, signal) => {
-      clearTimeout(timeout);
-      resolveResult({ code, signal, timedOut });
-    });
-  });
-
-  if (result.error) {
-    throw result.error;
+    if (attach.status !== 0)
+      throw new Error(
+        `Cannot mount test DMG: ${attach.stderr || attach.stdout}`
+      );
+    mounted = true;
+    const mountedApp = join(mountPoint, "DeepWrite.app");
+    const signature = spawnSync(
+      "codesign",
+      ["--verify", "--deep", "--strict", mountedApp],
+      { encoding: "utf8" }
+    );
+    if (signature.status !== 0)
+      throw new Error(`Mounted app signature failed: ${signature.stderr}`);
+    verifyPackagedRuntime(
+      join(mountedApp, "Contents", "Resources", "app.asar")
+    );
+    executable = join(mountedApp, "Contents", "MacOS", "DeepWrite");
   }
-  const marker = output
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("DEEPWRITE_SMOKE_OK "));
-  if (result.code !== 0 || !marker) {
-    throw new Error(
-      `Packaged app smoke failed with exit code ${String(result.code)}, signal ${String(result.signal)}, timedOut ${String(result.timedOut)}:\n${output}`
+  for (const reopened of [false, true]) {
+    const summary = await runPackagedSmoke(
+      executable,
+      appDir,
+      smokeUserData,
+      targetPlatform
+    );
+    validateSmokeSummary(summary, reopened);
+    console.log(
+      `PACKAGE_CONVERSATION_SMOKE_OK reopened=${reopened} chunkPages=${summary.conversation.chunkPages} metadataChunkPages=${summary.conversation.metadataChunkPages}`
     );
   }
-
-  const summary = JSON.parse(marker.slice("DEEPWRITE_SMOKE_OK ".length));
-  if (
-    summary.health?.status !== "ok" ||
-    summary.health?.workers?.length !== 3 ||
-    summary.agent?.status !== "ok" ||
-    summary.agent?.runtime?.mode !== "local-faux" ||
-    summary.agent?.completed !== true
-  ) {
-    throw new Error(
-      `Packaged app returned an invalid smoke summary: ${JSON.stringify(summary)}`
-    );
-  }
-
-  console.log(
-    `PACKAGE_TEST_OK target=${targetPlatform}-${targetArch} bytes=${artifactStat.size} artifact=${artifact}`
-  );
+} catch (error) {
+  failures.push(error);
 } finally {
-  await rm(smokeUserData, { recursive: true, force: true });
+  await rm(smokeUserData, { recursive: true, force: true }).catch((error) =>
+    failures.push(error)
+  );
+  if (mounted) {
+    const detach = spawnSync("hdiutil", ["detach", "-quiet", mountPoint], {
+      encoding: "utf8",
+      timeout: 60_000
+    });
+    if (detach.status !== 0)
+      failures.push(
+        new Error(`Cannot detach test DMG at ${mountPoint}: ${detach.stderr}`)
+      );
+    else mounted = false;
+  }
+  if (mountPoint && !mounted)
+    await rm(mountPoint, { recursive: true, force: true }).catch((error) =>
+      failures.push(error)
+    );
 }
+if (failures.length)
+  throw new AggregateError(
+    failures,
+    "Packaged application verification failed."
+  );
+console.log(
+  `PACKAGE_TEST_OK target=${targetPlatform}-${targetArch} bytes=${artifactStat.size} artifact=${artifact}`
+);

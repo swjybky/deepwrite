@@ -19,6 +19,7 @@ import type {
   ResourceTreeNode
 } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
+import LongBookActionMenu from "./LongBookActionMenu.vue";
 
 defineOptions({ name: "TreeNodeItem" });
 
@@ -795,93 +796,12 @@ onBeforeUnmount(() => {
             <AppIcon name="trash" :size="16" /><span>删除人物条目</span>
           </button>
         </template>
-        <template v-else-if="hasLongBookAction">
-          <template v-if="!node.unavailable">
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('manage-structure')"
-            >
-              <AppIcon name="settings" :size="16" />
-              <span>结构管理</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('rename')"
-            >
-              <AppIcon name="edit" :size="16" />
-              <span>修改名称</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('duplicate')"
-            >
-              <AppIcon name="copy" :size="16" />
-              <span>复制</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('bind-skill')"
-            >
-              <AppIcon name="library" :size="16" />
-              <span>技能库绑定</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('bind-material')"
-            >
-              <AppIcon name="archive" :size="16" />
-              <span>素材库绑定</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('export')"
-            >
-              <AppIcon name="download" :size="16" />
-              <span>导出</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="activateLongBookAction('sync-legacy')"
-            >
-              <AppIcon name="history" :size="16" />
-              <span>同步旧版本</span>
-            </button>
-          </template>
-          <div class="tree-node-action-menu-divider" role="separator" />
-          <button
-            class="tree-node-action-menu-item"
-            type="button"
-            role="menuitem"
-            @click.stop="activateLongBookAction('unregister')"
-          >
-            <AppIcon name="trash" :size="16" />
-            <span>移除（保留文件）</span>
-          </button>
-          <button
-            v-if="!node.unavailable"
-            class="tree-node-action-menu-item is-danger"
-            type="button"
-            role="menuitem"
-            @click.stop="activateLongBookAction('delete')"
-          >
-            <AppIcon name="trash" :size="16" />
-            <span>删除本地长篇</span>
-          </button>
-        </template>
+        <LongBookActionMenu
+          v-else-if="hasLongBookAction"
+          :unavailable="node.unavailable"
+          :pending="longTreeActionsDisabled"
+          @action="activateLongBookAction"
+        />
         <template v-else-if="hasBookAction">
           <template v-if="!node.unavailable">
             <button

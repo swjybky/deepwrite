@@ -20,11 +20,13 @@ type RemoteModelsFetcher = (
 
 export class RemoteModelListError extends Error {
   readonly code: string;
+  readonly httpStatus: number | undefined;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, httpStatus?: number) {
     super(message);
     this.name = "RemoteModelListError";
     this.code = code;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -217,7 +219,8 @@ export async function listRemoteModels(
   if (!response.ok) {
     throw new RemoteModelListError(
       "models.list_remote_http",
-      httpErrorMessage(response.status)
+      httpErrorMessage(response.status),
+      response.status
     );
   }
 

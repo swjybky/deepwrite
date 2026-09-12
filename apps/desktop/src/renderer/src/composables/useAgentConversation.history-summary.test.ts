@@ -11,26 +11,68 @@ function message(
 }
 
 describe("conversation history summaries", () => {
-  it("shows draft-only sessions and removes empty draft-only sessions", () => {
+  it("does not store empty sessions or unsent drafts, then persists the first message", () => {
     const controller = useAgentConversation({ api: () => undefined });
     try {
+      expect(controller.capturePersistenceChanges().conversations).toEqual([]);
+      controller.draft.value = "未发送的草稿";
       expect(controller.history.value).toEqual([]);
-      controller.draft.value = "  下一章\n  从雨夜开始  ";
-      expect(controller.history.value).toEqual([
-        expect.objectContaining({
-          title: "未命名对话",
-          preview: "下一章 从雨夜开始",
-          messageCount: 0,
-          turnCount: 0,
-          current: true
-        })
+      expect(controller.capturePersistenceSnapshot().conversations).toEqual([]);
+      const empty = controller.capturePersistenceChanges();
+      expect(empty.conversations).toEqual([]);
+      controller.acknowledgePersistenceChanges(empty.revision);
+      controller.newConversation();
+      expect(controller.capturePersistenceChanges().conversations).toEqual([]);
+      controller.messages.value.push(message("first", "user", "第一条消息"));
+      expect(controller.history.value[0]?.title).toBe("第一条消息");
+      expect(
+        controller.capturePersistenceSnapshot().conversations
+      ).toHaveLength(1);
+      expect(
+        controller.capturePersistenceChanges().conversations[0]?.operations
+      ).toEqual([
+        expect.objectContaining({ type: "putMessage", messageId: "first" })
       ]);
-      controller.draft.value = "字".repeat(100);
-      expect(controller.history.value[0]?.preview).toBe(`${"字".repeat(75)}…`);
-      controller.capturePersistenceSnapshot();
-      expect(controller.history.value).toHaveLength(1);
-      controller.draft.value = " \n ";
-      expect(controller.history.value).toEqual([]);
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it("hides previously saved empty conversations without hiding real history", () => {
+    const record = {
+      draft: "旧草稿",
+      createdAt: "2026-09-07T00:00:00.000Z",
+      updatedAt: "2026-09-07T00:00:00.000Z"
+    };
+    const controller = useAgentConversation({
+      api: () => undefined,
+      initialPersistenceSnapshot: {
+        version: 1,
+        activeSessionId: "empty",
+        conversations: [
+          { ...record, sessionId: "empty", messages: [] },
+          {
+            ...record,
+            sessionId: "real",
+            messages: [message("first", "user", "保留正文")]
+          }
+        ]
+      }
+    });
+    try {
+      expect(controller.history.value.map((item) => item.sessionId)).toEqual([
+        "real"
+      ]);
+      expect(
+        controller
+          .capturePersistenceSnapshot()
+          .conversations.map((item) => item.sessionId)
+      ).toEqual(["real"]);
+      expect(
+        controller
+          .capturePersistenceChanges()
+          .conversations.map((item) => item.sessionId)
+      ).toEqual(["real"]);
     } finally {
       controller.dispose();
     }
@@ -86,6 +128,7 @@ describe("conversation history summaries", () => {
       controller.draft.value = "第一段草稿";
       controller.newConversation();
       const secondSessionId = controller.sessionId.value;
+      controller.messages.value.push(message("second", "user", "第二段对话"));
       controller.draft.value = "第二段草稿";
       expect(
         controller.history.value.map(({ sessionId }) => sessionId)
@@ -93,7 +136,7 @@ describe("conversation history summaries", () => {
       controller.capturePersistenceSnapshot();
       controller.draft.value = "第二段草稿修订";
       expect(controller.history.value).toHaveLength(2);
-      expect(controller.history.value[0]?.preview).toBe("第二段草稿修订");
+      expect(controller.history.value[0]?.preview).toBe("第二段对话");
       expect(controller.history.value[1]).toMatchObject({
         title: "第一段对话",
         preview: "第一段对话",
@@ -103,7 +146,7 @@ describe("conversation history summaries", () => {
       expect(controller.draft.value).toBe("第一段草稿");
       expect(
         controller.history.value.map(({ sessionId }) => sessionId)
-      ).toEqual([firstSessionId, secondSessionId]);
+      ).toEqual([secondSessionId, firstSessionId]);
       const snapshot = controller.capturePersistenceSnapshot();
       const loaded = useAgentConversation({
         api: () => undefined,

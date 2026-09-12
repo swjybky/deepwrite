@@ -18,18 +18,20 @@ import {
 import type { AgentConversationController } from "../../composables/useAgentConversation";
 import { useConversationScrollFollow } from "../../composables/useConversationScrollFollow";
 import { uiMessage } from "../../ui-feedback";
-import AppIcon from "../../components/AppIcon.vue";
+import { lastAssistantMessage as findLastAssistantMessage } from "../../utils/conversationMessageLookup";
 import ConversationMessageList from "../../components/ConversationMessageList.vue";
 import PopupSelect, {
   type PopupSelectOption,
   type PopupSelectValue
 } from "../../components/PopupSelect.vue";
+import ChatAssistantHeader from "./ChatAssistantHeader.vue";
 import ChatAssistantHome from "./ChatAssistantHome.vue";
 import ChatAssistantComposer from "./ChatAssistantComposer.vue";
 import {
   useChatAssistantMode,
   type ChatAssistantProjectOption
 } from "./useChatAssistantMode";
+import { useChatAssistantHistoryActions } from "./useChatAssistantHistoryActions";
 import { useChatAssistantWebSearch } from "./useChatAssistantWebSearch";
 
 const props = defineProps<{
@@ -68,7 +70,6 @@ interface ResizeSession extends ChatAssistantSize {
 }
 
 const composer = ref<{ focus(): void } | null>(null);
-const clock = ref(Date.now());
 const viewportWidth = ref(
   typeof window === "undefined" ? 1440 : window.innerWidth
 );
@@ -84,7 +85,6 @@ const projectConfigCustomized = ref(false);
 const projectConfigPending = ref(false);
 let previousUserSelect = "";
 let previousCursor = "";
-let clockTimer: number | undefined;
 
 function defaultSize(): ChatAssistantSize {
   return {
@@ -132,59 +132,19 @@ const windowStyle = computed<CSSProperties>(() =>
       }
 );
 const messages = computed(() => controller.value!.messages.value);
-const {
-  scroller,
-  followsConversationTail,
-  tailFollowLockedForResponse,
-  handleConversationWheel,
-  handleConversationScroll,
-  scheduleConversationTailFollow,
-  resetScrollForSession,
-  setLastConversationScrollTop
-} = useConversationScrollFollow({
-  messages: () => messages.value,
-  responding: () => controller.value!.isBusy.value
-});
+const { scroller, handleConversationWheel, handleConversationScroll } =
+  useConversationScrollFollow({
+    messages: () => messages.value,
+    responding: () => controller.value!.isBusy.value,
+    currentSessionId: () => controller.value!.sessionId.value
+  });
 const history = computed(() => controller.value!.history.value);
 const currentHistory = computed(() =>
   history.value.find((item) => item.current)
 );
 const title = computed(() => currentHistory.value?.title || "新聊天");
 const lastAssistantMessage = computed(() =>
-  [...messages.value]
-    .reverse()
-    .find((message) => message.role === "assistant" && message.content.trim())
-);
-const hasLiveProcessing = computed(
-  () =>
-    controller.value!.isBusy.value ||
-    messages.value.some(
-      (message) =>
-        message.status === "streaming" ||
-        message.subagentRuns?.some((run) => run.status === "running")
-    )
-);
-const messagePresentationKey = computed(() =>
-  messages.value
-    .map((message) =>
-      [
-        message.id,
-        message.status ?? "completed",
-        message.content.length,
-        message.thinking?.length ?? 0,
-        message.processingSteps
-          ?.map((step) =>
-            step.type === "tool"
-              ? `${step.id}:${step.toolCallId}`
-              : `${step.id}:${step.type}:${step.content.length}`
-          )
-          .join(",") ?? "",
-        message.toolCalls
-          ?.map((tool) => `${tool.id}:${tool.status}`)
-          .join(",") ?? ""
-      ].join(":")
-    )
-    .join("|")
+  findLastAssistantMessage(messages.value, true)
 );
 const selectedModel = computed(() =>
   controller.value!.configuredModels.value.find(
@@ -509,18 +469,10 @@ async function resetProjectConfig(): Promise<void> {
   }
 }
 
-function newConversation(): void {
-  controller.value!.newConversation();
-  focusInput();
-}
-
-function selectConversation(sessionId: string): void {
-  if (!controller.value!.selectConversation(sessionId)) {
-    uiMessage.info("当前回复完成或停止后，才能切换聊天记录");
-    return;
-  }
-  focusInput();
-}
+const { newConversation, selectConversation } = useChatAssistantHistoryActions({
+  controller: () => controller.value!,
+  focusInput
+});
 
 async function copyLastReply(): Promise<void> {
   const content = lastAssistantMessage.value?.content.trim();
@@ -620,19 +572,15 @@ function handleViewportResize(): void {
   windowSize.value = clampSize(windowSize.value);
 }
 
-onMounted(async () => {
+onMounted(() => {
   viewportWidth.value = window.innerWidth;
   viewportHeight.value = window.innerHeight;
   windowSize.value = readStoredSize();
   window.addEventListener("resize", handleViewportResize);
-  await nextTick();
-  setLastConversationScrollTop(scroller.value?.scrollTop ?? 0);
-  scheduleConversationTailFollow();
 });
 
 onBeforeUnmount(() => {
   stopResize();
-  if (clockTimer !== undefined) globalThis.clearInterval(clockTimer);
   window.removeEventListener("resize", handleViewportResize);
 });
 
@@ -656,63 +604,6 @@ watch(
       uiMessage.error("所选项目已删除或不可用，请重新选择项目");
     }
   }
-);
-watch(messagePresentationKey, async () => {
-  if (!followsConversationTail.value) return;
-  await nextTick();
-  scheduleConversationTailFollow();
-});
-watch(
-  () => controller.value!.isBusy.value,
-  (responding, wasResponding) => {
-    if (!responding || wasResponding) return;
-    resetScrollForSession();
-  }
-);
-watch(
-  () => controller.value!.sessionId.value,
-  () => resetScrollForSession()
-);
-watch(
-  () => {
-    const message = [...messages.value]
-      .reverse()
-      .find((candidate) => candidate.role === "assistant");
-    return message ? `${message.id}:${message.status ?? "completed"}` : "";
-  },
-  async (next, previous) => {
-    if (
-      !tailFollowLockedForResponse.value ||
-      !previous.endsWith(":streaming") ||
-      next.endsWith(":streaming")
-    ) {
-      return;
-    }
-    const element = scroller.value;
-    if (!element) return;
-    const preservedScrollTop = element.scrollTop;
-    await nextTick();
-    if (!tailFollowLockedForResponse.value || !scroller.value) return;
-    scroller.value.scrollTop = preservedScrollTop;
-    setLastConversationScrollTop(preservedScrollTop);
-  },
-  { flush: "pre" }
-);
-watch(
-  hasLiveProcessing,
-  (live) => {
-    if (clockTimer !== undefined) {
-      globalThis.clearInterval(clockTimer);
-      clockTimer = undefined;
-    }
-    clock.value = Date.now();
-    if (live) {
-      clockTimer = globalThis.setInterval(() => {
-        clock.value = Date.now();
-      }, 1_000);
-    }
-  },
-  { immediate: true }
 );
 </script>
 
@@ -751,56 +642,28 @@ watch(
       @pointerdown="startResize($event, 'both')"
       @keydown="handleResizeKeydown($event, 'both')"
     />
-    <header class="chat-assistant-header">
-      <div class="chat-assistant-header-main">
-        <strong :title="title">{{ title }}</strong>
-        <PopupSelect
-          class="chat-assistant-context-select"
-          :model-value="activeContextKey"
-          :options="contextOptions"
-          accessible-label="切换聊天上下文"
-          variant="compact"
-          size="small"
-          :disabled="assistant.isBusy.value || projectConfigPending"
-          :menu-min-width="260"
-          :menu-z-index="100"
-          @update:model-value="updateContext"
-          @option-action="openEditProject"
-        />
-      </div>
-      <div class="chat-assistant-header-actions">
-        <button
-          type="button"
-          aria-label="新建聊天"
-          :disabled="controller.isBusy.value"
-          @click="newConversation"
-        >
-          <AppIcon name="plus" :size="18" />
-        </button>
-        <button
-          type="button"
-          aria-label="复制最后一条回复"
-          :disabled="!lastAssistantMessage"
-          @click="copyLastReply"
-        >
-          <AppIcon name="copy" :size="18" />
-        </button>
-        <button
-          type="button"
-          aria-label="最小化聊天助手"
-          @click="emit('minimize')"
-        >
-          <AppIcon name="minus" :size="18" />
-        </button>
-      </div>
-    </header>
+    <ChatAssistantHeader
+      :title="title"
+      :active-context-key="activeContextKey"
+      :context-options="contextOptions"
+      :context-disabled="assistant.isBusy.value || projectConfigPending"
+      :history="history"
+      :session-id="controller.sessionId.value"
+      :busy="controller.isBusy.value"
+      :can-copy="Boolean(lastAssistantMessage)"
+      @update-context="updateContext"
+      @edit-project="openEditProject"
+      @select-conversation="selectConversation"
+      @new-conversation="newConversation"
+      @copy-last-reply="copyLastReply"
+      @minimize="emit('minimize')"
+    />
 
     <ConversationMessageList
       class="chat-assistant-content"
       :messages="messages"
       :responding="controller.isBusy.value"
       :runtime-available="runtimeAvailable"
-      :clock="clock"
       :set-scroller="setConversationScroller"
       :handle-conversation-wheel="handleConversationWheel"
       :handle-conversation-scroll="handleConversationScroll"
@@ -988,70 +851,6 @@ watch(
 .chat-assistant-resize-edge:focus-visible {
   background: var(--accent-soft);
 }
-.chat-assistant-header {
-  min-height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--theme-line-soft);
-}
-.chat-assistant-header-main {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.chat-assistant-header-main > strong {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 1.05rem;
-}
-.chat-assistant-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.chat-assistant-context-select {
-  max-width: 190px;
-}
-.chat-assistant-context-select :deep(.popup-select-trigger) {
-  max-width: 190px;
-  padding: 0 11px;
-  background: var(--surface-raised);
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 999px;
-  box-shadow: 0 2px 8px color-mix(in srgb, #000 4%, transparent);
-}
-.chat-assistant-context-select :deep(.popup-select-label) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chat-assistant-header-actions {
-  flex: none;
-}
-.chat-assistant-header-actions button {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
-}
-.chat-assistant-header-actions button:not(:disabled):hover {
-  color: var(--text-primary);
-  background: var(--surface-hover);
-}
-.chat-assistant-header button:disabled {
-  opacity: 0.42;
-}
 .chat-assistant-content {
   min-height: 0;
   padding: 0;
@@ -1194,14 +993,6 @@ watch(
   }
   .chat-assistant-resize-edge {
     display: none;
-  }
-  .chat-assistant-header {
-    align-items: flex-start;
-    padding: 12px 16px;
-  }
-  .chat-assistant-header-main > strong {
-    width: 100%;
-    max-width: none;
   }
   .chat-assistant-content :deep(.message-list),
   .chat-assistant-home-wrap {

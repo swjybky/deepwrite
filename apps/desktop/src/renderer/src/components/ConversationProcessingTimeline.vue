@@ -9,13 +9,14 @@ import {
   processingLabel
 } from "./conversationToolPresentation";
 import AppIcon from "./AppIcon.vue";
+import ConversationDetails from "./ConversationDetails.vue";
+import ConversationRunClock from "./ConversationRunClock.vue";
 import ConversationProcessingItem from "./ConversationProcessingItem.vue";
 import SubagentRunList from "./SubagentRunList.vue";
 
 withDefaults(
   defineProps<{
     message: ChatMessage;
-    clock: number;
     allowLiveEditReview?: boolean;
     longProposalItems?: readonly LongWorkspaceProposalItem[];
     longWorkspaceIndex?: LongWorkspaceIndexSnapshot | null;
@@ -56,7 +57,12 @@ const emit = defineEmits<{
     aria-label="运行过程"
   >
     <div class="processing-live-status" aria-live="off">
-      {{ processingLabel(message, clock) }}
+      <ConversationRunClock
+        v-slot="{ now }"
+        :active="message.status === 'streaming'"
+      >
+        {{ processingLabel(message, now) }}
+      </ConversationRunClock>
     </div>
     <ConversationProcessingItem
       v-for="item in processingDisplayItems(message, true, longProposalItems)"
@@ -76,14 +82,22 @@ const emit = defineEmits<{
     />
   </div>
 
-  <details
+  <ConversationDetails
     v-else-if="hasProcessingDisclosure(message)"
+    :detail-id="`${message.id}:processing`"
     class="processing-block"
   >
-    <summary>
-      <span>{{ processingLabel(message, clock) }}</span>
+    <template #summary>
+      <span
+        ><ConversationRunClock
+          v-slot="{ now }"
+          :active="message.status === 'streaming'"
+        >
+          {{ processingLabel(message, now) }}
+        </ConversationRunClock></span
+      >
       <AppIcon name="chevron" :size="13" />
-    </summary>
+    </template>
     <div class="processing-content">
       <ConversationProcessingItem
         v-for="item in processingDisplayItems(message)"
@@ -101,17 +115,12 @@ const emit = defineEmits<{
         @retry-long-proposal-preview="emit('retryLongProposalPreview', $event)"
         @locate-long-proposal="emit('locateLongProposal', $event)"
       />
-      <SubagentRunList
-        v-if="message.subagentRuns?.length"
-        :message="message"
-        :now="clock"
-      />
+      <SubagentRunList v-if="message.subagentRuns?.length" :message="message" />
     </div>
-  </details>
+  </ConversationDetails>
 
   <SubagentRunList
     v-if="message.subagentRuns?.length && message.status === 'streaming'"
     :message="message"
-    :now="clock"
   />
 </template>

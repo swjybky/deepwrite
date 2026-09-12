@@ -498,6 +498,9 @@ describe("useShortBookLifecycleCoordinator", () => {
     await remove.coordinator.removeBook("book-1");
     expect(remove.apiMocks.unregisterProject).toHaveBeenCalledTimes(1);
     expect(remove.apiMocks.deleteProject).not.toHaveBeenCalled();
+    expect(remove.disposeBook).toHaveBeenCalledWith("book-1", {
+      clearPersistence: false
+    });
 
     const deletion = createHarness({
       book: null,

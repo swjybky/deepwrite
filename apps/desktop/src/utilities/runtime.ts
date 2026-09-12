@@ -6,11 +6,11 @@ import {
   type CommandEnvelope,
   type CommandResult,
   type SystemEventEnvelope,
-  type UtilityHealthPayload,
   type UtilityInternalCommandTarget,
   type UtilityWorkerName
 } from "@deepwrite/contracts";
-import { createId, nowIso } from "@deepwrite/shared";
+import { createId } from "@deepwrite/shared";
+import { createUtilityLifecycle } from "./utility-lifecycle";
 
 const DEFAULT_INTERNAL_COMMAND_TIMEOUT_MS = 60_000;
 const INTERNAL_COMMAND_RESPONSE_GRACE_MS = 250;
@@ -87,9 +87,6 @@ export function bootUtility(
     );
   }
 
-  const startedAt = nowIso();
-  let lastHeartbeatAt = startedAt;
-  let shuttingDown = false;
   const activeCommands = new Set<Promise<void>>();
   const pendingInternalCommands = new Map<string, PendingInternalCommand>();
 
@@ -97,28 +94,19 @@ export function bootUtility(
     port.postMessage(UtilityOutboundMessageSchema.parse(message));
   };
 
-  const health = (): UtilityHealthPayload => ({
-    name: worker,
-    status: shuttingDown ? "stopped" : "ok",
-    pid: process.pid,
-    startedAt,
-    lastHeartbeatAt,
-    details: {
-      mode: options.mode ?? "foundation",
-      uptimeMs: Math.round(process.uptime() * 1000)
+  const lifecycle = createUtilityLifecycle(worker, {
+    mode: options.mode,
+    post,
+    onStopping: () =>
+      rejectPendingInternalCommands(
+        "utility.internal_command_cancelled",
+        `${worker} utility is shutting down.`
+      ),
+    async drain() {
+      await Promise.allSettled([...activeCommands]);
+      await options.onShutdown?.();
     }
   });
-
-  const heartbeat = setInterval(() => {
-    lastHeartbeatAt = nowIso();
-    post({
-      kind: "utility.heartbeat",
-      worker,
-      pid: process.pid,
-      timestamp: lastHeartbeatAt
-    });
-  }, 5000);
-  heartbeat.unref();
 
   const sendRejected = (
     requestId: string,
@@ -183,7 +171,7 @@ export function bootUtility(
         )
       );
     }
-    if (shuttingDown) {
+    if (lifecycle.isShuttingDown()) {
       return Promise.resolve(
         rejectedCommandResult(
           command.id,
@@ -262,7 +250,7 @@ export function bootUtility(
     requestId: string,
     command: CommandEnvelope
   ): Promise<void> => {
-    if (shuttingDown) {
+    if (lifecycle.isShuttingDown()) {
       sendRejected(
         requestId,
         command.id,
@@ -332,33 +320,6 @@ export function bootUtility(
     }
   };
 
-  const shutdown = async (requestId: string): Promise<void> => {
-    if (shuttingDown) {
-      return;
-    }
-    shuttingDown = true;
-    clearInterval(heartbeat);
-    rejectPendingInternalCommands(
-      "utility.internal_command_cancelled",
-      `${worker} utility is shutting down.`
-    );
-    try {
-      await Promise.allSettled([...activeCommands]);
-      await options.onShutdown?.();
-    } finally {
-      try {
-        post({
-          kind: "utility.shutdown_ack",
-          worker,
-          requestId,
-          timestamp: nowIso()
-        });
-      } finally {
-        setTimeout(() => process.exit(0), 20).unref();
-      }
-    }
-  };
-
   port.on("message", (message: unknown) => {
     const raw = unwrapMessage(message);
     const parsed = UtilityInboundMessageSchema.safeParse(raw);
@@ -412,12 +373,11 @@ export function bootUtility(
     }
 
     if (inbound.kind === "utility.health.request") {
-      lastHeartbeatAt = nowIso();
       post({
         kind: "utility.health",
         worker,
         requestId: inbound.requestId,
-        payload: health()
+        payload: lifecycle.health()
       });
       return;
     }
@@ -429,16 +389,8 @@ export function bootUtility(
       return;
     }
 
-    void shutdown(inbound.requestId);
+    void lifecycle.shutdown(inbound.requestId);
   });
 
-  process.once("SIGTERM", () => void shutdown("signal_sigterm"));
-  process.once("SIGINT", () => void shutdown("signal_sigint"));
-
-  post({
-    kind: "utility.ready",
-    worker,
-    pid: process.pid,
-    startedAt
-  });
+  lifecycle.start();
 }

@@ -1,18 +1,13 @@
-import { watch, type Ref, type WatchSource } from "vue";
-import type { ChatMessage } from "../../types/conversation";
+import { watch, type WatchSource } from "vue";
+import type { TrackedMessages, MessageMutation } from "./message-mutations";
 
 export function watchConversationPersistence(
-  messages: Ref<ChatMessage[]>,
+  messages: TrackedMessages,
   fields: WatchSource[],
-  onChange: () => void
+  onChange: (mutation?: MessageMutation) => void
 ): () => void {
-  // A deep multi-source watcher traverses messages even when only the draft
-  // changes. Keep nested message tracking separate from scalar input/settings.
-  const stopMessages = watch(messages, onChange, {
-    deep: true,
-    flush: "sync"
-  });
-  const stopFields = watch(fields, onChange, { flush: "sync" });
+  const stopMessages = messages.subscribe(onChange);
+  const stopFields = watch(fields, () => onChange(), { flush: "sync" });
   return () => {
     stopMessages();
     stopFields();

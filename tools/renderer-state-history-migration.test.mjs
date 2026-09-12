@@ -1,15 +1,22 @@
 import { RendererStateKeySchema } from "../packages/contracts/src/renderer-state";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RendererStateStore } from "../apps/desktop/src/utilities/renderer-state-store";
+import {
+  TestRendererStateStore as RendererStateStore,
+  closeRendererStateTestStores
+} from "../apps/desktop/src/utilities/renderer-state-store.test-support";
+import { DatabaseSync } from "node:sqlite";
+import { JsonNodes } from "../apps/desktop/src/utilities/conversation-storage/json-nodes";
+import { Statements } from "../apps/desktop/src/utilities/conversation-storage/schema";
 import {
   createConversationPersistenceAdapter,
   conversationHistoryPersistenceKey as key
 } from "../apps/desktop/src/renderer/src/utils/conversationPersistence";
 const roots = [];
 afterEach(async () => {
+  await closeRendererStateTestStores();
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
   );
@@ -43,7 +50,14 @@ function snapshot(sessionId, length = 30) {
 async function fixture(options = {}) {
   const root = await mkdtemp(join(tmpdir(), "deepwrite-history-migration-"));
   roots.push(root);
-  const store = new RendererStateStore(root, options);
+  if (options.legacyEntries) {
+    await mkdir(join(root, "renderer-state"));
+    await writeFile(
+      join(root, "renderer-state/conversation-persistence.json"),
+      JSON.stringify({ version: 1, entries: options.legacyEntries })
+    );
+  }
+  const store = new RendererStateStore(root);
   const api = {
     listHistoryKeys: () => store.listHistoryKeys(),
     load: (key2) => store.load(key2),
@@ -68,13 +82,14 @@ describe("book history migration with disk persistence", () => {
   });
 
   it("refuses to replace a target containing unreadable records", async () => {
-    const { store, api } = await fixture();
     const original = {
       version: 1,
       activeSessionId: "old",
       conversations: [{ sessionId: "old", legacyContent: "test original" }]
     };
-    await store.save(key("book:chat"), original);
+    const { store, api } = await fixture({
+      legacyEntries: { [key("book:chat")]: original }
+    });
     const adapter = createConversationPersistenceAdapter(api);
     await expect(adapter.load(key("book:chat"))).rejects.toThrow();
     await expect(
@@ -103,25 +118,25 @@ describe("book history migration with disk persistence", () => {
       "plot"
     ]);
     expect(await reloaded.listHistoryKeys()).toEqual([key("book:chat")]);
-    const directory = join(
-      dirname(store.statePath),
-      "history-migration-backups"
-    );
-    const backups = await readdir(directory);
-    expect(backups).toHaveLength(1);
-    const backup = JSON.parse(
-      await readFile(join(directory, backups[0]), "utf8")
-    );
-    expect(backup.entries).toEqual({
-      [key("book:plot_design")]: plot,
-      [key("book:character_design")]: character
-    });
+    const connection = new DatabaseSync(store.statePath);
+    try {
+      const nodes = new JsonNodes(new Statements(connection));
+      const backups = connection
+        .prepare("SELECT key, value_ref FROM legacy_backups")
+        .all();
+      const restored = Object.fromEntries(
+        backups.map((row) => [row.key, nodes.read(JSON.parse(row.value_ref))])
+      );
+      expect(restored).toEqual({
+        [key("book:plot_design")]: plot,
+        [key("book:character_design")]: character
+      });
+    } finally {
+      connection.close();
+    }
   });
-  it("checks the final total instead of double-counting source and merged records", async () => {
-    const { root, store, api } = await fixture({
-      maxItemBytes: 2e4,
-      maxTotalBytes: 2e4
-    });
+  it("consolidates source keys while keeping both independent histories", async () => {
+    const { root, store, api } = await fixture();
     await store.save(key("book:plot_design"), snapshot("plot", 7e3));
     await store.save(key("book:character_design"), snapshot("character", 7e3));
     await createConversationPersistenceAdapter(api).prepareHistory("book:chat");
@@ -157,7 +172,7 @@ describe("book history migration with disk persistence", () => {
   it("refuses subsequent writes while migration still fails and retains every original", async () => {
     const { store, api } = await fixture();
     await store.save(key("book:plot_design"), snapshot("plot"));
-    const original = await readFile(store.statePath, "utf8");
+    const original = await store.load(key("book:plot_design"));
     const adapter = createConversationPersistenceAdapter({
       ...api,
       migrateHistory: async () => {
@@ -168,7 +183,7 @@ describe("book history migration with disk persistence", () => {
     await expect(
       adapter.save(key("book:chat"), snapshot("new"))
     ).rejects.toThrow();
-    expect(await readFile(store.statePath, "utf8")).toBe(original);
+    expect(await store.load(key("book:plot_design"))).toEqual(original);
   });
   it("preserves unread history over repeated saves after an ordinary load failure", async () => {
     const { store, api } = await fixture();
@@ -185,18 +200,23 @@ describe("book history migration with disk persistence", () => {
       "old"
     ]);
   });
-  it("leaves active originals unchanged if the required backup cannot be written", async () => {
+  it("rolls back source references when the migration backup transaction fails", async () => {
     const { store, api } = await fixture();
-    await store.save(key("book:plot_design"), snapshot("plot"));
-    const original = await readFile(store.statePath, "utf8");
-    await writeFile(
-      join(dirname(store.statePath), "history-migration-backups"),
-      "test blocked directory"
-    );
-    await expect(
-      createConversationPersistenceAdapter(api).prepareHistory("book:chat")
-    ).rejects.toThrow();
-    expect(await readFile(store.statePath, "utf8")).toBe(original);
+    const original = snapshot("plot");
+    await store.save(key("book:plot_design"), original);
+    const connection = new DatabaseSync(store.statePath);
+    try {
+      connection.exec(
+        "CREATE TRIGGER fail_backup BEFORE INSERT ON legacy_backups BEGIN SELECT RAISE(ABORT, 'test backup unavailable'); END;"
+      );
+      await expect(
+        createConversationPersistenceAdapter(api).prepareHistory("book:chat")
+      ).rejects.toThrow("test backup unavailable");
+      expect(await store.load(key("book:plot_design"))).toEqual(original);
+      expect(await store.load(key("book:chat"))).toBeUndefined();
+    } finally {
+      connection.close();
+    }
   });
   it.each(["source", "target"])(
     "rejects migration if a concurrent %s edit changed the loaded records",
@@ -212,7 +232,10 @@ describe("book history migration with disk persistence", () => {
         changed === "source" ? sourceKey : targetKey,
         snapshot("updated")
       );
-      const original = await readFile(store.statePath, "utf8");
+      const originals = [
+        await store.load(sourceKey),
+        await store.load(targetKey)
+      ];
       expect(
         await store.migrateHistory({
           key: targetKey,
@@ -221,32 +244,48 @@ describe("book history migration with disk persistence", () => {
           sources: [{ key: sourceKey, value: source }]
         })
       ).toBe(false);
-      expect(await readFile(store.statePath, "utf8")).toBe(original);
+      expect([
+        await store.load(sourceKey),
+        await store.load(targetKey)
+      ]).toEqual(originals);
     }
   );
-  it("retains sources when the final merged item still exceeds its limit", async () => {
-    const { store, api } = await fixture({ maxItemBytes: 2e3 });
-    await store.save(key("book:plot_design"), snapshot("plot", 1e3));
-    await store.save(key("book:character_design"), snapshot("character", 1e3));
-    const original = await readFile(store.statePath, "utf8");
-    const adapter = createConversationPersistenceAdapter(api);
-    await expect(adapter.prepareHistory("book:chat")).rejects.toThrow(
-      "byte limit"
-    );
-    expect(sessions(await adapter.load(key("book:chat")))).toEqual([
-      "character",
-      "plot"
-    ]);
-    expect(await readFile(store.statePath, "utf8")).toBe(original);
-  });
-  it("keeps unknown records in their source instead of removing unreadable history", async () => {
+  // Real 68 MiB disk round trips need headroom when the full suite runs in parallel.
+  it("keeps writing after merged history exceeds the former 64 MiB item limit", async () => {
     const { store, api } = await fixture();
+    await store.save(
+      key("book:plot_design"),
+      snapshot("plot", 34 * 1024 * 1024)
+    );
+    await store.save(
+      key("book:character_design"),
+      snapshot("character", 34 * 1024 * 1024)
+    );
+    const adapter = createConversationPersistenceAdapter(api);
+    await adapter.prepareHistory("book:chat");
+    const prior = await adapter.load(key("book:chat"));
+    await adapter.save(key("book:chat"), {
+      ...prior,
+      activeSessionId: "new",
+      conversations: [...prior.conversations, ...snapshot("new").conversations]
+    });
+    const loaded = await store.load(key("book:chat"));
+    expect(sessions(loaded)).toEqual(["character", "new", "plot"]);
+    expect(
+      loaded.conversations
+        .filter((record) => record.sessionId !== "new")
+        .map((record) => record.messages[0].content.length)
+    ).toEqual([34 * 1024 * 1024, 34 * 1024 * 1024]);
+  }, 30_000);
+  it("keeps unknown records in their source instead of removing unreadable history", async () => {
     const unknown = {
       version: 1,
       activeSessionId: "old",
       conversations: [{ sessionId: "old", legacyContent: "test original" }]
     };
-    await store.save(key("book:plot_design"), unknown);
+    const { store, api } = await fixture({
+      legacyEntries: { [key("book:plot_design")]: unknown }
+    });
     await store.save(key("book:character_design"), snapshot("character"));
     await createConversationPersistenceAdapter(api).prepareHistory("book:chat");
     expect(await store.load(key("book:plot_design"))).toEqual(unknown);

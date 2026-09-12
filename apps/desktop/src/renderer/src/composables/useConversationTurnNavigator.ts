@@ -8,6 +8,7 @@ import {
   type Ref
 } from "vue";
 import type { ChatMessage } from "../types/conversation";
+import { createConversationViewportAnchor } from "./conversationViewportAnchor";
 
 export interface ConversationTurn {
   id: string;
@@ -22,6 +23,7 @@ interface ConversationTurnNavigatorOptions {
   scroller: Ref<HTMLElement | undefined>;
   messageList: Ref<HTMLElement | undefined>;
   beforeNavigate: () => void;
+  followsTail?: () => boolean;
 }
 
 function compactConversationText(
@@ -53,30 +55,28 @@ export function buildConversationTurns(
   messages: readonly ChatMessage[]
 ): ConversationTurn[] {
   const turns: ConversationTurn[] = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
-    if (!message || message.role !== "user") continue;
-
-    const response = messages
-      .slice(index + 1)
-      .find(
-        (candidate) =>
-          candidate.role === "user" ||
-          (candidate.role === "assistant" && candidate.content.trim())
-      );
-    turns.push({
-      id: message.id,
-      number: turns.length + 1,
-      prompt: compactConversationText(
-        message.content,
-        promptFallback(message),
-        72
-      ),
-      response:
-        response?.role === "assistant"
-          ? compactConversationText(response.content, "", 132)
-          : undefined
-    });
+  let pendingTurn: ConversationTurn | undefined;
+  for (const message of messages) {
+    if (message.role === "user") {
+      pendingTurn = {
+        id: message.id,
+        number: turns.length + 1,
+        prompt: compactConversationText(
+          message.content,
+          promptFallback(message),
+          72
+        ),
+        response: undefined
+      };
+      turns.push(pendingTurn);
+    } else if (
+      pendingTurn &&
+      message.role === "assistant" &&
+      /\S/.test(message.content)
+    ) {
+      pendingTurn.response = compactConversationText(message.content, "", 132);
+      pendingTurn = undefined;
+    }
   }
   return turns;
 }
@@ -88,32 +88,57 @@ export function useConversationTurnNavigator(
   const turns = computed(() => buildConversationTurns(options.messages()));
   let updateFrame: number | undefined;
   let resizeObserver: ResizeObserver | undefined;
+  const viewportAnchor = createConversationViewportAnchor({
+    container: () => options.scroller.value,
+    element: (id) => messageElements.get(id),
+    followsTail: () => options.followsTail?.() ?? false,
+    onSettled: scheduleActiveTurnUpdate
+  });
 
-  function messageElement(messageId: string): HTMLElement | undefined {
-    const list = options.messageList.value;
-    if (!list) return undefined;
-    return Array.from(
-      list.querySelectorAll<HTMLElement>(
-        ":scope > .message[data-conversation-message-id]"
-      )
-    ).find((element) => element.dataset.conversationMessageId === messageId);
+  const messageElements = new Map<string, HTMLElement>();
+  let turnElements: HTMLElement[] = [];
+
+  function rebuildElementIndex(): void {
+    messageElements.clear();
+    const elements = options.messageList.value?.querySelectorAll<HTMLElement>(
+      ".message[data-conversation-message-id]"
+    );
+    for (const element of elements ?? []) {
+      const id = element.dataset.conversationMessageId;
+      if (id) messageElements.set(id, element);
+    }
+    turnElements = turns.value.flatMap((turn) => {
+      const element = messageElements.get(turn.id);
+      return element ? [element] : [];
+    });
   }
 
   function updateActiveTurn(): void {
     const container = options.scroller.value;
-    if (!container || !turns.value.length) {
+    if (!container || !turnElements.length) {
       activeTurnId.value = null;
       return;
     }
     const focusLine =
       container.getBoundingClientRect().top + container.clientHeight * 0.34;
-    let nextActiveId = turns.value[0]!.id;
-    for (const turn of turns.value) {
-      const element = messageElement(turn.id);
-      if (!element || element.getBoundingClientRect().top > focusLine) break;
-      nextActiveId = turn.id;
+    // DOM order follows turn order. Read only log(n) positions, using current
+    // geometry so font changes and expanded details need no stale height cache.
+    let low = 0;
+    let high = turnElements.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (turnElements[middle]!.getBoundingClientRect().top <= focusLine)
+        low = middle + 1;
+      else high = middle;
     }
-    activeTurnId.value = nextActiveId;
+    const activeElement = turnElements[Math.max(0, low - 1)];
+    activeTurnId.value = activeElement?.dataset.conversationMessageId ?? null;
+    if (activeElement && activeTurnId.value)
+      viewportAnchor.capture(
+        activeTurnId.value,
+        activeElement.getBoundingClientRect().top -
+          container.getBoundingClientRect().top
+      );
   }
 
   function scheduleActiveTurnUpdate(): void {
@@ -126,8 +151,9 @@ export function useConversationTurnNavigator(
 
   function scrollToTurn(messageId: string): void {
     const container = options.scroller.value;
-    const element = messageElement(messageId);
+    const element = messageElements.get(messageId);
     if (!container || !element) return;
+    viewportAnchor.cancel();
     options.beforeNavigate();
     activeTurnId.value = messageId;
     const targetTop =
@@ -138,14 +164,27 @@ export function useConversationTurnNavigator(
     const reduceMotion = globalThis.matchMedia?.(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    const longJump =
+      Math.abs(targetTop - container.scrollTop) > container.clientHeight * 3 ||
+      !!options.messageList.value?.querySelector?.(
+        ".conversation-message-group.is-deferred"
+      );
     container.scrollTo({
       top: Math.max(0, targetTop),
-      behavior: reduceMotion ? "auto" : "smooth"
+      behavior: reduceMotion || longJump ? "auto" : "smooth"
     });
+  }
+
+  function handleResize(): void {
+    viewportAnchor.resize();
+    scheduleActiveTurnUpdate();
   }
 
   async function observeCurrentElements(): Promise<void> {
     await nextTick();
+    rebuildElementIndex();
+    viewportAnchor.connect();
+    resizeObserver?.disconnect();
     if (!resizeObserver) return;
     if (options.scroller.value) resizeObserver.observe(options.scroller.value);
     if (options.messageList.value) {
@@ -155,12 +194,17 @@ export function useConversationTurnNavigator(
   }
 
   onMounted(() => {
-    resizeObserver = new ResizeObserver(scheduleActiveTurnUpdate);
+    resizeObserver = new ResizeObserver(handleResize);
     void observeCurrentElements();
   });
 
   watch(
-    () => [options.currentSessionId(), options.messages().length],
+    () => [
+      options.currentSessionId(),
+      options.messageList.value,
+      options.scroller.value,
+      ...options.messages().map((message) => message.id)
+    ],
     () => void observeCurrentElements()
   );
 
@@ -169,6 +213,7 @@ export function useConversationTurnNavigator(
       globalThis.cancelAnimationFrame(updateFrame);
     }
     resizeObserver?.disconnect();
+    viewportAnchor.dispose();
   });
 
   return {

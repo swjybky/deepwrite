@@ -1,4 +1,5 @@
 import {
+  type SyncAdoption,
   type SyncApi,
   type SyncConfig,
   type SyncDirection,
@@ -153,7 +154,8 @@ export class DeviceSyncService implements SyncApi {
   async sync(
     resolutions: SyncResolution[] = [],
     confirmFirst = false,
-    direction: SyncDirection = "both"
+    direction: SyncDirection = "both",
+    adoption?: SyncAdoption
   ): Promise<SyncStatus> {
     return this.exclusive(async () => {
       this.controller = new AbortController();
@@ -166,7 +168,8 @@ export class DeviceSyncService implements SyncApi {
           resolutions,
           confirmFirst,
           direction,
-          this.controller.signal
+          this.controller.signal,
+          adoption
         );
       } catch (error) {
         this.state.progress = {

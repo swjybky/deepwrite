@@ -6,6 +6,8 @@ import { createPinia, setActivePinia } from "pinia";
 import { ref, shallowRef } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "../stores/settingsStore";
+import { loadSettingsFeature } from "../components/loadSettingsFeature";
+import { buildSettingsFeatureModule } from "./settingsFeatureModule";
 import type { WorkspaceMainView } from "../stores/layoutStore";
 import type { LearningImitationController } from "./useLearningImitation";
 import type { LongBookAnalysisController } from "../extras/long-book-analysis/useLongBookAnalysis";
@@ -15,6 +17,10 @@ import {
   type WorkspaceFeatureHostApi,
   type WorkspaceFeatureHostCoordinatorOptions
 } from "./useWorkspaceFeatureHostCoordinator";
+
+vi.mock("../components/loadSettingsFeature", () => ({
+  loadSettingsFeature: vi.fn(async () => buildSettingsFeatureModule)
+}));
 
 function deferred<Value>() {
   let resolve!: (value: Value | PromiseLike<Value>) => void;
@@ -198,7 +204,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     expect(harness.coordinator.activeFeature.value).toBe("models");
   });
 
-  it("projects every feature descriptor and leaves both writing surfaces unwrapped", () => {
+  it("projects every feature descriptor and leaves both writing surfaces unwrapped", async () => {
     const harness = createHarness();
 
     expect(harness.coordinator.workspaceFeatureModule.value).toBeNull();
@@ -223,8 +229,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
       );
     }
 
-    harness.currentView.value = "settings";
-    harness.settingsInitialCategory.value = "appearance";
+    await harness.coordinator.openSettings("appearance");
     const settingsModule = harness.coordinator.workspaceFeatureModule.value;
     expect(settingsModule?.kind).toBe("settings");
     expect(
@@ -389,6 +394,44 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     await harness.coordinator.openSettings("official-models");
     expect(harness.loaders.loadOfficialModels).toHaveBeenCalledOnce();
     expect(harness.loaders.loadModelSettings).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the current page usable when a settings chunk cannot load", async () => {
+    const harness = createHarness();
+    harness.workspaceMainView.value = "models";
+    vi.mocked(loadSettingsFeature).mockRejectedValueOnce(
+      new TypeError("Failed to fetch dynamically imported module")
+    );
+
+    await harness.coordinator.openSettings();
+
+    expect(harness.currentView.value).toBe("workspace");
+    expect(harness.workspaceMainView.value).toBe("models");
+    expect(harness.errors).toEqual([
+      "设置页面加载失败，请稍后重试或重新启动应用。"
+    ]);
+    expect(harness.loaders.loadWorkspaceAgentSettings).not.toHaveBeenCalled();
+
+    await harness.coordinator.openSettings();
+    expect(harness.currentView.value).toBe("settings");
+  });
+
+  it("waits for settings assets and ignores completion after newer navigation", async () => {
+    const pending = deferred<typeof buildSettingsFeatureModule>();
+    const loading = vi.fn(() => pending.promise);
+    vi.mocked(loadSettingsFeature).mockImplementationOnce(loading);
+    const harness = createHarness();
+    const opening = harness.coordinator.openSettings("official-models");
+    await vi.waitFor(() => expect(loading).toHaveBeenCalledOnce());
+    expect(harness.currentView.value).toBe("workspace");
+
+    await harness.coordinator.openCloudBackup();
+    pending.resolve(buildSettingsFeatureModule);
+    await opening;
+
+    expect(harness.currentView.value).toBe("workspace");
+    expect(harness.workspaceMainView.value).toBe("cloud-backup");
+    expect(harness.loaders.loadOfficialModels).not.toHaveBeenCalled();
   });
 
   it("contains rejecting background loaders without changing the selected page", async () => {

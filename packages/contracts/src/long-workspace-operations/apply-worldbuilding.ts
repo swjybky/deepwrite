@@ -138,9 +138,10 @@ export function applyWorldbuildingOperation(
             category.file,
             `Convert worldbuilding category ${category.id} to list`
           );
+          // This id becomes a filename; keep the suffix valid on Windows.
           const itemId = `worlditem_${category.id
             .replace(/^world_/u, "")
-            .slice(0, 120)}:converted`;
+            .slice(0, 120)}_converted`;
           const existingItems = workspace.worldbuilding.flatMap((candidate) =>
             candidate.format === "list" ? candidate.items : []
           );

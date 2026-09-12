@@ -6,10 +6,10 @@ function source(path: string): string {
 }
 
 const contractSource = source(
-  "../../../../packages/contracts/src/long-workspace-api.ts"
+  "../../../../packages/contracts/src/long-workspace-commands.ts"
 );
-const preloadSource = source("../preload/long-api.ts");
-const coreSource = source("../utilities/core-entry.ts");
+const preloadSource = source("../preload/long-document-api.ts");
+const coreSource = source("../utilities/long-core-commands.ts");
 const serviceSource = source("../utilities/long-workspace-service.ts");
 const mainSource = source("./ipc/long-workspace-commands.ts");
 
@@ -26,7 +26,7 @@ describe("long.deleteLedgerCommit command chain", () => {
     expect(mainSource).toContain("LongDeleteLedgerCommitResultSchema.parse");
     expect(coreSource).toContain('command.type === "long.deleteLedgerCommit"');
     expect(coreSource).toContain(
-      "await longWorkspaceService.deleteLedgerCommit(command.payload)"
+      "await service.deleteLedgerCommit(command.payload)"
     );
     expect(serviceSource).toContain("LongDeleteLedgerCommitInputSchema.parse");
     expect(serviceSource).toContain(

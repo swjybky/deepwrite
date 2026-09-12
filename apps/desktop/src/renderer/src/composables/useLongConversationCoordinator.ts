@@ -1,3 +1,4 @@
+import { createConversationHistorySelection } from "./conversationHistorySelection";
 import {
   withoutMaterialBindings,
   withoutMaterialBodies
@@ -533,21 +534,17 @@ export function useLongConversationCoordinator(
     options.showConversation();
   }
 
-  function selectConversation(sessionId: string): void {
-    if (disposed || preflightBlocks("切换对话")) {
-      return;
-    }
-    const conversation = activeConversation.value;
-    if (!conversation) return;
-    invalidateSendTarget();
-    if (!conversation.selectConversation(sessionId)) {
-      options.notifications.warning(
-        conversation.isBusy.value
-          ? "请先停止当前回复，再切换历史对话。"
-          : "这条长篇历史对话已不可用。"
-      );
-    }
-  }
+  const selectConversation = createConversationHistorySelection({
+    prepare() {
+      if (disposed || preflightBlocks("切换对话")) return false;
+      invalidateSendTarget();
+      return true;
+    },
+    current: () => activeConversation.value,
+    warning: (message) => options.notifications.warning(message),
+    busyMessage: "请先停止当前回复，再切换历史对话。",
+    unavailableMessage: "这条长篇历史对话已不可用。"
+  });
 
   function useSuggestion(value: string): void {
     if (disposed) return;

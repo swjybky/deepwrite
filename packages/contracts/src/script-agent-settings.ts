@@ -22,7 +22,7 @@ export const SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS = `剧本正文必须严格�
 - 对白先写角色名；表演提示放在角色名后的括号中。
 - OS 表示画面内人物的内心声音；VO 表示人物不在画面内，或来自电话、广播等外部声音。
 - 闪回、梦境等时空转换必须使用清晰且成对的开始/结束标记。
-- 通过 write 或 edit 写入 document=body 时，不得使用 Markdown 表格、分析标题或格式讲解，只能写可直接进入成稿的剧本正文。
+- 通过 edit 写入 document=body 时，不得使用 Markdown 表格、分析标题或格式讲解，只能写可直接进入成稿的剧本正文。
 `;
 
 export const DEFAULT_SCRIPT_WORKSPACE_AGENT_SYSTEM_PROMPTS: Record<

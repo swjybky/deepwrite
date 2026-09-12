@@ -1,144 +1,31 @@
 import type {
   CreateLongBookInput,
-  ExportLongManuscriptInput,
-  ExportLongManuscriptResult,
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  LongLinkedResourceStageScopes,
-  LongApplyLegacySyncResult,
-  LongBookSummary,
-  LongChooseContinuationImportSourceResult,
-  LongChooseLegacySyncSourceResult,
   LongImportContinuationInput,
   LongLegacySyncModule,
   LongManuscriptExportSection,
-  LongOpenBookResult,
-  LongWorkspaceIndexSnapshot
+  LongOpenBookResult
 } from "@deepwrite/contracts";
 import type { Ref } from "vue";
-import type {
-  LongBookRemovalTarget,
-  LongBookRenameTarget,
-  LongWorkspaceRefreshStatus
-} from "../stores/longWorkspaceStore";
+
 import type { LongBookResourceNodeActionPayload } from "../types/workspace";
 import {
   createLongContinuitySelection,
   longBookResourceId,
   replaceLongBookSummary,
-  type LongStructureMutationCompletion,
-  type LongWorkspaceRendererApi,
-  type LongWorkspaceSelection
+  type LongStructureMutationCompletion
 } from "../types/longWorkspace";
 import { longNavigationNodeId } from "../utils/longWorkspaceResourceTree";
 
-type MaybePromise<Value> = Value | Promise<Value>;
-type PendingLane = "mutation" | "book-action" | "manuscript-export";
-type LongBindingsDialogMode = "skill" | "material";
-
-export interface LongBookLifecycleNotifications {
-  error(message: string): void;
-  info(message: string): void;
-  success(message: string): void;
-  warning(message: string): void;
-}
-
-export interface LongBookLifecycleState {
-  longBooks: Ref<readonly LongBookSummary[]>;
-  activeBookId: Ref<string | null>;
-  activeBookSummary: Readonly<Ref<LongBookSummary | null>>;
-  workspaceIndex: Ref<LongWorkspaceIndexSnapshot | null>;
-  refreshStatus: Ref<LongWorkspaceRefreshStatus | null>;
-  mutationPending: Ref<boolean>;
-  bookActionPending: Ref<boolean>;
-  manuscriptExportPending: Ref<boolean>;
-  continuationImportPreview: Ref<LongChooseContinuationImportSourceResult | null>;
-  legacySyncPreview: Ref<LongChooseLegacySyncSourceResult | null>;
-  legacySyncResult: Ref<LongApplyLegacySyncResult | null>;
-  structureDialogOpen: Ref<boolean>;
-  structureAgentsMd: Ref<string | null>;
-  structureAgentsMdPending: Ref<boolean>;
-  bindingsDialogMode: Ref<LongBindingsDialogMode | null>;
-  exportTarget: Ref<LongBookRenameTarget | null>;
-  bookRenameTarget: Ref<LongBookRenameTarget | null>;
-  bookRemovalTarget: Ref<LongBookRemovalTarget | null>;
-  createBookDialogOpen: Ref<boolean>;
-  selectedResourceId: Ref<string>;
-}
-
-export interface LongBookLifecycleSessionPort {
-  activateOpenedBook(opened: LongOpenBookResult): void;
-  loadAgentSettings(): MaybePromise<unknown>;
-  saveActiveEditorChanges(): Promise<boolean>;
-  saveActiveEditorBeforeLeaving(nextBookId?: string): Promise<boolean>;
-  openBook(bookId: string): Promise<void>;
-  refreshActiveWorkspace(bookId: string): Promise<boolean>;
-  clearActiveBook(bookId: string): Promise<void>;
-  invalidateWorkspaceRefresh(bookId: string): void;
-  selectWorkspaceFile(selection: LongWorkspaceSelection): Promise<boolean>;
-}
-
-export interface LongBookLifecycleWorkflowPort {
-  stopBookAgentRuns(bookId: string): Promise<void>;
-  quarantineBook(bookId: string): MaybePromise<void>;
-  reactivateBook(bookId: string): MaybePromise<void>;
-  disposeBookProposalState(bookId: string): MaybePromise<void>;
-}
-
-export interface LongBookLifecycleConversationPort {
-  disposeBookConversations(bookId: string): MaybePromise<void>;
-}
-
-export interface LongBookLifecycleCatalogPort {
-  loadBookList(options?: {
-    readonly force?: boolean;
-    readonly notify?: boolean;
-  }): Promise<void>;
-  refreshWorkspaceDirectory(): Promise<void>;
-}
-
-export interface LongBookLifecycleResourcePort {
-  selectBook(bookId: string): Promise<unknown>;
-  showConversation(): void;
-  revealEditor(): void;
-}
-
-export interface LongBookLifecycleManuscriptPort {
-  available(): boolean;
-  createInput(input: {
-    readonly api: LongWorkspaceRendererApi;
-    readonly bookId: string;
-    readonly title: string;
-    readonly workspace: LongWorkspaceIndexSnapshot;
-    readonly sections: readonly LongManuscriptExportSection[];
-  }): Promise<ExportLongManuscriptInput>;
-  exportLong(
-    input: ExportLongManuscriptInput
-  ): Promise<ExportLongManuscriptResult>;
-}
-
-export interface LongBookLifecycleSchedulerPort {
-  settleUi(): Promise<void>;
-}
-
-export interface LongBookLifecycleCoordinatorOptions {
-  api(): LongWorkspaceRendererApi | undefined;
-  state: LongBookLifecycleState;
-  session: LongBookLifecycleSessionPort;
-  workflow: LongBookLifecycleWorkflowPort;
-  conversations: LongBookLifecycleConversationPort;
-  catalog: LongBookLifecycleCatalogPort;
-  resources: LongBookLifecycleResourcePort;
-  manuscript: LongBookLifecycleManuscriptPort;
-  scheduler: LongBookLifecycleSchedulerPort;
-  notifications: LongBookLifecycleNotifications;
-}
-
-export interface LongBookBindingsUpdate {
-  readonly linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
-  readonly linkedSkillIdsByKind: LinkedSkillIdsByKind;
-  readonly linkedResourceStageScopes?: LongLinkedResourceStageScopes;
-}
+import type {
+  MaybePromise,
+  PendingLane,
+  LongBindingsDialogMode,
+  LongBookLifecycleCoordinatorOptions,
+  LongBookBindingsUpdate
+} from "./longBookLifecycleTypes";
+export type * from "./longBookLifecycleTypes";
+import { useLongConflictResolution } from "./useLongConflictResolution";
+import { disposeLongBookRemovalRuntime } from "./book-removal-runtime";
 
 interface PendingLease {
   readonly lane: PendingLane;
@@ -1027,21 +914,6 @@ export function useLongBookLifecycleCoordinator(
     }
   }
 
-  async function disposeRemovedBookRuntime(bookId: string): Promise<unknown> {
-    let cleanupError: unknown;
-    try {
-      await workflow.disposeBookProposalState(bookId);
-    } catch (error: unknown) {
-      cleanupError = error;
-    }
-    try {
-      await conversations.disposeBookConversations(bookId);
-    } catch (error: unknown) {
-      cleanupError ??= error;
-    }
-    return cleanupError;
-  }
-
   function confirmLongBookRemoval(): Promise<void> {
     const api = options.api();
     const target = state.bookRemovalTarget.value;
@@ -1099,7 +971,12 @@ export function useLongBookLifecycleCoordinator(
         }
         durablyRemoved = true;
         quarantined = false;
-        const cleanupError = await disposeRemovedBookRuntime(target.bookId);
+        const cleanupError = await disposeLongBookRemovalRuntime({
+          bookId: target.bookId,
+          action: target.action,
+          workflow,
+          conversations
+        });
         if (!leaseIsCurrent(lease)) return;
         state.longBooks.value = state.longBooks.value.filter(
           ({ id }) => id !== target.bookId
@@ -1141,6 +1018,12 @@ export function useLongBookLifecycleCoordinator(
     });
   }
 
+  const resolveConflicts = useLongConflictResolution({
+    ...options,
+    isDisposed: () => disposed,
+    runTracked
+  });
+
   function handleLongBookAction(
     payload: LongBookResourceNodeActionPayload
   ): Promise<void> {
@@ -1151,6 +1034,8 @@ export function useLongBookLifecycleCoordinator(
     }
     const { longBookId: bookId } = payload.node;
     switch (payload.action) {
+      case "resolve-conflicts":
+        return resolveConflicts(payload.node.longBookId);
       case "duplicate":
         return duplicateLongBook(payload);
       case "sync-legacy":

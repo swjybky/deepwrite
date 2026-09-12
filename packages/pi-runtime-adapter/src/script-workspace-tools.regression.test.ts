@@ -30,7 +30,7 @@ function resultText(result: AgentToolResult<unknown>): string {
 }
 
 describe("script workspace tool regression", () => {
-  it("uses the unified five tools in every script stage", () => {
+  it("uses the unified four tools in every script stage", () => {
     const { activeSectionId: _activeSectionId, ...draftWorkspace } =
       screenplayWorkspace();
     const plotWorkspace = {
@@ -48,12 +48,13 @@ describe("script workspace tool regression", () => {
       "read",
       "create",
       "edit",
-      "write",
       "delete",
       "query_linked_material_entries",
       "load_skill",
       "ask_user_question"
     ]);
+
+    expect(plotTools.map(({ name }) => name)).not.toContain("write");
 
     const draftTools = buildScriptWorkspaceTools({
       workspace: screenplayWorkspace(),
@@ -63,7 +64,7 @@ describe("script workspace tool regression", () => {
       plotTools.map(({ name }) => name)
     );
     expect(
-      draftTools.find(({ name }) => name === "write")?.description
+      draftTools.find(({ name }) => name === "edit")?.description
     ).toContain("剧本正文必须遵守");
     expect(draftTools.map(({ name }) => name)).not.toContain(
       "delete_draft_section"
@@ -166,7 +167,7 @@ describe("script workspace tool regression", () => {
       workspace,
       profile: scriptAgentProfile()
     });
-    const write = toolByName(tools, "write");
+    const edit = toolByName(tools, "edit");
     const request = {
       kind: "draft_section",
       id: "episode-1",
@@ -174,7 +175,7 @@ describe("script workspace tool regression", () => {
       content: "1. 内景 客厅 - 夜\n△应急灯亮起。",
       summary: "重写第一集。"
     };
-    expect(resultText(await write.execute("blocked", request))).toContain(
+    expect(resultText(await edit.execute("blocked", request))).toContain(
       "请先用 read 完整读取"
     );
     await toolByName(tools, "read").execute("read", {
@@ -182,12 +183,12 @@ describe("script workspace tool regression", () => {
       id: "episode-1",
       document: "body"
     });
-    expect(resultText(await write.execute("no-consent", request))).toContain(
+    expect(resultText(await edit.execute("no-consent", request))).toContain(
       "allow_overwrite_existing=true"
     );
     expect(
       (
-        await write.execute("accepted", {
+        await edit.execute("accepted", {
           ...request,
           allow_overwrite_existing: true
         })
@@ -221,7 +222,7 @@ describe("script workspace tool regression", () => {
     });
     expect(
       (
-        await toolByName(childTools, "write").execute("write-created", {
+        await toolByName(childTools, "edit").execute("write-created", {
           kind: "draft_section",
           id: sectionId!,
           document: "body",
@@ -252,7 +253,7 @@ describe("script workspace tool regression", () => {
     });
     expect(
       resultText(
-        await toolByName(isolatedWriter, "write").execute("isolated", {
+        await toolByName(isolatedWriter, "edit").execute("isolated", {
           kind: "draft_section",
           id: "episode-1",
           document: "body",

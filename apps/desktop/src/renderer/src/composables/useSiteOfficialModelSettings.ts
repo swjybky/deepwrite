@@ -22,7 +22,9 @@ interface SiteOfficialModelSettingsContext {
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error
+    ? error.message.replace(/^models\.[a-z_]+:\s*/u, "")
+    : fallback;
 }
 
 export function useSiteOfficialModelSettings(

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
+import { provideConversationDisclosureScope } from "../composables/conversationDisclosureState";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
 import { formatFileSize } from "../composables/useConversationAttachments";
@@ -23,7 +24,6 @@ import StreamedContent from "./StreamedContent.vue";
 const props = withDefaults(
   defineProps<{
     message: ChatMessage;
-    clock: number;
     allowLiveEditReview?: boolean;
     editable?: boolean;
     editing?: boolean;
@@ -60,6 +60,7 @@ const emit = defineEmits<{
   cancelEdit: [messageId: string];
 }>();
 
+provideConversationDisclosureScope(() => props.message.id);
 const copied = ref(false);
 let copiedTimer: number | undefined;
 
@@ -119,7 +120,6 @@ onBeforeUnmount(() => {
       <ConversationProcessingTimeline
         v-if="message.role === 'assistant'"
         :message="message"
-        :clock="clock"
         :allow-live-edit-review="allowLiveEditReview"
         :long-proposal-items="longProposalItems"
         :long-workspace-index="longWorkspaceIndex"

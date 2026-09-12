@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import source from "./WorkspaceShell.vue?raw";
-import runtimeRegistrySource from "./composables/useConversationRuntimeRegistryCoordinator.ts?raw";
+import runtimeRegistrySource from "./composables/conversationRegistryPreferences.ts?raw";
+import registryPortSource from "./composables/conversationRuntimeRegistryStorePort.ts?raw";
 import shortConversationSource from "./composables/useShortConversationCoordinator.ts?raw";
 
 function functionBody(text: string, name: string, nextName: string): string {
@@ -12,8 +13,10 @@ function functionBody(text: string, name: string, nextName: string): string {
 describe("App agent model selection", () => {
   it("restores and persists the global model selection across app launches", () => {
     expect(source).toContain(
-      "sessionAgentModelSelection\n} = storeToRefs(conversationStore)"
+      "store: conversationRuntimeRegistryStorePort(conversationStore)"
     );
+    expect(registryPortSource).toContain("sessionAgentModelSelection");
+    expect(registryPortSource).toContain("storeToRefs(store)");
     expect(source).toContain("createConversationPersistenceAdapter(");
     expect(source).toContain("{ storage: window.localStorage }");
     const body = functionBody(

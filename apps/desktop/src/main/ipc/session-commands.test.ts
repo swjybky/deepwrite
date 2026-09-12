@@ -74,6 +74,7 @@ describe("session prompt web search", () => {
     );
     const ctx = {
       pendingUsageContexts: new Map(),
+      activeRuns: new Map(),
       requireModelConfigStore: () => ({
         resolve: vi.fn(async () => ({
           id: "writer",

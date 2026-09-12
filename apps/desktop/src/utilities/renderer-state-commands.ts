@@ -1,3 +1,4 @@
+import { handleConversationHistoryCommand } from "./conversation-history-commands";
 import {
   RendererStateLoadResultSchema,
   RendererStateMutationResultSchema,
@@ -12,6 +13,11 @@ export async function handleRendererStateCommand(
   rendererStateStore: RendererStateStore,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
+  const historyResult = await handleConversationHistoryCommand(
+    rendererStateStore.history,
+    command
+  );
+  if (historyResult) return historyResult;
   if (command.type === "rendererState.migrateHistory") {
     return {
       status: "accepted",

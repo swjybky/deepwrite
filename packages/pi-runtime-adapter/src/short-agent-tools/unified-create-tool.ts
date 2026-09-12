@@ -8,6 +8,10 @@ import {
   type ShortWorkspaceStageId
 } from "@deepwrite/contracts";
 import { Type } from "typebox";
+import {
+  appendWritingContentCounts,
+  WRITING_CONTENT_COUNT_DESCRIPTION
+} from "../writing-content-counts";
 import { defineTool } from "./schema";
 import {
   draftUnitLabel,
@@ -57,7 +61,7 @@ function characterCreation(
 ) {
   if ((input.workspace.characterStructure?.format ?? "text") !== "list") {
     throw new Error(
-      "当前人物为文本样式，不能创建独立人物条目。请把所有人物写进同一份总稿：用 write 或 edit 修改 kind=character_overview、id=character_design。"
+      "当前人物为文本样式，不能创建独立人物条目。请把所有人物写进同一份总稿：用 edit 修改 kind=character_overview、id=character_design。"
     );
   }
   if (
@@ -79,7 +83,10 @@ function characterCreation(
   });
   state.characterItemOrder.push(itemId);
   const summary = shortProposalSummary(input, rawSummary);
-  return textResult(`${summary}\nitem_id=${itemId}`, {
+  const message = appendWritingContentCounts(`${summary}\nitem_id=${itemId}`, [
+    { title, id: itemId, content }
+  ]);
+  return textResult(message, {
     kind: "workspace-character-structure-mutation",
     workspaceId: input.workspace.id,
     stageId: "character_design",
@@ -136,7 +143,11 @@ function plotStageCreation(
     createShortWorkspaceContentRevision(content)
   );
   const summary = shortProposalSummary(input, rawSummary);
-  return textResult(`${summary}\nstage_id=${stageId}`, {
+  const message = appendWritingContentCounts(
+    `${summary}\nstage_id=${stageId}`,
+    [{ title, id: stageId, content }]
+  );
+  return textResult(message, {
     kind: "workspace-plot-structure-mutation",
     workspaceId: input.workspace.id,
     stageId,
@@ -225,7 +236,22 @@ function draftSectionCreation(
   state.expertSectionOrder.splice(insertAt, 0, sectionId);
   state.pendingExpertSectionTitles.add(title);
   const summary = shortProposalSummary(input, rawSummary);
-  return textResult(`${summary}\nsection_id=${sectionId}`, {
+  const message = appendWritingContentCounts(
+    `${summary}\nsection_id=${sectionId}`,
+    [
+      {
+        title: `${title} · 正文`,
+        id: catalogDraftBodyDocumentId(sectionId),
+        content: bodyContent
+      },
+      {
+        title: `${title} · 人物状态`,
+        id: catalogDraftCharacterStateDocumentId(sectionId),
+        content: characterStateContent
+      }
+    ]
+  );
+  return textResult(message, {
     kind: "workspace-expert-draft-section-creation",
     workspaceId: input.workspace.id,
     stageId: "draft",
@@ -247,7 +273,7 @@ function draftSectionCreation(
 function characterCreateRule(input: BuildWritingWorkspaceToolsInput): string {
   return (input.workspace.characterStructure?.format ?? "text") === "list"
     ? "当前人物为条目样式：kind=character 为单个人物创建独立条目，并可同时写入该人物卡正文；概览只做索引，不要把多人设定写进概览。"
-    : "当前人物为文本样式：不要用 kind=character 创建独立条目。创建人物就是把所有人设写入同一份 character_overview（id=character_design），使用 write 或 edit。";
+    : "当前人物为文本样式：不要用 kind=character 创建独立条目。创建人物就是把所有人设写入同一份 character_overview（id=character_design），使用 edit。";
 }
 
 export function buildShortUnifiedCreateTool(
@@ -259,7 +285,8 @@ export function buildShortUnifiedCreateTool(
     label: `创建${input.workspaceType === "script" ? "剧本" : "短篇"}对象`,
     description:
       `一次新建一个对象。${characterCreateRule(input)} kind=plot_stage 创建一项全局剧情结构，并同时携带该结构在当前作品中的正文；kind=draft_section 创建${draftUnitLabel(input)}，可同时写入 body 与 character_state。meta 只放该 kind 需要的结构字段，id 与排序由系统生成。` +
-      scriptBodyToolConstraint(input),
+      scriptBodyToolConstraint(input) +
+      WRITING_CONTENT_COUNT_DESCRIPTION,
     parameters: Type.Object(
       {
         kind: writingCreateKindParameter,

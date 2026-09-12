@@ -35,9 +35,7 @@ export function hasConversationContent(
   ctx: PersistenceHistoryContext,
   conversation: AgentConversationPersistenceRecord
 ): boolean {
-  return (
-    conversation.messages.length > 0 || conversation.draft.trim().length > 0
-  );
+  return conversation.messages.length > 0;
 }
 
 export function storeCurrentConversation(ctx: PersistenceHistoryContext): void {
@@ -60,6 +58,8 @@ export function capturePersistenceSnapshot(
   return cloneJsonRecord({
     version: 1 as const,
     activeSessionId: ctx.sessionId.value,
-    conversations: [...ctx.storedConversations.value]
+    conversations: ctx.storedConversations.value.filter(
+      (conversation) => conversation.messages.length > 0
+    )
   });
 }

@@ -1,3 +1,4 @@
+import { conversationHistory } from "./conversation-history-api";
 import {
   IPC_EVENT_CHANNEL,
   RendererStateFlushRequestedEventEnvelopeSchema,
@@ -54,6 +55,7 @@ async function removeConversationPersistence(rawKey: string): Promise<void> {
 }
 
 export const conversationPersistence: ConversationPersistenceApi = {
+  history: conversationHistory,
   onBeforeClose(handler) {
     const listener = (_event: Electron.IpcRendererEvent, value: unknown) => {
       const parsed =

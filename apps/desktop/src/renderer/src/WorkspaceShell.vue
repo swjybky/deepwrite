@@ -37,6 +37,7 @@ import { useAppearance } from "./composables/useAppearance";
 import { useCatalogDocumentLoader } from "./composables/useCatalogDocumentLoader";
 import { useCatalogDocumentPersistence } from "./composables/useCatalogDocumentPersistence";
 import { useCatalogWorkspaceProjectionCoordinator } from "./composables/useCatalogWorkspaceProjectionCoordinator";
+import { conversationRuntimeRegistryStorePort } from "./composables/conversationRuntimeRegistryStorePort";
 import { useConversationRuntimeRegistryCoordinator } from "./composables/useConversationRuntimeRegistryCoordinator";
 import { AGENT_ACTIVITY_CONTEXT_KEY } from "./composables/agentActivityContext";
 import { useAgentActivityCoordinator } from "./composables/useAgentActivityCoordinator";
@@ -435,9 +436,7 @@ const conversationStore = useConversationStore();
 const {
   controllers: conversationControllers,
   scopesByKey: conversationScopesByKey,
-  controllerRegistryRevision,
-  agentRunPreferences,
-  sessionAgentModelSelection
+  controllerRegistryRevision
 } = storeToRefs(conversationStore);
 // These stores deliberately keep Map identity stable so the lazy proposal
 // coordinator can retain a registry reference while controllers are added.
@@ -448,26 +447,7 @@ const conversationPersistenceAdapter = createConversationPersistenceAdapter(
   { storage: window.localStorage }
 );
 const conversationRuntimeRegistry = useConversationRuntimeRegistryCoordinator({
-  store: {
-    sessionAgentModelSelection,
-    agentRunPreferences,
-    configurePersistenceAdapter: conversationStore.configurePersistenceAdapter,
-    registerController: conversationStore.registerController,
-    controllerForKey: conversationStore.controllerForKey,
-    scopeForKey: conversationStore.scopeForKey,
-    setControllerScope: conversationStore.setControllerScope,
-    listControllers: conversationStore.listControllers,
-    controllerEntries: () => conversations.entries(),
-    setSessionAgentModelSelection:
-      conversationStore.setSessionAgentModelSelection,
-    setAgentRunPreferences: conversationStore.setAgentRunPreferences,
-    removeAgentRunPreferences: conversationStore.removeAgentRunPreferences,
-    schedulePersistence: conversationStore.schedulePersistence,
-    schedulePersistenceFactory: conversationStore.schedulePersistenceFactory,
-    loadPersistence: conversationStore.loadPersistence,
-    removePersistence: conversationStore.removePersistence,
-    hydratePreferences: conversationStore.hydratePreferences
-  },
+  store: conversationRuntimeRegistryStorePort(conversationStore),
   persistenceAdapter: conversationPersistenceAdapter,
   modelSettings,
   permissionMode: () => generalSettings.value.permissionMode,

@@ -15,11 +15,10 @@ import {
 } from "@deepwrite/contracts";
 import {
   clearDeepWriteSiteOfficialModelInput,
-  deepWriteSiteOfficialGatewayBaseUrl,
   saveDeepWriteSiteOfficialModelInput,
-  setDeepWriteSiteOfficialModelEnabledInput,
-  type DeepWriteSiteOfficialRemoteCatalog
+  setDeepWriteSiteOfficialModelEnabledInput
 } from "../deepwrite-site-official-model-config";
+import { loadDeepWriteSiteOfficialCatalog } from "../deepwrite-site-official-catalog";
 import { queryDeepWriteSiteOfficialQuota } from "../deepwrite-site-official-quota";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
@@ -41,27 +40,6 @@ async function resolveConfiguredKey(
   const apiKey = await store.resolveDraftApiKey({ id: configured.id });
   if (!apiKey) throw new Error("新官方小站模型密钥不可用，请重新添加。");
   return { current, apiKey };
-}
-
-async function loadRemoteCatalog(
-  ctx: SiteOfficialModelCommandContext,
-  apiKey: string
-): Promise<DeepWriteSiteOfficialRemoteCatalog> {
-  const [models, googleModels] = await Promise.all([
-    ctx.listRemoteModels({
-      provider: "deepwrite-site",
-      api: "openai-completions",
-      baseUrl: deepWriteSiteOfficialGatewayBaseUrl("openai-completions"),
-      apiKey
-    }),
-    ctx.listRemoteModels({
-      provider: "google",
-      api: "google-generative-ai",
-      baseUrl: deepWriteSiteOfficialGatewayBaseUrl("google-generative-ai"),
-      apiKey
-    })
-  ]);
-  return { models, googleModels };
 }
 
 async function syncUsageModels(
@@ -97,7 +75,7 @@ export async function handleSiteOfficialModelCommands(
       const store = ctx.requireModelConfigStore();
       const [current, catalog] = await Promise.all([
         store.list(),
-        loadRemoteCatalog(ctx, command.payload.apiKey)
+        loadDeepWriteSiteOfficialCatalog(ctx, command.payload.apiKey)
       ]);
       const settings = ModelSettingsSchema.parse(
         await store.save(
@@ -124,7 +102,7 @@ export async function handleSiteOfficialModelCommands(
     try {
       const store = ctx.requireModelConfigStore();
       const { current, apiKey } = await resolveConfiguredKey(ctx);
-      const catalog = await loadRemoteCatalog(ctx, apiKey);
+      const catalog = await loadDeepWriteSiteOfficialCatalog(ctx, apiKey);
       const settings = ModelSettingsSchema.parse(
         await store.save(
           saveDeepWriteSiteOfficialModelInput(current, apiKey, catalog)

@@ -24,9 +24,19 @@ async function flushMicrotasks(): Promise<void> {
 describe("utility runtime internal command bridge", () => {
   let port: FakeParentPort;
   let originalParentPort: PropertyDescriptor | undefined;
+  let signalListeners: Map<
+    NodeJS.Signals,
+    ReturnType<typeof process.listeners>
+  >;
 
   beforeEach(() => {
     vi.useFakeTimers();
+    signalListeners = new Map(
+      (["SIGINT", "SIGTERM"] as const).map((signal) => [
+        signal,
+        process.listeners(signal)
+      ])
+    );
     port = new FakeParentPort();
     originalParentPort = Object.getOwnPropertyDescriptor(process, "parentPort");
     Object.defineProperty(process, "parentPort", {
@@ -37,6 +47,12 @@ describe("utility runtime internal command bridge", () => {
   });
 
   afterEach(() => {
+    for (const [signal, original] of signalListeners) {
+      for (const listener of process.listeners(signal)) {
+        if (!original.includes(listener))
+          process.removeListener(signal, listener);
+      }
+    }
     port.removeAllListeners();
     if (originalParentPort) {
       Object.defineProperty(process, "parentPort", originalParentPort);
@@ -45,6 +61,95 @@ describe("utility runtime internal command bridge", () => {
     }
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  function deliverSignal(signal: NodeJS.Signals): void {
+    const original = signalListeners.get(signal)!;
+    const listener = process
+      .listeners(signal)
+      .find((item) => !original.includes(item)) as (() => void) | undefined;
+    expect(listener).toBeDefined();
+    // Invoke only the Utility listener, without interrupting the test runner.
+    listener!();
+  }
+
+  it("keeps Core writable after Ctrl+C and drains its final save before Main shuts it down", async () => {
+    let finishSave!: () => void;
+    const saving = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
+    const onShutdown = vi.fn();
+    bootUtility("core", {
+      async commandHandler(command) {
+        await saving;
+        return {
+          status: "accepted",
+          requestId: command.id,
+          payload: { ok: true }
+        };
+      },
+      onShutdown
+    });
+    deliverSignal("SIGINT");
+    deliverSignal("SIGINT");
+    const command = createEnvelope(
+      "rendererState.save",
+      {
+        key: "conversation-preferences:shutdown-test",
+        value: { draft: "shutdown regression fixture" }
+      },
+      { id: "final_save" }
+    );
+    port.dispatch({
+      kind: "utility.command.request",
+      requestId: command.id,
+      command
+    });
+    await flushMicrotasks();
+    expect(onShutdown).not.toHaveBeenCalled();
+    expect(port.posted).not.toContainEqual(
+      expect.objectContaining({ kind: "utility.command.result" })
+    );
+    port.dispatch({ kind: "utility.shutdown", requestId: "main_shutdown" });
+    await flushMicrotasks();
+    expect(onShutdown).not.toHaveBeenCalled();
+    expect(process.exit).not.toHaveBeenCalled();
+    finishSave();
+    await flushMicrotasks();
+    expect(port.posted).toContainEqual(
+      expect.objectContaining({
+        kind: "utility.command.result",
+        result: expect.objectContaining({
+          status: "accepted",
+          requestId: "final_save"
+        })
+      })
+    );
+    expect(port.posted).toContainEqual(
+      expect.objectContaining({
+        kind: "utility.shutdown_ack",
+        requestId: "main_shutdown"
+      })
+    );
+    expect(onShutdown).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(process.exit).toHaveBeenCalledWith(0);
+  });
+
+  it("retains SIGTERM shutdown for the supervisor kill fallback", async () => {
+    const onShutdown = vi.fn();
+    bootUtility("tool", { onShutdown });
+    deliverSignal("SIGTERM");
+    await flushMicrotasks();
+    expect(onShutdown).toHaveBeenCalledOnce();
+    expect(port.posted).toContainEqual(
+      expect.objectContaining({
+        kind: "utility.shutdown_ack",
+        requestId: "signal_sigterm"
+      })
+    );
+    await vi.advanceTimersByTimeAsync(20);
+    expect(process.exit).toHaveBeenCalledWith(0);
   });
 
   it("lets an agent handler await a correlated Core command result", async () => {

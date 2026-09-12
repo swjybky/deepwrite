@@ -10,6 +10,12 @@ import type { SyncApi } from "./types";
 export const syncResolutionSchema = z
   .object({ token: z.string().min(1), item: syncItemSchema.nullable() })
   .strict();
+export const syncAdoptionSchema = z
+  .object({
+    side: z.enum(["local", "remote"]),
+    keys: z.array(z.string().min(1).max(1024)).min(1)
+  })
+  .strict();
 export const syncRequestSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("status") }).strict(),
   z.object({ operation: z.literal("check") }).strict(),
@@ -36,7 +42,8 @@ export const syncRequestSchema = z.discriminatedUnion("operation", [
       operation: z.literal("sync"),
       resolutions: z.array(syncResolutionSchema).optional(),
       confirmFirst: z.boolean().optional(),
-      direction: z.enum(["both", "upload", "download"]).optional()
+      direction: z.enum(["both", "upload", "download"]).optional(),
+      adoption: syncAdoptionSchema.optional()
     })
     .strict(),
   z.object({ operation: z.literal("cancel") }).strict(),
@@ -147,7 +154,8 @@ export async function dispatchSyncRequest(
         status: await api.sync(
           request.resolutions,
           request.confirmFirst,
-          request.direction
+          request.direction,
+          request.adoption
         )
       };
     case "restore":

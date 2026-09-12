@@ -24,11 +24,12 @@ import {
   subagentUsageLabel
 } from "./subagentRunPresentation";
 import AppIcon from "./AppIcon.vue";
+import ConversationDetails from "./ConversationDetails.vue";
+import ConversationRunClock from "./ConversationRunClock.vue";
 import StreamedContent from "./StreamedContent.vue";
 
 const props = defineProps<{
   message: ChatMessage;
-  now: number;
 }>();
 
 const runs = computed(() => props.message.subagentRuns ?? []);
@@ -40,14 +41,15 @@ const runs = computed(() => props.message.subagentRuns ?? []);
     class="subagent-run-list"
     aria-label="子智能体执行记录"
   >
-    <details
+    <ConversationDetails
       v-for="run in runs"
       :key="run.parentToolCallId"
+      :detail-id="run.parentToolCallId"
       class="subagent-run-card"
       :class="`is-${run.status}`"
       :aria-busy="run.status === 'running'"
     >
-      <summary>
+      <template #summary>
         <span class="subagent-run-icon" aria-hidden="true">
           <AppIcon name="user" :size="17" />
         </span>
@@ -55,15 +57,25 @@ const runs = computed(() => props.message.subagentRuns ?? []);
           <span class="subagent-run-title-row">
             <strong>{{ run.name }}</strong>
             <span class="subagent-run-status" :class="`is-${run.status}`">
-              {{ subagentStatusLabel(run, now) }}
+              <ConversationRunClock
+                v-slot="{ now }"
+                :active="run.status === 'running'"
+              >
+                {{ subagentStatusLabel(run, now) }}
+              </ConversationRunClock>
             </span>
           </span>
           <span class="subagent-run-task">{{ run.task }}</span>
         </span>
         <span class="subagent-run-meta" aria-label="子任务运行摘要">
-          <span v-if="subagentDuration(run, now)">{{
-            subagentDuration(run, now)
-          }}</span>
+          <ConversationRunClock
+            v-slot="{ now }"
+            :active="run.status === 'running'"
+          >
+            <span v-if="subagentDuration(run, now)">{{
+              subagentDuration(run, now)
+            }}</span>
+          </ConversationRunClock>
           <span v-if="subagentRetryProgress(run)">{{
             subagentRetryProgress(run)
           }}</span>
@@ -73,16 +85,24 @@ const runs = computed(() => props.message.subagentRuns ?? []);
           </span>
         </span>
         <AppIcon class="subagent-run-chevron" name="chevron" :size="14" />
-      </summary>
+      </template>
 
       <div class="subagent-run-detail">
         <section class="subagent-run-handoff subagent-run-assigned-task">
           <strong>主智能体下发的任务</strong>
           <p>{{ run.task }}</p>
         </section>
-        <div v-if="subagentRetryStatus(run, now)" class="subagent-run-waiting">
-          {{ subagentRetryStatus(run, now) }}
-        </div>
+        <ConversationRunClock
+          v-slot="{ now }"
+          :active="run.status === 'running'"
+        >
+          <div
+            v-if="subagentRetryStatus(run, now)"
+            class="subagent-run-waiting"
+          >
+            {{ subagentRetryStatus(run, now) }}
+          </div>
+        </ConversationRunClock>
         <div
           v-if="subagentProcessingDisplayItems(run).length"
           class="subagent-processing-list"
@@ -92,16 +112,17 @@ const runs = computed(() => props.message.subagentRuns ?? []);
             v-for="item in subagentProcessingDisplayItems(run)"
             :key="item.id"
           >
-            <details
+            <ConversationDetails
               v-if="item.type === 'thinking'"
+              :detail-id="`${run.parentToolCallId}:${item.id}`"
               class="processing-live-item processing-live-thinking"
             >
-              <summary>
+              <template #summary>
                 <span>{{
                   run.status === "running" ? "思考中" : "思考过程"
                 }}</span>
                 <AppIcon name="chevron" :size="13" />
-              </summary>
+              </template>
               <div class="processing-live-body processing-thinking">
                 <StreamedContent
                   :content="item.content"
@@ -109,7 +130,7 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                   :streaming="run.status === 'running'"
                 />
               </div>
-            </details>
+            </ConversationDetails>
             <div
               v-else-if="item.type === 'response'"
               class="processing-step processing-response subagent-processing-response"
@@ -120,11 +141,12 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                 :streaming="run.status === 'running'"
               />
             </div>
-            <details
+            <ConversationDetails
               v-else-if="item.type === 'tool'"
+              :detail-id="`${run.parentToolCallId}:${item.id}`"
               class="processing-live-item processing-live-tool"
             >
-              <summary>
+              <template #summary>
                 <div
                   class="tool-trace"
                   :class="[
@@ -153,7 +175,7 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                   name="chevron"
                   :size="13"
                 />
-              </summary>
+              </template>
               <div class="processing-live-body tool-detail">
                 <div v-if="isWriteTool(item.tool)" class="write-tool-detail">
                   <div class="write-tool-output-heading">
@@ -190,26 +212,28 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                   <p>{{ item.tool.resultSummary }}</p>
                 </div>
               </div>
-            </details>
-            <details
+            </ConversationDetails>
+            <ConversationDetails
               v-else
+              :detail-id="`${run.parentToolCallId}:${item.id}`"
               class="processing-live-item processing-live-thinking processing-tool-group"
               :aria-busy="toolGroupIsRunning(item.tools)"
             >
-              <summary>
+              <template #summary>
                 <span>{{ toolGroupLabel(item.tools) }}</span>
                 <AppIcon name="chevron" :size="13" />
-              </summary>
+              </template>
               <div
                 class="processing-live-body tool-call-list"
                 aria-label="工具调用列表"
               >
-                <details
+                <ConversationDetails
                   v-for="tool in item.tools"
                   :key="tool.id"
+                  :detail-id="`${run.parentToolCallId}:${tool.id}`"
                   class="processing-live-item processing-live-tool tool-call-list-item"
                 >
-                  <summary>
+                  <template #summary>
                     <div class="tool-trace" :class="`is-${tool.status}`">
                       <AppIcon :name="toolIcon(tool)" :size="17" />
                       <div>
@@ -220,7 +244,7 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                       </div>
                     </div>
                     <AppIcon name="chevron" :size="13" />
-                  </summary>
+                  </template>
                   <div class="processing-live-body tool-detail">
                     <div v-if="formatToolPayload(visibleToolArguments(tool))">
                       <span>调用参数</span>
@@ -233,9 +257,9 @@ const runs = computed(() => props.message.subagentRuns ?? []);
                       <p>{{ tool.resultSummary }}</p>
                     </div>
                   </div>
-                </details>
+                </ConversationDetails>
               </div>
-            </details>
+            </ConversationDetails>
           </template>
         </div>
         <div v-else-if="run.status === 'running'" class="subagent-run-waiting">
@@ -265,6 +289,6 @@ const runs = computed(() => props.message.subagentRuns ?? []);
           }}</small>
         </section>
       </div>
-    </details>
+    </ConversationDetails>
   </section>
 </template>

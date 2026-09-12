@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import shellSource from "./WorkspaceShell.vue?raw";
+import historyActionsSource from "./features/chat-assistant/useChatAssistantHistoryActions.ts?raw";
+import scrollSource from "./composables/useConversationScrollFollow.ts?raw";
 import messageListSource from "./components/ConversationMessageList.vue?raw";
 import processingTimelineSource from "./components/ConversationProcessingTimeline.vue?raw";
 import sidebarSource from "./components/LeftSidebar.vue?raw";
@@ -7,13 +9,14 @@ import lazySource from "./components/lazyAppComponents.ts?raw";
 import composerSource from "./features/chat-assistant/ChatAssistantComposer.vue?raw";
 import homeSource from "./features/chat-assistant/ChatAssistantHome.vue?raw";
 import overlaySource from "./features/chat-assistant/ChatAssistantOverlay.vue?raw";
+import headerSource from "./features/chat-assistant/ChatAssistantHeader.vue?raw";
 import featureSource from "./features/chat-assistant/useChatAssistant.ts?raw";
 import modeSource from "./features/chat-assistant/useChatAssistantMode.ts?raw";
 import webSearchSource from "./features/chat-assistant/useChatAssistantWebSearch.ts?raw";
 
 describe("independent chat assistant feature", () => {
   it("places chat beside agent teams without replacing the workspace view", () => {
-    const modelIndex = sidebarSource.indexOf('label: "模型配置"');
+    const modelIndex = sidebarSource.indexOf('label: "自定义模型配置"');
     const chatIndex = sidebarSource.indexOf('label: "聊天"');
     const teamIndex = sidebarSource.indexOf('label: "智能体团队"');
     expect(modelIndex).toBeGreaterThan(-1);
@@ -33,11 +36,14 @@ describe("independent chat assistant feature", () => {
     );
     expect(shellSource).toContain('<Teleport to="body">');
     expect(shellSource).toContain('v-if="chatAssistant.visible.value');
-    expect(overlaySource).toContain('aria-label="最小化聊天助手"');
+    expect(headerSource).toContain('aria-label="最小化聊天助手"');
     expect(homeSource).toContain("visibleHistory");
     expect(homeSource).toContain("查看全部");
     expect(homeSource).toContain("selectConversation(item.sessionId)");
-    expect(overlaySource).toContain("controller.value!.newConversation()");
+    expect(overlaySource).toContain("useChatAssistantHistoryActions({");
+    expect(historyActionsSource).toContain(
+      "options.controller().newConversation()"
+    );
     expect(overlaySource).toContain("width: min(44vw");
     expect(overlaySource).toContain("height: min(88vh");
     expect(overlaySource).toContain('aria-label="调整聊天窗口宽度"');
@@ -86,11 +92,11 @@ describe("independent chat assistant feature", () => {
     expect(overlaySource).toContain(
       ':handle-conversation-scroll="handleConversationScroll"'
     );
-    expect(overlaySource).toContain(
-      "if (!followsConversationTail.value) return"
+    expect(scrollSource).toMatch(
+      /if \(!followsConversationTail\.value\)\s*\{\s*return;/
     );
-    expect(overlaySource).toContain("tailFollowLockedForResponse.value");
-    expect(overlaySource).toContain(
+    expect(scrollSource).toContain("tailFollowLockedForResponse.value");
+    expect(scrollSource).toContain(
       "const preservedScrollTop = element.scrollTop"
     );
     expect(overlaySource).not.toContain(
@@ -131,13 +137,13 @@ describe("independent chat assistant feature", () => {
   });
 
   it("uses one context list and immutable book association in the project dialog", () => {
-    expect(overlaySource).toContain('accessible-label="切换聊天上下文"');
+    expect(headerSource).toContain('accessible-label="切换聊天上下文"');
     expect(overlaySource).toContain("context:normal");
     expect(overlaySource).toContain("+ 添加新项目配置");
     expect(overlaySource).not.toContain('class="chat-assistant-mode-tabs"');
     expect(overlaySource).toContain("编辑项目");
     expect(overlaySource).toContain('actionIcon: "edit"');
-    expect(overlaySource).toContain('@option-action="openEditProject"');
+    expect(overlaySource).toContain('@edit-project="openEditProject"');
     expect(overlaySource).not.toContain(
       'class="chat-assistant-project-action"'
     );

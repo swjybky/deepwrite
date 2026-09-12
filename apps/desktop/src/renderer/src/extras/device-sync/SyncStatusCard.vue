@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { SyncRequest, SyncStatus } from "@deepwrite/contracts/renderer";
 import { syncPresentation } from "./presentation";
+import SyncAdoptionButtons from "./SyncAdoptionButtons.vue";
 const props = defineProps<{ status: SyncStatus; pending: boolean }>();
 const emit = defineEmits<{ request: [input: SyncRequest] }>();
 const view = computed(() => syncPresentation(props.status));
@@ -64,13 +65,18 @@ const first = computed(() =>
             view.downloads.length ? `（${view.downloads.length}）` : ""
           }}
         </button>
-        <button
-          v-if="view.both.length || view.problems.length"
-          class="sync-button secondary"
-          @click="emit('request', { operation: 'sync' })"
-        >
-          处理未完成项（双向同步）
-        </button>
+        <SyncAdoptionButtons
+          v-if="view.adoptionKeys.length"
+          all
+          :pending="pending"
+          @resolve="
+            (side) =>
+              emit('request', {
+                operation: 'sync',
+                adoption: { side, keys: view.adoptionKeys }
+              })
+          "
+        />
       </template>
       <button
         class="sync-button quiet"
@@ -79,6 +85,9 @@ const first = computed(() =>
         检查远端更新
       </button>
     </div>
+    <p v-if="view.adoptionKeys.length">
+      采用所选端的完整版本处理未完成项。替换前的本机版本可在“历史与恢复”中找回。
+    </p>
     <p v-if="!pending && status.progress.title" aria-live="polite">
       {{ status.progress.title }}
     </p>

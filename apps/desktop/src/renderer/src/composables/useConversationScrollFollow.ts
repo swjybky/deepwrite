@@ -1,12 +1,16 @@
-import { nextTick, onBeforeUnmount, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import type { LongWorkspaceProposalItem } from "./useLongWorkspaceProposals";
 import type { ChatMessage } from "../types/conversation";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { lastAssistantMessage } from "../utils/conversationMessageLookup";
 
 const TAIL_FOLLOW_THRESHOLD = 72;
 
 export function useConversationScrollFollow(options: {
   messages: () => ChatMessage[];
   responding: () => boolean;
+  currentSessionId?: () => string;
+  longProposalItems?: () => readonly LongWorkspaceProposalItem[];
   onScroll?: () => void;
 }) {
   const scroller = ref<HTMLElement>();
@@ -97,6 +101,101 @@ export function useConversationScrollFollow(options: {
       scheduleConversationTailFollow();
     });
   }
+
+  watch(
+    () => {
+      const message = options.messages().at(-1);
+      return [
+        options.messages().length,
+        options.responding(),
+        message?.id,
+        message?.content.length,
+        message?.thinking?.length,
+        message?.retry
+          ? `${message.retry.state}:${message.retry.attempt}:${message.retry.retryAt ?? ""}`
+          : "",
+        message?.toolCalls
+          ?.map(
+            (toolCall) =>
+              `${toolCall.status}:${toolCall.argumentsText?.length ?? 0}`
+          )
+          .join(","),
+        message?.subagentRuns
+          ?.map((run) =>
+            [
+              run.subagentRunId,
+              run.status,
+              run.thinking?.length ?? 0,
+              run.output?.length ?? 0,
+              run.toolCalls
+                .map((toolCall) => `${toolCall.id}:${toolCall.status}`)
+                .join(";")
+            ].join(":")
+          )
+          .join(","),
+        message?.editProposals
+          ?.map(
+            (proposal) =>
+              `${proposal.id}:${proposal.status}:${proposal.updatedAt}`
+          )
+          .join(","),
+        (options.longProposalItems?.() ?? [])
+          .map((item) => `${item.event.id}:${item.status}:${item.error ?? ""}`)
+          .join(",")
+      ].join("|");
+    },
+    async () => {
+      if (!followsConversationTail.value) {
+        return;
+      }
+      await nextTick();
+      scheduleConversationTailFollow();
+    }
+  );
+
+  onMounted(async () => {
+    await nextTick();
+    lastConversationScrollTop = scroller.value?.scrollTop ?? 0;
+    scheduleConversationTailFollow();
+  });
+
+  watch(
+    () => options.responding(),
+    (responding, wasResponding) => {
+      if (!responding || wasResponding) return;
+      tailFollowLockedForResponse.value = false;
+      followsConversationTail.value = true;
+      void nextTick(() => {
+        scheduleConversationTailFollow();
+      });
+    }
+  );
+
+  watch(
+    () => {
+      const message = lastAssistantMessage(options.messages());
+      return message ? `${message.id}:${message.status ?? "completed"}` : "";
+    },
+    async (next, previous) => {
+      if (
+        !tailFollowLockedForResponse.value ||
+        !previous.endsWith(":streaming") ||
+        next.endsWith(":streaming")
+      ) {
+        return;
+      }
+      const element = scroller.value;
+      if (!element) return;
+      const preservedScrollTop = element.scrollTop;
+      await nextTick();
+      if (!tailFollowLockedForResponse.value || !scroller.value) return;
+      scroller.value.scrollTop = preservedScrollTop;
+      lastConversationScrollTop = preservedScrollTop;
+    },
+    { flush: "pre" }
+  );
+
+  watch(() => options.currentSessionId?.(), resetScrollForSession);
 
   onBeforeUnmount(() => {
     if (scrollFrame !== undefined) globalThis.cancelAnimationFrame(scrollFrame);

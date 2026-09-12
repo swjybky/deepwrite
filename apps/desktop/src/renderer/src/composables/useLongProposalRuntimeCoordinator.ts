@@ -16,6 +16,7 @@ import {
   type LongWorkspaceProposalItem
 } from "./useLongWorkspaceProposals";
 import type { LongWorkspaceRendererApi } from "../types/longWorkspace";
+import type { ConversationDisposalOptions } from "./book-removal-runtime";
 
 export interface LongProposalRuntimeNotifications {
   error(message: string): void;
@@ -172,9 +173,12 @@ export function useLongProposalRuntimeCoordinator(
     workspaceProposals.discardBook(bookId);
   }
 
-  function disposeBookConversations(bookId: string): void {
+  function disposeBookConversations(
+    bookId: string,
+    options: ConversationDisposalOptions
+  ): void {
     for (const [key] of bookConversationEntries(bookId)) {
-      context.conversations.remove(key, { clearPersistence: true });
+      context.conversations.remove(key, options);
     }
   }
 
@@ -183,8 +187,11 @@ export function useLongProposalRuntimeCoordinator(
     context.removeAgentRunPreferences(`long:${bookId}`);
   }
 
-  function disposeBookRuntime(bookId: string): void {
-    disposeBookConversations(bookId);
+  function disposeBookRuntime(
+    bookId: string,
+    options: ConversationDisposalOptions
+  ): void {
+    disposeBookConversations(bookId, options);
     disposeBookProposalState(bookId);
   }
 

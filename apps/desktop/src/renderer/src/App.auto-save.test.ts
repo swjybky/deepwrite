@@ -4,8 +4,9 @@ import featureModulesSource from "./components/WorkspaceFeatureModules.vue?raw";
 import autoSaveSource from "./composables/useEditorAutoSaveCoordinator.ts?raw";
 import featureHostCoordinatorSource from "./composables/useWorkspaceFeatureHostCoordinator.ts?raw";
 import featureHostModuleSource from "./composables/workspaceFeatureHostModule.ts?raw";
+import settingsFeatureModuleSource from "./composables/settingsFeatureModule.ts?raw";
 
-const featureHostSource = `${featureHostCoordinatorSource}\n${featureHostModuleSource}`;
+const featureHostSource = `${featureHostCoordinatorSource}\n${featureHostModuleSource}\n${settingsFeatureModuleSource}`;
 
 describe("App editor auto-save integration", () => {
   it("debounces live changes and uses the existing serialized persistence path", () => {

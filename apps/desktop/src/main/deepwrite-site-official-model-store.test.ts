@@ -108,12 +108,11 @@ describe("DeepWrite site official model storage", () => {
       join(root, "config", "models.json"),
       "utf8"
     );
-    const secretsFile = await readFile(
-      join(root, "config", "model-secrets.json"),
-      "utf8"
-    );
     expect(settingsFile).not.toContain(plaintextKey);
-    expect(secretsFile).not.toContain(plaintextKey);
+    expect(JSON.parse(settingsFile)).toMatchObject({
+      version: 3,
+      encryptedApiKeys: expect.any(Object)
+    });
 
     const cleared = await store.save(
       clearDeepWriteSiteOfficialModelInput(saved)

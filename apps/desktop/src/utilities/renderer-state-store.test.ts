@@ -1,201 +1,152 @@
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { RendererStateSerializationError } from "./renderer-state-store";
 import {
-  RendererStateCapacityError,
-  RendererStateSerializationError,
-  RendererStateStore,
-  DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES,
-  DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES
-} from "./renderer-state-store";
+  TestRendererStateStore as RendererStateStore,
+  closeRendererStateTestStores
+} from "./renderer-state-store.test-support";
 
 const roots: string[] = [];
-
 afterEach(async () => {
+  await closeRendererStateTestStores();
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
   );
 });
-
-async function createStore(
-  options: ConstructorParameters<typeof RendererStateStore>[1] = {}
-): Promise<{ root: string; store: RendererStateStore }> {
+async function createStore() {
   const root = await mkdtemp(join(tmpdir(), "deepwrite-renderer-state-"));
   roots.push(root);
-  return { root, store: new RendererStateStore(root, options) };
+  return { root, store: new RendererStateStore(root) };
 }
 
 describe("RendererStateStore", () => {
-  it("lists persisted history keys without including preferences", async () => {
-    const { root, store } = await createStore();
-    await store.save("conversation-history:book-one", { version: 1 });
-    await store.save("conversation-preferences:options", {});
-    expect(await new RendererStateStore(root).listHistoryKeys()).toEqual([
-      "conversation-history:book-one"
-    ]);
-    await store.remove("conversation-history:book-one");
-    expect(await store.listHistoryKeys()).toEqual([]);
-  });
-
-  it("persists JSON values in the application data directory and reloads them", async () => {
+  it("persists preferences and compatible history records and reloads them from SQLite", async () => {
     const { root, store } = await createStore();
     const key = "conversation-history:book%3Aplaceholder";
     const value = {
       version: 1,
-      selectedId: "conversation-placeholder",
-      messages: [{ role: "user", content: "placeholder content" }]
+      messages: [{ role: "user", content: "虚构测试内容" }]
     };
-
     await expect(store.load(key)).resolves.toBeUndefined();
     await store.save(key, value);
-    await expect(store.load(key)).resolves.toEqual(value);
-
-    const disk = JSON.parse(await readFile(store.statePath, "utf8")) as {
-      version: number;
-      entries: Record<string, unknown>;
-    };
-    expect(store.statePath).toBe(
-      join(root, "renderer-state", "conversation-persistence.json")
+    await store.save("conversation-preferences:options", { temperature: 0.7 });
+    expect((await readFile(store.statePath)).subarray(0, 16).toString()).toBe(
+      "SQLite format 3\u0000"
     );
-    expect(disk).toEqual({ version: 1, entries: { [key]: value } });
+    expect(store.statePath).toBe(
+      join(root, "renderer-state", "conversations.sqlite")
+    );
     await expect(new RendererStateStore(root).load(key)).resolves.toEqual(
       value
     );
+    expect(await store.listHistoryKeys()).toEqual([key]);
   });
 
-  it("serializes concurrent writes and leaves a complete atomic document", async () => {
-    const { store } = await createStore();
+  it("serializes concurrent writes without replacing unrelated keys", async () => {
+    const { root, store } = await createStore();
     const key = "conversation-history:book-one";
-
-    const first = store.save(key, { revision: 1 });
-    const second = store.save("conversation-preferences:run-options:v1", {
-      revision: 2
+    await Promise.all([
+      store.save(key, { revision: 1 }),
+      store.save("conversation-preferences:run-options:v1", { revision: 2 }),
+      store.save(key, { revision: 3 })
+    ]);
+    await expect(new RendererStateStore(root).load(key)).resolves.toEqual({
+      revision: 3
     });
-    const latest = store.save(key, { revision: 3 });
-    await Promise.all([first, second, latest]);
-
-    await expect(store.load(key)).resolves.toEqual({ revision: 3 });
     await expect(
       store.load("conversation-preferences:run-options:v1")
-    ).resolves.toEqual({
-      revision: 2
-    });
-    expect(JSON.parse(await readFile(store.statePath, "utf8"))).toMatchObject({
-      version: 1,
-      entries: {
-        [key]: { revision: 3 },
-        "conversation-preferences:run-options:v1": { revision: 2 }
-      }
-    });
-    expect(
-      (await readdir(dirname(store.statePath))).filter((name) =>
-        name.includes(".tmp-")
-      )
-    ).toEqual([]);
+    ).resolves.toEqual({ revision: 2 });
   });
 
-  it("removes one key without disturbing other conversation state", async () => {
+  it("removes one key without disturbing other state", async () => {
     const { root, store } = await createStore();
-    const removedKey = "conversation-history:removed";
-    const retainedKey = "conversation-history:retained";
-    await store.save(removedKey, { value: "removed" });
-    await store.save(retainedKey, { value: "retained" });
-
-    await store.remove(removedKey);
+    await store.save("conversation-history:removed", { value: "removed" });
+    await store.save("conversation-history:retained", { value: "retained" });
+    await store.remove("conversation-history:removed");
     await store.remove("conversation-history:missing");
-
-    await expect(store.load(removedKey)).resolves.toBeUndefined();
     await expect(
-      new RendererStateStore(root).load(retainedKey)
-    ).resolves.toEqual({
-      value: "retained"
-    });
+      store.load("conversation-history:removed")
+    ).resolves.toBeUndefined();
+    await expect(
+      new RendererStateStore(root).load("conversation-history:retained")
+    ).resolves.toEqual({ value: "retained" });
   });
 
-  it("rejects invalid keys and values that JSON would silently change", async () => {
+  it("rejects invalid keys and lossy JSON values without discarding valid data", async () => {
     const { store } = await createStore();
     await expect(store.save("unscoped:key", { ok: true })).rejects.toThrow();
-    await expect(
-      store.save("conversation-history:undefined", undefined)
-    ).rejects.toBeInstanceOf(RendererStateSerializationError);
-    await expect(
-      store.save("conversation-history:non-finite", { value: Number.NaN })
-    ).rejects.toBeInstanceOf(RendererStateSerializationError);
-
+    for (const value of [
+      undefined,
+      { number: Number.NaN },
+      new Map(),
+      [undefined]
+    ]) {
+      await expect(
+        store.save("conversation-history:invalid", value)
+      ).rejects.toBeInstanceOf(RendererStateSerializationError);
+    }
     const circular: { self?: unknown } = {};
     circular.self = circular;
     await expect(
-      store.save("conversation-history:circular", circular)
+      store.save("conversation-history:invalid", circular)
     ).rejects.toBeInstanceOf(RendererStateSerializationError);
-
-    await store.save("conversation-history:omitted-undefined", {
+    await store.save("conversation-history:valid", {
       ok: true,
       proposedText: undefined
     });
-    await expect(
-      store.load("conversation-history:omitted-undefined")
-    ).resolves.toEqual({
+    await expect(store.load("conversation-history:valid")).resolves.toEqual({
       ok: true
     });
   });
 
-  it("enforces per-item and aggregate byte limits without replacing valid state", async () => {
-    const keyOne = "conversation-history:one";
-    const keyTwo = "conversation-history:two";
-    const firstValue = { content: "a".repeat(24) };
-    const secondValue = { content: "b".repeat(24) };
-    const documentWithBoth = `${JSON.stringify({
-      version: 1,
-      entries: { [keyOne]: firstValue, [keyTwo]: secondValue }
-    })}\n`;
-    const { root, store } = await createStore({
-      maxItemBytes: 64,
-      maxTotalBytes: Buffer.byteLength(documentWithBoth, "utf8") - 1
-    });
-
-    await store.save(keyOne, firstValue);
-    await expect(store.save(keyTwo, secondValue)).rejects.toBeInstanceOf(
-      RendererStateCapacityError
-    );
+  it("allows a compatibility record larger than the retired 64 MiB limit and remains writable", async () => {
+    const { root, store } = await createStore();
+    const content = "x".repeat(65 * 1024 * 1024);
+    await store.save("conversation-history:large", { content });
+    await store.save("conversation-history:new", { content: "新消息" });
+    const reloaded = (await new RendererStateStore(root).load(
+      "conversation-history:large"
+    )) as { content: string };
+    expect(reloaded.content.length).toBe(content.length);
+    expect(reloaded.content === content).toBe(true);
     await expect(
-      store.save("conversation-history:oversized", {
-        content: "x".repeat(80)
-      })
-    ).rejects.toBeInstanceOf(RendererStateCapacityError);
-
-    await expect(store.load(keyOne)).resolves.toEqual(firstValue);
-    await expect(
-      new RendererStateStore(root, {
-        maxItemBytes: 64,
-        maxTotalBytes: Buffer.byteLength(documentWithBoth, "utf8") - 1
-      }).load(keyTwo)
-    ).resolves.toBeUndefined();
+      new RendererStateStore(root).load("conversation-history:new")
+    ).resolves.toEqual({ content: "新消息" });
   });
 
-  it("preserves malformed on-disk JSON and refuses to overwrite it", async () => {
+  it("migrates the old JSON once, preserving its original bytes", async () => {
+    const { root, store } = await createStore();
+    const key = "conversation-history:legacy";
+    const original = JSON.stringify({
+      version: 1,
+      entries: { [key]: { content: "原始测试历史", extra: true } }
+    });
+    await mkdir(dirname(store.legacyStatePath), { recursive: true });
+    await writeFile(store.legacyStatePath, original);
+    await expect(store.load(key)).resolves.toEqual({
+      content: "原始测试历史",
+      extra: true
+    });
+    await store.save(key, { content: "迁移后保存" });
+    expect(await readFile(store.legacyStatePath, "utf8")).toBe(original);
+    await expect(new RendererStateStore(root).load(key)).resolves.toEqual({
+      content: "迁移后保存"
+    });
+  });
+
+  it("preserves malformed legacy JSON and refuses to overwrite it", async () => {
     const { store } = await createStore();
-    await mkdir(dirname(store.statePath), { recursive: true });
+    await mkdir(dirname(store.legacyStatePath), { recursive: true });
     const original = "{ malformed placeholder";
-    await writeFile(store.statePath, original, "utf8");
+    await writeFile(store.legacyStatePath, original);
     await expect(
       store.load("conversation-history:recovered")
-    ).rejects.toBeInstanceOf(RendererStateSerializationError);
+    ).rejects.toThrow();
     await expect(
       store.save("conversation-history:recovered", { revision: 1 })
-    ).rejects.toBeInstanceOf(RendererStateSerializationError);
-    expect(await readFile(store.statePath, "utf8")).toBe(original);
-  });
-
-  it("keeps evaluation-sized conversation envelopes under the default limits", () => {
-    expect(DEFAULT_RENDERER_STATE_MAX_ITEM_BYTES).toBe(64 * 1024 * 1024);
-    expect(DEFAULT_RENDERER_STATE_MAX_TOTAL_BYTES).toBe(256 * 1024 * 1024);
+    ).rejects.toThrow();
+    expect(await readFile(store.legacyStatePath, "utf8")).toBe(original);
   });
 });

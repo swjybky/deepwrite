@@ -1,3 +1,8 @@
+import {
+  handleConversationExportCommands,
+  disposeConversationExports
+} from "./ipc/conversation-export-commands";
+import { acquireConversationOperation } from "./ipc/conversation-operation-guard";
 import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
 import { createGracefulShutdown } from "./graceful-shutdown";
 import { guardConversationWindowClose } from "./conversation-window-close";
@@ -24,7 +29,7 @@ import {
 } from "electron";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   BookSchema,
   SaveDocumentResultSchema,
@@ -156,6 +161,7 @@ import {
 import { exportShortManuscript } from "./short-manuscript-export";
 import { exportLongManuscript } from "./long-manuscript-export";
 import { UtilityCommandTimeoutError, UtilitySupervisor } from "./supervisor";
+import { runApplicationSmoke } from "./smoke";
 import {
   catalogCommandTimeoutMessage,
   catalogCommandTimeoutMs
@@ -178,7 +184,7 @@ import { ContinuationImportPreviewRegistry } from "./continuation-import-preview
 import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
 import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
-import { resolveDeepWriteAppMode } from "./app-run-mode";
+import { configureBootstrapEnvironment } from "./bootstrap-environment";
 import { handleModelCommands } from "./ipc/model-commands";
 import { handleAppearanceCommands } from "./ipc/appearance-commands";
 import { LongBookAnalysisConfigStore } from "./extras/long-book-analysis/config-store";
@@ -623,6 +629,12 @@ function createMainWindow(): BrowserWindow {
   );
   window.on("closed", () => {
     rendererStateFlush.reset(windowWebContentsId);
+    void disposeConversationExports({
+      supervisor,
+      dialog,
+      getMainWindow: requireMainWindow,
+      senderWebContentsId: windowWebContentsId
+    });
     continuationImportPreviews.clearForWebContents(windowWebContentsId);
     legacySyncPreviews.clearForWebContents(windowWebContentsId);
     if (mainWindow === window) {
@@ -1117,45 +1129,6 @@ function workspaceGroupParent(
     workspaceDirectory,
     domain === "material" ? "material-groups" : "skill-groups"
   );
-}
-
-function configureCatalogEnvironment(): string {
-  const userDataPath = app.getPath("userData");
-  process.env.DEEPWRITE_USER_DATA_PATH = userDataPath;
-  process.env.DEEPWRITE_APP_MODE = resolveDeepWriteAppMode(
-    import.meta.env.MAIN_VITE_DEEPWRITE_APP_MODE
-  );
-
-  const currentLegacyRoot = join(
-    app.getPath("home"),
-    "Library",
-    "Application Support",
-    "DeepWrite",
-    ".data"
-  );
-  const configuredProjectRoot =
-    process.env.DEEPWRITE_LEGACY_PROJECT_DATA_ROOT?.trim();
-  const repositoryCandidates = [
-    ...(configuredProjectRoot ? [resolve(configuredProjectRoot)] : []),
-    join(app.getPath("home"), "project", "openwrite", "write-claw", ".data"),
-    resolve(process.cwd(), "../openwrite/write-claw/.data"),
-    resolve(app.getAppPath(), "../../../openwrite/write-claw/.data")
-  ];
-  const repositoryFallback =
-    repositoryCandidates.find((candidate) => existsSync(candidate)) ??
-    repositoryCandidates[0]!;
-  const legacyDataRoots = [
-    ...(existsSync(currentLegacyRoot) ? [currentLegacyRoot] : []),
-    ...(existsSync(repositoryFallback) ? [repositoryFallback] : [])
-  ].filter((root, index, roots) => roots.indexOf(root) === index);
-  if (legacyDataRoots.length > 0) {
-    process.env.DEEPWRITE_LEGACY_DATA_ROOT = legacyDataRoots[0];
-    process.env.DEEPWRITE_LEGACY_DATA_ROOTS = JSON.stringify(legacyDataRoots);
-  } else {
-    delete process.env.DEEPWRITE_LEGACY_DATA_ROOT;
-    delete process.env.DEEPWRITE_LEGACY_DATA_ROOTS;
-  }
-  return userDataPath;
 }
 
 function registerIpc(): void {
@@ -2270,10 +2243,20 @@ function registerIpc(): void {
       if (rendererFlushResult) return rendererFlushResult;
 
       const rendererStateResult = await handleRendererStateCommands(
-        { supervisor },
+        { supervisor, activeRuns },
         command
       );
       if (rendererStateResult) return rendererStateResult;
+      const conversationExportResult = await handleConversationExportCommands(
+        {
+          supervisor,
+          dialog,
+          getMainWindow: requireMainWindow,
+          senderWebContentsId: event.sender.id
+        },
+        command
+      );
+      if (conversationExportResult) return conversationExportResult;
 
       if (
         command.type === "catalog.index" ||
@@ -2904,6 +2887,20 @@ function registerIpc(): void {
       }
 
       if (command.type === "session.prompt") {
+        const release = acquireConversationOperation(
+          activeRuns,
+          command.payload.sessionId,
+          "prompt"
+        );
+        if (!release)
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "conversation_history.busy",
+              message: "此对话正在管理历史，请稍后重试。"
+            }
+          };
         try {
           const runtimeConfig = await requireModelConfigStore().resolve(
             command.payload.modelId
@@ -3131,127 +3128,14 @@ function registerIpc(): void {
               details: safeErrorDetails(error)
             }
           };
+        } finally {
+          release();
         }
       }
 
       throw new Error("Unreachable command variant after schema validation.");
     }
   );
-}
-
-async function runAgentSmoke(
-  health: ReturnType<typeof SystemHealthPayloadSchema.parse>
-): Promise<void> {
-  const sessionId = "session_electron_smoke";
-  const commandId = createId("cmd_smoke");
-  const events: SystemEventEnvelope[] = [];
-  let resolveTerminal: (() => void) | undefined;
-  const terminal = new Promise<void>((resolve) => {
-    resolveTerminal = resolve;
-  });
-
-  smokeEventTap = (event) => {
-    if (
-      isAgentEvent(event) &&
-      "sessionId" in event.payload &&
-      event.payload.sessionId === sessionId
-    ) {
-      events.push(event);
-      if (
-        event.type === "agent.message_completed" ||
-        event.type === "agent.error"
-      ) {
-        resolveTerminal?.();
-      }
-    }
-  };
-
-  try {
-    const command = CommandEnvelopeSchema.parse(
-      createEnvelope(
-        "agent.prompt",
-        {
-          sessionId,
-          message: "验证 DeepWrite Electron Faux 流式链路",
-          thinkingLevel: "medium" as const,
-          workspaceContext: {
-            activeResource: {
-              id: "chapter_smoke",
-              domain: "creation" as const,
-              title: "冒烟测试章节",
-              path: ["测试作品", "冒烟测试章节"],
-              format: "正文",
-              source: "live-editor" as const,
-              content: "这是发送瞬间的实时文稿。"
-            }
-          }
-        },
-        {
-          id: commandId,
-          context: {
-            correlationId: commandId,
-            sessionId,
-            resourceId: "chapter_smoke"
-          }
-        }
-      )
-    );
-
-    const result = await supervisor.requestCommand("agent", command);
-    if (result.status === "rejected") {
-      throw new Error(`${result.error.code}: ${result.error.message}`);
-    }
-    const accepted = SessionPromptAcceptedPayloadSchema.parse(result.payload);
-    await Promise.race([
-      terminal,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Agent smoke timed out.")), 8_000)
-      )
-    ]);
-
-    const completed = events.find(
-      (event) => event.type === "agent.message_completed"
-    );
-    const errors = events.filter((event) => event.type === "agent.error");
-    const deltas = events.filter(
-      (event) => event.type === "agent.message_delta"
-    );
-    const thinking = events.filter(
-      (event) => event.type === "agent.thinking_delta"
-    );
-    const deltaText = deltas
-      .map((event) =>
-        event.type === "agent.message_delta" ? event.payload.delta : ""
-      )
-      .join("");
-
-    if (
-      accepted.runtime.mode !== "local-faux" ||
-      !completed ||
-      errors.length > 0 ||
-      deltas.length < 2 ||
-      thinking.length < 1 ||
-      (completed.type === "agent.message_completed" &&
-        completed.payload.content !== deltaText)
-    ) {
-      throw new Error("Agent smoke event assertions failed.");
-    }
-
-    console.log(
-      `DEEPWRITE_SMOKE_OK ${JSON.stringify({
-        health,
-        agent: {
-          status: "ok",
-          runtime: accepted.runtime,
-          deltaCount: deltas.length,
-          thinkingDeltaCount: thinking.length,
-          completed: true
-        }
-      })}`
-    );
-  } finally {
-    smokeEventTap = undefined;
-  }
 }
 
 async function announceReady(window: BrowserWindow): Promise<void> {
@@ -3267,7 +3151,9 @@ async function announceReady(window: BrowserWindow): Promise<void> {
 
   if (process.env.DEEPWRITE_SMOKE === "1") {
     try {
-      await runAgentSmoke(health);
+      await runApplicationSmoke(health, supervisor, window, (tap) => {
+        smokeEventTap = tap;
+      });
     } catch (error: unknown) {
       console.error(
         `DEEPWRITE_SMOKE_FAIL ${error instanceof Error ? error.message : "unknown"}`
@@ -3291,7 +3177,10 @@ if (!hasSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
-    const userDataPath = configureCatalogEnvironment();
+    const userDataPath = configureBootstrapEnvironment(
+      app,
+      import.meta.env.MAIN_VITE_DEEPWRITE_APP_MODE
+    );
     modelConfigStore = new ModelConfigStore(userDataPath, {
       appVersion: app.getVersion()
     });

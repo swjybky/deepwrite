@@ -83,6 +83,20 @@ function setup() {
 beforeEach(() => setActivePinia(createPinia()));
 
 describe("quota merge UI behavior", () => {
+  it("shows a readable replacement-key failure and keeps the previous models", async () => {
+    const { models, notifications, store, coordinator } = setup();
+    const message = "当前新官方小站密钥额度已用完，请补充额度后重试。";
+    models.saveSiteOfficialToken.mockRejectedValueOnce(
+      new Error(`models.save_site_official_token_failed: ${message}`)
+    );
+    await coordinator.saveSiteOfficialToken("replacement_test_only_invalid");
+    expect(notifications.error).toHaveBeenCalledWith(message);
+    expect(notifications.success).not.toHaveBeenCalled();
+    expect(store.modelSettings).toEqual(settings);
+    expect(store.siteOfficialModelsSaving).toBe(false);
+    expect(models.querySiteOfficialQuota).not.toHaveBeenCalled();
+  });
+
   it("allows exhausted targets, validates empty input through a toast, and clears cancelled input", async () => {
     const { merge, models, notifications } = setup();
     expect(merge.disabledReason.value).toBe("");

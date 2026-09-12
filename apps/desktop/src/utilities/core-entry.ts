@@ -1,6 +1,7 @@
+import { handleLongCoreCommand } from "./long-core-commands";
 import { legacyDataRootsFromEnvironment } from "./legacy-data-roots";
 import { withDeviceSyncCommands } from "./device-sync-core";
-import { handleRendererStateCommand } from "./renderer-state-commands";
+import { createCoreConversationRuntime } from "./core-conversation-runtime";
 import { LibraryManagementService } from "./library-management-service";
 import { MaterialQueryService } from "./material-query-service";
 import {
@@ -29,26 +30,7 @@ import {
   MoveLibraryEntryResultSchema,
   ScriptBookSchema,
   ShortBookSchema,
-  LongApplyOperationsResultSchema,
-  LongApplyLegacySyncResultSchema,
-  LongCommitChapterResultSchema,
-  LongDeleteLedgerCommitResultSchema,
-  LongImportPortableResultSchema,
-  LongImportContinuationResultSchema,
   LongWorkspaceOperationError,
-  LongPreviewContinuationImportAtPathResultSchema,
-  LongPreviewLegacySyncAtPathResultSchema,
-  LongListBooksResultSchema,
-  LongOpenBookResultSchema,
-  LongPreviewOperationsResultSchema,
-  LongReadDocumentResultSchema,
-  LongReadAgentsMdResultSchema,
-  LongRemoveBookResultSchema,
-  LongSearchResultSchema,
-  LongWorkspaceIndexResultSchema,
-  LongWriteChapterResultSchema,
-  LongWriteDocumentResultSchema,
-  LongWriteAgentsMdResultSchema,
   UnregisterCatalogProjectResultSchema,
   WriteWritingContextResultSchema,
   type CommandEnvelope,
@@ -63,7 +45,6 @@ import {
 import { readLegacyLibraryArchive } from "./legacy-library-import";
 import { bootUtility } from "./runtime";
 import { LongWorkspaceService } from "./long-workspace-service";
-import { RendererStateStore } from "./renderer-state-store";
 
 const userDataPath = process.env.DEEPWRITE_USER_DATA_PATH?.trim();
 if (!userDataPath) {
@@ -84,7 +65,10 @@ const draftRecoveryStore = new FolderCatalogStore({
 const longWorkspaceService = new LongWorkspaceService({
   userDataPath: resolvedUserDataPath
 });
-const rendererStateStore = new RendererStateStore(resolvedUserDataPath);
+const conversationRuntime = createCoreConversationRuntime(
+  resolvedUserDataPath,
+  import.meta.url
+);
 
 async function requireCatalogStore(): Promise<FolderCatalogStore> {
   if (!catalogStoreInitialization) {
@@ -116,260 +100,11 @@ async function handleCatalogCommand(
   command: CommandEnvelope
 ): Promise<CommandResult> {
   try {
-    const rendererStateResult = await handleRendererStateCommand(
-      rendererStateStore,
+    const longResult = await handleLongCoreCommand(
+      longWorkspaceService,
       command
     );
-    if (rendererStateResult) return rendererStateResult;
-    if (command.type === "long.list") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongListBooksResultSchema.parse(
-          await longWorkspaceService.list()
-        )
-      };
-    }
-    if (command.type === "long.createBookAtPath") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.create(
-            command.payload.parentDirectory,
-            command.payload.input
-          )
-        )
-      };
-    }
-    if (command.type === "long.duplicateBook") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.duplicateBook(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.previewLegacySyncAtPath") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongPreviewLegacySyncAtPathResultSchema.parse(
-          await longWorkspaceService.previewLegacySync(
-            command.payload.sourcePath
-          )
-        )
-      };
-    }
-    if (command.type === "long.applyLegacySyncAtPath") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongApplyLegacySyncResultSchema.parse(
-          await longWorkspaceService.applyLegacySync(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.previewContinuationImportAtPath") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongPreviewContinuationImportAtPathResultSchema.parse(
-          await longWorkspaceService.previewContinuationImport(
-            command.payload.sourcePath
-          )
-        )
-      };
-    }
-    if (command.type === "long.importContinuationAtPath") {
-      const imported = await longWorkspaceService.importContinuationBook(
-        command.payload
-      );
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongImportContinuationResultSchema.parse({
-          book: imported.book,
-          summary: imported.summary,
-          importedVolumeCount: imported.importedVolumeCount,
-          importedChapterCount: imported.importedChapterCount,
-          checkpointCount: imported.checkpointCount,
-          pendingChapterCardId: imported.pendingChapterCardId,
-          warnings: imported.warnings
-        })
-      };
-    }
-    if (command.type === "long.importPortableAtPath") {
-      const imported = await longWorkspaceService.importPortableBundle(
-        command.payload.parentDirectory,
-        command.payload.sourcePath
-      );
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongImportPortableResultSchema.parse({
-          book: imported.book,
-          summary: imported.summary,
-          exportedAt: imported.exportedAt
-        })
-      };
-    }
-    if (command.type === "long.openAtPath") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.openAtPath(
-            command.payload.projectDirectory
-          )
-        )
-      };
-    }
-    if (command.type === "long.open") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.open(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.rename") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.renameBook(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.updateBindings") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongOpenBookResultSchema.parse(
-          await longWorkspaceService.updateBindings(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.getWorkspaceIndex") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongWorkspaceIndexResultSchema.parse(
-          await longWorkspaceService.getWorkspaceIndex(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.readDocument") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongReadDocumentResultSchema.parse(
-          await longWorkspaceService.readDocument(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.readAgentsMd") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongReadAgentsMdResultSchema.parse(
-          await longWorkspaceService.readAgentsMd(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.search") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongSearchResultSchema.parse(
-          await longWorkspaceService.search(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.writeDocument") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongWriteDocumentResultSchema.parse(
-          await longWorkspaceService.writeDocument(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.writeAgentsMd") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongWriteAgentsMdResultSchema.parse(
-          await longWorkspaceService.writeAgentsMd(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.previewOperations") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongPreviewOperationsResultSchema.parse(
-          await longWorkspaceService.previewOperations(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.applyOperations") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongApplyOperationsResultSchema.parse(
-          await longWorkspaceService.applyOperations(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.writeChapter") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongWriteChapterResultSchema.parse(
-          await longWorkspaceService.writeChapter(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.commitChapter") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongCommitChapterResultSchema.parse(
-          await longWorkspaceService.commitChapter(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.deleteLedgerCommit") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongDeleteLedgerCommitResultSchema.parse(
-          await longWorkspaceService.deleteLedgerCommit(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.unregister") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongRemoveBookResultSchema.parse(
-          await longWorkspaceService.unregister(command.payload)
-        )
-      };
-    }
-    if (command.type === "long.delete") {
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: LongRemoveBookResultSchema.parse(
-          await longWorkspaceService.delete(command.payload)
-        )
-      };
-    }
+    if (longResult) return longResult;
     if (command.type === "catalog.loadDraftRecovery") {
       return {
         status: "accepted",
@@ -758,20 +493,6 @@ async function handleCatalogCommand(
       }
     };
   } catch (error: unknown) {
-    if (command.type.startsWith("rendererState.")) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "renderer_state.command_failed",
-          message:
-            error instanceof Error ? error.message : "会话历史持久化操作失败。",
-          details: {
-            kind: error instanceof Error ? error.name : "unknown"
-          }
-        }
-      };
-    }
     if (error instanceof LongWorkspaceOperationError) {
       return {
         status: "rejected",
@@ -816,10 +537,13 @@ async function handleCatalogCommand(
 
 bootUtility("core", {
   mode: "catalog-store",
-  commandHandler: withDeviceSyncCommands(
-    resolvedUserDataPath,
-    requireCatalogStore,
-    longWorkspaceService,
-    handleCatalogCommand
+  onShutdown: conversationRuntime.close,
+  commandHandler: conversationRuntime.wrap(
+    withDeviceSyncCommands(
+      resolvedUserDataPath,
+      requireCatalogStore,
+      longWorkspaceService,
+      handleCatalogCommand
+    )
   )
 });

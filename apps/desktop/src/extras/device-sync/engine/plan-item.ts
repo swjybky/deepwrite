@@ -12,6 +12,7 @@ import {
 } from "@deepwrite/contracts";
 
 export interface SyncCandidate {
+  deviceId: string;
   revision: SyncRevision;
   item: SyncItem | null;
   deviceName: string;

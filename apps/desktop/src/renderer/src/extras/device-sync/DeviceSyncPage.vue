@@ -108,7 +108,14 @@ async function restore() {
         </button>
       </nav>
       <template v-if="tab === 'overview'">
-        <SyncChangesPanel :status="status" />
+        <SyncChangesPanel
+          :status="status"
+          :pending="pending"
+          @resolve="
+            (key, side) =>
+              run({ operation: 'sync', adoption: { side, keys: [key] } })
+          "
+        />
         <SyncConflictCard
           v-for="issue in status.issues.filter(
             (entry) => entry.reason !== 'first-sync'
@@ -117,10 +124,10 @@ async function restore() {
           :issue="issue"
           :pending="pending"
           @resolve="
-            (item) =>
+            (side) =>
               run({
                 operation: 'sync',
-                resolutions: [{ token: issue.token, item }]
+                adoption: { side, keys: [issue.key] }
               })
           "
         />

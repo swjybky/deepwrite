@@ -82,6 +82,10 @@ export async function migrateBookConversationHistory(
     logicalKey,
     (await api.listHistoryKeys?.()) ?? []
   );
+  if (api.history?.mergeScopes) {
+    await api.history.mergeScopes({ key, sources });
+    return;
+  }
   const values: unknown[] = [];
   const migratedKeys: string[] = [];
   for (const source of sources) {

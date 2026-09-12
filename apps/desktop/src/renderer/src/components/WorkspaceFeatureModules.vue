@@ -243,7 +243,7 @@ const emit = defineEmits<{
     class="workspace-settings-main-view"
     :left-collapsed="leftCollapsed"
     expand-button-class="workspace-settings-expand-sidebar"
-    label="模型配置"
+    label="自定义模型配置"
     @expand-left="emit('expandLeft')"
   >
     <ModelSettingsFeature

@@ -33,6 +33,8 @@ export type * from "./long-ledger";
 export type * from "./long-manuscript-export";
 export type * from "./long-workspace";
 export type * from "./long-workspace-api";
+export type * from "./long-workspace-commands";
+export type * from "./long-project-recovery";
 export type * from "./long-worldbuilding-markdown";
 export type * from "./long-workspace-operations";
 export type * from "./marketplace";
@@ -357,3 +359,13 @@ export {
   syncJoinCodeSchema
 } from "./device-sync/connection-schemas";
 export { syncVersionPreview, resolveSyncVersion } from "./device-sync/preview";
+
+export type * from "./conversation-history";
+export {
+  CONVERSATION_HISTORY_PAGE_BYTES,
+  CONVERSATION_HISTORY_BATCH_BYTES,
+  CONVERSATION_HISTORY_TEXT_CHUNK_SIZE
+} from "./conversation-history-limits";
+export { conversationHistoryJsonBytes } from "./conversation-history-json-size";
+
+export type * from "./conversation-export";

@@ -1,5 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
+import { WRITING_CONTENT_COUNT_DESCRIPTION } from "../writing-content-counts";
+import { longCreatedContentTargets } from "./content-counts";
 import { defineTool } from "./shared";
 import {
   contentParameter,
@@ -86,7 +88,8 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
     name: "create",
     label: "新建对象",
     description:
-      "一次新建一个对象：kind 决定类型，meta 只放必要的标题与关系字段，content 是该对象的正文，创建时即可直接写入。创建 worldbuilding_item 时，meta.category_id 与 meta.title 都必须提供；即使 content 已含同名 Markdown 标题，也不能省略 meta.title。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；故事情节用 kind=story_plot，只写该剧情点下的场景链。排序与 id 由系统生成，不要自己指定。世界观分类与人物类型这类容器不能新建，请提示用户在界面上操作。连续性文件同样在 create 时携带正文：continuity_world_reveals 的 content 即世界观揭露；continuity_character 必须提供 meta.character_id 与 meta.document=current_state|history，content 写入该文档。",
+      "一次新建一个对象：kind 决定类型，meta 只放必要的标题与关系字段，content 是该对象的正文，创建时即可直接写入。创建 worldbuilding_item 时，meta.category_id 与 meta.title 都必须提供；即使 content 已含同名 Markdown 标题，也不能省略 meta.title。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；故事情节用 kind=story_plot，只写该剧情点下的场景链。排序与 id 由系统生成，不要自己指定。世界观分类与人物类型这类容器不能新建，请提示用户在界面上操作。连续性文件同样在 create 时携带正文：continuity_world_reveals 的 content 即世界观揭露；continuity_character 必须提供 meta.character_id 与 meta.document=current_state|history，content 写入该文档。" +
+      WRITING_CONTENT_COUNT_DESCRIPTION,
     parameters: strictObject({
       kind: StringEnum(LONG_CREATE_KINDS),
       meta: createMetaParameter,
@@ -141,6 +144,7 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
         timestamp,
         summary,
         message: `已形成${verb}${result.label}（${result.createdId}）的提案，等待客户端审阅。`,
+        contentTargets: longCreatedContentTargets(result, kind, content),
         index
       });
     }

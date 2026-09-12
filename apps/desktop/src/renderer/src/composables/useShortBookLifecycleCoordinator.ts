@@ -16,6 +16,7 @@ import type {
 } from "../types/workspace";
 import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import { executeShortManuscriptExport } from "./short-manuscript-export-transaction";
+import { disposeShortBookRemovalRuntime } from "./book-removal-runtime";
 
 type MaybePromise<Value> = Value | Promise<Value>;
 type PendingLane = "catalog" | "manuscript-export";
@@ -379,27 +380,6 @@ export function useShortBookLifecycleCoordinator(
     ) {
       state.activeCreationResourceId.value = fallback;
     }
-  }
-
-  async function disposeRemovedBookRuntime(
-    target: ShortBookLifecycleTarget,
-    scopedResourceIds: ReadonlySet<string>
-  ): Promise<unknown> {
-    let cleanupError: unknown;
-    try {
-      await conversations.disposeBook(target.bookId, {
-        clearPersistence: true
-      });
-    } catch (error: unknown) {
-      cleanupError = error;
-    }
-    try {
-      await conversations.removeRunPreferences(`book:${target.bookId}`);
-    } catch (error: unknown) {
-      cleanupError ??= error;
-    }
-    clearRemovedBookEditorState(scopedResourceIds);
-    return cleanupError;
   }
 
   function requireVersionedCatalogTarget(
@@ -822,10 +802,12 @@ export function useShortBookLifecycleCoordinator(
         }
 
         durablyRemovedBookIds.add(bookId);
-        const cleanupError = await disposeRemovedBookRuntime(
-          target,
-          scopedResourceIds
-        );
+        const cleanupError = await disposeShortBookRemovalRuntime({
+          bookId: target.bookId,
+          action,
+          conversations,
+          clearEditorState: () => clearRemovedBookEditorState(scopedResourceIds)
+        });
         if (!leaseIsOwned(lease)) return;
         const refreshed = legacyTarget
           ? true

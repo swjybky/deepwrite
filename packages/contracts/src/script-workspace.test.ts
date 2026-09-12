@@ -129,7 +129,7 @@ describe("script workspace contracts", () => {
     expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain(
       "成对的开始/结束标记"
     );
-    expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain("write");
+    expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain("edit");
     expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain("edit");
     expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain("Markdown 表格");
     expect(SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS).toContain("分析标题");
@@ -140,7 +140,7 @@ describe("script workspace contracts", () => {
 
     const profile = DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES[0]!;
     expect(profile.id).toBe("script");
-    for (const toolName of ["read", "create", "edit", "write"]) {
+    for (const toolName of ["read", "create", "edit"]) {
       expect(profile.systemPrompt).toContain(toolName);
     }
     expect(profile.systemPrompt).toContain(

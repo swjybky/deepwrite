@@ -1,3 +1,4 @@
+import { handleConversationExportCommands } from "./conversation-export-commands";
 import {
   SystemHealthPayloadSchema,
   type CommandEnvelope,
@@ -43,6 +44,7 @@ export async function dispatchCommand(
     (await handleLongCommands(ctx, command)) ??
     (await handleCatalogCommands(ctx, command)) ??
     (await handleRendererStateCommands(ctx, command)) ??
+    (await handleConversationExportCommands(ctx, command)) ??
     (await handleModelCommands(ctx, command)) ??
     (await handleSessionCommands(ctx, command));
   if (result) {

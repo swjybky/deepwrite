@@ -1,4 +1,12 @@
-import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
+import {
+  getCurrentInstance,
+  provide,
+  ref,
+  shallowRef,
+  type Ref,
+  type ShallowRef
+} from "vue";
+import { SHORT_MANUSCRIPT_PREVIEW_KEY } from "./shortManuscriptPreviewContext";
 import type {
   BookResourceDialogMode,
   ResourceTreeNode
@@ -148,6 +156,21 @@ export function useLazyShortBookLifecycleCoordinator(
     ...options,
     state
   };
+
+  if (getCurrentInstance()) {
+    provide(SHORT_MANUSCRIPT_PREVIEW_KEY, {
+      book: () => {
+        const target = exportBookTarget.value;
+        return target && !target.unavailable
+          ? options.catalog.book(target.bookId)
+          : undefined;
+      },
+      documents: state.documents,
+      drafts: state.drafts,
+      ensureDocumentsLoaded: options.manuscript.ensureDocumentsLoaded,
+      reportError: (message) => options.notifications.error(message)
+    });
+  }
 
   let coordinator: ShortBookLifecycleCoordinator | null = null;
   let coordinatorPromise: Promise<ShortBookLifecycleCoordinator | null> | null =

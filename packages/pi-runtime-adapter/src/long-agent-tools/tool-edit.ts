@@ -1,6 +1,12 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import type { LongWorkspaceOperation } from "@deepwrite/contracts";
+import {
+  WRITING_EDIT_CONTENT_DESCRIPTION,
+  WRITING_EDIT_CONTENT_GUIDANCE,
+  WRITING_EDIT_OVERWRITE_DESCRIPTION,
+  WRITING_EDIT_OVERWRITE_RECOVERY
+} from "../writing-edit-guidance";
 import { defineTool, textResult } from "./shared";
 import {
   chapterContextIdParameter,
@@ -20,6 +26,11 @@ import {
   longMetaPatch
 } from "./entity-records";
 import { formLongProposal } from "./proposals";
+import {
+  WRITING_CONTENT_COUNT_DESCRIPTION,
+  type WritingContentTarget
+} from "../writing-content-counts";
+import { longRecordContentTarget } from "./content-counts";
 import { resolveLongTarget, type LongResolvedTarget } from "./target";
 import { longStructureUpdateOperation } from "./structure-operations";
 import type { LongToolContext } from "./context";
@@ -95,12 +106,20 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
     name: "edit",
     label: "修改对象",
     description:
-      "修改一个已有对象：目标正文为空时可直接给 content 整篇写入；覆盖已有非空正文必须先 read 完整读取并设置 allow_overwrite_existing=true；局部修改用 replacements 替换完整读取后的唯一原文片段。人物 current_state/history 必须传 chapter_id 才能修改指定章文件，不传时是只读的最新账本映射。meta 用于改标题或关系字段；人物 meta 支持 name、aliases、type_id，type_id 将人物移到已有类型末尾，仅修改人物 meta 时可省略 document。文档对象的 meta 修改要单独调用。",
+      "修改一个已有对象。" +
+      WRITING_EDIT_CONTENT_GUIDANCE +
+      "人物 current_state/history 必须传 chapter_id 才能修改指定章文件，不传时是只读的最新账本映射。meta 用于改标题或关系字段；人物 meta 支持 name、aliases、type_id，type_id 将人物移到已有类型末尾，仅修改人物 meta 时可省略 document。文档对象的 meta 修改要单独调用。" +
+      WRITING_CONTENT_COUNT_DESCRIPTION,
     parameters: strictObject({
       id: entityIdParameter,
       document: Type.Optional(documentParameter),
       chapter_id: Type.Optional(chapterContextIdParameter),
-      content: Type.Optional(contentParameter),
+      content: Type.Optional(
+        Type.Unsafe<string>({
+          ...contentParameter,
+          description: WRITING_EDIT_CONTENT_DESCRIPTION
+        })
+      ),
       replacements: Type.Optional(
         Type.Array(
           strictObject({
@@ -111,7 +130,12 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         )
       ),
       meta: Type.Optional(editMetaParameter),
-      allow_overwrite_existing: Type.Optional(explicitTrueParameter),
+      allow_overwrite_existing: Type.Optional(
+        Type.Unsafe<true>({
+          ...explicitTrueParameter,
+          description: WRITING_EDIT_OVERWRITE_DESCRIPTION
+        })
+      ),
       summary: summaryParameter
     }),
     executionMode: "sequential",
@@ -161,6 +185,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
       const timestamp = new Date().toISOString();
 
       if (target.addressing === "field") {
+        const contentTargets: WritingContentTarget[] = [];
         const patch: Record<string, unknown> = params.meta
           ? longMetaPatch(target.kind, params.meta)
           : {};
@@ -174,9 +199,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
               params.content !== undefined &&
               !params.allow_overwrite_existing
             ) {
-              return textResult(
-                "未修改：目标已有正文，整篇覆盖需设置 allow_overwrite_existing=true。"
-              );
+              return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
             }
           }
           const next = params.replacements
@@ -188,6 +211,14 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             longEntityContentPatch(target.record, next.content)
           );
           fullyReadRecords.set(target.id, next.content);
+          contentTargets.push(
+            longRecordContentTarget(
+              target.kind,
+              target.id,
+              target.title,
+              next.content
+            )
+          );
         }
         const operation = {
           type: longEntityUpdateOperationType(target.record.kind),
@@ -201,6 +232,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
           timestamp,
           summary,
           message: `已形成《${target.title}》修改提案，等待客户端审阅。`,
+          contentTargets,
           index
         });
       }
@@ -245,9 +277,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
       const evidence = fullyReadDocuments.get(live.file.id);
       if (live.content.trim()) {
         if (params.content !== undefined && !params.allow_overwrite_existing) {
-          return textResult(
-            "未写入：目标已有正文，整篇覆盖需设置 allow_overwrite_existing=true。"
-          );
+          return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
         }
         if (!evidence || evidence.content !== live.content) {
           return textResult(`未修改：请先用 read 完整读取 ${target.title}。`);

@@ -9,6 +9,8 @@ const forbiddenImports = [
   /^node:/,
   /^(fs|path|os|child_process|worker_threads|net|tls|http|https)$/,
   /^better-sqlite3$/,
+  /^sqlite3(?:\/|$)/,
+  /conversation-storage(?:\/|$)/,
   /pi-agent-core/,
   /pi-ai/,
   /pi-runtime-adapter/

@@ -4,14 +4,16 @@ import editorSource from "./ConversationUserMessageEditor.vue?raw";
 import longWorkspaceSource from "./LongWorkspaceModule.vue?raw";
 import messageItemSource from "./ConversationMessageItem.vue?raw";
 import messageListSource from "./ConversationMessageList.vue?raw";
+import editingSource from "../composables/useConversationMessageEditing.ts?raw";
 import writingWorkspaceSource from "./WritingWorkspaceModule.vue?raw";
 import chatAssistantSource from "../features/chat-assistant/ChatAssistantOverlay.vue?raw";
 
 describe("conversation history rewrite presentation", () => {
   it("opens one inline editor from double-click or the edit action", () => {
-    expect(messageListSource).toContain(
+    expect(editingSource).toContain(
       "const editingMessageId = ref<string | null>(null)"
     );
+    expect(messageListSource).toContain("useConversationMessageEditing");
     expect(messageListSource).toContain(
       ':editing="editingMessageId === message.id"'
     );
@@ -37,15 +39,14 @@ describe("conversation history rewrite presentation", () => {
   });
 
   it("only enables pure completed user messages and exits on run or replacement", () => {
-    expect(messageListSource).toContain('message.role === "user"');
-    expect(messageListSource).toContain('message.status !== "streaming"');
-    expect(messageListSource).toContain("!message.attachments?.length");
+    expect(editingSource).toContain('message.role === "user"');
+    expect(editingSource).toContain('message.status !== "streaming"');
+    expect(editingSource).toContain("!message.attachments?.length");
     expect(messageListSource).toContain("props.responding");
-    expect(messageListSource).toContain(
-      'props.messages.map(messageFingerprint).join("\\u0001")'
-    );
+    expect(messageListSource).not.toContain("messages.map(messageFingerprint)");
+    expect(editingSource).toContain("message.content !== original.content");
     expect(messageListSource).toContain("props.conversationSessionId");
-    expect(messageListSource).toContain("clearEditingMessage()");
+    expect(editingSource).toContain("clearEditingMessage()");
   });
 
   it("uses themed responsive styling matching the workspace conversation", () => {

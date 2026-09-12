@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "electron-vite";
 import { dependencies } from "./package.json";
+import { keepDevServerUntilElectronExits } from "./scripts/dev-server-lifecycle";
 
 const workspaceRoot = resolve(__dirname, "../..");
 const appRoot = resolve(__dirname);
@@ -49,6 +50,10 @@ export default defineConfig({
         external: ["electron", ...Object.keys(dependencies)],
         input: {
           index: resolve(appRoot, "src/main/index.ts"),
+          "utilities/conversation-storage/worker-entry": resolve(
+            appRoot,
+            "src/utilities/conversation-storage/worker-entry.ts"
+          ),
           "utilities/core-entry": resolve(
             appRoot,
             "src/utilities/core-entry.ts"
@@ -78,6 +83,7 @@ export default defineConfig({
   renderer: {
     root: resolve(appRoot, "src/renderer"),
     plugins: [
+      keepDevServerUntilElectronExits(),
       vue({
         template: {
           compilerOptions: {
@@ -95,10 +101,10 @@ export default defineConfig({
       rollupOptions: {
         input: resolve(appRoot, "src/renderer/index.html"),
         treeshake: {
-          // Sync contracts only construct schemas and pure helpers. Re-exporting
-          // them must not eagerly evaluate the unopened sync feature.
-          moduleSideEffects: (id) =>
-            !id.includes("/packages/contracts/src/device-sync/")
+          // Contracts declare schemas, constants and pure helpers; they do not
+          // register handlers. Keep unused schema modules out of the Renderer
+          // when their types/helpers are re-exported through its public entry.
+          moduleSideEffects: (id) => !id.includes("/packages/contracts/src/")
         },
         output: {
           codeSplitting: {

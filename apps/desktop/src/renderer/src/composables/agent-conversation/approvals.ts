@@ -1,14 +1,29 @@
+import type { AgentConversationContext } from "./context";
+import { cloneEditProposal } from "./clone";
 import type {
   AgentApprovalMode,
   AgentEditProposal,
   ChatMessage
 } from "../../types/conversation";
-import { cloneEditProposal } from "./clone";
-import type { AgentConversationContext } from "./context";
 import { id } from "./shared";
 
+type ApprovalsContext = Pick<
+  AgentConversationContext,
+  | "sessionId"
+  | "finishedRunIds"
+  | "activeRunId"
+  | "pendingAttemptId"
+  | "observedRunByAttempt"
+  | "approvalModeByRun"
+  | "approvalModeByAttempt"
+  | "rememberRunApprovalMode"
+  | "runMessageIds"
+  | "messages"
+  | "messageForEditProposal"
+  | "ensureEditProposalMessage"
+>;
 export function acceptsRunEvent(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   eventSessionId: string,
   runId: string
 ): boolean {
@@ -26,23 +41,21 @@ export function acceptsRunEvent(
   );
   return observedRunId === undefined || observedRunId === runId;
 }
-
 export function rememberRunApprovalMode(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   mode: AgentApprovalMode
 ): void {
   ctx.approvalModeByRun.set(runId, mode);
-  while (ctx.approvalModeByRun.size > 2_000) {
+  while (ctx.approvalModeByRun.size > 2000) {
     const oldest = ctx.approvalModeByRun.keys().next().value as
       string | undefined;
     if (!oldest) break;
     ctx.approvalModeByRun.delete(oldest);
   }
 }
-
 export function approvalModeForRun(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   eventSessionId: string,
   runId: string
 ): AgentApprovalMode | undefined {
@@ -54,12 +67,11 @@ export function approvalModeForRun(
   const observedRunId = ctx.observedRunByAttempt.get(attemptId);
   if (observedRunId && observedRunId !== runId) return undefined;
   const pendingMode = ctx.approvalModeByAttempt.get(attemptId);
-  if (pendingMode) rememberRunApprovalMode(ctx, runId, pendingMode);
+  if (pendingMode) ctx.rememberRunApprovalMode(runId, pendingMode);
   return pendingMode;
 }
-
 export function markToolConflict(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   toolCallId: string,
   summary: string
@@ -95,9 +107,8 @@ export function markToolConflict(
     subagentToolCall.isError = true;
   }
 }
-
 export function messageForEditProposal(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string
 ): ChatMessage | undefined {
   const mappedMessageId = ctx.runMessageIds.get(runId);
@@ -116,15 +127,13 @@ export function messageForEditProposal(
     )
   );
 }
-
 export function ensureEditProposalMessage(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   createdAt: string
 ): ChatMessage {
-  const existing = messageForEditProposal(ctx, runId);
+  const existing = ctx.messageForEditProposal(runId);
   if (existing) return existing;
-
   const preferredId = `${runId}_assistant`;
   const message: ChatMessage = {
     id: ctx.messages.value.some((candidate) => candidate.id === preferredId)
@@ -142,34 +151,31 @@ export function ensureEditProposalMessage(
   ctx.runMessageIds.set(runId, message.id);
   return ctx.messages.value.find((candidate) => candidate.id === message.id)!;
 }
-
 export function getEditProposal(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   proposalId: string
 ): AgentEditProposal | undefined {
-  const proposal = messageForEditProposal(ctx, runId)?.editProposals?.find(
-    (candidate) => candidate.id === proposalId
-  );
+  const proposal = ctx
+    .messageForEditProposal(runId)
+    ?.editProposals?.find((candidate) => candidate.id === proposalId);
   return proposal ? cloneEditProposal(proposal) : undefined;
 }
-
 export function listEditProposals(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string
 ): AgentEditProposal[] {
-  return (messageForEditProposal(ctx, runId)?.editProposals ?? []).map(
+  return (ctx.messageForEditProposal(runId)?.editProposals ?? []).map(
     cloneEditProposal
   );
 }
-
 export function upsertEditProposal(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   proposal: AgentEditProposal
 ): AgentEditProposal {
   const normalized = cloneEditProposal({ ...proposal, runId });
-  const message = ensureEditProposalMessage(ctx, runId, normalized.createdAt);
+  const message = ctx.ensureEditProposalMessage(runId, normalized.createdAt);
   const proposals = message.editProposals ?? [];
   const existingIndex = proposals.findIndex(
     (candidate) => candidate.id === normalized.id
@@ -182,20 +188,18 @@ export function upsertEditProposal(
   }
   return cloneEditProposal(normalized);
 }
-
 export function updateEditProposal(
-  ctx: AgentConversationContext,
+  ctx: ApprovalsContext,
   runId: string,
   proposalId: string,
   patch: Partial<AgentEditProposal>
 ): AgentEditProposal | undefined {
-  const message = messageForEditProposal(ctx, runId);
+  const message = ctx.messageForEditProposal(runId);
   const proposalIndex =
     message?.editProposals?.findIndex(
       (candidate) => candidate.id === proposalId
     ) ?? -1;
   if (!message?.editProposals || proposalIndex < 0) return undefined;
-
   const existing = message.editProposals[proposalIndex]!;
   const next = cloneEditProposal({
     ...existing,

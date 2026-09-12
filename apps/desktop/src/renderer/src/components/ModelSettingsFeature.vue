@@ -77,7 +77,7 @@ const {
     <header v-if="!embedded">
       <div>
         <span class="dialog-eyebrow">DeepWrite</span>
-        <h2>模型配置</h2>
+        <h2>自定义模型配置</h2>
       </div>
     </header>
 

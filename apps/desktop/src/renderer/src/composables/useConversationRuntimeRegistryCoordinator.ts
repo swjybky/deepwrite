@@ -1,3 +1,4 @@
+import { createConversationRegistryHistory } from "./conversationRegistryHistory";
 import { canonicalBookConversationKey } from "../utils/bookConversationKey";
 import type { ConversationRuntimeRegistryCoordinatorOptions } from "./conversationRuntimeRegistryTypes";
 export type {
@@ -5,22 +6,8 @@ export type {
   ConversationRuntimeRegistryStorePort,
   ConversationControllerPersistenceHooks
 } from "./conversationRuntimeRegistryTypes";
-import type {
-  GeneralPermissionMode,
-  ModelSettings
-} from "@deepwrite/contracts";
-
-import type {
-  AgentConversationController,
-  AgentRunSettings
-} from "./useAgentConversation";
-
-import { RUN_PREFERENCES_PERSISTENCE_KEY } from "../stores/conversationStore";
-import type {
-  AgentModelSelection,
-  AgentRunPreferences,
-  AgentRunPreferencesByScope
-} from "../utils/agentRunPreferences";
+import type { AgentConversationController } from "./useAgentConversation";
+import { createConversationRegistryPreferences } from "./conversationRegistryPreferences";
 import { conversationHistoryPersistenceKey } from "../utils/conversationPersistence";
 
 /**
@@ -34,11 +21,27 @@ export function useConversationRuntimeRegistryCoordinator(
   const inFlightHydrates = new Set<Promise<unknown>>();
   const failedHydrates = new Set<AgentConversationController>();
   const hydratingControllers = new WeakSet<AgentConversationController>();
+  const histories = new WeakMap<
+    AgentConversationController,
+    ReturnType<typeof createConversationRegistryHistory>
+  >();
   const persistenceEnabled = options.persistenceAdapter !== null;
   let disposed = false;
   let lifecycleGeneration = 0;
   let persistenceWarningShown = false;
   let disposePromise: Promise<void> | null = null;
+  const {
+    captureAgentRunSettings,
+    captureAgentRunPreferences,
+    applyAgentRunPreferences,
+    applySessionAgentModelSelection,
+    synchronizeSessionAgentModelSelection,
+    persistAgentRunPreferences,
+    removeAgentRunPreferences,
+    synchronizeAgentRunPreferences,
+    applyDefaultApprovalMode,
+    applyModelSettingsToConversations
+  } = createConversationRegistryPreferences(options, () => disposed);
 
   function warnPersistenceOnce(message: string): void {
     if (disposed || persistenceWarningShown) return;
@@ -65,89 +68,6 @@ export function useConversationRuntimeRegistryCoordinator(
     );
     inFlightHydrates.add(tracked);
     return tracked;
-  }
-
-  function captureAgentRunSettings(
-    conversation: AgentConversationController
-  ): AgentRunSettings {
-    return {
-      selectedModelId: conversation.selectedModelId.value,
-      thinkingLevel: conversation.thinkingLevel.value,
-      temperature: conversation.temperature.value,
-      approvalMode: conversation.approvalMode.value,
-      agentTeamMode: conversation.agentTeamMode.value,
-      webSearchEnabled: conversation.webSearchEnabled.value
-    };
-  }
-
-  function captureAgentRunPreferences(
-    conversation: AgentConversationController
-  ): AgentRunPreferences {
-    return {
-      temperature: conversation.temperature.value,
-      approvalMode: conversation.approvalMode.value,
-      agentTeamMode: conversation.agentTeamMode.value
-    };
-  }
-
-  function applyAgentRunPreferences(
-    conversation: AgentConversationController,
-    preferences: AgentRunPreferences
-  ): void {
-    conversation.applyRunSettings({
-      ...captureAgentRunSettings(conversation),
-      ...preferences
-    });
-  }
-
-  function applySessionAgentModelSelection(
-    selection: AgentModelSelection,
-    source?: AgentConversationController
-  ): void {
-    if (disposed) return;
-    options.store.setSessionAgentModelSelection(selection, {
-      ...(source ? { source } : {}),
-      persist: false
-    });
-  }
-
-  function synchronizeSessionAgentModelSelection(
-    source: AgentConversationController
-  ): void {
-    if (disposed) return;
-    options.store.setSessionAgentModelSelection(
-      {
-        selectedModelId: source.selectedModelId.value,
-        thinkingLevel: source.thinkingLevel.value,
-        webSearchEnabled: source.webSearchEnabled.value
-      },
-      { source }
-    );
-  }
-
-  function persistAgentRunPreferences(
-    scope: string,
-    preferences: AgentRunPreferences
-  ): void {
-    if (disposed) return;
-    options.store.setAgentRunPreferences(scope, preferences);
-  }
-
-  function removeAgentRunPreferences(scope: string): void {
-    if (disposed) return;
-    options.store.removeAgentRunPreferences(scope);
-  }
-
-  function synchronizeAgentRunPreferences(
-    scope: string,
-    source: AgentConversationController
-  ): void {
-    if (disposed) return;
-    options.store.setAgentRunPreferences(
-      scope,
-      captureAgentRunPreferences(source),
-      { source }
-    );
   }
 
   function controllerIsCurrent(
@@ -198,13 +118,24 @@ export function useConversationRuntimeRegistryCoordinator(
         warnPersistenceOnce("历史对话迁移暂未完成，原始记录已保留");
       }
       if (!controllerIsCurrent(key, conversation, generation)) return;
-      const snapshot = await options.store.loadPersistence(persistenceKey, {
-        force: retry
-      });
-      if (!controllerIsCurrent(key, conversation, generation)) return;
-      if (snapshot !== undefined) {
-        await conversation.restorePersistenceSnapshot(snapshot);
+      const history = histories.get(conversation);
+      if (history && !failed) {
+        const snapshot = await history.initialHistory(
+          conversation.sessionId.value
+        );
         if (!controllerIsCurrent(key, conversation, generation)) return;
+        await conversation.restorePersistenceHistory(snapshot);
+      } else {
+        const snapshot = await options.store.loadPersistence(persistenceKey, {
+          force: retry
+        });
+        if (!controllerIsCurrent(key, conversation, generation)) return;
+        if (snapshot !== undefined) {
+          const restored =
+            await conversation.restorePersistenceSnapshot(snapshot);
+          if (restored && options.persistenceAdapter?.history)
+            conversation.initializePersistenceBaseline();
+        }
       }
     } catch {
       failed = true;
@@ -250,16 +181,39 @@ export function useConversationRuntimeRegistryCoordinator(
     }
 
     const persistenceKey = conversationHistoryPersistenceKey(key);
-    const created = options.createController({
-      onPersistenceChange: () => {
-        if (!controllerIsCurrent(key, created)) return;
+    function scheduleConversation(): void {
+      if (!controllerIsCurrent(key, created)) return;
+      if (options.store.scheduleControllerPersistence)
+        options.store.scheduleControllerPersistence(persistenceKey, created);
+      else
         options.store.schedulePersistenceFactory(
           persistenceKey,
           created.capturePersistenceSnapshot
         );
-      },
+    }
+    const history = options.persistenceAdapter?.history
+      ? createConversationRegistryHistory(
+          options.persistenceAdapter.history,
+          persistenceKey
+        )
+      : undefined;
+    const created = options.createController({
+      ...history?.hooks,
+      onPersistenceChange: scheduleConversation,
+      ...(persistenceEnabled && options.store.flushPersistence
+        ? {
+            flushPersistence: async (flushOptions) => {
+              scheduleConversation();
+              await options.store.flushPersistence!(
+                persistenceKey,
+                flushOptions
+              );
+            }
+          }
+        : {}),
       onPersistenceRemove: () => options.store.removePersistence(persistenceKey)
     });
+    if (history) histories.set(created, history);
     options.store.registerController(key, scope, created, {
       applyPreferences: false
     });
@@ -277,79 +231,6 @@ export function useConversationRuntimeRegistryCoordinator(
 
   function allConversations(): AgentConversationController[] {
     return options.store.listControllers();
-  }
-
-  function applyDefaultApprovalMode(
-    permissionMode: GeneralPermissionMode
-  ): void {
-    if (disposed) return;
-    const nextPreferences: AgentRunPreferencesByScope = Object.fromEntries(
-      Object.entries(options.store.agentRunPreferences.value).map(
-        ([scope, preference]) => [
-          scope,
-          { ...preference, approvalMode: permissionMode }
-        ]
-      )
-    );
-    for (const [key, conversation] of options.store.controllerEntries()) {
-      conversation.selectApprovalMode(permissionMode);
-      const scope = options.store.scopeForKey(key) ?? "general";
-      nextPreferences[scope] = {
-        ...captureAgentRunPreferences(conversation),
-        approvalMode: permissionMode
-      };
-    }
-    for (const [scope, preferences] of Object.entries(nextPreferences)) {
-      options.store.setAgentRunPreferences(scope, preferences, {
-        persist: false
-      });
-    }
-    options.store.schedulePersistence(RUN_PREFERENCES_PERSISTENCE_KEY, {
-      ...nextPreferences
-    });
-  }
-
-  function applyModelSettingsToConversations(settings: ModelSettings): void {
-    if (disposed) return;
-    const entries = [...options.store.controllerEntries()];
-    const conversations = entries.map(([, conversation]) => conversation);
-    for (const conversation of conversations) {
-      conversation.applyModelSettings(settings);
-    }
-
-    const defaultModel =
-      settings.models.find(({ id }) => id === settings.defaultModelId) ??
-      settings.models[0];
-    const selection =
-      options.store.sessionAgentModelSelection.value ??
-      (defaultModel
-        ? {
-            selectedModelId: defaultModel.id,
-            thinkingLevel: defaultModel.defaultThinkingLevel
-          }
-        : undefined);
-    if (selection) {
-      applySessionAgentModelSelection(selection);
-      const representative = conversations[0];
-      if (representative) {
-        options.store.setSessionAgentModelSelection(
-          {
-            selectedModelId: representative.selectedModelId.value,
-            thinkingLevel: representative.thinkingLevel.value,
-            webSearchEnabled: representative.webSearchEnabled.value
-          },
-          { persist: false }
-        );
-      }
-    }
-    for (const [key, conversation] of entries) {
-      const scope = options.store.scopeForKey(key) ?? "general";
-      const preferences = options.store.agentRunPreferences.value[scope];
-      if (preferences) {
-        applyAgentRunPreferences(conversation, preferences);
-      }
-    }
-    applyDefaultApprovalMode(options.permissionMode());
   }
 
   function hydrateConversationPreferences(): Promise<void> {

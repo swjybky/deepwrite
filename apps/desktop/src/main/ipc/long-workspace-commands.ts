@@ -1,5 +1,6 @@
 import {
   LongApplyOperationsResultSchema,
+  LongResolveConflictsResultSchema,
   LongCommitChapterResultSchema,
   LongDeleteLedgerCommitResultSchema,
   LongListBooksResultSchema,
@@ -25,6 +26,7 @@ export async function handleLongWorkspaceCommands(
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
   if (
+    command.type === "long.resolveConflicts" ||
     command.type === "long.list" ||
     command.type === "long.open" ||
     command.type === "long.duplicateBook" ||
@@ -53,6 +55,9 @@ export async function handleLongWorkspaceCommands(
       if (result.status === "rejected") return result;
       let payload: unknown;
       switch (command.type) {
+        case "long.resolveConflicts":
+          payload = LongResolveConflictsResultSchema.parse(result.payload);
+          break;
         case "long.list":
           payload = LongListBooksResultSchema.parse(result.payload);
           break;

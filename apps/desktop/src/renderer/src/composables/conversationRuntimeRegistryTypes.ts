@@ -3,7 +3,10 @@ import type {
   ModelSettings
 } from "@deepwrite/contracts";
 import type { Ref } from "vue";
-import type { AgentConversationController } from "./useAgentConversation";
+import type {
+  AgentConversationController,
+  UseAgentConversationOptions
+} from "./useAgentConversation";
 import type {
   ConversationPersistenceAdapter,
   ConversationPersistenceOptions
@@ -18,7 +21,11 @@ interface ConversationRuntimeRegistryNotifications {
   warning(message: string): void;
 }
 
-export interface ConversationControllerPersistenceHooks {
+export interface ConversationControllerPersistenceHooks extends Pick<
+  UseAgentConversationOptions,
+  "loadHistoryRecord" | "historyManagement"
+> {
+  flushPersistence?(options?: { allowDeferred?: boolean }): Promise<void>;
   onPersistenceChange(): void | Promise<void>;
   onPersistenceRemove(): void | Promise<void>;
 }
@@ -60,6 +67,14 @@ export interface ConversationRuntimeRegistryStorePort {
     scope: string,
     options?: { persist?: boolean }
   ): boolean;
+  scheduleControllerPersistence?(
+    key: string,
+    controller: AgentConversationController
+  ): void;
+  flushPersistence?(
+    key?: string,
+    options?: { allowDeferred?: boolean }
+  ): Promise<void>;
   schedulePersistence<Value>(key: string, value: Value): void;
   schedulePersistenceFactory(key: string, valueFactory: () => unknown): void;
   loadPersistence<Value>(

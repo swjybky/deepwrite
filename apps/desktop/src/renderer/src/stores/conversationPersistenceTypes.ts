@@ -1,4 +1,6 @@
+import type { ConversationHistoryApi } from "@deepwrite/contracts/renderer";
 export interface ConversationPersistenceAdapter {
+  history?: ConversationHistoryApi;
   onBeforeClose?(handler: () => Promise<void>): () => void;
   prepareHistory?(logicalKey: string): Promise<void>;
   load(key: string): Promise<unknown | undefined>;

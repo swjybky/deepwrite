@@ -1,6 +1,13 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { isProvisionalExpertDraftSectionId } from "@deepwrite/contracts";
 import { Type } from "typebox";
+import {
+  WRITING_EDIT_CONTENT_DESCRIPTION,
+  WRITING_EDIT_CONTENT_GUIDANCE,
+  WRITING_EDIT_OVERWRITE_DESCRIPTION,
+  WRITING_EDIT_OVERWRITE_RECOVERY
+} from "../writing-edit-guidance";
+import { WRITING_CONTENT_COUNT_DESCRIPTION } from "../writing-content-counts";
 import { defineTool } from "./schema";
 import {
   draftUnitLabel,
@@ -31,6 +38,7 @@ import {
 import {
   assertWritableTarget,
   resolveShortUnifiedTarget,
+  resolveWritingMutationKind,
   type ShortUnifiedTarget
 } from "./unified-target";
 import {
@@ -219,14 +227,20 @@ export function buildShortUnifiedEditTool(
     name: "edit",
     label: `修改${input.workspaceType === "script" ? "剧本" : "短篇"}对象`,
     description:
-      `修改一个已有对象。目标正文为空时可直接给 content 整篇写入；覆盖已有非空正文必须先 read 完整读取并设置 allow_overwrite_existing=true；局部修改用 replacements 替换完整读取后的唯一原文片段。kind=draft_section 修改正文或人物状态时必须同时给出 document=body 或 character_state；只改小节标题的 meta 可不传 document。meta 用于人物改名/移动、剧情结构标题与说明修改、正文小节改名。content、replacements、meta 只能选择一种。${crossStageMutationPolicyText(input)}` +
-      scriptBodyToolConstraint(input),
+      `修改一个已有对象。提供稳定小节 id 和 document 时可省略 kind，按 draft_section 定位。${WRITING_EDIT_CONTENT_GUIDANCE}kind=draft_section 修改正文或人物状态时必须同时给出 document=body 或 character_state；只改小节标题的 meta 可不传 document。meta 用于人物改名/移动、剧情结构标题与说明修改、正文小节改名。content、replacements、meta 只能选择一种。${crossStageMutationPolicyText(input)}` +
+      scriptBodyToolConstraint(input) +
+      WRITING_CONTENT_COUNT_DESCRIPTION,
     parameters: Type.Object(
       {
-        kind: writingKindParameter,
+        kind: Type.Optional(writingKindParameter),
         id: stableWritingIdParameter,
         document: Type.Optional(writingDocumentParameter),
-        content: Type.Optional(writingContentParameter),
+        content: Type.Optional(
+          Type.Unsafe<string>({
+            ...writingContentParameter,
+            description: WRITING_EDIT_CONTENT_DESCRIPTION
+          })
+        ),
         replacements: Type.Optional(
           Type.Array(
             Type.Object(
@@ -243,20 +257,26 @@ export function buildShortUnifiedEditTool(
           )
         ),
         meta: Type.Optional(writingEditMetaParameter),
-        allow_overwrite_existing: Type.Optional(explicitTrueParameter),
+        allow_overwrite_existing: Type.Optional(
+          Type.Unsafe<true>({
+            ...explicitTrueParameter,
+            description: WRITING_EDIT_OVERWRITE_DESCRIPTION
+          })
+        ),
         summary: writingSummaryParameter
       },
       { additionalProperties: false }
     ),
     executionMode: "sequential",
     execute: async (toolCallId, params, signal) => {
-      if (params.kind === "draft_section" && !params.document && !params.meta) {
+      const kind = resolveWritingMutationKind(params.kind, params.document);
+      if (kind === "draft_section" && !params.document && !params.meta) {
         throw new Error(
           "修改 draft_section 正文时必须指定 document=body 或 character_state。"
         );
       }
       const target = resolveShortUnifiedTarget(input, state, {
-        kind: params.kind,
+        kind,
         id: String(params.id),
         ...(params.document ? { document: params.document } : {})
       });
@@ -315,12 +335,7 @@ export function buildShortUnifiedEditTool(
       }
       if (params.content !== undefined) {
         if (target.content.trim() && params.allow_overwrite_existing !== true) {
-          return textResult(
-            "未修改：目标已有正文，整篇覆盖需设置 allow_overwrite_existing=true。"
-          );
-        }
-        if (!String(params.content).trim()) {
-          return textResult("未修改：content 不能为空。");
+          return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
         }
         return formShortContentProposal(
           input,

@@ -19,6 +19,11 @@ export type SyncPhase =
   | "cancelled"
   | "failed";
 export type SyncDirection = "both" | "upload" | "download";
+export type SyncAdoptionSide = "local" | "remote";
+export interface SyncAdoption {
+  side: SyncAdoptionSide;
+  keys: string[];
+}
 export interface SyncProgress {
   phase: SyncPhase;
   completed: number;
@@ -122,7 +127,8 @@ export interface SyncApi {
   sync(
     resolutions?: SyncResolution[],
     confirmFirst?: boolean,
-    direction?: SyncDirection
+    direction?: SyncDirection,
+    adoption?: SyncAdoption
   ): Promise<SyncStatus>;
   cancel(): void;
   restore(historyId: string): Promise<SyncStatus>;

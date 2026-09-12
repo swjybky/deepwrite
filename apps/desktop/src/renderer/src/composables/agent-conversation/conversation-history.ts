@@ -6,8 +6,22 @@ import type {
 import type { AgentConversationPersistenceRecord } from "./types";
 
 export function compactConversationText(value: string, limit: number): string {
-  const compact = value.replace(/\s+/g, " ").trim();
-  return compact.length > limit ? `${compact.slice(0, limit - 1)}…` : compact;
+  // History previews need only a prefix. Do not normalize a multi-MiB reply
+  // again on every streamed tail update just to display its first 76 characters.
+  let compact = "";
+  let space = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]!;
+    if (/\s/.test(character)) {
+      space = compact.length > 0;
+      continue;
+    }
+    if (space) compact += " ";
+    space = false;
+    compact += character;
+    if (compact.length > limit) return `${compact.slice(0, limit - 1)}…`;
+  }
+  return compact;
 }
 
 function summarizeMessages(messages: readonly ChatMessage[]) {
@@ -55,6 +69,7 @@ export function createConversationHistory(options: {
   createdAt: Readonly<Ref<string>>;
   updatedAt: Readonly<Ref<string>>;
   storedConversations: Readonly<Ref<AgentConversationPersistenceRecord[]>>;
+  remoteHistoryItems?: Readonly<Ref<ConversationHistoryItem[]>>;
 }) {
   // Draft and timestamp changes must not scan messages or clone proposal state.
   // Only message fields used by the visible summary invalidate this cache.
@@ -73,8 +88,18 @@ export function createConversationHistory(options: {
 
   return computed<ConversationHistoryItem[]>(() => {
     const summary = activeSummary.value;
-    const history = [...storedHistory.value];
-    if (summary.messageCount > 0 || options.draft.value.trim().length > 0) {
+    const byId = new Map(
+      (options.remoteHistoryItems?.value ?? []).map((item) => [
+        item.sessionId,
+        { ...item, current: item.sessionId === options.sessionId.value }
+      ])
+    );
+    for (const item of storedHistory.value) byId.set(item.sessionId, item);
+    const history = [...byId.values()].filter(
+      (item) =>
+        item.sessionId !== options.sessionId.value && item.messageCount > 0
+    );
+    if (summary.messageCount > 0) {
       history.push({
         ...summary,
         sessionId: options.sessionId.value,

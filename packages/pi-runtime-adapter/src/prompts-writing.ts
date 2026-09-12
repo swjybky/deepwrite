@@ -6,7 +6,7 @@ import type { AgentRunInput } from "./runtime-types";
 export function scriptRuntimeFormatRequirements(): string {
   return [
     SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS.trim(),
-    "调用 write（document=body）或 edit（document=body）时，必须只提交符合上述格式的剧本正文；不得混入 Markdown 表格、分析标题或格式讲解。"
+    "调用 edit（document=body）时，必须只提交符合上述格式的剧本正文；不得混入 Markdown 表格、分析标题或格式讲解。"
   ].join("\n");
 }
 
@@ -17,7 +17,7 @@ function renderCharacterCreationRule(
 ): string {
   return (workspace.characterStructure?.format ?? "text") === "list"
     ? "当前人物结构是条目样式：创建人物时用 create（kind=character）为每个人物创建独立条目；delete（kind=character）会删除指定人物条目及其文件；概览只做索引，完整人设写入对应人物卡。"
-    : "当前人物结构是文本样式：创建人物时不要用 create，把所有人物写进同一份 character_overview（id=character_design），用 write 或 edit 写入；delete（kind=character_overview）只会清空人物总稿，不会删除人物结构。";
+    : "当前人物结构是文本样式：创建人物时不要用 create，把所有人物写进同一份 character_overview（id=character_design），用 edit 写入；delete（kind=character_overview）只会清空人物总稿，不会删除人物结构。";
 }
 
 function renderCreativePlotStructure(
@@ -72,7 +72,7 @@ function renderWritingStageContext(
             "当前为条目样式：用 create（kind=character）为每个人物创建独立条目；用 delete（kind=character）删除指定人物条目及其文件；概览（kind=character_overview、id=character_design）只做索引，完整人设写入对应人物卡。"
           ]
         : [
-            "当前为文本样式：所有人物写在同一份总稿（kind=character_overview、id=character_design）。创建人物就是把全部人设写入这份文本，用 write 或 edit；delete 只会清空总稿内容并保留人物结构；不要 create character，也不要拆成多份人物卡。"
+            "当前为文本样式：所有人物写在同一份总稿（kind=character_overview、id=character_design）。创建人物就是把全部人设写入这份文本，用 edit；delete 只会清空总稿内容并保留人物结构；不要 create character，也不要拆成多份人物卡。"
           ]),
       "可按用户要求读写其它阶段；跨人物、剧情、正文阶段的新建、修改或删除会按设置逐笔确认。"
     ].join("\n");
@@ -142,8 +142,8 @@ function writingRuntimeSystemRequirements(
       : "工具只形成待用户审阅的文本变更提案；用户接受并保存前不得声称已写入本地文件。";
   const crossStageBoundary =
     input.autoApproveCrossStageOperations === true
-      ? "create、edit、write、delete 可以跨人物、剧情、正文阶段；跨阶段操作已由用户在常规设置中授权自动允许，不会逐笔询问。该授权只跳过跨阶段确认，变更提案仍按当前写入审批方式处理。阶段切换和剧情结构删除仍由用户在界面完成。"
-      : "create、edit、write、delete 可以跨人物、剧情、正文阶段；每笔跨阶段变更都会单独请求用户确认，不得把一次允许扩展到后续操作。阶段切换和剧情结构删除仍由用户在界面完成。";
+      ? "create、edit、delete 可以跨人物、剧情、正文阶段；跨阶段操作已由用户在常规设置中授权自动允许，不会逐笔询问。该授权只跳过跨阶段确认，变更提案仍按当前写入审批方式处理。阶段切换和剧情结构删除仍由用户在界面完成。"
+      : "create、edit、delete 可以跨人物、剧情、正文阶段；每笔跨阶段变更都会单独请求用户确认，不得把一次允许扩展到后续操作。阶段切换和剧情结构删除仍由用户在界面完成。";
   return [
     "【当前剧情结构配置（顺序即执行顺序）】",
     renderCreativePlotStructure(workspace),
@@ -155,7 +155,7 @@ function writingRuntimeSystemRequirements(
     ),
     "",
     "【DeepWrite 当前工具边界】",
-    `${workspaceKind}工作区只使用 read、create、edit、write、delete；素材使用 query_linked_material_entries，技能使用 load_skill，团队委派使用 spawn_subagent${
+    `${workspaceKind}工作区只使用 read、create、edit、delete；素材使用 query_linked_material_entries，技能使用 load_skill，团队委派使用 spawn_subagent${
       input.webSearchEnabled === true
         ? "；实时公开信息使用 DeepSeek 服务端 web_search"
         : ""

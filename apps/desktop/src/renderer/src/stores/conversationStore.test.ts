@@ -354,4 +354,37 @@ describe("conversation store", () => {
       store.schedulePersistence("history:one", { revision: 5 })
     ).toThrow("会话持久化调度器已经关闭");
   });
+
+  it("keeps controllers and recovery data available when disposal cannot save", async () => {
+    const store = useConversationStore();
+    const active = controller("recoverable");
+    store.registerController("recoverable", "scope", active);
+    let unavailable = true;
+    const saved: unknown[] = [];
+    store.configurePersistenceAdapter(
+      {
+        load: async () => undefined,
+        save: async (_key, value) => {
+          if (unavailable) throw new Error("模拟磁盘不可写");
+          saved.push(value);
+        }
+      },
+      { debounceMs: 10_000 }
+    );
+    store.schedulePersistence("history:recoverable", {
+      draft: "尚未确认的内容"
+    });
+
+    await expect(store.dispose()).rejects.toThrow("模拟磁盘不可写");
+    expect(store.controllerForKey("recoverable")).toBe(active);
+    expect(active.dispose).not.toHaveBeenCalled();
+    expect(store.persistenceErrors.get("history:recoverable")).toContain(
+      "模拟磁盘不可写"
+    );
+
+    unavailable = false;
+    await store.dispose();
+    expect(saved).toEqual([{ draft: "尚未确认的内容" }]);
+    expect(active.dispose).toHaveBeenCalledOnce();
+  });
 });

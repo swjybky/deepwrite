@@ -3,6 +3,7 @@ import { expectSourceToContain } from "../../../test-utils/sourceText";
 // @ts-expect-error Loaded as source text by the Vitest-only virtual module.
 import styles from "virtual:deepwrite-renderer-styles";
 import source from "./TreeNodeItem.vue?raw";
+import longMenuSource from "./LongBookActionMenu.vue?raw";
 
 describe("TreeNodeItem actions", () => {
   it("uses the shared neutral badge style for every workspace type", () => {
@@ -207,6 +208,7 @@ describe("TreeNodeItem actions", () => {
       'node: node as LongBookResourceNodeActionPayload["node"]'
     );
     for (const action of [
+      "resolve-conflicts",
       "sync-legacy",
       "manage-structure",
       "rename",
@@ -216,7 +218,7 @@ describe("TreeNodeItem actions", () => {
       "unregister",
       "delete"
     ]) {
-      expect(source).toContain(`activateLongBookAction('${action}')`);
+      expect(longMenuSource).toContain(`activateLongBookAction('${action}')`);
     }
     const longActionFunction = source.slice(
       source.indexOf("function activateLongBookAction"),
@@ -227,17 +229,14 @@ describe("TreeNodeItem actions", () => {
 
   it("offers direct project duplication for books, libraries and groups", () => {
     expect(source).toContain("openBookAction('duplicate')");
-    expect(source).toContain("activateLongBookAction('duplicate')");
+    expect(longMenuSource).toContain("activateLongBookAction('duplicate')");
     expect(source).toContain("activateResourceNodeAction('duplicate-library')");
     expect(source).toContain("activateResourceNodeAction('duplicate-group')");
     expect(source).toContain('v-if="!node.unavailable"');
   });
 
   it("keeps reversible catalog actions neutral and marks disk deletion dangerous", () => {
-    const longMenu = source.slice(
-      source.indexOf('<template v-else-if="hasLongBookAction">'),
-      source.indexOf('<template v-else-if="hasBookAction">')
-    );
+    const longMenu = longMenuSource;
     expect(longMenu).toContain("<span>结构管理</span>");
     expect(longMenu).toContain("<span>同步旧版本</span>");
     expect(longMenu.indexOf("<span>同步旧版本</span>")).toBeGreaterThan(

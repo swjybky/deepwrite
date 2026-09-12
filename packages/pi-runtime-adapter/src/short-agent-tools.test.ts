@@ -15,7 +15,7 @@ import {
 } from "./short-agent-tools.test-support";
 
 describe("unified short workspace tools", () => {
-  it("exposes five workspace tools plus on-demand resources", () => {
+  it("exposes four workspace tools plus on-demand resources", () => {
     const tools = buildShortWorkspaceTools({
       workspace: shortWorkspace(),
       profile: shortProfile()
@@ -42,9 +42,7 @@ describe("unified short workspace tools", () => {
     expect(toolByName(tools, "read").description).toContain(
       "kind=draft_section 必须同时给出 document=body 或 character_state"
     );
-    expect(toolByName(tools, "write").description).toContain(
-      "kind=draft_section 必须同时给出 document=body 或 character_state"
-    );
+    expect(names).not.toContain("write");
     expect(toolByName(tools, "edit").description).toContain(
       "kind=draft_section 修改正文或人物状态时必须同时给出 document=body 或 character_state"
     );
@@ -229,16 +227,6 @@ describe("unified short workspace tools", () => {
       "读取 draft_section 必须指定 document=body 或 character_state。"
     );
     await expect(
-      toolByName(tools, "write").execute("write-draft-missing-document", {
-        kind: "draft_section",
-        id: "section-1",
-        content: "新正文",
-        summary: "写入正文"
-      })
-    ).rejects.toThrow(
-      "写入 draft_section 必须指定 document=body 或 character_state。"
-    );
-    await expect(
       toolByName(tools, "edit").execute("edit-draft-missing-document", {
         kind: "draft_section",
         id: "section-1",
@@ -258,7 +246,7 @@ describe("unified short workspace tools", () => {
     expect(resultText(manuscript)).toContain("乙尾");
     expect(resultText(manuscript)).toContain("超过 50000 字");
 
-    const proposal = await toolByName(tools, "write").execute("write-allowed", {
+    const proposal = await toolByName(tools, "edit").execute("write-allowed", {
       kind: "plot_stage",
       id: "plot_design",
       content: "新剧情",
@@ -285,10 +273,10 @@ describe("unified short workspace tools", () => {
       kind: "plot_stage",
       id: "plot_design"
     });
-    const write = toolByName(tools, "write");
+    const edit = toolByName(tools, "edit");
     expect(
       resultText(
-        await write.execute("overwrite-without-flag", {
+        await edit.execute("overwrite-without-flag", {
           kind: "plot_stage",
           id: "plot_design",
           content: "整篇新稿",
@@ -297,7 +285,6 @@ describe("unified short workspace tools", () => {
       )
     ).toContain("allow_overwrite_existing=true");
 
-    const edit = toolByName(tools, "edit");
     expect(
       resultText(
         await edit.execute("duplicate", {
@@ -389,7 +376,7 @@ describe("unified short workspace tools", () => {
       kind: "plot_stage",
       id: "plot_design"
     });
-    await toolByName(child, "write").execute("child-write", {
+    await toolByName(child, "edit").execute("child-write", {
       kind: "plot_stage",
       id: "plot_design",
       content: "子智能体的新剧情。",
@@ -426,7 +413,7 @@ describe("unified short workspace tools", () => {
     });
     expect(
       resultText(
-        await toolByName(isolatedParent, "write").execute("parent-blocked", {
+        await toolByName(isolatedParent, "edit").execute("parent-blocked", {
           kind: "plot_stage",
           id: "plot_design",
           content: "父智能体覆盖。",

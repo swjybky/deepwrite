@@ -4,6 +4,7 @@ import appSource from "../WorkspaceShell.vue?raw";
 import featureModulesSource from "./WorkspaceFeatureModules.vue?raw";
 import featureHostCoordinatorSource from "../composables/useWorkspaceFeatureHostCoordinator.ts?raw";
 import featureHostModuleSource from "../composables/workspaceFeatureHostModule.ts?raw";
+import settingsFeatureModuleSource from "../composables/settingsFeatureModule.ts?raw";
 import generalPanelSource from "./GeneralSettingsPanel.vue?raw";
 import fontSource from "./AppearanceFontSettings.vue?raw";
 import appearancePanelSource from "./AppearanceSettingsPanel.vue?raw";
@@ -13,7 +14,7 @@ import workspaceAgentFormSource from "./WorkspaceAgentProfileForm.vue?raw";
 import source from "./SettingsPage.vue?raw";
 
 const generalSettingsSource = `${source}\n${generalPanelSource}`;
-const featureHostSource = `${featureHostCoordinatorSource}\n${featureHostModuleSource}`;
+const featureHostSource = `${featureHostCoordinatorSource}\n${featureHostModuleSource}\n${settingsFeatureModuleSource}`;
 
 describe("SettingsPage", () => {
   it("can open directly on a requested settings category", () => {

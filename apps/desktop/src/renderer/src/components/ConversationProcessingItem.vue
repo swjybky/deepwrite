@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AgentToolTrace } from "../types/conversation";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import type { ProcessingDisplayItem } from "./conversationToolPresentation";
 import {
@@ -15,11 +16,12 @@ import {
 } from "./conversationToolPresentation";
 import { writeToolText } from "../utils/agentWriteToolPreview";
 import AppIcon from "./AppIcon.vue";
+import ConversationDetails from "./ConversationDetails.vue";
 import AgentEditProposalCard from "./AgentEditProposalCard.vue";
 import LongProposalReview from "./LongProposalReview.vue";
 import StreamedContent from "./StreamedContent.vue";
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     item: ProcessingDisplayItem;
     streaming: boolean;
@@ -49,20 +51,23 @@ const emit = defineEmits<{
   locateLongProposal: [eventId: string];
 }>();
 
-function writeToolFallback(): string {
-  return props.streaming ? "正在等待写入内容……" : "没有写入内容";
+function writeToolFallback(tool: AgentToolTrace): string {
+  return tool.status === "preparing" || tool.status === "running"
+    ? "正在等待写入内容……"
+    : "没有写入内容";
 }
 </script>
 
 <template>
-  <details
+  <ConversationDetails
     v-if="item.type === 'thinking'"
+    :detail-id="item.id"
     class="processing-live-item processing-live-thinking"
   >
-    <summary>
+    <template #summary>
       <span>{{ streaming ? "思考中" : "思考过程" }}</span>
       <AppIcon name="chevron" :size="13" />
-    </summary>
+    </template>
     <div class="processing-live-body processing-thinking">
       <StreamedContent
         :content="item.content"
@@ -70,7 +75,7 @@ function writeToolFallback(): string {
         :streaming="streaming"
       />
     </div>
-  </details>
+  </ConversationDetails>
 
   <div
     v-else-if="item.type === 'response'"
@@ -83,11 +88,12 @@ function writeToolFallback(): string {
     />
   </div>
 
-  <details
+  <ConversationDetails
     v-else-if="item.type === 'tool'"
+    :detail-id="item.id"
     class="processing-live-item processing-live-tool"
   >
-    <summary>
+    <template #summary>
       <div
         class="tool-trace"
         :class="[
@@ -110,7 +116,7 @@ function writeToolFallback(): string {
         </div>
       </div>
       <AppIcon v-if="!isWriteTool(item.tool)" name="chevron" :size="13" />
-    </summary>
+    </template>
     <div class="processing-live-body tool-detail">
       <div v-if="isWriteTool(item.tool)" class="write-tool-detail">
         <div class="write-tool-output-heading">
@@ -130,7 +136,7 @@ function writeToolFallback(): string {
           :class="{
             'is-streaming': streaming && item.tool.status === 'preparing'
           }"
-          >{{ writeToolText(item.tool) || writeToolFallback() }}</pre>
+          >{{ writeToolText(item.tool) || writeToolFallback(item.tool) }}</pre>
       </div>
       <div v-else-if="formatToolPayload(visibleToolArguments(item.tool))">
         <span>调用参数</span>
@@ -141,7 +147,7 @@ function writeToolFallback(): string {
         <p>{{ item.tool.resultSummary }}</p>
       </div>
     </div>
-  </details>
+  </ConversationDetails>
 
   <AgentEditProposalCard
     v-else-if="item.type === 'edit-proposal'"
@@ -168,22 +174,24 @@ function writeToolFallback(): string {
     @locate="emit('locateLongProposal', $event)"
   />
 
-  <details
+  <ConversationDetails
     v-else
+    :detail-id="item.id"
     class="processing-live-item processing-live-thinking processing-tool-group"
     :aria-busy="toolGroupIsRunning(item.tools)"
   >
-    <summary>
+    <template #summary>
       <span>{{ toolGroupLabel(item.tools) }}</span>
       <AppIcon name="chevron" :size="13" />
-    </summary>
+    </template>
     <div class="processing-live-body tool-call-list" aria-label="工具调用列表">
-      <details
+      <ConversationDetails
         v-for="tool in item.tools"
         :key="tool.id"
+        :detail-id="tool.id"
         class="processing-live-item processing-live-tool tool-call-list-item"
       >
-        <summary>
+        <template #summary>
           <div class="tool-trace" :class="`is-${tool.status}`">
             <AppIcon :name="toolIcon(tool)" :size="17" />
             <div>
@@ -192,7 +200,7 @@ function writeToolFallback(): string {
             </div>
           </div>
           <AppIcon name="chevron" :size="13" />
-        </summary>
+        </template>
         <div class="processing-live-body tool-detail">
           <div v-if="formatToolPayload(visibleToolArguments(tool))">
             <span>调用参数</span>
@@ -203,7 +211,7 @@ function writeToolFallback(): string {
             <p>{{ tool.resultSummary }}</p>
           </div>
         </div>
-      </details>
+      </ConversationDetails>
     </div>
-  </details>
+  </ConversationDetails>
 </template>

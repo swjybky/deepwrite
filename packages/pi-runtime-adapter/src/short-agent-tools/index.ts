@@ -27,7 +27,6 @@ import {
   buildShortUnifiedReadTool,
   createShortUnifiedReadState
 } from "./unified-read-tool";
-import { buildShortUnifiedWriteTool } from "./unified-write-tool";
 
 export { SHORT_WORKSPACE_TOOL_MANIFEST } from "./manifest";
 export { sanitizeToolSchemaForGemini } from "./schema";
@@ -133,7 +132,6 @@ function buildUnifiedWritingWorkspaceTools(
     buildShortUnifiedReadTool(toolInput, sharedState, readState),
     buildShortUnifiedCreateTool(toolInput, sharedState),
     buildShortUnifiedEditTool(toolInput, sharedState, readState),
-    buildShortUnifiedWriteTool(toolInput, sharedState, readState),
     buildShortUnifiedDeleteTool(toolInput, sharedState, readState),
     buildQueryLinkedMaterialEntriesTool(toolInput),
     buildLoadSkillTool(toolInput),

@@ -29,6 +29,32 @@ describe("device sync preload boundary", () => {
     );
   });
 
+  it.each(["remote", "local"] as const)(
+    "passes a selected %s version through the validated IPC envelope",
+    async (side) => {
+      invoke.mockResolvedValue({ ok: true, value: { kind: "cancelled" } });
+      const input = {
+        operation: "sync" as const,
+        adoption: { side, keys: ["book:example"] }
+      };
+      await deviceSync.request(input);
+      expect(invoke).toHaveBeenCalledWith(
+        DEVICE_SYNC_IPC_CHANNEL,
+        expect.objectContaining({ payload: input })
+      );
+    }
+  );
+
+  it("rejects an empty adoption scope before sending IPC", async () => {
+    await expect(
+      deviceSync.request({
+        operation: "sync",
+        adoption: { side: "remote", keys: [] }
+      })
+    ).rejects.toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it.each([
     "无法解析网盘服务器地址，请检查地址和 DNS 设置。",
     "网盘安全证书验证失败，请检查服务器证书和系统时间。",

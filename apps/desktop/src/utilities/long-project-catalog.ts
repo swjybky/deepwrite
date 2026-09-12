@@ -1,4 +1,11 @@
 import {
+  assertAvailableProjectDirectory,
+  secureProjectDirectory,
+  requireRegisteredLongProject,
+  type LongProjectRegistration,
+  type LongProjectRegistry
+} from "./long-project-registration";
+import {
   LongBookIdSchema,
   LongBookSummarySchema,
   LongListBooksResultSchema,
@@ -40,27 +47,6 @@ export interface LongProjectAccess {
     bookId: string;
     updatedAt: string;
   }>;
-}
-
-interface LongProjectRegistration {
-  bookId: string;
-  projectDirectory: string;
-  registeredAt: string;
-  /**
-   * Navigation-only metadata used by list(). Version-1 registries did not
-   * persist this field; they are hydrated once and rewritten as version 2.
-   */
-  summary?: LongBookSummary;
-  deletion?: {
-    originalProjectDirectory: string;
-    stagedProjectDirectory: string;
-  };
-}
-
-interface LongProjectRegistry {
-  schemaVersion: 1 | 2;
-  updatedAt: string;
-  projects: LongProjectRegistration[];
 }
 
 export interface LongProjectCatalogOptions {
@@ -134,15 +120,7 @@ export class LongProjectCatalog {
     const id = LongBookIdSchema.parse(bookId);
     return await this.readAfterWrites(async () => {
       const registry = await this.readRegistry();
-      const registration = registry.projects.find(
-        (project) => project.bookId === id
-      );
-      if (!registration) {
-        throw new Error("长篇项目不存在、未注册或已从创作空间移除。");
-      }
-      if (registration.deletion) {
-        throw new Error("长篇项目正在永久删除；可重试删除以完成清理。");
-      }
+      const registration = requireRegisteredLongProject(registry, id);
       const opened = await this.projects.openBook(
         registration.projectDirectory
       );
@@ -150,6 +128,22 @@ export class LongProjectCatalog {
         throw new Error("长篇项目标识与注册信息不一致。");
       }
       return opened;
+    });
+  }
+
+  /** Registry-bound maintenance for a book that may fail normal open/recovery. */
+  async withProjectDirectory<Result>(
+    bookId: string,
+    task: (directory: string) => Promise<Result>
+  ): Promise<Result> {
+    const id = LongBookIdSchema.parse(bookId);
+    return await this.mutate(async () => {
+      const registration = requireRegisteredLongProject(
+        await this.readRegistry(),
+        id
+      );
+      await assertAvailableProjectDirectory(registration.projectDirectory);
+      return await task(registration.projectDirectory);
     });
   }
 
@@ -682,17 +676,6 @@ function parseRegistry(value: unknown): LongProjectRegistry {
   };
 }
 
-async function assertAvailableProjectDirectory(path: string): Promise<void> {
-  const absolute = resolve(path);
-  const details = await lstat(absolute);
-  if (!details.isDirectory() || details.isSymbolicLink()) {
-    throw new Error("长篇项目路径必须是非符号链接目录。");
-  }
-  if ((await realpath(absolute)) !== absolute) {
-    throw new Error("长篇项目注册路径不是规范化真实路径。");
-  }
-}
-
 async function atomicWriteJson(path: string, value: unknown): Promise<void> {
   const content = `${JSON.stringify(value, null, 2)}\n`;
   if (Buffer.byteLength(content, "utf8") > MAX_REGISTRY_BYTES) {
@@ -955,16 +938,6 @@ function assertSummarySize(summary: LongBookSummary): void {
   ) {
     throw new Error("长篇项目导航摘要超过 1 MiB 安全上限。");
   }
-}
-
-async function secureProjectDirectory(path: string): Promise<string> {
-  const absolute = resolve(path);
-  const details = await lstat(absolute);
-  if (!details.isDirectory() || details.isSymbolicLink()) {
-    throw new Error("长篇项目路径必须是非符号链接目录。");
-  }
-  const canonical = await realpath(absolute);
-  return canonical;
 }
 
 function assertSafeDeletionPaths(

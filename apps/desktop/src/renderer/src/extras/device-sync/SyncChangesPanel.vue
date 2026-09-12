@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { SyncStatus } from "@deepwrite/contracts/renderer";
+import type {
+  SyncAdoptionSide,
+  SyncStatus
+} from "@deepwrite/contracts/renderer";
 import { syncPresentation } from "./presentation";
-const props = defineProps<{ status: SyncStatus }>();
+import SyncAdoptionButtons from "./SyncAdoptionButtons.vue";
+const props = withDefaults(
+  defineProps<{ status: SyncStatus; pending?: boolean }>(),
+  { pending: false }
+);
+const emit = defineEmits<{ resolve: [key: string, side: SyncAdoptionSide] }>();
 const expanded = ref(false);
 const view = computed(() => syncPresentation(props.status));
 const first = computed(() =>
@@ -12,7 +20,12 @@ const groups = computed(() =>
   [
     { title: "本机修改 · 待上传到远端", items: view.value.uploads },
     { title: "远端更新 · 待下载到本机", items: view.value.downloads },
-    { title: "两端都有修改 · 需要合并", items: view.value.both }
+    {
+      title: "两端都有修改 · 选择采用的版本",
+      items: view.value.both.filter(
+        (item) => !view.value.problems.some((issue) => issue.key === item.key)
+      )
+    }
   ].filter((group) => group.items.length)
 );
 </script>
@@ -44,7 +57,14 @@ const groups = computed(() =>
     <section v-for="group in groups" :key="group.title" class="sync-card">
       <h2>{{ group.title }}</h2>
       <div v-for="item in group.items" :key="item.key" class="sync-list-row">
-        {{ item.title }}
+        <span>{{ item.title }}</span>
+        <div v-if="item.dirty && item.remoteDirty" class="sync-actions">
+          <SyncAdoptionButtons
+            :title="item.title"
+            :pending="pending"
+            @resolve="(side) => emit('resolve', item.key, side)"
+          />
+        </div>
       </div>
     </section>
     <p v-if="!groups.length && !view.problems.length">

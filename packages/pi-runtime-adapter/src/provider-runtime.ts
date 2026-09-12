@@ -37,6 +37,11 @@ import {
   assertDeepSeekWebSearchCompatible
 } from "./deepseek-web-search";
 import { applyGoogleClaudeThinkingCompatibility } from "./google-claude-thinking";
+import {
+  findVolcengineRuntimeModel,
+  isVolcengineProvider,
+  VOLCENGINE_COMPLETIONS_COMPAT
+} from "./volcengine-runtime";
 
 function providerStreams(
   api: AgentProviderRuntimeConfig["api"]
@@ -66,7 +71,10 @@ function findBuiltinModel(
     ) as Model<Api> | undefined;
     if (model) return model;
   }
-  return findDeepWriteRuntimeModel(config.modelId);
+  return (
+    findVolcengineRuntimeModel(config) ??
+    findDeepWriteRuntimeModel(config.modelId)
+  );
 }
 
 function resolveOpenAICompletionsCompat(
@@ -83,7 +91,9 @@ function resolveOpenAICompletionsCompat(
 
   const provider = config.provider.toLowerCase();
   const baseUrl = config.baseUrl.toLowerCase();
-  if (
+  if (isVolcengineProvider(provider)) {
+    Object.assign(compat, VOLCENGINE_COMPLETIONS_COMPAT);
+  } else if (
     provider === "qwen" ||
     provider === "dashscope" ||
     (baseUrl.includes("dashscope") && baseUrl.includes("aliyuncs.com"))

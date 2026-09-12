@@ -97,7 +97,7 @@ describe("long-form renderer vertical slice: bindings-and-structure", () => {
       "await workflow.stopBookAgentRuns(target.bookId)"
     );
     expect(proposalRuntimeSource).toContain(
-      "context.conversations.remove(key, { clearPersistence: true })"
+      "context.conversations.remove(key, options)"
     );
     expect(conversationStoreSource).toContain("controller.dispose(");
     expect(conversationStoreSource).toContain(

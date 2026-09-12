@@ -1,3 +1,4 @@
+import { acquireConversationOperation } from "./conversation-operation-guard";
 import { resolveAgentTeamRuntime } from "../agent-team-run-mode";
 import { prepareLibraryManagementRunContext } from "../library-management-run-context";
 import { prepareMaterialRunContext } from "../material-run-context";
@@ -119,6 +120,20 @@ export async function handleSessionCommands(
   }
 
   if (command.type === "session.prompt") {
+    const release = acquireConversationOperation(
+      ctx.activeRuns,
+      command.payload.sessionId,
+      "prompt"
+    );
+    if (!release)
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: "conversation_history.busy",
+          message: "此对话正在管理历史，请稍后重试。"
+        }
+      };
     try {
       const runtimeConfig = await ctx
         .requireModelConfigStore()
@@ -343,6 +358,8 @@ export async function handleSessionCommands(
           details: safeErrorDetails(error)
         }
       };
+    } finally {
+      release();
     }
   }
   return undefined;

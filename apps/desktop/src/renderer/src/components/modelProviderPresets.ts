@@ -9,6 +9,7 @@ interface ModelProviderPresetTarget {
 interface ModelProviderOption {
   value: string;
   label: string;
+  description?: string;
   api?: ModelApi;
   baseUrl?: string;
 }
@@ -45,6 +46,20 @@ export const MODEL_PROVIDER_OPTIONS = [
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   },
   {
+    value: "volcengine",
+    label: "火山引擎（豆包）",
+    description: "按量直连，填写方舟控制台提供的模型 ID 或接入点 ID",
+    api: "openai-completions",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3"
+  },
+  {
+    value: "volcengine-plan",
+    label: "火山引擎 Coding Plan",
+    description: "套餐接口，模型 ID 可填 ark-code-latest 或套餐模型名",
+    api: "openai-completions",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/coding/v3"
+  },
+  {
     value: "zai-coding-cn",
     label: "智谱 Z.AI Coding Plan",
     api: "openai-completions",
@@ -67,6 +82,20 @@ export const MODEL_PROVIDER_OPTIONS = [
     label: "OpenAI",
     api: "openai-responses",
     baseUrl: "https://api.openai.com/v1"
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    description: "使用 OpenRouter API Key，模型 ID 需包含提供商前缀",
+    api: "openai-completions",
+    baseUrl: "https://openrouter.ai/api/v1"
+  },
+  {
+    value: "opencode-go",
+    label: "OpenCode Go",
+    description: "Go 套餐，使用 OpenCode API Key；请按模型选择 API 协议",
+    api: "openai-completions",
+    baseUrl: "https://opencode.ai/zen/go/v1"
   },
   {
     value: "anthropic",

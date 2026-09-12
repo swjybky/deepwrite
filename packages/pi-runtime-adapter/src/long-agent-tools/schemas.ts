@@ -65,7 +65,7 @@ export const summaryParameter = Type.String({
 export const contentParameter = Type.String({
   maxLength: 10_000_000,
   description:
-    "该对象自身的正文文本。写小说正文时不得混入章节标题、相邻章节、分析过程或写作说明。"
+    '该对象自身的正文文本；传入空字符串（content=""）表示清空目标正文，保留对象；创建时表示初始正文为空。写小说正文时不得混入章节标题、相邻章节、分析过程或写作说明。'
 });
 
 export const explicitTrueParameter = Type.Unsafe<true>({

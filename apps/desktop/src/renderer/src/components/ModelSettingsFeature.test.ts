@@ -129,6 +129,8 @@ describe("ModelSettingsFeature provider presets", () => {
   it.each([
     ["minimax-codeplan", "MiniMax Plan"],
     ["dashscope", "阿里云百炼"],
+    ["volcengine", "火山引擎（豆包）"],
+    ["volcengine-plan", "火山引擎 Coding Plan"],
     ["zai-coding-cn", "智谱 Z.AI Coding Plan"],
     ["zhipu", "智谱 GLM 开放平台"],
     ["moonshot", "Kimi 开放平台"]
@@ -150,6 +152,20 @@ describe("ModelSettingsFeature provider presets", () => {
 
     expect(new URL(codingPlan.baseUrl).pathname).toBe("/api/coding/paas/v4");
     expect(new URL(metered.baseUrl).pathname).toBe("/api/paas/v4");
+  });
+
+  it("switches between metered Ark and Coding Plan without mixing their routes", () => {
+    const target = providerPresetTarget();
+    applyProviderPresetDefaults(target, "volcengine");
+    expect(new URL(target.baseUrl).pathname).toBe("/api/v3");
+
+    applyProviderPresetDefaults(target, "volcengine-plan");
+    expect(target.provider).toBe("volcengine-plan");
+    expect(new URL(target.baseUrl).pathname).toBe("/api/coding/v3");
+
+    applyProviderPresetDefaults(target, "volcengine");
+    expect(target.provider).toBe("volcengine");
+    expect(new URL(target.baseUrl).pathname).toBe("/api/v3");
   });
 });
 

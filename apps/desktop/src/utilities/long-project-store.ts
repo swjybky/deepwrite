@@ -1,3 +1,4 @@
+import { resolveLongProjectConflicts } from "./long-project-store/resolve-conflicts";
 import type { LongWorkspaceOperationBatch } from "@deepwrite/contracts";
 import { commitChapter } from "./long-project-store/commit-chapter";
 import { deleteLedgerCommit } from "./long-project-store/delete-ledger-commit";
@@ -102,6 +103,14 @@ export class LongProjectStore {
       this.context,
       parentDirectory,
       sourcePath
+    );
+  }
+
+  async resolveConflicts(projectDirectory: string, bookId: string) {
+    return await resolveLongProjectConflicts(
+      this.context,
+      projectDirectory,
+      bookId
     );
   }
 

@@ -222,6 +222,52 @@ describe("device sync renderer bridge", () => {
     expect(uiMessage.error).not.toHaveBeenCalled();
   });
 
+  it.each(["remote", "local"] as const)(
+    "saves drafts, detaches the selected keys, and refreshes after adopting %s",
+    async (side) => {
+      const keys = ref(["book:example", "book:second"]);
+      const prepare = vi.fn(async () => true);
+      const changed = vi.fn(async () => undefined);
+      const sync = useDeviceSync(changed, prepare);
+      sync.status.value = { ...initialStatus(), firstSyncConfirmed: true };
+
+      await sync.run({
+        operation: "sync",
+        adoption: { side, keys: keys.value }
+      });
+
+      const sent = bridgeRequest.mock.calls.find(
+        ([input]) => input.operation === "sync"
+      )?.[0];
+      keys.value.push("book:later");
+      expect(sent).toEqual({
+        operation: "sync",
+        adoption: { side, keys: ["book:example", "book:second"] }
+      });
+      expect(prepare).toHaveBeenCalledOnce();
+      expect(changed).toHaveBeenCalledOnce();
+      expect(uiMessage.error).not.toHaveBeenCalled();
+      expect(sync.pending.value).toBe(false);
+    }
+  );
+
+  it("does not adopt a version when current drafts cannot be saved", async () => {
+    const changed = vi.fn(async () => undefined);
+    const sync = useDeviceSync(
+      changed,
+      vi.fn(async () => false)
+    );
+    sync.status.value = { ...initialStatus(), firstSyncConfirmed: true };
+    await sync.run({
+      operation: "sync",
+      adoption: { side: "remote", keys: ["book:example"] }
+    });
+    expect(
+      bridgeRequest.mock.calls.some(([input]) => input.operation === "sync")
+    ).toBe(false);
+    expect(changed).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid form values before crossing the bridge without exposing them", async () => {
     const sync = useDeviceSync(
       vi.fn(),

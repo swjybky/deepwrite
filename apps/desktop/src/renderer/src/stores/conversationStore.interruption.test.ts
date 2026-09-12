@@ -96,6 +96,14 @@ function reopen(h: ReturnType<typeof harness>) {
 describe("conversation persistence during interruption", () => {
   it("saves the new session and checkpoints continuous output without waiting for silence", async () => {
     const h = harness();
+    h.controller.messages.value = [
+      {
+        id: "sent-first",
+        role: "user",
+        content: "已发送的消息",
+        createdAt: "2026-09-07T00:00:00.000Z"
+      }
+    ];
     h.controller.draft.value = "旧会话";
     await h.store.flushPersistence();
     await h.controller.newConversation();
@@ -191,6 +199,14 @@ describe("conversation persistence during interruption", () => {
 
   it("keeps failed writes for a later close retry without requiring a new message", async () => {
     const h = harness();
+    h.controller.messages.value = [
+      {
+        id: "sent-first",
+        role: "user",
+        content: "已发送的消息",
+        createdAt: "2026-09-07T00:00:00.000Z"
+      }
+    ];
     h.controller.draft.value = "必须保留的草稿";
     h.save.mockRejectedValueOnce(new Error("模拟磁盘暂时不可写"));
     await expect(h.close()).rejects.toThrow("模拟磁盘暂时不可写");

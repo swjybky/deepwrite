@@ -1,0 +1,625 @@
+{
+  "versions": {
+    "node": "24.17.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "146",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.1",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.0",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "14.8.178.33-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "42.5.0",
+    "chrome": "148.0.7778.271"
+  },
+  "samples": [
+    {
+      "turns": 10,
+      "enabled": false,
+      "mountedMs": 33.19999998807907,
+      "nodeCount": 579,
+      "messageCount": 20,
+      "streamP95Ms": 0.5,
+      "frameP95Ms": 17.69999998807907,
+      "inputP95Ms": 0.5999999642372131,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 3826,
+        "sha256": "60cdee7ab8f514460437168b5ffa5f9ed8c9aa570e52caf34096c9f39c467da2"
+      },
+      "nativeSelection": {
+        "length": 3873,
+        "sha256": "210fc5c5ec19efe71b9802b9d95255041e555ccf0d574d1e88a145f9473314e1"
+      }
+    },
+    {
+      "turns": 10,
+      "enabled": true,
+      "mountedMs": 10,
+      "nodeCount": 579,
+      "messageCount": 20,
+      "streamP95Ms": 0.800000011920929,
+      "frameP95Ms": 17.700000047683716,
+      "inputP95Ms": 1,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 3826,
+        "sha256": "60cdee7ab8f514460437168b5ffa5f9ed8c9aa570e52caf34096c9f39c467da2"
+      },
+      "nativeSelection": {
+        "length": 3873,
+        "sha256": "210fc5c5ec19efe71b9802b9d95255041e555ccf0d574d1e88a145f9473314e1"
+      }
+    },
+    {
+      "turns": 10,
+      "enabled": false,
+      "mountedMs": 9.899999976158142,
+      "nodeCount": 579,
+      "messageCount": 20,
+      "streamP95Ms": 1.2999999523162842,
+      "frameP95Ms": 17.899999976158142,
+      "inputP95Ms": 1.399999976158142,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 3826,
+        "sha256": "60cdee7ab8f514460437168b5ffa5f9ed8c9aa570e52caf34096c9f39c467da2"
+      },
+      "nativeSelection": {
+        "length": 3873,
+        "sha256": "210fc5c5ec19efe71b9802b9d95255041e555ccf0d574d1e88a145f9473314e1"
+      }
+    },
+    {
+      "turns": 10,
+      "enabled": true,
+      "mountedMs": 10.100000023841858,
+      "nodeCount": 579,
+      "messageCount": 20,
+      "streamP95Ms": 1,
+      "frameP95Ms": 17.899999976158142,
+      "inputP95Ms": 1.199999988079071,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 3826,
+        "sha256": "60cdee7ab8f514460437168b5ffa5f9ed8c9aa570e52caf34096c9f39c467da2"
+      },
+      "nativeSelection": {
+        "length": 3873,
+        "sha256": "210fc5c5ec19efe71b9802b9d95255041e555ccf0d574d1e88a145f9473314e1"
+      }
+    },
+    {
+      "turns": 100,
+      "enabled": false,
+      "mountedMs": 52.10000002384186,
+      "nodeCount": 5000,
+      "messageCount": 200,
+      "streamP95Ms": 1.7999999523162842,
+      "frameP95Ms": 16.899999976158142,
+      "inputP95Ms": 1.100000023841858,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 36496,
+        "sha256": "7550299e34bb460be1b093cb57f738cb064eb0e0184eb55bd666d966d756300b"
+      },
+      "nativeSelection": {
+        "length": 36633,
+        "sha256": "05aa8c9046a5030574e98802326f3baf1367818542fc8caa82b73566340d08c6"
+      }
+    },
+    {
+      "turns": 100,
+      "enabled": true,
+      "mountedMs": 49.69999998807907,
+      "nodeCount": 5000,
+      "messageCount": 200,
+      "streamP95Ms": 1.800000011920929,
+      "frameP95Ms": 17.600000023841858,
+      "inputP95Ms": 1.300000011920929,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 36496,
+        "sha256": "7550299e34bb460be1b093cb57f738cb064eb0e0184eb55bd666d966d756300b"
+      },
+      "nativeSelection": {
+        "length": 36633,
+        "sha256": "05aa8c9046a5030574e98802326f3baf1367818542fc8caa82b73566340d08c6"
+      }
+    },
+    {
+      "turns": 100,
+      "enabled": false,
+      "mountedMs": 48.799999952316284,
+      "nodeCount": 5000,
+      "messageCount": 200,
+      "streamP95Ms": 1.7000000476837158,
+      "frameP95Ms": 17.700000047683716,
+      "inputP95Ms": 1.100000023841858,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 36496,
+        "sha256": "7550299e34bb460be1b093cb57f738cb064eb0e0184eb55bd666d966d756300b"
+      },
+      "nativeSelection": {
+        "length": 36633,
+        "sha256": "05aa8c9046a5030574e98802326f3baf1367818542fc8caa82b73566340d08c6"
+      }
+    },
+    {
+      "turns": 100,
+      "enabled": true,
+      "mountedMs": 46,
+      "nodeCount": 5000,
+      "messageCount": 200,
+      "streamP95Ms": 1.5,
+      "frameP95Ms": 17.80000001192093,
+      "inputP95Ms": 0.8999999761581421,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 36496,
+        "sha256": "7550299e34bb460be1b093cb57f738cb064eb0e0184eb55bd666d966d756300b"
+      },
+      "nativeSelection": {
+        "length": 36633,
+        "sha256": "05aa8c9046a5030574e98802326f3baf1367818542fc8caa82b73566340d08c6"
+      }
+    },
+    {
+      "turns": 1000,
+      "enabled": false,
+      "mountedMs": 451.10000002384186,
+      "nodeCount": 49212,
+      "messageCount": 2000,
+      "streamP95Ms": 5.100000023841858,
+      "frameP95Ms": 17.600000023841858,
+      "inputP95Ms": 1.100000023841858,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 364996,
+        "sha256": "221493f0eb9a7104ad5009e882e3f1c87aa37f7c496acc5003393bf41b493f47"
+      },
+      "nativeSelection": {
+        "length": 366033,
+        "sha256": "430e9d546d4c2e402e12286458bc900349a95174ab69e3cd3af1432ae5182eb2"
+      }
+    },
+    {
+      "turns": 1000,
+      "enabled": true,
+      "mountedMs": 280.69999998807907,
+      "nodeCount": 49212,
+      "messageCount": 2000,
+      "streamP95Ms": 5,
+      "frameP95Ms": 17.600000023841858,
+      "inputP95Ms": 0.9000000357627869,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 124,
+      "interactions": {
+        "themeChecks": [
+          {
+            "scheme": "light",
+            "custom": false,
+            "background": "rgb(255, 255, 255)",
+            "foreground": "rgb(26, 28, 31)",
+            "accent": "#339CFF",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "light",
+            "custom": true,
+            "background": "rgb(255, 255, 255)",
+            "foreground": "rgb(26, 28, 31)",
+            "accent": "#8B5CF6",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "dark",
+            "custom": false,
+            "background": "rgb(23, 25, 28)",
+            "foreground": "rgb(243, 244, 246)",
+            "accent": "#5EACFF",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "dark",
+            "custom": true,
+            "background": "rgb(23, 25, 28)",
+            "foreground": "rgb(243, 244, 246)",
+            "accent": "#8B5CF6",
+            "horizontalOverflow": false
+          }
+        ],
+        "widthDeltas": [
+          {
+            "width": 700,
+            "delta": 0
+          },
+          {
+            "width": 950,
+            "delta": 0
+          },
+          {
+            "width": 1100,
+            "delta": 0
+          }
+        ],
+        "anchorDeltas": [
+          {
+            "size": 10,
+            "delta": -0.03125,
+            "before": 21.75,
+            "after": 21.71875,
+            "active": "user-10"
+          },
+          {
+            "size": 11,
+            "delta": 0.25,
+            "before": 21.71875,
+            "after": 21.96875,
+            "active": "user-10"
+          },
+          {
+            "size": 12,
+            "delta": -0.171875,
+            "before": 21.96875,
+            "after": 21.796875,
+            "active": "user-10"
+          },
+          {
+            "size": 13,
+            "delta": 0.125,
+            "before": 21.796875,
+            "after": 21.921875,
+            "active": "user-10"
+          },
+          {
+            "size": 14,
+            "delta": -0.171875,
+            "before": 21.921875,
+            "after": 21.75,
+            "active": "user-10"
+          },
+          {
+            "size": 15,
+            "delta": -0.171875,
+            "before": 21.75,
+            "after": 21.578125,
+            "active": "user-10"
+          },
+          {
+            "size": 16,
+            "delta": 0.25,
+            "before": 21.578125,
+            "after": 21.828125,
+            "active": "user-10"
+          },
+          {
+            "size": 17,
+            "delta": -0.171875,
+            "before": 21.828125,
+            "after": 21.65625,
+            "active": "user-10"
+          },
+          {
+            "size": 18,
+            "delta": 0.265625,
+            "before": 21.65625,
+            "after": 21.921875,
+            "active": "user-10"
+          },
+          {
+            "size": 19,
+            "delta": -0.375,
+            "before": 21.921875,
+            "after": 21.546875,
+            "active": "user-10"
+          },
+          {
+            "size": 20,
+            "delta": 0.265625,
+            "before": 21.546875,
+            "after": 21.8125,
+            "active": "user-10"
+          },
+          {
+            "size": 21,
+            "delta": -0.25,
+            "before": 21.8125,
+            "after": 21.5625,
+            "active": "user-10"
+          },
+          {
+            "size": 22,
+            "delta": 0.265625,
+            "before": 21.5625,
+            "after": 21.828125,
+            "active": "user-10"
+          },
+          {
+            "size": 23,
+            "delta": -0.234375,
+            "before": 21.828125,
+            "after": 21.59375,
+            "active": "user-10"
+          },
+          {
+            "size": 24,
+            "delta": 0.265625,
+            "before": 21.59375,
+            "after": 21.859375,
+            "active": "user-10"
+          }
+        ],
+        "focusExempt": true,
+        "focusDiagnostic": {
+          "hasFocus": true,
+          "focusedTag": "SUMMARY",
+          "containsFocus": true,
+          "className": "conversation-message-group"
+        },
+        "editingExempt": true,
+        "selectionExempt": true,
+        "referenceInserted": true,
+        "activeGroupExempt": true
+      },
+      "selection": {
+        "length": 364996,
+        "sha256": "221493f0eb9a7104ad5009e882e3f1c87aa37f7c496acc5003393bf41b493f47"
+      },
+      "nativeSelection": {
+        "length": 366033,
+        "sha256": "430e9d546d4c2e402e12286458bc900349a95174ab69e3cd3af1432ae5182eb2"
+      }
+    },
+    {
+      "turns": 1000,
+      "enabled": false,
+      "mountedMs": 419.89999997615814,
+      "nodeCount": 49212,
+      "messageCount": 2000,
+      "streamP95Ms": 7.199999988079071,
+      "frameP95Ms": 18.600000023841858,
+      "inputP95Ms": 1.399999976158142,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 0,
+      "selection": {
+        "length": 364996,
+        "sha256": "221493f0eb9a7104ad5009e882e3f1c87aa37f7c496acc5003393bf41b493f47"
+      },
+      "nativeSelection": {
+        "length": 366033,
+        "sha256": "430e9d546d4c2e402e12286458bc900349a95174ab69e3cd3af1432ae5182eb2"
+      }
+    },
+    {
+      "turns": 1000,
+      "enabled": true,
+      "mountedMs": 285.39999997615814,
+      "nodeCount": 49212,
+      "messageCount": 2000,
+      "streamP95Ms": 5.399999976158142,
+      "frameP95Ms": 17.600000023841858,
+      "inputP95Ms": 0.9000000357627869,
+      "lockedDelta": 0,
+      "navigationOffset": 21.75,
+      "deferredGroups": 124,
+      "interactions": {
+        "themeChecks": [
+          {
+            "scheme": "light",
+            "custom": false,
+            "background": "rgb(255, 255, 255)",
+            "foreground": "rgb(26, 28, 31)",
+            "accent": "#339CFF",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "light",
+            "custom": true,
+            "background": "rgb(255, 255, 255)",
+            "foreground": "rgb(26, 28, 31)",
+            "accent": "#8B5CF6",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "dark",
+            "custom": false,
+            "background": "rgb(23, 25, 28)",
+            "foreground": "rgb(243, 244, 246)",
+            "accent": "#5EACFF",
+            "horizontalOverflow": false
+          },
+          {
+            "scheme": "dark",
+            "custom": true,
+            "background": "rgb(23, 25, 28)",
+            "foreground": "rgb(243, 244, 246)",
+            "accent": "#8B5CF6",
+            "horizontalOverflow": false
+          }
+        ],
+        "widthDeltas": [
+          {
+            "width": 700,
+            "delta": 0
+          },
+          {
+            "width": 950,
+            "delta": 0
+          },
+          {
+            "width": 1100,
+            "delta": 0
+          }
+        ],
+        "anchorDeltas": [
+          {
+            "size": 10,
+            "delta": -0.03125,
+            "before": 21.75,
+            "after": 21.71875,
+            "active": "user-10"
+          },
+          {
+            "size": 11,
+            "delta": 0.25,
+            "before": 21.71875,
+            "after": 21.96875,
+            "active": "user-10"
+          },
+          {
+            "size": 12,
+            "delta": -0.171875,
+            "before": 21.96875,
+            "after": 21.796875,
+            "active": "user-10"
+          },
+          {
+            "size": 13,
+            "delta": 0.125,
+            "before": 21.796875,
+            "after": 21.921875,
+            "active": "user-10"
+          },
+          {
+            "size": 14,
+            "delta": -0.171875,
+            "before": 21.921875,
+            "after": 21.75,
+            "active": "user-10"
+          },
+          {
+            "size": 15,
+            "delta": -0.171875,
+            "before": 21.75,
+            "after": 21.578125,
+            "active": "user-10"
+          },
+          {
+            "size": 16,
+            "delta": 0.25,
+            "before": 21.578125,
+            "after": 21.828125,
+            "active": "user-10"
+          },
+          {
+            "size": 17,
+            "delta": -0.171875,
+            "before": 21.828125,
+            "after": 21.65625,
+            "active": "user-10"
+          },
+          {
+            "size": 18,
+            "delta": 0.265625,
+            "before": 21.65625,
+            "after": 21.921875,
+            "active": "user-10"
+          },
+          {
+            "size": 19,
+            "delta": -0.375,
+            "before": 21.921875,
+            "after": 21.546875,
+            "active": "user-10"
+          },
+          {
+            "size": 20,
+            "delta": 0.265625,
+            "before": 21.546875,
+            "after": 21.8125,
+            "active": "user-10"
+          },
+          {
+            "size": 21,
+            "delta": -0.25,
+            "before": 21.8125,
+            "after": 21.5625,
+            "active": "user-10"
+          },
+          {
+            "size": 22,
+            "delta": 0.265625,
+            "before": 21.5625,
+            "after": 21.828125,
+            "active": "user-10"
+          },
+          {
+            "size": 23,
+            "delta": -0.234375,
+            "before": 21.828125,
+            "after": 21.59375,
+            "active": "user-10"
+          },
+          {
+            "size": 24,
+            "delta": 0.265625,
+            "before": 21.59375,
+            "after": 21.859375,
+            "active": "user-10"
+          }
+        ],
+        "focusExempt": true,
+        "focusDiagnostic": {
+          "hasFocus": true,
+          "focusedTag": "SUMMARY",
+          "containsFocus": true,
+          "className": "conversation-message-group"
+        },
+        "editingExempt": true,
+        "selectionExempt": true,
+        "referenceInserted": true,
+        "activeGroupExempt": true
+      },
+      "selection": {
+        "length": 364996,
+        "sha256": "221493f0eb9a7104ad5009e882e3f1c87aa37f7c496acc5003393bf41b493f47"
+      },
+      "nativeSelection": {
+        "length": 366033,
+        "sha256": "430e9d546d4c2e402e12286458bc900349a95174ab69e3cd3af1432ae5182eb2"
+      }
+    }
+  ]
+}

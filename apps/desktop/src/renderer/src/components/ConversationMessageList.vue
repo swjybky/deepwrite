@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
+import { useConversationContentGroups } from "../composables/useConversationContentGroups";
+import { useConversationWindowPins } from "../composables/conversation-window/useConversationWindowPins";
+import { useConversationMessageEditing } from "../composables/useConversationMessageEditing";
+import { provideConversationDisclosureState } from "../composables/conversationDisclosureState";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import { randomHex8 } from "@deepwrite/shared";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
@@ -20,7 +24,7 @@ const props = withDefaults(
     messages: ChatMessage[];
     responding: boolean;
     runtimeAvailable: boolean;
-    clock: number;
+    deferHistoryRendering?: boolean;
     conversationSessionId?: string;
     allowLiveEditReview?: boolean;
     canRewriteHistory?: boolean;
@@ -37,6 +41,7 @@ const props = withDefaults(
   }>(),
   {
     allowLiveEditReview: false,
+    deferHistoryRendering: true,
     canRewriteHistory: false,
     longProposalItems: () => [],
     longWorkspaceIndex: null,
@@ -70,8 +75,30 @@ const hasStreamingAssistant = computed(() =>
     (message) => message.role === "assistant" && message.status === "streaming"
   )
 );
-const editingMessageId = ref<string | null>(null);
-const editingMessageFingerprint = ref<string | null>(null);
+provideConversationDisclosureState(() => props.conversationSessionId ?? "");
+const { editingMessageId, messageIsEditable, requestEdit, cancelEdit } =
+  useConversationMessageEditing({
+    messages: () => props.messages,
+    sessionId: () => props.conversationSessionId,
+    responding: () => props.responding,
+    canRewrite: () =>
+      Boolean(props.canRewriteHistory && props.submitEditedMessage)
+  });
+const scroller = ref<HTMLElement>();
+const pinnedIds = useConversationWindowPins({
+  container: scroller,
+  editingIds: () => (editingMessageId.value ? [editingMessageId.value] : []),
+  attribute: "data-conversation-message-id"
+});
+const { groups, canDefer } = useConversationContentGroups({
+  messages: () => props.messages,
+  enabled: () => props.deferHistoryRendering,
+  pinnedIds: () => pinnedIds.value
+});
+function setConversationScroller(element: unknown): void {
+  scroller.value = element instanceof HTMLElement ? element : undefined;
+  props.setScroller(element);
+}
 const {
   selectionAction,
   closeSelectionAction,
@@ -120,72 +147,11 @@ function handleConversationContextMenu(event: MouseEvent): void {
   openSelectionAction(reference, event);
   event.preventDefault();
 }
-
-function messageFingerprint(message: ChatMessage): string {
-  return [
-    message.id,
-    message.createdAt,
-    message.content,
-    message.attachments?.map((attachment) => attachment.id).join(",") ?? ""
-  ].join("\u0000");
-}
-
-function clearEditingMessage(): void {
-  editingMessageId.value = null;
-  editingMessageFingerprint.value = null;
-}
-
-function messageIsEditable(message: ChatMessage): boolean {
-  return Boolean(
-    props.canRewriteHistory &&
-    props.submitEditedMessage &&
-    message.role === "user" &&
-    message.status !== "streaming" &&
-    !message.attachments?.length
-  );
-}
-
-function requestEdit(messageId: string): void {
-  const message = props.messages.find(
-    (candidate) => candidate.id === messageId
-  );
-  if (!message || !messageIsEditable(message)) return;
-  editingMessageId.value = messageId;
-  editingMessageFingerprint.value = messageFingerprint(message);
-}
-
-function cancelEdit(messageId: string): void {
-  if (editingMessageId.value === messageId) clearEditingMessage();
-}
-
-watch(
-  () => [
-    props.conversationSessionId,
-    props.responding,
-    props.messages.map(messageFingerprint).join("\u0001")
-  ],
-  () => {
-    const message = props.messages.find(
-      (candidate) => candidate.id === editingMessageId.value
-    );
-    if (
-      !message ||
-      props.responding ||
-      messageFingerprint(message) !== editingMessageFingerprint.value ||
-      message.role !== "user" ||
-      message.status === "streaming" ||
-      message.attachments?.length
-    ) {
-      clearEditingMessage();
-    }
-  },
-  { flush: "sync" }
-);
 </script>
 
 <template>
   <section
-    :ref="setScroller"
+    :ref="setConversationScroller"
     class="conversation-scroll transient-scrollbar"
     aria-live="polite"
     @wheel.passive="handleConversationWheel"
@@ -212,27 +178,38 @@ watch(
     </slot>
 
     <div v-else :ref="setMessageList" class="message-list">
-      <ConversationMessageItem
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-        :clock="clock"
-        :editable="messageIsEditable(message)"
-        :editing="editingMessageId === message.id"
-        :submit-edited-message="submitEditedMessage"
-        :allow-live-edit-review="allowLiveEditReview"
-        :long-proposal-items="longProposalItems"
-        :long-workspace-index="longWorkspaceIndex"
-        @review-edit="emit('reviewEdit', $event)"
-        @locate-edit-proposal="emit('locateEditProposal', $event)"
-        @discard-edit-proposal="emit('discardEditProposal', $event)"
-        @approve-long-proposal="emit('approveLongProposal', $event)"
-        @reject-long-proposal="emit('rejectLongProposal', $event)"
-        @retry-long-proposal-preview="emit('retryLongProposalPreview', $event)"
-        @locate-long-proposal="emit('locateLongProposal', $event)"
-        @request-edit="requestEdit"
-        @cancel-edit="cancelEdit"
-      />
+      <div
+        v-for="group in groups"
+        :key="group.id"
+        class="conversation-message-group"
+        :class="{ 'is-deferred': canDefer(group) }"
+        :style="{
+          '--conversation-group-estimate': `${group.messages.length * 12}lh`
+        }"
+      >
+        <ConversationMessageItem
+          v-for="message in group.messages"
+          :key="message.id"
+          :message="message"
+          :editable="messageIsEditable(message)"
+          :editing="editingMessageId === message.id"
+          :submit-edited-message="submitEditedMessage"
+          :allow-live-edit-review="allowLiveEditReview"
+          :long-proposal-items="longProposalItems"
+          :long-workspace-index="longWorkspaceIndex"
+          @review-edit="emit('reviewEdit', $event)"
+          @locate-edit-proposal="emit('locateEditProposal', $event)"
+          @discard-edit-proposal="emit('discardEditProposal', $event)"
+          @approve-long-proposal="emit('approveLongProposal', $event)"
+          @reject-long-proposal="emit('rejectLongProposal', $event)"
+          @retry-long-proposal-preview="
+            emit('retryLongProposalPreview', $event)
+          "
+          @locate-long-proposal="emit('locateLongProposal', $event)"
+          @request-edit="requestEdit"
+          @cancel-edit="cancelEdit"
+        />
+      </div>
 
       <article
         v-if="responding && !hasStreamingAssistant"
@@ -249,3 +226,16 @@ watch(
     @insert="insertSelectedText"
   />
 </template>
+
+<style scoped>
+.conversation-message-group {
+  display: flow-root;
+}
+.conversation-message-group.is-deferred {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto var(--conversation-group-estimate);
+}
+.conversation-message-group.is-deferred:focus-within {
+  content-visibility: visible;
+}
+</style>

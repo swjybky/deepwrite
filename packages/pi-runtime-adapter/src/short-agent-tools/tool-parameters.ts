@@ -40,7 +40,7 @@ export const writingDocumentParameter = literalUnion(WRITING_DOCUMENTS, {
 export const writingContentParameter = Type.String({
   maxLength: SHORT_WORKSPACE_FILE_MAX_CHARACTERS,
   description:
-    "目标对象自身的正式正文；不得混入标题、分析过程、操作说明或聊天回复。"
+    '目标对象自身的正式正文；传入空字符串（content=""）表示清空目标正文，保留对象；创建时表示初始正文为空。不得混入标题、分析过程、操作说明或聊天回复。'
 });
 
 export const writingSummaryParameter = Type.String({

@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import { appendWritingContentCounts } from "../writing-content-counts";
 import {
   recordUpdatedReadEvidence,
   type ShortUnifiedReadState
@@ -39,8 +40,11 @@ export function formShortContentProposal(
   const baseRevision = target.revision;
   const revision = updateShortUnifiedTarget(sharedState, target, content);
   recordUpdatedReadEvidence(readState, target, content, revision);
+  const message = appendWritingContentCounts(summary, [
+    { title: target.title, id: target.documentId, content }
+  ]);
   if (target.kind === "character_overview" || target.kind === "plot_stage") {
-    return textResult(summary, {
+    return textResult(message, {
       kind: "workspace-editor-mutation",
       workspaceId: input.workspace.id,
       stageId: target.stageId,
@@ -50,7 +54,7 @@ export function formShortContentProposal(
     });
   }
   if (target.kind === "character") {
-    return textResult(summary, {
+    return textResult(message, {
       kind: "workspace-character-file-mutation",
       workspaceId: input.workspace.id,
       stageId: "character_design",
@@ -61,7 +65,7 @@ export function formShortContentProposal(
       summary
     });
   }
-  return textResult(summary, {
+  return textResult(message, {
     kind: "workspace-expert-draft-file-mutation",
     workspaceId: input.workspace.id,
     stageId: "draft",

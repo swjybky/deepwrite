@@ -1,19 +1,9 @@
 <script setup lang="ts">
+import { computed, inject, ref } from "vue";
 import {
-  computed,
-  inject,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch
-} from "vue";
-import {
-  BUILT_IN_REASONING_LEVELS,
   type AgentTeamRunMode,
   type AgentUserInputAnswer,
   type AgentUserInputRequestedPayload,
-  type BuiltInReasoningLevel,
   type LibraryAgentDomain,
   type LibraryAgentSkill,
   type LongAgentId,
@@ -34,9 +24,9 @@ import type {
   ConversationMessageRewriteRequest,
   EditorTextReference
 } from "../types/conversation";
-import type { IconName } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
-import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { useConversationScrollFollow } from "../composables/useConversationScrollFollow";
+import { useConversationModelOptions } from "../composables/useConversationModelOptions";
 import { useConversationTurnNavigator } from "../composables/useConversationTurnNavigator";
 import AppIcon from "./AppIcon.vue";
 import ConversationHistoryMenu from "./ConversationHistoryMenu.vue";
@@ -46,10 +36,7 @@ import ConversationComposer from "./ConversationComposer.vue";
 import ConversationMessageList from "./ConversationMessageList.vue";
 import ConversationTurnNavigator from "./ConversationTurnNavigator.vue";
 import { AGENT_ACTIVITY_CONTEXT_KEY } from "../composables/agentActivityContext";
-import {
-  WORKSPACE_WEB_SEARCH_DISABLED_REASON,
-  isWorkspaceWebSearchAvailable
-} from "../composables/agent-conversation/web-search";
+import { WORKSPACE_WEB_SEARCH_DISABLED_REASON } from "../composables/agent-conversation/web-search";
 
 const props = withDefaults(
   defineProps<{
@@ -66,6 +53,7 @@ const props = withDefaults(
       | undefined;
     canStop: boolean;
     runtimeAvailable: boolean;
+    deferHistoryRendering?: boolean;
     models: ModelConfig[];
     selectedModelId: string;
     thinkingLevel: ThinkingLevel;
@@ -96,6 +84,7 @@ const props = withDefaults(
   }>(),
   {
     allowLiveEditReview: false,
+    deferHistoryRendering: true,
     canRewriteHistory: false,
     longProposalItems: () => [],
     longWorkspaceIndex: null,
@@ -105,7 +94,6 @@ const props = withDefaults(
   }
 );
 
-const conversationScrollbar = createTransientScrollbarController();
 const agentActivity = inject(AGENT_ACTIVITY_CONTEXT_KEY, null);
 const agentActivityItems = computed(() => agentActivity?.items.value ?? []);
 const agentActivityCollapsed = computed(
@@ -150,7 +138,19 @@ const emit = defineEmits<{
   submitUserInput: [answers: AgentUserInputAnswer[]];
 }>();
 
-const scroller = ref<HTMLElement>();
+const {
+  scroller,
+  followsConversationTail,
+  lockConversationTailForCurrentResponse,
+  handleConversationWheel,
+  handleConversationScroll
+} = useConversationScrollFollow({
+  messages: () => props.messages,
+  responding: () => props.responding,
+  currentSessionId: () => props.currentSessionId,
+  longProposalItems: () => props.longProposalItems,
+  onScroll: () => scheduleActiveConversationTurnUpdate()
+});
 const messageList = ref<HTMLElement>();
 
 function setConversationScroller(element: unknown): void {
@@ -177,51 +177,6 @@ const {
     emit("locateEditorReference", reference),
   notifications: uiMessage
 });
-const clock = ref(Date.now());
-const hasLiveProcessing = computed(
-  () =>
-    props.responding ||
-    props.messages.some(
-      (message) =>
-        message.status === "streaming" ||
-        message.subagentRuns?.some((run) => run.status === "running")
-    )
-);
-let clockTimer: number | undefined;
-let scrollFrame: number | undefined;
-const followsConversationTail = ref(true);
-const tailFollowLockedForResponse = ref(false);
-let lastConversationScrollTop = 0;
-
-const TAIL_FOLLOW_THRESHOLD = 72;
-
-function isNearConversationTail(element: HTMLElement): boolean {
-  return (
-    element.scrollHeight - element.scrollTop - element.clientHeight <=
-    TAIL_FOLLOW_THRESHOLD
-  );
-}
-
-function hasActiveConversationResponse(): boolean {
-  return (
-    props.responding ||
-    props.messages.some(
-      (message) =>
-        message.role === "assistant" && message.status === "streaming"
-    )
-  );
-}
-
-function lockConversationTailForCurrentResponse(): void {
-  if (!hasActiveConversationResponse()) return;
-  tailFollowLockedForResponse.value = true;
-  followsConversationTail.value = false;
-  if (scrollFrame !== undefined) {
-    globalThis.cancelAnimationFrame(scrollFrame);
-    scrollFrame = undefined;
-  }
-}
-
 const {
   activeTurnId: activeConversationTurnId,
   scheduleActiveTurnUpdate: scheduleActiveConversationTurnUpdate,
@@ -232,188 +187,11 @@ const {
   currentSessionId: () => props.currentSessionId,
   scroller,
   messageList,
+  followsTail: () => followsConversationTail.value,
   beforeNavigate: () => {
     lockConversationTailForCurrentResponse();
     followsConversationTail.value = false;
   }
-});
-
-function handleConversationWheel(event: WheelEvent): void {
-  if (event.deltaY < 0) lockConversationTailForCurrentResponse();
-}
-
-function handleConversationScroll(): void {
-  const element = scroller.value;
-  if (!element) return;
-  conversationScrollbar.reveal(element);
-  const nextScrollTop = element.scrollTop;
-  if (
-    hasActiveConversationResponse() &&
-    nextScrollTop < lastConversationScrollTop - 1
-  ) {
-    lockConversationTailForCurrentResponse();
-  }
-  if (hasActiveConversationResponse()) {
-    followsConversationTail.value = !tailFollowLockedForResponse.value;
-  } else {
-    followsConversationTail.value = isNearConversationTail(element);
-  }
-  lastConversationScrollTop = nextScrollTop;
-  scheduleActiveConversationTurnUpdate();
-}
-
-function scheduleConversationTailFollow(): void {
-  if (!followsConversationTail.value || scrollFrame !== undefined) {
-    return;
-  }
-  scrollFrame = globalThis.requestAnimationFrame(() => {
-    scrollFrame = undefined;
-    const element = scroller.value;
-    if (element && followsConversationTail.value) {
-      const tailScrollTop = Math.max(
-        0,
-        element.scrollHeight - element.clientHeight
-      );
-      if (Math.abs(element.scrollTop - tailScrollTop) > 1) {
-        element.scrollTop = tailScrollTop;
-        lastConversationScrollTop = tailScrollTop;
-      }
-    }
-  });
-}
-
-watch(
-  () => {
-    const message = props.messages.at(-1);
-    return [
-      props.messages.length,
-      props.responding,
-      message?.id,
-      message?.content.length,
-      message?.thinking?.length,
-      message?.retry
-        ? `${message.retry.state}:${message.retry.attempt}:${message.retry.retryAt ?? ""}`
-        : "",
-      message?.toolCalls
-        ?.map(
-          (toolCall) =>
-            `${toolCall.status}:${toolCall.argumentsText?.length ?? 0}`
-        )
-        .join(","),
-      message?.subagentRuns
-        ?.map((run) =>
-          [
-            run.subagentRunId,
-            run.status,
-            run.thinking?.length ?? 0,
-            run.output?.length ?? 0,
-            run.toolCalls
-              .map((toolCall) => `${toolCall.id}:${toolCall.status}`)
-              .join(";")
-          ].join(":")
-        )
-        .join(","),
-      message?.editProposals
-        ?.map(
-          (proposal) =>
-            `${proposal.id}:${proposal.status}:${proposal.updatedAt}`
-        )
-        .join(","),
-      props.longProposalItems
-        .map((item) => `${item.event.id}:${item.status}:${item.error ?? ""}`)
-        .join(",")
-    ].join("|");
-  },
-  async () => {
-    if (!followsConversationTail.value) {
-      return;
-    }
-    await nextTick();
-    scheduleConversationTailFollow();
-  }
-);
-
-onMounted(async () => {
-  await nextTick();
-  lastConversationScrollTop = scroller.value?.scrollTop ?? 0;
-  scheduleConversationTailFollow();
-});
-
-watch(
-  () => props.responding,
-  (responding, wasResponding) => {
-    if (!responding || wasResponding) return;
-    tailFollowLockedForResponse.value = false;
-    followsConversationTail.value = true;
-    void nextTick(() => {
-      scheduleConversationTailFollow();
-    });
-  }
-);
-
-watch(
-  () => {
-    const message = [...props.messages]
-      .reverse()
-      .find((candidate) => candidate.role === "assistant");
-    return message ? `${message.id}:${message.status ?? "completed"}` : "";
-  },
-  async (next, previous) => {
-    if (
-      !tailFollowLockedForResponse.value ||
-      !previous.endsWith(":streaming") ||
-      next.endsWith(":streaming")
-    ) {
-      return;
-    }
-    const element = scroller.value;
-    if (!element) return;
-    const preservedScrollTop = element.scrollTop;
-    await nextTick();
-    if (!tailFollowLockedForResponse.value || !scroller.value) return;
-    scroller.value.scrollTop = preservedScrollTop;
-    lastConversationScrollTop = preservedScrollTop;
-  },
-  { flush: "pre" }
-);
-
-watch(
-  () => hasLiveProcessing.value,
-  (live) => {
-    if (clockTimer !== undefined) {
-      globalThis.clearInterval(clockTimer);
-      clockTimer = undefined;
-    }
-    clock.value = Date.now();
-    if (live) {
-      clockTimer = globalThis.setInterval(() => {
-        clock.value = Date.now();
-      }, 1_000);
-    }
-  },
-  { immediate: true }
-);
-
-watch(
-  () => props.currentSessionId,
-  () => {
-    tailFollowLockedForResponse.value = false;
-    followsConversationTail.value = true;
-    void nextTick(() => {
-      lastConversationScrollTop = scroller.value?.scrollTop ?? 0;
-      scheduleConversationTailFollow();
-    });
-  }
-);
-
-onBeforeUnmount(() => {
-  if (clockTimer !== undefined) {
-    globalThis.clearInterval(clockTimer);
-  }
-  if (scrollFrame !== undefined) {
-    globalThis.cancelAnimationFrame(scrollFrame);
-  }
-  conversationScrollbar.dispose();
 });
 
 const welcomeContent = computed(() =>
@@ -425,76 +203,16 @@ const welcomeContent = computed(() =>
     props.agentWorkspaceType
   )
 );
-const selectedModel = computed(() =>
-  props.models.find((model) => model.id === props.selectedModelId)
-);
-const webSearchAvailable = computed(() =>
-  isWorkspaceWebSearchAvailable(selectedModel.value)
-);
-const builtInThinkingLabels: Record<BuiltInReasoningLevel, string> = {
-  minimal: "最低",
-  low: "较低",
-  medium: "标准",
-  high: "深度",
-  xhigh: "极高",
-  max: "最高"
-};
-const fallbackThinkingOptions: Array<{ value: ThinkingLevel; label: string }> =
-  [
-    { value: "off", label: "关闭" },
-    ...BUILT_IN_REASONING_LEVELS.map((value) => ({
-      value,
-      label: builtInThinkingLabels[value]
-    }))
-  ];
-
-function thinkingLabel(level: ThinkingLevel): string {
-  if (level === "off") {
-    return "关闭";
-  }
-  return BUILT_IN_REASONING_LEVELS.includes(level as BuiltInReasoningLevel)
-    ? builtInThinkingLabels[level as BuiltInReasoningLevel]
-    : `自定义（${level}）`;
-}
-
-const availableThinkingOptions = computed(() =>
-  selectedModel.value
-    ? [
-        { value: "off" as const, label: thinkingLabel("off") },
-        ...selectedModel.value.thinkingLevelOptions.map((value) => ({
-          value,
-          label: thinkingLabel(value)
-        }))
-      ]
-    : fallbackThinkingOptions
-);
-const modelOptions = computed(() =>
-  props.models.map((model) => ({ value: model.id, label: model.label }))
-);
-const showsTemperature = computed(
-  () => Boolean(selectedModel.value) && props.thinkingLevel === "off"
-);
-const temperatureOptions = computed(
-  () => selectedModel.value?.temperatureOptions ?? []
-);
-const temperatureSelectOptions = computed(() =>
-  temperatureOptions.value.map((value) => ({ value, label: String(value) }))
-);
-const approvalOptions = [
-  {
-    value: "request-approval" as const,
-    label: "请求批准",
-    description: "修改或写入正文前均需你的批准"
-  },
-  {
-    value: "auto-approve" as const,
-    label: "替我审批",
-    description: "自动批准修改并写入正文"
-  }
-];
-const approvalModeIcon = computed<IconName>(() =>
-  props.approvalMode === "request-approval" ? "user" : "check"
-);
+const {
+  selectedModel,
+  webSearchAvailable,
+  availableThinkingOptions,
+  modelOptions,
+  showsTemperature,
+  temperatureSelectOptions,
+  approvalOptions,
+  approvalModeIcon
+} = useConversationModelOptions(props);
 </script>
 
 <template>
@@ -590,7 +308,7 @@ const approvalModeIcon = computed<IconName>(() =>
         :responding="responding"
         :conversation-session-id="currentSessionId"
         :runtime-available="runtimeAvailable"
-        :clock="clock"
+        :defer-history-rendering="deferHistoryRendering"
         :can-rewrite-history="canRewriteHistory"
         :submit-edited-message="submitEditedMessage"
         :allow-live-edit-review="allowLiveEditReview"

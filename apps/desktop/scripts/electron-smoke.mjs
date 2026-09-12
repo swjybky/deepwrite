@@ -17,6 +17,9 @@ const electronBinary =
 
 try {
   await access(resolve(appDir, "out/main/index.js"));
+  await access(
+    resolve(appDir, "out/main/utilities/conversation-storage/worker-entry.js")
+  );
   await access(electronBinary);
 } catch {
   console.error(
@@ -95,7 +98,14 @@ child.on("close", async (code) => {
     summary.agent?.runtime?.mode !== "local-faux" ||
     summary.agent?.deltaCount < 2 ||
     summary.agent?.thinkingDeltaCount < 1 ||
-    summary.agent?.completed !== true
+    summary.agent?.completed !== true ||
+    summary.conversation?.status !== "ok" ||
+    summary.conversation?.staged !== true ||
+    summary.conversation?.reopened !== false ||
+    !(summary.conversation?.chunkPages >= 2) ||
+    !(summary.conversation?.metadataChunkPages >= 2) ||
+    summary.conversation?.unknownRetained !== true ||
+    summary.conversation?.proposalRetained !== true
   ) {
     console.error(
       `Electron smoke returned an invalid agent summary: ${JSON.stringify(summary)}`
@@ -104,6 +114,6 @@ child.on("close", async (code) => {
   }
 
   console.log(
-    "Electron smoke passed: utilities are healthy and Pi/Faux thinking + text streamed to completion."
+    "Electron smoke passed: healthy utilities, Pi/Faux completion, and Renderer-to-SQLite chunked persistence with preserved metadata and proposals."
   );
 });

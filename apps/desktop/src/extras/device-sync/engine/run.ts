@@ -5,6 +5,7 @@ import {
   syncDependencies,
   syncDependencyOrder,
   SyncItemValidationError,
+  type SyncAdoption,
   type SyncDirection,
   type SyncIssue,
   type SyncProgress,
@@ -18,6 +19,7 @@ import { planSyncItem } from "./plan-item";
 import { transferSyncItem } from "./transfer-item";
 import { publishSync } from "./persistence";
 import { directionConflict, syncItemDirection } from "./direction";
+import { adoptSyncItem } from "./adoption";
 
 export interface SyncRunState {
   progress: SyncProgress;
@@ -29,7 +31,8 @@ export async function runSync(
   resolutions: SyncResolution[],
   confirmFirst: boolean,
   direction: SyncDirection,
-  signal: AbortSignal
+  signal: AbortSignal,
+  adoption?: SyncAdoption
 ): Promise<void> {
   let metadata = await loadSyncMetadata(options);
   const config = metadata.config;
@@ -67,6 +70,16 @@ export async function runSync(
   );
   const candidates = loaded.candidates;
   state.issues.push(...loaded.issues);
+  const selected = adoption ? new Set(adoption.keys) : null;
+  if (selected)
+    state.issues.push(
+      ...metadata.pendingIssues.filter(
+        (issue) =>
+          issue.reason !== "first-sync" &&
+          !selected.has(issue.key) &&
+          !state.issues.some((entry) => entry.key === issue.key)
+      )
+    );
   const local = new Map(snapshot.items.map((item) => [syncKey(item), item]));
   for (const entry of snapshot.issues)
     state.issues.push({
@@ -129,6 +142,7 @@ export async function runSync(
   let uploaded = 0;
   let downloaded = 0;
   const total = keys.filter((key) => {
+    if (selected && !selected.has(key)) return false;
     const change = syncItemDirection(
       direction,
       local.get(key) ?? null,
@@ -154,7 +168,8 @@ export async function runSync(
       published[key] = baseline.revision;
       continue;
     }
-    const plan = planSyncItem({
+    if (selected && !selected.has(key)) continue;
+    let plan = planSyncItem({
       key,
       local: initial,
       baseline: metadata.baselines[key],
@@ -163,6 +178,14 @@ export async function runSync(
       resolutions,
       hash: options.runtime.hash
     });
+    if (adoption)
+      plan = adoptSyncItem({
+        side: adoption.side,
+        key,
+        local: initial,
+        metadata,
+        plan
+      });
     if (plan.issue) {
       state.issues.push(plan.issue);
       continue;
@@ -254,7 +277,7 @@ export async function runSync(
       accepted[key] = { revision: result.revision, item: plan.item };
       if (change.upload || change.download) {
         completed++;
-        if (change.upload) uploaded++;
+        if (adoption ? adoption.side === "local" : change.upload) uploaded++;
         if (!sameSyncContent(initial, plan.item)) downloaded++;
       }
     } catch (error) {

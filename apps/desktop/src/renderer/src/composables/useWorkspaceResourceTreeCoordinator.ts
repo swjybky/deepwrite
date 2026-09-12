@@ -125,7 +125,7 @@ export function useWorkspaceResourceTreeCoordinator(
         icon: "book" as const,
         badge:
           diagnostic.code === "invalid"
-            ? "长篇 · 注册信息无效"
+            ? "长篇 · 项目读取失败"
             : "长篇 · 暂不可用",
         workspaceType: "long" as const,
         longBookId: diagnostic.bookId,
