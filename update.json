@@ -2,17 +2,19 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.4.4",
-  "title": "DeepWrite 1.4.4",
-  "publishedAt": "2026-09-05T13:14:45+08:00",
+  "version": "1.5.0",
+  "title": "DeepWrite 1.5.0",
+  "publishedAt": "2026-09-12T15:34:19+08:00",
   "releaseNotes": [
-    "完善素材库与技能库的外部内容选择、预览和批量导入流程",
-    "新增编辑器查找结果高亮，优化长篇连续性记录导航和文档保护",
-    "优化云备份同步预览，并完善模型目录与思考配置适配",
-    "提供 Windows x64、macOS Intel（x64）和 Apple Silicon（arm64）测试安装包；macOS 包采用 ad-hoc 签名，未进行 Apple 公证"
+    "完善会话历史的分段存储、按需读取与管理流程。",
+    "优化设备同步处理及模型配置保存。",
+    "提供 Windows x64、macOS Apple Silicon / Intel 和 Linux x64 测试安装包；Linux 同时提供 AppImage 与 DEB。",
+    "完整校验通过，共 3272 项测试通过；macOS 两种架构均通过安装包内启动及会话重启验证。",
+    "macOS 测试包采用 ad-hoc 签名，未进行 Apple 公证；下载后可能触发系统安全提示。",
+    "Windows 和 Linux 已完成构建与包内容校验，未完成目标平台运行验证。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.4.4",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.5.0",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
