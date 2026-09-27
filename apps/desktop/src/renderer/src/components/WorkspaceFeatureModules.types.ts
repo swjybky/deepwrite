@@ -31,6 +31,8 @@ export interface SettingsFeatureModule {
   autoSaveEnabled: boolean;
   language: AppLanguage;
   showContextUsage: boolean;
+  autoCompactContext: boolean;
+  autoCompactThresholdPercent: number;
   showInMenuBar: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;

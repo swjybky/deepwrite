@@ -81,6 +81,46 @@ export type AgentRetryScheduledPayload = z.infer<
   typeof AgentRetryScheduledPayloadSchema
 >;
 
+/**
+ * Why a run compacted. Two independent paths, deliberately both wired:
+ * `threshold` fires before the request when usage crosses the configured
+ * percentage; `overflow` fires when the provider rejects a request for length,
+ * which covers models whose real window is smaller than the estimate; `manual`
+ * is the user asking for it with `/compact`.
+ */
+export const AgentContextCompactionTriggerSchema = z.enum([
+  "threshold",
+  "overflow",
+  "manual"
+]);
+export type AgentContextCompactionTrigger = z.infer<
+  typeof AgentContextCompactionTriggerSchema
+>;
+
+export const AgentContextCompactedPayloadSchema =
+  AgentEventIdentitySchema.extend({
+    trigger: AgentContextCompactionTriggerSchema,
+    tokensBefore: z.number().int().nonnegative(),
+    tokensAfter: z.number().int().nonnegative()
+  });
+export type AgentContextCompactedPayload = z.infer<
+  typeof AgentContextCompactedPayloadSchema
+>;
+
+/**
+ * A `/compact` that did not produce a summary. Its own event rather than an
+ * error: nothing failed in the run, the transcript simply had nothing worth
+ * summarizing, or the model has no usable window. The composer needs to say
+ * which.
+ */
+export const AgentCompactionFailedPayloadSchema =
+  AgentEventIdentitySchema.extend({
+    reason: z.string().min(1)
+  });
+export type AgentCompactionFailedPayload = z.infer<
+  typeof AgentCompactionFailedPayloadSchema
+>;
+
 export const AgentMessageDeltaPayloadSchema = AgentEventIdentitySchema.extend({
   delta: z.string()
 });

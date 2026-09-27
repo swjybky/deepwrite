@@ -9,6 +9,8 @@ import {
   AgentMessageCompletedPayloadSchema,
   AgentMessageDeltaPayloadSchema,
   AgentRetryScheduledPayloadSchema,
+  AgentContextCompactedPayloadSchema,
+  AgentCompactionFailedPayloadSchema,
   AgentThinkingDeltaPayloadSchema,
   AgentToolCallStreamPayloadSchema,
   AgentToolCompletedPayloadSchema,
@@ -23,6 +25,8 @@ import {
   type AgentMessageCompletedPayload,
   type AgentMessageDeltaPayload,
   type AgentRetryScheduledPayload,
+  type AgentContextCompactedPayload,
+  type AgentCompactionFailedPayload,
   type AgentThinkingDeltaPayload,
   type AgentToolCallStreamPayload,
   type AgentToolCompletedPayload,
@@ -91,6 +95,18 @@ export const AgentRetryScheduledEventEnvelopeSchema = EnvelopeBaseSchema.extend(
     payload: AgentRetryScheduledPayloadSchema
   }
 ).superRefine(validateAgentEventContext);
+
+export const AgentContextCompactedEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("agent.context_compacted"),
+    payload: AgentContextCompactedPayloadSchema
+  }).superRefine(validateAgentEventContext);
+
+export const AgentCompactionFailedEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("agent.compaction_failed"),
+    payload: AgentCompactionFailedPayloadSchema
+  }).superRefine(validateAgentEventContext);
 
 export const SubagentStartedEventEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("subagent.started"),
@@ -267,6 +283,14 @@ export type AgentTurnStartedEventEnvelope = Envelope<
 export type AgentRetryScheduledEventEnvelope = Envelope<
   AgentRetryScheduledPayload,
   "agent.retry_scheduled"
+>;
+export type AgentContextCompactedEventEnvelope = Envelope<
+  AgentContextCompactedPayload,
+  "agent.context_compacted"
+>;
+export type AgentCompactionFailedEventEnvelope = Envelope<
+  AgentCompactionFailedPayload,
+  "agent.compaction_failed"
 >;
 export type SubagentStartedEventEnvelope = Envelope<
   SubagentStartedPayload,

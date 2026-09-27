@@ -317,6 +317,8 @@ const {
   updateLanguage: updateAppLanguage,
   updatePermissionMode,
   updateShowContextUsage,
+  updateAutoCompactContext,
+  updateAutoCompactThresholdPercent,
   updateShowInMenuBar,
   updateUseNetworkProxy,
   updateWorkspacePaneLayout
@@ -1490,6 +1492,9 @@ const {
   },
   settings: {
     permissionMode: () => generalSettings.value.permissionMode,
+    autoCompactContext: () => generalSettings.value.autoCompactContext,
+    autoCompactThresholdPercent: () =>
+      generalSettings.value.autoCompactThresholdPercent,
     updatePermissionMode
   },
   commands: {
@@ -1555,6 +1560,9 @@ const {
   },
   settings: {
     permissionMode: () => generalSettings.value.permissionMode,
+    autoCompactContext: () => generalSettings.value.autoCompactContext,
+    autoCompactThresholdPercent: () =>
+      generalSettings.value.autoCompactThresholdPercent,
     updatePermissionMode
   },
   runtimeAvailable: () => hasDesktopRuntime.value,
@@ -2404,6 +2412,8 @@ onBeforeUnmount(() => {
     @update-auto-save="updateEditorAutoSave"
     @update-language="updateAppLanguage"
     @update-show-context-usage="updateShowContextUsage"
+    @update-auto-compact-context="updateAutoCompactContext"
+    @update-auto-compact-threshold-percent="updateAutoCompactThresholdPercent"
     @update-show-in-menu-bar="updateShowInMenuBar"
     @update-use-network-proxy="updateUseNetworkProxy"
     @update-workspace-pane-layout="updateWorkspacePaneLayout"
