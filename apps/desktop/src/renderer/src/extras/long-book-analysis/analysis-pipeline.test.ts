@@ -58,6 +58,7 @@ function fixture() {
     prompts,
     abort,
     state,
+    api,
     pipeline: new LongBookAnalysisPipeline(
       () => api,
       shallowRef([model]),
@@ -157,11 +158,7 @@ describe("long-book analysis pipeline checkpoints", () => {
         unitId: finalContext.unitId,
         jobId: finalContext.jobId,
         toolCallId: "tool-result",
-        result: {
-          name: "剧情结构",
-          description: "用于提炼写作方法。",
-          content: "# 可编辑结果"
-        }
+        result: { name: "剧情结构", description: "拆书结果", content: "# 可编辑结果" }
       })
     );
     expect(state.result.value?.content).toBe("# 可编辑结果");
@@ -209,5 +206,125 @@ describe("long-book analysis pipeline checkpoints", () => {
     expect(active.workspaceContext?.longBookAnalysis?.presetId).toBe(preset.id);
     expect(pipeline.targetLibraryId).toBe("");
     expect(state.processEntries.value[0]?.detail).toContain("仅运行当前预设");
+  });
+
+  it("parks on a capacity rejection instead of failing the round", async () => {
+    const { pipeline, api, state } = fixture();
+    // The preload command bridge rejects with "<code>: <message>".
+    vi.mocked(api.session.prompt).mockRejectedValueOnce(
+      new Error("agent.capacity_reached: 本地智能体并发运行数量已达到上限。")
+    );
+    pipeline.start(source, preset, {
+      presetId: preset.id,
+      startOrder: 1,
+      endOrder: 1,
+      modelId: "model-1"
+    });
+
+    await vi.waitFor(() => expect(state.status.value).toBe("waiting"));
+    expect(pipeline.lastFailure?.kind).toBe("capacity");
+    // The round is intact, so the scheduler can retry it without redoing work.
+    expect(pipeline.hasJob).toBe(true);
+    expect(state.error.value).toBeNull();
+  });
+
+  it("classifies an exhausted account as a terminal failure", async () => {
+    const { pipeline, prompts, state } = fixture();
+    pipeline.start(source, preset, {
+      presetId: preset.id,
+      startOrder: 1,
+      endOrder: 1,
+      modelId: "model-1"
+    });
+    const batch = await waitForPrompt(prompts, 1);
+    pipeline.handleEvent(
+      event("agent.error", batch, {
+        message: "insufficient_quota: You exceeded your current quota",
+        code: "pi_agent.provider_error",
+        details: { failureKind: "insufficient_quota" }
+      })
+    );
+
+    await vi.waitFor(() => expect(state.status.value).toBe("error"));
+    expect(pipeline.lastFailure?.kind).toBe("insufficient_quota");
+  });
+
+  it("reports batch progress through onCheckpoint", async () => {
+    const { pipeline, prompts } = fixture();
+    const checkpoints: Array<{ batchIndex: number; notes: number }> = [];
+    pipeline.start(
+      source,
+      preset,
+      {
+        presetId: preset.id,
+        startOrder: 1,
+        endOrder: 1,
+        modelId: "model-1"
+      },
+      {
+        onCheckpoint: (checkpoint) => {
+          checkpoints.push({
+            batchIndex: checkpoint.batchIndex,
+            notes: checkpoint.notes.length
+          });
+        }
+      }
+    );
+    const batch = await waitForPrompt(prompts, 1);
+    const context = batch.workspaceContext!.longBookAnalysis!;
+    pipeline.handleEvent(
+      event("long_book_analysis.note_updated", batch, {
+        unitId: context.unitId,
+        jobId: context.jobId,
+        toolCallId: "tool-note",
+        note: {
+          id: "note-1",
+          label: "第 1-1 章批次笔记",
+          chapterStart: 1,
+          chapterEnd: 1,
+          text: "保留章节证据的中间笔记。"
+        }
+      })
+    );
+    pipeline.handleEvent(
+      event("agent.message_completed", batch, { content: "完成" })
+    );
+
+    await vi.waitFor(() => expect(checkpoints.length).toBeGreaterThan(0));
+    expect(checkpoints[0]).toEqual({ batchIndex: 1, notes: 1 });
+  });
+
+  it("skips already-finished batches when resuming from a checkpoint", async () => {
+    const { pipeline, prompts } = fixture();
+    pipeline.start(
+      source,
+      preset,
+      {
+        presetId: preset.id,
+        startOrder: 1,
+        endOrder: 1,
+        modelId: "model-1"
+      },
+      {
+        // One batch exists; a checkpoint at index 1 means it already ran.
+        resume: {
+          batchIndex: 1,
+          reductionRounds: 0,
+          notes: [
+            {
+              id: "note-1",
+              label: "第 1-1 章批次笔记",
+              chapterStart: 1,
+              chapterEnd: 1,
+              text: "上一轮已完成的笔记。"
+            }
+          ]
+        }
+      }
+    );
+
+    const first = await waitForPrompt(prompts, 1);
+    // Resuming must not re-run the batch phase.
+    expect(first.workspaceContext?.longBookAnalysis?.phase).not.toBe("batch");
   });
 });

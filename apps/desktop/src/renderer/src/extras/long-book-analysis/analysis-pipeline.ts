@@ -4,6 +4,7 @@ import {
   type DeepWriteApi,
   type LongBookAnalysisPreset,
   type LongBookAnalysisResult,
+  type LongBookAnalysisRoundCheckpoint,
   type LongBookAnalysisRuntimeContext,
   type LongBookAnalysisSource,
   type ModelConfig,
@@ -26,15 +27,33 @@ import {
   analysisEventBelongsToUnit,
   createAnalysisNote
 } from "./analysis-pipeline-helpers";
+import {
+  classifyAnalysisFailure,
+  LongBookAnalysisUnitError,
+  type AnalysisFailure
+} from "./analysis-failures";
 import { LongBookAnalysisProcessTracker } from "./analysis-process";
 import { reduceAnalysisJob } from "./analysis-reducer";
 export type { LongBookAnalysisPhase } from "./analysis-pipeline-types";
+
+export interface LongBookAnalysisStartOptions {
+  /** Batch-level progress from a previous run; skips finished batches. */
+  resume?: LongBookAnalysisRoundCheckpoint;
+  /** Called after every completed batch and after the reduce phase. */
+  onCheckpoint?: (checkpoint: LongBookAnalysisRoundCheckpoint) => void;
+}
 
 export class LongBookAnalysisPipeline {
   private job: AnalysisJob | null = null;
   private pending: PendingUnit | null = null;
   private stopRequested = false;
   private disposed = false;
+  /** In-flight run, so callers can await a whole round without polling status. */
+  private activeRun: Promise<void> | null = null;
+  private failure: AnalysisFailure | null = null;
+  private onCheckpoint:
+    | ((checkpoint: LongBookAnalysisRoundCheckpoint) => void)
+    | null = null;
   private readonly process: LongBookAnalysisProcessTracker;
 
   constructor(
@@ -57,8 +76,22 @@ export class LongBookAnalysisPipeline {
     return this.job?.libraryId ?? "";
   }
 
+  /** Why the last round stopped, for the scheduler's retry/skip policy. */
+  get lastFailure(): AnalysisFailure | null {
+    return this.failure;
+  }
+
+  /**
+   * Resolves when the current round settles (completed, stopped or failed).
+   * Every caller drives rounds through `start`/`retry`, so by the time this is
+   * awaited the run is already registered.
+   */
+  whenIdle(): Promise<void> {
+    return this.activeRun ?? Promise.resolve();
+  }
+
   reset(): void {
-    if (["running", "stopping"].includes(this.state.status.value)) {
+    if (["running", "stopping", "waiting"].includes(this.state.status.value)) {
       throw new Error("分析运行中，不能修改来源或预设。");
     }
     this.job = null;
@@ -74,7 +107,8 @@ export class LongBookAnalysisPipeline {
   start(
     source: LongBookAnalysisSource,
     preset: LongBookAnalysisPreset,
-    input: LongBookAnalysisStartInput
+    input: LongBookAnalysisStartInput,
+    options: LongBookAnalysisStartOptions = {}
   ): void {
     const modelId = input.modelId ?? "";
     const model = this.models.value.find((item) => item.id === modelId);
@@ -122,9 +156,20 @@ export class LongBookAnalysisPipeline {
       notes: [],
       reductionRounds: 0
     };
+    // Resume a checkpointed round: skip batches that already produced notes.
+    if (options.resume) {
+      this.job.batchIndex = Math.min(
+        options.resume.batchIndex,
+        batches.length
+      );
+      this.job.reductionRounds = options.resume.reductionRounds;
+      this.job.notes = [...options.resume.notes];
+    }
+    this.onCheckpoint = options.onCheckpoint ?? null;
+    this.failure = null;
     this.state.result.value = null;
     this.state.phase.value = "batch";
-    this.state.completedUnits.value = 0;
+    this.state.completedUnits.value = this.job.batchIndex;
     this.state.estimatedUnits.value = batches.length + 1;
     this.process.start(
       preset.name,
@@ -132,15 +177,18 @@ export class LongBookAnalysisPipeline {
       input.endOrder,
       batches.length
     );
-    void this.run();
+    this.launch();
   }
 
   retry(): boolean {
-    if (!this.job || !["error", "stopped"].includes(this.state.status.value)) {
+    if (
+      !this.job ||
+      !["error", "stopped", "waiting"].includes(this.state.status.value)
+    ) {
       return false;
     }
     this.process.retry();
-    void this.run();
+    this.launch();
     return true;
   }
 
@@ -201,7 +249,13 @@ export class LongBookAnalysisPipeline {
     }
     if (event.type === "agent.error") {
       this.pending = null;
-      pending.reject(new Error(event.payload.message));
+      pending.reject(
+        new LongBookAnalysisUnitError(
+          event.payload.message,
+          event.payload.code,
+          event.payload.details
+        )
+      );
       return;
     }
     if (event.type !== "agent.message_completed") return;
@@ -225,7 +279,24 @@ export class LongBookAnalysisPipeline {
   dispose(): void {
     this.disposed = true;
     this.stopRequested = true;
+    // Abort the in-flight unit: without this the agent process keeps streaming
+    // a round nobody will consume, and a resumed plan would run it twice.
+    const pending = this.pending;
     this.pending = null;
+    if (pending?.runId) {
+      void this.getApi()
+        .session.abort({ sessionId: pending.sessionId, runId: pending.runId })
+        .catch(() => undefined);
+    }
+  }
+
+  /** Start a round and remember its promise so `whenIdle` can await it. */
+  private launch(): void {
+    const running = this.run();
+    this.activeRun = running;
+    void running.finally(() => {
+      if (this.activeRun === running) this.activeRun = null;
+    });
   }
 
   private base(unitId: string) {
@@ -281,7 +352,11 @@ export class LongBookAnalysisPipeline {
         .catch((cause: unknown) => {
           if (this.pending === unit) this.pending = null;
           reject(
-            new Error(analysisErrorMessage(cause, "启动拆书分析阶段失败。"))
+            // The command bridge rejects with "<code>: <message>", which the
+            // classifier parses back out for capacity handling.
+            new LongBookAnalysisUnitError(
+              analysisErrorMessage(cause, "启动拆书分析阶段失败。")
+            )
           );
         });
     });
@@ -316,6 +391,7 @@ export class LongBookAnalysisPipeline {
         );
         job.batchIndex += 1;
         this.state.completedUnits.value += 1;
+        this.emitCheckpoint();
       }
       this.state.phase.value = "reduce";
       await reduceAnalysisJob(job, {
@@ -333,6 +409,7 @@ export class LongBookAnalysisPipeline {
           this.state.completedUnits.value += 1;
         }
       });
+      this.emitCheckpoint();
       this.state.phase.value = "final";
       this.state.estimatedUnits.value = Math.max(
         this.state.estimatedUnits.value,
@@ -352,9 +429,15 @@ export class LongBookAnalysisPipeline {
       this.state.status.value = "completed";
       this.process.complete();
     } catch (cause: unknown) {
+      this.failure = classifyAnalysisFailure(cause);
       if (this.stopRequested) {
         this.state.status.value = "stopped";
         this.process.stopped();
+      } else if (this.failure.kind === "capacity") {
+        // The agent process is full — the round is intact and the scheduler
+        // will re-queue it, so this is a wait, not a failure.
+        this.state.status.value = "waiting";
+        this.process.capacityPaused();
       } else {
         this.state.status.value = "error";
         this.state.error.value = analysisErrorMessage(
@@ -366,5 +449,16 @@ export class LongBookAnalysisPipeline {
     } finally {
       this.pending = null;
     }
+  }
+
+  /** Persist batch-level progress so a restart resumes mid-round. */
+  private emitCheckpoint(): void {
+    const job = this.job;
+    if (!job || !this.onCheckpoint) return;
+    this.onCheckpoint({
+      batchIndex: job.batchIndex,
+      reductionRounds: job.reductionRounds,
+      notes: [...job.notes]
+    });
   }
 }

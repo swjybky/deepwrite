@@ -19,13 +19,17 @@ const panel = ref<HTMLElement | null>(null);
 const trigger = ref<HTMLButtonElement | null>(null);
 const open = ref(false);
 const now = ref(Date.now());
-const busy = computed(() => ["running", "stopping"].includes(props.status));
+// `waiting` counts as busy: the round is parked on a slot, not finished.
+const busy = computed(() =>
+  ["running", "stopping", "waiting"].includes(props.status)
+);
 const statusLabel = computed(
   () =>
     ({
       idle: "等待开始",
       running: "分析中",
       stopping: "正在停止",
+      waiting: "等待并发空闲",
       stopped: "已停止",
       error: "分析失败",
       completed: "分析完成"

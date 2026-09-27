@@ -92,14 +92,10 @@ export class LongBookAnalysisProcessTracker {
   }
 
   thinking(): void {
-    if (this.state.currentActivity.value !== "模型正在整理当前阶段")
-      this.add("模型正在整理当前阶段");
     this.state.currentActivity.value = "模型正在整理当前阶段";
   }
 
   appendMessage(delta: string): void {
-    if (this.state.currentActivity.value !== "模型正在输出当前阶段说明")
-      this.add("模型正在输出当前阶段说明");
     const next = `${this.state.liveOutput.value}${delta}`;
     this.state.liveOutput.value = next.slice(-20_000);
     this.state.currentActivity.value = "模型正在输出当前阶段说明";
@@ -156,6 +152,15 @@ export class LongBookAnalysisProcessTracker {
     this.state.currentActivity.value = "已停止，可继续";
   }
 
+  /**
+   * Parked on the agent process's concurrent-run ceiling. Deliberately not an
+   * error tone: the round resumes on its own once a slot frees up.
+   */
+  capacityPaused(): void {
+    this.add("等待并发空闲", "本地智能体并发已满，稍后自动继续", "info");
+    this.state.currentActivity.value = "等待并发空闲，稍后自动继续";
+  }
+
   private add(
     title: string,
     detail?: string,
@@ -173,7 +178,6 @@ export class LongBookAnalysisProcessTracker {
         tone
       }
     ];
-    this.state.processEntries.value =
-      entries.length > 120 ? [entries[0]!, ...entries.slice(-119)] : entries;
+    this.state.processEntries.value = entries.slice(-120);
   }
 }

@@ -554,3 +554,82 @@
     justify-content: flex-end;
   }
 }
+
+/* --- batch plan mode ---------------------------------------------------------
+   The mode switch and the per-preset target-library list. The plan panel itself
+   carries its own scoped styles in AnalysisPlanPanel.vue. */
+
+.long-book-analysis-page .analysis-mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  align-self: flex-start;
+  padding: 2px;
+  border: 1px solid var(--theme-line);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+.long-book-analysis-page .analysis-mode-switch > button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.long-book-analysis-page .analysis-mode-switch > button:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.long-book-analysis-page .analysis-mode-switch > button.is-active {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+.long-book-analysis-page .analysis-mode-switch > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.long-book-analysis-page .batch-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.long-book-analysis-page .batch-library-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.long-book-analysis-page .batch-library-copy {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.long-book-analysis-page .batch-library-copy > strong {
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  font-weight: 560;
+}
+
+.long-book-analysis-page .batch-library-copy > span {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

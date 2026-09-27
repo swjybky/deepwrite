@@ -22,3 +22,45 @@ export const LongBookAnalysisLibraryIdSchema = z
   .trim()
   .min(1)
   .max(512);
+
+// Moved here from `long-book-analysis` so `long-book-analysis-plan` can use them
+// without closing a cycle: plan -> long-book-analysis -> commands -> plan.
+export const LongBookAnalysisNoteSchema = z
+  .object({
+    id: LongBookAnalysisIdSchema,
+    label: z.string().trim().min(1).max(256),
+    chapterStart: z
+      .number()
+      .int()
+      .positive()
+      .max(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS),
+    chapterEnd: z
+      .number()
+      .int()
+      .positive()
+      .max(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS),
+    text: z.string().trim().min(1).max(LONG_BOOK_ANALYSIS_MAX_NOTE_CHARACTERS)
+  })
+  .superRefine((value, context) => {
+    if (value.chapterEnd < value.chapterStart) {
+      context.addIssue({
+        code: "custom",
+        path: ["chapterEnd"],
+        message: "Analysis note chapterEnd must not precede chapterStart."
+      });
+    }
+  });
+export type LongBookAnalysisNote = z.infer<typeof LongBookAnalysisNoteSchema>;
+
+export const LongBookAnalysisResultSchema = z.object({
+  name: LongBookAnalysisTitleSchema,
+  description: z.string().trim().min(1).max(1_000),
+  content: z
+    .string()
+    .trim()
+    .min(1)
+    .max(LONG_BOOK_ANALYSIS_MAX_RESULT_CHARACTERS)
+});
+export type LongBookAnalysisResult = z.infer<
+  typeof LongBookAnalysisResultSchema
+>;

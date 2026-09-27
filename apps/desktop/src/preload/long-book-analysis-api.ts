@@ -1,4 +1,6 @@
 import {
+  type LongBookAnalysisPlan,
+  LongBookAnalysisPlanSchema,
   type LongBookAnalysisSavedSourceCatalog,
   LongBookAnalysisSavedSourceCatalogSchema,
   LongBookAnalysisSavedSourceIdSchema,
@@ -99,4 +101,48 @@ export async function resetLongBookAnalysisPresets(
       )
     )
   );
+}
+
+// --- batch plans ---------------------------------------------------------------
+// A plan is written by the renderer, not the main process: the renderer owns the
+// scheduler, so it pushes the whole snapshot down after every round settles.
+// `list` returns every stored plan, newest first, and is what resume-on-launch
+// reads to find an interrupted batch.
+
+export async function listLongBookAnalysisPlans(): Promise<
+  LongBookAnalysisPlan[]
+> {
+  const id = browserId("cmd_long_book_analysis_plans_list");
+  const result = await invokeCommand<{ plans: LongBookAnalysisPlan[] }>(
+    createEnvelope("longBookAnalysisPlan.list", {}, { id, correlationId: id })
+  );
+  return LongBookAnalysisPlanSchema.array().parse(result.plans);
+}
+
+export async function saveLongBookAnalysisPlan(
+  plan: LongBookAnalysisPlan
+): Promise<LongBookAnalysisPlan> {
+  const id = browserId("cmd_long_book_analysis_plans_save");
+  const result = await invokeCommand<{ plan: LongBookAnalysisPlan }>(
+    createEnvelope(
+      "longBookAnalysisPlan.save",
+      { plan },
+      { id, correlationId: id }
+    )
+  );
+  return LongBookAnalysisPlanSchema.parse(result.plan);
+}
+
+export async function removeLongBookAnalysisPlan(
+  planId: string
+): Promise<boolean> {
+  const id = browserId("cmd_long_book_analysis_plans_remove");
+  const result = await invokeCommand<{ removed: boolean }>(
+    createEnvelope(
+      "longBookAnalysisPlan.remove",
+      { planId },
+      { id, correlationId: id }
+    )
+  );
+  return result.removed;
 }

@@ -10,6 +10,8 @@ import PopupSelect, {
   type PopupSelectOption
 } from "../../components/PopupSelect.vue";
 import { uiMessage } from "../../ui-feedback";
+import AnalysisPlanPanel from "./AnalysisPlanPanel.vue";
+import { buildAnalysisRoundRanges } from "./plan-rounds";
 import AnalysisRunStatus from "./AnalysisRunStatus.vue";
 import LongAnalysisRunControls from "./LongAnalysisRunControls.vue";
 import AnalysisResultPanel from "./AnalysisResultPanel.vue";
@@ -33,6 +35,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   refreshCatalog: [];
 }>();
+
+/** Single round keeps the legacy ≤50-chapter behaviour; batch plans the whole book. */
+type AnalysisMode = "single" | "batch";
+
+const mode = ref<AnalysisMode>("single");
+const selectedPresetIds = ref<string[]>([]);
+const batchLibraryIds = ref<Record<string, string>>({});
 
 const selectedPresetId = ref("");
 const selectedTargetLibraryId = ref("");
@@ -98,6 +107,48 @@ const selectionCount = computed(() =>
   Math.max(0, endOrder.value - startOrder.value + 1)
 );
 
+const batchPresets = computed(() =>
+  presets.value.filter((preset) => selectedPresetIds.value.includes(preset.id))
+);
+/** Batch mode has no 50-chapter cap; the plan splits the range into rounds. */
+const roundCount = computed(
+  () => buildAnalysisRoundRanges(startOrder.value, endOrder.value).length
+);
+const batchTaskCount = computed(
+  () => roundCount.value * batchPresets.value.length
+);
+/**
+ * One row per chosen preset. The library falls back to the preset's own default
+ * whenever the stored pick is no longer compatible, so a stale choice can never
+ * silently point a round at the wrong library.
+ */
+const batchRows = computed(() =>
+  batchPresets.value.map((preset) => {
+    const libraries = compatibleAnalysisLibraries(preset, props.catalogSnapshot);
+    const stored = batchLibraryIds.value[preset.id] ?? "";
+    const preferred = preset.output.libraryId ?? "";
+    const libraryId = libraries.some((library) => library.id === stored)
+      ? stored
+      : libraries.some((library) => library.id === preferred)
+        ? preferred
+        : "";
+    return {
+      preset,
+      libraryId,
+      options: libraries.map(analysisLibraryOption)
+    };
+  })
+);
+/** Every chosen preset needs a target library, or the plan file outgrows its cap. */
+const batchReady = computed(
+  () =>
+    Boolean(source.value) &&
+    Boolean(props.controller.selectedModelId.value) &&
+    batchRows.value.length > 0 &&
+    roundCount.value > 0 &&
+    batchRows.value.every((row) => row.libraryId !== "")
+);
+
 watch(
   presets,
   (next) => {
@@ -111,7 +162,10 @@ watch(
 watch(source, (next) => {
   if (!next) return;
   startOrder.value = 1;
-  endOrder.value = Math.min(50, next.chapters.length);
+  endOrder.value =
+    mode.value === "batch"
+      ? next.chapters.length
+      : Math.min(50, next.chapters.length);
 });
 
 watch(
@@ -160,6 +214,48 @@ function normalizeRange(anchor: "start" | "end"): void {
     startOrder.value = Math.min(
       endOrder.value,
       Math.max(startOrder.value, endOrder.value - 49)
+    );
+  }
+}
+
+// Entering batch mode is a whole-book intent: widen the range and carry the
+// preset the user had already picked over into the multi-select.
+watch(mode, (next) => {
+  if (next !== "batch") return;
+  if (selectedPresetIds.value.length === 0 && selectedPresetId.value) {
+    selectedPresetIds.value = [selectedPresetId.value];
+  }
+  if (source.value) {
+    startOrder.value = 1;
+    endOrder.value = source.value.chapters.length;
+  }
+});
+
+/** Library picks live here, not on the preset, so a plan never mutates presets. */
+function setBatchLibrary(presetId: string, value: string | number): void {
+  batchLibraryIds.value = { ...batchLibraryIds.value, [presetId]: String(value) };
+}
+
+/**
+ * Hands the whole plan to the controller at once — the scheduler then runs it
+ * unattended, writing each round into its own library as it finishes.
+ */
+async function startBatch(): Promise<void> {
+  if (!batchReady.value) return;
+  const libraryIds: Record<string, string> = {};
+  for (const row of batchRows.value) libraryIds[row.preset.id] = row.libraryId;
+  try {
+    await props.controller.startPlan({
+      presetIds: batchRows.value.map((row) => row.preset.id),
+      startOrder: startOrder.value,
+      endOrder: endOrder.value,
+      modelId: props.controller.selectedModelId.value,
+      thinkingLevel: props.controller.selectedThinkingLevel.value,
+      libraryIds
+    });
+  } catch (error: unknown) {
+    uiMessage.warning(
+      error instanceof Error ? error.message : "无法开始批量计划。"
     );
   }
 }
@@ -243,6 +339,16 @@ onMounted(() => {
       error instanceof Error ? error.message : "加载拆书预设失败。"
     );
   });
+  // A batch plan survives a restart: pick up the interrupted one and continue.
+  void props.controller
+    .restorePlan()
+    .then((restored) => {
+      if (restored) {
+        mode.value = "batch";
+        uiMessage.success("已恢复上次未完成的批量计划，正在继续。");
+      }
+    })
+    .catch(() => undefined);
 });
 </script>
 
@@ -259,6 +365,27 @@ onMounted(() => {
         @manage-presets="presetManagerOpen = true"
       />
     </header>
+        <!-- Single-round keeps the legacy 50-chapter cap; batch plans the book. -->
+        <div class="analysis-mode-switch" role="group" aria-label="运行模式">
+          <button
+            type="button"
+            :class="{ 'is-active': mode === 'single' }"
+            :aria-pressed="mode === 'single'"
+            :disabled="controller.isBusy.value"
+            @click="mode = 'single'"
+          >
+            单轮运行（≤50章）
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': mode === 'batch' }"
+            :aria-pressed="mode === 'batch'"
+            :disabled="controller.isBusy.value"
+            @click="mode = 'batch'"
+          >
+            整本批量
+          </button>
+        </div>
 
     <div class="analysis-content">
       <ChapterEditor
@@ -328,7 +455,7 @@ onMounted(() => {
               />
             </div>
           </div>
-          <label class="setup-field"
+          <label v-if="mode === 'single'" class="setup-field"
             ><span class="setup-field-label">拆书预设</span
             ><PopupSelect
               v-model="selectedPresetId"
@@ -337,6 +464,24 @@ onMounted(() => {
               :disabled="controller.isBusy.value"
               :menu-min-width="280"
           /></label>
+          <div v-else class="setup-field">
+            <span class="setup-field-label"
+              >拆书预设 <small>每个预设独立并行</small></span
+            >
+            <PopupSelect
+              multiple
+              :model-value="selectedPresetIds[0] ?? ''"
+              :selected-values="selectedPresetIds"
+              :options="presetOptions"
+              accessible-label="拆书预设（可多选）"
+              placeholder="选择一个或多个预设"
+              :disabled="controller.isBusy.value"
+              :menu-min-width="280"
+              @update:selected-values="
+                selectedPresetIds = $event.map(String)
+              "
+            />
+          </div>
           <label class="setup-field"
             ><span class="setup-field-label">分析模型</span
             ><PopupSelect
@@ -356,7 +501,7 @@ onMounted(() => {
               :menu-min-width="180"
           /></label>
         </div>
-        <div v-if="selectedPreset" class="preset-summary">
+        <div v-if="mode === 'single' && selectedPreset" class="preset-summary">
           <div class="preset-summary-main">
             <div class="preset-summary-copy">
               <strong>{{ selectedPreset.name }}</strong>
@@ -392,7 +537,50 @@ onMounted(() => {
             />
           </label>
         </div>
+
+        <!--
+          One row per chosen preset: a batch writes into several libraries at
+          once, so each preset needs its own target — the batch start button
+          stays disabled until every row has one.
+        -->
+        <div v-if="mode === 'batch'" class="batch-library-list">
+          <div
+            v-for="row in batchRows"
+            :key="row.preset.id"
+            class="batch-library-row"
+          >
+            <div class="batch-library-copy">
+              <strong>{{ row.preset.name }}</strong>
+              <span>{{ row.preset.description }}</span>
+            </div>
+            <label class="preset-target-field">
+              <span
+                >目标{{
+                  row.preset.output.domain === "material" ? "素材库" : "技能库"
+                }}
+                <small>{{
+                  row.libraryId ? "生成后自动写入" : "未选择无法开始"
+                }}</small></span
+              >
+              <PopupSelect
+                :model-value="row.libraryId"
+                :options="row.options"
+                :accessible-label="`${row.preset.name}的目标资料库`"
+                :placeholder="
+                  row.options.length > 0 ? '请选择具体资料库' : '没有兼容的资料库'
+                "
+                :disabled="controller.isBusy.value || row.options.length === 0"
+                :menu-min-width="260"
+                @update:model-value="setBatchLibrary(row.preset.id, $event)"
+              />
+            </label>
+          </div>
+          <p v-if="batchRows.length === 0" class="analysis-empty-meta">
+            <span>先选择至少一个拆书预设</span>
+          </p>
+        </div>
         <LongAnalysisRunControls
+          v-if="mode === 'single'"
           :controller="controller"
           :selection-count="selectionCount"
           :preset-name="selectedPreset?.name ?? '当前'"
@@ -406,6 +594,35 @@ onMounted(() => {
           @start="start"
           @show-result="showResult"
         />
+        <div v-else class="analysis-run-bar">
+          <div class="analysis-run-progress">
+            <strong>已选 {{ selectionCount }} 章</strong>
+            <span
+              >{{ roundCount }} 轮 × {{ batchRows.length }} 个预设 =
+              {{ batchTaskCount }} 个任务</span
+            >
+          </div>
+          <div class="analysis-run-actions">
+            <button
+              v-if="controller.isBusy.value"
+              class="analysis-danger-button"
+              type="button"
+              @click="controller.pausePlan()"
+            >
+              暂停计划
+            </button>
+            <button
+              v-else
+              class="analysis-primary-button"
+              type="button"
+              :disabled="!batchReady"
+              @click="startBatch"
+            >
+              开始批量计划（{{ batchTaskCount }} 个任务）
+            </button>
+          </div>
+        </div>
+        <AnalysisPlanPanel :controller="controller" />
       </section>
 
       <div

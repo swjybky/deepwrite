@@ -6,6 +6,7 @@ import type {
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import { LongBookAnalysisConfigStore } from "./long-book-analysis/config-store";
+import { LongBookAnalysisPlanStore } from "./long-book-analysis/plan-store";
 import { handleLongBookAnalysisCommands } from "./long-book-analysis/commands";
 import { ShortBookAnalysisConfigStore } from "./short-book-analysis/config-store";
 import {
@@ -17,6 +18,8 @@ import { resolveShortAnalysisProfile } from "./short-book-analysis/run-profile";
 export function createBookAnalysisServices(userDataPath: string) {
   const revision = new RevisionAnalysisConfigStore(userDataPath);
   const long = new LongBookAnalysisConfigStore(userDataPath);
+  // Batch plans live beside the preset config, under the same userData root.
+  const longPlans = new LongBookAnalysisPlanStore(userDataPath);
   const short = new ShortBookAnalysisConfigStore(userDataPath);
   return {
     async handle(
@@ -30,7 +33,7 @@ export function createBookAnalysisServices(userDataPath: string) {
           command
         )) ??
         handleLongBookAnalysisCommands(
-          { ...context, configStore: () => long },
+          { ...context, configStore: () => long, planStore: () => longPlans },
           command
         )
       );

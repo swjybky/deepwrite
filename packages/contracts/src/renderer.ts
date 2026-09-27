@@ -24,6 +24,7 @@ export type * from "./library-agent";
 export type * from "./long-agent-settings";
 export type * from "./long-agent-team";
 export type * from "./long-book-analysis";
+export type * from "./long-book-analysis-plan";
 export type * from "./short-book-analysis";
 export type * from "./short-book-analysis-events";
 export {
@@ -400,3 +401,4 @@ export {
 export { compareVersions } from "./update-version";
 
 export type { WindowFrameAction, WindowFrameState } from "./window-frame";
+export { isInsufficientQuotaErrorMessage } from "./provider-failure";

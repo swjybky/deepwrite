@@ -61,6 +61,17 @@ export function createBookAnalysisTestApi(): Pick<
             "Long book analysis is not used by conversation tests."
           );
         }
+      },
+      plans: {
+        async list() {
+          throw new Error("Long book analysis is not used by conversation tests.");
+        },
+        async save() {
+          throw new Error("Long book analysis is not used by conversation tests.");
+        },
+        async remove() {
+          throw new Error("Long book analysis is not used by conversation tests.");
+        }
       }
     }
   };

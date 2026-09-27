@@ -71,6 +71,7 @@ import type {
   LearningImitationSettingsInput,
   LearningImitationStageId
 } from "./learning-imitation";
+import type { LongBookAnalysisPlan } from "./long-book-analysis-plan";
 import type {
   LongBookAnalysisSavedSourceCatalog,
   LongBookAnalysisSettings,
@@ -390,6 +391,12 @@ export interface DeepWriteApi
         settings: LongBookAnalysisSettingsInput
       ): Promise<LongBookAnalysisSettings>;
       reset(presetId?: string): Promise<LongBookAnalysisSettings>;
+    };
+    /** Batch-plan persistence; only the long-book feature plans. */
+    plans: {
+      list(): Promise<LongBookAnalysisPlan[]>;
+      save(plan: LongBookAnalysisPlan): Promise<LongBookAnalysisPlan>;
+      remove(planId: string): Promise<boolean>;
     };
   };
   workspaceDirectory: {

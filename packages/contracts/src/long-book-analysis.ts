@@ -6,12 +6,13 @@ import {
   LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS,
   LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS,
   LongBookAnalysisIdSchema,
-  LongBookAnalysisTitleSchema
+  LongBookAnalysisTitleSchema,
+  LongBookAnalysisNoteSchema,
+  LongBookAnalysisResultSchema
 } from "./long-book-analysis-limits";
 export * from "./long-book-analysis-limits";
 export * from "./long-book-analysis-presets";
 export * from "./long-book-analysis-sources";
-export * from "./long-book-analysis-commands";
 export const LongBookAnalysisSegmentSchema = z.object({
   id: LongBookAnalysisIdSchema,
   chapterId: LongBookAnalysisIdSchema,
@@ -30,32 +31,6 @@ export type LongBookAnalysisSegment = z.infer<
   typeof LongBookAnalysisSegmentSchema
 >;
 
-export const LongBookAnalysisNoteSchema = z
-  .object({
-    id: LongBookAnalysisIdSchema,
-    label: z.string().trim().min(1).max(256),
-    chapterStart: z
-      .number()
-      .int()
-      .positive()
-      .max(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS),
-    chapterEnd: z
-      .number()
-      .int()
-      .positive()
-      .max(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS),
-    text: z.string().trim().min(1).max(LONG_BOOK_ANALYSIS_MAX_NOTE_CHARACTERS)
-  })
-  .superRefine((value, context) => {
-    if (value.chapterEnd < value.chapterStart) {
-      context.addIssue({
-        code: "custom",
-        path: ["chapterEnd"],
-        message: "Analysis note chapterEnd must not precede chapterStart."
-      });
-    }
-  });
-export type LongBookAnalysisNote = z.infer<typeof LongBookAnalysisNoteSchema>;
 
 const RuntimeBaseSchema = z.object({
   jobId: LongBookAnalysisIdSchema,
@@ -112,18 +87,6 @@ export type LongBookAnalysisRuntimeContext = z.infer<
   typeof LongBookAnalysisRuntimeContextSchema
 >;
 
-export const LongBookAnalysisResultSchema = z.object({
-  name: LongBookAnalysisTitleSchema,
-  description: z.string().trim().min(1).max(1_000),
-  content: z
-    .string()
-    .trim()
-    .min(1)
-    .max(LONG_BOOK_ANALYSIS_MAX_RESULT_CHARACTERS)
-});
-export type LongBookAnalysisResult = z.infer<
-  typeof LongBookAnalysisResultSchema
->;
 
 export const LongBookAnalysisNoteWriteSchema = z.object({
   text: z.string().trim().min(1).max(LONG_BOOK_ANALYSIS_MAX_NOTE_CHARACTERS)
@@ -131,3 +94,12 @@ export const LongBookAnalysisNoteWriteSchema = z.object({
 export type LongBookAnalysisNoteWrite = z.infer<
   typeof LongBookAnalysisNoteWriteSchema
 >;
+
+// NOTE: this module deliberately does NOT `export * from
+// "./long-book-analysis-commands". The command envelopes import the plan schema
+// from `long-book-analysis-plan`, and the plan schema imports the result schema
+// from here, so that re-export closes a cycle: long-book-analysis -> commands ->
+// plan -> long-book-analysis. `export *` is hoisted, so moving it to the bottom
+// of the file does not help — the cycle has to be broken by edge, not by order.
+// The commands are re-exported from `index.ts` instead, and `system.ts` imports
+// them straight from "./long-book-analysis-commands".
