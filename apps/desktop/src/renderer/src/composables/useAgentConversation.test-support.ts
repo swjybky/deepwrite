@@ -482,6 +482,12 @@ function createDeferredApi(): {
           requestId: payload.requestId,
           resolvedAt: new Date().toISOString()
         };
+      },
+      async compact(payload) {
+        return {
+          compacted: false,
+          reason: `Conversation tests do not compact (${payload.sessionId}).`
+        };
       }
     },
     models: createModelApiTestFixture(),

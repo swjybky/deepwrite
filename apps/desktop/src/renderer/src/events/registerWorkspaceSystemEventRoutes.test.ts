@@ -20,6 +20,8 @@ function createDependencies(order: string[] = []) {
     },
     revisionAnalysis: { handleEvent: vi.fn() },
     shortBookAnalysis: { handleEvent: vi.fn() },
+    notifyContextCompacted: vi.fn(),
+    notifyCompactionFailed: vi.fn(),
     longBookAnalysis: {
       handleEvent: vi.fn(() => order.push("long-book-analysis"))
     },

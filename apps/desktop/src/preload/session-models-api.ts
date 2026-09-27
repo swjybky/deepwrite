@@ -12,6 +12,8 @@ import {
   RemoteModelListResultSchema,
   SessionAbortAcceptedPayloadSchema,
   SessionAbortCommandPayloadSchema,
+  SessionCompactAcceptedPayloadSchema,
+  SessionCompactCommandPayloadSchema,
   SessionUserInputResponseAcceptedPayloadSchema,
   SessionUserInputResponsePayloadSchema,
   SessionPromptAcceptedPayloadSchema,
@@ -28,6 +30,8 @@ import {
   type RemoteModelListInput,
   type RemoteModelListResult,
   type SessionAbortAcceptedPayload,
+  type SessionCompactAcceptedPayload,
+  type SessionCompactCommandPayload,
   type SessionAbortCommandPayload,
   type SessionUserInputResponseAcceptedPayload,
   type SessionUserInputResponsePayload,
@@ -76,6 +80,29 @@ export async function abort(
           correlationId: id,
           sessionId: payload.sessionId,
           runId: payload.runId
+        }
+      })
+    )
+  );
+}
+
+/**
+ * Ask the agent to compact this session's context now, bypassing the automatic
+ * threshold. Rejected while a run is streaming.
+ */
+export async function compact(
+  rawPayload: SessionCompactCommandPayload
+): Promise<SessionCompactAcceptedPayload> {
+  const payload = SessionCompactCommandPayloadSchema.parse(rawPayload);
+  const id = browserId("cmd_compact");
+  return SessionCompactAcceptedPayloadSchema.parse(
+    await invokeCommand<SessionCompactAcceptedPayload>(
+      createEnvelope("agent.compact", payload, {
+        id,
+        context: {
+          correlationId: id,
+          sessionId: payload.sessionId,
+          ...(payload.runId ? { runId: payload.runId } : {})
         }
       })
     )
@@ -268,6 +295,7 @@ export async function queryModelUsage(
 export const session: DeepWriteApi["session"] = {
   prompt,
   abort,
+  compact,
   submitUserInput
 };
 

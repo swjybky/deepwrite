@@ -26,6 +26,7 @@ import {
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
 import {
   AgentAbortCommandEnvelopeSchema,
+  AgentCompactCommandEnvelopeSchema,
   AgentUserInputResponseCommandEnvelopeSchema,
   AgentErrorEventEnvelopeSchema,
   AgentEvaluationSnapshotEventEnvelopeSchema,
@@ -33,6 +34,8 @@ import {
   AgentMessageDeltaEventEnvelopeSchema,
   AgentUsageObservedEventEnvelopeSchema,
   AgentContextCompactedEventEnvelopeSchema,
+
+  AgentCompactionFailedEventEnvelopeSchema,
   AgentRetryScheduledEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentTurnStartedEventEnvelopeSchema,
@@ -66,6 +69,8 @@ import {
   type AgentMessageDeltaEventEnvelope,
   type AgentUsageObservedEventEnvelope,
   type AgentContextCompactedEventEnvelope,
+
+  type AgentCompactionFailedEventEnvelope,
   type AgentRetryScheduledEventEnvelope,
   type AgentThinkingDeltaEventEnvelope,
   type AgentTurnStartedEventEnvelope,
@@ -353,6 +358,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentAbortCommandEnvelopeSchema,
+  AgentCompactCommandEnvelopeSchema,
   AgentUserInputResponseCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema,
   AgentModelCapacityCommandEnvelopeSchema
@@ -421,6 +427,8 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentMessageCompletedEventEnvelopeSchema,
   AgentUsageObservedEventEnvelopeSchema,
   AgentContextCompactedEventEnvelopeSchema,
+
+  AgentCompactionFailedEventEnvelopeSchema,
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
@@ -473,6 +481,8 @@ export type SystemEventEnvelope =
   | AgentMessageCompletedEventEnvelope
   | AgentUsageObservedEventEnvelope
   | AgentContextCompactedEventEnvelope
+
+  | AgentCompactionFailedEventEnvelope
   | AgentToolCallStreamEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope

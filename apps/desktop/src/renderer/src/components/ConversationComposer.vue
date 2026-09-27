@@ -30,8 +30,16 @@ import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
 import PopupSelect from "./PopupSelect.vue";
 import ComposerContextBar from "./ComposerContextBar.vue";
 import ComposerMoreSettings from "./ComposerMoreSettings.vue";
+import { useContextCompactionStore } from "../stores/contextCompactionStore";
+import { uiMessage } from "../ui-feedback";
+
+/** Compact token counts for the inline result line. */
+function formatCompactionTokens(value: number): string {
+  return value.toLocaleString("zh-CN");
+}
 
 const settingsStore = useSettingsStore();
+const contextCompactionStore = useContextCompactionStore();
 
 const props = defineProps<{
   draft: string;
@@ -135,8 +143,39 @@ const {
   readingAttachments,
   emitDraft: (value) => emit("update:draft", value),
   emitSend: (attachments) => emit("send", attachments),
-  emitClearEditorReferences: () => emit("clearEditorReferences")
+  emitClearEditorReferences: () => emit("clearEditorReferences"),
+  onCompact: runCompact
 });
+
+/**
+ * `/compact` — ask the agent to summarize this session's history now instead of
+ * waiting for the automatic threshold.
+ *
+ * Called from the composer rather than through the conversation controller
+ * because the command never becomes a message: it has no assistant turn, no
+ * attachments, and no effect on the transcript the UI renders.
+ *
+ * The command returns as soon as the agent accepts it; the outcome arrives as
+ * `agent.context_compacted` / `agent.compaction_failed` and is surfaced by the
+ * workspace event route. That split is why the progress bar is driven by the
+ * store rather than by awaiting this call.
+ */
+async function runCompact(): Promise<void> {
+  const api = window.deepwrite?.session;
+  if (!api || !props.currentSessionId) {
+    uiMessage.warning("当前环境不支持手动压缩上下文。");
+    return;
+  }
+  contextCompactionStore.begin();
+  try {
+    await api.compact({ sessionId: props.currentSessionId });
+  } catch (error: unknown) {
+    contextCompactionStore.finish({
+      kind: "failed",
+      reason: error instanceof Error ? error.message : "压缩上下文失败。"
+    });
+  }
+}
 closeReferenceMenuHolder.run = closeReferenceMenu;
 
 function editorReferenceTooltip(reference: EditorTextReference): string {
@@ -317,6 +356,49 @@ defineExpose({ focusInput });
               正在读取附件…
             </span>
           </div>
+
+        <!--
+          Compaction is a full summarising request and can take a while, so the
+          wait gets a persistent bar rather than only a toast that scrolls away.
+          It stays until the outcome event lands — the command resolves early,
+          so it cannot drive this.
+        -->
+        <div
+          v-if="contextCompactionStore.running"
+          class="composer-compacting"
+          role="progressbar"
+          aria-label="正在压缩上下文"
+          aria-valuetext="正在压缩上下文"
+        >
+          <div class="composer-compacting-head">
+            <span class="composer-compacting-dot" aria-hidden="true"></span>
+            <span>正在压缩上下文…</span>
+          </div>
+          <div class="composer-compacting-track" aria-hidden="true">
+            <span class="composer-compacting-bar"></span>
+          </div>
+          <small>压缩是一次完整的摘要请求，长对话可能需要一两分钟。</small>
+        </div>
+        <div
+          v-else-if="contextCompactionStore.lastOutcome"
+          class="composer-compacting is-done"
+          role="status"
+          aria-live="polite"
+        >
+          <span v-if="contextCompactionStore.lastOutcome.kind === 'compacted'">
+            已压缩上下文：
+            {{ formatCompactionTokens(contextCompactionStore.lastOutcome.tokensBefore) }}
+            →
+            {{ formatCompactionTokens(contextCompactionStore.lastOutcome.tokensAfter) }}
+            tokens
+          </span>
+          <span v-else>
+            未压缩：{{ contextCompactionStore.lastOutcome.reason }}
+          </span>
+          <button type="button" @click="contextCompactionStore.clear()">
+            知道了
+          </button>
+        </div>
           <textarea
             ref="composerInput"
             :value="draft"

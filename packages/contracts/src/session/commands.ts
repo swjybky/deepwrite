@@ -194,6 +194,52 @@ export const SessionPromptCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   }
 });
 
+/**
+ * Manual context compaction, triggered by typing `/compact` in the composer.
+ *
+ * Compaction normally happens on its own once the transcript crosses the
+ * configured share of the model's window. This is the escape hatch for when the
+ * user wants it sooner — before a long paste, or after the provider already
+ * started pushing back on length.
+ *
+ * `runId` is optional: unlike abort, this targets whatever run the session is
+ * currently on, and there may be none.
+ */
+export const SessionCompactCommandPayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  runId: z.string().min(1).optional()
+});
+export type SessionCompactCommandPayload = z.infer<
+  typeof SessionCompactCommandPayloadSchema
+>;
+
+export const SessionCompactAcceptedPayloadSchema = z.object({
+  compacted: z.boolean(),
+  /** Absent when nothing was compacted, so the caller can say why. */
+  reason: z.string().min(1).optional(),
+  tokensBefore: z.number().int().nonnegative().optional(),
+  tokensAfter: z.number().int().nonnegative().optional()
+});
+export type SessionCompactAcceptedPayload = z.infer<
+  typeof SessionCompactAcceptedPayloadSchema
+>;
+
+function validateCompactCommandContext(
+  value: {
+    context: { sessionId?: string | undefined };
+    payload: SessionCompactCommandPayload;
+  },
+  context: z.core.$RefinementCtx<unknown>
+): void {
+  if (value.context.sessionId !== value.payload.sessionId) {
+    context.addIssue({
+      code: "custom",
+      path: ["context", "sessionId"],
+      message: "Envelope sessionId must match agent.compact payload."
+    });
+  }
+}
+
 export const SessionAbortCommandPayloadSchema = z.object({
   sessionId: z.string().min(1),
   runId: z.string().min(1)
@@ -485,6 +531,11 @@ export const AgentAbortCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agent.abort"),
   payload: SessionAbortCommandPayloadSchema
 }).superRefine(validateAbortCommandContext);
+
+export const AgentCompactCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("agent.compact"),
+  payload: SessionCompactCommandPayloadSchema
+}).superRefine(validateCompactCommandContext);
 
 export const AgentUserInputResponseCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
