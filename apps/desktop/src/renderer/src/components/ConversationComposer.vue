@@ -379,6 +379,7 @@ defineExpose({ focusInput });
           </div>
           <small>压缩是一次完整的摘要请求，长对话可能需要一两分钟。</small>
         </div>
+        <!--
         <div
           v-else-if="contextCompactionStore.lastOutcome"
           class="composer-compacting is-done"
@@ -399,6 +400,17 @@ defineExpose({ focusInput });
             知道了
           </button>
         </div>
+
+          Outside the input surface, so it reads as a readout about the
+          conversation rather than part of the text box. It reports what the
+          next send will cost, which is text-level information, not a toolbar
+          control.
+        -->
+        <ContextWindowIndicator
+          v-if="settingsStore.generalSettings.showContextUsage"
+          :messages="messages"
+          :model="selectedModel"
+        />
           <textarea
             ref="composerInput"
             :value="draft"
@@ -456,11 +468,6 @@ defineExpose({ focusInput });
             </div>
             <div class="composer-actions">
               <ComposerMoreSettings>
-                <ContextWindowIndicator
-                  v-if="settingsStore.generalSettings.showContextUsage"
-                  :messages="messages"
-                  :model="selectedModel"
-                />
                 <AgentTeamModeSelect
                   v-if="agentWorkspaceType && agentId"
                   :model-value="agentTeamMode"
