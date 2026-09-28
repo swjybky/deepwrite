@@ -123,6 +123,8 @@ export interface LongBookAnalysisController {
   retryPlanWrite(taskId: string): Promise<boolean>;
   /** Rebuild and resume the last interrupted plan, if any. */
   restorePlan(): Promise<boolean>;
+  /** Drop the plan and every finished plan file left in the store. */
+  clearPlan(): Promise<boolean>;
   focusTask(taskId: string): void;
   handleEvent(event: SystemEventEnvelope): void;
   dispose(): void;
@@ -608,6 +610,34 @@ export function useLongBookAnalysis(options: {
   }
 
   /**
+   * Discard the plan: the task list goes, and so do its files.
+   *
+   * Two things are removed on purpose. The current plan, obviously — but also
+   * every plan left behind by earlier runs. Those accumulate one file per run
+   * and each can carry a full round checkpoint (tens of KB apiece), and nothing
+   * else ever reads them, since `restorePlan` only looks at `running` plans.
+   *
+   * Refused while a run is in flight: the tasks it would drop are the ones
+   * being written to.
+   */
+  async function clearPlan(): Promise<boolean> {
+    if (isBusy.value) return false;
+    runner.pause();
+    for (const task of tasks.value) task.pipeline.dispose();
+    tasks.value = [];
+    activeTaskId.value = "";
+    const stale = await api().longBookAnalysis.plans.list();
+    for (const plan of stale) {
+      await api().longBookAnalysis.plans.remove(plan.id);
+    }
+    // A fresh id, so the next plan cannot collide with a file just deleted.
+    planId = createId("analysis_plan");
+    planCreatedAt = new Date().toISOString();
+    planStatus = "paused";
+    return true;
+  }
+
+  /**
    * Rebuild the most recent interrupted plan and resume it. Rounds that already
    * finished stay finished; in-flight rounds continue from their checkpoint.
    */
@@ -702,6 +732,7 @@ export function useLongBookAnalysis(options: {
     },
     retryPlanWrite: (taskId: string) => runner.retryWrite(taskId),
     restorePlan,
+    clearPlan,
     focusTask,
     persistResult,
     handleEvent: (event) => {

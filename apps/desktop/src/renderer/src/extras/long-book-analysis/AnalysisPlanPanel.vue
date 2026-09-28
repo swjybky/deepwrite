@@ -9,6 +9,7 @@
  * `shallowRef` array would not make nested ref changes reactive on its own.
  */
 import { computed } from "vue";
+import { uiMessage } from "../../ui-feedback";
 import type { LongBookAnalysisController } from "./useLongBookAnalysis";
 import {
   taskProgressText,
@@ -94,6 +95,12 @@ function canShowResult(task: AnalysisTaskRuntime): boolean {
   return task.state.status.value === "completed";
 }
 
+async function clearPlan(): Promise<void> {
+  const cleared = await props.controller.clearPlan();
+  if (cleared) uiMessage.success("拆书计划与历史记录已清理。");
+  else uiMessage.warning("计划运行中，请先暂停再清理。");
+}
+
 function rerun(task: AnalysisTaskRuntime): void {
   props.controller.rerunPlanTask(task.id);
 }
@@ -147,6 +154,20 @@ function rerun(task: AnalysisTaskRuntime): void {
         @click="controller.resumePlan"
       >
         继续计划
+      </button>
+      <!--
+        Also drops the plan files earlier runs left behind: they are written
+        once per run, carry a full round checkpoint each, and nothing reads
+        them again. Disabled while running, since the tasks it would discard
+        are the ones in flight.
+      -->
+      <button
+        class="plan-clear-button"
+        type="button"
+        :disabled="isRunning"
+        @click="clearPlan"
+      >
+        清理记录
       </button>
     </div>
 
