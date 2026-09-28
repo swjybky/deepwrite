@@ -46,6 +46,13 @@ export interface AgentRunInput {
   webSearchEnabled?: boolean;
   writeApprovalMode?: AgentWriteApprovalMode;
   autoApproveCrossStageOperations?: boolean;
+  /**
+   * Fold long conversation history into a summary once the model request
+   * approaches the context window. Omitted means enabled (non-faux runs only).
+   */
+  autoCompactContext?: boolean;
+  /** Share of the context window at which compaction triggers. */
+  autoCompactThresholdPercent?: number;
   thinkingLevel?: ConfiguredThinkingLevel;
   temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
@@ -119,6 +126,18 @@ export type AgentRuntimeEvent =
         delayMs: number;
         retryAt: string;
         reason: string;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "agent.context_compacted";
+      runId: string;
+      sessionId: string;
+      payload: {
+        messageId: string;
+        trigger: import("./context-compression").ContextCompactionTrigger;
+        tokensBefore: number;
+        tokensAfter: number;
         runtime: AgentRuntimeRef;
       };
     }

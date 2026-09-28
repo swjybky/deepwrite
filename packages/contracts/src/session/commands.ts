@@ -91,6 +91,9 @@ export const SessionPromptCommandPayloadSchema = z
     writeApprovalMode: AgentWriteApprovalModeSchema.optional(),
     agentTeamMode: AgentTeamRunModeSchema.optional(),
     autoApproveCrossStageOperations: z.boolean().optional(),
+    /** Automatic context compaction; omitted means enabled. */
+    autoCompactContext: z.boolean().optional(),
+    autoCompactThresholdPercent: z.number().int().min(50).max(95).optional(),
     webSearchEnabled: z.boolean().optional(),
     chatAssistant: ChatAssistantRequestContextSchema.optional(),
     workspaceContext: WorkspaceRuntimeContextSchema.optional()

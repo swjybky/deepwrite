@@ -1,6 +1,7 @@
 import { assertAnalysisRunBudget } from "./analysis-run-budget";
 import { analysisFauxResponses } from "./analysis-faux";
 import { buildRunTools } from "./run-tools";
+import { ContextCompressionController } from "./context-compression";
 import { libraryManagementParentPrompt } from "./library-management-runtime";
 
 import {
@@ -190,6 +191,18 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
   private readonly retryPolicy: AgentTurnRetryPolicyOptions | undefined;
   private readonly toolExecutionHooks: AgentToolExecutionHooks;
   private readonly conversationAgents = new Map<string, Agent>();
+  /**
+   * Compaction controllers for cached conversation agents, keyed the same way.
+   *
+   * The controller is built inside `start()` and is the only thing holding the
+   * cached transcript prefix, so a manual `/compact` arriving between runs needs
+   * this registry to reach it. Entries live and die with their agent — see
+   * `trimConversationAgents`.
+   */
+  private readonly conversationCompression = new Map<
+    string,
+    ContextCompressionController
+  >();
   private readonly userInputBroker = new AgentUserInputBroker();
 
   constructor(options: PiRuntimeAdapterOptions = {}) {
@@ -234,6 +247,35 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       modelId: config.id,
       ...resolveProviderModelCapacity(config)
     };
+  }
+
+  /**
+   * Compact a cached conversation now, on the user's request.
+   *
+   * Keys are `${sessionId}:...` (see `conversationAgentKey`), so a session can
+   * own more than one cached agent — analysis jobs each get their own. The most
+   * recently created one wins, which is the conversation the user is actually
+   * looking at; the rest belong to background jobs.
+   */
+  async compactSession(sessionId: string): Promise<{
+    compacted: boolean;
+    reason?: string;
+    tokensBefore?: number;
+    tokensAfter?: number;
+  }> {
+    let match: ContextCompressionController | undefined;
+    for (const [key, controller] of this.conversationCompression) {
+      if (key === sessionId || key.startsWith(`${sessionId}:`)) {
+        match = controller;
+      }
+    }
+    if (!match) {
+      return {
+        compacted: false,
+        reason: "当前会话还没有可压缩的运行记录。"
+      };
+    }
+    return await match.compactNow();
   }
 
   async testConnection(
@@ -534,6 +576,43 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       }
     };
 
+    // Automatic context compaction. It rewrites only the message array sent to
+    // the model; `agent.state.messages`, conversation persistence, and
+    // sub-agent snapshots keep operating on the untouched transcript.
+    const contextCompression = new ContextCompressionController(agent);
+    contextCompression.configure(
+      input.runtimeConfig
+        ? {
+            model,
+            streamFn: spawnStreamFn,
+            enabled: input.autoCompactContext !== false,
+            thresholdPercent: normalizeAutoCompactThreshold(
+              input.autoCompactThresholdPercent
+            ),
+            thinkingLevel: effectiveThinkingLevel,
+            onCompacted: (info) => {
+              emit({
+                type: "agent.context_compacted",
+                runId: input.runId,
+                sessionId: input.sessionId,
+                payload: {
+                  messageId,
+                  trigger: info.trigger,
+                  tokensBefore: info.tokensBefore,
+                  tokensAfter: info.tokensAfter,
+                  runtime
+                }
+              });
+            }
+          }
+        : undefined
+    );
+    // Always installed: an unconfigured controller returns the transcript
+    // unchanged, which also clears the hook for a cached agent that previously
+    // ran with a real provider.
+    agent.transformContext = contextCompression.transformContext;
+    this.conversationCompression.set(agentKey, contextCompression);
+
     const flushToolDeltas = (): void => {
       if (toolDeltaTimer) {
         clearTimeout(toolDeltaTimer);
@@ -761,6 +840,18 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
             ? message.errorMessage || "模型连接暂时不可用。"
             : undefined;
         },
+        ...(input.runtimeConfig
+          ? {
+              classifyOverflow: (message: AssistantMessage) =>
+                contextCompression.canRecoverOverflow(message)
+                  ? "上下文长度超出模型上限，已压缩历史后重试。"
+                  : undefined,
+              recoverFromOverflow: (
+                _message: AssistantMessage,
+                signal: AbortSignal
+              ) => contextCompression.recoverFromOverflow(signal)
+            }
+          : {}),
         onTurnStarted: (attempt) => {
           retryWaiting = false;
           modelRequestInFlight = true;
@@ -882,7 +973,14 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       if (this.conversationAgents.size <= limit) return;
       if (!agent.state.isStreaming) {
         this.conversationAgents.delete(key);
+        this.conversationCompression.delete(key);
       }
     }
   }
+}
+
+/** Clamp a caller-supplied compaction threshold to the supported range. */
+function normalizeAutoCompactThreshold(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 80;
+  return Math.min(95, Math.max(50, Math.round(value)));
 }

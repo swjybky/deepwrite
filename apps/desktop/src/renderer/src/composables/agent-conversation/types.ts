@@ -32,6 +32,9 @@ export interface ConversationStorage {
 export interface UseAgentConversationOptions {
   api: () => DeepWriteApi | undefined;
   autoApproveCrossStageOperations?: () => boolean;
+  /** Automatic context compaction toggle; omitted means enabled. */
+  autoCompactContext?: () => boolean;
+  autoCompactThresholdPercent?: () => number;
   initialMessages?: ChatMessage[];
   idleTimeoutMs?: number;
   initialPersistenceSnapshot?: unknown;

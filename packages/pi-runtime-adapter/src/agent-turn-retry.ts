@@ -57,6 +57,20 @@ export interface RunAgentWithTurnRetriesOptions {
    * The default delegates to pi-ai's transient provider-error classifier.
    */
   classifyFailure?: (message: AssistantMessage) => string | undefined;
+  /**
+   * Return a user-facing reason when the failure is a recoverable context
+   * overflow, or undefined otherwise. Checked after `classifyFailure` declines,
+   * so provider-transient handling keeps priority.
+   */
+  classifyOverflow?: (message: AssistantMessage) => string | undefined;
+  /**
+   * Compact the conversation so the overflowed turn can be retried. Return false
+   * to leave the failure terminal. Only called when `classifyOverflow` matched.
+   */
+  recoverFromOverflow?: (
+    message: AssistantMessage,
+    signal: AbortSignal
+  ) => Promise<boolean>;
   onEvent?: (event: AgentEvent, signal: AbortSignal) => Promise<void> | void;
   /**
    * Runs for every provider-returned assistant terminal message before retry
@@ -242,8 +256,17 @@ export async function runAgentWithTurnRetries(
       activeTurn.attempt < maxAttempts
     ) {
       const reason = classifyFailure(event.message);
-      if (reason) {
-        const baseDelayMs = policy.delaysMs[activeTurn.attempt - 1] ?? 0;
+      const overflowReason =
+        reason === undefined
+          ? options.classifyOverflow?.(event.message)
+          : undefined;
+      if (reason !== undefined || overflowReason !== undefined) {
+        // Overflow recovery compacts here and retries immediately; a
+        // provider-transient retry keeps its backoff delay.
+        const baseDelayMs =
+          overflowReason !== undefined
+            ? 0
+            : (policy.delaysMs[activeTurn.attempt - 1] ?? 0);
         const delayMs = jitterAgentTurnRetryDelay(baseDelayMs, policy.random);
         const schedule: AgentTurnRetrySchedule = {
           turnId: activeTurn.turnId,
@@ -252,10 +275,20 @@ export async function runAgentWithTurnRetries(
           maxAttempts,
           delayMs,
           retryAt: new Date(policy.now() + delayMs).toISOString(),
-          reason: reason.slice(0, 4_000)
+          reason: (overflowReason ?? reason ?? "").slice(0, 4_000)
         };
         if (
           !removeFailedAssistantFromTranscript(options.agent, event.message)
+        ) {
+          await options.onEvent?.(event, signal);
+          return;
+        }
+        // Compact only after the failed message left the transcript, so the
+        // provider error text is never folded into the summary.
+        if (
+          overflowReason !== undefined &&
+          options.recoverFromOverflow &&
+          !(await options.recoverFromOverflow(event.message, signal))
         ) {
           await options.onEvent?.(event, signal);
           return;
