@@ -141,6 +141,9 @@ export interface ShortConversationCoordinatorOptions {
   settings: {
     permissionMode(): GeneralPermissionMode;
     updatePermissionMode(mode: GeneralPermissionMode): void;
+    /** Automatic context compaction; omitted means enabled. */
+    autoCompactContext?(): boolean;
+    autoCompactThresholdPercent?(): number;
   };
   runtimeAvailable(): boolean;
   showConversation(): void;

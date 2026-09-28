@@ -203,6 +203,7 @@ import { appearance } from "./appearance-api";
 import { long } from "./long-api";
 import {
   abort,
+  compact,
   models as sessionModels,
   prompt,
   queryModelUsage,
@@ -1125,6 +1126,7 @@ const api: DeepWriteApi = {
   session: {
     prompt,
     abort,
+    compact,
     submitUserInput
   },
   models: sessionModels,

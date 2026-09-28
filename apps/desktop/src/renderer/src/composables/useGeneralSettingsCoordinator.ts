@@ -198,6 +198,16 @@ export function useGeneralSettingsCoordinator(
     queueSave();
   }
 
+  function updateAutoCompactContext(enabled: boolean): void {
+    applyLocalPatch({ autoCompactContext: enabled });
+    queueSave();
+  }
+
+  function updateAutoCompactThresholdPercent(percent: number): void {
+    applyLocalPatch({ autoCompactThresholdPercent: percent });
+    queueSave();
+  }
+
   function updateWorkspacePaneLayout(layout: WorkspacePaneLayout): void {
     applyLocalPatch({ workspacePaneLayout: layout });
     queueSave();
@@ -241,6 +251,8 @@ export function useGeneralSettingsCoordinator(
     updateLanguage,
     updatePermissionMode,
     updateShowContextUsage,
+    updateAutoCompactContext,
+    updateAutoCompactThresholdPercent,
     updateShowInMenuBar,
     updateUseNetworkProxy,
     updateWorkspacePaneLayout

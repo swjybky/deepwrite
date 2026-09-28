@@ -323,6 +323,22 @@ export function toEventEnvelope(
     );
   }
 
+  if (event.type === "agent.context_compacted") {
+    return createEnvelope(
+      "agent.context_compacted",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        messageId: event.payload.messageId,
+        trigger: event.payload.trigger,
+        tokensBefore: event.payload.tokensBefore,
+        tokensAfter: event.payload.tokensAfter,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   return createEnvelope(
     "agent.error",
     {

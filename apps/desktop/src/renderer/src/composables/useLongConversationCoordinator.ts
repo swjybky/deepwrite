@@ -130,6 +130,9 @@ export interface LongConversationCoordinatorOptions {
   settings: {
     permissionMode(): AgentRunSettings["approvalMode"];
     updatePermissionMode(mode: AgentRunSettings["approvalMode"]): void;
+    /** Automatic context compaction; omitted means enabled. */
+    autoCompactContext?(): boolean;
+    autoCompactThresholdPercent?(): number;
   };
   commands: {
     stopGeneration(): Promise<void>;

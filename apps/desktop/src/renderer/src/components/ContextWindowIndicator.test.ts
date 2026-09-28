@@ -8,14 +8,17 @@ import indicatorSource from "./ContextWindowIndicator.vue?raw";
 import chatAssistantComposerSource from "../features/chat-assistant/ChatAssistantComposer.vue?raw";
 
 describe("ContextWindowIndicator", () => {
-  it("places the indicator after the unified model configuration", () => {
-    const modelConfig = composerSource.indexOf(
-      "<ConversationModelConfigSelect"
-    );
+  it("shows the indicator in the composer rather than behind a disclosure", () => {
     const indicator = composerSource.indexOf("<ContextWindowIndicator");
-
-    expect(modelConfig).toBeGreaterThan(-1);
-    expect(indicator).toBeGreaterThan(modelConfig);
+    expect(indicator).toBeGreaterThan(-1);
+    // Sits with the composer, not inside the collapsed "更多" menu: how full the
+    // context is decides whether the next send overflows, so it must be visible
+    // without a click.
+    const menu = composerSource.indexOf("<ComposerMoreSettings>");
+    const menuEnd = composerSource.indexOf("</ComposerMoreSettings>");
+    expect(menu).toBeGreaterThan(-1);
+    expect(menuEnd).toBeGreaterThan(menu);
+    expect(indicator < menu || indicator > menuEnd).toBe(true);
     expect(modelConfigSource).toContain("思考等级");
     expect(modelConfigSource).toContain("温度");
     expect(composerSource).not.toContain('accessible-label="选择温度"');
@@ -40,15 +43,18 @@ describe("ContextWindowIndicator", () => {
     expect(rendererStyles).toContain("position: fixed;");
   });
 
-  it("uses theme variables and preserves the compact toolbar footprint", () => {
+  it("uses theme variables and renders a full-width usage bar", () => {
     expect(rendererStyles).toContain("var(--surface-raised");
     expect(rendererStyles).toContain("var(--theme-line");
     expect(rendererStyles).toContain("var(--text-primary");
     expect(rendererStyles).toContain("var(--accent");
-    expect(rendererStyles).toContain("flex: 0 0 auto;");
-    expect(rendererStyles).toContain("width: 14px;");
-    expect(rendererStyles).toContain("fill: none;");
-    expect(rendererStyles).not.toContain("stroke-dasharray: 2 3;");
+    // A bar and not a ring: the fill width carries the ratio.
+    expect(indicatorSource).toContain("context-window-indicator-fill");
+    expect(indicatorSource).toContain("usedPercentage ?? 0");
+    // Escalates before the window is gone, and stays reachable for users who
+    // ask for reduced motion.
+    expect(rendererStyles).toContain('[data-state="warning"]');
+    expect(rendererStyles).toContain('[data-state="over-limit"]');
     expect(rendererStyles).toContain("prefers-reduced-motion: reduce");
   });
 
@@ -57,7 +63,8 @@ describe("ContextWindowIndicator", () => {
     expect(indicatorSource).toContain("等待实际用量");
     expect(indicatorSource).toContain("上下文上限不可用");
     expect(indicatorSource).toContain("tokens`");
-    expect(indicatorSource).toContain(':stroke-dashoffset="dashOffset"');
-    expect(indicatorSource).toContain('<svg viewBox="0 0 16 16"');
+    // The strip shows the model's own numbers, not a bare percentage.
+    expect(indicatorSource).toContain("tokenRatioLabel ?");
+    expect(indicatorSource).toContain("context-window-indicator-value");
   });
 });

@@ -103,6 +103,7 @@ import {
   RemoveLibraryEntryResultSchema,
   MoveLibraryEntryResultSchema,
   SessionAbortAcceptedPayloadSchema,
+  SessionCompactAcceptedPayloadSchema,
   SessionUserInputResponseAcceptedPayloadSchema,
   SessionPromptAcceptedPayloadSchema,
   WorkspaceAgentSettingsSchema,
@@ -2376,6 +2377,43 @@ function registerIpc(): void {
               details: safeErrorDetails(error)
             }
           };
+        }
+      }
+
+      if (command.type === "agent.compact") {
+        try {
+          const internalCommand = CommandEnvelopeSchema.parse(
+            createEnvelope("agent.compact", command.payload, {
+              id: command.id,
+              context: command.context
+            })
+          );
+          // Compaction is one summarising request, so it needs a real timeout
+          // rather than abort's 10s cancellation window.
+          const result = await supervisor.requestCommand(
+            "agent",
+            internalCommand,
+            120_000
+          );
+          if (result.status === "accepted") {
+            return {
+              status: "accepted",
+              requestId: command.id,
+              payload: SessionCompactAcceptedPayloadSchema.parse(result.payload)
+            };
+          }
+          return result;
+        } catch (error: unknown) {
+            return {
+              status: "rejected",
+              requestId: command.id,
+              error: {
+                code: "ipc.agent_compact_failed",
+                message:
+                  error instanceof Error ? error.message : "Agent compact failed.",
+                details: safeErrorDetails(error)
+              }
+            };
         }
       }
 

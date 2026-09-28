@@ -121,6 +121,8 @@ describe("GeneralSettingsStore", () => {
         language: "zh-CN",
         showInMenuBar: false,
         showContextUsage: true,
+        autoCompactContext: true,
+        autoCompactThresholdPercent: 80,
         useNetworkProxy: false,
         workspacePaneLayout: "agent-editor",
         defaultTextViewMode: "edit",

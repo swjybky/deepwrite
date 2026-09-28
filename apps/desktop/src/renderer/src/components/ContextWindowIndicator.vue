@@ -38,9 +38,6 @@ const { capacityStatus, contextWindow, measurement, usedTokens } =
     selectedModel: () => props.model
   });
 
-const dashOffset = computed(() =>
-  measurement.value ? 100 - measurement.value.drawRatio * 100 : 100
-);
 const usedPercentageLabel = computed(() =>
   measurement.value
     ? formatContextPercentage(measurement.value.usedPercentage)
@@ -82,7 +79,12 @@ const accessibleLabel = computed(() => {
 const visualState = computed(() => {
   if (capacityStatus.value === "resolving") return "resolving";
   if (!measurement.value) return "unmeasured";
-  return measurement.value.usedPercentage > 100 ? "over-limit" : "measured";
+  const used = measurement.value.usedPercentage;
+  // Three steps, so the chip escalates before the window is actually gone:
+  // amber once compaction is near, red at the point the next send may overflow.
+  if (used >= 90) return "over-limit";
+  if (used >= 60) return "warning";
+  return "measured";
 });
 
 async function updateTooltipPosition(): Promise<void> {
@@ -154,6 +156,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!--
+    Laid out as a full-width strip under the composer rather than a chip in the
+    toolbar: how full the context is decides whether the next send overflows, so
+    it gets its own line instead of competing with the buttons.
+  -->
   <span class="context-window-indicator" :data-state="visualState">
     <button
       ref="trigger"
@@ -167,18 +174,16 @@ onBeforeUnmount(() => {
       @blur="focused = false"
       @keydown.esc.prevent="closeTooltip"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <circle class="context-window-indicator-track" cx="8" cy="8" r="5.5" />
-        <circle
-          class="context-window-indicator-progress"
-          cx="8"
-          cy="8"
-          r="5.5"
-          pathLength="100"
-          stroke-dasharray="100"
-          :stroke-dashoffset="dashOffset"
-        />
-      </svg>
+      <span class="context-window-indicator-label">上下文</span>
+      <span class="context-window-indicator-track" aria-hidden="true">
+        <span
+          class="context-window-indicator-fill"
+          :style="{ width: `${Math.min(100, measurement?.usedPercentage ?? 0)}%` }"
+        ></span>
+      </span>
+      <span class="context-window-indicator-value">
+        {{ tokenRatioLabel ?? statusLabel }}
+      </span>
     </button>
 
     <Teleport to="body">

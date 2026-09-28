@@ -43,6 +43,9 @@ export interface WorkspaceSystemEventRouteDependencies {
   stageAgentEditProposal(event: EventOf<"workspace.editor_mutation">): void;
   stageLibraryEditProposal(event: EventOf<"library.editor_mutation">): void;
   navigateToWorkspaceStage(event: EventOf<"workspace.stage_selection">): void;
+  notifyContextCompacted(event: EventOf<"agent.context_compacted">): void;
+  /** A manual `/compact` that produced no summary, with the reason. */
+  notifyCompactionFailed(event: EventOf<"agent.compaction_failed">): void;
   allConversations(): readonly WorkspaceEventConversation[];
   scheduleQueuedAgentEdits(
     predicate: (queued: QueuedAgentEditRun) => boolean
@@ -96,6 +99,12 @@ export function registerWorkspaceSystemEventRoutes(
     }),
     center.subscribe("workspace.stage_selection", (event) => {
       dependencies.navigateToWorkspaceStage(event);
+    }),
+    center.subscribe("agent.context_compacted", (event) => {
+      dependencies.notifyContextCompacted(event);
+    }),
+    center.subscribe("agent.compaction_failed", (event) => {
+      dependencies.notifyCompactionFailed(event);
     }),
     center.subscribeAll((event) => {
       for (const conversation of dependencies.allConversations()) {
