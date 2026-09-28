@@ -68,7 +68,7 @@ function setup(
         };
   });
   const api = {
-    session: { prompt, abort, submitUserInput: vi.fn() },
+    session: { prompt, abort, submitUserInput: vi.fn(), compact: vi.fn() },
     events: {
       subscribe: (cb: (event: SystemEventEnvelope) => void) => {
         listener = cb;

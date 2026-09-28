@@ -3,6 +3,7 @@ import {
   ModelCapacityResultSchema,
   ModelConnectionTestResultSchema,
   SessionAbortAcceptedPayloadSchema,
+  SessionCompactAcceptedPayloadSchema,
   SessionUserInputResponseAcceptedPayloadSchema,
   SessionPromptAcceptedPayloadSchema,
   createEnvelope,
@@ -23,8 +24,15 @@ const runtime = new PiAgentRuntimeAdapter({
 const activeStreams = new Set<Promise<void>>();
 const terminalRuns = new Set<string>();
 const activeSessionRuns = new Map<string, string>();
+/** Sessions with a `/compact` in flight, so a second one is refused. */
+const compactionsInFlight = new Set<string>();
 const abortControllers = new Map<string, AbortController>();
-const MAX_ACTIVE_RUNS = 4;
+/**
+ * Process-wide ceiling on simultaneously streaming runs, shared by every
+ * feature (chat, writing, long-book analysis, subagents). Long-book analysis
+ * self-limits to three concurrent tasks so two slots always remain for chat.
+ */
+const MAX_ACTIVE_RUNS = 5;
 
 function streamPrompt(
   input: Parameters<PiAgentRuntimeAdapter["start"]>[0],
@@ -132,6 +140,107 @@ bootUtility("agent", {
           sessionId: command.payload.sessionId,
           runId: command.payload.runId,
           abortedAt: nowIso()
+        })
+      };
+    }
+
+    if (command.type === "agent.compact") {
+      // Refused while a run is streaming: compaction rewrites the array that
+      // run is mid-way through sending, and the framework offers no way to swap
+      // it underneath an in-flight request.
+      if (activeSessionRuns.has(command.payload.sessionId)) {
+        return {
+          status: "rejected",
+          requestId: command.id,
+          error: {
+            code: "agent.run_active",
+            message: "当前会话正在运行，请先停止再压缩上下文。"
+          }
+        };
+      }
+      if (compactionsInFlight.has(command.payload.sessionId)) {
+        return {
+          status: "rejected",
+          requestId: command.id,
+          error: {
+            code: "agent.compact_in_flight",
+            message: "已经有一次压缩正在进行。"
+          }
+        };
+      }
+      // Answer immediately and finish in the background: compaction is a whole
+      // summarising request, and a caller that only learns the outcome at the
+      // end cannot show the user that anything is happening. The result arrives
+      // as `agent.context_compacted` — the same event the automatic path emits.
+      const sessionId = command.payload.sessionId;
+      const runId = command.payload.runId ?? `compact_${sessionId}`;
+      const messageId = `${runId}_compact`;
+      // Compaction targets whatever the session last ran with; if nothing did,
+      // `describe()` falls back to the local-faux ref.
+      const runtimeRef = runtime.describe();
+      const emitCompactionEvent = (
+        event:
+          | { type: "compacted"; tokensBefore: number; tokensAfter: number }
+          | { type: "failed"; reason: string }
+      ): void => {
+        const context = { correlationId: runId, sessionId, runId };
+        if (event.type === "compacted") {
+          emitEvent(
+            createEnvelope(
+              "agent.context_compacted",
+              {
+                sessionId,
+                runId,
+                messageId,
+                trigger: "manual" as const,
+                tokensBefore: event.tokensBefore,
+                tokensAfter: event.tokensAfter,
+                runtime: runtimeRef
+              },
+              { id: createId("evt"), context }
+            )
+          );
+          return;
+        }
+        emitEvent(
+          createEnvelope(
+            "agent.compaction_failed",
+            { sessionId, runId, messageId, runtime: runtimeRef, reason: event.reason },
+            { id: createId("evt"), context }
+          )
+        );
+      };
+
+      compactionsInFlight.add(sessionId);
+      void (async () => {
+        try {
+          const outcome = await runtime.compactSession(sessionId);
+          if (outcome.compacted) {
+            emitCompactionEvent({
+              type: "compacted",
+              tokensBefore: outcome.tokensBefore ?? 0,
+              tokensAfter: outcome.tokensAfter ?? 0
+            });
+          } else {
+            emitCompactionEvent({
+              type: "failed",
+              reason: outcome.reason ?? "没有可压缩的历史。"
+            });
+          }
+        } catch (error: unknown) {
+          emitCompactionEvent({
+            type: "failed",
+            reason: error instanceof Error ? error.message : "压缩上下文失败。"
+          });
+        } finally {
+          compactionsInFlight.delete(sessionId);
+        }
+      })();
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: SessionCompactAcceptedPayloadSchema.parse({
+          compacted: true
         })
       };
     }

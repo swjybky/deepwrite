@@ -16,6 +16,9 @@ export function buildSettingsFeatureModule(
     autoSaveEnabled: settingsStore.editorAutoSaveEnabled,
     language: settingsStore.generalSettings.language,
     showContextUsage: settingsStore.generalSettings.showContextUsage,
+    autoCompactContext: settingsStore.generalSettings.autoCompactContext,
+    autoCompactThresholdPercent:
+      settingsStore.generalSettings.autoCompactThresholdPercent,
     showInMenuBar: settingsStore.generalSettings.showInMenuBar,
     useNetworkProxy: settingsStore.generalSettings.useNetworkProxy,
     workspacePaneLayout: settingsStore.generalSettings.workspacePaneLayout,

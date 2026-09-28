@@ -243,6 +243,14 @@ export async function sendMessage(
             autoApproveCrossStageOperations:
               ctx.options.autoApproveCrossStageOperations?.() === true
           }),
+      // Context compaction applies to every session type, chat assistant included.
+      autoCompactContext: ctx.options.autoCompactContext?.() !== false,
+      ...(ctx.options.autoCompactThresholdPercent
+        ? {
+            autoCompactThresholdPercent:
+              ctx.options.autoCompactThresholdPercent()
+          }
+        : {}),
       ...(ctx.selectedModelId.value
         ? { modelId: ctx.selectedModelId.value }
         : {}),

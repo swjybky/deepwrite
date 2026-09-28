@@ -15,6 +15,8 @@ import type { BuiltinSubagentSettings } from "./builtin-subagents";
 import type {
   SessionAbortAcceptedPayload,
   SessionAbortCommandPayload,
+  SessionCompactAcceptedPayload,
+  SessionCompactCommandPayload,
   SessionUserInputResponseAcceptedPayload,
   SessionUserInputResponsePayload,
   SessionPromptAcceptedPayload,
@@ -313,6 +315,10 @@ export interface DeepWriteApi
     abort(
       payload: SessionAbortCommandPayload
     ): Promise<SessionAbortAcceptedPayload>;
+    /** Manual context compaction; see `agent.compact`. */
+    compact(
+      payload: SessionCompactCommandPayload
+    ): Promise<SessionCompactAcceptedPayload>;
     submitUserInput(
       payload: SessionUserInputResponsePayload
     ): Promise<SessionUserInputResponseAcceptedPayload>;

@@ -72,6 +72,8 @@ const props = defineProps<{
   autoSaveEnabled: boolean;
   language: AppLanguage;
   showContextUsage: boolean;
+  autoCompactContext: boolean;
+  autoCompactThresholdPercent: number;
   showInMenuBar: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
@@ -119,6 +121,8 @@ const emit = defineEmits<{
   updateAutoSave: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
+  updateAutoCompactContext: [enabled: boolean];
+  updateAutoCompactThresholdPercent: [percent: number];
   updateShowInMenuBar: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
@@ -404,6 +408,8 @@ async function selectCategory(id: string): Promise<void> {
           :auto-save-enabled="autoSaveEnabled"
           :language="language"
           :show-context-usage="showContextUsage"
+          :auto-compact-context="autoCompactContext"
+          :auto-compact-threshold-percent="autoCompactThresholdPercent"
           :show-in-menu-bar="showInMenuBar"
           :use-network-proxy="useNetworkProxy"
           :workspace-pane-layout="workspacePaneLayout"
@@ -414,6 +420,10 @@ async function selectCategory(id: string): Promise<void> {
           @update-auto-save="emit('updateAutoSave', $event)"
           @update-language="emit('updateLanguage', $event)"
           @update-show-context-usage="emit('updateShowContextUsage', $event)"
+          @update-auto-compact-context="emit('updateAutoCompactContext', $event)"
+          @update-auto-compact-threshold-percent="
+            emit('updateAutoCompactThresholdPercent', $event)
+          "
           @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
           @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
           @update-workspace-pane-layout="

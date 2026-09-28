@@ -12,6 +12,8 @@ defineProps<{
   autoSaveEnabled: boolean;
   language: AppLanguage;
   showContextUsage: boolean;
+  autoCompactContext: boolean;
+  autoCompactThresholdPercent: number;
   showInMenuBar: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
@@ -23,6 +25,8 @@ const emit = defineEmits<{
   updateAutoSave: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
+  updateAutoCompactContext: [enabled: boolean];
+  updateAutoCompactThresholdPercent: [percent: number];
   updateShowInMenuBar: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
@@ -38,6 +42,13 @@ const workspacePaneLayoutOptions: Array<{
 }> = [
   { value: "agent-editor", label: "目录｜智能体｜文本内容" },
   { value: "editor-agent", label: "目录｜文本内容｜智能体" }
+];
+/** Trigger points offered for automatic compaction. 50 is the floor because
+ * compacting earlier than half costs more than it saves. */
+const autoCompactThresholdOptions: Array<{ value: number; label: string }> = [
+  { value: 70, label: "70%（更早压缩）" },
+  { value: 80, label: "80%（推荐）" },
+  { value: 90, label: "90%（更晚压缩）" }
 ];
 </script>
 
@@ -141,9 +152,46 @@ const workspacePaneLayoutOptions: Array<{
             "
         /></span>
       </label>
+      <label class="settings-item">
+        <span class="settings-item-text"
+          ><strong>自动压缩上下文</strong
+          ><small
+            >对话接近模型上下文上限时，把较早的历史总结成摘要，只保留近期原文。你看到的对话记录不受影响</small
+          ></span
+        >
+        <span class="settings-toggle"
+          ><input
+            type="checkbox"
+            :checked="autoCompactContext"
+            aria-label="自动压缩上下文"
+            @change="
+              emit(
+                'updateAutoCompactContext',
+                ($event.target as HTMLInputElement).checked
+              )
+            "
+        /></span>
+      </label>
       <div class="settings-item settings-select-item">
         <span class="settings-item-text"
-          ><strong>页面布局</strong
+          ><strong>压缩触发阈值</strong
+          ><small>上下文占用达到模型上限的这个比例时开始压缩</small></span
+        >
+        <PopupSelect
+          class="general-select-control"
+          :model-value="autoCompactThresholdPercent"
+          :options="autoCompactThresholdOptions"
+          accessible-label="选择压缩触发阈值"
+          align="end"
+          :disabled="!autoCompactContext"
+          @update:model-value="
+            emit('updateAutoCompactThresholdPercent', Number($event))
+          "
+        />
+      </div>
+      <div class="settings-item settings-select-item">
+        <span class="settings-item-text"
+          ><strong>页面布局</strong>
           ><small>调整创作空间中智能体与文本内容的位置</small></span
         >
         <PopupSelect

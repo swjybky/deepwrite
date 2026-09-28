@@ -17,6 +17,18 @@ import {
 } from "../utils/composerReferences";
 import { createEditorReferenceAttachment } from "../utils/editorTextReferences";
 
+/**
+ * Recognise the manual compaction command.
+ *
+ * Trimmed and case-insensitive so a stray space or `/Compact` still works, and
+ * anchored so `/compact the outline` stays an ordinary message — a command with
+ * arguments is not a command we have.
+ */
+function isCompactCommand(draft: string): boolean {
+  const trimmed = draft.trim();
+  return trimmed.toLowerCase() === "/compact";
+}
+
 export function useConversationComposer(options: {
   draft: () => string;
   canSend: () => boolean;
@@ -31,6 +43,11 @@ export function useConversationComposer(options: {
   emitDraft: (value: string) => void;
   emitSend: (attachments: UserPromptAttachment[]) => void;
   emitClearEditorReferences: () => void;
+  /**
+   * Runs the `/compact` command instead of sending it as a message. Absent in
+   * surfaces with no conversation behind them, where the command is just text.
+   */
+  onCompact?: () => void | Promise<void>;
 }) {
   const composerInput = ref<HTMLTextAreaElement>();
   const activeReference = ref<ComposerReferenceMatch | null>(null);
@@ -45,9 +62,22 @@ export function useConversationComposer(options: {
             options.editorReferences().length > 0)))
   );
 
+  /**
+   * Built-in commands offered by `/`. Listed ahead of the skills so the menu
+   * reads as "commands, then references" — the same order the user thinks in.
+   */
+  const commandOptions: readonly ComposerReferenceOption[] = [
+    {
+      id: "command:compact",
+      label: "/compact",
+      detail: "压缩当前会话的上下文",
+      command: "compact"
+    }
+  ];
+
   const referenceOptions = computed(() =>
     activeReference.value?.trigger === "/"
-      ? options.availableSkills()
+      ? [...commandOptions, ...options.availableSkills()]
       : activeReference.value?.trigger === "@"
         ? options.availableMaterials()
         : []
@@ -66,14 +96,14 @@ export function useConversationComposer(options: {
   });
   const referenceMenuTitle = computed(() =>
     activeReference.value?.trigger === "/"
-      ? "调用技能"
+      ? "命令与技能"
       : options.libraryDomain() === "skill"
         ? "引用技能"
         : "引用素材"
   );
   const referenceMenuHint = computed(() =>
     activeReference.value?.trigger === "/"
-      ? "输入名称搜索技能"
+      ? "输入名称筛选命令或技能"
       : options.libraryDomain() === "skill"
         ? "输入名称搜索技能条目"
         : "输入名称搜索素材条目"
@@ -161,6 +191,15 @@ export function useConversationComposer(options: {
   function selectReference(option: ComposerReferenceOption): void {
     const match = activeReference.value;
     if (!match) return;
+    // Commands execute; they do not get typed into the draft. The `/query` that
+    // opened the menu is dropped with them, so the composer ends up empty
+    // rather than holding a half-typed command.
+    if (option.command === "compact") {
+      options.emitDraft("");
+      closeReferenceMenu();
+      void options.onCompact?.();
+      return;
+    }
     const insertion = insertComposerReference(
       composerInput.value?.value ?? options.draft(),
       match,
@@ -176,6 +215,15 @@ export function useConversationComposer(options: {
 
   function submitMessage(): void {
     if (!canSubmit.value) return;
+    // `/compact` is a command, not something to send. Intercepted before any of
+    // the attachment plumbing so it works with an empty composer — typing it is
+    // the whole action.
+    if (isCompactCommand(options.draft())) {
+      options.emitDraft("");
+      closeReferenceMenu();
+      void options.onCompact?.();
+      return;
+    }
     const attachments = options.pendingAttachments.value.map((attachment) => ({
       ...attachment
     }));

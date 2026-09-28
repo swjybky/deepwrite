@@ -117,6 +117,8 @@ import {
 } from "./stores/layoutStore";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useCatalogIndexStore } from "./stores/catalogIndexStore";
+import { useContextCompactionStore } from "./stores/contextCompactionStore";
+import { formatContextTokens } from "./utils/contextWindowUsage";
 import { useConversationStore } from "./stores/conversationStore";
 import { useLongWorkspaceStore } from "./stores/longWorkspaceStore";
 
@@ -197,6 +199,7 @@ const subagentAuthoringFeature = useLazySubagentAuthoringController({
 // The catalog can contain all manuscript and library bodies. It is never
 // mutated in place, so deep observation only adds proxy/allocation overhead.
 const catalogIndexStore = useCatalogIndexStore();
+const contextCompactionStore = useContextCompactionStore();
 const catalogDocumentLoader = useCatalogDocumentLoader({
   catalogIndex: catalogIndexStore,
   reader: () => window.deepwrite?.catalog,
@@ -317,6 +320,8 @@ const {
   updateLanguage: updateAppLanguage,
   updatePermissionMode,
   updateShowContextUsage,
+  updateAutoCompactContext,
+  updateAutoCompactThresholdPercent,
   updateShowInMenuBar,
   updateUseNetworkProxy,
   updateWorkspacePaneLayout
@@ -1490,6 +1495,9 @@ const {
   },
   settings: {
     permissionMode: () => generalSettings.value.permissionMode,
+    autoCompactContext: () => generalSettings.value.autoCompactContext,
+    autoCompactThresholdPercent: () =>
+      generalSettings.value.autoCompactThresholdPercent,
     updatePermissionMode
   },
   commands: {
@@ -1555,6 +1563,9 @@ const {
   },
   settings: {
     permissionMode: () => generalSettings.value.permissionMode,
+    autoCompactContext: () => generalSettings.value.autoCompactContext,
+    autoCompactThresholdPercent: () =>
+      generalSettings.value.autoCompactThresholdPercent,
     updatePermissionMode
   },
   runtimeAvailable: () => hasDesktopRuntime.value,
@@ -2242,6 +2253,29 @@ function startWorkspaceSystemEvents(): () => void {
     stageAgentEditProposal,
     stageLibraryEditProposal,
     navigateToWorkspaceStage,
+    notifyContextCompacted(event) {
+      const before = formatContextTokens(event.payload.tokensBefore);
+      const after = formatContextTokens(event.payload.tokensAfter);
+      // The trigger distinguishes work the user asked for from work the app did
+      // on its own, so the two do not read as the same event.
+      const manual = event.payload.trigger === "manual";
+      if (manual) {
+        contextCompactionStore.finish({
+          kind: "compacted",
+          tokensBefore: event.payload.tokensBefore,
+          tokensAfter: event.payload.tokensAfter
+        });
+      }
+      uiMessage.info(
+        `${manual ? "已压缩上下文" : "已自动压缩上下文"}：${before} → ${after} tokens`
+      );
+    },
+    notifyCompactionFailed(event) {
+      contextCompactionStore.finish({
+        kind: "failed",
+        reason: event.payload.reason
+      });
+    },
     allConversations,
     scheduleQueuedAgentEdits,
     onAsyncError(error) {
@@ -2404,6 +2438,8 @@ onBeforeUnmount(() => {
     @update-auto-save="updateEditorAutoSave"
     @update-language="updateAppLanguage"
     @update-show-context-usage="updateShowContextUsage"
+    @update-auto-compact-context="updateAutoCompactContext"
+    @update-auto-compact-threshold-percent="updateAutoCompactThresholdPercent"
     @update-show-in-menu-bar="updateShowInMenuBar"
     @update-use-network-proxy="updateUseNetworkProxy"
     @update-workspace-pane-layout="updateWorkspacePaneLayout"

@@ -2561,6 +2561,113 @@ html[data-theme="dark"]
   gap: 4px;
 }
 
+/*
+ * `/compact` progress. Compaction is a whole summarising request, so the wait
+ * gets a persistent bar rather than a toast that leaves with the next message.
+ * The agent reports no intermediate progress, so the bar is indeterminate and
+ * animates instead of pretending to know a percentage.
+ */
+.composer-compacting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 2px;
+  color: var(--text-secondary, #666a70);
+  font-size: 0.785714rem;
+}
+
+.composer-compacting-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-primary, #303338);
+  font-weight: 560;
+}
+
+.composer-compacting-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent, #5b82b8);
+  animation: composer-compacting-pulse 1.1s ease-in-out infinite;
+}
+
+.composer-compacting-track {
+  overflow: hidden;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--theme-line-soft, #e8e8e4);
+}
+
+.composer-compacting-bar {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent, #5b82b8);
+  animation: composer-compacting-slide 1.3s ease-in-out infinite;
+}
+
+.composer-compacting small {
+  color: var(--text-tertiary, #8b8f94);
+  font-size: 0.75rem;
+}
+
+.composer-compacting.is-done {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.composer-compacting.is-done > button {
+  padding: 2px 9px;
+  border: 1px solid var(--theme-line, #d9d9d6);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary, #666a70);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.composer-compacting.is-done > button:hover {
+  background: var(--surface-hover, #ececea);
+}
+
+@keyframes composer-compacting-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+
+@keyframes composer-compacting-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-compacting-dot,
+  .composer-compacting-bar {
+    animation: none;
+  }
+  .composer-compacting-bar {
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
 .round-tool-button,
 .send-button {
   display: grid;

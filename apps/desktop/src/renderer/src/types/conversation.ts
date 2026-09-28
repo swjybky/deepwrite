@@ -333,6 +333,12 @@ export interface ComposerReferenceOption {
   id: string;
   label: string;
   detail: string;
+  /**
+   * Marks a built-in command rather than a skill/material to insert. Picking
+   * one runs it instead of typing its name into the draft — `/compact` has to
+   * execute, not become text.
+   */
+  command?: "compact";
 }
 
 export interface EditorTextReference {

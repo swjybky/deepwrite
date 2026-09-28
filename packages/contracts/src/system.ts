@@ -26,12 +26,16 @@ import {
 import { EnvelopeBaseSchema, type Envelope } from "./envelope";
 import {
   AgentAbortCommandEnvelopeSchema,
+  AgentCompactCommandEnvelopeSchema,
   AgentUserInputResponseCommandEnvelopeSchema,
   AgentErrorEventEnvelopeSchema,
   AgentEvaluationSnapshotEventEnvelopeSchema,
   AgentMessageCompletedEventEnvelopeSchema,
   AgentMessageDeltaEventEnvelopeSchema,
   AgentUsageObservedEventEnvelopeSchema,
+  AgentContextCompactedEventEnvelopeSchema,
+
+  AgentCompactionFailedEventEnvelopeSchema,
   AgentRetryScheduledEventEnvelopeSchema,
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentTurnStartedEventEnvelopeSchema,
@@ -64,6 +68,9 @@ import {
   type AgentMessageCompletedEventEnvelope,
   type AgentMessageDeltaEventEnvelope,
   type AgentUsageObservedEventEnvelope,
+  type AgentContextCompactedEventEnvelope,
+
+  type AgentCompactionFailedEventEnvelope,
   type AgentRetryScheduledEventEnvelope,
   type AgentThinkingDeltaEventEnvelope,
   type AgentTurnStartedEventEnvelope,
@@ -351,6 +358,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
   AgentAbortCommandEnvelopeSchema,
+  AgentCompactCommandEnvelopeSchema,
   AgentUserInputResponseCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema,
   AgentModelCapacityCommandEnvelopeSchema
@@ -418,6 +426,9 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   AgentThinkingDeltaEventEnvelopeSchema,
   AgentMessageCompletedEventEnvelopeSchema,
   AgentUsageObservedEventEnvelopeSchema,
+  AgentContextCompactedEventEnvelopeSchema,
+
+  AgentCompactionFailedEventEnvelopeSchema,
   AgentToolCallStreamEventEnvelopeSchema,
   AgentToolRequestedEventEnvelopeSchema,
   AgentToolCompletedEventEnvelopeSchema,
@@ -469,6 +480,9 @@ export type SystemEventEnvelope =
   | AgentThinkingDeltaEventEnvelope
   | AgentMessageCompletedEventEnvelope
   | AgentUsageObservedEventEnvelope
+  | AgentContextCompactedEventEnvelope
+
+  | AgentCompactionFailedEventEnvelope
   | AgentToolCallStreamEventEnvelope
   | AgentToolRequestedEventEnvelope
   | AgentToolCompletedEventEnvelope

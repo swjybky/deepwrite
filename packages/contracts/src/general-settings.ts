@@ -30,6 +30,12 @@ export const GeneralSettingsSchema = z.object({
   language: AppLanguageSchema,
   showInMenuBar: z.boolean(),
   showContextUsage: z.boolean().default(true),
+  // Compaction is per-request and only rewrites the message array sent to the
+  // model — see `pi-runtime-adapter/src/context-compression.ts`. The threshold
+  // is a percentage of the model's context window; 50 is the floor because
+  // compacting earlier than half costs more than it saves.
+  autoCompactContext: z.boolean().default(true),
+  autoCompactThresholdPercent: z.number().int().min(50).max(95).default(80),
   useNetworkProxy: z.boolean().default(false),
   workspacePaneLayout: WorkspacePaneLayoutSchema.default("agent-editor"),
   defaultTextViewMode: TextViewModeSchema.default("edit"),
@@ -53,6 +59,8 @@ export function createDefaultGeneralSettings(): GeneralSettings {
     language: "auto",
     showInMenuBar: true,
     showContextUsage: true,
+    autoCompactContext: true,
+    autoCompactThresholdPercent: 80,
     useNetworkProxy: false,
     workspacePaneLayout: "agent-editor",
     defaultTextViewMode: "edit",
