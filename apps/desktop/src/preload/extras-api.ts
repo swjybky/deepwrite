@@ -8,7 +8,6 @@ import {
   CloudBackupApplyResultSchema,
   CloudBackupIpcRequestSchema,
   CloudBackupPreviewSchema,
-  CloudBackupDirectorySettingsSchema,
   CloudBackupStatusSchema,
   RendererStateKeySchema,
   RendererStateLoadResultSchema,
@@ -175,9 +174,5 @@ export const cloudBackup: DeepWriteApi["cloudBackup"] = {
         previewId
       })
     );
-  },
-  async chooseDirectory() {
-    const raw = await invokeCloudBackup({ operation: "chooseDirectory" });
-    return raw === null ? null : CloudBackupDirectorySettingsSchema.parse(raw);
   }
 };
