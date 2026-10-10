@@ -1,3 +1,4 @@
+import type { LongWorkspaceIndexSnapshot } from "../long-workspace";
 import type { LongWorkspaceOperation } from "./operation-schema";
 import type { MutationState } from "./state";
 import { deleteChapter } from "./cascade";
@@ -19,6 +20,31 @@ import {
   updateOrdersById
 } from "./state";
 
+/**
+ * Chapter card titles must stay unique within a volume so duplicate agent
+ * tool calls (or repeated proposals) cannot stack same-named empty cards in
+ * the manuscript directory.
+ */
+function assertChapterTitleAvailable(
+  workspace: LongWorkspaceIndexSnapshot,
+  volumeId: string,
+  title: string,
+  exceptChapterCardId?: string
+): void {
+  const duplicated = workspace.plot.chapterCards.some(
+    (candidate) =>
+      candidate.id !== exceptChapterCardId &&
+      candidate.volumeId === volumeId &&
+      candidate.title === title
+  );
+  if (duplicated) {
+    operationError(
+      "already_exists",
+      `Chapter card titled "${title}" already exists in this volume.`
+    );
+  }
+}
+
 export function applyChapterOperation(
   state: MutationState,
   operation: LongWorkspaceOperation
@@ -30,6 +56,11 @@ export function applyChapterOperation(
         workspace.plot.chapterCards,
         operation.chapterCard.id,
         "Chapter card"
+      );
+      assertChapterTitleAvailable(
+        workspace,
+        operation.chapterCard.volumeId,
+        operation.chapterCard.title
       );
       if (
         operation.files.chapterCardId !== operation.chapterCard.id ||
@@ -85,6 +116,17 @@ export function applyChapterOperation(
             "Chapter card"
           )
         ]!;
+      if (
+        operation.patch.title !== undefined &&
+        operation.patch.title !== chapter.title
+      ) {
+        assertChapterTitleAvailable(
+          workspace,
+          chapter.volumeId,
+          operation.patch.title,
+          chapter.id
+        );
+      }
       Object.assign(chapter, operation.patch);
       markUpdated(state, chapter.id);
       break;

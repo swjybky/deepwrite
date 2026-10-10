@@ -18,6 +18,22 @@ function applyStructure(
   index: LongWorkspaceIndexSnapshot,
   operation: LongWorkspaceOperation
 ): void {
+  if (operation.type === "chapter.create") {
+    if (
+      index.plot.chapterCards.some(({ id }) => id === operation.chapterCard.id)
+    ) {
+      return;
+    }
+    index.plot.chapterCards.push(structuredClone(operation.chapterCard));
+    if (
+      !index.chapters.some(
+        ({ chapterCardId }) => chapterCardId === operation.chapterCard.id
+      )
+    ) {
+      index.chapters.push(structuredClone(operation.files));
+    }
+    return;
+  }
   if (operation.type === "storyPlot.create") {
     if (
       index.plot.storyPlots.some(({ id }) => id === operation.storyPlot.id) ||
@@ -100,6 +116,7 @@ export function createProposalOverlay() {
     ): void {
       for (const operation of operations) {
         if (
+          operation.type === "chapter.create" ||
           operation.type === "chapterContinuity.worldReveals.create" ||
           operation.type === "chapterContinuity.character.create" ||
           operation.type === "storyPlot.create"
