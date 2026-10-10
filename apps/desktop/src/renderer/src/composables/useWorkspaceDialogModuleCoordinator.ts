@@ -18,6 +18,7 @@ import type {
   PendingLibraryEntryMove
 } from "./useCatalogLibraryTransactionsCoordinator";
 import type { ExternalLibraryImportDialogState } from "./useExternalLibraryImportCoordinator";
+import type { LibraryPackageImportDialogState } from "./useLibraryPackageCoordinator";
 import type { SaveConflictState } from "./useCatalogDocumentPersistence";
 import type { ShortBookLifecycleTarget } from "./useShortBookLifecycleCoordinator";
 import type {
@@ -68,6 +69,7 @@ export const WORKSPACE_DIALOG_PRIORITY = [
   "library-removal",
   "library-project",
   "external-library-import",
+  "library-package-import",
   "library-entry-move",
   "library-group",
   "create-book",
@@ -146,6 +148,9 @@ export interface WorkspaceDialogLibraryState {
   externalLibraryImportDialog: Readonly<
     Ref<ExternalLibraryImportDialogState | null>
   >;
+  packageImportDialog: Readonly<Ref<LibraryPackageImportDialogState | null>>;
+  packageChoosing: Readonly<Ref<boolean>>;
+  packageImporting: Readonly<Ref<boolean>>;
   entryMove: Readonly<Ref<PendingLibraryEntryMove | null>>;
   groupDialog: Readonly<Ref<LibraryGroupDialogState | null>>;
   activeGroup: Readonly<Ref<DialogModule<"library-group">["group"]>>;
@@ -476,6 +481,23 @@ export function useWorkspaceDialogModuleCoordinator(
           ? { selection: externalLibraryImport.selection }
           : {}),
         pending: options.catalog.mutationPending.value
+      };
+    }
+
+    const packageImport = options.library.packageImportDialog.value;
+    if (packageImport) {
+      const snapshot = options.catalog.snapshot.value;
+      const domain = packageImport.preview?.domain ?? packageImport.domain;
+      return {
+        kind: "library-package-import",
+        domain: packageImport.domain,
+        ...(packageImport.preview ? { preview: packageImport.preview } : {}),
+        existingTitles: (domain === "skill"
+          ? (snapshot?.skills ?? [])
+          : (snapshot?.materials ?? [])
+        ).map(({ title }) => title),
+        choosing: options.library.packageChoosing.value,
+        importing: options.library.packageImporting.value
       };
     }
 

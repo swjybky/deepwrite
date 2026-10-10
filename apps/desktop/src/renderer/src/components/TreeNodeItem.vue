@@ -909,6 +909,16 @@ onBeforeUnmount(() => {
             <span>{{ t("duplicate") }}</span>
           </button>
           <button
+            v-if="!node.unavailable"
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('export-library')"
+          >
+            <AppIcon name="download" :size="16" />
+            <span>{{ t("export") }}</span>
+          </button>
+          <button
             v-if="!node.readOnly && !node.unavailable"
             class="tree-node-action-menu-item"
             type="button"
@@ -984,6 +994,16 @@ onBeforeUnmount(() => {
           >
             <AppIcon name="copy" :size="16" />
             <span>{{ t("duplicate") }}</span>
+          </button>
+          <button
+            v-if="!node.unavailable"
+            class="tree-node-action-menu-item"
+            type="button"
+            role="menuitem"
+            @click.stop="activateResourceNodeAction('export-group')"
+          >
+            <AppIcon name="download" :size="16" />
+            <span>{{ t("export") }}</span>
           </button>
           <button
             class="tree-node-action-menu-item is-danger"

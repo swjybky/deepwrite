@@ -54,6 +54,8 @@ export const loadExportShortManuscriptDialog = () =>
   import("./ExportShortManuscriptDialog.vue");
 export const loadExternalSkillImportDialog = () =>
   import("./ExternalSkillImportDialog.vue");
+export const loadImportLibraryPackageDialog = () =>
+  import("./ImportLibraryPackageDialog.vue");
 export const loadLibraryEntryMoveDialog = () =>
   import("./LibraryEntryMoveDialog.vue");
 export const loadLibraryGroupDialog = () => import("./LibraryGroupDialog.vue");
@@ -90,3 +92,5 @@ export const loadLongBookDecompositionPage = async () =>
 
 export const loadBookIdentityPage = () =>
   import("../extras/book-identity/BookIdentityPage.vue");
+export const loadLongMaterialPackPage = () =>
+  import("../extras/long-material-pack/LongMaterialPackPage.vue");

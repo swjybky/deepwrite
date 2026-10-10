@@ -17,11 +17,54 @@ export const i18n = createI18n({
   }
 });
 
+type FeatureCatalog = Record<string, string>;
+const featureCatalogs: {
+  scope: string;
+  catalogs: Partial<Record<AppLocale, FeatureCatalog>>;
+}[] = [];
+
+function mergeFeatureCatalog(
+  language: AppLocale,
+  scope: string,
+  messages: FeatureCatalog
+): void {
+  const nested = scope
+    .split(".")
+    .reduceRight<unknown>((value, part) => ({ [part]: value }), messages);
+  i18n.global.mergeLocaleMessage(language, nested as never);
+}
+
 export function registerMessageCatalog(
   language: AppLocale,
   messages: MessageSchema
 ): void {
   i18n.global.setLocaleMessage(language, messages);
+  // Replacing the catalog must not drop strings a loaded feature added.
+  for (const { scope, catalogs } of featureCatalogs) {
+    const feature = catalogs[language];
+    if (feature) mergeFeatureCatalog(language, scope, feature);
+  }
+}
+
+/**
+ * Messages that only a lazily loaded feature uses. They ship in the feature's
+ * chunk and are merged under `scope` when it loads, so they do not add to
+ * the language data every window downloads at startup.
+ */
+export function registerFeatureMessages<M extends FeatureCatalog>(
+  scope: string,
+  catalogs: Record<AppLocale, M>
+): (key: keyof M & string, params?: Record<string, string | number>) => string {
+  featureCatalogs.push({ scope, catalogs });
+  for (const [language, messages] of Object.entries(catalogs) as [
+    AppLocale,
+    M
+  ][])
+    mergeFeatureCatalog(language, scope, messages);
+  return (key, params) =>
+    params
+      ? i18n.global.t(`${scope}.${key}`, params)
+      : i18n.global.t(`${scope}.${key}`);
 }
 
 export const locale = i18n.global.locale;

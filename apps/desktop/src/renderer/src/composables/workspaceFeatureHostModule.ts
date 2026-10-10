@@ -71,6 +71,7 @@ export function buildWorkspaceFeatureModule(
         catalogSnapshot: options.catalogSnapshot.value
       };
     case "style-comparison":
+    case "long-material-pack":
     case "book-identity":
       return {
         kind: feature,

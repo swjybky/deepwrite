@@ -84,7 +84,7 @@ export function useEditorEntrySearch(options: {
   const resultLabel = computed(() => {
     if (pending.value) return t("editorEntrySearch.searching");
     if (!query.value.trim()) return "0/0";
-    if (!results.value.length) return t("longEditorFindReplace.noResults");
+    if (!results.value.length) return t("editorFindReplace.noResults");
     return `${activeIndex.value + 1}/${results.value.length}`;
   });
 

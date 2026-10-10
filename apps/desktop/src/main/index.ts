@@ -134,7 +134,6 @@ import {
   type UtilityWorkerName
 } from "@deepwrite/contracts";
 import { createId, nowIso } from "@deepwrite/shared";
-import { importLegacyLibraryArchives } from "./legacy-library-import-batch";
 import { AppearanceService } from "./appearance-service";
 import { AgentTeamConfigStore } from "./agent-team-config-store";
 import { GeneralSettingsStore } from "./general-settings-store";
@@ -186,6 +185,11 @@ import {
   registerCloudBackupIpc
 } from "../extras/cloud-backup";
 import { ContinuationImportPreviewRegistry } from "./continuation-import-preview-registry";
+import { ImportPreviewRegistry } from "./import-preview-registry";
+import {
+  handleLibraryPackageCommands,
+  type LibraryPackagePreviewSource
+} from "./ipc/library-package-commands";
 import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
 import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
@@ -263,6 +267,13 @@ let cloudBackupService: CloudBackupService | undefined;
 let deviceSyncService: ReturnType<typeof createDesktopDeviceSync> | undefined;
 const rendererStateFlush = createRendererStateFlushCoordinator();
 const continuationImportPreviews = new ContinuationImportPreviewRegistry();
+const libraryPackagePreviews =
+  new ImportPreviewRegistry<LibraryPackagePreviewSource>({
+    idPrefix: "library-package-preview",
+    expiredMessage: "导入预览已失效，请重新选择。",
+    ttlMs: 30 * 60 * 1_000,
+    now: Date.now
+  });
 const legacySyncPreviews = new LegacySyncPreviewRegistry();
 const mainWindowStartupGate = createMainWindowStartupGate(() =>
   showMainWindow()
@@ -600,6 +611,7 @@ function createMainWindow(): BrowserWindow {
       senderWebContentsId: windowWebContentsId
     });
     continuationImportPreviews.clearForWebContents(windowWebContentsId);
+    libraryPackagePreviews.clearForWebContents(windowWebContentsId);
     legacySyncPreviews.clearForWebContents(windowWebContentsId);
     if (mainWindow === window) {
       mainWindow = undefined;
@@ -1058,7 +1070,9 @@ function registerIpc(): void {
         command.type === "catalog.createLibraryAtPath" ||
         command.type === "catalog.createLibraryGroupAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
-        command.type === "catalog.importLegacyLibraryAtPath" ||
+        command.type === "catalog.readLibraryPackageSource" ||
+        command.type === "catalog.previewLibraryPackageAtPath" ||
+        command.type === "catalog.importLibraryPackageAtPath" ||
         command.type === "catalog.installMarketplaceSkillContent"
       ) {
         return {
@@ -1190,6 +1204,8 @@ function registerIpc(): void {
           getWorkspaceDirectory: async () =>
             (await requireWorkspaceDirectoryStore().list()).path,
           core: (command) => supervisor.requestCommand("core", command, 60_000),
+          coreLong: (command) =>
+            supervisor.requestCommand("core", command, 15 * 60_000),
           chatSources: {
             core: (command) =>
               supervisor.requestCommand("core", command, 60_000),
@@ -1651,12 +1667,26 @@ function registerIpc(): void {
         }
       }
 
+      const libraryPackageResult = await handleLibraryPackageCommands(
+        {
+          supervisor,
+          window: mainWindow,
+          dialog,
+          documentsPath: app.getPath("documents"),
+          appVersion: app.getVersion(),
+          webContentsId: event.sender.id,
+          previews: libraryPackagePreviews,
+          requireSelectedWorkspaceDirectory
+        },
+        command
+      );
+      if (libraryPackageResult) return libraryPackageResult;
+
       const catalogProjectContext = {
         requireSelectedWorkspaceDirectory,
         workspaceGroupParent,
         workspaceResourceParent,
         dialog,
-        importLegacyLibraryArchives,
         supervisor
       };
       const templateResult = await handleBookTemplateCommands(

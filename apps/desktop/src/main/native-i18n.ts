@@ -16,6 +16,10 @@ export function setNativeLanguage(
   currentLocale = resolveAppLocale(language, systemLocale);
 }
 
+export function nativeLocale(): AppLocale {
+  return currentLocale;
+}
+
 export function nativeText(key: keyof typeof zh): string {
   return messages[currentLocale][key];
 }
@@ -30,10 +34,6 @@ const dynamicMessages = {
     ) =>
       `${phase}时发生错误（${code}）。\n\n${configuration ? "请检查用户配置目录的访问权限和磁盘空间，再尝试启动。\n\n" : ""}请将下方本地诊断记录提供给开发者协助排查。\n\n记录位置（目录可写时生成）：\n${path}`,
     downloadTeam: (name: string) => `下载智能体团队“${name}”`,
-    legacyLibraryTitle: (domain: "material" | "skill") =>
-      `导入旧版${domain === "material" ? "素材" : "技能"}库压缩包`,
-    legacyLibraryArchive: (domain: "material" | "skill") =>
-      `旧版${domain === "material" ? "素材" : "技能"}库压缩包`,
     migrationDetails: (
       source: string,
       target: string,
@@ -53,10 +53,6 @@ const dynamicMessages = {
     ) =>
       `Startup failed during: ${phase} (${code}).\n\n${configuration ? "Check configuration folder permissions and available disk space, then try again.\n\n" : ""}Share the local diagnostic log below with the developer for troubleshooting.\n\nLog location (created if the folder is writable):\n${path}`,
     downloadTeam: (name: string) => `Download Agent Team “${name}”`,
-    legacyLibraryTitle: (domain: "material" | "skill") =>
-      `Import Legacy ${domain === "material" ? "Material" : "Skill"} Library Archive`,
-    legacyLibraryArchive: (domain: "material" | "skill") =>
-      `Legacy ${domain === "material" ? "Material" : "Skill"} Library Archive`,
     migrationDetails: (
       source: string,
       target: string,

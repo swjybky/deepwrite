@@ -6,7 +6,6 @@ import {
   CatalogIndexSnapshotSchema,
   CatalogLibraryEntrySchema,
   CatalogLibraryGroupSchema,
-  CatalogLibraryProjectDomainSchema,
   CatalogLibrarySchema,
   CatalogOpenProjectResultSchema,
   CatalogProjectDomainSchema,
@@ -33,7 +32,6 @@ import {
   ExternalLibrarySourceKindSchema,
   ImportLibraryEntriesInputSchema,
   ImportLibraryEntriesResultSchema,
-  ImportLegacyLibraryResultSchema,
   MoveDraftSectionInputSchema,
   MoveDraftSectionResultSchema,
   MoveLibraryEntryInputSchema,
@@ -60,7 +58,6 @@ import {
   type CatalogLibrary,
   type CatalogLibraryEntry,
   type CatalogLibraryGroup,
-  type CatalogLibraryProjectDomain,
   type CatalogOpenProjectResult,
   type CatalogProjectDomain,
   type CatalogReadDocumentInput,
@@ -85,7 +82,6 @@ import {
   type ExternalLibrarySourceKind,
   type ImportLibraryEntriesInput,
   type ImportLibraryEntriesResult,
-  type ImportLegacyLibraryResult,
   type MoveDraftSectionInput,
   type MoveDraftSectionResult,
   type MoveLibraryEntryInput,
@@ -231,21 +227,6 @@ export async function openProject(
           id,
           correlationId: id
         }
-      )
-    )
-  );
-}
-export async function importLegacyLibrary(
-  rawDomain: CatalogLibraryProjectDomain
-): Promise<ImportLegacyLibraryResult | null> {
-  const domain = CatalogLibraryProjectDomainSchema.parse(rawDomain);
-  const id = browserId("cmd_catalog_import_legacy_library");
-  return ImportLegacyLibraryResultSchema.nullable().parse(
-    await invokeCommand<ImportLegacyLibraryResult | null>(
-      createEnvelope(
-        "catalog.importLegacyLibrary",
-        { domain },
-        { id, correlationId: id }
       )
     )
   );

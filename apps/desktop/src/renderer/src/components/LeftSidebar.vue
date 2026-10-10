@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { bookIdentityRunning } from "../stores/bookIdentityActivity";
+import { longMaterialPackRunning } from "../stores/longMaterialPackActivity";
 import { createScopedTranslator } from "../i18n";
 import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from "vue";
 import type {
@@ -24,6 +25,7 @@ import { scrollSelectedIntoView } from "../utils/scrollSelectedIntoView";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
 
 const identityT = createScopedTranslator("extras.bookIdentity");
+const packT = createScopedTranslator("extras.longMaterialPack");
 const t = createScopedTranslator("components.leftSidebar");
 
 const props = defineProps<{
@@ -156,6 +158,7 @@ function activateMoreFeature(
     | "chat-assistant"
     | "long-book-analysis"
     | "long-book-decomposition"
+    | "long-material-pack"
     | "revision-analysis"
     | "short-book-analysis"
     | "style-comparison"
@@ -193,6 +196,10 @@ function activateMoreFeature(
   }
   if (id === "long-book-decomposition") {
     emit("openDialog", "long-book-decomposition");
+    return;
+  }
+  if (id === "long-material-pack") {
+    emit("openDialog", "long-material-pack");
     return;
   }
   if (id === "skill-marketplace") {
@@ -341,6 +348,8 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
                 (feature.id === 'long-book-analysis' &&
                   props.longBookAnalysisRunning) ||
                 (feature.id === 'book-identity' && bookIdentityRunning) ||
+                (feature.id === 'long-material-pack' &&
+                  longMaterialPackRunning) ||
                 (feature.id === 'long-book-decomposition' &&
                   props.longBookDecompositionRunning)
               "
@@ -348,11 +357,13 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
               :title="
                 feature.id === 'book-identity'
                   ? identityT('backgroundRunning')
-                  : feature.id === 'revision-analysis'
-                    ? t('revisionAnalysisIsRunningInTheBackground')
-                    : feature.id === 'short-book-analysis'
-                      ? t('shortStoryAnalysisIsRunningInTheBackground')
-                      : t('novelAnalysisIsRunningInTheBackground')
+                  : feature.id === 'long-material-pack'
+                    ? packT('backgroundRunning')
+                    : feature.id === 'revision-analysis'
+                      ? t('revisionAnalysisIsRunningInTheBackground')
+                      : feature.id === 'short-book-analysis'
+                        ? t('shortStoryAnalysisIsRunningInTheBackground')
+                        : t('novelAnalysisIsRunningInTheBackground')
               "
             >
               <i aria-hidden="true" />{{ t("inBackground") }}

@@ -54,6 +54,15 @@ export default {
     noMatchingEntriesFound: "No matching entries found",
     enterASearchTerm: "Enter a search term"
   },
+  editorFindReplace: {
+    noResults: "No results",
+    enterTextToFind: "Enter text to find",
+    noMatchingTextFound: "No matching text found",
+    noTextToReplace: "No text to replace",
+    enterTextToReplace: "Enter text to replace",
+    findAndReplacementTextAreTheSame: "Find and replacement text are the same",
+    replacedMatches: "Replaced {length} matches"
+  },
   markdownOutline: {
     untitledHeading: "Untitled heading"
   },

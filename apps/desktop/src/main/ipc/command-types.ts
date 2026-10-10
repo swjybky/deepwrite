@@ -14,7 +14,6 @@ import type {
   authorizeMainInternalCommand,
   MainInternalCommandActiveRun
 } from "../internal-command-authorizer";
-import type { importLegacyLibraryArchives } from "../legacy-library-import-batch";
 import type { LegacySyncPreviewRegistry } from "../legacy-sync-preview-registry";
 import type { LibraryAgentConfigStore } from "../library-agent-config-store";
 import type { listRemoteModels } from "../list-remote-models";
@@ -67,7 +66,6 @@ export interface IpcCommandContext {
   listRemoteModels: typeof listRemoteModels;
   resolveDraftApiKey: ModelConfigStore["resolveDraftApiKey"];
   readExternalLibraryEntries: typeof readExternalLibraryEntries;
-  importLegacyLibraryArchives: typeof importLegacyLibraryArchives;
   cachedAppearanceSettings: () => AppearanceSettings;
   syncNativeAppearanceChrome: (settings: AppearanceSettings) => void;
   syncGeneralSettings: (settings: GeneralSettings) => void;

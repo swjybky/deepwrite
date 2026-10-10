@@ -17,6 +17,10 @@ import {
   DecompositionResolvedInputSchema
 } from "../long-book-decomposition/job";
 import { LongBookDecompositionProfileSchema } from "../long-book-decomposition/profile";
+import {
+  LongMaterialGuideResolvedInputSchema,
+  LongMaterialGuideTaskInputSchema
+} from "../long-material-pack/guide";
 import { LongBookAnalysisRuntimeContextSchema } from "../long-book-analysis";
 import { LongBookAnalysisPresetSchema } from "../long-book-analysis-presets";
 import {
@@ -53,6 +57,7 @@ import {
   type ExtrasAgentId
 } from "./ids";
 import {
+  LongMaterialGuideProfileSchema,
   RevisionAnalysisProfileSchema,
   StyleComparisonProfileSchema
 } from "./profiles";
@@ -94,6 +99,7 @@ export const ExtrasAgentTaskSchema = z.discriminatedUnion("agentId", [
     EXTRAS_AGENT_INPUT_SCHEMAS["style-comparison"]
   ),
   taskVariant("long-book-decomposition", DecompositionTaskInputSchema),
+  taskVariant("long-material-guide", LongMaterialGuideTaskInputSchema),
   taskVariant("chat-normal", ChatNormalTaskInputSchema),
   // A project chat names its project's profile; Main falls back to the
   // built-in prompt when the project has none yet.
@@ -167,6 +173,11 @@ export const ExtrasAgentResolvedTaskSchema = z.discriminatedUnion("agentId", [
     "long-book-decomposition",
     LongBookDecompositionProfileSchema,
     DecompositionResolvedInputSchema
+  ),
+  resolvedVariant(
+    "long-material-guide",
+    LongMaterialGuideProfileSchema,
+    LongMaterialGuideResolvedInputSchema
   ),
   resolvedVariant(
     "chat-normal",

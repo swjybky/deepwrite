@@ -5,6 +5,7 @@ export type WorkspaceMainView =
   | "directory"
   | "long-book-analysis"
   | "long-book-decomposition"
+  | "long-material-pack"
   | "revision-analysis"
   | "short-book-analysis"
   | "style-comparison"
@@ -20,6 +21,7 @@ export type PrimaryFeature =
   | "directory"
   | "long-book-analysis"
   | "long-book-decomposition"
+  | "long-material-pack"
   | "revision-analysis"
   | "short-book-analysis"
   | "style-comparison"
@@ -47,6 +49,7 @@ export function primaryFeatureForView(
     case "directory":
     case "long-book-analysis":
     case "long-book-decomposition":
+    case "long-material-pack":
     case "revision-analysis":
     case "short-book-analysis":
     case "style-comparison":

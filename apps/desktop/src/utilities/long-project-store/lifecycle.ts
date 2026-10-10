@@ -1,4 +1,4 @@
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   DEFAULT_LONG_AGENTS_MD,
@@ -39,6 +39,10 @@ import {
   serializeJson
 } from "./io";
 import { loadProject } from "./load-project";
+import {
+  assertLongProjectIdAvailable,
+  promoteLongProjectStaging
+} from "./project-folder";
 import { chapterPath, indexedFileSlots } from "./paths";
 import type { LongProjectStoreContext } from "./store-context";
 import {
@@ -86,8 +90,7 @@ export async function createBook(
   const parent = await ensureSecureDirectory(parentDirectory, "长篇项目父目录");
   return await ctx.runExclusive(parent, async () => {
     const bookId = LongBookIdSchema.parse(input.id ?? createId("longbook"));
-    const projectDirectory = join(parent, bookId);
-    await requireMissing(projectDirectory, "长篇项目目录已存在。");
+    await assertLongProjectIdAvailable(parent, bookId);
 
     const stagingDirectory = join(parent, `.${bookId}.staging-${randomHex8()}`);
     await requireMissing(stagingDirectory, "长篇项目暂存目录已存在。");
@@ -100,9 +103,12 @@ export async function createBook(
         operations: initial.operations,
         maxFileBytes: MAX_LEDGER_RECORD_BYTES
       });
-      await loadProject(ctx, stagingDirectory);
-      await requireMissing(projectDirectory, "长篇项目目录已存在。");
-      await rename(stagingDirectory, projectDirectory);
+      const staged = await loadProject(ctx, stagingDirectory);
+      const projectDirectory = await promoteLongProjectStaging(
+        parent,
+        stagingDirectory,
+        staged.book.title
+      );
       const loaded = await loadProject(ctx, projectDirectory);
       return {
         projectDirectory: loaded.projectDirectory,
@@ -131,8 +137,7 @@ export async function duplicateBook(
     const source = await loadProject(ctx, sourceDirectory);
     const now = ctx.timestamp();
     const bookId = LongBookIdSchema.parse(createId("longbook"));
-    const projectDirectory = join(parent, bookId);
-    await requireMissing(projectDirectory, "长篇项目目录已存在。");
+    await assertLongProjectIdAvailable(parent, bookId);
     const stagingDirectory = join(parent, `.${bookId}.staging-${randomHex8()}`);
     await requireMissing(stagingDirectory, "长篇项目暂存目录已存在。");
     await mkdir(stagingDirectory, { mode: 0o700 });
@@ -251,9 +256,12 @@ export async function duplicateBook(
         operations,
         maxFileBytes: MAX_LEDGER_RECORD_BYTES
       });
-      await loadProject(ctx, stagingDirectory);
-      await requireMissing(projectDirectory, "长篇项目目录已存在。");
-      await rename(stagingDirectory, projectDirectory);
+      const staged = await loadProject(ctx, stagingDirectory);
+      const projectDirectory = await promoteLongProjectStaging(
+        parent,
+        stagingDirectory,
+        staged.book.title
+      );
       const loaded = await loadProject(ctx, projectDirectory);
       return {
         projectDirectory: loaded.projectDirectory,

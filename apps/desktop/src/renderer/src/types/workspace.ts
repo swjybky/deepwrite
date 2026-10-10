@@ -77,7 +77,7 @@ export type ResourceSectionAction =
   | "refresh-long-books"
   | "import-portable-long-book"
   | "import-continuation-long-book"
-  | "import-legacy-library"
+  | "import-library-package"
   | "import-external-library";
 
 export interface ResourceSectionActionPayload {
@@ -90,6 +90,7 @@ export type CatalogResourceNodeAction =
   | "import-external-skills"
   | "rename-library"
   | "duplicate-library"
+  | "export-library"
   | "rename-entry"
   | "copy-entry"
   | "paste-entry"
@@ -98,6 +99,7 @@ export type CatalogResourceNodeAction =
   | "delete-library"
   | "edit-group-bindings"
   | "duplicate-group"
+  | "export-group"
   | "dissolve-group";
 
 export interface CatalogResourceNodeActionPayload {
@@ -281,6 +283,7 @@ export type DialogMode =
   | "directory"
   | "long-book-analysis"
   | "long-book-decomposition"
+  | "long-material-pack"
   | "revision-analysis"
   | "short-book-analysis"
   | "style-comparison"

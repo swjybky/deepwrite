@@ -18,6 +18,7 @@ import { chatProjectAgent } from "./agents/chat-project";
 import { chatRoleplayAgent } from "./agents/chat-roleplay";
 import { longBookAnalysisAgent } from "./agents/long-book-analysis";
 import { longBookDecompositionAgent } from "./agents/long-book-decomposition/definition";
+import { longMaterialGuideAgent } from "./agents/long-material-guide";
 import { revisionAnalysisAgent } from "./agents/revision-analysis";
 import { shortBookAnalysisAgent } from "./agents/short-book-analysis";
 import { styleComparisonAgent } from "./agents/style-comparison";
@@ -59,6 +60,8 @@ export function resolveExtrasAgent(
       return bindExtrasAgent(longBookAnalysisAgent, task);
     case "long-book-decomposition":
       return bindExtrasAgent(longBookDecompositionAgent, task);
+    case "long-material-guide":
+      return bindExtrasAgent(longMaterialGuideAgent, task);
     case "style-comparison":
       return bindExtrasAgent(styleComparisonAgent, task);
     case "chat-normal":
@@ -215,6 +218,9 @@ export function planExtrasRun(input: ExtrasAgentRunInput): AgentRunPlan {
         : {}),
       fauxResponses: () => agent.faux(runId),
       userMessageContent: () => agent.userMessage,
+      ...(agent.requiredOutputTool
+        ? { requiredOutputTool: agent.requiredOutputTool }
+        : {}),
       ...(agent.finalOutput
         ? { completionEvents: (event) => finalOutputEvents(agent, event) }
         : {})

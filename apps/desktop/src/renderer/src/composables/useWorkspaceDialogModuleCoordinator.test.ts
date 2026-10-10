@@ -160,6 +160,12 @@ function createHarness() {
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["library"]["externalLibraryImportDialog"]["value"]
     >(null);
+  const packageImportDialog =
+    shallowRef<
+      WorkspaceDialogModuleCoordinatorOptions["library"]["packageImportDialog"]["value"]
+    >(null);
+  const packageChoosing = shallowRef(false);
+  const packageImporting = shallowRef(false);
   const entryMove =
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["library"]["entryMove"]["value"]
@@ -236,6 +242,9 @@ function createHarness() {
       removalDialog,
       projectDialog,
       externalLibraryImportDialog,
+      packageImportDialog,
+      packageChoosing,
+      packageImporting,
       entryMove,
       groupDialog,
       activeGroup
@@ -293,6 +302,7 @@ function createHarness() {
       removalDialog,
       projectDialog,
       externalLibraryImportDialog,
+      packageImportDialog,
       entryMove,
       groupDialog,
       activeGroup,
@@ -509,6 +519,9 @@ function setKindActive(
         ? { domain: "skill", preselectedLibraryId: "skill-1" }
         : null;
       return;
+    case "library-package-import":
+      state.packageImportDialog.value = active ? { domain: "material" } : null;
+      return;
     case "library-entry-move":
       state.entryMove.value = active
         ? {
@@ -556,8 +569,8 @@ function trackedRef<Value>(
 
 describe("useWorkspaceDialogModuleCoordinator", () => {
   it("covers every dialog kind and preserves the complete strict priority", () => {
-    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(30);
-    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(30);
+    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(31);
+    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(31);
     expect(new Set(WORKSPACE_DIALOG_PRIORITY)).toEqual(
       new Set(WORKSPACE_DIALOG_KINDS)
     );

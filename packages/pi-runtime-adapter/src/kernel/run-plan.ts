@@ -95,6 +95,8 @@ export interface AgentRunPlan {
   userMessageContent(firstTurn: boolean): UserMessage["content"];
   /** The user's own words without workspace context, for later pruning. */
   rawUserMessageContent?(): UserMessage["content"];
+  /** Requires a successful unified output event; missing submissions get nudged. */
+  requiredOutputTool?: string;
   /**
    * Events derived from the final message, emitted before it. A derived
    * `agent.error` replaces the completion.

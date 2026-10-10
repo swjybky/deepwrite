@@ -28,7 +28,7 @@ function phaseRequirements(context: LongBookAnalysisRuntimeContext): string[] {
     return [
       "当前是分批分析阶段。",
       "先调用 list_analysis_inputs，再通过 read_analysis_input 尽量读完所有章节片段；需要定位时可使用 search_analysis_inputs。",
-      "完成后必须且只能调用一次 write_analysis_note，形成结构化、去重、带章节范围依据的中间笔记。",
+      "完成后必须通过 write_analysis_note 成功提交一份结构化、去重、带章节范围依据的中间笔记；调用失败时按错误修正参数后重交。",
       "本阶段不要生成正式素材或技能，不要调用未列出的工具。"
     ];
   }
@@ -36,13 +36,13 @@ function phaseRequirements(context: LongBookAnalysisRuntimeContext): string[] {
     return [
       "当前是中间笔记归并阶段。",
       "必须读取全部输入笔记，合并相同结论、保留差异和章节证据，并压缩重复内容。",
-      "完成后必须且只能调用一次 write_analysis_note。不要生成正式素材或技能。"
+      "完成后必须通过 write_analysis_note 成功提交一份紧凑笔记；调用失败时按错误修正参数后重交。不要生成正式素材或技能。"
     ];
   }
   return [
     "当前是最终结果生成阶段。",
     "必须读取全部归并笔记，严格按照预设目标生成一份完整 Markdown 结果。",
-    "完成后必须且只能调用一次 write_analysis_result，参数为 name（名称）、description（用途与适用场景）、content（完整 Markdown 正文，无需说明头部）。该工具只写预览区，不能声称已经正式落库。"
+    "完成后必须通过 write_analysis_result 成功提交一份结果；调用失败时按错误修正参数后重交。参数为 name（名称）、description（用途与适用场景）、content（完整 Markdown 正文，无需说明头部）。该工具只写预览区，不能声称已经正式落库。"
   ];
 }
 
@@ -118,6 +118,7 @@ export const longBookAnalysisAgent: ExtrasTaskAgentDefinition<"long-book-analysi
       `选择范围：第 ${task.input.selectionStart}-${task.input.selectionEnd} 章`,
       `预设：${task.profile.name}`,
       ...phaseRequirements(task.input),
+      "当前阶段的分析正文直接放入提交工具参数，不要先在普通回复中重复输出；分批和归并阶段只提交紧凑笔记，不提前展开最终交付框架。",
       "只能读取本轮工具实际提供的内容；不得访问文件、网络、Shell、其它会话或资料库。",
       "只能使用本轮列出的章节或中间笔记 list/read/search 工具，以及当前阶段唯一允许的 write_analysis_note 或 write_analysis_result。写入工具只更新本次任务的内存笔记或结果预览，不会修改源文件，也不会直接写入资料库。"
     ],
@@ -128,6 +129,8 @@ export const longBookAnalysisAgent: ExtrasTaskAgentDefinition<"long-book-analysi
         "",
         PHASE_INSTRUCTIONS[input.phase]
       ].join("\n"),
+    requiredOutputTool: ({ input }) =>
+      input.phase === "final" ? "write_analysis_result" : "write_analysis_note",
     tools: ({ input }) => {
       const target = {
         agentId: "long-book-analysis" as const,

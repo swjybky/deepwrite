@@ -2,10 +2,12 @@ import bookIdentity from "./book-identity/zh-CN";
 import agentTeamMarketplace from "./agent-team-marketplace/zh-CN";
 import deviceSyncService from "../../../../../localization/device-sync/zh-CN";
 import longBookDecomposition from "./long-book-decomposition/zh-CN";
+import longMaterialPack from "./long-material-pack/zh-CN";
 export default {
   bookIdentity,
   agentTeamMarketplace,
   longBookDecomposition,
+  longMaterialPack,
   deviceSyncService,
   agentRuntime: {
     stopFailed: "停止失败，请重试。",

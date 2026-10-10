@@ -252,6 +252,51 @@ function createDeferredApi(): {
       else reject(queued.error);
     });
   const api: DeepWriteApi = {
+    libraryPackage: {
+      exportPackage: vi.fn(async () => ({ status: "cancelled" as const })),
+      chooseSource: vi.fn(async () => null),
+      importPackage: vi.fn(async () => {
+        throw new Error("Library packages are not used by conversation tests.");
+      }),
+      discardPreview: vi.fn(async () => undefined)
+    },
+    longMaterialPack: {
+      inspect: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      preview: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      convert: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      resolve: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      list: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      deleteRecord: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      }),
+      applyGuide: vi.fn(async () => {
+        throw new Error(
+          "Long material packs are not used by conversation tests."
+        );
+      })
+    },
     bookIdentity: {
       get: vi.fn(async () => {
         throw new Error("Book identity is not used by conversation tests.");
@@ -492,7 +537,6 @@ function createDeferredApi(): {
         throw new Error("Catalog is not used by conversation tests.");
       }),
       openProject: vi.fn(async () => null),
-      importLegacyLibrary: vi.fn(async () => null),
       chooseExternalLibraryEntries: vi.fn(async () => null),
       importLibraryEntries: vi.fn(),
       createShortBook: vi.fn(async () => {

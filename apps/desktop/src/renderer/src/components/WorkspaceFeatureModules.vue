@@ -31,6 +31,7 @@ import {
   DeviceSyncPage,
   LongBookAnalysisPage,
   LongBookDecompositionPage,
+  LongMaterialPackPage,
   ShortBookAnalysisPage,
   RevisionAnalysisPage,
   StyleComparisonPage,
@@ -51,6 +52,7 @@ import {
 const t = createScopedTranslator("components.workspaceFeatureModules");
 const identityT = createScopedTranslator("extras.bookIdentity");
 const decompositionT = createScopedTranslator("extras.longBookDecomposition");
+const packT = createScopedTranslator("extras.longMaterialPack");
 
 defineProps<{
   module: WorkspaceFeatureModule;
@@ -69,6 +71,10 @@ const emit = defineEmits<{
   openDecompositionTarget: [
     target: import("@deepwrite/contracts").DecompositionTarget
   ];
+  openMaterialGroup: [groupId: string];
+  openMaterialEntry: [entry: { libraryId: string; entryId: string }];
+  openLongBook: [bookId: string];
+  openMaterialPack: [bookId: string];
   expandLeft: [];
   back: [];
   updatePermissionMode: [mode: GeneralPermissionMode];
@@ -342,6 +348,24 @@ const emit = defineEmits<{
   </WorkspaceFeatureFrame>
 
   <WorkspaceFeatureFrame
+    v-else-if="module.kind === 'long-material-pack'"
+    class="long-book-analysis-main-view"
+    :left-collapsed="leftCollapsed"
+    expand-button-class="long-book-analysis-expand-sidebar"
+    :label="packT('title')"
+    @expand-left="emit('expandLeft')"
+  >
+    <LongMaterialPackPage
+      :models="module.models"
+      :preferred-model-id="module.preferredModelId"
+      @open-group="emit('openMaterialGroup', $event)"
+      @open-entry="emit('openMaterialEntry', $event)"
+      @open-long-book="emit('openLongBook', $event)"
+      @refresh-catalog="emit('refreshCatalog')"
+    />
+  </WorkspaceFeatureFrame>
+
+  <WorkspaceFeatureFrame
     v-else-if="module.kind === 'style-comparison'"
     class="style-comparison-main-view"
     :left-collapsed="leftCollapsed"
@@ -371,6 +395,7 @@ const emit = defineEmits<{
       @refresh-catalog="emit('refreshCatalog')"
       @open="emit('openDecompositionRef', $event)"
       @open-target="emit('openDecompositionTarget', $event)"
+      @open-material-pack="emit('openMaterialPack', $event)"
     />
   </WorkspaceFeatureFrame>
 

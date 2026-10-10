@@ -41,6 +41,15 @@ export type StyleComparisonProfile = z.infer<
   typeof StyleComparisonProfileSchema
 >;
 
+export const LONG_MATERIAL_GUIDE_FOCUS_LIMIT = 8_000;
+/** The prompt is the user's focus note; the run boundary stays fixed. */
+export const LongMaterialGuideProfileSchema = PromptProfileBaseSchema.extend({
+  systemPrompt: z.string().trim().max(LONG_MATERIAL_GUIDE_FOCUS_LIMIT)
+});
+export type LongMaterialGuideProfile = z.infer<
+  typeof LongMaterialGuideProfileSchema
+>;
+
 /**
  * A profile is the user-editable half of an extras agent: its system prompt
  * plus feature options such as the library an analysis result is saved to.
@@ -54,6 +63,7 @@ export const EXTRAS_AGENT_PROFILE_SCHEMAS = {
   "short-book-analysis": ShortBookAnalysisPresetSchema,
   "long-book-analysis": LongBookAnalysisPresetSchema,
   "long-book-decomposition": LongBookDecompositionProfileSchema,
+  "long-material-guide": LongMaterialGuideProfileSchema,
   "style-comparison": StyleComparisonProfileSchema,
   "chat-normal": ChatNormalProfileSchema,
   "chat-project": ChatProjectProfileSchema,
@@ -70,6 +80,7 @@ export const EXTRAS_AGENT_MAX_PROFILES: Record<ExtrasAgentId, number> = {
   "short-book-analysis": 50,
   "long-book-analysis": LONG_BOOK_ANALYSIS_MAX_PERSISTED_PRESETS,
   "long-book-decomposition": 20,
+  "long-material-guide": 20,
   "style-comparison": 20,
   "chat-normal": 20,
   "chat-project": 10_000,
@@ -123,6 +134,7 @@ export const ExtrasAgentSettingsSchema = z.discriminatedUnion("agentId", [
     "long-book-decomposition",
     LongBookDecompositionProfileSchema
   ),
+  settingsVariant("long-material-guide", LongMaterialGuideProfileSchema),
   settingsVariant("style-comparison", StyleComparisonProfileSchema),
   settingsVariant("chat-normal", ChatNormalProfileSchema),
   // Projects and roles may share display names; ids keep them apart.
@@ -170,6 +182,10 @@ export const ExtrasAgentSettingsInputSchema = z.discriminatedUnion("agentId", [
     LongBookDecompositionProfileSchema.safeExtend({
       builtin: z.never().optional()
     })
+  ),
+  settingsVariant(
+    "long-material-guide",
+    LongMaterialGuideProfileSchema.omit(withoutBuiltin)
   ),
   settingsVariant(
     "style-comparison",

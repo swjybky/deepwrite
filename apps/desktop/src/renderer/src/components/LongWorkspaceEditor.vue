@@ -25,6 +25,7 @@ import { longDeletionDescription } from "../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../utils/longImpactConfirmation";
 import { countNonWhitespaceCharacters } from "../utils/boundedTextHistory";
 import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
+import { revealTextareaOffset } from "../utils/textareaMirror";
 import { resolveEditorTextReferenceRange } from "../utils/editorTextReferences";
 import type { EditorTextReference } from "../types/conversation";
 import {
@@ -63,7 +64,7 @@ import {
   type LongVolumeOutlineDraft
 } from "../composables/useLongEditorDocumentSession";
 import { useEditorComposition } from "../composables/useEditorComposition";
-import { useLongEditorFindReplace } from "../composables/useLongEditorFindReplace";
+import { useEditorFindReplace } from "../composables/useEditorFindReplace";
 import { useLongEditorEntrySearch } from "../composables/useLongEditorEntrySearch";
 import { useLongEditorHistory } from "../composables/useLongEditorHistory";
 import { useLongEditorPaneResize } from "../composables/useLongEditorPaneResize";
@@ -177,7 +178,6 @@ const pendingWorldbuildingDeleteId = ref<string | null>(null);
 const editorInput = ref<HTMLTextAreaElement | null>(null);
 const editorComposition = useEditorComposition();
 const documentPreview = ref<HTMLElement | null>(null);
-const editorToolsElement = ref<HTMLElement>();
 const { resetToDefault, setViewMode, viewMode } = useTextViewMode({
   defaultMode: () => props.defaultViewMode
 });
@@ -1134,12 +1134,7 @@ watch(
   { flush: "post" }
 );
 
-const historyHost = {
-  updateVisibleContent,
-  scrollEditorToRange: (input: HTMLTextAreaElement, start: number): void => {
-    findApi.scrollEditorToRange(input, start);
-  }
-};
+const historyHost = { updateVisibleContent };
 
 const {
   canUndo,
@@ -1169,8 +1164,7 @@ const {
   characterCount,
   stateKey,
   updateVisibleContent: (content) => historyHost.updateVisibleContent(content),
-  scrollEditorToRange: (input, start) =>
-    historyHost.scrollEditorToRange(input, start),
+  scrollEditorToRange: (input, start) => revealTextareaOffset(input, start),
   clearRecoveryRecordForKey,
   scheduleRecoveryWrite
 });
@@ -1199,21 +1193,6 @@ const {
   }
 });
 
-const findApi = useLongEditorFindReplace({
-  currentVisibleContent,
-  currentReadOnly,
-  canUseTextTools,
-  viewMode,
-  editorInput,
-  editorToolsElement,
-  updateVisibleContent: (content) => historyHost.updateVisibleContent(content),
-  updateVisibleCharacterCount,
-  recordProgrammaticChange,
-  undo,
-  redo,
-  closeStoryPlotActionMenu,
-  storyPlotActionMenuId
-});
 const {
   findPanelElement,
   findInput,
@@ -1225,14 +1204,28 @@ const {
   searchMatches,
   searchResultLabel,
   closeFindPanel,
+  dismissFindPanel,
   toggleFindPanel,
   findMatch,
   handleFindInput,
   replaceCurrentMatch,
   replaceAllMatches,
-  handleEditorKeydown,
-  handleWindowPointerDown
-} = findApi;
+  handleEditorKeydown
+} = useEditorFindReplace({
+  content: () => currentVisibleContent.value,
+  readOnly: () => currentReadOnly.value,
+  canOpen: () => canUseTextTools.value,
+  editorInput: () => editorInput.value,
+  showEditor: () => setViewMode("edit"),
+  replaceContent: (nextContent, selectionAfter) => {
+    const delta = recordProgrammaticChange(nextContent, selectionAfter);
+    historyHost.updateVisibleContent(nextContent);
+    updateVisibleCharacterCount(nextContent, delta);
+  },
+  undo,
+  redo,
+  isComposing: () => editorComposition.isComposing.value
+});
 const entrySearchScope = computed<LongWorkspaceRoot>(
   () => props.selection?.root ?? "worldbuilding"
 );
@@ -1348,7 +1341,7 @@ async function locateEditorReference(
   );
   input.focus();
   input.setSelectionRange(range.start, range.end, "forward");
-  findApi.scrollEditorToRange(input, range.start);
+  revealTextareaOffset(input, range.start);
   return true;
 }
 
@@ -1473,14 +1466,34 @@ watch(
   { immediate: true, flush: "sync" }
 );
 
+function closeStoryPlotActionMenuOnOutsidePointer(event: PointerEvent): void {
+  if (!storyPlotActionMenuId.value) return;
+  const target = event.target;
+  if (
+    target instanceof Element &&
+    target.closest(".long-story-plot-card-actions")
+  ) {
+    return;
+  }
+  closeStoryPlotActionMenu();
+}
+
 onMounted(() => {
-  window.addEventListener("pointerdown", handleWindowPointerDown, true);
+  window.addEventListener(
+    "pointerdown",
+    closeStoryPlotActionMenuOnOutsidePointer,
+    true
+  );
   void restoreCurrentEditorScroll();
 });
 onBeforeUnmount(() => {
   editorComposition.reset();
   rememberCurrentEditorScroll();
-  window.removeEventListener("pointerdown", handleWindowPointerDown, true);
+  window.removeEventListener(
+    "pointerdown",
+    closeStoryPlotActionMenuOnOutsidePointer,
+    true
+  );
 });
 </script>
 
@@ -1816,7 +1829,6 @@ onBeforeUnmount(() => {
         />
         <div
           v-if="!currentIsForeshadowingView && !currentIsPlotPointStoryline"
-          ref="editorToolsElement"
           class="long-editor-text-tools"
           role="group"
           :aria-label="t('textActions')"
@@ -1863,7 +1875,7 @@ onBeforeUnmount(() => {
             @update:entry-search-query="entrySearchQuery = $event"
             @find-input="handleFindInput"
             @find-match="findMatch"
-            @close="closeFindPanel"
+            @close="dismissFindPanel"
             @replace-current="replaceCurrentMatch"
             @replace-all="replaceAllMatches"
             @entry-search-input="handleEntrySearchInput"
@@ -2033,7 +2045,6 @@ onBeforeUnmount(() => {
                   </div>
                   <span class="long-toolbar-separator" />
                   <div
-                    ref="editorToolsElement"
                     class="long-editor-text-tools"
                     role="group"
                     :aria-label="t('textActions')"
@@ -2078,7 +2089,7 @@ onBeforeUnmount(() => {
                       @update:entry-search-query="entrySearchQuery = $event"
                       @find-input="handleFindInput"
                       @find-match="findMatch"
-                      @close="closeFindPanel"
+                      @close="dismissFindPanel"
                       @replace-current="replaceCurrentMatch"
                       @replace-all="replaceAllMatches"
                       @entry-search-input="handleEntrySearchInput"

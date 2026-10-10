@@ -26,6 +26,7 @@ const emit = defineEmits<{
   ];
   view: [unitId: string, title: string];
   openTarget: [target: DecompositionTarget];
+  openMaterialPack: [bookId: string];
   run: [];
   stop: [];
 }>();
@@ -102,6 +103,13 @@ watch(
           @click="emit('openTarget', job.target)"
         >
           {{ t("openTarget") }}
+        </button>
+        <button
+          v-if="finished && job.target?.kind === 'long'"
+          type="button"
+          @click="emit('openMaterialPack', job.target.bookId)"
+        >
+          {{ t("convertToMaterials") }}
         </button>
         <button v-if="busy" type="button" @click="emit('stop')">
           <AppIcon name="stop" :size="14" />{{ t("stop") }}

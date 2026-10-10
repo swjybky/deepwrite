@@ -85,8 +85,11 @@ export async function prepareDecompositionTarget(
   if (job.mode === "continuation") {
     if (!prep.steps.includes("created")) {
       if (job.targetSelection.action === "create") {
-        const path = join(prep.paths.book, prep.bookId);
-        if (await exists(path)) await longs.openAtPath(path);
+        const path = await longs.store.findBookDirectory(
+          prep.paths.book,
+          prep.bookId
+        );
+        if (path) await longs.openAtPath(path);
         else {
           const created = await longs.store.createBook(prep.paths.book, {
             id: prep.bookId,

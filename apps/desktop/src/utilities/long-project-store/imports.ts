@@ -1,4 +1,4 @@
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   DEFAULT_LONG_AGENTS_MD,
@@ -28,6 +28,10 @@ import {
   validatePortableAndCanonicalPaths
 } from "./integrity";
 import { loadProject } from "./load-project";
+import {
+  assertLongProjectIdAvailable,
+  promoteLongProjectStaging
+} from "./project-folder";
 import { indexedFileSlots } from "./paths";
 import type { LongProjectStoreContext } from "./store-context";
 import {
@@ -56,8 +60,7 @@ export async function importWriteClawBook(
     const index = LongWorkspaceIndexSnapshotSchema.parse(plan.index);
     validateImportPlan(plan, manifest, index);
 
-    const projectDirectory = join(parent, manifest.id);
-    await requireMissing(projectDirectory, "长篇项目目录已存在。");
+    await assertLongProjectIdAvailable(parent, manifest.id);
     const stagingDirectory = join(
       parent,
       `.${manifest.id}.staging-${randomHex8()}`
@@ -92,9 +95,12 @@ export async function importWriteClawBook(
         ],
         maxFileBytes: MAX_LEDGER_RECORD_BYTES
       });
-      await loadProject(ctx, stagingDirectory);
-      await requireMissing(projectDirectory, "长篇项目目录已存在。");
-      await rename(stagingDirectory, projectDirectory);
+      const staged = await loadProject(ctx, stagingDirectory);
+      const projectDirectory = await promoteLongProjectStaging(
+        parent,
+        stagingDirectory,
+        staged.book.title
+      );
       const loaded = await loadProject(ctx, projectDirectory);
       return {
         projectDirectory: loaded.projectDirectory,
@@ -154,8 +160,7 @@ export async function importPortableBundle(
     const slots = indexedFileSlots(index);
     validatePortableAndCanonicalPaths(slots);
 
-    const projectDirectory = join(parent, manifest.id);
-    await requireMissing(projectDirectory, "长篇项目目录已存在。");
+    await assertLongProjectIdAvailable(parent, manifest.id);
     const stagingDirectory = join(
       parent,
       `.${manifest.id}.staging-${randomHex8()}`
@@ -192,9 +197,12 @@ export async function importPortableBundle(
         ],
         maxFileBytes: MAX_LEDGER_RECORD_BYTES
       });
-      await loadProject(ctx, stagingDirectory);
-      await requireMissing(projectDirectory, "长篇项目目录已存在。");
-      await rename(stagingDirectory, projectDirectory);
+      const staged = await loadProject(ctx, stagingDirectory);
+      const projectDirectory = await promoteLongProjectStaging(
+        parent,
+        stagingDirectory,
+        staged.book.title
+      );
       const loaded = await loadProject(ctx, projectDirectory);
       return {
         projectDirectory: loaded.projectDirectory,
@@ -216,8 +224,7 @@ export async function commitContinuationImportPlan(
 ): Promise<ImportedContinuationLongBook> {
   const manifest = LongProjectManifestSchema.parse(plan.manifest);
   const index = LongWorkspaceIndexSnapshotSchema.parse(plan.index);
-  const projectDirectory = join(parentDirectory, manifest.id);
-  await requireMissing(projectDirectory, "长篇项目目录已存在。");
+  await assertLongProjectIdAvailable(parentDirectory, manifest.id);
   const stagingDirectory = join(
     parentDirectory,
     `.${manifest.id}.staging-${randomHex8()}`
@@ -251,9 +258,12 @@ export async function commitContinuationImportPlan(
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });
-    await loadProject(ctx, stagingDirectory);
-    await requireMissing(projectDirectory, "长篇项目目录已存在。");
-    await rename(stagingDirectory, projectDirectory);
+    const staged = await loadProject(ctx, stagingDirectory);
+    const projectDirectory = await promoteLongProjectStaging(
+      parentDirectory,
+      stagingDirectory,
+      staged.book.title
+    );
     const loaded = await loadProject(ctx, projectDirectory);
     return {
       projectDirectory: loaded.projectDirectory,

@@ -130,6 +130,7 @@ export default {
     "检查别名、人物等级与设定类别；龙套只保留在名册中，忽略项不会生成成品。",
   open: "打开",
   openTarget: "打开写入目标",
+  convertToMaterials: "转为素材库",
   viewTarget: "在创作空间查看",
   recordLoading: "正在读取记录…",
   recordEmpty: "此单元还没有已保存的记录。",

@@ -27,6 +27,7 @@ export default {
   deleteCharacterEntry: "删除人物条目",
   manageStructure: "结构管理",
   duplicate: "复制",
+  export: "导出",
   skillLibraryLinks: "技能库绑定",
   materialLibraryLinks: "素材库绑定",
   exportManuscript: "导出正文",

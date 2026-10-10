@@ -225,7 +225,7 @@ describe("LongProjectStore: creation-and-migration", () => {
     });
 
     expect(created.projectDirectory).toBe(
-      join(await realpath(parent), "longbook_missing-parent")
+      join(await realpath(parent), "首次创建长篇")
     );
     expect((await lstat(parent)).isDirectory()).toBe(true);
     expect((await lstat(created.projectDirectory)).isDirectory()).toBe(true);
@@ -583,7 +583,7 @@ describe("LongProjectStore: creation-and-migration", () => {
     expect(opened.book.id).toBe(created.book.id);
     expect(JSON.stringify(opened.summary)).not.toContain("workspaceIndex");
     expect(JSON.stringify(opened.summary)).not.toContain("body.md");
-    expect(await readdir(parent)).toEqual(["longbook_create"]);
+    expect(await readdir(parent)).toEqual(["长篇 create"]);
     await expect(
       lstat(join(created.projectDirectory, "deepwrite.json"))
     ).resolves.toMatchObject({ isFile: expect.any(Function) });

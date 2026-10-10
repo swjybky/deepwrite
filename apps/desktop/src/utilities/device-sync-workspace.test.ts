@@ -1,4 +1,5 @@
 import { readFile, writeFile, realpath } from "node:fs/promises";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DeviceSyncInventorySchema,
@@ -39,7 +40,7 @@ async function fixture() {
 }
 describe("双端同步 Core 事务与桌面真实契约", () => {
   it("接收手机短篇、剧本、长篇后可被桌面打开，往返身份一致", async () => {
-    const { workspace, root } = await fixture();
+    const { workspace, root, userDataPath } = await fixture();
     const items = syncItemSchema
       .array()
       .parse(JSON.parse(await readFile(mobileFixturePath, "utf8")));
@@ -50,6 +51,16 @@ describe("双端同步 Core 事务与桌面真实契约", () => {
     const result = DeviceSyncInventorySchema.parse(await workspace.list());
     expect(result.issues).toEqual([]);
     expect(result.items).toHaveLength(3);
+    // New synced folders are named by title, like locally created projects.
+    expect(
+      (await syncRegistrations(userDataPath))
+        .map((entry) => relative(root, entry.root))
+        .sort()
+    ).toEqual(
+      ["往返验收作品", "往返验收作品-2", "往返验收作品-3"].map((name) =>
+        join("books", name)
+      )
+    );
     for (const item of items)
       expect(
         sameSyncContent(

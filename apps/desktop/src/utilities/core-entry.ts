@@ -1,5 +1,7 @@
 import { withDecompositionCommands } from "./long-book-decomposition/commands";
 import { withBookIdentityCommands } from "./book-identity/commands";
+import { withLongMaterialPackCommands } from "./long-material-pack/commands";
+import { withLibraryPackageCommands } from "./library-package/commands";
 import { LongLedgerAuditError } from "./long-ledger-v4-audit";
 import { withLongBookAnalysisSources } from "./long-book-analysis-sources";
 import { withShortBookAnalysisSources } from "./short-book-analysis-sources";
@@ -47,7 +49,6 @@ import {
   FolderCatalogConflictError,
   FolderCatalogStore
 } from "./folder-catalog-store";
-import { readLegacyLibraryArchive } from "./legacy-library-import";
 import { bootUtility } from "./runtime";
 import { LongWorkspaceService } from "./long-workspace-service";
 
@@ -245,20 +246,6 @@ async function handleCatalogCommand(
         status: "accepted",
         requestId: command.id,
         payload: ScriptBookSchema.parse(created.resource)
-      };
-    }
-    if (command.type === "catalog.importLegacyLibraryAtPath") {
-      const imported = await catalogStore.importLegacyLibrary(
-        await readLegacyLibraryArchive(
-          command.payload.archivePath,
-          command.payload.domain
-        ),
-        command.payload.parentDirectory
-      );
-      return {
-        status: "accepted",
-        requestId: command.id,
-        payload: CatalogLibrarySchema.parse(imported.resource)
       };
     }
     if (command.type === "catalog.createLibraryAtPath") {
@@ -551,19 +538,26 @@ bootUtility("core", {
   mode: "catalog-store",
   onShutdown: conversationRuntime.close,
   commandHandler: conversationRuntime.wrap(
-    withBookIdentityCommands(
+    withLibraryPackageCommands(
       requireCatalogStore,
-      longWorkspaceService,
-      withDeviceSyncCommands(
-        resolvedUserDataPath,
+      withLongMaterialPackCommands(
         requireCatalogStore,
         longWorkspaceService,
-        withDecompositionCommands(
-          resolvedUserDataPath,
+        withBookIdentityCommands(
           requireCatalogStore,
           longWorkspaceService,
-          withLongBookAnalysisSources(
-            withShortBookAnalysisSources(handleCatalogCommand)
+          withDeviceSyncCommands(
+            resolvedUserDataPath,
+            requireCatalogStore,
+            longWorkspaceService,
+            withDecompositionCommands(
+              resolvedUserDataPath,
+              requireCatalogStore,
+              longWorkspaceService,
+              withLongBookAnalysisSources(
+                withShortBookAnalysisSources(handleCatalogCommand)
+              )
+            )
           )
         )
       )

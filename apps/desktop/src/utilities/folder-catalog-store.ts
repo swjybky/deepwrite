@@ -80,6 +80,8 @@ import {
   MaterialLibraryProjectManifestSchema,
   MarketplaceInstallPackageSchema,
   CatalogInstallMarketplaceSkillContentResultSchema,
+  ExportLibraryPackageInputSchema,
+  ImportLibraryPackageResultSchema,
   ImportLibraryEntriesInputSchema,
   SaveLibraryEntryInputSchema,
   MoveLibraryEntryInputSchema,
@@ -134,7 +136,12 @@ import {
   type LegacyBookProjectManifest,
   type MaterialLibraryProjectManifest,
   type MaterialLibrary,
+  type CatalogLibrary,
   type MaterialLibraryGroup,
+  type ExportLibraryPackageInput,
+  type ImportLibraryPackageResult,
+  type LibraryPackageExportSource,
+  type LibraryPackageResolvedImport,
   type MaterialEntry,
   type MaterialStageId,
   type MarketplaceInstallPackage,
@@ -170,7 +177,10 @@ import {
   writeWritingContextFile
 } from "./folder-catalog-store/writing-context";
 import type { ImportedLegacyBook } from "./legacy-book-import";
-import type { ImportedLegacyLibrary } from "./legacy-library-import";
+import {
+  buildLibraryPackageProjects,
+  type LibraryPackageProjectPlan
+} from "./folder-catalog-store/library-package-import";
 import { nextCopyTitle } from "./copy-title";
 import { projectTransactionFileIdentity } from "./project-transaction";
 
@@ -458,6 +468,36 @@ export class FolderCatalogStore {
       const receipt = await writeManagedMaterialEntry(root, input);
       await this.bumpRegistry(registry, this.now());
       return receipt;
+    });
+  }
+  async readManagedLibrary(libraryId: string) {
+    return this.readAfterWrites(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(
+        registry,
+        libraryId,
+        "material-library"
+      );
+      return readManagedLibrary(
+        await secureProjectRoot(registration.projectDirectory),
+        libraryId
+      );
+    });
+  }
+  async writeManagedEntries(input: ManagedEntriesWrite) {
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(
+        registry,
+        input.libraryId,
+        "material-library"
+      );
+      const result = await writeManagedEntries(
+        await secureProjectRoot(registration.projectDirectory),
+        input
+      );
+      await this.bumpRegistry(registry, this.now());
+      return result;
     });
   }
   async adoptManagedReceipt(
@@ -1078,75 +1118,93 @@ export class FolderCatalogStore {
     });
   }
 
-  async importLegacyLibrary(
-    input: Extract<ImportedLegacyLibrary, { domain: "material" }>,
-    parentDirectory?: string
-  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary>>;
-  async importLegacyLibrary(
-    input: Extract<ImportedLegacyLibrary, { domain: "skill" }>,
-    parentDirectory?: string
-  ): Promise<OpenFolderCatalogProjectResult<SkillLibrary>>;
-  async importLegacyLibrary(
-    input: ImportedLegacyLibrary,
-    parentDirectory?: string
-  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>>;
-  async importLegacyLibrary(
-    input: ImportedLegacyLibrary,
-    parentDirectory?: string
-  ): Promise<OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>> {
-    const projectDomain = libraryProjectDomain(input.domain);
-    const parent =
-      parentDirectory?.trim() || this.defaultProjectParents[projectDomain];
-    return await this.mutate(async () => {
-      const now = this.now();
-      const resource: MaterialLibrary | SkillLibrary =
-        input.domain === "material"
-          ? {
-              ...input.library,
-              id: createCatalogId("material"),
-              entries: input.library.entries.map((entry) => ({
-                ...entry,
-                id: createCatalogId("material-entry"),
-                createdAt: now,
-                updatedAt: now
-              })),
-              createdAt: now,
-              updatedAt: now
-            }
-          : {
-              ...input.library,
-              id: createCatalogId("skill"),
-              isBuiltin: false,
-              entries: input.library.entries.map((entry) => ({
-                ...entry,
-                id: createCatalogId("skill-entry"),
-                createdAt: now,
-                updatedAt: now
-              })),
-              createdAt: now,
-              updatedAt: now
-            };
-      const projectDirectory = await this.writeNewResourceProject(
-        projectDomain,
-        parent,
-        resource
-      );
-      try {
-        const registry = await this.ensureRegistry();
-        await this.registerProject(registry, {
-          id: resource.id,
-          domain: projectDomain,
-          projectDirectory,
-          registeredAt: now
-        });
-      } catch (error: unknown) {
-        await cleanupNewProjectDirectories([projectDirectory]);
-        throw error;
+  /** Reads one library, or a group's member libraries, for export only. */
+  async readLibraryPackageSource(
+    rawInput: ExportLibraryPackageInput
+  ): Promise<LibraryPackageExportSource> {
+    const input = ExportLibraryPackageInputSchema.parse(rawInput);
+    const libraryDomain = libraryProjectDomain(input.domain);
+    return await this.readAfterWrites(async () => {
+      const registry = await this.ensureRegistry();
+      const readLibrary = async (id: string) =>
+        (
+          await this.readProject(
+            findRegistration(registry, id, libraryDomain).projectDirectory,
+            libraryDomain,
+            id
+          )
+        ).resource as CatalogLibrary;
+      if (input.target.type === "library") {
+        return {
+          domain: input.domain,
+          groupTitle: null,
+          members: [{ slot: null, library: await readLibrary(input.target.id) }]
+        };
       }
-      return (await this.readProject(
-        projectDirectory,
-        projectDomain
-      )) as OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>;
+      const groupDomain =
+        input.domain === "material" ? "material-group" : "skill-group";
+      const group = (
+        await this.readProject(
+          findRegistration(registry, input.target.id, groupDomain)
+            .projectDirectory,
+          groupDomain,
+          input.target.id
+        )
+      ).resource as MaterialLibraryGroup | SkillLibraryGroup;
+      const slots =
+        input.domain === "material"
+          ? ["character", "plot", "gimmick", "draft", "other"]
+          : ["general", "plot", "style", "other"];
+      const members: LibraryPackageExportSource["members"][number][] = [];
+      for (const slot of slots) {
+        const id = (group.members as Record<string, string | undefined>)[slot];
+        if (!id) continue;
+        try {
+          members.push({ slot, library: await readLibrary(id) });
+        } catch {
+          members.push({ slot, library: null });
+        }
+      }
+      if (!members.some(({ library }) => library)) {
+        throw new Error("这个分组没有可用的成员库，没有可导出的内容。");
+      }
+      return { domain: input.domain, groupTitle: group.title, members };
+    });
+  }
+
+  /** Creates every library (and the group) of one import, or none of them. */
+  async importLibraryPackage(
+    resolved: LibraryPackageResolvedImport,
+    parents: { library: string; group: string }
+  ): Promise<ImportLibraryPackageResult> {
+    return await this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const snapshot = await this.aggregateSnapshot(registry);
+      const now = this.now();
+      const material = resolved.domain === "material";
+      const projects = buildLibraryPackageProjects(resolved, {
+        libraryTitles: (material ? snapshot.materials : snapshot.skills).map(
+          ({ title }) => title
+        ),
+        groupTitles: (material
+          ? snapshot.materialGroups
+          : snapshot.skillGroups
+        ).map(({ title }) => title),
+        parents,
+        now
+      });
+      await this.writeAndRegisterNewProjects(
+        registry,
+        projects.plans,
+        now,
+        "导入失败，且无法完整清理未注册目录。"
+      );
+      return ImportLibraryPackageResultSchema.parse({
+        domain: resolved.domain,
+        libraryIds: projects.libraryIds,
+        entryCount: projects.entryCount,
+        ...(projects.groupId ? { groupId: projects.groupId } : {})
+      });
     });
   }
 
@@ -4407,6 +4465,46 @@ export class FolderCatalogStore {
     }
   }
 
+  /** Writes new projects, then registers them in one registry write. */
+  private async writeAndRegisterNewProjects(
+    registry: FolderCatalogRegistry,
+    plans: readonly LibraryPackageProjectPlan[],
+    now: string,
+    cleanupFailureMessage: string
+  ): Promise<void> {
+    const createdProjectDirectories: string[] = [];
+    const registrations: RegistryProject[] = [];
+    try {
+      for (const plan of plans) {
+        const projectDirectory = await this.writeNewResourceProject(
+          plan.domain,
+          plan.parentDirectory,
+          plan.resource
+        );
+        createdProjectDirectories.push(projectDirectory);
+        registrations.push({
+          id: plan.resource.id,
+          domain: plan.domain,
+          projectDirectory,
+          registeredAt: now
+        });
+      }
+      await this.writeRegistry({
+        ...registry,
+        revision: registry.revision + 1,
+        updatedAt: now,
+        projects: [...registry.projects, ...registrations]
+      });
+    } catch (error: unknown) {
+      try {
+        await cleanupNewProjectDirectories(createdProjectDirectories);
+      } catch (cleanupError: unknown) {
+        throw new AggregateError([error, cleanupError], cleanupFailureMessage);
+      }
+      throw error;
+    }
+  }
+
   private async writeNewResourceProject(
     domain: FolderCatalogProjectDomain,
     parentDirectory: string,
@@ -7171,3 +7269,8 @@ function defaultDocumentTitle(documentId: string): string {
   );
 }
 import { adoptManagedMaterialReceipt } from "./folder-catalog-store/managed-receipt";
+import {
+  readManagedLibrary,
+  writeManagedEntries,
+  type ManagedEntriesWrite
+} from "./folder-catalog-store/managed-batch";

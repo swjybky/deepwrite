@@ -133,6 +133,7 @@ export default {
     "Check aliases, character tiers and world categories. Passersby remain in the registry; ignored entries receive no assets.",
   open: "Open",
   openTarget: "Open destination",
+  convertToMaterials: "Convert to materials",
   viewTarget: "View in workspace",
   recordLoading: "Loading record…",
   recordEmpty: "No saved record for this unit yet.",

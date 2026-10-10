@@ -1,5 +1,4 @@
 export default {
-  noResults: "No results",
   episode: "Episode",
   section: "Section",
   manuscriptValue: "Manuscript {arg0}",
@@ -7,12 +6,6 @@ export default {
     "Add a section at the end of the manuscript",
   deleteCurrentEntry: "Delete current entry",
   enterADocumentTitleBeforeSaving: "Enter a document title before saving",
-  enterTextToFind: "Enter text to find",
-  noMatchingText: "No matching text",
-  noTextAvailableToReplace: "No text available to replace",
-  enterTextToReplace: "Enter text to replace",
-  findAndReplacementTextAreIdentical: "Find and replacement text are identical",
-  replacedValueOccurrences: "Replaced {arg0} occurrences",
   textContent: "Text content",
   valueFile: "{arg0} file",
   manuscript: "Manuscript",

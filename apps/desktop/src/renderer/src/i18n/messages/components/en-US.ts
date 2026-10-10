@@ -75,6 +75,7 @@ import exportLongManuscriptChapterList from "./exportLongManuscriptChapterList/e
 import exportLongManuscriptDialog from "./exportLongManuscriptDialog/en-US";
 import exportShortManuscriptDialog from "./exportShortManuscriptDialog/en-US";
 import externalSkillImportDialog from "./externalSkillImportDialog/en-US";
+import importLibraryPackageDialog from "./importLibraryPackageDialog/en-US";
 import foreshadowingFilterBar from "./foreshadowingFilterBar/en-US";
 import freeModelPresentation from "./freeModelPresentation/en-US";
 import freeModelsPanel from "./freeModelsPanel/en-US";
@@ -262,6 +263,7 @@ export default {
   exportLongManuscriptDialog,
   exportShortManuscriptDialog,
   externalSkillImportDialog,
+  importLibraryPackageDialog,
   foreshadowingFilterBar,
   freeModelPresentation,
   freeModelsPanel,

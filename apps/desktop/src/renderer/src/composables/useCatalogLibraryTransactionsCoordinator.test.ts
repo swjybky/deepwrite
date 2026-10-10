@@ -158,6 +158,7 @@ function createHarness(options: HarnessOptions = {}) {
 
   const coordinator = useCatalogLibraryTransactionsCoordinator({
     api: () => apiMocks as unknown as DeepWriteApi["catalog"],
+    libraryPackageApi: () => undefined,
     snapshot,
     documents,
     drafts,

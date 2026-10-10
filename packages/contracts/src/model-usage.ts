@@ -14,6 +14,7 @@ export const MODEL_USAGE_MODULES = [
   "learning-imitation",
   "long-book-analysis",
   "long-book-decomposition",
+  "long-material-pack",
   "revision-analysis",
   "short-book-analysis",
   "style-comparison",

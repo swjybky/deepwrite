@@ -388,6 +388,7 @@ const {
 const {
   libraryProjectDialog,
   externalLibraryImport,
+  libraryPackage,
   libraryGroupDialog,
   libraryRemovalDialog,
   libraryEntryClipboardDomain,
@@ -405,6 +406,7 @@ const {
   handleResourceNodeAction
 } = useCatalogLibraryTransactionsCoordinator({
   api: () => window.deepwrite?.catalog,
+  libraryPackageApi: () => window.deepwrite?.libraryPackage,
   snapshot: catalogSnapshot,
   documents,
   drafts: editorDrafts,
@@ -1372,6 +1374,9 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
     removalDialog: libraryRemovalDialog,
     projectDialog: libraryProjectDialog,
     externalLibraryImportDialog: externalLibraryImport.dialog,
+    packageImportDialog: libraryPackage.importDialog,
+    packageChoosing: libraryPackage.choosing,
+    packageImporting: libraryPackage.importing,
     entryMove: pendingLibraryEntryMove,
     groupDialog: libraryGroupDialog,
     activeGroup: activeLibraryGroup
@@ -1690,7 +1695,8 @@ const writingEditorViewModel = computed(() => ({
   entrySearchItems: activeEditorEntrySearchItems.value
 }));
 async function prepareLibraryProjectsForDuplicate(
-  libraryIds: ReadonlySet<string>
+  libraryIds: ReadonlySet<string>,
+  operation: "duplicate" | "export" = "duplicate"
 ): Promise<boolean> {
   await drainEditorSaves();
   const scopedDocuments = documents.value.filter(
@@ -1713,7 +1719,13 @@ async function prepareLibraryProjectsForDuplicate(
       false
     );
     if (!saved) {
-      uiMessage.warning(t("someLibraryDraftsCannotBeSavedSafelyCopyingWas"));
+      uiMessage.warning(
+        t(
+          operation === "export"
+            ? "someLibraryDraftsCannotBeSavedSafelyExportWas"
+            : "someLibraryDraftsCannotBeSavedSafelyCopyingWas"
+        )
+      );
       return false;
     }
   }
@@ -1853,25 +1865,10 @@ async function handleResourceAction(
   }
 
   if (
-    payload.action === "import-legacy-library" &&
+    payload.action === "import-library-package" &&
     (payload.domain === "material" || payload.domain === "skill")
   ) {
-    const { importLegacyLibraryAction } =
-      await import("./composables/catalogProjectActions");
-    await importLegacyLibraryAction(payload.domain, {
-      api: window.deepwrite,
-      pending: catalogMutationPending,
-      refresh: refreshImportedCatalog,
-      selectLibrary: (id) => {
-        const target = documents.value.find(
-          (document) => document.libraryId === id
-        );
-        if (target) {
-          selectedResourceId.value = target.id;
-          revealTextPane();
-        }
-      }
-    });
+    libraryPackage.openImport(payload.domain);
     return;
   }
 
@@ -2560,6 +2557,10 @@ onBeforeUnmount(() => {
       @create-identity-book="featureHost.showConversation"
       @open-decomposition-ref="decompositionWorkspace.openRef"
       @open-decomposition-target="decompositionWorkspace.openTarget"
+      @open-material-group="decompositionWorkspace.openGroup"
+      @open-material-entry="decompositionWorkspace.openEntry"
+      @open-long-book="decompositionWorkspace.openLongBook"
+      @open-material-pack="featureHost.openMaterialPack"
       @marketplace-session-change="featureHost.applyMarketplaceSession"
       @agent-team-catalog-change="
         settingsStore.markLoaded('agentTeams', $event)
@@ -2768,6 +2769,10 @@ onBeforeUnmount(() => {
     @rename-library="renameCatalogLibrary"
     @rename-library-entry="renameCatalogLibraryEntry"
     @remove-library-entry="removeCatalogLibraryEntry"
+    @close-library-package-import="libraryPackage.closeImport"
+    @choose-library-package-source="libraryPackage.chooseSource"
+    @restart-library-package-import="libraryPackage.restartImport"
+    @submit-library-package-import="libraryPackage.submitImport"
     @close-external-library-import="externalLibraryImport.close"
     @choose-external-library-import="externalLibraryImport.chooseSource"
     @submit-external-library-import="externalLibraryImport.submit"

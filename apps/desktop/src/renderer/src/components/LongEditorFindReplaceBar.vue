@@ -3,6 +3,7 @@ import { createScopedTranslator } from "../i18n";
 import type { EditorEntrySearchResult } from "../types/editorEntrySearch";
 import AppIcon from "./AppIcon.vue";
 import EditorEntrySearchRow from "./EditorEntrySearchRow.vue";
+import { createEditorFindPanelInput } from "./editorFindPanelInput";
 
 const t = createScopedTranslator("components.longEditorFindReplaceBar");
 
@@ -39,6 +40,17 @@ const findPanelElement = defineModel<HTMLElement | null>("findPanelElement", {
 const findInput = defineModel<HTMLInputElement | null>("findInput", {
   default: null
 });
+const {
+  handleQueryInput,
+  handleQueryCompositionEnd,
+  handleQueryEnter,
+  handleReplacementEnter
+} = createEditorFindPanelInput({
+  updateQuery: (value) => emit("update:searchQuery", value),
+  search: () => emit("findInput"),
+  findMatch: (direction) => emit("findMatch", direction),
+  replaceCurrent: () => emit("replaceCurrent")
+});
 </script>
 
 <template>
@@ -60,14 +72,9 @@ const findInput = defineModel<HTMLInputElement | null>("findInput", {
           type="text"
           :aria-label="t('findText')"
           :placeholder="t('find')"
-          @input="
-            emit(
-              'update:searchQuery',
-              ($event.target as HTMLInputElement).value
-            );
-            emit('findInput');
-          "
-          @keydown.enter.prevent="emit('findMatch', $event.shiftKey ? -1 : 1)"
+          @input="handleQueryInput"
+          @compositionend="handleQueryCompositionEnd"
+          @keydown.enter="handleQueryEnter"
         />
         <span class="long-editor-find-count" aria-live="polite">
           {{ searchResultLabel }}
@@ -78,6 +85,7 @@ const findInput = defineModel<HTMLInputElement | null>("findInput", {
         type="button"
         :aria-label="t('findPrevious')"
         :title="t('findPrevious')"
+        @mousedown.prevent
         @click="emit('findMatch', -1)"
       >
         <AppIcon name="chevron" :size="14" />
@@ -87,6 +95,7 @@ const findInput = defineModel<HTMLInputElement | null>("findInput", {
         type="button"
         :aria-label="t('findNext')"
         :title="t('findNext')"
+        @mousedown.prevent
         @click="emit('findMatch', 1)"
       >
         <AppIcon name="chevron" :size="14" />
@@ -116,13 +125,14 @@ const findInput = defineModel<HTMLInputElement | null>("findInput", {
               ($event.target as HTMLInputElement).value
             )
           "
-          @keydown.enter.prevent="emit('replaceCurrent')"
+          @keydown.enter="handleReplacementEnter"
         />
       </label>
       <button
         class="long-editor-find-action"
         type="button"
         :disabled="currentReadOnly"
+        @mousedown.prevent
         @click="emit('replaceCurrent')"
       >
         {{ t("replace") }}
@@ -131,6 +141,7 @@ const findInput = defineModel<HTMLInputElement | null>("findInput", {
         class="long-editor-find-action"
         type="button"
         :disabled="currentReadOnly"
+        @mousedown.prevent
         @click="emit('replaceAll')"
       >
         {{ t("all") }}

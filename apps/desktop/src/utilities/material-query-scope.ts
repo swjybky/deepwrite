@@ -18,6 +18,34 @@ export interface MaterialCandidate {
   stamp: string;
 }
 
+/** Entries Main places in a run's context catalog before the agent pages. */
+export const MATERIAL_CATALOG_FIRST_PAGE = 64;
+
+/**
+ * Lets every linked library show its leading entries (its index) on the first
+ * page: each library contributes up to K entries first, then the rest follow
+ * in their original order. Nothing moves when everything fits on one page.
+ */
+export function orderByLibraryQuota<T extends { libraryId: string }>(
+  candidates: readonly T[],
+  page = MATERIAL_CATALOG_FIRST_PAGE
+): T[] {
+  const libraries = new Set(candidates.map(({ libraryId }) => libraryId));
+  if (libraries.size < 2 || candidates.length <= page) return [...candidates];
+  const quota = Math.max(4, Math.floor(page / libraries.size));
+  const taken = new Map<string, number>();
+  const head: T[] = [];
+  const tail: T[] = [];
+  for (const candidate of candidates) {
+    const count = taken.get(candidate.libraryId) ?? 0;
+    if (count < quota) {
+      head.push(candidate);
+      taken.set(candidate.libraryId, count + 1);
+    } else tail.push(candidate);
+  }
+  return [...head, ...tail];
+}
+
 /** Re-evaluated against persisted bindings for every query, including reads. */
 export function scopedMaterialCandidates(
   index: CatalogIndexSnapshot,
@@ -76,5 +104,5 @@ export function scopedMaterialCandidates(
       }
     }
   }
-  return candidates;
+  return orderByLibraryQuota(candidates);
 }

@@ -5,14 +5,15 @@ import resourceListSource from "./SidebarResourceList.vue?raw";
 import source from "./TreeSection.vue?raw";
 
 describe("TreeSection resource actions", () => {
-  it("offers legacy library import from the skill and material add menus", () => {
-    expect(source).toContain('id: "import-legacy-library"');
-    expect(source).toContain("importLegacyValue");
-    expect(source).toContain('icon: "archive"');
+  it("offers package import from the skill and material add menus", () => {
+    expect(source).toContain('id: "import-library-package"');
+    expect(source).toContain("importMaterialPackage");
+    expect(source).toContain("importSkillPackage");
+    expect(source).not.toContain("import-legacy-library");
     expect(source).toContain('id: "import-external-library"');
     expect(source).toContain("importValueFromFilesOrFolders");
     expect(source.indexOf('id: "import-external-library"')).toBeGreaterThan(
-      source.indexOf('id: "import-legacy-library"')
+      source.indexOf('id: "import-library-package"')
     );
   });
 

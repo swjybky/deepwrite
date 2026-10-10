@@ -66,6 +66,13 @@ export interface ExtrasAgentRunDependencies {
     resolution: ExtrasTaskResolution,
     code?: string
   ): Promise<void>;
+  resolveLongMaterialGuide?(
+    task: Extract<ExtrasAgentTask, { agentId: "long-material-guide" }>,
+    capacity: {
+      contextWindow?: number | undefined;
+      maxTokens?: number | undefined;
+    }
+  ): Promise<ExtrasTaskResolution>;
   chatSources: ChatRuntimeSources;
   resolveModel(
     modelId: string | undefined
@@ -172,17 +179,36 @@ export async function runExtrasAgent(
   try {
     const runtimeConfig = await deps.resolveModel(command.payload.modelId);
     assertWebSearchSupported(task, runtimeConfig);
+    const guideCapacity =
+      task.agentId === "long-material-guide"
+        ? runtimeConfig
+          ? await decompositionModelCapacity(
+              deps.requestAgent,
+              command,
+              runtimeConfig,
+              "guide"
+            )
+          : deps.evaluationMode
+            ? { contextWindow: 128_000, maxTokens: 8192 }
+            : undefined
+        : undefined;
+    if (task.agentId === "long-material-guide" && !guideCapacity)
+      throw new Error("请选择可用模型。");
     resolution =
       task.agentId === "long-book-decomposition" && deps.resolveDecomposition
         ? await deps.resolveDecomposition(task)
-        : await resolveExtrasTask(
-            deps.configStore(),
-            deps.chatSources,
-            task,
-            task.agentId === "book-cover-design"
-              ? await deps.imageCapability?.()
-              : undefined
-          );
+        : task.agentId === "long-material-guide" &&
+            deps.resolveLongMaterialGuide &&
+            guideCapacity
+          ? await deps.resolveLongMaterialGuide(task, guideCapacity)
+          : await resolveExtrasTask(
+              deps.configStore(),
+              deps.chatSources,
+              task,
+              task.agentId === "book-cover-design"
+                ? await deps.imageCapability?.()
+                : undefined
+            );
     if (
       resolution.task.agentId === "long-book-decomposition" &&
       command.payload.modelId !== resolution.task.input.modelId
@@ -200,10 +226,12 @@ export async function runExtrasAgent(
           : deps.evaluationMode
             ? { contextWindow: 128_000, maxTokens: 8192 }
             : undefined
-        : (runtimeConfig ??
-          (deps.evaluationMode && resolution.bookIdentity
-            ? { contextWindow: 128_000, maxTokens: 8192 }
-            : undefined));
+        : resolution.task.agentId === "long-material-guide"
+          ? guideCapacity
+          : (runtimeConfig ??
+            (deps.evaluationMode && resolution.bookIdentity
+              ? { contextWindow: 128_000, maxTokens: 8192 }
+              : undefined));
     assertExtrasAgentBudget(resolution.task, budgetModel);
     if (resolution.bookIdentity && runtimeConfig)
       resolution.bookIdentity.model = {

@@ -15,6 +15,7 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "longBookDecomposition.query",
   "longBookDecomposition.submitUnit",
   "longBookDecomposition.planTopic",
+  "longMaterialPack.core",
   "agent.abort",
   "agent.user_input_response",
   "agent.model_test",
@@ -31,7 +32,9 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "catalog.createLibraryAtPath",
   "catalog.createLibraryGroupAtPath",
   "catalog.openProjectAtPath",
-  "catalog.importLegacyLibraryAtPath",
+  "catalog.readLibraryPackageSource",
+  "catalog.previewLibraryPackageAtPath",
+  "catalog.importLibraryPackageAtPath",
   "catalog.installMarketplaceSkillContent"
 ]);
 

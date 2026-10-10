@@ -8,6 +8,7 @@ import {
   watch
 } from "vue";
 import { buildEditorSearchHighlightSegments } from "../utils/editorSearchHighlight";
+import { textareaTypographyStyle } from "../utils/textareaMirror";
 
 const props = defineProps<{
   content: string;
@@ -42,25 +43,9 @@ function syncOverlay(): void {
     height: `${editor.clientHeight}px`
   };
   contentStyle.value = {
+    ...textareaTypographyStyle(style),
     width: `${editor.scrollWidth}px`,
     minHeight: `${editor.scrollHeight}px`,
-    paddingTop: style.paddingTop,
-    paddingRight: style.paddingRight,
-    paddingBottom: style.paddingBottom,
-    paddingLeft: style.paddingLeft,
-    fontFamily: style.fontFamily,
-    fontSize: style.fontSize,
-    fontStyle: style.fontStyle,
-    fontWeight: style.fontWeight,
-    lineHeight: style.lineHeight,
-    letterSpacing: style.letterSpacing,
-    textAlign: style.textAlign,
-    textIndent: style.textIndent,
-    textTransform: style.textTransform,
-    tabSize: style.tabSize,
-    whiteSpace: style.whiteSpace,
-    wordBreak: style.wordBreak,
-    overflowWrap: style.overflowWrap,
     transform: `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`
   };
 }

@@ -154,7 +154,7 @@ export type WorkspaceFeatureModule =
   | AgentTeamFeatureModule
   | DirectoryFeatureModule
   | {
-      kind: "style-comparison" | "book-identity";
+      kind: "style-comparison" | "book-identity" | "long-material-pack";
       models: readonly ModelConfig[];
       preferredModelId: string | null;
     }

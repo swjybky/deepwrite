@@ -3,6 +3,8 @@ import { desktopEvents } from "./desktop-events-api";
 import { voice } from "./voice-api";
 import { imageModels } from "./image-models-api";
 import { bookIdentity } from "./book-identity-api";
+import { longMaterialPack } from "./long-material-pack-api";
+import { libraryPackage } from "./library-package-api";
 import { storageSettings } from "./storage-settings-api";
 import { textContextMenu } from "./text-context-menu-api";
 import { analysisApis } from "./analysis-apis";
@@ -31,7 +33,6 @@ import {
   CatalogLibrarySchema,
   CatalogLibraryGroupSchema,
   CatalogLibraryEntrySchema,
-  CatalogLibraryProjectDomainSchema,
   CatalogOpenProjectResultSchema,
   CatalogProjectDomainSchema,
   CatalogIndexSnapshotSchema,
@@ -69,7 +70,6 @@ import {
   ImportLibraryEntriesResultSchema,
   GeneralSettingsSchema,
   GeneralSettingsSnapshotSchema,
-  ImportLegacyLibraryResultSchema,
   UPDATE_CHECK_CHANNEL,
   UPDATE_DOWNLOAD_CHANNEL,
   UPDATE_GET_STATE_CHANNEL,
@@ -116,7 +116,6 @@ import {
   type CatalogLibrary,
   type CatalogLibraryGroup,
   type CatalogLibraryEntry,
-  type CatalogLibraryProjectDomain,
   type CatalogOpenProjectResult,
   type CatalogProjectDomain,
   type CatalogIndexSnapshot,
@@ -154,7 +153,6 @@ import {
   type ImportLibraryEntriesResult,
   type GeneralSettings,
   type GeneralSettingsSnapshot,
-  type ImportLegacyLibraryResult,
   type LongAgentId,
   type LongAgentSettings,
   type LongAgentSettingsInput,
@@ -411,22 +409,6 @@ async function openProject(
           id,
           correlationId: id
         }
-      )
-    )
-  );
-}
-
-async function importLegacyLibrary(
-  rawDomain: CatalogLibraryProjectDomain
-): Promise<ImportLegacyLibraryResult | null> {
-  const domain = CatalogLibraryProjectDomainSchema.parse(rawDomain);
-  const id = browserId("cmd_catalog_import_legacy_library");
-  return ImportLegacyLibraryResultSchema.nullable().parse(
-    await invokeCommand<ImportLegacyLibraryResult | null>(
-      createEnvelope(
-        "catalog.importLegacyLibrary",
-        { domain },
-        { id, correlationId: id }
       )
     )
   );
@@ -999,6 +981,8 @@ async function exportLongManuscript(
 const api: DeepWriteApi = {
   imageModels,
   bookIdentity,
+  longMaterialPack,
+  libraryPackage,
   storageSettings,
   voice,
   textContextMenu,
@@ -1054,7 +1038,6 @@ const api: DeepWriteApi = {
     updateLibrary,
     createLibraryGroup,
     openProject,
-    importLegacyLibrary,
     updateBook,
     mutateCharacterStructure,
     mutatePlotStructure,

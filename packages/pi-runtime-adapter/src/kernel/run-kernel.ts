@@ -43,6 +43,7 @@ import type { ConversationAgentCache } from "./run-agent";
 import { assertAttachmentsSupported, resolveRunModel } from "./run-model";
 import type { AgentRunPlan } from "./run-plan";
 import { ToolDeltaStream } from "./tool-delta-stream";
+import { createRequiredOutputGuard } from "./required-output-guard";
 
 export interface AgentRunKernelOptions {
   idleTimeoutMs: number;
@@ -147,6 +148,11 @@ export class AgentRunKernel {
       streamFn: interceptedStreamFn
     });
     prepared = agent;
+    const outputGuard = plan.requiredOutputTool
+      ? createRequiredOutputGuard(agent, plan.requiredOutputTool)
+      : undefined;
+    if (outputGuard) agent.shouldStopAfterTurn = () => outputGuard.failed;
+    else delete agent.shouldStopAfterTurn;
 
     let settled = false;
     let terminalEmitted = false;
@@ -356,7 +362,7 @@ export class AgentRunKernel {
         agent,
         initialPrompt: runtimeUserMessage,
         runId: target.runId,
-        rejectEmptyResponse: () => !resultDelivered,
+        rejectEmptyResponse: () => !resultDelivered && !outputGuard,
         signal: retryWaitController.signal,
         ...(this.options.retryPolicy
           ? { retryPolicy: this.options.retryPolicy }
@@ -424,6 +430,16 @@ export class AgentRunKernel {
             isAssistantMessage(event.message)
           ) {
             modelRequestInFlight = false;
+            const decision = outputGuard?.inspect(
+              event.message,
+              resultDelivered
+            );
+            if (decision) {
+              completedEvent = undefined;
+              if (decision.type === "error")
+                emitError(decision.code, decision.message);
+              return;
+            }
           } else if (event.type === "tool_execution_start") {
             modelRequestInFlight = false;
           }

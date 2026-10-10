@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed, onBeforeUnmount, ref, useId } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, useId } from "vue";
 import type { ConversationTurn } from "../composables/useConversationTurnNavigator";
+import { useConversationTurnRail } from "../composables/useConversationTurnRail";
+import AppIcon from "./AppIcon.vue";
 
 const t = createScopedTranslator("components.conversationTurnNavigator");
 
@@ -14,8 +16,25 @@ const emit = defineEmits<{
   select: [messageId: string];
 }>();
 
-const navigator = ref<HTMLElement>();
+const {
+  navigator,
+  markerList,
+  railStyle,
+  availableHeight,
+  hasOverflow,
+  canScrollUp,
+  canScrollDown,
+  handleMarkerScroll,
+  scrollPage,
+  scrollMarkers
+} = useConversationTurnRail({
+  turns: () => props.turns,
+  activeTurnId: () => props.activeTurnId,
+  dismissPreview,
+  onScroll: updatePreviewOnScroll
+});
 const previewId = useId();
+const preview = ref<HTMLButtonElement>();
 const hoveredTurnId = ref<string | null>(null);
 const focusedTurnId = ref<string | null>(null);
 const previewTop = ref(0);
@@ -26,6 +45,7 @@ const previewTurnId = computed(
 const previewTurn = computed(() =>
   props.turns.find((turn) => turn.id === previewTurnId.value)
 );
+const compactPreview = computed(() => availableHeight.value < 224);
 
 function positionPreview(target: HTMLElement): void {
   const container = navigator.value;
@@ -34,10 +54,12 @@ function positionPreview(target: HTMLElement): void {
   const targetRect = target.getBoundingClientRect();
   const targetCenter =
     targetRect.top - containerRect.top + targetRect.height / 2;
-  previewTop.value =
-    containerRect.height <= 104
-      ? containerRect.height / 2
-      : Math.min(Math.max(targetCenter, 52), containerRect.height - 52);
+  const surfaceRect =
+    container.parentElement?.getBoundingClientRect() ?? containerRect;
+  const halfHeight = (preview.value?.offsetHeight ?? 104) / 2;
+  const minTop = surfaceRect.top - containerRect.top + halfHeight + 8;
+  const maxTop = surfaceRect.bottom - containerRect.top - halfHeight - 8;
+  previewTop.value = Math.min(Math.max(targetCenter, minTop), maxTop);
 }
 
 function showPreview(
@@ -48,7 +70,11 @@ function showPreview(
   cancelPreviewHide();
   if (source === "hover") hoveredTurnId.value = turnId;
   else focusedTurnId.value = turnId;
-  positionPreview(event.currentTarget as HTMLElement);
+  const target = event.currentTarget as HTMLElement;
+  positionPreview(target);
+  void nextTick(() => {
+    if (previewTurnId.value === turnId) positionPreview(target);
+  });
 }
 
 function hidePreview(turnId: string, source: "hover" | "focus"): void {
@@ -85,6 +111,18 @@ function selectTurn(messageId: string): void {
   emit("select", messageId);
 }
 
+function updatePreviewOnScroll(): void {
+  const list = markerList.value;
+  const target = list?.querySelector<HTMLButtonElement>(":focus");
+  hoveredTurnId.value = null;
+  if (!list || !target || !focusedTurnId.value) return;
+  const bounds = list.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  if (targetRect.top >= bounds.top && targetRect.bottom <= bounds.bottom)
+    positionPreview(target);
+  else focusedTurnId.value = null;
+}
+
 onBeforeUnmount(cancelPreviewHide);
 </script>
 
@@ -92,9 +130,26 @@ onBeforeUnmount(cancelPreviewHide);
   <nav
     ref="navigator"
     class="conversation-turn-navigator"
+    :style="railStyle"
     :aria-label="t('conversationTurns')"
+    @wheel.stop="scrollMarkers"
   >
-    <ol class="conversation-turn-marker-list">
+    <button
+      v-if="hasOverflow"
+      type="button"
+      class="icon-button conversation-turn-scroll-button is-previous"
+      :disabled="!canScrollUp"
+      :aria-label="t('earlierTurns')"
+      :title="t('earlierTurns')"
+      @click="scrollPage(-1)"
+    >
+      <AppIcon name="chevron" :size="14" />
+    </button>
+    <ol
+      ref="markerList"
+      class="conversation-turn-marker-list"
+      @scroll="handleMarkerScroll"
+    >
       <li v-for="turn in turns" :key="turn.id">
         <button
           type="button"
@@ -120,10 +175,23 @@ onBeforeUnmount(cancelPreviewHide);
       </li>
     </ol>
     <button
+      v-if="hasOverflow"
+      type="button"
+      class="icon-button conversation-turn-scroll-button"
+      :disabled="!canScrollDown"
+      :aria-label="t('laterTurns')"
+      :title="t('laterTurns')"
+      @click="scrollPage(1)"
+    >
+      <AppIcon name="chevron" :size="14" />
+    </button>
+    <button
       v-if="previewTurn"
       :id="previewId"
+      ref="preview"
       type="button"
       class="conversation-turn-preview is-visible"
+      :class="{ 'is-compact': compactPreview }"
       :style="{ top: `${previewTop}px` }"
       :aria-label="
         t('goToTurnValueValue', {
@@ -137,8 +205,13 @@ onBeforeUnmount(cancelPreviewHide);
       @blur="dismissPreview"
       @click="selectTurn(previewTurn.id)"
     >
+      <span class="conversation-turn-preview-position">{{
+        t("turnPosition", { arg0: previewTurn.number, arg1: turns.length })
+      }}</span>
       <strong>{{ previewTurn.prompt }}</strong>
-      <span v-if="previewTurn.response">{{ previewTurn.response }}</span>
+      <span v-if="previewTurn.response && !compactPreview">{{
+        previewTurn.response
+      }}</span>
     </button>
   </nav>
 </template>

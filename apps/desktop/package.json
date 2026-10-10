@@ -1,6 +1,6 @@
 {
   "name": "@deepwrite/desktop",
-  "version": "1.6.308",
+  "version": "1.6.4",
   "description": "DeepWrite local desktop writing client",
   "private": true,
   "type": "module",

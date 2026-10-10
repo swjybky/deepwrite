@@ -3,6 +3,8 @@ import {
   handleDecompositionCommands
 } from "./long-book-decomposition/commands";
 import { resolveDecompositionTask } from "./long-book-decomposition/task-resolution";
+import { handleLongMaterialPackCommands } from "./long-material-pack/commands";
+import { resolveLongMaterialGuideTask } from "./long-material-pack/task-resolution";
 import type { BrowserWindow, Dialog } from "electron";
 import type { CommandEnvelope, CommandResult } from "@deepwrite/contracts";
 import { ExtrasAgentConfigStore } from "./config-store";
@@ -19,6 +21,8 @@ export interface ExtrasAgentCommandContext extends Omit<
   getMainWindow(): BrowserWindow;
   getWorkspaceDirectory(): Promise<string | null>;
   core(command: CommandEnvelope): Promise<CommandResult>;
+  /** Core with a longer timeout, for whole-book conversions. */
+  coreLong?(command: CommandEnvelope): Promise<CommandResult>;
 }
 
 async function handleConfigCommand(
@@ -71,6 +75,14 @@ export function createExtrasAgentService(userDataPath: string) {
             configStore: () => configStore,
             resolveDecomposition: (task) =>
               resolveDecompositionTask(context, command, task),
+            resolveLongMaterialGuide: (task, capacity) =>
+              resolveLongMaterialGuideTask(
+                context,
+                configStore,
+                command,
+                task,
+                capacity
+              ),
             cancelDecomposition: async (resolution, code) => {
               if (!resolution.decompositionJobId) return;
               await controlWithUsage(context, command, {
@@ -89,6 +101,7 @@ export function createExtrasAgentService(userDataPath: string) {
         );
       }
       return (
+        (await handleLongMaterialPackCommands(context, command)) ??
         (await handleDecompositionCommands(context, configStore, command)) ??
         (await handleConfigCommand(configStore, command)) ??
         (await handleShortBookSourceCommands(context, command)) ??

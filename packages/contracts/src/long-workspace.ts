@@ -15,3 +15,4 @@ export * from "./long-workspace/index-validation-helpers";
 export * from "./long-workspace/index-validation";
 export * from "./long-workspace/navigation";
 export * from "./long-workspace/book";
+export * from "./long-workspace/latest-continuity";

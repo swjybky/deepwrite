@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="#2C2C2A" width="1000" height="750" viewBox="0 0 1000 750" role="img">
+  <title>长篇 → 素材分组：转换映射</title>
+  <desc>左侧是只读的来源长篇：世界观、人物、剧情、正文和可选的整书拆解任务记录。中间是 Core 的确定性基础转换（批量读取、条目计划、渲染、受管写入）与可选的仿写增强（证据包、一次扩展智能体运行、写入增强条目）。右侧是素材分组的五个库：人设、梗、剧情、正文、其他（存放世界观），每库首条为索引条目，剧情库首条为全书导读。</desc>
+  <defs>
+    <style>
+      svg { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif; }
+      .h1 { font-size: 20px; font-weight: 600; }
+      .lead { font-size: 13px; fill: #5F5E5A; }
+      .bt { font-size: 15px; font-weight: 600; }
+      .sbt { font-size: 13px; font-weight: 600; }
+      .sbs { font-size: 12px; }
+      .lbl { font-size: 12px; fill: #5F5E5A; }
+      .ent { font-size: 12px; fill: #444441; }
+      .idx { font-size: 12px; font-weight: 600; fill: #0C447C; }
+      .enh { font-size: 12px; fill: #534AB7; }
+      .r-t { fill: #0C447C; } .r-s { fill: #185FA5; }
+      .m-t { fill: #2C2C2A; } .m-s { fill: #5F5E5A; }
+      .a-t { fill: #3C3489; } .a-s { fill: #534AB7; }
+      .c-t { fill: #085041; } .c-s { fill: #0F6E56; }
+      .e-t { fill: #633806; } .e-s { fill: #854F0B; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#73726C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="750" fill="#FFFFFF"/>
+  <text class="h1" x="40" y="44">长篇 → 素材分组 · 转换映射</text>
+  <text class="lead" x="40" y="68">基础转换在 Core 内确定性完成、不调用模型；仿写增强可选，一次扩展智能体运行。来源长篇全程只读。</text>
+
+  <!-- Source long book -->
+  <rect x="40" y="92" width="260" height="538" rx="12" fill="#F1EFE8" stroke="#888780"/>
+  <text class="bt m-t" x="56" y="118">来源 · 长篇《书名》</text>
+  <g fill="#FFFFFF" stroke="#B4B2A9">
+    <rect x="56" y="132" width="228" height="66" rx="8"/>
+    <rect x="56" y="206" width="228" height="84" rx="8"/>
+    <rect x="56" y="298" width="228" height="100" rx="8"/>
+    <rect x="56" y="406" width="228" height="50" rx="8"/>
+  </g>
+  <rect x="56" y="464" width="228" height="66" rx="8" fill="#FFFFFF" stroke="#B4B2A9" stroke-dasharray="5 4"/>
+  <text class="sbt m-t" x="70" y="152">世界观</text>
+  <text class="sbs m-s" x="70" y="170">类别概览 · 条目（list 格式）</text>
+  <text class="sbs m-s" x="70" y="187">类别正文（text 格式）</text>
+  <text class="sbt m-t" x="70" y="226">人物</text>
+  <text class="sbs m-s" x="70" y="244">人物概览 · 类型 · 别名</text>
+  <text class="sbs m-s" x="70" y="261">核心档案 · 人物关系</text>
+  <text class="sbs m-s" x="70" y="278">最新已提交的成长轨迹与状态</text>
+  <text class="sbt m-t" x="70" y="318">剧情</text>
+  <text class="sbs m-s" x="70" y="336">全书主线（含核心梗小节）</text>
+  <text class="sbs m-s" x="70" y="353">卷梗概 · 剧情点 · 故事情节</text>
+  <text class="sbs m-s" x="70" y="370">每章章卡 card.md</text>
+  <text class="sbs m-s" x="70" y="387">伏笔线与触点 · 故事事件</text>
+  <text class="sbt m-t" x="70" y="426">正文</text>
+  <text class="sbs m-s" x="70" y="444">各章 body.md（只取选中范文）</text>
+  <text class="sbt m-t" x="70" y="484">整书拆解任务记录（可选）</text>
+  <text class="sbs m-s" x="70" y="502">文风画像 · 典型片段</text>
+  <text class="sbs m-s" x="70" y="519">非世界观专题</text>
+  <text class="lbl" x="56" y="560">只读：不写长篇文件、索引或账本</text>
+  <text class="lbl" x="56" y="580">拆解未完成时提示“内容不完整”</text>
+  <text class="lbl" x="56" y="600">规模与完成度在页面先行展示</text>
+
+  <!-- Basic conversion -->
+  <rect x="330" y="92" width="300" height="300" rx="12" fill="#E1F5EE" stroke="#0F6E56"/>
+  <text class="bt c-t" x="346" y="118">基础转换 · Core · 不调用模型</text>
+  <g fill="#FFFFFF" stroke="#5DCAA5">
+    <rect x="346" y="132" width="268" height="50" rx="8"/>
+    <rect x="346" y="190" width="268" height="50" rx="8"/>
+    <rect x="346" y="248" width="268" height="50" rx="8"/>
+    <rect x="346" y="306" width="268" height="50" rx="8"/>
+  </g>
+  <text class="sbt c-t" x="360" y="152">① 批量读取</text>
+  <text class="sbs c-s" x="360" y="170">一次打开项目，顺序读取索引与文档</text>
+  <text class="sbt c-t" x="360" y="210">② 条目计划 → 预览</text>
+  <text class="sbs c-s" x="360" y="228">键 · 库 · 栏目 · 拆分 · 容量校验</text>
+  <text class="sbt c-t" x="360" y="268">③ 渲染</text>
+  <text class="sbs c-s" x="360" y="286">名称说明头部 · 去内部 ID · 章号统一</text>
+  <text class="sbt c-t" x="360" y="326">④ 受管写入</text>
+  <text class="sbs c-s" x="360" y="344">稳定 ID · 同事务回执 · 冲突校验 · 排序</text>
+  <text class="lbl" x="346" y="378">3,000 章 ≤ 60 秒 · 幂等 · 可再次转换更新</text>
+
+  <!-- Enhancement -->
+  <rect x="330" y="412" width="300" height="218" rx="12" fill="#EEEDFE" stroke="#534AB7"/>
+  <text class="bt a-t" x="346" y="438">仿写增强 · 可选 · 扩展智能体</text>
+  <g fill="#FFFFFF" stroke="#AFA9EC">
+    <rect x="346" y="452" width="268" height="44" rx="8"/>
+    <rect x="346" y="502" width="268" height="44" rx="8"/>
+    <rect x="346" y="552" width="268" height="44" rx="8"/>
+  </g>
+  <text class="sbt a-t" x="360" y="470">① 证据包（≤ 窗口 × 0.5）</text>
+  <text class="sbs a-s" x="360" y="487">主线 · 分卷 · 章纲抽样 · 人物 · 范文</text>
+  <text class="sbt a-t" x="360" y="520">② long-material-guide 一次运行</text>
+  <text class="sbs a-s" x="360" y="537">结果工具提交结构化指南</text>
+  <text class="sbt a-t" x="360" y="570">③ longMaterialPack.applyGuide</text>
+  <text class="sbs a-s" x="360" y="587">Core 写入增强条目并刷新导读</text>
+  <text class="lbl" x="346" y="618">1–3 次请求 · 约 5–15 万输入 token</text>
+
+  <!-- Material group -->
+  <rect x="660" y="92" width="300" height="538" rx="12" fill="#E6F1FB" stroke="#185FA5"/>
+  <text class="bt r-t" x="676" y="118">素材分组 · 《书名》仿写素材</text>
+  <g fill="#FFFFFF" stroke="#85B7EB">
+    <rect x="676" y="132" width="268" height="100" rx="8"/>
+    <rect x="676" y="240" width="268" height="66" rx="8"/>
+    <rect x="676" y="314" width="268" height="134" rx="8"/>
+    <rect x="676" y="456" width="268" height="84" rx="8"/>
+    <rect x="676" y="548" width="268" height="66" rx="8"/>
+  </g>
+  <text class="sbt r-t" x="690" y="152">《书名》人设 · character</text>
+  <text class="idx" x="690" y="170">★ 人物总览与关系网</text>
+  <text class="enh" x="690" y="187">✦ 人设功能位</text>
+  <text class="ent" x="690" y="204">人物·〈名〉（主角、主要配角）</text>
+  <text class="ent" x="690" y="221">次要人物群像 n</text>
+  <text class="sbt r-t" x="690" y="260">《书名》梗 · gimmick</text>
+  <text class="idx" x="690" y="278">★ 核心梗、金手指与卖点</text>
+  <text class="enh" x="690" y="295">✦ 爽点与钩子模式</text>
+  <text class="sbt r-t" x="690" y="334">《书名》剧情 · plot</text>
+  <text class="idx" x="690" y="352">★ 全书导读（总索引）</text>
+  <text class="enh" x="690" y="369">✦ 仿写指南</text>
+  <text class="ent" x="690" y="386">全书主线 · 分卷剧情·第 N 卷</text>
+  <text class="ent" x="690" y="403">剧情点细纲 · 章纲·第 N 卷·第 a–b 章</text>
+  <text class="ent" x="690" y="420">伏笔线 · 故事时间线</text>
+  <text class="enh" x="690" y="437">✦ 开篇拆解</text>
+  <text class="sbt r-t" x="690" y="476">《书名》正文 · draft</text>
+  <text class="idx" x="690" y="494">★ 文风画像</text>
+  <text class="ent" x="690" y="511">典型片段与点评</text>
+  <text class="ent" x="690" y="528">范文·第 N 章（默认开篇 3 章）</text>
+  <text class="sbt r-t" x="690" y="568">《书名》其他 · other（世界观）</text>
+  <text class="idx" x="690" y="586">★ 世界观总览</text>
+  <text class="ent" x="690" y="603">世界观·〈类别〉（必要时分篇）</text>
+
+  <!-- Arrows -->
+  <g stroke="#73726C" stroke-width="1.4" fill="none" marker-end="url(#arrow)">
+    <line x1="300" y1="250" x2="328" y2="250"/>
+    <line x1="300" y1="500" x2="328" y2="500"/>
+    <line x1="480" y1="392" x2="480" y2="410"/>
+    <line x1="630" y1="240" x2="658" y2="240"/>
+    <line x1="630" y1="520" x2="658" y2="520"/>
+  </g>
+  <text class="lbl" x="490" y="406">读取转换结果</text>
+
+  <!-- Legend and usage -->
+  <text class="lbl" x="40" y="656"><tspan class="idx">★</tspan> 库首条：索引条目，保证进入主智能体首屏目录　　<tspan class="enh">✦</tspan> 仿写增强产出　　其余为基础转换产出</text>
+  <rect x="40" y="672" width="920" height="52" rx="8" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text class="sbs m-t" x="500" y="703" text-anchor="middle">使用：整组关联到新作品，或以此新建仿写长篇 → 主智能体先读「全书导读」→ 按创作阶段读取条目，search 定位细节</text>
+</svg>

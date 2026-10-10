@@ -4,6 +4,12 @@ import {
   type BookIdentityUpdatedEventEnvelope
 } from "./book-identity/commands";
 import { ImageModelCommandSchemas } from "./image-models/commands";
+import { LibraryPackageCommandSchemas } from "./library-package/commands";
+import {
+  LongMaterialCommandSchemas,
+  LongMaterialProgressEventEnvelopeSchema,
+  type LongMaterialProgressEventEnvelope
+} from "./long-material-pack/commands";
 import {
   DecompositionTargetUpdatedEventSchema,
   type DecompositionTargetUpdatedEvent
@@ -165,8 +171,6 @@ import {
   CatalogMoveDraftSectionCommandEnvelopeSchema,
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
   CatalogLoadDraftRecoveryCommandEnvelopeSchema,
@@ -244,6 +248,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ...StorageSettingsCommandSchemas,
   ...VoiceCommandSchemas,
   ...BookIdentityCommandSchemas,
+  ...LongMaterialCommandSchemas,
+  ...LibraryPackageCommandSchemas,
   ...ImageModelCommandSchemas,
   ...BookTemplateCommandSchemas,
   DeviceSyncWorkspaceCommandEnvelopeSchema,
@@ -263,13 +269,11 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogUpdateLibraryCommandEnvelopeSchema,
   CatalogCreateLibraryGroupCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateScriptBookAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogMutateCharacterStructureCommandEnvelopeSchema,
   CatalogMutatePlotStructureCommandEnvelopeSchema,
@@ -399,6 +403,7 @@ export const SystemWorkerRestartingEventEnvelopeSchema =
 
 export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   BookIdentityUpdatedEventEnvelopeSchema,
+  LongMaterialProgressEventEnvelopeSchema,
   RendererStateFlushRequestedEventEnvelopeSchema,
   SystemReadyEventEnvelopeSchema,
   SystemWorkerRestartingEventEnvelopeSchema,
@@ -450,6 +455,7 @@ export type SystemWorkerRestartingEventEnvelope = Envelope<
 >;
 export type SystemEventEnvelope =
   | BookIdentityUpdatedEventEnvelope
+  | LongMaterialProgressEventEnvelope
   | DecompositionTargetUpdatedEvent
   | ExtrasAgentOutputUpdatedEventEnvelope
   | z.infer<typeof RendererStateFlushRequestedEventEnvelopeSchema>

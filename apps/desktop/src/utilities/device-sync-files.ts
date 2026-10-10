@@ -13,6 +13,19 @@ import {
   type SyncItem
 } from "@deepwrite/contracts";
 
+/** Workspace subfolder that holds each kind of synced project. */
+export function syncProjectParentFolder(kind: ProjectSyncItem["kind"]): string {
+  return kind === "book" || kind === "long-book"
+    ? "books"
+    : kind === "material-library"
+      ? "materials"
+      : kind === "skill-library"
+        ? "skills"
+        : kind === "material-group"
+          ? "material-groups"
+          : "skill-groups";
+}
+
 export async function readDeviceSyncFiles(
   root: string
 ): Promise<Record<string, string>> {

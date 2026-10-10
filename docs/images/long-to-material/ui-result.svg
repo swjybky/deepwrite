@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="#2C2C2A" width="1000" height="970" viewBox="0 0 1000 970" role="img">
+  <title>界面线框：转换结果与再次转换的冲突处理</title>
+  <desc>再次转换后的结果页：汇总各状态条目数；需要处理区列出冲突条目（保留我的修改或用新内容覆盖）和来源已删除条目（勾选后经确认删除）；仿写增强卡片显示生成状态与用量；下一步提供打开素材分组、关联到作品、以此新建仿写长篇；条目一览按库分组并可打开到素材库。</desc>
+  <defs>
+    <style>
+      svg { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif; }
+      .side { font-size: 13px; fill: #444441; }
+      .side-h { font-size: 12px; fill: #888780; }
+      .side-active { font-size: 13px; font-weight: 600; fill: #2C2C2A; }
+      .eyebrow { font-size: 12px; fill: #888780; }
+      .h1 { font-size: 22px; font-weight: 600; }
+      .desc { font-size: 13px; fill: #5F5E5A; }
+      .ct { font-size: 14px; font-weight: 600; }
+      .body { font-size: 13px; }
+      .strong { font-size: 13px; font-weight: 600; }
+      .muted { font-size: 12.5px; fill: #5F5E5A; }
+      .small { font-size: 12px; fill: #5F5E5A; }
+      .link { font-size: 12.5px; fill: #185FA5; }
+      .btn { font-size: 13px; }
+      .btn-p { font-size: 13px; fill: #FFFFFF; font-weight: 600; }
+      .danger { font-size: 13px; fill: #A32D2D; }
+      .chip { font-size: 12px; fill: #444441; }
+      .warn { font-size: 12px; fill: #854F0B; font-weight: 600; }
+      .ok { font-size: 12px; fill: #0F6E56; font-weight: 600; }
+      .new { font-size: 11.5px; fill: #0C447C; font-weight: 600; }
+      .idx { font-size: 13px; fill: #0C447C; }
+    </style>
+  </defs>
+  <rect width="1000" height="970" fill="#FFFFFF"/>
+  <rect x="20" y="20" width="960" height="930" rx="12" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <path d="M20 56 V32 Q20 20 32 20 H968 Q980 20 980 32 V56 Z" fill="#F7F6F2"/>
+  <line x1="20" y1="56" x2="980" y2="56" stroke="#E5E3DA"/>
+  <circle cx="42" cy="38" r="5" fill="#D3D1C7"/>
+  <circle cx="60" cy="38" r="5" fill="#D3D1C7"/>
+  <circle cx="78" cy="38" r="5" fill="#D3D1C7"/>
+  <text class="small" x="500" y="42" text-anchor="middle">DeepWrite</text>
+
+  <!-- sidebar -->
+  <path d="M20 56 H210 V950 H32 Q20 950 20 938 Z" fill="#F7F6F2"/>
+  <line x1="210" y1="56" x2="210" y2="950" stroke="#E5E3DA"/>
+  <text class="side" x="40" y="92">创作空间</text>
+  <text class="side" x="40" y="120">素材库</text>
+  <text class="side" x="40" y="148">技能库</text>
+  <text class="side" x="40" y="176">设置</text>
+  <line x1="36" y1="196" x2="194" y2="196" stroke="#E5E3DA"/>
+  <text class="side-h" x="40" y="222">更多功能</text>
+  <text class="side" x="40" y="250">聊天</text>
+  <text class="side" x="40" y="278">短篇拆书分析</text>
+  <text class="side" x="40" y="306">长篇拆书分析</text>
+  <text class="side" x="40" y="334">长篇整书拆解</text>
+  <rect x="30" y="345" width="170" height="26" rx="6" fill="#E9E7DF"/>
+  <text class="side-active" x="40" y="362">长篇转素材库</text>
+  <text class="side" x="40" y="390">修改分析</text>
+  <text class="side" x="40" y="418">文风比对</text>
+  <text class="side" x="40" y="446">书名·简介·封面</text>
+
+  <!-- header -->
+  <text class="eyebrow" x="250" y="90">更多功能 · 长篇转素材库</text>
+  <text class="h1" x="250" y="120">转换完成</text>
+  <text class="desc" x="250" y="144">《青云志》→《青云志》仿写素材 · 第 2 次转换 · 2026-10-08 14:32 · 来源长篇未被修改</text>
+
+  <!-- summary -->
+  <rect x="250" y="164" width="690" height="100" rx="10" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <rect x="270" y="182" width="650" height="6" rx="3" fill="#2C2C2A"/>
+  <g fill="#F1EFE8">
+    <rect x="270" y="202" width="80" height="26" rx="13"/>
+    <rect x="358" y="202" width="70" height="26" rx="13"/>
+    <rect x="436" y="202" width="74" height="26" rx="13"/>
+    <rect x="518" y="202" width="86" height="26" rx="13"/>
+  </g>
+  <g fill="#FAEEDA">
+    <rect x="612" y="202" width="70" height="26" rx="13"/>
+    <rect x="690" y="202" width="104" height="26" rx="13"/>
+  </g>
+  <text class="chip" x="310" y="219" text-anchor="middle">共 118 条</text>
+  <text class="chip" x="393" y="219" text-anchor="middle">新增 4</text>
+  <text class="chip" x="473" y="219" text-anchor="middle">更新 17</text>
+  <text class="chip" x="561" y="219" text-anchor="middle">未变化 95</text>
+  <text class="warn" x="647" y="219" text-anchor="middle">冲突 2</text>
+  <text class="warn" x="742" y="219" text-anchor="middle">来源已删除 1</text>
+  <text class="small" x="270" y="250">你改过的条目默认保留；来源已删除的条目不会自动删除。处理前其余条目均已写入。</text>
+
+  <!-- needs attention -->
+  <rect x="250" y="278" width="690" height="224" rx="10" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <text class="ct" x="270" y="304">需要处理</text>
+  <g fill="#FAEEDA">
+    <rect x="270" y="320" width="44" height="22" rx="11"/>
+    <rect x="270" y="368" width="44" height="22" rx="11"/>
+    <rect x="270" y="416" width="78" height="22" rx="11"/>
+  </g>
+  <text class="warn" x="292" y="335" text-anchor="middle">冲突</text>
+  <text class="warn" x="292" y="383" text-anchor="middle">冲突</text>
+  <text class="warn" x="309" y="431" text-anchor="middle">来源已删除</text>
+  <text class="strong" x="326" y="335">人物·苏婉</text>
+  <text class="small" x="326" y="355">你在素材库改过这一条，来源也有更新</text>
+  <text class="strong" x="326" y="383">世界观·境界（1/2）</text>
+  <text class="small" x="326" y="403">你在素材库改过这一条，来源也有更新</text>
+  <text class="strong" x="360" y="431">人物·赵五</text>
+  <text class="small" x="360" y="451">来源长篇中已删除该人物</text>
+  <g>
+    <rect x="690" y="320" width="230" height="30" rx="7" fill="#FFFFFF" stroke="#B4B2A9"/>
+    <rect x="691" y="321" width="114" height="28" rx="6" fill="#2C2C2A"/>
+    <text class="btn-p" x="748" y="340" text-anchor="middle">保留我的修改</text>
+    <text class="btn" x="862" y="340" text-anchor="middle">用新内容覆盖</text>
+    <rect x="690" y="368" width="230" height="30" rx="7" fill="#FFFFFF" stroke="#B4B2A9"/>
+    <rect x="691" y="369" width="114" height="28" rx="6" fill="#2C2C2A"/>
+    <text class="btn-p" x="748" y="388" text-anchor="middle">保留我的修改</text>
+    <text class="btn" x="862" y="388" text-anchor="middle">用新内容覆盖</text>
+  </g>
+  <rect x="842" y="420" width="14" height="14" rx="3" fill="#2C2C2A"/>
+  <path d="M845 427 L848 430.5 L853 424" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="body" x="864" y="432">选中</text>
+  <line x1="270" y1="462" x2="920" y2="462" stroke="#EFEDE6"/>
+  <text class="link" x="270" y="482">全部保留我的修改</text>
+  <text class="link" x="400" y="482">全部用新内容覆盖</text>
+  <rect x="790" y="466" width="130" height="30" rx="7" fill="#FFFFFF" stroke="#A32D2D"/>
+  <text class="danger" x="855" y="486" text-anchor="middle">删除选中的 1 条</text>
+
+  <g transform="translate(0 10)">
+  <!-- enhancement -->
+  <rect x="250" y="510" width="690" height="88" rx="10" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <text class="ct" x="270" y="536">仿写增强</text>
+  <text class="ok" x="340" y="536">已生成</text>
+  <text class="muted" x="270" y="560">14:35 · 输入 9.2 万 / 输出 1.1 万 token · 写入 6 条：仿写指南、人设功能位、开篇拆解……</text>
+  <text class="small" x="270" y="582">重新生成会原地更新同一批增强条目，冲突规则相同</text>
+  <rect x="830" y="520" width="90" height="30" rx="7" fill="#FFFFFF" stroke="#B4B2A9"/>
+  <text class="btn" x="875" y="540" text-anchor="middle">重新生成</text>
+
+  <!-- next steps -->
+  <rect x="250" y="616" width="138" height="36" rx="8" fill="#2C2C2A"/>
+  <text class="btn-p" x="319" y="639" text-anchor="middle">打开素材分组</text>
+  <rect x="398" y="616" width="120" height="36" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+  <text class="btn" x="458" y="639" text-anchor="middle">关联到作品…</text>
+  <rect x="528" y="616" width="150" height="36" rx="8" fill="#FFFFFF" stroke="#B4B2A9"/>
+  <text class="btn" x="603" y="639" text-anchor="middle">以此新建仿写长篇</text>
+
+  <!-- entry list -->
+  <rect x="250" y="670" width="690" height="250" rx="10" fill="#FFFFFF" stroke="#D3D1C7"/>
+  <text class="ct" x="270" y="696">条目一览</text>
+  <text class="link" x="920" y="696" text-anchor="end">全部 · 新增 · 更新 · 冲突</text>
+  <text class="strong" x="270" y="724">剧情 · 66 条</text>
+  <text class="idx" x="290" y="748">★ 全书导读</text>
+  <text class="chip" x="700" y="748">更新</text>
+  <text class="link" x="920" y="748" text-anchor="end">打开</text>
+  <text class="body" x="290" y="772">仿写指南</text>
+  <text class="small" x="700" y="772">未变化</text>
+  <text class="link" x="920" y="772" text-anchor="end">打开</text>
+  <text class="body" x="290" y="796">章纲·第七卷·第 1025–1048 章</text>
+  <text class="new" x="700" y="796">新增</text>
+  <text class="link" x="920" y="796" text-anchor="end">打开</text>
+  <text class="small" x="290" y="820">…… 另有 63 条</text>
+  <line x1="270" y1="834" x2="920" y2="834" stroke="#EFEDE6"/>
+  <text class="strong" x="270" y="858">人设 · 25 条</text>
+  <text class="body" x="290" y="882">人物·苏婉</text>
+  <text class="warn" x="700" y="882">冲突</text>
+  <text class="link" x="920" y="882" text-anchor="end">打开</text>
+  <text class="link" x="270" y="908">展开其余 3 个库（梗、正文、其他）</text>
+  </g>
+</svg>

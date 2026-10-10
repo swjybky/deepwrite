@@ -157,22 +157,6 @@ export type ImportLegacyBookAtPathInput = z.infer<
   typeof ImportLegacyBookAtPathInputSchema
 >;
 
-export const ImportLegacyLibraryInputSchema = z.object({
-  domain: CatalogLibraryProjectDomainSchema
-});
-export type ImportLegacyLibraryInput = z.infer<
-  typeof ImportLegacyLibraryInputSchema
->;
-
-export const ImportLegacyLibraryAtPathInputSchema =
-  ImportLegacyLibraryInputSchema.extend({
-    archivePath: z.string().trim().min(1),
-    parentDirectory: z.string().trim().min(1)
-  });
-export type ImportLegacyLibraryAtPathInput = z.infer<
-  typeof ImportLegacyLibraryAtPathInputSchema
->;
-
 export const UpdateBookInputSchema = z
   .object({
     bookId: CatalogIdSchema,
@@ -458,19 +442,6 @@ export const CatalogLibrarySchema = z.union([
   SkillLibrarySchema
 ]);
 export type CatalogLibrary = z.infer<typeof CatalogLibrarySchema>;
-
-export const ImportLegacyLibraryResultSchema = z.object({
-  imported: z.array(CatalogLibrarySchema),
-  failures: z.array(
-    z.object({
-      fileName: z.string().trim().min(1),
-      message: z.string().trim().min(1)
-    })
-  )
-});
-export type ImportLegacyLibraryResult = z.infer<
-  typeof ImportLegacyLibraryResultSchema
->;
 
 export const CatalogLibraryGroupSchema = z.union([
   MaterialLibraryGroupSchema,

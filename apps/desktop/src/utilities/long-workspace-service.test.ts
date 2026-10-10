@@ -339,7 +339,7 @@ describe("LongWorkspaceService", () => {
       title: "旧章卡自动迁移",
       genre: "悬疑"
     });
-    const projectDirectory = join(root, created.book.id);
+    const projectDirectory = join(root, "旧章卡自动迁移");
     const indexPath = join(projectDirectory, "long", "index.json");
     const rawIndex = JSON.parse(await readFile(indexPath, "utf8")) as {
       plot: { chapterCards: Array<Record<string, unknown>> };

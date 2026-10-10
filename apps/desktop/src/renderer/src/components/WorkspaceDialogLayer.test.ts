@@ -37,6 +37,7 @@ describe("WorkspaceDialogLayer boundary", () => {
       "long-removal": "LongBookRemovalDialog",
       "library-project": "LibraryProjectDialog",
       "external-library-import": "ExternalSkillImportDialog",
+      "library-package-import": "ImportLibraryPackageDialog",
       "library-entry-move": "LibraryEntryMoveDialog",
       "library-group": "LibraryGroupDialog",
       "save-conflict": "SaveConflictDialog",
@@ -44,8 +45,8 @@ describe("WorkspaceDialogLayer boundary", () => {
       "delete-expert-section": "DeleteExpertSectionDialog",
       "startup-alert": "StartupAlertDialog"
     };
-    expect(WORKSPACE_DIALOG_KINDS).toHaveLength(30);
-    expect(new Set(WORKSPACE_DIALOG_KINDS).size).toBe(30);
+    expect(WORKSPACE_DIALOG_KINDS).toHaveLength(31);
+    expect(new Set(WORKSPACE_DIALOG_KINDS).size).toBe(31);
     for (const kind of WORKSPACE_DIALOG_KINDS) {
       expect(source).toContain(`module.kind === '${kind}'`);
       expect(typesSource).toContain(`kind: "${kind}"`);
@@ -57,7 +58,7 @@ describe("WorkspaceDialogLayer boundary", () => {
       );
     }
     expect(source.match(/v-if="module\.kind ===/gu)).toHaveLength(1);
-    expect(source.match(/v-else-if="module\.kind ===/gu)).toHaveLength(30);
+    expect(source.match(/v-else-if="module\.kind ===/gu)).toHaveLength(31);
     expect(source).toContain(
       "module.kind === 'create-book' && module.fromTemplate"
     );

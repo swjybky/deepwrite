@@ -42,9 +42,47 @@ export function createDecompositionWorkspaceBridge(ports: {
     },
     materials: ports.loadCatalog
   });
+  async function openLongBook(bookId: string): Promise<void> {
+    await ports.loadBooks();
+    const node = ports.find(
+      (node) =>
+        node.catalogNodeType === "long-book" &&
+        node.longBookId === bookId &&
+        !node.unavailable &&
+        !node.missing
+    );
+    if (node) await ports.select(node);
+    else ports.unavailable();
+  }
+  async function openGroup(groupId: string): Promise<void> {
+    await ports.loadCatalog();
+    const group = ports.find(
+      (node) => node.catalogNodeType === "group" && node.groupId === groupId
+    );
+    const node = openingDocument(group);
+    if (node) await ports.select(node);
+    else ports.unavailable();
+  }
+  async function openEntry({
+    libraryId,
+    entryId
+  }: {
+    libraryId: string;
+    entryId: string;
+  }): Promise<void> {
+    await ports.loadCatalog();
+    const node = ports.find(
+      (node) => node.libraryId === libraryId && node.catalogEntryId === entryId
+    );
+    if (node) await ports.select(node);
+    else ports.unavailable();
+  }
   return {
     handle: refresh.handle,
     dispose: refresh.dispose,
+    openLongBook,
+    openGroup,
+    openEntry,
     async openRef(ref: DecompositionContentRef): Promise<void> {
       await ports.loadCatalog();
       if (ref.fileId) {
@@ -64,27 +102,9 @@ export function createDecompositionWorkspaceBridge(ports: {
       }
     },
     async openTarget(target: DecompositionTarget): Promise<void> {
+      if (target.kind !== "long") return openGroup(target.groupId);
       await ports.loadCatalog();
-      if (target.kind === "long") {
-        await ports.loadBooks();
-        const node = ports.find(
-          (node) =>
-            node.catalogNodeType === "long-book" &&
-            node.longBookId === target.bookId &&
-            !node.unavailable &&
-            !node.missing
-        );
-        if (node) await ports.select(node);
-        else ports.unavailable();
-      } else {
-        const group = ports.find(
-          (node) =>
-            node.catalogNodeType === "group" && node.groupId === target.groupId
-        );
-        const node = openingDocument(group);
-        if (node) await ports.select(node);
-        else ports.unavailable();
-      }
+      await openLongBook(target.bookId);
     }
   };
 }

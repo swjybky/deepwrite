@@ -8,14 +8,17 @@ import type {
   DeepWriteApi,
   ExtrasAgentSettingsInputOf,
   ExtrasAgentSettingsOf,
+  LongMaterialGuideProfile,
   RevisionAnalysisProfile,
   StyleComparisonProfile
 } from "@deepwrite/contracts/renderer";
 
 const t = createScopedTranslator("extras.agentRuntime");
 
-type PromptAgentId = "revision-analysis" | "style-comparison";
-type PromptProfile = RevisionAnalysisProfile | StyleComparisonProfile;
+type PromptAgentId =
+  "revision-analysis" | "style-comparison" | "long-material-guide";
+type PromptProfile =
+  RevisionAnalysisProfile | StyleComparisonProfile | LongMaterialGuideProfile;
 
 /**
  * Edits the single method prompt of an extras agent whose page exposes one

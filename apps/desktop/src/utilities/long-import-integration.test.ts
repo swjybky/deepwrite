@@ -273,6 +273,21 @@ describe("long import store integration", () => {
     expect(await readdir(parentDirectory)).toEqual([plan.manifest.id]);
   });
 
+  it("names the imported folder by title and refuses the same book again", async () => {
+    const { parentDirectory, sourcePath } = await fixture();
+    const store = new LongProjectStore({ now: () => FIXED_NOW });
+
+    const imported = await store.importWriteClawBook(
+      parentDirectory,
+      sourcePath
+    );
+    expect(imported.projectDirectory).toBe(join(parentDirectory, "迁移长篇"));
+    await expect(
+      store.importWriteClawBook(parentDirectory, sourcePath)
+    ).rejects.toThrow(/已存在/u);
+    expect(await readdir(parentDirectory)).toEqual(["迁移长篇"]);
+  });
+
   it("rejects a symbolic-link Write Claw source before creating a project", async () => {
     if (process.platform === "win32") return;
     const { root, parentDirectory, sourcePath } = await fixture();

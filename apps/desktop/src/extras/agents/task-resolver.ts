@@ -80,6 +80,8 @@ export async function resolveExtrasTask(
           : {})
       };
     }
+    case "long-material-guide":
+      throw new Error("仿写增强的证据须由 Main 从 Core 读取。");
     default:
       return {
         task: ExtrasAgentResolvedTaskSchema.parse({

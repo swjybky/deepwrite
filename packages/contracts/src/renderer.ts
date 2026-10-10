@@ -80,6 +80,22 @@ export {
   StyleComparisonResultSchema,
   StyleComparisonRuntimeContextSchema
 } from "./style-comparison";
+export { latestCommittedContinuityChapter } from "./long-workspace/latest-continuity";
+export type * from "./long-material-pack";
+export type * from "./library-package";
+export {
+  assignLibraryPackageGroup,
+  libraryPackageKinds,
+  nextLibraryPackageTitle,
+  resolveLibraryPackageStage
+} from "./library-package/resolve";
+export {
+  DEFAULT_LONG_MATERIAL_PACK_OPTIONS,
+  LONG_MATERIAL_DEFAULT_SAMPLE_CHAPTERS,
+  LONG_MATERIAL_GUIDE_MIN_CONTEXT_WINDOW,
+  LONG_MATERIAL_SAMPLE_CHAPTER_LIMIT,
+  LONG_MATERIAL_SECTIONS
+} from "./long-material-pack/constants";
 export type * from "./extras-agent";
 // Use the defining modules: the extras-agent barrel also evaluates its tasks.
 export { ExtrasAgentSettingsInputSchema } from "./extras-agent/profiles";

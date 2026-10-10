@@ -18,6 +18,7 @@ import {
   ExportLongManuscriptDialog,
   ExportShortManuscriptDialog,
   ExternalSkillImportDialog,
+  ImportLibraryPackageDialog,
   LibraryEntryMoveDialog,
   LibraryGroupDialog,
   LibraryProjectDialog,
@@ -347,6 +348,20 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       @close="emit('closeExternalLibraryImport')"
       @choose="emit('chooseExternalLibraryImport', $event)"
       @submit="emit('submitExternalLibraryImport', $event)"
+    />
+
+    <ImportLibraryPackageDialog
+      v-else-if="module.kind === 'library-package-import'"
+      open
+      :domain="module.domain"
+      :preview="module.preview"
+      :existing-titles="module.existingTitles"
+      :choosing="module.choosing"
+      :importing="module.importing"
+      @close="emit('closeLibraryPackageImport')"
+      @choose="emit('chooseLibraryPackageSource', $event)"
+      @restart="emit('restartLibraryPackageImport')"
+      @submit="emit('submitLibraryPackageImport', $event)"
     />
 
     <LibraryEntryMoveDialog

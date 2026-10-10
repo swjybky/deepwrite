@@ -188,15 +188,6 @@ export default {
   longLibraryReferences: {
     linkedToThisNovel: "{value} · Linked to this novel"
   },
-  longEditorFindReplace: {
-    noResults: "No results",
-    enterTextToFind: "Enter text to find",
-    noMatchingTextFound: "No matching text found",
-    noTextToReplace: "No text to replace",
-    enterTextToReplace: "Enter text to replace",
-    findAndReplacementTextAreTheSame: "Find and replacement text are the same",
-    replacedMatches: "Replaced {length} matches"
-  },
   longEditorDeleteDialogs: {
     thisEntryAndItsContentFileWillBeDeleted:
       "This entry and its content file will be deleted. Category contents and continuity projections will be updated."

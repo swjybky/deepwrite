@@ -13,6 +13,7 @@ import { buildWorkspaceFeatureModule } from "./workspaceFeatureHostModule";
 import { useMarketplaceDisplayName } from "./useMarketplaceDisplayName";
 import { useWorkspaceDirectorySettings } from "./useWorkspaceDirectorySettings";
 import type { buildSettingsFeatureModule } from "./settingsFeatureModule";
+import { longMaterialPackLaunchBookId } from "../stores/longMaterialPackActivity";
 
 const t = createScopedTranslator("workspace.workspaceFeatureHostCoordinator");
 export type {
@@ -114,6 +115,12 @@ export function useWorkspaceFeatureHostCoordinator(
     if (active) options.view.workspaceMain.value = "conversation";
   }
 
+  /** Opens 长篇转素材库 with a book already chosen, e.g. from decomposition. */
+  async function openMaterialPack(bookId: string): Promise<void> {
+    longMaterialPackLaunchBookId.value = bookId;
+    await openWorkspaceDialog("long-material-pack");
+  }
+
   async function openWorkspaceDialog(mode: DialogMode): Promise<void> {
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
@@ -158,6 +165,7 @@ export function useWorkspaceFeatureHostCoordinator(
         mode === "revision-analysis" ||
         mode === "short-book-analysis" ||
         mode === "style-comparison" ||
+        mode === "long-material-pack" ||
         mode === "book-identity") &&
       (!settingsStore.modelSettings || mode === "book-identity") &&
       options.api()
@@ -336,6 +344,7 @@ export function useWorkspaceFeatureHostCoordinator(
     showConversation,
     newConversation,
     openWorkspaceDialog,
+    openMaterialPack,
     openSettings,
     openOfficialModelsSettings,
     openAgentTeams,

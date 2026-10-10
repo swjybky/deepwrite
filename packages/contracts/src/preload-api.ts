@@ -90,7 +90,6 @@ import type {
   CatalogReadDocumentInput,
   CatalogReadDocumentResult,
   CatalogSnapshot,
-  CatalogLibraryProjectDomain,
   CreateLibraryEntryInput,
   CreateDraftSectionInput,
   CreateDraftSectionsInput,
@@ -123,7 +122,6 @@ import type {
   ScriptBook,
   ShortBook,
   Book,
-  ImportLegacyLibraryResult,
   MutateCharacterStructureInput,
   MutatePlotStructureInput,
   UnregisterCatalogProjectInput,
@@ -179,6 +177,8 @@ import type { ConversationPersistenceApi } from "./renderer-state";
 export interface DeepWriteApi extends TextContextMenuPreloadApi {
   voice: import("./voice").VoiceApi;
   bookIdentity: import("./book-identity").BookIdentityApi;
+  longMaterialPack: import("./long-material-pack").LongMaterialPackApi;
+  libraryPackage: import("./library-package").LibraryPackageApi;
   imageModels: import("./image-models").ImageModelsApi;
   windowFrame?: WindowFrameApi;
   system: {
@@ -292,9 +292,6 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     openProject(
       domain: CatalogProjectDomain
     ): Promise<CatalogOpenProjectResult | null>;
-    importLegacyLibrary(
-      domain: CatalogLibraryProjectDomain
-    ): Promise<ImportLegacyLibraryResult | null>;
     updateBook(input: UpdateBookInput): Promise<Book>;
     mutateCharacterStructure(
       input: MutateCharacterStructureInput

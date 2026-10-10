@@ -176,15 +176,6 @@ export default {
   longLibraryReferences: {
     linkedToThisNovel: "{value} · 当前长篇已绑定"
   },
-  longEditorFindReplace: {
-    noResults: "无结果",
-    enterTextToFind: "请输入要查找的文字",
-    noMatchingTextFound: "未找到匹配文字",
-    noTextToReplace: "未找到可替换的文字",
-    enterTextToReplace: "请输入要替换的文字",
-    findAndReplacementTextAreTheSame: "查找文字与替换文字相同",
-    replacedMatches: "已替换 {length} 处文字"
-  },
   longEditorDeleteDialogs: {
     thisEntryAndItsContentFileWillBeDeleted:
       "该条目及其正文文件将被删除，分类内容与连续性投影会同步更新。"

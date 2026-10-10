@@ -28,6 +28,7 @@ export default {
   deleteCharacterEntry: "Delete character entry",
   manageStructure: "Manage structure",
   duplicate: "Duplicate",
+  export: "Export",
   skillLibraryLinks: "Skill library links",
   materialLibraryLinks: "Material library links",
   exportManuscript: "Export manuscript",

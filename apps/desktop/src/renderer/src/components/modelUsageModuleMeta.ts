@@ -4,6 +4,7 @@ import type { ModelUsageModule } from "@deepwrite/contracts";
 const t = createScopedTranslator("components.modelUsageModuleMeta");
 const identityT = createScopedTranslator("extras.bookIdentity");
 const decompositionT = createScopedTranslator("extras.longBookDecomposition");
+const packT = createScopedTranslator("extras.longMaterialPack");
 
 export const MODULE_META: Record<
   ModelUsageModule,
@@ -23,6 +24,14 @@ export const MODULE_META: Record<
     },
     get detail() {
       return decompositionT("description");
+    }
+  },
+  "long-material-pack": {
+    get label() {
+      return packT("title");
+    },
+    get detail() {
+      return packT("sidebarDescription");
     }
   },
   "short-writing": {

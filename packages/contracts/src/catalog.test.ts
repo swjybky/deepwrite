@@ -19,7 +19,6 @@ import {
   MoveLibraryEntryInputSchema,
   CreateLibraryEntryInputSchema,
   CreateLibraryGroupInputSchema,
-  ImportLegacyLibraryResultSchema,
   CreateShortBookInputSchema,
   BookPlotStagesSchema,
   CreativePlotStagesSchema,
@@ -332,18 +331,6 @@ describe("catalog contracts", () => {
     ).toBe(false);
   });
 
-  it("validates multi-archive legacy library import results", () => {
-    const result = ImportLegacyLibraryResultSchema.parse({
-      imported: [],
-      failures: [
-        { fileName: "损坏素材库.zip", message: "缺少 metadata.json。" }
-      ]
-    });
-
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]?.fileName).toBe("损坏素材库.zip");
-  });
-
   it("accepts optional library selections when creating groups", () => {
     expect(
       CreateLibraryGroupInputSchema.parse({
@@ -593,11 +580,6 @@ describe("catalog contracts", () => {
         { id: "catalog-open" }
       ),
       createEnvelope(
-        "catalog.importLegacyLibrary",
-        { domain: "material" as const },
-        { id: "catalog-import-legacy-library" }
-      ),
-      createEnvelope(
         "catalog.createShortBookAtPath",
         {
           parentDirectory: "/Users/writer/Books",
@@ -622,15 +604,6 @@ describe("catalog contracts", () => {
           domain: "book" as const
         },
         { id: "catalog-open-at-path" }
-      ),
-      createEnvelope(
-        "catalog.importLegacyLibraryAtPath",
-        {
-          domain: "skill" as const,
-          archivePath: "/Users/writer/Exports/旧技能.zip",
-          parentDirectory: "/Users/writer/Skills"
-        },
-        { id: "catalog-import-legacy-library-at-path" }
       ),
       createEnvelope(
         "catalog.updateBook",
@@ -779,11 +752,9 @@ describe("catalog contracts", () => {
       "catalog.createShortBook",
       "catalog.createLibrary",
       "catalog.openProject",
-      "catalog.importLegacyLibrary",
       "catalog.createShortBookAtPath",
       "catalog.createLibraryAtPath",
       "catalog.openProjectAtPath",
-      "catalog.importLegacyLibraryAtPath",
       "catalog.updateBook",
       "catalog.deleteBook",
       "catalog.saveDocument",

@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="#2C2C2A" width="1000" height="620" viewBox="0 0 1000 620" role="img">
+  <title>主智能体如何读取：首屏目录按库配额</title>
+  <desc>上半部分对比首屏 64 条素材目录：现状按类型顺序排列，人设和剧情占满首屏，正文和其他库（世界观）不可见；改后每个库先取配额 K 条（5 个库时 K 为 12），五个库的首条索引都进入首屏，其余条目按原顺序补足。下半部分是主智能体的读取路线：首屏目录、读取全书导读、按创作阶段读取条目、用 search 兜底定位。</desc>
+  <defs>
+    <style>
+      svg { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif; }
+      .h1 { font-size: 20px; font-weight: 600; }
+      .lead { font-size: 13px; fill: #5F5E5A; }
+      .bt { font-size: 15px; font-weight: 600; }
+      .sbt { font-size: 13.5px; font-weight: 600; }
+      .sbs { font-size: 12px; fill: #5F5E5A; }
+      .lbl { font-size: 12px; fill: #5F5E5A; }
+      .stat { font-size: 12.5px; fill: #2C2C2A; }
+      .bad { font-size: 12px; fill: #A32D2D; }
+      .ok { font-size: 12px; fill: #0F6E56; }
+      .star { font-size: 11px; fill: #FFFFFF; font-weight: 600; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#73726C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="620" fill="#FFFFFF"/>
+  <text class="h1" x="40" y="44">主智能体如何读取 · 首屏目录按库配额</text>
+  <text class="lead" x="40" y="68">每轮只有前 64 条素材进入上下文目录。一次转换常有 100–200 条，按类型顺序排列时，其他库（世界观）与正文会落在首屏之外。</text>
+
+  <rect x="40" y="92" width="450" height="236" rx="12" fill="#F7F6F2" stroke="#D3D1C7"/>
+  <text class="bt" x="60" y="118">现状：按类型顺序</text>
+  <text class="sbs" x="60" y="140">人设 → 梗 → 剧情 → 正文 → 其他，库内按条目顺序</text>
+  <g>
+    <rect x="67" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <text class="star" x="77.5" y="173" text-anchor="middle">★</text>
+    <rect x="92" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="117" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="142" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="167" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="192" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="217" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="242" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="267" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="292" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="317" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="342" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="367" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="392" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="417" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="442" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="67" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="92" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="117" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="142" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="167" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="192" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="217" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="242" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="267" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="292" y="183" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="317" y="183" width="21" height="21" rx="4" fill="#BA7517"/>
+    <text class="star" x="327.5" y="198" text-anchor="middle">★</text>
+    <rect x="342" y="183" width="21" height="21" rx="4" fill="#BA7517"/>
+    <rect x="367" y="183" width="21" height="21" rx="4" fill="#BA7517"/>
+    <rect x="392" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <text class="star" x="402.5" y="198" text-anchor="middle">★</text>
+    <rect x="417" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="442" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="67" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="92" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="117" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="142" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="167" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="192" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="217" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="242" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="267" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="292" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="317" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="342" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="367" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="392" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="417" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="442" y="208" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="67" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="92" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="117" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="142" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="167" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="192" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="217" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="242" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="267" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="292" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="317" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="342" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="367" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="392" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="417" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="442" y="233" width="21" height="21" rx="4" fill="#7F77DD"/>
+  </g>
+  <text class="stat" x="60" y="282">首屏：人设 26 · 梗 3 · 剧情 35 · 正文 0 · 其他 0</text>
+  <text class="bad" x="60" y="306">世界观总览、文风画像不在首屏，智能体不知道它们存在</text>
+
+  <rect x="510" y="92" width="450" height="236" rx="12" fill="#F7F6F2" stroke="#D3D1C7"/>
+  <text class="bt" x="530" y="118">改后：按库配额</text>
+  <text class="sbs" x="530" y="140">K = max(4, ⌊64 ÷ 库数⌋)，5 个库时每库先取 12 条</text>
+  <g>
+    <rect x="537" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <text class="star" x="547.5" y="173" text-anchor="middle">★</text>
+    <rect x="562" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="587" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="612" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="637" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="662" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="687" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="712" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="737" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="762" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="787" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="812" y="158" width="21" height="21" rx="4" fill="#378ADD"/>
+    <rect x="837" y="158" width="21" height="21" rx="4" fill="#BA7517"/>
+    <text class="star" x="847.5" y="173" text-anchor="middle">★</text>
+    <rect x="862" y="158" width="21" height="21" rx="4" fill="#BA7517"/>
+    <rect x="887" y="158" width="21" height="21" rx="4" fill="#BA7517"/>
+    <rect x="912" y="158" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <text class="star" x="922.5" y="173" text-anchor="middle">★</text>
+    <rect x="537" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="562" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="587" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="612" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="637" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="662" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="687" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="712" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="737" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="762" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="787" y="183" width="21" height="21" rx="4" fill="#7F77DD"/>
+    <rect x="812" y="183" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <text class="star" x="822.5" y="198" text-anchor="middle">★</text>
+    <rect x="837" y="183" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="862" y="183" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="887" y="183" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="912" y="183" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="537" y="208" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="562" y="208" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="587" y="208" width="21" height="21" rx="4" fill="#1D9E75"/>
+    <rect x="612" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <text class="star" x="622.5" y="223" text-anchor="middle">★</text>
+    <rect x="637" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="662" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="687" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="712" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="737" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="762" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="787" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="812" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="837" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="862" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="887" y="208" width="21" height="21" rx="4" fill="#D85A30"/>
+    <rect x="912" y="208" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="537" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="562" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="587" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="612" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="637" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="662" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="687" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="712" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="737" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="762" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="787" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="812" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="837" y="233" width="21" height="21" rx="4" fill="#378ADD" fill-opacity="0.4"/>
+    <rect x="862" y="233" width="21" height="21" rx="4" fill="#7F77DD" fill-opacity="0.4"/>
+    <rect x="887" y="233" width="21" height="21" rx="4" fill="#7F77DD" fill-opacity="0.4"/>
+    <rect x="912" y="233" width="21" height="21" rx="4" fill="#7F77DD" fill-opacity="0.4"/>
+  </g>
+  <text class="stat" x="530" y="282">首屏：人设 26 · 梗 3 · 剧情 15 · 正文 8 · 其他 12</text>
+  <text class="ok" x="530" y="306">五个库的首条都在首屏；单库或条目少时顺序不变</text>
+
+  <g>
+    <rect x="40" y="342" width="14" height="14" rx="3" fill="#378ADD"/><text class="lbl" x="60" y="354">人设</text>
+    <rect x="104" y="342" width="14" height="14" rx="3" fill="#BA7517"/><text class="lbl" x="124" y="354">梗</text>
+    <rect x="156" y="342" width="14" height="14" rx="3" fill="#7F77DD"/><text class="lbl" x="176" y="354">剧情</text>
+    <rect x="220" y="342" width="14" height="14" rx="3" fill="#1D9E75"/><text class="lbl" x="240" y="354">正文</text>
+    <rect x="284" y="342" width="14" height="14" rx="3" fill="#D85A30"/><text class="lbl" x="304" y="354">其他（世界观）</text>
+    <rect x="410" y="342" width="14" height="14" rx="3" fill="#888780" fill-opacity="0.4"/><text class="lbl" x="430" y="354">配额之外，按原顺序补足</text>
+    <rect x="590" y="342" width="14" height="14" rx="3" fill="#888780"/><text class="star" x="597" y="353" text-anchor="middle">★</text><text class="lbl" x="610" y="354">库首条（索引条目；剧情库为全书导读）</text>
+  </g>
+
+  <text class="bt" x="40" y="392">读取路线</text>
+  <g fill="#FFFFFF" stroke="#B4B2A9">
+    <rect x="45" y="406" width="205" height="130" rx="10"/>
+    <rect x="280" y="406" width="205" height="130" rx="10"/>
+    <rect x="515" y="406" width="205" height="130" rx="10"/>
+    <rect x="750" y="406" width="205" height="130" rx="10"/>
+  </g>
+  <g stroke="#73726C" stroke-width="1.4" fill="none" marker-end="url(#arrow)">
+    <line x1="250" y1="471" x2="278" y2="471"/>
+    <line x1="485" y1="471" x2="513" y2="471"/>
+    <line x1="720" y1="471" x2="748" y2="471"/>
+  </g>
+  <text class="sbt" x="59" y="430">① 首屏目录</text>
+  <text class="sbs" x="59" y="454">每条：完整标题 · id</text>
+  <text class="sbs" x="59" y="474">名称 · 用途说明</text>
+  <text class="sbs" x="59" y="494">说明前 60 字可独立成立</text>
+  <text class="sbs" x="59" y="514">（目录过长时只显示 60 字）</text>
+  <text class="sbt" x="294" y="430">② read「全书导读」</text>
+  <text class="sbs" x="294" y="454">作品概况与规模</text>
+  <text class="sbs" x="294" y="474">全部条目目录（完整标题）</text>
+  <text class="sbs" x="294" y="494">按阶段的读取路线</text>
+  <text class="sbs" x="294" y="514">仿写边界 · ≤ 8,000 字</text>
+  <text class="sbt" x="529" y="430">③ 按阶段读取</text>
+  <text class="sbs" x="529" y="454">世界观 → 世界观·〈类别〉</text>
+  <text class="sbs" x="529" y="474">人物 → 人物·〈名〉</text>
+  <text class="sbs" x="529" y="494">剧情 → 分卷 · 章纲</text>
+  <text class="sbs" x="529" y="514">正文 → 文风画像 · 范文</text>
+  <text class="sbt" x="764" y="430">④ search 兜底</text>
+  <text class="sbs" x="764" y="454">人名、设定词</text>
+  <text class="sbs" x="764" y="474">“第 37 章”</text>
+  <text class="sbs" x="764" y="494">“章纲·第二卷”</text>
+  <text class="sbs" x="764" y="514">命中后按 id 读取原文</text>
+
+  <rect x="40" y="556" width="920" height="44" rx="8" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text class="stat" x="500" y="583" text-anchor="middle">单条 ≤ 12,000 字，一次读取不撑爆上下文；条目间用「完整标题」互相引用，可直接作为 entry_name 读取</text>
+</svg>

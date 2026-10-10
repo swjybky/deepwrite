@@ -154,10 +154,11 @@ const actionItems = computed<
       ? []
       : ([
           {
-            id: "import-legacy-library",
-            label: t("importLegacyValue", {
-              arg0: resourceName
-            }),
+            id: "import-library-package",
+            label:
+              props.section.id === "skill"
+                ? t("importSkillPackage")
+                : t("importMaterialPackage"),
             icon: "archive"
           },
           {

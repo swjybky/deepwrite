@@ -23,8 +23,6 @@ import {
   ExternalLibrarySourceKindSchema,
   ImportLibraryEntriesInputSchema,
   ImportLegacyBookAtPathInputSchema,
-  ImportLegacyLibraryAtPathInputSchema,
-  ImportLegacyLibraryInputSchema,
   MoveDraftSectionInputSchema,
   MoveLibraryEntryInputSchema,
   MutateCharacterStructureInputSchema,
@@ -110,12 +108,6 @@ export const CatalogImportLegacyBookCommandEnvelopeSchema =
     payload: z.object({})
   });
 
-export const CatalogImportLegacyLibraryCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("catalog.importLegacyLibrary"),
-    payload: ImportLegacyLibraryInputSchema
-  });
-
 export const CatalogCreateShortBookAtPathCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.createShortBookAtPath"),
@@ -150,12 +142,6 @@ export const CatalogImportLegacyBookAtPathCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.importLegacyBookAtPath"),
     payload: ImportLegacyBookAtPathInputSchema
-  });
-
-export const CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema =
-  EnvelopeBaseSchema.extend({
-    type: z.literal("catalog.importLegacyLibraryAtPath"),
-    payload: ImportLegacyLibraryAtPathInputSchema
   });
 
 export const CatalogUpdateBookCommandEnvelopeSchema = EnvelopeBaseSchema.extend(
@@ -286,13 +272,11 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogUpdateLibraryCommandEnvelopeSchema,
   CatalogCreateLibraryGroupCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateScriptBookAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
-  CatalogImportLegacyLibraryAtPathCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogMutatePlotStructureCommandEnvelopeSchema,
   CatalogMutateCharacterStructureCommandEnvelopeSchema,

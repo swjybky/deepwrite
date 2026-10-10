@@ -25,6 +25,7 @@ import type {
   WorkspaceDocument
 } from "../types/workspace";
 import { useExternalLibraryImportCoordinator } from "./useExternalLibraryImportCoordinator";
+import { useLibraryPackageCoordinator } from "./useLibraryPackageCoordinator";
 
 const t = createScopedTranslator("workspace");
 
@@ -104,6 +105,7 @@ export interface CatalogLibraryTransactionNotifications {
 
 export interface CatalogLibraryTransactionsContext {
   api(): DeepWriteApi["catalog"] | undefined;
+  libraryPackageApi(): DeepWriteApi["libraryPackage"] | undefined;
   snapshot: Readonly<Ref<CatalogIndexSnapshot | null>>;
   documents: ShallowRef<WorkspaceDocument[]>;
   drafts: ShallowRef<Record<string, EditorDraftState>>;
@@ -122,7 +124,8 @@ export interface CatalogLibraryTransactionsContext {
   ): void;
   isConflict(error: unknown): boolean;
   prepareProjectsForDuplicate(
-    libraryIds: ReadonlySet<string>
+    libraryIds: ReadonlySet<string>,
+    operation?: "duplicate" | "export"
   ): Promise<boolean>;
   selectDocument(documentId: string, revealEditor: boolean): void;
   navigateToDocumentResource(documentId: string): Promise<void>;
@@ -152,6 +155,13 @@ export function useCatalogLibraryTransactionsCoordinator(
 
   const libraryProjectDialog = ref<LibraryProjectDialogState | null>(null);
   const externalLibraryImport = useExternalLibraryImportCoordinator(context);
+  const libraryPackage = useLibraryPackageCoordinator({
+    ...context,
+    api: context.libraryPackageApi,
+    isDesktop: () => !!context.api(),
+    prepareProjectsForExport: (libraryIds) =>
+      context.prepareProjectsForDuplicate(libraryIds, "export")
+  });
   const libraryGroupDialog = ref<LibraryGroupDialogState | null>(null);
   const libraryRemovalDialog = ref<LibraryRemovalDialogState | null>(null);
   const libraryEntryClipboard = ref<LibraryEntryClipboard | null>(null);
@@ -1095,6 +1105,13 @@ export function useCatalogLibraryTransactionsCoordinator(
     payload: CatalogResourceNodeActionPayload
   ): void {
     if (
+      payload.action === "export-library" ||
+      payload.action === "export-group"
+    ) {
+      void libraryPackage.exportPackage(payload);
+      return;
+    }
+    if (
       payload.action === "duplicate-library" ||
       payload.action === "duplicate-group"
     ) {
@@ -1230,6 +1247,7 @@ export function useCatalogLibraryTransactionsCoordinator(
   return {
     libraryProjectDialog,
     externalLibraryImport,
+    libraryPackage,
     libraryGroupDialog,
     libraryRemovalDialog,
     libraryEntryClipboard,

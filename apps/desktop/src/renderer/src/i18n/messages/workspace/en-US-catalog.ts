@@ -330,6 +330,24 @@ export default {
     failedToLoadTheNovelLifecycleCoordinator:
       "Failed to load the novel lifecycle coordinator."
   },
+  libraryPackageCoordinator: {
+    desktopNeedsRestart:
+      "Library import and export are not ready. Fully quit and restart DeepWrite, then try again.",
+    browserPreviewCannotExport:
+      "The browser preview cannot export local libraries. Use the desktop app.",
+    browserPreviewCannotImport:
+      "The browser preview cannot import local files. Use the desktop app.",
+    exportedTo: "Exported to {path}",
+    exportedToWithSkipped:
+      "Exported to {path} ({count} unavailable member libraries were skipped)",
+    exportFailed: "Export failed",
+    recognitionFailed: "Could not recognize the source",
+    importFailed: "Import failed",
+    imported: "Imported {libraries} libraries and {entries} entries",
+    sourceChanged:
+      "The source changed after it was recognized. Choose it again.",
+    headlineWithReason: "{headline}: {reason}"
+  },
   externalLibraryImportCoordinator: {
     theBrowserPreviewCannotReadLocalFilesUseThe:
       "The browser preview cannot read local files. Use the desktop app.",
@@ -359,17 +377,6 @@ export default {
       "Failed to load the short story lifecycle coordinator."
   },
   catalogProjectActions: {
-    theBrowserPreviewCannotImportLegacyLibrariesUseThe:
-      "The browser preview cannot import legacy libraries. Use the desktop app.",
-    importedLegacyLibraryAsANewLibrary:
-      "Imported legacy {libraryLabel} library “{value}” as a new library",
-    importedLegacyLibrariesAsNewLibraries:
-      "Imported {length} legacy {libraryLabel} libraries as new libraries",
-    importedLegacyLibrariesFailed:
-      "Imported {length} legacy {libraryLabel} libraries; {length2} failed: {failureSummary}",
-    failedToImportLegacyLibraries:
-      "Failed to import legacy {libraryLabel} libraries: {failureSummary}",
-    failedToImportLegacyLibraries2: "Failed to import legacy libraries.",
     theBrowserPreviewCannotOpenLocalFoldersUseThe:
       "The browser preview cannot open local folders. Use the desktop app.",
     opened: "Opened {value} “{title}”",

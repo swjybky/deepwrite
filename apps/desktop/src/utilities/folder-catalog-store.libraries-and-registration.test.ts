@@ -14,7 +14,6 @@ import {
   realpath,
   rm,
   tickingClock,
-  timestamp,
   writeFile
 } from "./folder-catalog-store.test-support";
 
@@ -140,66 +139,98 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
     ).resolves.toBe("");
   });
 
-  it("creates a new folder-backed library from legacy library data", async () => {
-    const root = await makeTemporaryRoot("deepwrite-folder-import-library-");
-    const parentDirectory = join(root, "工作目录", "materials");
+  it("imports a library package as new libraries and a group, or nothing", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-library-package-");
+    const parents = {
+      library: join(root, "工作目录", "materials"),
+      group: join(root, "工作目录", "material-groups")
+    };
     const store = new FolderCatalogStore({
       userDataPath: join(root, "user-data"),
       now: tickingClock()
     });
-    const imported = await store.importLegacyLibrary(
-      {
-        domain: "material",
-        library: {
-          id: "legacy-material-id",
-          title: "旧版人物素材库",
-          materialType: "short",
-          materialKind: "character",
-          parentGenre: "追妻",
-          subGenre: "剧情流",
-          overview: "旧素材说明",
-          entries: [
-            {
-              id: "legacy-entry-id",
-              stageId: "character",
-              title: "旧版女主",
-              body: "她记得每一场雨。",
-              createdAt: timestamp,
-              updatedAt: timestamp
-            }
-          ],
-          createdAt: timestamp,
-          updatedAt: timestamp
-        }
-      },
-      parentDirectory
-    );
-
-    expect(imported.resource.id).not.toBe("legacy-material-id");
-    expect(imported.resource.id).toMatch(/^material-[0-9a-f]{8}$/);
-    expect(imported.resource.entries[0]?.id).not.toBe("legacy-entry-id");
-    expect(imported.resource).toMatchObject({
-      title: "旧版人物素材库",
+    await store.createLibrary({
+      domain: "material",
+      name: "都市人设",
       materialKind: "character",
-      overview: "旧素材说明",
-      entries: [
+      parentDirectory: parents.library
+    });
+    const resolved = {
+      domain: "material" as const,
+      group: { title: "都市素材组", slots: ["character", "other"] },
+      libraries: [
         {
-          stageId: "character",
-          title: "旧版女主",
-          body: "她记得每一场雨。"
+          title: "都市人设",
+          kind: "character",
+          libraryType: "long" as const,
+          parentGenre: "都市",
+          subGenre: "追妻",
+          overview: "人设说明",
+          entries: [
+            { title: "霸总", stageId: "character", content: "冷面护短" },
+            { title: "空条目", stageId: "character", content: "" }
+          ]
+        },
+        {
+          title: "杂项",
+          kind: "mixed",
+          libraryType: "short" as const,
+          parentGenre: "",
+          subGenre: "",
+          overview: "",
+          entries: [{ title: "灵感", stageId: "gimmick", content: "雨夜" }]
         }
       ]
+    };
+
+    const imported = await store.importLibraryPackage(resolved, parents);
+    expect(imported).toMatchObject({ domain: "material", entryCount: 3 });
+    const snapshot = await store.snapshot();
+    const libraries = imported.libraryIds.map((id) =>
+      snapshot.materials.find((library) => library.id === id)!
+    );
+    expect(libraries.map(({ title }) => title)).toEqual([
+      "都市人设 (2)",
+      "杂项"
+    ]);
+    expect(libraries[0]).toMatchObject({
+      materialType: "long",
+      parentGenre: "都市",
+      overview: "人设说明",
+      entries: [
+        { title: "霸总", stageId: "character", body: "冷面护短" },
+        { title: "空条目", stageId: "character", body: "" }
+      ]
     });
-    const manifest = JSON.parse(
-      await readFile(join(imported.projectDirectory, "deepwrite.json"), "utf8")
-    ) as { kind: string; entries: Array<{ path: string }> };
-    expect(manifest.kind).toBe("deepwrite.material-library");
+    expect(snapshot.materialGroups).toEqual([
+      expect.objectContaining({
+        id: imported.groupId,
+        title: "都市素材组",
+        members: { character: libraries[0]!.id, other: libraries[1]!.id }
+      })
+    ]);
+
+    const source = await store.readLibraryPackageSource({
+      domain: "material",
+      target: { type: "group", id: imported.groupId! }
+    });
+    expect(source.groupTitle).toBe("都市素材组");
+    expect(
+      source.members.map(({ slot, library }) => [slot, library?.title])
+    ).toEqual([
+      ["character", "都市人设 (2)"],
+      ["other", "杂项"]
+    ]);
+
+    // A group parent that is a file fails after the libraries were written.
+    const blocked = join(root, "blocked");
+    await writeFile(blocked, "not a folder");
     await expect(
-      readFile(
-        join(imported.projectDirectory, manifest.entries[0]!.path),
-        "utf8"
-      )
-    ).resolves.toBe("她记得每一场雨。");
+      store.importLibraryPackage(resolved, { ...parents, group: blocked })
+    ).rejects.toThrow();
+    const after = await store.snapshot();
+    expect(after.materials).toHaveLength(snapshot.materials.length);
+    expect(after.materialGroups).toHaveLength(1);
   });
 
   it("does not resurrect an unregistered legacy book when the app restarts", async () => {

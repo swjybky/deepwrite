@@ -21,6 +21,7 @@ import longStylePrompt from "./prompts/long-book-analysis/style.txt?raw";
 import shortPlotStructurePrompt from "./prompts/short-book-analysis/plot-structure.txt?raw";
 import shortCharacterPrompt from "./prompts/short-book-analysis/character.txt?raw";
 import shortStylePrompt from "./prompts/short-book-analysis/style.txt?raw";
+import longMaterialGuidePrompt from "./prompts/long-material-guide/default.txt?raw";
 
 export type StoredExtrasAgentProfile<A extends ExtrasAgentId> = Omit<
   ExtrasAgentProfile<A>,
@@ -222,6 +223,18 @@ export const EXTRAS_AGENT_PROFILE_CATALOGS: {
     agentId: "long-book-decomposition",
     defaults: [DEFAULT_DECOMPOSITION_PROFILE],
     missingProfileMessage: "拆解方案已不存在，请刷新后重试。"
+  },
+  "long-material-guide": {
+    agentId: "long-material-guide",
+    defaults: [
+      {
+        id: "default",
+        name: "通用仿写",
+        description: "从长篇的素材中归纳仿写指南、人设功能位、爽点与开篇写法。",
+        systemPrompt: longMaterialGuidePrompt.trim()
+      }
+    ],
+    missingProfileMessage: "仿写增强档案已不存在，请刷新后重试。"
   },
   "style-comparison": styleComparison,
   "chat-normal": chatNormal,

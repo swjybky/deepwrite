@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
-import { latestCommittedContinuityChapter } from "./longLatestContinuityChapter";
+import type { LongWorkspaceIndexSnapshot } from "./index-validation";
+import { latestCommittedContinuityChapter } from "./latest-continuity";
 
 describe("latestCommittedContinuityChapter", () => {
   it("maps a batch commit to its final checkpoint instead of its first member", () => {

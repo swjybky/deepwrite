@@ -10,6 +10,9 @@ import type {
   CatalogLibrary,
   ExternalLibrarySelectionResult,
   ExternalLibrarySourceKind,
+  LibraryPackageImportChoices,
+  LibraryPackagePreview,
+  LibraryPackageSourceKind,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   LongLinkedResourceStageScopes,
@@ -272,6 +275,15 @@ export interface ExternalLibraryImportDialogModule {
   pending: boolean;
 }
 
+export interface LibraryPackageImportDialogModule {
+  kind: "library-package-import";
+  domain: LibraryDomain;
+  preview?: LibraryPackagePreview;
+  existingTitles: readonly string[];
+  choosing: boolean;
+  importing: boolean;
+}
+
 export interface LibraryEntryMoveDialogModule {
   kind: "library-entry-move";
   entryTitle: string;
@@ -344,6 +356,7 @@ export type WorkspaceDialogModule =
   | LongRemovalDialogModule
   | LibraryProjectDialogModule
   | ExternalLibraryImportDialogModule
+  | LibraryPackageImportDialogModule
   | LibraryEntryMoveDialogModule
   | LibraryGroupDialogModule
   | SaveConflictDialogModule
@@ -378,6 +391,7 @@ export const WORKSPACE_DIALOG_KINDS = [
   "long-removal",
   "library-project",
   "external-library-import",
+  "library-package-import",
   "library-entry-move",
   "library-group",
   "save-conflict",
@@ -490,6 +504,10 @@ export interface WorkspaceDialogLayerEmits {
       entryId: string;
     }
   ];
+  closeLibraryPackageImport: [];
+  chooseLibraryPackageSource: [sourceKind: LibraryPackageSourceKind];
+  restartLibraryPackageImport: [];
+  submitLibraryPackageImport: [choices: LibraryPackageImportChoices];
   closeExternalLibraryImport: [];
   chooseExternalLibraryImport: [sourceKind: ExternalLibrarySourceKind];
   submitExternalLibraryImport: [

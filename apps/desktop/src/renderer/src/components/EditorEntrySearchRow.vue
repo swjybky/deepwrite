@@ -26,6 +26,8 @@ function updateQuery(event: Event): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
+  // Enter and arrows belong to the IME candidate list while composing.
+  if (event.isComposing) return;
   if (event.key === "ArrowDown") {
     event.preventDefault();
     emit("move", 1);

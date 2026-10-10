@@ -5,6 +5,8 @@ import {
 import { z } from "zod";
 import { DecompositionReceiptSchema } from "../long-book-decomposition/target";
 import { DecompositionIdSchema } from "../long-book-decomposition/limits";
+import { LongMaterialGuideSubmissionSchema } from "../long-material-pack/guide";
+import { LongMaterialPackIdSchema } from "../long-material-pack/limits";
 import { EnvelopeBaseSchema, type Envelope } from "../envelope";
 import {
   LongBookAnalysisNoteWriteSchema,
@@ -59,6 +61,11 @@ export const ExtrasAgentOutputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("style-comparison-result"),
     result: StyleComparisonResultSchema
+  }),
+  z.object({
+    kind: z.literal("long-material-guide"),
+    packId: LongMaterialPackIdSchema,
+    submission: LongMaterialGuideSubmissionSchema
   })
 ]);
 export type ExtrasAgentOutput = z.infer<typeof ExtrasAgentOutputSchema>;

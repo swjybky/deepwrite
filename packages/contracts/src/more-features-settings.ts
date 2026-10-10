@@ -6,6 +6,7 @@ export const MORE_FEATURE_IDS = [
   "short-book-analysis",
   "long-book-analysis",
   "long-book-decomposition",
+  "long-material-pack",
   "revision-analysis",
   "style-comparison",
   "book-identity",

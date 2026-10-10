@@ -49,6 +49,15 @@ export default {
     noMatchingEntriesFound: "未找到匹配条目",
     enterASearchTerm: "请输入搜索内容"
   },
+  editorFindReplace: {
+    noResults: "无结果",
+    enterTextToFind: "请输入要查找的文字",
+    noMatchingTextFound: "未找到匹配文字",
+    noTextToReplace: "未找到可替换的文字",
+    enterTextToReplace: "请输入要替换的文字",
+    findAndReplacementTextAreTheSame: "查找文字与替换文字相同",
+    replacedMatches: "已替换 {length} 处文字"
+  },
   markdownOutline: {
     untitledHeading: "未命名标题"
   },

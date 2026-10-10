@@ -8,6 +8,8 @@ export default {
   resolveTheLibrarySSaveConflictsFirst: "请先处理资料库尚未解决的保存冲突。",
   someLibraryDraftsCannotBeSavedSafelyCopyingWas:
     "存在无法安全保存的资料库草稿，复制已取消。",
+  someLibraryDraftsCannotBeSavedSafelyExportWas:
+    "存在无法安全保存的资料库草稿，导出已取消。",
   browserPreviewsCannotOpenLocalWorksUseTheDesktop:
     "浏览器预览不能打开本地作品，请使用桌面客户端。",
   browserPreviewsCannotRefreshLocalNovelsUseTheDesktop:

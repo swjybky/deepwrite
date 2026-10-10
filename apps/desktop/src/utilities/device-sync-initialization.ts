@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import {
@@ -15,7 +15,11 @@ import {
 import { FolderCatalogStore } from "./folder-catalog-store";
 import { LongWorkspaceService } from "./long-workspace-service";
 import { desktopSyncInventory } from "./device-sync-inventory";
-import { validateDesktopSyncItem } from "./device-sync-files";
+import {
+  syncProjectParentFolder,
+  validateDesktopSyncItem
+} from "./device-sync-files";
+import { availableProjectDirectory } from "./folder-catalog-store/paths-io";
 import { writeSyncJson } from "../extras/device-sync/atomic-json";
 import {
   commitProjectTransaction,
@@ -41,8 +45,10 @@ async function stageProjects(
   await catalog.snapshot();
   await long.list();
   for (const item of items) {
-    const name = createHash("sha256").update(syncKey(item)).digest("hex");
-    const root = join(projectsRoot, name);
+    const root = await availableProjectDirectory(
+      join(projectsRoot, syncProjectParentFolder(item.kind)),
+      item.title
+    );
     await mkdir(root, { recursive: true });
     await commitProjectTransaction({
       projectRoot: root,

@@ -39,7 +39,6 @@ import {
 } from "@deepwrite/contracts";
 import { nextCopyTitle } from "../copy-title";
 import type { ImportedLegacyBook } from "../legacy-book-import";
-import type { ImportedLegacyLibrary } from "../legacy-library-import";
 import { createCatalogId, randomHex8 } from "@deepwrite/shared";
 import {
   assertBaseRevision,
@@ -600,69 +599,6 @@ export async function importLegacyBook(
       projectDirectory,
       "book"
     )) as OpenFolderCatalogProjectResult<ShortBook>;
-  });
-}
-
-export async function importLegacyLibrary(
-  store: FolderCatalogStoreContext,
-  input: ImportedLegacyLibrary,
-  parentDirectory?: string
-): Promise<OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>> {
-  const projectDomain = libraryProjectDomain(input.domain);
-  const parent =
-    parentDirectory?.trim() || store.defaultProjectParents[projectDomain];
-  return await mutate(store, async () => {
-    const now = store.now();
-    const resource: MaterialLibrary | SkillLibrary =
-      input.domain === "material"
-        ? {
-            ...input.library,
-            id: createCatalogId("material"),
-            entries: input.library.entries.map((entry) => ({
-              ...entry,
-              id: createCatalogId("material-entry"),
-              createdAt: now,
-              updatedAt: now
-            })),
-            createdAt: now,
-            updatedAt: now
-          }
-        : {
-            ...input.library,
-            id: createCatalogId("skill"),
-            isBuiltin: false,
-            entries: input.library.entries.map((entry) => ({
-              ...entry,
-              id: createCatalogId("skill-entry"),
-              createdAt: now,
-              updatedAt: now
-            })),
-            createdAt: now,
-            updatedAt: now
-          };
-    const projectDirectory = await writeNewResourceProject(
-      store,
-      projectDomain,
-      parent,
-      resource
-    );
-    try {
-      const registry = await ensureRegistry(store);
-      await registerProject(store, registry, {
-        id: resource.id,
-        domain: projectDomain,
-        projectDirectory,
-        registeredAt: now
-      });
-    } catch (error: unknown) {
-      await cleanupNewProjectDirectories([projectDirectory]);
-      throw error;
-    }
-    return (await readProject(
-      store,
-      projectDirectory,
-      projectDomain
-    )) as OpenFolderCatalogProjectResult<MaterialLibrary | SkillLibrary>;
   });
 }
 

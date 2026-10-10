@@ -32,12 +32,12 @@ import {
 } from "./longIndexedChapter";
 export { nextWritableLongChapterId } from "./longIndexedChapter";
 import { createLongContinuitySelection } from "./longContinuitySelection";
-import { latestCommittedContinuityChapter } from "../utils/longLatestContinuityChapter";
+import { latestCommittedContinuityChapter } from "@deepwrite/contracts/renderer";
 
 const t = createScopedTranslator("workspace.selection");
 
 export { createLongContinuitySelection } from "./longContinuitySelection";
-export { latestCommittedContinuityChapter } from "../utils/longLatestContinuityChapter";
+export { latestCommittedContinuityChapter } from "@deepwrite/contracts/renderer";
 
 export type LongWorkspaceFileRole =
   | "content"

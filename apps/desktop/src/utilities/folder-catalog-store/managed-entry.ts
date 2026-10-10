@@ -5,6 +5,7 @@ import {
   MaterialLibraryProjectManifestSchema,
   DecompositionReceiptSchema,
   updateMaterialMarkdownMetadata,
+  type MaterialLibraryKind,
   type MaterialLibraryProjectManifest,
   type MaterialStageId,
   type DecompositionContentRef,
@@ -17,6 +18,25 @@ import {
 import { readNoFollowFile } from "../long-project-store/io";
 import { decompositionSha } from "../long-book-decomposition/content-guard";
 import { updateDecompositionMaterialIndex } from "./managed-index";
+
+const MANAGED_STAGES: Record<MaterialLibraryKind, readonly MaterialStageId[]> =
+  {
+    character: ["character"],
+    plot: ["intro", "pacing", "plot_refine"],
+    draft: ["draft_excerpt"],
+    other: ["other"],
+    gimmick: ["gimmick"],
+    mixed: []
+  };
+
+/** Generated entries go only to single-kind libraries of the matching kind. */
+export function assertManagedStage(
+  kind: MaterialLibraryKind,
+  stageId: MaterialStageId
+): void {
+  if (!MANAGED_STAGES[kind].includes(stageId))
+    throw new Error("素材阶段与目标库类别不一致。");
+}
 
 export interface ManagedMaterialEntryInput {
   libraryId: string;
@@ -48,16 +68,7 @@ export async function writeManagedMaterialEntry(
   );
   if (manifest.id !== input.libraryId || manifest.materialType !== "long")
     throw new Error("拆解目标素材库不匹配。");
-  const allowed = {
-    character: ["character"],
-    plot: ["intro", "pacing", "plot_refine"],
-    draft: ["draft_excerpt"],
-    other: ["other"],
-    gimmick: ["gimmick"],
-    mixed: []
-  };
-  if (!(allowed[manifest.materialKind] as string[]).includes(input.stageId))
-    throw new Error("素材阶段与目标库类别不一致。");
+  assertManagedStage(manifest.materialKind, input.stageId);
   const receiptPath = `receipts/${input.receipt.id}.md`;
   const saved = manifest.writeReceipts?.find(
     ({ id }) => id === input.receipt.id

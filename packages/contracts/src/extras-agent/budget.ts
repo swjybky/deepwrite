@@ -1,6 +1,11 @@
 import { assertRevisionAnalysisBudget } from "../revision-analysis-budget";
 import { assertShortAnalysisBudget } from "../short-book-analysis-budget";
 import { assertStyleComparisonBudget } from "../style-comparison";
+import { LONG_MATERIAL_GUIDE_MIN_CONTEXT_WINDOW } from "../long-material-pack/constants";
+import {
+  longMaterialEvidenceTokens,
+  longMaterialGuideEvidenceTokens
+} from "../long-material-pack/guide";
 import type { ExtrasAgentTask, ExtrasAgentResolvedTask } from "./tasks";
 
 interface ModelCapacity {
@@ -54,6 +59,21 @@ export function assertExtrasAgentBudget(
       return;
     case "long-book-analysis":
       // The Renderer pipeline sizes each batch to the model before sending it.
+      return;
+    case "long-material-guide":
+      if (
+        !model?.contextWindow ||
+        model.contextWindow < LONG_MATERIAL_GUIDE_MIN_CONTEXT_WINDOW
+      )
+        throw new Error("请选择窗口至少为 16,000 token 的模型。");
+      if (
+        "evidence" in task.input &&
+        longMaterialEvidenceTokens(task.input.evidence) >
+          longMaterialGuideEvidenceTokens(model)
+      )
+        throw new Error(
+          "素材证据超过所选模型的可用窗口，请换用更大窗口的模型。"
+        );
       return;
     case "style-comparison":
       if (model) assertStyleComparisonBudget(task.input, task.profile, model);

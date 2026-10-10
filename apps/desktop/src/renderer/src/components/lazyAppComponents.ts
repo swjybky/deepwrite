@@ -107,6 +107,9 @@ export const ExportShortManuscriptDialog = lazyFeature((features) =>
 export const ExternalSkillImportDialog = lazyFeature((features) =>
   features.loadExternalSkillImportDialog()
 );
+export const ImportLibraryPackageDialog = lazyFeature((features) =>
+  features.loadImportLibraryPackageDialog()
+);
 export const LibraryEntryMoveDialog = lazyFeature((features) =>
   features.loadLibraryEntryMoveDialog()
 );
@@ -160,6 +163,9 @@ export const WindowMenuBar = lazyFeature((features) =>
   features.loadWindowMenuBar()
 );
 
+export const LongMaterialPackPage = lazyFeature((features) =>
+  features.loadLongMaterialPackPage()
+);
 export const BookIdentityPage = lazyFeature((features) =>
   features.loadBookIdentityPage()
 );

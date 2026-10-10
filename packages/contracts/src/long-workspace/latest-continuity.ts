@@ -1,4 +1,4 @@
-import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
+import type { LongWorkspaceIndexSnapshot } from "./index-validation";
 
 type LongChapterFileEntry = LongWorkspaceIndexSnapshot["chapters"][number];
 

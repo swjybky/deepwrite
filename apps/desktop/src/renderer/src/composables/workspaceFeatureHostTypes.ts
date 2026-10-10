@@ -94,6 +94,8 @@ export interface WorkspaceFeatureHostCoordinator {
   showConversation(): void;
   newConversation(): void;
   openWorkspaceDialog(mode: DialogMode): Promise<void>;
+  /** Opens 长篇转素材库 with this long book already chosen. */
+  openMaterialPack(bookId: string): Promise<void>;
   openSettings(category?: string): Promise<void>;
   openOfficialModelsSettings(): void;
   openAgentTeams(): Promise<void>;

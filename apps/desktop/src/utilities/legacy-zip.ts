@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { TextDecoder } from "node:util";
 import { inflateRawSync } from "node:zlib";
 
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
@@ -18,6 +19,8 @@ interface ZipEntry {
 
 export interface LegacyZipArchive {
   readonly entryNames: readonly string[];
+  /** Uncompressed size from the central directory, read without inflating. */
+  sizeOf(name: string): number | undefined;
   read(name: string): Buffer | undefined;
   readJsonObject(name: string): Record<string, unknown> | undefined;
 }
@@ -56,6 +59,19 @@ function normalizeArchivePath(rawName: string, archiveLabel: string): string {
     throw new Error(`${archiveLabel}包含不安全的文件路径。`);
   }
   return name.replace(/^\.\//u, "");
+}
+
+/**
+ * Names without the UTF-8 flag (bit 11) come from tools that use the system
+ * code page, which for Chinese Windows "send to compressed folder" is GBK.
+ */
+function decodeEntryName(bytes: Buffer, flags: number): string {
+  if ((flags & 0x0800) !== 0) return bytes.toString("utf8");
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("gb18030").decode(bytes);
+  }
 }
 
 function readZipEntries(archive: Buffer, archiveLabel: string): ZipEntry[] {
@@ -119,7 +135,10 @@ function readZipEntries(archive: Buffer, archiveLabel: string): ZipEntry[] {
     const recordLength = 46 + nameLength + extraLength + commentLength;
     checkedRange(archive, cursor, recordLength, "文件目录项", archiveLabel);
     const name = normalizeArchivePath(
-      archive.subarray(cursor + 46, cursor + 46 + nameLength).toString("utf8"),
+      decodeEntryName(
+        archive.subarray(cursor + 46, cursor + 46 + nameLength),
+        flags
+      ),
       archiveLabel
     );
     if (!name.endsWith("/")) {
@@ -177,12 +196,13 @@ function readZipEntry(
     archiveLabel
   );
   const localName = normalizeArchivePath(
-    archive
-      .subarray(
+    decodeEntryName(
+      archive.subarray(
         entry.localHeaderOffset + 30,
         entry.localHeaderOffset + 30 + nameLength
-      )
-      .toString("utf8"),
+      ),
+      entry.flags
+    ),
     archiveLabel
   );
   if (localName !== entry.name) {
@@ -230,6 +250,7 @@ export async function openLegacyZipArchive(
   };
   return {
     entryNames: entries.map(({ name }) => name),
+    sizeOf: (name) => byName.get(name)?.uncompressedSize,
     read,
     readJsonObject(name) {
       const content = read(name);

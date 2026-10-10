@@ -39,6 +39,7 @@ const emit = defineEmits<{
   refreshCatalog: [];
   open: [ref: DecompositionContentRef];
   openTarget: [target: DecompositionTarget];
+  openMaterialPack: [bookId: string];
 }>();
 const wholeBook = () => ({
   start: 1,
@@ -181,6 +182,7 @@ onMounted(() => {
         @control="control"
         @view="(unitId, title) => (viewing = { unitId, title })"
         @open-target="emit('openTarget', $event)"
+        @open-material-pack="emit('openMaterialPack', $event)"
         @run="controller.run()"
         @stop="action(() => controller.stop())"
       />

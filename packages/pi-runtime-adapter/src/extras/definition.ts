@@ -85,6 +85,8 @@ export interface ExtrasTaskAgentDefinition<
   contextTask?: ContextTaskKind;
   toolCompactors?: Readonly<Record<string, ToolCompactor>>;
   userMessage(task: ExtrasAgentResolvedTaskOf<A>): string;
+  /** Phase-specific result tool that must successfully submit before completion. */
+  requiredOutputTool?(task: ExtrasAgentResolvedTaskOf<A>): string;
   /** Parses the result from the final message for agents without a result tool. */
   finalOutput?(content: string): ExtrasAgentOutput;
   /** Shown when the final message is cut off before the output is complete. */
@@ -123,6 +125,7 @@ export interface BoundExtrasTaskAgent extends BoundExtrasAgentBase {
   contextTask?: ContextTaskKind;
   toolCompactors?: Readonly<Record<string, ToolCompactor>>;
   userMessage: string;
+  requiredOutputTool?: string;
   finalOutput?(content: string): ExtrasAgentOutput;
   truncatedOutputMessage?: string;
   faux(runId: string): FauxResponseStep[];
@@ -168,6 +171,9 @@ export function bindExtrasAgent<A extends ExtrasTaskAgentId>(
       definition.boundary(task)
     ),
     userMessage: definition.userMessage(task),
+    ...(definition.requiredOutputTool
+      ? { requiredOutputTool: definition.requiredOutputTool(task) }
+      : {}),
     tools: (services) => definition.tools(task, services),
     ...(definition.orchestration
       ? {

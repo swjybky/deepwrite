@@ -1,4 +1,4 @@
-import { nativeMessages, nativeText } from "../native-i18n";
+import { nativeText } from "../native-i18n";
 import {
   BookSchema,
   CatalogDraftRecoverySaveResultSchema,
@@ -32,7 +32,6 @@ import {
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
-import { LEGACY_LIBRARY_FILE_SELECTION_PROPERTIES } from "../legacy-library-import-batch";
 import { UtilityCommandTimeoutError } from "../supervisor";
 import {
   catalogCommandTimeoutMessage,
@@ -50,8 +49,7 @@ export async function handleCatalogCommands(
     command.type === "catalog.createScriptBook" ||
     command.type === "catalog.createLibrary" ||
     command.type === "catalog.createLibraryGroup" ||
-    command.type === "catalog.openProject" ||
-    command.type === "catalog.importLegacyLibrary"
+    command.type === "catalog.openProject"
   ) {
     try {
       const workspaceDirectory = await ctx.requireSelectedWorkspaceDirectory();
@@ -83,32 +81,13 @@ export async function handleCatalogCommands(
       } else {
         const selection = await ctx.dialog.showOpenDialog({
           title:
-            command.type === "catalog.importLegacyLibrary"
-              ? nativeMessages().legacyLibraryTitle(
-                  domain === "material" ? "material" : "skill"
-                )
-              : domain === "book"
-                ? nativeText("openBook")
-                : domain === "material"
-                  ? nativeText("openMaterials")
-                  : nativeText("openSkills"),
+            domain === "book"
+              ? nativeText("openBook")
+              : domain === "material"
+                ? nativeText("openMaterials")
+                : nativeText("openSkills"),
           defaultPath,
-          ...(command.type === "catalog.importLegacyLibrary"
-            ? {
-                properties:
-                  command.type === "catalog.importLegacyLibrary"
-                    ? LEGACY_LIBRARY_FILE_SELECTION_PROPERTIES
-                    : (["openFile"] as const),
-                filters: [
-                  {
-                    name: nativeMessages().legacyLibraryArchive(
-                      domain === "material" ? "material" : "skill"
-                    ),
-                    extensions: ["zip"]
-                  }
-                ]
-              }
-            : { properties: ["openDirectory"] as const })
+          properties: ["openDirectory"]
         });
         if (selection.canceled || selection.filePaths.length === 0) {
           return {
@@ -159,58 +138,15 @@ export async function handleCatalogCommands(
                     },
                     { id: command.id, context: command.context }
                   )
-                : command.type === "catalog.openProject"
-                  ? createEnvelope(
-                      "catalog.openProjectAtPath",
-                      {
-                        projectDirectory: selectedPath,
-                        domain: command.payload.domain
-                      },
-                      { id: command.id, context: command.context }
-                    )
-                  : createEnvelope(
-                      "catalog.importLegacyLibraryAtPath",
-                      {
-                        domain: command.payload.domain,
-                        archivePath: selectedPath,
-                        parentDirectory: defaultPath
-                      },
-                      { id: command.id, context: command.context }
-                    )
+                : createEnvelope(
+                    "catalog.openProjectAtPath",
+                    {
+                      projectDirectory: selectedPath,
+                      domain: command.payload.domain
+                    },
+                    { id: command.id, context: command.context }
+                  )
       );
-
-      if (command.type === "catalog.importLegacyLibrary") {
-        const payload = await ctx.importLegacyLibraryArchives(
-          selectedPaths,
-          async (archivePath, index) => {
-            const result = await ctx.supervisor.requestCommand(
-              "core",
-              createEnvelope(
-                "catalog.importLegacyLibraryAtPath",
-                {
-                  domain: command.payload.domain,
-                  archivePath,
-                  parentDirectory: defaultPath
-                },
-                {
-                  id: `${command.id}_${index + 1}`,
-                  context: command.context
-                }
-              ),
-              0
-            );
-            if (result.status === "rejected") {
-              throw new Error(result.error.message);
-            }
-            return result.payload;
-          }
-        );
-        return {
-          status: "accepted",
-          requestId: command.id,
-          payload
-        };
-      }
 
       const result = await ctx.supervisor.requestCommand(
         "core",
@@ -229,9 +165,7 @@ export async function handleCatalogCommands(
               ? CatalogLibrarySchema.parse(result.payload)
               : command.type === "catalog.createLibraryGroup"
                 ? CatalogLibraryGroupSchema.parse(result.payload)
-                : command.type === "catalog.openProject"
-                  ? CatalogOpenProjectResultSchema.parse(result.payload)
-                  : CatalogLibrarySchema.parse(result.payload);
+                : CatalogOpenProjectResultSchema.parse(result.payload);
       return { status: "accepted", requestId: command.id, payload };
     } catch (error: unknown) {
       return {

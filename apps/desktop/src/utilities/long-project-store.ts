@@ -21,6 +21,7 @@ import {
   previewContinuationImport
 } from "./long-project-store/imports";
 import { createBook, duplicateBook } from "./long-project-store/lifecycle";
+import { findLongProjectDirectory } from "./long-project-store/project-folder";
 import {
   applyWorkspaceOperations,
   previewWorkspaceOperations
@@ -60,6 +61,11 @@ export class LongProjectStore {
 
   async createBook(parentDirectory: string, input: CreateLongBookInput) {
     return await createBook(this.context, parentDirectory, input);
+  }
+
+  /** Locates a book by id in either an id-named or title-named folder. */
+  async findBookDirectory(parentDirectory: string, bookId: string) {
+    return await findLongProjectDirectory(parentDirectory, bookId);
   }
 
   async transactManaged<T>(

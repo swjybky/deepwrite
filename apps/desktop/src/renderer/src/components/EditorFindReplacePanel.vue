@@ -4,6 +4,7 @@ import { nextTick, onMounted } from "vue";
 import type { EditorEntrySearchResult } from "../types/editorEntrySearch";
 import AppIcon from "./AppIcon.vue";
 import EditorEntrySearchRow from "./EditorEntrySearchRow.vue";
+import { createEditorFindPanelInput } from "./editorFindPanelInput";
 
 const t = createScopedTranslator("components.editorFindReplacePanel");
 
@@ -40,6 +41,17 @@ const findPanelElement = defineModel<HTMLElement | null>("findPanelElement", {
 const findInput = defineModel<HTMLInputElement | null>("findInput", {
   default: null
 });
+const {
+  handleQueryInput,
+  handleQueryCompositionEnd,
+  handleQueryEnter,
+  handleReplacementEnter
+} = createEditorFindPanelInput({
+  updateQuery: (value) => emit("update:searchQuery", value),
+  search: () => emit("findInput"),
+  findMatch: (direction) => emit("findMatch", direction),
+  replaceCurrent: () => emit("replaceCurrent")
+});
 onMounted(async () => {
   await nextTick();
   findInput.value?.focus({ preventScroll: true });
@@ -66,14 +78,9 @@ onMounted(async () => {
           type="text"
           :aria-label="t('findText')"
           :placeholder="t('find')"
-          @input="
-            emit(
-              'update:searchQuery',
-              ($event.target as HTMLInputElement).value
-            );
-            emit('findInput');
-          "
-          @keydown.enter.prevent="emit('findMatch', $event.shiftKey ? -1 : 1)"
+          @input="handleQueryInput"
+          @compositionend="handleQueryCompositionEnd"
+          @keydown.enter="handleQueryEnter"
         />
         <span class="editor-find-count" aria-live="polite">
           {{ searchResultLabel }}
@@ -84,6 +91,7 @@ onMounted(async () => {
         type="button"
         :aria-label="t('findPrevious')"
         :title="t('findPrevious')"
+        @mousedown.prevent
         @click="emit('findMatch', -1)"
       >
         <AppIcon name="chevron" :size="14" />
@@ -93,6 +101,7 @@ onMounted(async () => {
         type="button"
         :aria-label="t('findNext')"
         :title="t('findNext')"
+        @mousedown.prevent
         @click="emit('findMatch', 1)"
       >
         <AppIcon name="chevron" :size="14" />
@@ -122,13 +131,14 @@ onMounted(async () => {
               ($event.target as HTMLInputElement).value
             )
           "
-          @keydown.enter.prevent="emit('replaceCurrent')"
+          @keydown.enter="handleReplacementEnter"
         />
       </label>
       <button
         class="editor-find-action"
         type="button"
         :disabled="currentReadOnly"
+        @mousedown.prevent
         @click="emit('replaceCurrent')"
       >
         {{ t("replace") }}
@@ -137,6 +147,7 @@ onMounted(async () => {
         class="editor-find-action"
         type="button"
         :disabled="currentReadOnly"
+        @mousedown.prevent
         @click="emit('replaceAll')"
       >
         {{ t("all") }}

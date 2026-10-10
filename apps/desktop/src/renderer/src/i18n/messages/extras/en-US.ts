@@ -2,10 +2,12 @@ import bookIdentity from "./book-identity/en-US";
 import agentTeamMarketplace from "./agent-team-marketplace/en-US";
 import deviceSyncService from "../../../../../localization/device-sync/en-US";
 import longBookDecomposition from "./long-book-decomposition/en-US";
+import longMaterialPack from "./long-material-pack/en-US";
 export default {
   bookIdentity,
   agentTeamMarketplace,
   longBookDecomposition,
+  longMaterialPack,
   deviceSyncService,
   agentRuntime: {
     stopFailed: "Could not stop. Please try again.",

@@ -312,6 +312,22 @@ export default {
   lazyLongBookLifecycleCoordinator: {
     failedToLoadTheNovelLifecycleCoordinator: "加载长篇作品生命周期协调器失败。"
   },
+  libraryPackageCoordinator: {
+    desktopNeedsRestart:
+      "资料库导入导出功能尚未就绪，请完整退出并重新启动 DeepWrite 后重试。",
+    browserPreviewCannotExport:
+      "浏览器预览不能导出本地资料库，请使用桌面客户端。",
+    browserPreviewCannotImport:
+      "浏览器预览不能导入本地文件，请使用桌面客户端。",
+    exportedTo: "已导出到 {path}",
+    exportedToWithSkipped: "已导出到 {path}（{count} 个成员库不可用，未导出）",
+    exportFailed: "导出失败",
+    recognitionFailed: "识别失败",
+    importFailed: "导入失败",
+    imported: "已导入 {libraries} 个库、{entries} 个条目",
+    sourceChanged: "来源在识别后发生了变化，请重新选择。",
+    headlineWithReason: "{headline}：{reason}"
+  },
   externalLibraryImportCoordinator: {
     theBrowserPreviewCannotReadLocalFilesUseThe:
       "浏览器预览不能读取本地文件，请使用桌面客户端。",
@@ -341,17 +357,6 @@ export default {
       "加载短篇书籍生命周期协调器失败。"
   },
   catalogProjectActions: {
-    theBrowserPreviewCannotImportLegacyLibrariesUseThe:
-      "浏览器预览不能导入旧版资料库，请使用桌面客户端。",
-    importedLegacyLibraryAsANewLibrary:
-      "已导入旧版{libraryLabel}库“{value}”并新建资料库",
-    importedLegacyLibrariesAsNewLibraries:
-      "已导入 {length} 个旧版{libraryLabel}库并新建资料库",
-    importedLegacyLibrariesFailed:
-      "已导入 {length} 个旧版{libraryLabel}库，{length2} 个失败：{failureSummary}",
-    failedToImportLegacyLibraries:
-      "导入旧版{libraryLabel}库失败：{failureSummary}",
-    failedToImportLegacyLibraries2: "导入旧版资料库失败。",
     theBrowserPreviewCannotOpenLocalFoldersUseThe:
       "浏览器预览不能打开本地文件夹，请使用桌面客户端。",
     opened: "已打开{value}“{title}”",

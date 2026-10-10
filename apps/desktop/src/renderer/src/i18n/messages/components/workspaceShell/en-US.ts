@@ -9,6 +9,8 @@ export default {
     "Resolve the library's save conflicts first.",
   someLibraryDraftsCannotBeSavedSafelyCopyingWas:
     "Some library drafts cannot be saved safely. Copying was canceled.",
+  someLibraryDraftsCannotBeSavedSafelyExportWas:
+    "Some library drafts cannot be saved safely. Export was canceled.",
   browserPreviewsCannotOpenLocalWorksUseTheDesktop:
     "Browser previews cannot open local works. Use the desktop app.",
   browserPreviewsCannotRefreshLocalNovelsUseTheDesktop:

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
@@ -26,8 +26,10 @@ import {
 } from "./device-sync-inventory";
 import {
   readDeviceSyncFiles,
+  syncProjectParentFolder,
   validateDesktopSyncItem
 } from "./device-sync-files";
+import { availableProjectDirectory } from "./folder-catalog-store/paths-io";
 
 export class DesktopSyncWorkspace {
   private readonly intentPath: string;
@@ -212,39 +214,15 @@ export class DesktopSyncWorkspace {
     const identity = next ?? local;
     if (!identity) return;
     assertProjectSyncItem(identity);
-    const parent =
-      identity.kind === "book" || identity.kind === "long-book"
-        ? "books"
-        : identity.kind === "material-library"
-          ? "materials"
-          : identity.kind === "skill-library"
-            ? "skills"
-            : identity.kind === "material-group"
-              ? "material-groups"
-              : "skill-groups";
     if (!isAbsolute(workspaceDirectory))
       throw new Error("请先选择本机工作目录。");
+    // New folders are named by title like locally created projects.
     const root =
       registration?.root ??
-      join(
-        workspaceDirectory,
-        parent,
-        `sync-${createHash("sha256").update(key).digest("hex").slice(0, 24)}`
-      );
-    if (!registration) {
-      try {
-        await lstat(root);
-        throw new Error("同步目录已被占用。");
-      } catch (error) {
-        if (!(
-          error &&
-          typeof error === "object" &&
-          "code" in error &&
-          error.code === "ENOENT"
-        ))
-          throw error;
-      }
-    }
+      (await availableProjectDirectory(
+        join(workspaceDirectory, syncProjectParentFolder(identity.kind)),
+        identity.title
+      ));
     const removal = next
       ? null
       : join(this.userDataPath, "device-sync-recovery", randomUUID());

@@ -5,6 +5,7 @@ import type { MoreFeatureId, MoreFeaturesSettings } from "@deepwrite/contracts";
 const t = createScopedTranslator("components.sidebarMoreFeatures");
 const identityT = createScopedTranslator("extras.bookIdentity");
 const decompositionT = createScopedTranslator("extras.longBookDecomposition");
+const packT = createScopedTranslator("extras.longMaterialPack");
 export const moreFeatures: Array<{
   id: MoreFeatureId;
   label: string;
@@ -50,6 +51,16 @@ export const moreFeatures: Array<{
       return decompositionT("description");
     },
     icon: "book"
+  },
+  {
+    id: "long-material-pack",
+    get label() {
+      return packT("title");
+    },
+    get description() {
+      return packT("sidebarDescription");
+    },
+    icon: "library"
   },
   {
     id: "revision-analysis",
