@@ -83,9 +83,13 @@ Go to [GitHub Releases](https://github.com/swjybky/deepwrite/releases) and downl
 | Platform | Installer |
 | --- | --- |
 | Windows x64 | `DeepWrite-<version>-win-x64-test.exe` |
+| Windows ARM64 | `DeepWrite-<version>-win-arm64-test.exe` |
 | macOS Apple Silicon | `DeepWrite-<version>-mac-arm64-test.dmg` |
 | macOS Intel | `DeepWrite-<version>-mac-x64-test.dmg` |
+| Linux x64 | `DeepWrite-<version>-linux-x64-test.AppImage` / `.deb` |
+| Linux ARM64 | `DeepWrite-<version>-linux-arm64-test.AppImage` / `.deb` |
 | Arch Linux / CachyOS x64 | `DeepWrite-<version>-linux-x64-test.pkg.tar.xz` |
+| Arch Linux / CachyOS ARM64 | `DeepWrite-<version>-linux-aarch64-test.pkg.tar.xz` |
 
 On Windows, run the `.exe` and follow the installer.
 
@@ -131,7 +135,9 @@ Test installers must be built on their target platform from the repository root:
 pnpm pack:test             # All test packages supported by the current host
 pnpm pack:test:arch        # Arch Linux / CachyOS x64
 pnpm pack:test:linux       # Linux x64: AppImage, deb, and Arch package
+pnpm pack:test:linux:arm64 # Linux ARM64: AppImage, deb, and Arch package
 pnpm pack:test:win         # Windows x64
+pnpm pack:test:win:arm64   # Windows ARM64
 pnpm pack:test:mac:arm64   # macOS Apple Silicon
 pnpm pack:test:mac:x64     # macOS Intel
 pnpm pack:test:mac         # Both macOS architectures
@@ -143,11 +149,11 @@ Artifacts are written to `apps/desktop/release/`. The packaging flow runs the fu
 
 Commit and push the workflow and related changes, set both the root and desktop `package.json` versions to the intended release, then push the matching `vMAJOR.MINOR.PATCH` tag (for example, `v1.6.6` when both versions are `1.6.6`).
 
-The `Build and publish tagged release` workflow builds and verifies Windows x64, macOS ARM64 / Intel, and Linux x64 installers (AppImage, deb, Arch) on native runners. After every platform succeeds, it checks asset sizes and SHA-512 hashes, merges the two macOS update manifests, uploads all assets to a draft, and publishes the GitHub Release. Failed uploads remain in the current run's draft and can resume when the workflow is rerun. Existing published releases are preserved.
+The `Build and publish tagged release` workflow builds and verifies Windows x64 / ARM64, macOS ARM64 / Intel, and Linux x64 / ARM64 installers (AppImage, deb, Arch) on native runners. After every platform succeeds, it checks asset sizes and SHA-512 hashes, merges the two macOS update manifests, writes the ARM64 update manifests, uploads all assets to a draft, and publishes the GitHub Release. Failed uploads remain in the current run's draft and can resume when the workflow is rerun. Existing published releases are preserved.
 
 If a tag exists without a workflow run, open this workflow in Actions, choose `Run workflow` on `main`, and enter the existing tag (for example, `v1.6.6`). Recovery checks out that tag and validates its versions without deleting or moving it. For an existing failed run, use `Re-run jobs` to resume uploads to the same draft.
 
-CI uses free standard runners: four test workers on Linux, Windows, and Intel Mac, and three on ARM Mac, with Node heap limits of 6 GiB and 4 GiB respectively. pnpm, Electron, and packaging downloads use caches separated by OS, architecture, and dependency locks. Desktop build and smoke checks run before the full test suite, and a platform failure cancels the remaining jobs. Packaging retains full verification plus first-launch and reopen checks inside the packaged app.
+CI uses free standard runners: four test workers on x64 and ARM64 Linux and Windows and on Intel Mac, and three on ARM Mac, with Node heap limits of 6 GiB and 4 GiB respectively. pnpm, Electron, and packaging downloads use caches separated by OS, architecture, and dependency locks. Desktop build and smoke checks run before the full test suite, and a platform failure cancels the remaining jobs. Packaging retains full verification plus first-launch and reopen checks inside the packaged app.
 
 Actions artifacts are retained for 14 days. Publishing uses the repository's `GITHUB_TOKEN` without additional release credentials. Windows builds remain unsigned and macOS builds use the existing ad-hoc signing configuration. Maintain the application's `update.json` through the existing release-manifest process.
 

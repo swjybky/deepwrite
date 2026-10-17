@@ -23,19 +23,22 @@ const [targetPlatform, targetArch] = process.argv.slice(2);
 if (!(
   (targetPlatform === "mac" &&
     (targetArch === "arm64" || targetArch === "x64")) ||
-  ((targetPlatform === "linux" || targetPlatform === "arch") &&
-    targetArch === "x64") ||
+  (targetPlatform === "linux" &&
+    (targetArch === "x64" || targetArch === "arm64")) ||
+  (targetPlatform === "arch" && targetArch === "x64") ||
   (targetPlatform === "win" && (targetArch === "x64" || targetArch === "arm64"))
 )) {
   console.error(
-    "Usage: node scripts/verify-test-package.mjs <arch x64|linux x64|mac arm64|mac x64|win x64|win arm64>"
+    "Usage: node scripts/verify-test-package.mjs <arch x64|linux x64|linux arm64|mac arm64|mac x64|win x64|win arm64>"
   );
   process.exit(1);
 }
 
 const hostCanRunTarget =
   (targetPlatform === "mac" && process.platform === "darwin") ||
-  (targetPlatform === "linux" && process.platform === "linux") ||
+  (targetPlatform === "linux" &&
+    process.platform === "linux" &&
+    process.arch === targetArch) ||
   (targetPlatform === "win" &&
     process.platform === "win32" &&
     process.arch === targetArch);
@@ -68,11 +71,14 @@ if (!artifactStat.isFile() || artifactStat.size === 0) {
 
 if (targetPlatform === "linux") {
   await verifyArchTestPackage(releaseDir, packageJson.version, {
-    smoke: false
+    smoke: false,
+    arch: targetArch
   });
   const appImage = join(
     releaseDir,
-    `DeepWrite-${packageJson.version}-linux-x86_64-test.AppImage`
+    `DeepWrite-${packageJson.version}-linux-${
+      targetArch === "x64" ? "x86_64" : targetArch
+    }-test.AppImage`
   );
   const appImageStat = await stat(appImage);
   if (!appImageStat.isFile() || appImageStat.size === 0) {

@@ -9,7 +9,12 @@ import {
   validateSmokeSummary
 } from "./package-smoke-runner.mjs";
 
-export function validateArchMetadata(source, version) {
+const ARCH_PACKAGES = {
+  x64: { pkginfo: "x86_64", elfMachine: 62, label: "x86_64" },
+  arm64: { pkginfo: "aarch64", elfMachine: 183, label: "aarch64" }
+};
+
+export function validateArchMetadata(source, version, arch = "x64") {
   const fields = new Map();
   for (const line of source.split(/\r?\n/u)) {
     const match = /^([a-z]+) = (.+)$/u.exec(line);
@@ -19,7 +24,7 @@ export function validateArchMetadata(source, version) {
   const expected = {
     pkgname: "deepwrite",
     pkgver: `${version}-1`,
-    arch: "x86_64"
+    arch: ARCH_PACKAGES[arch].pkginfo
   };
   for (const [key, value] of Object.entries(expected)) {
     if (fields.get(key)?.length !== 1 || fields.get(key)[0] !== value)
@@ -45,7 +50,13 @@ function tar(args, cwd) {
   return result.stdout;
 }
 
-export async function extractArchPackage(artifact, directory, version) {
+export async function extractArchPackage(
+  artifact,
+  directory,
+  version,
+  arch = "x64"
+) {
+  const archPackage = ARCH_PACKAGES[arch];
   // GNU tar interprets Windows drive letters as remote archive hosts.
   const archive = resolve(artifact);
   const archiveDirectory = dirname(archive);
@@ -76,7 +87,8 @@ export async function extractArchPackage(artifact, directory, version) {
   tar(["-xf", basename(archive), "-C", resolve(directory)], archiveDirectory);
   validateArchMetadata(
     await readFile(join(directory, ".PKGINFO"), "utf8"),
-    version
+    version,
+    arch
   );
   const executable = join(directory, "opt/DeepWrite/deepwrite");
   const header = Buffer.alloc(20);
@@ -92,29 +104,37 @@ export async function extractArchPackage(artifact, directory, version) {
     header.toString("hex", 0, 4) !== "7f454c46" ||
     header[4] !== 2 ||
     header[5] !== 1 ||
-    header.readUInt16LE(18) !== 62
+    header.readUInt16LE(18) !== archPackage.elfMachine
   )
-    throw new Error("Arch package executable is not Linux x86_64 ELF");
+    throw new Error(
+      `Arch package executable is not Linux ${archPackage.label} ELF`
+    );
   return executable;
 }
 
 export async function verifyArchTestPackage(
   releaseDir,
   version,
-  { smoke = true } = {}
+  { smoke = true, arch = "x64" } = {}
 ) {
-  const canRun = process.platform === "linux" && process.arch === "x64";
+  const archPackage = ARCH_PACKAGES[arch];
+  const canRun = process.platform === "linux" && process.arch === arch;
   if (canRun && smoke) assertElectronLaunchAllowed();
   const artifact = join(
     releaseDir,
-    `DeepWrite-${version}-linux-x64-test.pkg.tar.xz`
+    `DeepWrite-${version}-linux-${archPackage.label}-test.pkg.tar.xz`
   );
   const info = await stat(artifact);
   if (!info.isFile() || info.size === 0)
     throw new Error(`Arch package is missing or empty: ${artifact}`);
   const temporary = await mkdtemp(join(tmpdir(), "deepwrite-arch-package-"));
   try {
-    const executable = await extractArchPackage(artifact, temporary, version);
+    const executable = await extractArchPackage(
+      artifact,
+      temporary,
+      version,
+      arch
+    );
     const inventory = verifyPackagedRuntime(
       join(temporary, "opt/DeepWrite/resources/app.asar")
     );
@@ -124,7 +144,7 @@ export async function verifyArchTestPackage(
     if (!smoke) return;
     if (!canRun) {
       console.log(
-        `PACKAGE_SMOKE_SKIPPED target=arch-x64 host=${process.platform}-${process.arch} reason=host artifact=${artifact}`
+        `PACKAGE_SMOKE_SKIPPED target=arch-${arch} host=${process.platform}-${process.arch} reason=host artifact=${artifact}`
       );
       return;
     }
@@ -144,7 +164,7 @@ export async function verifyArchTestPackage(
       await rm(profile, { recursive: true, force: true });
     }
     console.log(
-      `PACKAGE_TEST_OK target=arch-x64 bytes=${info.size} artifact=${artifact}`
+      `PACKAGE_TEST_OK target=arch-${arch} bytes=${info.size} artifact=${artifact}`
     );
   } finally {
     await rm(temporary, { recursive: true, force: true });

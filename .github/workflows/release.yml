@@ -33,11 +33,21 @@ jobs:
             workers: 4
             heap: 6144
             command: pnpm pack:test:linux
+          - id: linux-arm64
+            os: ubuntu-24.04-arm
+            workers: 4
+            heap: 6144
+            command: pnpm pack:test:linux:arm64
           - id: win-x64
             os: windows-2025
             workers: 4
             heap: 6144
             command: pnpm pack:test:win
+          - id: win-arm64
+            os: windows-11-arm
+            workers: 4
+            heap: 6144
+            command: pnpm pack:test:win:arm64
           - id: mac-arm64
             os: macos-15
             workers: 3
@@ -140,7 +150,7 @@ jobs:
 
       - name: Build and verify Linux installers
         if: runner.os == 'Linux'
-        run: dbus-run-session -- xvfb-run --auto-servernum pnpm pack:test:linux
+        run: dbus-run-session -- xvfb-run --auto-servernum ${{ matrix.command }}
 
       - name: Build and verify native installers
         if: runner.os != 'Linux'

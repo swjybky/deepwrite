@@ -47,6 +47,7 @@ export function parseTarget(args) {
     "win x64": ["buildWinX64"],
     "win arm64": ["buildWinArm64"],
     "linux x64": ["buildLinuxX64"],
+    "linux arm64": ["buildLinuxArm64"],
     "arch x64": ["buildArchX64"]
   };
   const selected = Object.hasOwn(targets, args.join(" "))
@@ -54,12 +55,13 @@ export function parseTarget(args) {
     : undefined;
   if (!selected) {
     throw new Error(
-      "Usage: node tools/run-test-package.mjs <all | desktop | linux x64 | arch x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
+      "Usage: node tools/run-test-package.mjs <all | desktop | linux x64 | linux arm64 | arch x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
     );
   }
   return Object.fromEntries(
     [
       "buildLinuxX64",
+      "buildLinuxArm64",
       "buildArchX64",
       "buildMacArm64",
       "buildMacX64",
@@ -145,8 +147,8 @@ async function buildWindows(arch, version, archive) {
   );
 }
 
-async function buildLinux(target, version) {
-  if (!target.buildLinuxX64 && !target.buildArchX64) return;
+/** Build AppImage, deb and pacman for the requested architecture; pacman-only keeps the Arch x64 target. */
+async function buildLinuxPackage(arch, { pacmanOnly = false }, version) {
   await run(
     pnpmCommand,
     [
@@ -155,9 +157,12 @@ async function buildLinux(target, version) {
       "--config",
       "electron-builder.yml",
       `--config.electronVersion=${version}`,
+      ...(arch === "arm64"
+        ? ["--config.publish.channel=latest-linux-arm64"]
+        : []),
       "--linux",
-      ...(target.buildLinuxX64 ? ["AppImage", "deb", "pacman"] : ["pacman"]),
-      "--x64",
+      ...(pacmanOnly ? ["pacman"] : ["AppImage", "deb", "pacman"]),
+      `--${arch}`,
       "--publish",
       "never"
     ],
@@ -169,11 +174,19 @@ async function buildLinux(target, version) {
       "exec",
       "node",
       "scripts/verify-test-package.mjs",
-      target.buildArchX64 ? "arch" : "linux",
-      "x64"
+      pacmanOnly ? "arch" : "linux",
+      arch
     ],
     appDirectory
   );
+}
+
+async function buildLinux(target, version) {
+  if (target.buildArchX64)
+    await buildLinuxPackage("x64", { pacmanOnly: true }, version);
+  else if (target.buildLinuxX64) await buildLinuxPackage("x64", {}, version);
+  else if (target.buildLinuxArm64)
+    await buildLinuxPackage("arm64", {}, version);
 }
 
 async function main() {

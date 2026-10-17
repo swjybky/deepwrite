@@ -38,6 +38,14 @@ function layout(version) {
         `${prefix}win-x64-test.exe.blockmap`
       ]
     },
+    {
+      id: "win-arm64",
+      manifest: "latest-arm64.yml",
+      required: [
+        `${prefix}win-arm64-test.exe`,
+        `${prefix}win-arm64-test.exe.blockmap`
+      ]
+    },
     ...["arm64", "x64"].map((arch) => ({
       id: `mac-${arch}`,
       manifest: "latest-mac.yml",
@@ -54,6 +62,15 @@ function layout(version) {
         `${prefix}linux-x86_64-test.AppImage`,
         `${prefix}linux-amd64-test.deb`,
         `${prefix}linux-x64-test.pkg.tar.xz`
+      ]
+    },
+    {
+      id: "linux-arm64",
+      manifest: "latest-linux-arm64.yml",
+      required: [
+        `${prefix}linux-arm64-test.AppImage`,
+        `${prefix}linux-arm64-test.deb`,
+        `${prefix}linux-aarch64-test.pkg.tar.xz`
       ]
     }
   ];

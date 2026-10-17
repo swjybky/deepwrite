@@ -20,7 +20,9 @@ export async function publishTagRelease({ github, context, directory, tag }) {
       typeof file.name !== "string" ||
       basename(file.name) !== file.name ||
       file.name.includes("\\") ||
-      !/^(DeepWrite-|latest(?:-mac|-linux)?\.yml$)/u.test(file.name) ||
+      !/^(DeepWrite-|latest(?:-mac|-linux)?(?:-arm64)?\.yml$)/u.test(
+        file.name
+      ) ||
       !Number.isSafeInteger(file.size) ||
       file.size <= 0 ||
       !/^[a-f\d]{64}$/u.test(file.sha256)

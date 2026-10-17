@@ -38,6 +38,11 @@ async function fixture() {
       ["win-x64-test.exe", "win-x64-test.exe.blockmap"]
     ],
     [
+      "win-arm64",
+      "latest-arm64.yml",
+      ["win-arm64-test.exe", "win-arm64-test.exe.blockmap"]
+    ],
+    [
       "mac-arm64",
       "latest-mac.yml",
       [
@@ -58,6 +63,15 @@ async function fixture() {
         "linux-x86_64-test.AppImage",
         "linux-amd64-test.deb",
         "linux-x64-test.pkg.tar.xz"
+      ]
+    ],
+    [
+      "linux-arm64",
+      "latest-linux-arm64.yml",
+      [
+        "linux-arm64-test.AppImage",
+        "linux-arm64-test.deb",
+        "linux-aarch64-test.pkg.tar.xz"
       ]
     ]
   ];
@@ -94,7 +108,7 @@ describe("verified release bundle", () => {
   it("collects every installer and merges both macOS architectures without overwriting manifests", async () => {
     const { input, output } = await fixture();
     const index = await prepareReleaseAssets(input, output, "1.2.3");
-    expect(index).toHaveLength(14);
+    expect(index).toHaveLength(21);
     const mac = yaml.load(
       await readFile(join(output, "latest-mac.yml"), "utf8")
     );

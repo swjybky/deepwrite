@@ -21,6 +21,14 @@ describe("Arch package metadata", () => {
   it("accepts the current package with Linux keyring dependencies", () => {
     expect(() => validateArchMetadata(metadata, version)).not.toThrow();
   });
+  it("accepts arm64 metadata only when the arm64 package is requested", () => {
+    const arm64 = metadata.replace("arch = x86_64", "arch = aarch64");
+    expect(() => validateArchMetadata(arm64, version, "arm64")).not.toThrow();
+    expect(() => validateArchMetadata(arm64, version)).toThrow("arch");
+    expect(() => validateArchMetadata(metadata, version, "arm64")).toThrow(
+      "arch"
+    );
+  });
   it.each([
     [metadata.replace("pkgname = deepwrite", "pkgname = other"), "pkgname"],
     [metadata.replace("1.2.3-1", "1.2.2-1"), "pkgver"],

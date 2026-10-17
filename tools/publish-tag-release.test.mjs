@@ -10,11 +10,13 @@ afterEach(async () => {
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
   );
 });
-async function fixture() {
+async function fixture(
+  names = ["DeepWrite-1.2.3-win-x64-test.exe", "latest.yml"]
+) {
   const directory = await mkdtemp(join(tmpdir(), "deepwrite-release-upload-"));
   roots.push(directory);
   const files = [];
-  for (const name of ["DeepWrite-1.2.3-win-x64-test.exe", "latest.yml"]) {
+  for (const name of names) {
     const data = Buffer.from(`invalid-test-artifact:${name}`);
     await writeFile(join(directory, name), data);
     files.push({
@@ -105,6 +107,16 @@ describe("tag release publication", () => {
     expect(repos.updateRelease.mock.invocationCallOrder[0]).toBeGreaterThan(
       repos.uploadReleaseAsset.mock.invocationCallOrder[1]
     );
+  });
+  it("accepts arm64 installers and their update manifests", async () => {
+    const { options, repos } = await fixture([
+      "DeepWrite-1.2.3-win-arm64-test.exe",
+      "latest-arm64.yml",
+      "DeepWrite-1.2.3-linux-arm64-test.deb",
+      "latest-linux-arm64.yml"
+    ]);
+    await expect(publishTagRelease(options)).resolves.toContain("example.test");
+    expect(repos.uploadReleaseAsset).toHaveBeenCalledTimes(4);
   });
   it.each([
     { draft: false, body: "<!-- deepwrite-tag-build:123 -->" },

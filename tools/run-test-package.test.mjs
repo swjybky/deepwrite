@@ -35,6 +35,7 @@ describe("test package target selection", () => {
     [["win", "x64"], ["buildWinX64"]],
     [["win", "arm64"], ["buildWinArm64"]],
     [["linux", "x64"], ["buildLinuxX64"]],
+    [["linux", "arm64"], ["buildLinuxArm64"]],
     [["arch", "x64"], ["buildArchX64"]]
   ])("preserves the requested targets for %j", (args, targets) => {
     expect(selected(args)).toEqual(targets);
