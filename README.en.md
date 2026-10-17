@@ -145,6 +145,8 @@ Commit and push the workflow and related changes, set both the root and desktop 
 
 The `Build and publish tagged release` workflow builds and verifies Windows x64, macOS ARM64 / Intel, and Linux x64 installers (AppImage, deb, Arch) on native runners. After every platform succeeds, it checks asset sizes and SHA-512 hashes, merges the two macOS update manifests, uploads all assets to a draft, and publishes the GitHub Release. Failed uploads remain in the current run's draft and can resume when the workflow is rerun. Existing published releases are preserved.
 
+If a tag exists without a workflow run, open this workflow in Actions, choose `Run workflow` on `main`, and enter the existing tag (for example, `v1.6.6`). Recovery checks out that tag and validates its versions without deleting or moving it. For an existing failed run, use `Re-run jobs` to resume uploads to the same draft.
+
 Actions artifacts are retained for 14 days. Publishing uses the repository's `GITHUB_TOKEN` without additional release credentials. Windows builds remain unsigned and macOS builds use the existing ad-hoc signing configuration. Maintain the application's `update.json` through the existing release-manifest process.
 
 ## Project Structure

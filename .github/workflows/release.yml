@@ -4,12 +4,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -38,7 +44,7 @@ jobs:
       run:
         shell: bash
     env:
-      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       DEEPWRITE_TEST_MAX_WORKERS: "2"
 
@@ -46,6 +52,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@v6
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -112,11 +119,12 @@ jobs:
     permissions:
       contents: write
     env:
-      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v6
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           persist-credentials: false
 
       - name: Set up Node.js

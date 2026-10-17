@@ -151,6 +151,8 @@ pnpm pack:test:mac         # 两种 macOS 架构
 
 `Build and publish tagged release` 工作流在各自的原生 runner 上构建并验收 Windows x64、macOS ARM64 / Intel 和 Linux x64（AppImage、deb、Arch）安装包。全部任务通过后，工作流校验文件大小和 SHA-512，合并两种 macOS 架构的更新清单，再将资产上传到草稿并自动公开 GitHub Release。失败会保留构建产物或本轮草稿，重新运行该工作流可续传；已有公开 Release 不会被覆盖。
 
+如果标签已经存在但没有触发记录，在 Actions 中打开该工作流，点击 `Run workflow`，选择 `main` 并填入已有标签（如 `v1.6.6`）。补跑仍从该标签检出源码并核对版本，不需要删除或移动标签。后续有失败记录时使用原运行的 `Re-run jobs`，以继续本轮草稿上传。
+
 构建产物在 Actions 中保留 14 天。发布使用仓库提供的 `GITHUB_TOKEN`，无需额外发布密钥；当前包仍采用既有的 Windows 未签名、macOS ad-hoc 签名方案。应用内的 `update.json` 继续按既有发布清单流程维护。
 
 ## 项目结构
