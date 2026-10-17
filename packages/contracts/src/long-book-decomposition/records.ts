@@ -19,7 +19,25 @@ const generatedCharacterOverview = z.object({
       domain: z.literal("character"),
       title: z.literal("人物概览"),
       // The store also checks the serialized UTF-8 bytes, including escaping.
-      content: z.string().trim().min(1).max(DECOMPOSITION_RECORD_MAX_BYTES)
+      content: z
+        .string()
+        .trim()
+        .min(1)
+        .superRefine((value, context) => {
+          if (
+            new TextEncoder().encode(value).byteLength >
+            DECOMPOSITION_RECORD_MAX_BYTES
+          ) {
+            context.addIssue({
+              code: "too_big",
+              origin: "string",
+              maximum: DECOMPOSITION_RECORD_MAX_BYTES,
+              type: "string",
+              inclusive: true,
+              message: "人物概览超过 32 MiB UTF-8 安全上限。"
+            });
+          }
+        })
     })
   })
 });
