@@ -14,7 +14,14 @@ if (
 
 export default defineConfig({
   plugins: [
-    vue(),
+    vue({
+      template: {
+        // The logo's <image href="/app-icon.png"> targets the public root at
+        // runtime; asset-import compilation turns it into a synthetic URL
+        // module that Windows cannot evaluate in tests.
+        transformAssetUrls: { image: false }
+      }
+    }),
     {
       name: "deepwrite-test-source",
       enforce: "pre",
