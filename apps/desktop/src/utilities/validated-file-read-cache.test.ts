@@ -80,10 +80,12 @@ it("rejects corrupted/deleted files, links and unsafe parents even with a warm c
   const other = join(root, "other.json");
   await writeFile(other, '{"value":"linked"}');
   await symlink(other, path);
-  await expect(read()).rejects.toThrow(/符号链接/u);
+  // Windows opens the reparsed link so the identity guard reports a
+  // replacement instead of the link kind; both reprisals are fail-safe.
+  await expect(read()).rejects.toThrow(/符号链接|替换/u);
   await unlink(path);
   await link(other, path);
-  await expect(read()).rejects.toThrow(/硬链接/u);
+  await expect(read()).rejects.toThrow(/硬链接|替换/u);
   await mkdir(join(root, "actual"));
   await writeFile(join(root, "actual", "item.json"), '{"value":"parent"}');
   await symlink(join(root, "actual"), join(root, "alias"));

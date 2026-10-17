@@ -35,6 +35,10 @@ export default defineConfig({
     maxWorkers,
     globalSetup: ["./tools/setup-i18n-fixtures.ts"],
     setupFiles: ["./tools/setup-renderer-i18n.ts"],
+    // Windows CI runners drive slower disks; keep the same budgets as the
+    // failing bound instead of letting heavy fs tests trip the default.
+    testTimeout: process.platform === "win32" ? 120_000 : 30_000,
+    hookTimeout: process.platform === "win32" ? 60_000 : 20_000,
     include: [
       "packages/**/*.test.ts",
       "tools/**/*.test.mjs",

@@ -347,7 +347,7 @@ describe("offline profile migration", () => {
     ]);
   });
 
-  it("retains source and target when path configuration is invalid or source files cannot be read", async () => {
+  it("retains source and target when path configuration is invalid", async () => {
     const options = await fixture(true);
     await file(
       join(options.sourcePath, "catalog-registry.json"),
@@ -361,18 +361,26 @@ describe("offline profile migration", () => {
     expect(
       await readFile(join(options.sourcePath, "catalog-registry.json"), "utf8")
     ).toBe("{invalid-json");
-    const unreadable = await fixture();
-    const path = join(unreadable.sourcePath, "private.bin");
-    await file(path, "fixture-secret-bytes");
-    await chmod(path, 0);
-    try {
-      await expect(migrateStorageProfile(unreadable)).rejects.toBeDefined();
-      await expect(lstat(unreadable.targetPath)).rejects.toMatchObject({
-        code: "ENOENT"
-      });
-    } finally {
-      await chmod(path, 0o600);
-    }
-    expect(await readFile(path, "utf8")).toBe("fixture-secret-bytes");
   });
+
+  // libuv maps chmod to the Windows read-only attribute, which never blocks
+  // reads for the owner, so an unreadable file cannot be staged there.
+  it.runIf(process.platform !== "win32")(
+    "retains source and target when source files cannot be read",
+    async () => {
+      const unreadable = await fixture();
+      const path = join(unreadable.sourcePath, "private.bin");
+      await file(path, "fixture-secret-bytes");
+      await chmod(path, 0);
+      try {
+        await expect(migrateStorageProfile(unreadable)).rejects.toBeDefined();
+        await expect(lstat(unreadable.targetPath)).rejects.toMatchObject({
+          code: "ENOENT"
+        });
+      } finally {
+        await chmod(path, 0o600);
+      }
+      expect(await readFile(path, "utf8")).toBe("fixture-secret-bytes");
+    }
+  );
 });

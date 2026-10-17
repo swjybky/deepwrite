@@ -189,6 +189,8 @@ describe("LongProjectStore read snapshots", () => {
       projectStore.readDocument(created.projectDirectory, {
         fileId: files.card.id
       })
-    ).rejects.toThrow(/符号链接|普通文件/u);
+      // Windows opens the reparsed link and the identity guard reports a
+      // replacement instead of the link kind; both reprisals are fail-safe.
+    ).rejects.toThrow(/符号链接|普通文件|替换/u);
   });
 });

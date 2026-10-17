@@ -126,13 +126,15 @@ describe("explicit transaction conflict resolution", () => {
     ).rejects.toThrow("暂存文件校验失败");
     await rm(join(root, "edited.md"));
     await symlink(join(root, "pending.md"), join(root, "edited.md"));
+    // Windows opens the reparsed link so the identity guard reports a
+    // replacement instead of the link kind; both reprisals are fail-safe.
     await expect(
       resolveProjectTransactionConflicts({
         projectRoot: root,
         maxFileBytes,
         prepare
       })
-    ).rejects.toThrow("符号链接");
+    ).rejects.toThrow(/符号链接|替换/u);
     expect(JSON.parse(await readFile(journalPath, "utf8"))).toEqual(journal);
   });
 });
