@@ -262,11 +262,12 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
       await Promise.all([
         featureDependencies,
         store.ensureWorkspace(bookId, async () => {
-          const opened = await api.open({ bookId });
+          // Opening the editor only needs the index. Returning a full LongBook
+          // here duplicates the large index through every IPC/schema layer.
+          const opened = await api.getWorkspaceIndex({ bookId });
           return {
             bookId,
-            workspaceIndex: opened.book.workspaceIndex,
-            summary: opened.summary
+            workspaceIndex: opened.workspaceIndex
           };
         })
       ]);

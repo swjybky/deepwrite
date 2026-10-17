@@ -257,12 +257,12 @@ describe("long workspace session coordinator", () => {
   });
 
   it("saves before switching and publishes the requested selection before open settles", async () => {
-    const pendingOpen = deferred<{
-      book: { workspaceIndex: LongWorkspaceIndexSnapshot };
-      summary: LongBookSummary;
+    const pendingIndex = deferred<{
+      bookId: string;
+      workspaceIndex: LongWorkspaceIndexSnapshot;
     }>();
     const harness = createHarness({
-      open: vi.fn(() => pendingOpen.promise)
+      getWorkspaceIndex: vi.fn(() => pendingIndex.promise)
     });
     harness.store.publishBookList(
       listResult([summary("longbook_a"), summary("longbook_b")])
@@ -274,7 +274,7 @@ describe("long workspace session coordinator", () => {
     const requestedSelection = selection("worldbuilding:book-b");
 
     await harness.coordinator.openBook("longbook_b", requestedSelection);
-    expect(harness.api.open).not.toHaveBeenCalled();
+    expect(harness.api.getWorkspaceIndex).not.toHaveBeenCalled();
     expect(harness.refs.activeBookId.value).toBe("longbook_a");
 
     saveAllChanges.mockResolvedValue(true);
@@ -287,15 +287,16 @@ describe("long workspace session coordinator", () => {
     expect(harness.refs.selection.value).toBe(requestedSelection);
     expect(harness.activateProposalBook).toHaveBeenCalledWith("longbook_b");
 
-    pendingOpen.resolve({
-      book: { workspaceIndex: index("longbook_b", 2) },
-      summary: summary("longbook_b", 2)
+    pendingIndex.resolve({
+      bookId: "longbook_b",
+      workspaceIndex: index("longbook_b", 2)
     });
     await opening;
     expect(harness.refs.workspaceIndex.value?.updatedAt).toBe(
       "2026-08-14T08:00:02.000Z"
     );
     expect(harness.prepareOpenDependencies).toHaveBeenCalledOnce();
+    expect(harness.api.open).not.toHaveBeenCalled();
   });
 
   it("publishes only the latest refresh request and synchronizes layout", async () => {
