@@ -115,6 +115,7 @@ export class CloudBackupService {
   async applyBackup(rawPreviewId: string): Promise<CloudBackupApplyResult> {
     const store = this.requireStore();
     const preview = this.takePreview(rawPreviewId, "upload");
+    await this.assertRemotePreviewCurrent(preview);
     const packed = preview.packed;
     if (!packed) {
       throw new Error("备份预览已失效，请重新预览后再同步。");
@@ -165,6 +166,7 @@ export class CloudBackupService {
   async applyRestore(rawPreviewId: string): Promise<CloudBackupApplyResult> {
     const store = this.requireStore();
     const preview = this.takePreview(rawPreviewId, "download");
+    await this.assertRemotePreviewCurrent(preview);
     const workspaceDirectory = await this.hooks.getWorkspaceDirectory();
     if (!workspaceDirectory) {
       throw new Error("请先选择工作目录后再同步云端备份。");
@@ -295,6 +297,16 @@ export class CloudBackupService {
       throw new Error("当前环境未配置云端备份。");
     }
     return this.store;
+  }
+
+  private async assertRemotePreviewCurrent(
+    preview: StoredPreview
+  ): Promise<void> {
+    const current = await this.readRemoteManifest(preview.machineKey);
+    const currentUpdatedAt = current?.updatedAt ?? null;
+    if (currentUpdatedAt !== preview.remoteUpdatedAt) {
+      throw new Error("云端备份在预览后发生变化，请重新预览后再同步。");
+    }
   }
 
   private isoNow(): string {
