@@ -39,6 +39,23 @@ export async function recoverDecompositionJob(
         await service.state.save(job);
         return job;
       }
+      if (job.target.kind === "long") {
+        const durableRevision = receipts.reduce(
+          (revision, receipt) =>
+            Math.max(revision, ...receipt.refs.map((ref) => ref.revision)),
+          job.target.baseRevision
+        );
+        job.target.baseRevision = durableRevision;
+      } else {
+        for (const receipt of receipts)
+          for (const ref of receipt.refs) {
+            const current = job.target.baseRevisions[ref.projectId] ?? 0;
+            job.target.baseRevisions[ref.projectId] = Math.max(
+              current,
+              ref.revision
+            );
+          }
+      }
       const received = new Set(receipts.map(({ unitId }) => unitId));
       const projects =
         job.target.kind === "long"

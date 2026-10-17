@@ -279,6 +279,90 @@ it("目标与回执已落盘、任务状态更新中断后，以真实回执恢�
   ).toEqual(before);
 });
 
+it("长篇目标从已落盘回执恢复单调 revision，避免崩溃后复用版本", async () => {
+  const fixture = await decompositionFixture("continuation", 2);
+  roots.push(fixture.root);
+  const opened = await fixture.service.open(
+    { jobId: fixture.job.id, phase: "read", unitIds: ["chunk:1"] },
+    fixture.job.profile.id,
+    "ldattempt_revision_first"
+  );
+  const first = fixture.source.chapters[0]!;
+  await fixture.service.submit({
+    jobId: fixture.job.id,
+    outputVersion: fixture.job.outputVersion,
+    attemptId: opened.input.attemptId,
+    unitId: `reading:${first.id}`,
+    inputRevision: opened.job.units[`reading:${first.id}`]!.inputRevision,
+    data: {
+      kind: "reading",
+      card: {
+        chunkId: "chunk:1",
+        chapters: [
+          {
+            chapterId: first.id,
+            order: first.order,
+            title: first.title,
+            summary: "第一章摘要。",
+            events: [],
+            characters: []
+          }
+        ],
+        characters: [],
+        world: [],
+        plot: { events: [], foreshadowing: [] },
+        style: { notes: [], excerpts: [] }
+      }
+    }
+  });
+
+  const stale = await fixture.service.state.load(fixture.job.id);
+  if (stale.target?.kind !== "long") throw new Error("长篇目标未绑定。");
+  stale.target.baseRevision = 0;
+  await fixture.service.state.save(stale);
+
+  const recovered = await fixture.service.recover(
+    await fixture.service.state.load(fixture.job.id),
+    true
+  );
+  expect(recovered.target).toMatchObject({ kind: "long", baseRevision: 1 });
+  await fixture.service.control({ jobId: fixture.job.id, action: "resume" });
+  const retried = await fixture.service.open(
+    { jobId: fixture.job.id, phase: "read", unitIds: ["chunk:1"] },
+    fixture.job.profile.id,
+    "ldattempt_revision_second"
+  );
+  const second = fixture.source.chapters[1]!;
+  const receipt = await fixture.service.submit({
+    jobId: fixture.job.id,
+    outputVersion: fixture.job.outputVersion,
+    attemptId: retried.input.attemptId,
+    unitId: `reading:${second.id}`,
+    inputRevision: retried.job.units[`reading:${second.id}`]!.inputRevision,
+    data: {
+      kind: "reading",
+      card: {
+        chunkId: "chunk:1",
+        chapters: [
+          {
+            chapterId: second.id,
+            order: second.order,
+            title: second.title,
+            summary: "第二章摘要。",
+            events: [],
+            characters: []
+          }
+        ],
+        characters: [],
+        world: [],
+        plot: { events: [], foreshadowing: [] },
+        style: { notes: [], excerpts: [] }
+      }
+    }
+  });
+  expect(receipt.refs.every(({ revision }) => revision === 2)).toBe(true);
+});
+
 it("用户编辑产生冲突，保留或明确批准重新生成，且其他用户内容继续存在", async () => {
   const fixture = await styleFixture();
   const receipt = await fixture.service.submit(fixture.input);
