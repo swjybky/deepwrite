@@ -99,6 +99,27 @@ describe("reading submissions take identity and excerpts from the source", () =>
     );
   });
 
+  it("saves writing state and receipt requirements together", async () => {
+    const f = await readingFixture();
+    const snapshots: Array<Awaited<ReturnType<typeof f.service.state.load>>> =
+      [];
+    const save = f.service.state.save.bind(f.service.state);
+    const saving = vi
+      .spyOn(f.service.state, "save")
+      .mockImplementation(async (job) => {
+        snapshots.push(structuredClone(job));
+        return save(job);
+      });
+
+    await f.service.submit(f.input({}, '"铜铃响了。"她低声说...'));
+
+    expect(saving).toHaveBeenCalledTimes(2);
+    expect(snapshots[0]?.units[f.unitId]).toMatchObject({
+      status: "writing",
+      requiredReceiptIds: expect.any(Array)
+    });
+  });
+
   it("names the expected chapter when the identity is wrong", async () => {
     const f = await readingFixture();
     await expect(

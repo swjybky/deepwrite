@@ -2,7 +2,11 @@ import { recoverDecompositionJob } from "./job-recovery";
 import { saveDecompositionRegistry } from "./job-registry";
 import { controlDecompositionJob } from "./job-control";
 import { advanceDecompositionJob } from "./job-advance";
-import { persistDecompositionUnit } from "./unit-persistence";
+import {
+  persistDecompositionUnit,
+  prepareDecompositionUnit,
+  type PersistDecompositionUnitOptions
+} from "./unit-persistence";
 import { createDecompositionJob } from "./job-creation";
 import {
   DecompositionResolvedInputSchema,
@@ -154,9 +158,10 @@ export class DecompositionService {
   write(
     job: LongBookDecompositionJob,
     unitId: string,
-    data: DecompositionSubmitInput["data"]
+    data: DecompositionSubmitInput["data"],
+    options?: PersistDecompositionUnitOptions
   ) {
-    return persistDecompositionUnit(this, job, unitId, data);
+    return persistDecompositionUnit(this, job, unitId, data, options);
   }
   async submit(submitted: DecompositionSubmitInput) {
     const job = await this.state.load(submitted.jobId);
@@ -203,11 +208,20 @@ export class DecompositionService {
     }
     if (input.data.kind === "asset-part")
       return stageDecompositionPart(this, job, input.unitId, input.data.asset);
+    const prepared = prepareDecompositionUnit(
+      job,
+      input.unitId,
+      input.data,
+      registry
+    );
     unit.status = "writing";
     await this.state.save(job);
     let receipt: DecompositionReceipt;
     try {
-      receipt = await this.write(job, input.unitId, input.data);
+      receipt = await this.write(job, input.unitId, input.data, {
+        prepared,
+        saveState: false
+      });
       markDecompositionUnitDone(job, input.unitId, receipt);
       if (input.data.kind === "review")
         for (const issue of input.data.review.issues) {

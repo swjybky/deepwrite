@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DecompositionIdSchema } from "./limits";
+import { DECOMPOSITION_MAX_CHAPTERS, DecompositionIdSchema } from "./limits";
 
 export const DecompositionCharacterTierSchema = z.enum([
   "protagonist",
@@ -15,7 +15,11 @@ export const DecompositionRegistryDataSchema = z.object({
         name: z.string().trim().min(1).max(256),
         aliases: z.array(z.string().trim().min(1).max(256)).max(100),
         tier: DecompositionCharacterTierSchema,
-        firstChapterOrder: z.number().int().min(1).max(10_000),
+        firstChapterOrder: z
+          .number()
+          .int()
+          .min(1)
+          .max(DECOMPOSITION_MAX_CHAPTERS),
         chunkCount: z.number().int().nonnegative(),
         ignored: z.boolean().optional()
       })

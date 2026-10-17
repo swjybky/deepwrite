@@ -272,7 +272,9 @@ async function collectDirectoryFiles(
     }
     files.push(path);
     if (files.length > LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS) {
-      throw new Error("章节文件数量超过 10,000 个安全上限。");
+      throw new Error(
+        `章节文件数量超过 ${LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS.toLocaleString("zh-CN")} 个安全上限。`
+      );
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   ExtrasAgentSettingsInputSchema,
   LongBookAnalysisRuntimeContextSchema
 } from "./index";
+import { LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS } from "./long-book-analysis-limits";
 
 const segment = {
   id: "segment-1",
@@ -159,5 +160,9 @@ describe("long-book analysis contracts", () => {
     expect(() =>
       LongBookAnalysisRuntimeContextSchema.parse(runtime(51))
     ).toThrow(/50/iu);
+  });
+
+  it("supports segmented sources larger than ten thousand chapters", () => {
+    expect(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS).toBe(50_000);
   });
 });
