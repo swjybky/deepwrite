@@ -1,26 +1,37 @@
 import { it } from "vitest";
 
-// Throwaway diagnostic: reproduction of the Windows collection-time failure
-// with per-import results printed. Delete after diagnosing.
-it("prints per-import results for renderer components", async () => {
-  const targets: Array<[string, string]> = [
-    ["AppIcon", "../renderer/src/components/AppIcon.vue"],
-    ["LibraryRemovalDialog", "../renderer/src/components/LibraryRemovalDialog.vue"],
-    ["LibraryGroupActionMenu", "../renderer/src/components/LibraryGroupActionMenu.vue"],
-    ["ConversationMessageItem", "../renderer/src/components/ConversationMessageItem.vue"],
-    ["AgentTeamSaveBar", "../renderer/src/components/AgentTeamSaveBar.vue"],
-    ["i18nIndex", "../renderer/src/i18n/index.ts"]
-  ];
-  const results: string[] = [];
-  for (const [label, specifier] of targets) {
+// Throwaway diagnostic: verify whether AppIcon.vue alone trips the Windows
+// module evaluator, then whether the full graph still fails. Delete after
+// diagnosing.
+it("probes renderer component imports without vite-ignore", async () => {
+  const out: string[] = [];
+  const record = async (label: string, load: () => Promise<unknown>) => {
     try {
-      await import(/* @vite-ignore */ specifier);
-      results.push(`${label}: ok`);
+      await load();
+      out.push(`${label}: ok`);
     } catch (error) {
-      results.push(`${label}: ${error instanceof Error ? error.stack : String(error)}`);
+      out.push(
+        `${label}: FAIL ${error instanceof Error ? error.stack : String(error)}`
+      );
     }
-  }
-  console.error("PROBE-RESULTS-BEGIN");
-  console.error(results.join("\n\n"));
-  console.error("PROBE-RESULTS-END");
+  };
+  await record(
+    "AppIcon",
+    () => import("../renderer/src/components/AppIcon.vue")
+  );
+  await record(
+    "AppIcon again",
+    () => import("../renderer/src/components/AppIcon.vue")
+  );
+  await record(
+    "LibraryGroupActionMenu",
+    () => import("../renderer/src/components/LibraryGroupActionMenu.vue")
+  );
+  await record(
+    "AgentTeamSaveBar",
+    () => import("../renderer/src/components/AgentTeamSaveBar.vue")
+  );
+  console.error("PROBE2-BEGIN");
+  console.error(out.join("\n"));
+  console.error("PROBE2-END");
 });

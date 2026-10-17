@@ -27,7 +27,16 @@ afterEach(async () => {
 
 async function harness() {
   const directory = await mkdtemp(join(tmpdir(), "deepwrite-child-close-"));
-  cleanups.push(() => rm(directory, { recursive: true, force: true }));
+  // Windows keeps lazily reopened SQLite handles briefly after close();
+  // rm retries the busy lock instead of racing the final flush there.
+  cleanups.push(() =>
+    rm(directory, {
+      recursive: true,
+      force: true,
+      maxRetries: process.platform === "win32" ? 40 : 0,
+      retryDelay: process.platform === "win32" ? 150 : 0
+    })
+  );
   const disk = new RendererStateStore(directory);
   setActivePinia(createPinia());
   const store = useConversationStore();
