@@ -117,6 +117,27 @@ it("reuses content-only directory nodes while selections resolve the latest file
   expect(JSON.parse(JSON.stringify(after))).toEqual(JSON.parse(expected));
 });
 
+it("does not rescan an unchanged index on repeated projections", () => {
+  const { book, index } = longWorkspaceScaleFixture(600);
+  const chapters = index.chapters;
+  let reads = 0;
+  Object.defineProperty(index, "chapters", {
+    configurable: true,
+    get() {
+      reads += 1;
+      return chapters;
+    }
+  });
+  const cache = createLongWorkspaceNavigationCache();
+
+  cache.project(book, index, "zh-CN");
+  const firstProjectionReads = reads;
+  cache.project(book, index, "zh-CN");
+
+  expect(firstProjectionReads).toBeGreaterThan(0);
+  expect(reads).toBe(firstProjectionReads);
+});
+
 it("rebuilds for order/status/commit/layout/language changes and releases removed books", () => {
   const { book, index } = longWorkspaceScaleFixture(3);
   const cache = createLongWorkspaceNavigationCache();

@@ -11,12 +11,36 @@ import {
 import { projectLongWorkspaceNavigation } from "./longWorkspaceResourceTree";
 
 /** File revisions and prose/plot summaries do not change the visible directory. */
+const navigationKeys = new WeakMap<
+  LongBookSummary,
+  WeakMap<LongWorkspaceIndexSnapshot, string>
+>();
+const emptyIndexKeys = new WeakMap<LongBookSummary, string>();
+
 function navigationKey(
   book: LongBookSummary,
   index?: LongWorkspaceIndexSnapshot | null
 ) {
+  if (!index) {
+    const cached = emptyIndexKeys.get(book);
+    if (cached) return cached;
+    const key = JSON.stringify([
+      book.title,
+      { ...book.navigation, updatedAt: undefined },
+      null
+    ]);
+    emptyIndexKeys.set(book, key);
+    return key;
+  }
+  let keysForBook = navigationKeys.get(book);
+  if (!keysForBook) {
+    keysForBook = new WeakMap<LongWorkspaceIndexSnapshot, string>();
+    navigationKeys.set(book, keysForBook);
+  }
+  const cached = keysForBook.get(index);
+  if (cached) return cached;
   const navigation = { ...book.navigation, updatedAt: undefined };
-  return JSON.stringify([
+  const key = JSON.stringify([
     book.title,
     navigation,
     index
@@ -56,6 +80,8 @@ function navigationKey(
         }
       : null
   ]);
+  keysForBook.set(index, key);
+  return key;
 }
 
 /** Owned by one workspace tree; deleted books release their nodes and snapshots. */
@@ -84,8 +110,16 @@ export function createLongWorkspaceNavigationCache() {
       language: string,
       catalog?: unknown
     ) {
-      const key = navigationKey(book, index);
       const previous = entries.get(book.id);
+      if (
+        previous?.book === book &&
+        previous?.index === index &&
+        previous.language === language &&
+        previous.catalog === catalog
+      ) {
+        return previous.nodes;
+      }
+      const key = navigationKey(book, index);
       if (
         previous?.key === key &&
         previous.language === language &&
