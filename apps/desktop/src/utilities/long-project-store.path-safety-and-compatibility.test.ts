@@ -255,7 +255,9 @@ describe("LongProjectStore: path-safety-and-compatibility", () => {
       linked.projectStore.readDocument(linked.created.projectDirectory, {
         fileId: linkedBody.id
       })
-    ).rejects.toThrow(/普通文件|符号链接/u);
+      // Windows resolves the outside link through the escape guard instead
+      // of the file-kind guard; both rebuttals are fail-safe.
+    ).rejects.toThrow(/普通文件|符号链接|越过/u);
 
     const invalidUtf8 = await createFixture("utf8");
     const utf8Body = firstChapterFiles(invalidUtf8.created.book).body;

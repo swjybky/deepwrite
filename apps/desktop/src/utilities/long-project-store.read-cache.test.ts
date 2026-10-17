@@ -120,9 +120,11 @@ describe("LongProjectStore read snapshots", () => {
     expect(result.file).toEqual(body);
     await unlink(path);
     await symlink(join(created.projectDirectory, "deepwrite.json"), path);
+    // Windows opens the reparsed link and reports the identity guard's
+    // replacement error instead of the link kind; both are fail-safe.
     await expect(
       projectStore.readDocument(created.projectDirectory, { fileId: body.id })
-    ).rejects.toThrow(/符号链接|普通文件/u);
+    ).rejects.toThrow(/符号链接|普通文件|替换/u);
   });
 
   it("recovers a pending body-only transaction before serving a warm snapshot", async () => {

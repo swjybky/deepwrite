@@ -227,117 +227,127 @@ describe("FolderCatalogStore: migration-and-projects", () => {
     expect(reloaded).toMatchObject(source);
   });
 
-  it("builds a content-aware index while Markdown files are unreadable", async () => {
-    const root = await makeTemporaryRoot("deepwrite-folder-index-");
-    const store = new FolderCatalogStore({
-      userDataPath: join(root, "user-data")
-    });
-    const source = catalogFixture();
-    source.books[0]!.documents.find(
-      ({ id }) => id === "worldbuilding"
-    )!.content = "雾城终年没有日出。";
-    source.books[0]!.draft.sections[0]!.body.content = "第一节正文";
-    source.books[0]!.draft.sections[0]!.characterState.content = "主角受伤";
-    source.skills[0]!.overview = "技能库介绍";
-    await store.migrateSnapshot(source);
+  // Windows chmod never blocks reads for the owner, so the whole scenario
+  // (EACCES reads and empty index contents) is not reproducible there.
+  it.runIf(process.platform !== "win32")(
+    "builds a content-aware index while Markdown files are unreadable",
+    async () => {
+      const root = await makeTemporaryRoot("deepwrite-folder-index-");
+      const store = new FolderCatalogStore({
+        userDataPath: join(root, "user-data")
+      });
+      const source = catalogFixture();
+      source.books[0]!.documents.find(
+        ({ id }) => id === "worldbuilding"
+      )!.content = "雾城终年没有日出。";
+      source.books[0]!.draft.sections[0]!.body.content = "第一节正文";
+      source.books[0]!.draft.sections[0]!.characterState.content = "主角受伤";
+      source.skills[0]!.overview = "技能库介绍";
+      await store.migrateSnapshot(source);
 
-    const registry = JSON.parse(await readFile(store.registryPath, "utf8")) as {
-      projects: Array<{ id: string; projectDirectory: string }>;
-    };
-    const markdownFiles: Array<{
-      id: string;
-      path: string;
-      bytes: number;
-    }> = [];
-    for (const project of registry.projects) {
-      const manifest = JSON.parse(
-        await readFile(join(project.projectDirectory, "deepwrite.json"), "utf8")
+      const registry = JSON.parse(
+        await readFile(store.registryPath, "utf8")
       ) as {
-        kind: string;
-        documents?: Array<{ id: string; path: string }>;
-        draft?: {
-          sections: Array<{
-            body: { id: string; path: string };
-            characterState: { id: string; path: string };
-          }>;
-        };
-        entries?: Array<{ id: string; path: string }>;
+        projects: Array<{ id: string; projectDirectory: string }>;
       };
-      const items = [
-        ...(manifest.documents ?? []),
-        ...(manifest.draft?.sections.flatMap((section) => [
-          section.body,
-          section.characterState
-        ]) ?? []),
-        ...(manifest.entries ?? [])
-      ];
-      for (const item of items) {
-        const path = join(project.projectDirectory, item.path);
-        markdownFiles.push({
-          id: item.id,
-          path,
-          bytes: (await stat(path)).size
-        });
-        await chmod(path, 0o000);
-      }
-    }
-
-    await expect(
-      readFile(markdownFiles[0]!.path, "utf8")
-    ).rejects.toMatchObject({
-      code: "EACCES"
-    });
-    const index = await new FolderCatalogStore({
-      userDataPath: join(root, "user-data")
-    }).indexSnapshot();
-    expect(() => CatalogSnapshotSchema.parse(index)).not.toThrow();
-    expect(index.projectDiagnostics).toBeUndefined();
-    expect(
-      index.books[0]!.documents.every(({ content }) => content === "")
-    ).toBe(true);
-    expect(
-      index.books[0]!.draft.sections.every(
-        ({ body, characterState }) =>
-          body.content === "" && characterState.content === ""
-      )
-    ).toBe(true);
-    expect(index.materials[0]).toMatchObject({
-      overview: "",
-      overviewContentBytes: Buffer.byteLength("人物备忘", "utf8"),
-      entries: [
-        {
-          id: "material-entry",
-          body: "",
-          contentBytes: Buffer.byteLength("守夜人从不在白天出现。", "utf8")
-        }
-      ]
-    });
-    expect(index.skills[0]).toMatchObject({
-      overview: "",
-      overviewContentBytes: Buffer.byteLength("技能库介绍", "utf8"),
-      entries: [
-        {
-          id: "skill-entry",
-          body: "",
-          contentBytes: Buffer.byteLength("保持短句和悬念。", "utf8")
-        }
-      ]
-    });
-    for (const file of markdownFiles) {
-      const indexedDocument = [
-        ...index.books.flatMap((book) => [
-          ...book.documents,
-          ...book.draft.sections.flatMap((section) => [
+      const markdownFiles: Array<{
+        id: string;
+        path: string;
+        bytes: number;
+      }> = [];
+      for (const project of registry.projects) {
+        const manifest = JSON.parse(
+          await readFile(
+            join(project.projectDirectory, "deepwrite.json"),
+            "utf8"
+          )
+        ) as {
+          kind: string;
+          documents?: Array<{ id: string; path: string }>;
+          draft?: {
+            sections: Array<{
+              body: { id: string; path: string };
+              characterState: { id: string; path: string };
+            }>;
+          };
+          entries?: Array<{ id: string; path: string }>;
+        };
+        const items = [
+          ...(manifest.documents ?? []),
+          ...(manifest.draft?.sections.flatMap((section) => [
             section.body,
             section.characterState
-          ])
-        ]),
-        ...index.materials.flatMap((library) => library.entries),
-        ...index.skills.flatMap((library) => library.entries)
-      ].find(({ id }) => id === file.id);
-      expect(indexedDocument?.contentBytes).toBe(file.bytes);
+          ]) ?? []),
+          ...(manifest.entries ?? [])
+        ];
+        for (const item of items) {
+          const path = join(project.projectDirectory, item.path);
+          markdownFiles.push({
+            id: item.id,
+            path,
+            bytes: (await stat(path)).size
+          });
+          await chmod(path, 0o000);
+        }
+      }
+
+      await expect(
+        readFile(markdownFiles[0]!.path, "utf8")
+      ).rejects.toMatchObject({
+        code: "EACCES"
+      });
+      const index = await new FolderCatalogStore({
+        userDataPath: join(root, "user-data")
+      }).indexSnapshot();
+      expect(() => CatalogSnapshotSchema.parse(index)).not.toThrow();
+      expect(index.projectDiagnostics).toBeUndefined();
+      expect(
+        index.books[0]!.documents.every(({ content }) => content === "")
+      ).toBe(true);
+      expect(
+        index.books[0]!.draft.sections.every(
+          ({ body, characterState }) =>
+            body.content === "" && characterState.content === ""
+        )
+      ).toBe(true);
+      expect(index.materials[0]).toMatchObject({
+        overview: "",
+        overviewContentBytes: Buffer.byteLength("人物备忘", "utf8"),
+        entries: [
+          {
+            id: "material-entry",
+            body: "",
+            contentBytes: Buffer.byteLength("守夜人从不在白天出现。", "utf8")
+          }
+        ]
+      });
+      expect(index.skills[0]).toMatchObject({
+        overview: "",
+        overviewContentBytes: Buffer.byteLength("技能库介绍", "utf8"),
+        entries: [
+          {
+            id: "skill-entry",
+            body: "",
+            contentBytes: Buffer.byteLength("保持短句和悬念。", "utf8")
+          }
+        ]
+      });
+      for (const file of markdownFiles) {
+        const indexedDocument = [
+          ...index.books.flatMap((book) => [
+            ...book.documents,
+            ...book.draft.sections.flatMap((section) => [
+              section.body,
+              section.characterState
+            ])
+          ]),
+          ...index.materials.flatMap((library) => library.entries),
+          ...index.skills.flatMap((library) => library.entries)
+        ].find(({ id }) => id === file.id);
+        expect(indexedDocument?.contentBytes).toBe(file.bytes);
+      }
     }
-  });
+  );
 
   it("reads book files, draft files, library entries, and overviews on demand", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-read-document-");
@@ -495,8 +505,8 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       input: { title: "雨夜/来信", genre: "悬疑" }
     });
 
-    expect(first.projectDirectory).toMatch(/\/雨夜-来信$/u);
-    expect(second.projectDirectory).toMatch(/\/雨夜-来信-2$/u);
+    expect(first.projectDirectory).toMatch(/[\\/]雨夜-来信$/u);
+    expect(second.projectDirectory).toMatch(/[\\/]雨夜-来信-2$/u);
     expect(first.resource.id).toMatch(/^book-[0-9a-f]{8}$/);
     expect(second.resource.id).toMatch(/^book-[0-9a-f]{8}$/);
     expect(first.resource.documents).toHaveLength(7);

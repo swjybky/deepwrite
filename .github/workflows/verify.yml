@@ -39,3 +39,34 @@ jobs:
 
       - name: Verify repository
         run: pnpm verify
+
+  verify-windows:
+    # Windows test suites never had a precheck; keep unit coverage honest
+    # there before the release pipeline discovers it on packaging hosts.
+    name: Verify on Windows
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Preserve LF source files
+        run: git config --global core.autocrlf false
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify repository
+        run: pnpm verify

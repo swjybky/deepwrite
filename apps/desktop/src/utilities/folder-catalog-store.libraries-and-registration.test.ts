@@ -503,8 +503,8 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
       }
     });
     expect(skill.resource.id).toMatch(/^skill-[0-9a-f]{8}$/);
-    expect(material.projectDirectory).toMatch(/\/人物-素材$/u);
-    expect(skill.projectDirectory).toMatch(/\/悬念技能$/u);
+    expect(material.projectDirectory).toMatch(/[\\/]人物-素材$/u);
+    expect(skill.projectDirectory).toMatch(/[\\/]悬念技能$/u);
     await expect(
       access(join(material.projectDirectory, "entries"))
     ).resolves.toBeUndefined();

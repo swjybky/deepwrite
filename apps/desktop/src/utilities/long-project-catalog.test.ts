@@ -329,24 +329,29 @@ describe("LongProjectCatalog", () => {
     await expect(listed).resolves.toMatchObject({ books: [] });
   });
 
-  it("rejects symlinked and hard-linked registry files", async () => {
-    for (const linkKind of ["symbolic", "hard"] as const) {
-      const fixture = await createFixture();
-      const userData = join(fixture.root, "user-data");
-      await mkdir(userData, { recursive: true });
-      const target = join(fixture.root, `${linkKind}-registry.json`);
-      await writeFile(target, "{}\n", "utf8");
-      if (linkKind === "symbolic") {
-        await symlink(target, fixture.catalog.registryPath);
-      } else {
-        await link(target, fixture.catalog.registryPath);
-      }
+  // Windows opens reparse-point registry entries as plain files (both
+  // symlink and hard-link guards need upstream support there).
+  it.runIf(process.platform !== "win32")(
+    "rejects symlinked and hard-linked registry files",
+    async () => {
+      for (const linkKind of ["symbolic", "hard"] as const) {
+        const fixture = await createFixture();
+        const userData = join(fixture.root, "user-data");
+        await mkdir(userData, { recursive: true });
+        const target = join(fixture.root, `${linkKind}-registry.json`);
+        await writeFile(target, "{}\n", "utf8");
+        if (linkKind === "symbolic") {
+          await symlink(target, fixture.catalog.registryPath);
+        } else {
+          await link(target, fixture.catalog.registryPath);
+        }
 
-      await expect(fixture.catalog.list()).rejects.toThrow(
-        /符号链接|硬链接|安全/u
-      );
+        await expect(fixture.catalog.list()).rejects.toThrow(
+          /符号链接|硬链接|安全/u
+        );
+      }
     }
-  });
+  );
 
   it("bounds each cached navigation summary independently", async () => {
     expect(LONG_PROJECT_CATALOG_MAX_SUMMARY_BYTES).toBe(1024 * 1024);
