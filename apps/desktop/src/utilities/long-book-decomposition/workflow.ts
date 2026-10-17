@@ -34,6 +34,9 @@ export function addDecompositionUnit(
       );
       prior.status = "pending";
       prior.attempts = 0;
+      prior.outputRefs = [];
+      prior.receiptIds = [];
+      delete prior.requiredReceiptIds;
     }
     if (phase === "integrate" && prior.status === "skipped") {
       prior.status = "pending";
