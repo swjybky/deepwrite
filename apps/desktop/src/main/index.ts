@@ -524,8 +524,8 @@ function handleUnexpectedExit(worker: UtilityWorkerName, reason: string): void {
       smokeEventTap?.(event);
       broadcastEvent(event);
     }
-    activeRuns.clear();
     releaseConversationRuns(activeRuns);
+    activeRuns.clear();
     pendingUsageContexts.clear();
   }
 
