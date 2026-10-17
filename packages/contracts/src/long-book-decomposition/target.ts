@@ -63,16 +63,29 @@ export const DecompositionContentRefSchema = z.object({
 export type DecompositionContentRef = z.infer<
   typeof DecompositionContentRefSchema
 >;
-export const DecompositionReceiptSchema = z.object({
-  id: DecompositionIdSchema,
-  jobId: DecompositionIdSchema,
-  outputVersion: z.number().int().positive(),
-  unitId: DecompositionIdSchema,
-  inputRevision: z.string().min(1).max(256),
-  /** Empty for units whose only output is the task-local record. */
-  refs: z.array(DecompositionContentRefSchema).max(10_000),
-  savedAt: z.string().datetime(),
-  /** Entries staged so far by a partial submission; the unit is not done. */
-  staged: z.number().int().nonnegative().optional()
-});
+export const DECOMPOSITION_RECEIPT_MAX_BYTES = 4 * 1024 * 1024;
+export const DecompositionReceiptSchema = z
+  .object({
+    id: DecompositionIdSchema,
+    jobId: DecompositionIdSchema,
+    outputVersion: z.number().int().positive(),
+    unitId: DecompositionIdSchema,
+    inputRevision: z.string().min(1).max(256),
+    /** Empty for units whose only output is the task-local record. */
+    refs: z.array(DecompositionContentRefSchema).max(10_000),
+    savedAt: z.string().datetime(),
+    /** Entries staged so far by a partial submission; the unit is not done. */
+    staged: z.number().int().nonnegative().optional()
+  })
+  .superRefine((value, context) => {
+    if (
+      new TextEncoder().encode(JSON.stringify(value)).byteLength >
+      DECOMPOSITION_RECEIPT_MAX_BYTES
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "拆解回执超过 4 MiB UTF-8 安全上限。"
+      });
+    }
+  });
 export type DecompositionReceipt = z.infer<typeof DecompositionReceiptSchema>;

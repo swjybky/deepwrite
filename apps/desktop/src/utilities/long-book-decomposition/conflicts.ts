@@ -1,4 +1,5 @@
 import {
+  DECOMPOSITION_RECEIPT_MAX_BYTES,
   DecompositionReceiptSchema,
   type LongBookDecompositionJob,
   type DecompositionContentRef,
@@ -88,7 +89,7 @@ export async function resolveDecompositionConflict(
                     await readSecureTextFile(
                       opened.projectDirectory,
                       existing.path,
-                      4 * 1024 * 1024
+                      DECOMPOSITION_RECEIPT_MAX_BYTES
                     )
                   ).content
                 )

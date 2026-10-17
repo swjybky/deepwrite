@@ -1,4 +1,5 @@
 import {
+  DECOMPOSITION_RECEIPT_MAX_BYTES,
   DecompositionReceiptSchema,
   type LongBookDecompositionJob
 } from "@deepwrite/contracts";
@@ -114,7 +115,7 @@ export async function commitDecompositionLedger(
         const disk = await readSecureTextFile(
           opened.projectDirectory,
           file.path,
-          4 * 1024 * 1024
+          DECOMPOSITION_RECEIPT_MAX_BYTES
         );
         const receipt = DecompositionReceiptSchema.parse(
           JSON.parse(disk.content)

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import {
   MaterialLibraryProjectManifestSchema,
+  DECOMPOSITION_RECEIPT_MAX_BYTES,
   type LongBookDecompositionJob,
   type DecompositionContentRef,
   type DecompositionRecord,
@@ -170,7 +171,12 @@ export class DecompositionRecordsReader {
       ids.set(unitId, new Set([id]));
     }
     const persisted = await mapDecompositionReads(files, ({ root, path }) =>
-      decompositionReceiptReads.read(root, path, 4 * 1024 * 1024, "目标内回执")
+      decompositionReceiptReads.read(
+        root,
+        path,
+        DECOMPOSITION_RECEIPT_MAX_BYTES,
+        "目标内回执"
+      )
     );
     // An obsolete input cannot prove a unit is done, but its atomic writes
     // remain authoritative for shared resources (e.g. renumbered plot arcs).
