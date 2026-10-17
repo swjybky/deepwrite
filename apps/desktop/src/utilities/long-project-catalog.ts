@@ -25,7 +25,9 @@ const REGISTRY_FILE = "long-project-registry.json";
 const REGISTRY_BACKUP_FILE = "long-project-registry.json.bak";
 const REGISTRY_LOCK_FILE = "long-project-registry.lock";
 const MAX_REGISTRY_BYTES = 4 * 1024 * 1024;
-export const LONG_PROJECT_CATALOG_MAX_SUMMARY_BYTES = 1024 * 1024;
+// Keep one summary below the 4 MiB registry ceiling while allowing large
+// chapter navigation indexes to remain cached and reopenable.
+export const LONG_PROJECT_CATALOG_MAX_SUMMARY_BYTES = 3 * 1024 * 1024;
 const REGISTRY_LOCK_TIMEOUT_MS = 10_000;
 const REGISTRY_LOCK_RETRY_MS = 20;
 const REGISTRY_LOCK_STALE_MS = 60_000;

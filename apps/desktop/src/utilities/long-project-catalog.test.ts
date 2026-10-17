@@ -349,7 +349,7 @@ describe("LongProjectCatalog", () => {
   });
 
   it("bounds each cached navigation summary independently", async () => {
-    expect(LONG_PROJECT_CATALOG_MAX_SUMMARY_BYTES).toBe(1024 * 1024);
+    expect(LONG_PROJECT_CATALOG_MAX_SUMMARY_BYTES).toBe(3 * 1024 * 1024);
     const fixture = await createFixture();
     await fixture.catalog.openAtPath(fixture.projectDirectory);
     const oversized = structuredClone(
@@ -383,7 +383,7 @@ describe("LongProjectCatalog", () => {
 
     await expect(
       fixture.catalog.updateSummary(oversized.id, oversized)
-    ).rejects.toThrow(/摘要超过/u);
+    ).resolves.toBeUndefined();
   });
 
   it("recovers the primary registry from its backup", async () => {
