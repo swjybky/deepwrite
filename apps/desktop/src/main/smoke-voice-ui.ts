@@ -19,7 +19,9 @@ async function voiceUiStep(step: VoiceUiStep) {
     read: () => T,
     label: string
   ): Promise<NonNullable<T>> {
-    const deadline = Date.now() + 5_000;
+    // Cold CI runners mount the settings UI much slower than dev machines;
+    // give each step enough room while still bounding a broken UI.
+    const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
       document
         .querySelector<HTMLButtonElement>(".startup-alert-close")

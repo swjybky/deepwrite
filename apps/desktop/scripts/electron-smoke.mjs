@@ -110,7 +110,9 @@ const timeout = setTimeout(
       ? 240_000
       : bookIdentityOnly
         ? 120_000
-        : 40_000
+        : // Voice UI steps tolerate slow cold starts on CI; keep the bound
+          // generous enough for them to finish there.
+          90_000
 );
 
 child.on("close", async (code) => {
