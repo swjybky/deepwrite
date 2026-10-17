@@ -47,8 +47,14 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       DEEPWRITE_TEST_MAX_WORKERS: "2"
+      # vue-tsc exceeds the macOS runner's default ~2 GiB V8 heap.
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
+      - name: Preserve LF source files on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
       - name: Check out tagged source
         uses: actions/checkout@v6
         with:
@@ -77,7 +83,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            xvfb dbus-x11 xz-utils libgtk-3-0t64 libnotify4 libnss3 \
+            xvfb dbus-x11 xz-utils libarchive-tools libgtk-3-0t64 libnotify4 libnss3 \
             libxss1 libasound2t64 libsecret-1-0 libgbm1 libxtst6 libatspi2.0-0t64
           # Permit Electron's user-namespace sandbox on this disposable CI runner.
           if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
