@@ -46,3 +46,36 @@ it("still rejects a missing authoritative registry record after the merge is mar
     })
   ).rejects.toThrow();
 });
+
+it("reconstructs a large paged status result from streamed JSON fragments", async () => {
+  const fixture = await decompositionFixture("materials", 1);
+  roots.push(fixture.root);
+  const template = fixture.job.units["chunk:1"]!;
+  for (let index = 0; index < 500; index += 1) {
+    fixture.job.units[`unit:test:${index}`] = {
+      ...template,
+      dependencies: []
+    };
+  }
+
+  let cursor = 0;
+  let content = "";
+  let totalCharacters: number | undefined;
+  let pages = 0;
+  do {
+    const page = await queryDecomposition(
+      fixture.job,
+      fixture.root,
+      fixture.service.reader,
+      { kind: "status", ...(cursor > 0 ? { cursor } : {}) }
+    );
+    content += page.content;
+    totalCharacters = page.totalCharacters;
+    cursor = page.nextCursor ?? 0;
+    pages += 1;
+  } while (cursor > 0);
+
+  expect(pages).toBeGreaterThan(1);
+  expect(totalCharacters).toBe(content.length);
+  expect(JSON.parse(content)).toMatchObject({ phase: fixture.job.phase });
+});

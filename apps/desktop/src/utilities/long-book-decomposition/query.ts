@@ -26,6 +26,71 @@ import { briefContext, buildDecompositionBrief } from "./briefs";
 const SEARCH_PER_CHAPTER = 3;
 const SEARCH_TOTAL = 40;
 
+/**
+ * Walk JSON as fragments so a paged query never builds the complete payload
+ * string before returning the requested window.
+ */
+function* jsonFragments(value: unknown): Generator<string> {
+  if (value === null) {
+    yield "null";
+    return;
+  }
+  if (typeof value === "string") {
+    yield JSON.stringify(value);
+    return;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    yield JSON.stringify(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    yield "[";
+    for (const [index, item] of value.entries()) {
+      if (index > 0) yield ",";
+      yield* jsonFragments(item);
+    }
+    yield "]";
+    return;
+  }
+  if (typeof value === "object") {
+    yield "{";
+    for (const [index, [key, item]] of Object.entries(value).entries()) {
+      if (index > 0) yield ",";
+      yield `${JSON.stringify(key)}:`;
+      yield* jsonFragments(item);
+    }
+    yield "}";
+    return;
+  }
+  yield "null";
+}
+
+function pageJsonValue(
+  value: unknown,
+  cursor: number,
+  pageCharacters: number
+): { content: string; nextCursor: number | null; totalCharacters: number } {
+  const start = Math.max(0, cursor);
+  const end = start + pageCharacters;
+  let offset = 0;
+  let content = "";
+  for (const fragment of jsonFragments(value)) {
+    const fragmentEnd = offset + fragment.length;
+    if (fragmentEnd > start && offset < end) {
+      content += fragment.slice(
+        Math.max(0, start - offset),
+        Math.min(fragment.length, end - offset)
+      );
+    }
+    offset = fragmentEnd;
+  }
+  return {
+    content,
+    nextCursor: end < offset ? end : null,
+    totalCharacters: offset
+  };
+}
+
 export async function queryDecomposition(
   job: LongBookDecompositionJob,
   workspaceDirectory: string,
@@ -266,26 +331,17 @@ async function querySnapshot(
       }
     } else result = cards;
   }
-  const text = JSON.stringify(result);
   const cursor = request.cursor ?? 0;
-  const end = Math.min(
-    text.length,
-    cursor +
-      Math.min(
-        DECOMPOSITION_QUERY_CHARACTERS,
-        Math.floor(
-          (decompositionInputBudget(
-            job.phase === "read" ? job.models.reading : job.models.integration,
-            job.profile.systemPrompt.length
-          ) /
-            1.5) *
-            0.7
-        )
-      )
+  const pageCharacters = Math.min(
+    DECOMPOSITION_QUERY_CHARACTERS,
+    Math.floor(
+      (decompositionInputBudget(
+        job.phase === "read" ? job.models.reading : job.models.integration,
+        job.profile.systemPrompt.length
+      ) /
+        1.5) *
+        0.7
+    )
   );
-  return {
-    content: text.slice(cursor, end),
-    nextCursor: end < text.length ? end : null,
-    totalCharacters: text.length
-  };
+  return pageJsonValue(result, cursor, pageCharacters);
 }
