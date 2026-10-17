@@ -97,8 +97,8 @@ describe("TreeNodeItem actions", () => {
     expect(itemMenu).toContain("moveDown");
     expect(itemMenu).toContain("delete");
     expect(itemMenu).not.toContain("修改名称");
-    expect(source).toContain("isFirstLongTreeItem(child)");
-    expect(source).toContain("isLastLongTreeItem(child)");
+    expect(source).toContain("longTreeItemBoundaries.get(child.id)?.first");
+    expect(source).toContain("longTreeItemBoundaries.get(child.id)?.last");
     expect(source).toContain(
       ':disabled="longTreeActionsDisabled || longTreeItemMoveUpDisabled"'
     );

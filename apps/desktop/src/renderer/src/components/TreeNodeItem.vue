@@ -210,26 +210,22 @@ const isDropTarget = ref(false);
 const draftUnitLabel = computed(() =>
   props.node.workspaceType === "script" ? t("episode") : t("section")
 );
-
-function isFirstLongTreeItem(node: ResourceTreeNode): boolean {
-  const kind = node.longTreeItem?.kind;
-  if (!kind) return false;
-  return (
-    props.node.children?.find(
-      (candidate) => candidate.longTreeItem?.kind === kind
-    )?.id === node.id
-  );
-}
-
-function isLastLongTreeItem(node: ResourceTreeNode): boolean {
-  const kind = node.longTreeItem?.kind;
-  if (!kind) return false;
-  const siblings =
-    props.node.children?.filter(
-      (candidate) => candidate.longTreeItem?.kind === kind
-    ) ?? [];
-  return siblings.at(-1)?.id === node.id;
-}
+const longTreeItemBoundaries = computed(() => {
+  const grouped = new Map<string, string[]>();
+  for (const child of props.node.children ?? []) {
+    const kind = child.longTreeItem?.kind;
+    if (!kind) continue;
+    grouped.set(kind, [...(grouped.get(kind) ?? []), child.id]);
+  }
+  const boundaries = new Map<string, { first: boolean; last: boolean }>();
+  for (const ids of grouped.values()) {
+    if (!ids.length) continue;
+    boundaries.set(ids[0]!, { first: true, last: ids.length === 1 });
+    if (ids.length > 1)
+      boundaries.set(ids.at(-1)!, { first: false, last: true });
+  }
+  return boundaries;
+});
 
 function activate(): void {
   if (props.node.unavailable && props.node.catalogNodeType === "long-book") {
@@ -1055,8 +1051,12 @@ onBeforeUnmount(() => {
           Boolean(child.longWorkspaceSelection?.chapterCardId) &&
           childIndex === node.children.length - 1
         "
-        :long-tree-item-move-up-disabled="isFirstLongTreeItem(child)"
-        :long-tree-item-move-down-disabled="isLastLongTreeItem(child)"
+        :long-tree-item-move-up-disabled="
+          longTreeItemBoundaries.get(child.id)?.first ?? false
+        "
+        :long-tree-item-move-down-disabled="
+          longTreeItemBoundaries.get(child.id)?.last ?? false
+        "
         @select="emit('select', $event)"
         @toggle-pin="emit('togglePin', $event)"
         @book-action="(mode, book) => emit('bookAction', mode, book)"
