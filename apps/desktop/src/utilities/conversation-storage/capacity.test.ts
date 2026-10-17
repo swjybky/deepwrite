@@ -156,4 +156,6 @@ it("commits and restores more than 64 MiB per session and 256 MiB total through 
     database.close();
     await rm(root, { recursive: true, force: true });
   }
-}, 30_000);
+  // Rely on the configured test timeout; Windows CI drives slower disks and
+  // gets the larger budget from the shared vitest configuration.
+});

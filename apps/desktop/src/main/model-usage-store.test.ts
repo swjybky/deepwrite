@@ -117,8 +117,12 @@ describe("ModelUsageStore", () => {
     expect(ledger.recentRecords).toEqual([usageRecord]);
     expect(ledger.rollups).toEqual([]);
     expect(registry).not.toContain("apiKey");
-    expect((await stat(store.ledgerPath)).mode & 0o777).toBe(0o600);
-    expect((await stat(store.registryPath)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      // Windows chmod maps to the read-only attribute, so stat mode does not
+      // carry the POSIX owner-only permission bits.
+      expect((await stat(store.ledgerPath)).mode & 0o777).toBe(0o600);
+      expect((await stat(store.registryPath)).mode & 0o777).toBe(0o600);
+    }
     await expect(access(legacyDirectory)).rejects.toMatchObject({
       code: "ENOENT"
     });

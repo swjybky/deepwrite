@@ -4,7 +4,10 @@ import { assertRendererVendorGraph } from "./renderer-vendor-graph.mjs";
 function inspect(chunks) {
   return assertRendererVendorGraph(
     "/assets/i18n-runtime-test.js",
-    async (path) => {
+    async (rawPath) => {
+      // join() renders platform separators, so look fixtures up by the
+      // platform-neutral form the graph uses in tests.
+      const path = rawPath.replaceAll("\\", "/");
       if (!(path in chunks)) throw new Error(`Missing fixture chunk: ${path}`);
       return chunks[path];
     }
