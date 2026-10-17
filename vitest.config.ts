@@ -19,7 +19,7 @@ export default defineConfig({
         // The logo's <image href="/app-icon.png"> targets the public root at
         // runtime; asset-import compilation turns it into a synthetic URL
         // module that Windows cannot evaluate in tests.
-        transformAssetUrls: { image: false }
+        transformAssetUrls: { tags: { image: false } }
       }
     }),
     {
