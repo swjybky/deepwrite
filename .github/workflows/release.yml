@@ -25,20 +25,28 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - id: linux-x64
             os: ubuntu-24.04
+            workers: 4
+            heap: 6144
             command: pnpm pack:test:linux
           - id: win-x64
             os: windows-2025
+            workers: 4
+            heap: 6144
             command: pnpm pack:test:win
           - id: mac-arm64
             os: macos-15
+            workers: 3
+            heap: 4096
             command: pnpm pack:test:mac:arm64
           - id: mac-x64
             os: macos-15-intel
+            workers: 4
+            heap: 6144
             command: pnpm pack:test:mac:x64
     defaults:
       run:
@@ -46,9 +54,8 @@ jobs:
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      DEEPWRITE_TEST_MAX_WORKERS: "2"
-      # vue-tsc exceeds the macOS runner's default ~2 GiB V8 heap.
-      NODE_OPTIONS: --max-old-space-size=4096
+      DEEPWRITE_TEST_MAX_WORKERS: ${{ matrix.workers }}
+      NODE_OPTIONS: --max-old-space-size=${{ matrix.heap }}
 
     steps:
       - name: Preserve LF source files on Windows
@@ -74,6 +81,34 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           version: 11.7.0
+          cache: true
+          cache_dependency_path: |
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
+
+      - name: Locate Electron download caches
+        id: cache-paths
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const path = require('node:path');
+            const os = require('node:os');
+            const root = process.platform === 'darwin'
+              ? path.join(os.homedir(), 'Library', 'Caches')
+              : process.platform === 'win32'
+                ? process.env.LOCALAPPDATA
+                : path.join(os.homedir(), '.cache');
+            core.setOutput('paths', ['electron', 'electron-builder']
+              .map(name => path.join(root, name)).join('\n'));
+
+      - name: Restore Electron and packaging tool downloads
+        id: binary-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: electron-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+          restore-keys: |
+            electron-tools-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -89,6 +124,19 @@ jobs:
           if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
+
+      - name: Prepare runtime and build desktop for early smoke
+        run: |
+          pnpm electron:ensure
+          pnpm build
+
+      - name: Verify Linux desktop before full test suite
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run --auto-servernum pnpm smoke
+
+      - name: Verify native desktop before full test suite
+        if: runner.os != 'Linux'
+        run: pnpm smoke
 
       - name: Build and verify Linux installers
         if: runner.os == 'Linux'
@@ -116,6 +164,13 @@ jobs:
           compression-level: 0
           retention-days: 14
           overwrite: true
+
+      - name: Save downloaded tools even when validation fails
+        if: ${{ !cancelled() && steps.binary-cache.outcome == 'success' && steps.binary-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.paths }}
+          key: ${{ steps.binary-cache.outputs.cache-primary-key }}
 
   publish:
     name: Verify assets and publish release
@@ -146,6 +201,10 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           version: 11.7.0
+          cache: true
+          cache_dependency_path: |
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
 
       - name: Install release tooling
         run: pnpm install --frozen-lockfile --ignore-scripts

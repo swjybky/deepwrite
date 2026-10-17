@@ -147,6 +147,8 @@ The `Build and publish tagged release` workflow builds and verifies Windows x64,
 
 If a tag exists without a workflow run, open this workflow in Actions, choose `Run workflow` on `main`, and enter the existing tag (for example, `v1.6.6`). Recovery checks out that tag and validates its versions without deleting or moving it. For an existing failed run, use `Re-run jobs` to resume uploads to the same draft.
 
+CI uses free standard runners: four test workers on Linux, Windows, and Intel Mac, and three on ARM Mac, with Node heap limits of 6 GiB and 4 GiB respectively. pnpm, Electron, and packaging downloads use caches separated by OS, architecture, and dependency locks. Desktop build and smoke checks run before the full test suite, and a platform failure cancels the remaining jobs. Packaging retains full verification plus first-launch and reopen checks inside the packaged app.
+
 Actions artifacts are retained for 14 days. Publishing uses the repository's `GITHUB_TOKEN` without additional release credentials. Windows builds remain unsigned and macOS builds use the existing ad-hoc signing configuration. Maintain the application's `update.json` through the existing release-manifest process.
 
 ## Project Structure

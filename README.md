@@ -153,6 +153,8 @@ pnpm pack:test:mac         # 两种 macOS 架构
 
 如果标签已经存在但没有触发记录，在 Actions 中打开该工作流，点击 `Run workflow`，选择 `main` 并填入已有标签（如 `v1.6.6`）。补跑仍从该标签检出源码并核对版本，不需要删除或移动标签。后续有失败记录时使用原运行的 `Re-run jobs`，以继续本轮草稿上传。
 
+CI 使用免费标准 runner：Linux、Windows 和 Mac Intel 使用 4 个测试 worker，Mac ARM 使用 3 个；Node 堆上限分别为 6 GiB 和 4 GiB。pnpm、Electron 和打包工具下载使用按系统、架构与依赖锁定文件隔离的缓存。桌面构建与冒烟先于完整测试，任一平台失败后取消本轮其余任务；正式打包仍保留完整校验和包内首次启动、重新打开验收。
+
 构建产物在 Actions 中保留 14 天。发布使用仓库提供的 `GITHUB_TOKEN`，无需额外发布密钥；当前包仍采用既有的 Windows 未签名、macOS ad-hoc 签名方案。应用内的 `update.json` 继续按既有发布清单流程维护。
 
 ## 项目结构
