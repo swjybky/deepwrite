@@ -254,4 +254,13 @@ describe("TreeNodeItem actions", () => {
     expect(source).not.toContain("activateLongStructureAction");
     expect(source).not.toContain("longStructureAction");
   });
+
+  it("shares one set of global action-menu listeners across tree nodes", () => {
+    expect(source).toContain("const treeNodeActionListeners = new Set");
+    expect(source).toContain("registerTreeNodeActionListeners");
+    expect(source.match(/document\.addEventListener\(/gu)).toHaveLength(2);
+    expect(source.match(/window\.addEventListener\(/gu)).toHaveLength(1);
+    expect(source).not.toContain("handleDocumentPointerDown");
+    expect(source).not.toContain("handleDocumentKeydown");
+  });
 });

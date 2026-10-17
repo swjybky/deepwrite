@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { LongChapterCardId } from "@deepwrite/contracts";
 import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
 import {
   longChapterNavigationMove,
   orderLongChapterNavigationItems
 } from "../utils/orderLongChapterNavigationItems";
+import {
+  LONG_MANUSCRIPT_NAVIGATION_PAGE_SIZE,
+  longManuscriptNavigationPageCount,
+  longManuscriptNavigationPageForIndex,
+  longManuscriptNavigationPageSlice
+} from "./longManuscriptNavigationPagination";
 import AppIcon from "./AppIcon.vue";
 
 const t = createScopedTranslator("components.longManuscriptNavigation");
@@ -40,15 +46,52 @@ const actionMenuTrigger = ref<HTMLButtonElement | null>(null);
 const orderedItems = computed(() =>
   orderLongChapterNavigationItems(props.items)
 );
+const page = ref(1);
+const pageCount = computed(() =>
+  longManuscriptNavigationPageCount(orderedItems.value.length)
+);
+const pageOffset = computed(
+  () => (page.value - 1) * LONG_MANUSCRIPT_NAVIGATION_PAGE_SIZE
+);
+const visibleItems = computed(() =>
+  longManuscriptNavigationPageSlice(orderedItems.value, page.value)
+);
 const activeChapter = computed(
   () =>
     orderedItems.value.find(({ id }) => id === props.activeChapterId) ?? null
 );
 
+function ensureActiveChapterVisible(): void {
+  const activeIndex = orderedItems.value.findIndex(
+    ({ id }) => id === props.activeChapterId
+  );
+  page.value = Math.min(
+    pageCount.value,
+    props.activeChapterId
+      ? longManuscriptNavigationPageForIndex(activeIndex)
+      : page.value
+  );
+}
+
+function setPage(nextPage: number): void {
+  page.value = Math.min(Math.max(1, nextPage), pageCount.value);
+  actionMenuId.value = null;
+}
+
+watch([orderedItems, () => props.activeChapterId], ensureActiveChapterVisible, {
+  immediate: true
+});
+watch(page, () => {
+  actionMenuId.value = null;
+});
+
 function moveBlocked(index: number, direction: "up" | "down"): boolean {
   return (
-    longChapterNavigationMove(orderedItems.value, index, direction) !==
-    "allowed"
+    longChapterNavigationMove(
+      orderedItems.value,
+      pageOffset.value + index,
+      direction
+    ) !== "allowed"
   );
 }
 
@@ -56,8 +99,11 @@ function moveTitle(
   index: number,
   direction: "up" | "down"
 ): string | undefined {
-  return longChapterNavigationMove(orderedItems.value, index, direction) ===
-    "recorded"
+  return longChapterNavigationMove(
+    orderedItems.value,
+    pageOffset.value + index,
+    direction
+  ) === "recorded"
     ? t("recordedChapterOrderLocked")
     : undefined;
 }
@@ -119,7 +165,7 @@ onBeforeUnmount(() => {
       @wheel="handleHorizontalOverflowWheel"
     >
       <button
-        v-for="chapter in orderedItems"
+        v-for="chapter in visibleItems"
         :key="chapter.id"
         class="section-tab"
         :class="{ 'is-active': activeChapterId === chapter.id }"
@@ -130,6 +176,31 @@ onBeforeUnmount(() => {
         @click="emit('selectChapter', chapter.id)"
       >
         {{ chapter.label }}
+      </button>
+    </div>
+    <div
+      v-if="pageCount > 1"
+      class="long-manuscript-pagination"
+      :aria-label="t('chapterPagination')"
+    >
+      <button
+        type="button"
+        :aria-label="t('previousPage')"
+        :title="t('previousPage')"
+        :disabled="page === 1"
+        @click="setPage(page - 1)"
+      >
+        <AppIcon name="arrow-left" :size="13" />
+      </button>
+      <span>{{ t("pageOf", { page, pages: pageCount }) }}</span>
+      <button
+        type="button"
+        :aria-label="t('nextPage')"
+        :title="t('nextPage')"
+        :disabled="page === pageCount"
+        @click="setPage(page + 1)"
+      >
+        <AppIcon name="arrow-right" :size="13" />
       </button>
     </div>
     <button
@@ -192,7 +263,7 @@ onBeforeUnmount(() => {
     </header>
     <div class="long-story-plot-list" role="list">
       <article
-        v-for="(chapter, index) in orderedItems"
+        v-for="(chapter, index) in visibleItems"
         :key="chapter.id"
         class="long-story-plot-card"
         :class="{
@@ -235,7 +306,7 @@ onBeforeUnmount(() => {
             v-if="actionMenuId === chapter.id"
             class="long-story-plot-action-menu"
             :class="{
-              'opens-upward': index >= 2 && index >= orderedItems.length - 2
+              'opens-upward': index >= 2 && index >= visibleItems.length - 2
             }"
             role="menu"
             @keydown.esc.stop="actionMenuId = null"
@@ -290,5 +361,68 @@ onBeforeUnmount(() => {
         </div>
       </article>
     </div>
+    <div
+      v-if="pageCount > 1"
+      class="long-manuscript-pagination long-manuscript-pagination-right"
+      :aria-label="t('chapterPagination')"
+    >
+      <button
+        type="button"
+        :aria-label="t('previousPage')"
+        :title="t('previousPage')"
+        :disabled="page === 1"
+        @click="setPage(page - 1)"
+      >
+        <AppIcon name="arrow-left" :size="13" />
+      </button>
+      <span>{{ t("pageOf", { page, pages: pageCount }) }}</span>
+      <button
+        type="button"
+        :aria-label="t('nextPage')"
+        :title="t('nextPage')"
+        :disabled="page === pageCount"
+        @click="setPage(page + 1)"
+      >
+        <AppIcon name="arrow-right" :size="13" />
+      </button>
+    </div>
   </aside>
 </template>
+
+<style>
+.long-manuscript-pagination {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  color: var(--text-tertiary);
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
+.long-manuscript-pagination button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.long-manuscript-pagination button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.long-manuscript-pagination button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.long-manuscript-pagination-right {
+  justify-content: center;
+  padding: 6px 0 8px;
+}
+</style>

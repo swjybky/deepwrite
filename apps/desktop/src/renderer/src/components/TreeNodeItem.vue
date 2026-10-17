@@ -25,6 +25,51 @@ import LibraryGroupActionMenu from "./LibraryGroupActionMenu.vue";
 import { useTreeNodeDisclosure } from "../composables/useTreeNodeDisclosure";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
 
+type TreeNodeActionListeners = {
+  containsTarget: (target: EventTarget | null) => boolean;
+  close: () => void;
+  updatePlacement: () => void;
+};
+
+const treeNodeActionListeners = new Set<TreeNodeActionListeners>();
+
+function handleTreeNodePointerDown(event: PointerEvent): void {
+  for (const listener of [...treeNodeActionListeners]) {
+    if (!listener.containsTarget(event.target)) listener.close();
+  }
+}
+
+function handleTreeNodeKeydown(event: KeyboardEvent): void {
+  if (event.key !== "Escape") return;
+  for (const listener of [...treeNodeActionListeners]) listener.close();
+}
+
+function handleTreeNodeResize(): void {
+  for (const listener of [...treeNodeActionListeners]) {
+    listener.updatePlacement();
+  }
+}
+
+function registerTreeNodeActionListeners(
+  listener: TreeNodeActionListeners
+): () => void {
+  const wasEmpty = treeNodeActionListeners.size === 0;
+  treeNodeActionListeners.add(listener);
+  if (wasEmpty) {
+    document.addEventListener("pointerdown", handleTreeNodePointerDown);
+    document.addEventListener("keydown", handleTreeNodeKeydown);
+    window.addEventListener("resize", handleTreeNodeResize);
+  }
+
+  return () => {
+    treeNodeActionListeners.delete(listener);
+    if (treeNodeActionListeners.size > 0) return;
+    document.removeEventListener("pointerdown", handleTreeNodePointerDown);
+    document.removeEventListener("keydown", handleTreeNodeKeydown);
+    window.removeEventListener("resize", handleTreeNodeResize);
+  };
+}
+
 const t = createScopedTranslator("components.treeNodeItem");
 
 defineOptions({ name: "TreeNodeItem" });
@@ -88,6 +133,7 @@ const actionMenuOpen = ref(false);
 const actionArea = ref<HTMLElement | null>(null);
 const actionMenu = ref<HTMLElement | null>(null);
 const actionMenuOpensUpward = ref(false);
+let unregisterTreeNodeActionListeners: (() => void) | undefined;
 const libraryDomain = computed<"skill" | "material" | undefined>(() =>
   props.resourceDomain === "skill" || props.resourceDomain === "material"
     ? props.resourceDomain
@@ -477,34 +523,23 @@ function characterItemAction(
   emit("characterItemAction", action, props.node);
 }
 
-function handleDocumentPointerDown(event: PointerEvent): void {
-  if (!actionArea.value?.contains(event.target as Node)) {
-    actionMenuOpen.value = false;
-  }
-}
-
-function handleDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") {
-    actionMenuOpen.value = false;
-  }
-}
-
 onMounted(() => {
   if (!hasActionMenu.value) {
     return;
   }
-  document.addEventListener("pointerdown", handleDocumentPointerDown);
-  document.addEventListener("keydown", handleDocumentKeydown);
-  window.addEventListener("resize", updateActionMenuPlacement);
+  unregisterTreeNodeActionListeners = registerTreeNodeActionListeners({
+    containsTarget: (target) =>
+      Boolean(actionArea.value?.contains(target as Node)),
+    close: () => {
+      actionMenuOpen.value = false;
+    },
+    updatePlacement: updateActionMenuPlacement
+  });
 });
 
 onBeforeUnmount(() => {
-  if (!hasActionMenu.value) {
-    return;
-  }
-  document.removeEventListener("pointerdown", handleDocumentPointerDown);
-  document.removeEventListener("keydown", handleDocumentKeydown);
-  window.removeEventListener("resize", updateActionMenuPlacement);
+  unregisterTreeNodeActionListeners?.();
+  unregisterTreeNodeActionListeners = undefined;
 });
 </script>
 
