@@ -3,6 +3,7 @@ import documentSessionSource from "../composables/useLongEditorDocumentSession.t
 import structureSelectionSource from "../composables/useLongEditorStructureSelection.ts?raw";
 import source from "./LongManuscriptNavigation.vue?raw";
 import editorSource from "./LongWorkspaceEditor.vue?raw";
+import paginationSource from "./longManuscriptNavigationPagination.ts?raw";
 
 describe("LongManuscriptNavigation", () => {
   it("owns chapter navigation for top tabs and the right list", () => {
@@ -16,7 +17,14 @@ describe("LongManuscriptNavigation", () => {
     expect(source).toContain("runMenuAction");
     expect(source).toContain("const orderedItems = computed");
     expect(source).toContain("orderLongChapterNavigationItems(props.items)");
-    expect(source).toContain('v-for="(chapter, index) in orderedItems"');
+    expect(source).toContain('v-for="(chapter, index) in visibleItems"');
+    expect(source).toContain("longManuscriptNavigationPageSlice");
+    expect(source).toContain("ensureActiveChapterVisible");
+    expect(source).toContain("pageOffset.value + index");
+    expect(source).toContain("chapterPagination");
+    expect(paginationSource).toContain(
+      "LONG_MANUSCRIPT_NAVIGATION_PAGE_SIZE = 50"
+    );
   });
 
   it("emits structure intent without applying mutations itself", () => {
