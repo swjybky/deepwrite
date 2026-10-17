@@ -147,7 +147,9 @@ const unpackedDirectory = join(
       ? targetArch === "arm64"
         ? "win-arm64-unpacked"
         : "win-unpacked"
-      : "linux-unpacked"
+      : targetArch === "arm64"
+        ? "linux-arm64-unpacked"
+        : "linux-unpacked"
 );
 const resources =
   targetPlatform === "mac"
@@ -181,7 +183,7 @@ let executable =
         "DeepWrite"
       )
     : targetPlatform === "linux"
-      ? join(releaseDir, "linux-unpacked", "deepwrite")
+      ? join(unpackedDirectory, "deepwrite")
       : join(unpackedDirectory, "DeepWrite.exe");
 await stat(executable);
 
