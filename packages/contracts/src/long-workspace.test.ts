@@ -293,6 +293,54 @@ function longBook() {
 }
 
 describe("independent long-form workspace contracts", () => {
+  it("builds navigation chapter status lookups in one pass", () => {
+    const workspace = LongWorkspaceIndexSnapshotSchema.parse(workspaceIndex());
+    const count = 600;
+    let chapterCardIdReads = 0;
+    let bodyStatusReads = 0;
+    workspace.plot.chapterCards = Array.from({ length: count }, (_, index) => ({
+      id: `chapter_${index + 1}`,
+      volumeId: "volume_one",
+      primaryArcId: "arc_letter",
+      title: `第 ${index + 1} 章`,
+      narrativeOrder: index + 1
+    }));
+    workspace.chapters = workspace.plot.chapterCards.map((chapterCard) => {
+      const chapter = {
+        ...workspace.chapters[0]!,
+        chapterCardId: chapterCard.id
+      };
+      Object.defineProperty(chapter, "bodyStatus", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          bodyStatusReads += 1;
+          return "written";
+        }
+      });
+      Object.defineProperty(chapter, "chapterCardId", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          chapterCardIdReads += 1;
+          return chapterCard.id;
+        }
+      });
+      return chapter;
+    });
+
+    const navigation = createLongWorkspaceNavigationSnapshot(workspace);
+
+    expect(navigation.chapterCards).toHaveLength(count);
+    expect(
+      navigation.chapterCards.every(
+        ({ bodyStatus }) => bodyStatus === "written"
+      )
+    ).toBe(true);
+    expect(chapterCardIdReads).toBe(count);
+    expect(bodyStatusReads).toBe(count);
+  });
+
   it("ships a default AGENTS.md that explains the five long-form stages", () => {
     expect(LONG_AGENTS_MD_PATH).toBe("AGENTS.md");
     expect(DEFAULT_LONG_AGENTS_MD).toContain("# 长篇上下文");

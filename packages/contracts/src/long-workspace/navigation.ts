@@ -313,6 +313,17 @@ export type LongWorkspaceNavigationSnapshot = z.infer<
 export function createLongWorkspaceNavigationSnapshot(
   workspace: LongWorkspaceIndexSnapshot
 ): LongWorkspaceNavigationSnapshot {
+  const chapterByCardId = new Map<
+    LongWorkspaceIndexSnapshot["chapters"][number]["chapterCardId"],
+    LongWorkspaceIndexSnapshot["chapters"][number]
+  >();
+  for (const chapter of workspace.chapters) {
+    const chapterCardId = chapter.chapterCardId;
+    if (!chapterByCardId.has(chapterCardId)) {
+      chapterByCardId.set(chapterCardId, chapter);
+    }
+  }
+
   return LongWorkspaceNavigationSnapshotSchema.parse({
     schemaVersion: workspace.schemaVersion,
     bookId: workspace.bookId,
@@ -362,9 +373,7 @@ export function createLongWorkspaceNavigationSnapshot(
         primaryArcId,
         title,
         narrativeOrder,
-        bodyStatus:
-          workspace.chapters.find(({ chapterCardId }) => chapterCardId === id)
-            ?.bodyStatus ?? "empty"
+        bodyStatus: chapterByCardId.get(id)?.bodyStatus ?? "empty"
       })
     ),
     committedThroughChapterId: workspace.ledger.committedThroughChapterId
