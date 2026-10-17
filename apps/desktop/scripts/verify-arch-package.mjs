@@ -9,9 +9,21 @@ import {
   validateSmokeSummary
 } from "./package-smoke-runner.mjs";
 
+// Artifact suffix follows electron-builder's per-target mapping, which only
+// names pacman "aarch64" for arm64 and keeps "x64" for x64.
 const ARCH_PACKAGES = {
-  x64: { pkginfo: "x86_64", elfMachine: 62, label: "x86_64" },
-  arm64: { pkginfo: "aarch64", elfMachine: 183, label: "aarch64" }
+  x64: {
+    pkginfo: "x86_64",
+    artifact: "x64",
+    elfMachine: 62,
+    label: "x86_64"
+  },
+  arm64: {
+    pkginfo: "aarch64",
+    artifact: "aarch64",
+    elfMachine: 183,
+    label: "aarch64"
+  }
 };
 
 export function validateArchMetadata(source, version, arch = "x64") {
@@ -122,7 +134,7 @@ export async function verifyArchTestPackage(
   if (canRun && smoke) assertElectronLaunchAllowed();
   const artifact = join(
     releaseDir,
-    `DeepWrite-${version}-linux-${archPackage.label}-test.pkg.tar.xz`
+    `DeepWrite-${version}-linux-${archPackage.artifact}-test.pkg.tar.xz`
   );
   const info = await stat(artifact);
   if (!info.isFile() || info.size === 0)
