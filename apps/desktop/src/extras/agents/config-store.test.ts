@@ -108,6 +108,37 @@ describe("extras agent config store", () => {
     );
   });
 
+  it("merges concurrent edits to different profiles", async () => {
+    const { store } = await createStore();
+    const baseline = (await store.list("long-book-analysis")).profiles.map(
+      ({ builtin: _builtin, ...profile }) => profile
+    );
+    const first = baseline.map((profile, index) =>
+      index === 0 ? { ...profile, description: "窗口 A 的修改" } : profile
+    );
+    const second = baseline.map((profile, index) =>
+      index === 1 ? { ...profile, description: "窗口 B 的修改" } : profile
+    );
+
+    await Promise.all([
+      store.save({ agentId: "long-book-analysis", profiles: first }),
+      store.save({ agentId: "long-book-analysis", profiles: second })
+    ]);
+
+    expect((await store.list("long-book-analysis")).profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: baseline[0]!.id,
+          description: "窗口 A 的修改"
+        }),
+        expect.objectContaining({
+          id: baseline[1]!.id,
+          description: "窗口 B 的修改"
+        })
+      ])
+    );
+  });
+
   it.each(["long-book-analysis", "short-book-analysis"] as const)(
     "reads legacy %s profiles without restoring default save destinations",
     async (agentId) => {

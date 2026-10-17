@@ -14,6 +14,7 @@ import {
   type ExtrasAgentProfileCatalog
 } from "./profile-catalogs";
 import { previousLongBookPrompts } from "./previous-long-book-prompts";
+import { mergeSettingsById } from "../../main/merge-agent-settings";
 
 interface StoredProfile {
   id: string;
@@ -66,6 +67,7 @@ function validTimestamp(value: unknown): string | undefined {
 export class ExtrasAgentConfigStore {
   private readonly directory: string;
   private writeChain: Promise<void> = Promise.resolve();
+  private readonly diskCache = new Map<ExtrasAgentId, DiskSettings>();
 
   constructor(private readonly userDataPath: string) {
     this.directory = join(userDataPath, "config", "extras-agents");
@@ -75,17 +77,34 @@ export class ExtrasAgentConfigStore {
     agentId: A
   ): Promise<ExtrasAgentSettingsOf<A>> {
     await this.writeChain;
-    return this.publicSettings(agentId, await this.readDisk(agentId));
+    const disk = await this.readDisk(agentId);
+    const settings = this.publicSettings(agentId, disk);
+    this.cacheDisk(agentId, disk, settings);
+    return settings;
   }
 
   async save(rawInput: ExtrasAgentSettingsInput): Promise<ExtrasAgentSettings> {
     const input = ExtrasAgentSettingsInputSchema.parse(rawInput);
-    return this.enqueue(input.agentId, async () => ({
-      version: 1,
-      profiles: this.withDefaults(input.agentId, input.profiles),
-      updatedAt: new Date().toISOString(),
-      ...this.currentPromptRevisions(input.agentId)
-    }));
+    const baseline = this.diskCache.get(input.agentId);
+    return this.enqueue(input.agentId, async () => {
+      const profiles = this.withDefaults(input.agentId, input.profiles);
+      const current = baseline ? await this.readDisk(input.agentId) : undefined;
+      const mergedProfiles =
+        current && baseline
+          ? mergeSettingsById(
+              current.profiles,
+              profiles,
+              baseline.profiles,
+              (profile) => profile.id
+            )
+          : profiles;
+      return {
+        version: 1,
+        profiles: mergedProfiles,
+        updatedAt: new Date().toISOString(),
+        ...this.currentPromptRevisions(input.agentId)
+      };
+    });
   }
 
   async reset(
@@ -341,6 +360,7 @@ export class ExtrasAgentConfigStore {
       const disk = await operation();
       saved = this.publicSettings(agentId, disk);
       await atomicWrite(this.path(agentId), disk);
+      this.cacheDisk(agentId, disk, saved);
     });
     this.writeChain = pending.then(
       () => undefined,
@@ -348,5 +368,18 @@ export class ExtrasAgentConfigStore {
     );
     await pending;
     return saved!;
+  }
+
+  private cacheDisk(
+    agentId: ExtrasAgentId,
+    disk: DiskSettings,
+    settings: ExtrasAgentSettings
+  ): void {
+    this.diskCache.set(agentId, {
+      ...disk,
+      profiles: settings.profiles.map(({ builtin: _builtin, ...profile }) =>
+        structuredClone(profile)
+      ) as StoredProfile[]
+    });
   }
 }

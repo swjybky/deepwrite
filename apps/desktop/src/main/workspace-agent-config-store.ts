@@ -44,6 +44,7 @@ import {
   normalizeScriptWorkspaceAgentDisk,
   normalizeShortWorkspaceAgentDisk
 } from "./workspace-agent-config-normalization";
+import { mergeSettingsById, sameSettingsValue } from "./merge-agent-settings";
 
 interface DiskWorkspaceAgentSettings {
   version: 5;
@@ -62,6 +63,8 @@ export class WorkspaceAgentConfigStore {
   private readonly shortSettingsPath: string;
   private readonly scriptSettingsPath: string;
   private writeChain: Promise<void> = Promise.resolve();
+  private shortInputCache: ShortWorkspaceAgentSettingsInput | undefined;
+  private scriptInputCache: ScriptWorkspaceAgentSettingsInput | undefined;
 
   constructor(userDataPath: string) {
     this.shortSettingsPath = join(
@@ -84,9 +87,14 @@ export class WorkspaceAgentConfigStore {
     workspaceType: WorkspaceType = "short"
   ): Promise<WorkspaceAgentSettings> {
     await this.writeChain;
-    return workspaceType === "script"
-      ? toPublicScriptWorkspaceAgentSettings(await this.readScriptInput())
-      : toPublicShortWorkspaceAgentSettings(await this.readInput());
+    if (workspaceType === "script") {
+      const input = await this.readScriptInput();
+      this.scriptInputCache = input;
+      return toPublicScriptWorkspaceAgentSettings(input);
+    }
+    const input = await this.readInput();
+    this.shortInputCache = input;
+    return toPublicShortWorkspaceAgentSettings(input);
   }
 
   async save(
@@ -105,6 +113,7 @@ export class WorkspaceAgentConfigStore {
     let saved: WorkspaceAgentSettings | undefined;
     const operation = this.writeChain.then(async () => {
       if (input.workspaceType === "script") {
+        const baseline = this.scriptInputCache;
         const normalized: ScriptWorkspaceAgentSettingsInput = {
           workspaceType: "script",
           agents: input.agents.map((agent) => ({
@@ -115,8 +124,21 @@ export class WorkspaceAgentConfigStore {
             readAccess: cloneScriptReadAccess(agent.readAccess)
           }))
         };
-        await this.writeScriptInput(normalized);
-        saved = toPublicScriptWorkspaceAgentSettings(normalized);
+        const current = baseline ? await this.readScriptInput() : normalized;
+        const next = baseline
+          ? {
+              workspaceType: "script" as const,
+              agents: mergeSettingsById(
+                current.agents,
+                normalized.agents,
+                baseline.agents,
+                (agent) => agent.id
+              )
+            }
+          : normalized;
+        await this.writeScriptInput(next);
+        this.scriptInputCache = next;
+        saved = toPublicScriptWorkspaceAgentSettings(next);
         return;
       }
       const normalized: ShortWorkspaceAgentSettingsInput = {
@@ -128,8 +150,28 @@ export class WorkspaceAgentConfigStore {
           readAccess: cloneReadAccess(agent.readAccess)
         }))
       };
-      await this.writeInput(normalized);
-      saved = toPublicShortWorkspaceAgentSettings(normalized);
+      const baseline = this.shortInputCache;
+      const current = baseline ? await this.readInput() : normalized;
+      const next = baseline
+        ? {
+            workspaceType: "short" as const,
+            defaultPlotStageIds: sameSettingsValue(
+              normalized.defaultPlotStageIds,
+              baseline.defaultPlotStageIds
+            )
+              ? current.defaultPlotStageIds
+              : normalized.defaultPlotStageIds,
+            agents: mergeSettingsById(
+              current.agents,
+              normalized.agents,
+              baseline.agents,
+              (agent) => agent.id
+            )
+          }
+        : normalized;
+      await this.writeInput(next);
+      this.shortInputCache = next;
+      saved = toPublicShortWorkspaceAgentSettings(next);
     });
     this.writeChain = operation.then(
       () => undefined,
@@ -193,6 +235,7 @@ export class WorkspaceAgentConfigStore {
         }
         const validated = ScriptWorkspaceAgentSettingsInputSchema.parse(next);
         await this.writeScriptInput(validated);
+        this.scriptInputCache = validated;
         saved = toPublicScriptWorkspaceAgentSettings(validated);
         return;
       }
@@ -217,6 +260,7 @@ export class WorkspaceAgentConfigStore {
       }
       const validated = ShortWorkspaceAgentSettingsInputSchema.parse(next);
       await this.writeInput(validated);
+      this.shortInputCache = validated;
       saved = toPublicShortWorkspaceAgentSettings(validated);
     });
     this.writeChain = operation.then(

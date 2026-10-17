@@ -14,6 +14,7 @@ import {
   type LongAgentSettingsInput,
   type LongAgentSettingsInputAgent
 } from "@deepwrite/contracts";
+import { mergeSettingsById } from "./merge-agent-settings";
 
 /**
  * Version 3 installs the unified English long-agent prompt for every upgraded
@@ -163,6 +164,7 @@ function parseDiskSettings(raw: unknown): LongAgentSettingsInput {
 export class LongAgentConfigStore {
   private readonly settingsPath: string;
   private writeChain: Promise<void> = Promise.resolve();
+  private inputCache: LongAgentSettingsInput | undefined;
 
   constructor(userDataPath: string) {
     this.settingsPath = join(
@@ -174,19 +176,35 @@ export class LongAgentConfigStore {
 
   async list(): Promise<LongAgentSettings> {
     await this.writeChain;
-    return this.toPublicSettings(await this.readInput());
+    const input = await this.readInput();
+    this.inputCache = input;
+    return this.toPublicSettings(input);
   }
 
   async save(rawInput: LongAgentSettingsInput): Promise<LongAgentSettings> {
     const input = LongAgentSettingsInputSchema.parse(rawInput);
+    const baseline = this.inputCache;
     let saved: LongAgentSettings | undefined;
     const operation = this.writeChain.then(async () => {
       const normalized: LongAgentSettingsInput = {
         workspaceType: "long",
         agents: input.agents.map(cloneInputAgent)
       };
-      await this.writeInput(normalized);
-      saved = this.toPublicSettings(normalized);
+      const current = baseline ? await this.readInput() : normalized;
+      const next = baseline
+        ? {
+            workspaceType: "long" as const,
+            agents: mergeSettingsById(
+              current.agents,
+              normalized.agents,
+              baseline.agents,
+              (agent) => agent.id
+            )
+          }
+        : normalized;
+      await this.writeInput(next);
+      this.inputCache = next;
+      saved = this.toPublicSettings(next);
     });
     this.trackWrite(operation);
     await operation;
@@ -220,6 +238,7 @@ export class LongAgentConfigStore {
       }
       const validated = LongAgentSettingsInputSchema.parse(next);
       await this.writeInput(validated);
+      this.inputCache = validated;
       saved = this.toPublicSettings(validated);
     });
     this.trackWrite(operation);
