@@ -1,12 +1,14 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelConfigInput } from "@deepwrite/contracts";
 
+const encryption = vi.hoisted(() => ({ available: true }));
+
 vi.mock("electron", () => ({
   safeStorage: {
-    isEncryptionAvailable: () => true,
+    isEncryptionAvailable: () => encryption.available,
     encryptString: (value: string) => Buffer.from(value, "utf8"),
     decryptString: (value: Buffer) => value.toString("utf8")
   }
@@ -31,6 +33,7 @@ function customModel(): ModelConfigInput {
 }
 
 afterEach(async () => {
+  encryption.available = true;
   await Promise.all(
     temporaryRoots
       .splice(0)
@@ -59,6 +62,39 @@ function createStore(root: string) {
 }
 
 describe("ModelConfigStore draft API keys", () => {
+  it("preserves the committed model and key when secure storage fails, then permits retry", async () => {
+    const root = await mkdtemp(
+      join(tmpdir(), "deepwrite-model-secure-failure-")
+    );
+    temporaryRoots.push(root);
+    const store = createStore(root);
+    const initial = {
+      models: [{ ...customModel(), apiKey: "invalid-original-test-key" }],
+      defaultModelId: "custom-writer"
+    };
+    await store.save(initial);
+    const path = join(root, "config", "models.json");
+    const before = await readFile(path, "utf8");
+    encryption.available = false;
+    await expect(
+      store.save({
+        ...initial,
+        models: [{ ...customModel(), apiKey: "invalid-replacement-test-key" }]
+      })
+    ).rejects.toMatchObject({ code: "secure_storage.unavailable" });
+    expect(await readFile(path, "utf8")).toBe(before);
+    encryption.available = true;
+    expect((await createStore(root).resolve("custom-writer"))?.apiKey).toBe(
+      "invalid-original-test-key"
+    );
+    await store.save({
+      ...initial,
+      models: [{ ...customModel(), apiKey: "invalid-replacement-test-key" }]
+    });
+    expect((await createStore(root).resolve("custom-writer"))?.apiKey).toBe(
+      "invalid-replacement-test-key"
+    );
+  });
   it("persists and resolves an explicit portable tool schema profile", async () => {
     const root = await mkdtemp(
       join(tmpdir(), "deepwrite-model-store-tool-schema-")

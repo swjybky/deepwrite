@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { verifyArchTestPackage } from "./verify-arch-package.mjs";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -22,11 +23,12 @@ const [targetPlatform, targetArch] = process.argv.slice(2);
 if (!(
   (targetPlatform === "mac" &&
     (targetArch === "arm64" || targetArch === "x64")) ||
-  (targetPlatform === "linux" && targetArch === "x64") ||
+  ((targetPlatform === "linux" || targetPlatform === "arch") &&
+    targetArch === "x64") ||
   (targetPlatform === "win" && (targetArch === "x64" || targetArch === "arm64"))
 )) {
   console.error(
-    "Usage: node scripts/verify-test-package.mjs <linux x64|mac arm64|mac x64|win x64|win arm64>"
+    "Usage: node scripts/verify-test-package.mjs <arch x64|linux x64|mac arm64|mac x64|win x64|win arm64>"
   );
   process.exit(1);
 }
@@ -47,6 +49,10 @@ if (hostCanRunTarget && !skipMacX64Smoke) assertElectronLaunchAllowed();
 const packageJson = JSON.parse(
   await readFile(join(appDir, "package.json"), "utf8")
 );
+if (targetPlatform === "arch") {
+  await verifyArchTestPackage(releaseDir, packageJson.version);
+  process.exit(0);
+}
 const extension =
   targetPlatform === "mac" ? "dmg" : targetPlatform === "linux" ? "deb" : "exe";
 const artifactArch =
@@ -61,6 +67,9 @@ if (!artifactStat.isFile() || artifactStat.size === 0) {
 }
 
 if (targetPlatform === "linux") {
+  await verifyArchTestPackage(releaseDir, packageJson.version, {
+    smoke: false
+  });
   const appImage = join(
     releaseDir,
     `DeepWrite-${packageJson.version}-linux-x86_64-test.AppImage`

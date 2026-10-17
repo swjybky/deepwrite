@@ -1,3 +1,4 @@
+import { modelConfigErrorCode } from "../model-config-error";
 import { runSiteOfficialOperation } from "./site-official-operation";
 import {
   AgentProviderRuntimeConfigSchema,
@@ -51,7 +52,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.list_failed",
+          code: modelConfigErrorCode(error, "models.list_failed"),
           message:
             error instanceof Error ? error.message : "加载模型配置失败。",
           details: safeErrorDetails(error)
@@ -76,7 +77,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.refresh_free_failed",
+          code: modelConfigErrorCode(error, "models.refresh_free_failed"),
           message:
             error instanceof Error ? error.message : "刷新免费模型配置失败。",
           details: safeErrorDetails(error)
@@ -103,7 +104,10 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.set_free_model_enabled_failed",
+          code: modelConfigErrorCode(
+            error,
+            "models.set_free_model_enabled_failed"
+          ),
           message:
             error instanceof Error
               ? error.message
@@ -161,7 +165,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.save_failed",
+          code: modelConfigErrorCode(error, "models.save_failed"),
           message:
             error instanceof Error ? error.message : "保存模型配置失败。",
           details: safeErrorDetails(error)
@@ -193,7 +197,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.list_remote_failed",
+          code: modelConfigErrorCode(error, "models.list_remote_failed"),
           message:
             error instanceof Error ? error.message : "拉取可用模型失败。",
           details: safeErrorDetails(error)
@@ -258,7 +262,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.test_failed",
+          code: modelConfigErrorCode(error, "models.test_failed"),
           message:
             error instanceof Error ? error.message : "模型连接测试失败。",
           details: safeErrorDetails(error)
@@ -301,7 +305,7 @@ async function dispatchModelCommand(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "models.resolve_capacity_failed",
+          code: modelConfigErrorCode(error, "models.resolve_capacity_failed"),
           message:
             error instanceof Error
               ? error.message

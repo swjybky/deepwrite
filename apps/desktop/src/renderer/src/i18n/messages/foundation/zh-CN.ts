@@ -1,4 +1,13 @@
 export default {
+  secureStorageUnavailable:
+    "系统密钥存储不可用，请确认密钥服务已启动并解锁后重试。",
+  secureStorageEncryptFailed: "凭据加密失败，请检查系统密钥存储后重试。",
+  secureStorageDecryptFailed:
+    "凭据解密失败，请确认使用原有系统密钥存储，或重新填写并保存密钥。",
+  modelStoragePermissionDenied:
+    "无法写入模型配置，请检查用户数据目录的写入权限。",
+  modelStorageDiskFull: "磁盘空间或配额不足，无法保存模型配置。",
+
   permissions: "权限",
   approvalLabel: "智能体默认审批方式",
   requestApproval: "请求批准",

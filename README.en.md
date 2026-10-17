@@ -85,8 +85,11 @@ Go to [GitHub Releases](https://github.com/swjybky/deepwrite/releases) and downl
 | Windows x64 | `DeepWrite-<version>-win-x64-test.exe` |
 | macOS Apple Silicon | `DeepWrite-<version>-mac-arm64-test.dmg` |
 | macOS Intel | `DeepWrite-<version>-mac-x64-test.dmg` |
+| Arch Linux / CachyOS x64 | `DeepWrite-<version>-linux-x64-test.pkg.tar.xz` |
 
 On Windows, run the `.exe` and follow the installer.
+
+On Arch Linux, CachyOS, and other Arch-based distributions, install the local package with `sudo pacman -U ./DeepWrite-<version>-linux-x64-test.pkg.tar.xz`. Electron is bundled. Saving model keys requires a running, unlocked system keyring such as GNOME Keyring or KWallet; the app selects the backend automatically.
 
 On macOS, open the `.dmg` and drag DeepWrite into Applications. Current test builds use ad-hoc signing and are not notarized by Apple. Downloads received through a browser, WeChat, or similar channels may trigger a macOS security warning. Confirm that you trust the source, then right-click the app and choose Open, or allow it under System Settings → Privacy & Security.
 
@@ -103,7 +106,7 @@ Requirements:
 
 - Node.js 24 or later
 - pnpm 11 or later
-- Windows x64, or macOS Apple Silicon / Intel
+- Windows x64, Linux x64, or macOS Apple Silicon / Intel
 
 ```bash
 git clone https://github.com/swjybky/deepwrite.git
@@ -126,6 +129,8 @@ Test installers must be built on their target platform from the repository root:
 
 ```bash
 pnpm pack:test             # All test packages supported by the current host
+pnpm pack:test:arch        # Arch Linux / CachyOS x64
+pnpm pack:test:linux       # Linux x64: AppImage, deb, and Arch package
 pnpm pack:test:win         # Windows x64
 pnpm pack:test:mac:arm64   # macOS Apple Silicon
 pnpm pack:test:mac:x64     # macOS Intel
@@ -133,6 +138,14 @@ pnpm pack:test:mac         # Both macOS architectures
 ```
 
 Artifacts are written to `apps/desktop/release/`. The packaging flow runs the full verification suite and a production build before generating and validating installers.
+
+### Automatic releases from tags
+
+Commit and push the workflow and related changes, set both the root and desktop `package.json` versions to the intended release, then push the matching `vMAJOR.MINOR.PATCH` tag (for example, `v1.6.6` when both versions are `1.6.6`).
+
+The `Build and publish tagged release` workflow builds and verifies Windows x64, macOS ARM64 / Intel, and Linux x64 installers (AppImage, deb, Arch) on native runners. After every platform succeeds, it checks asset sizes and SHA-512 hashes, merges the two macOS update manifests, uploads all assets to a draft, and publishes the GitHub Release. Failed uploads remain in the current run's draft and can resume when the workflow is rerun. Existing published releases are preserved.
+
+Actions artifacts are retained for 14 days. Publishing uses the repository's `GITHUB_TOKEN` without additional release credentials. Windows builds remain unsigned and macOS builds use the existing ad-hoc signing configuration. Maintain the application's `update.json` through the existing release-manifest process.
 
 ## Project Structure
 

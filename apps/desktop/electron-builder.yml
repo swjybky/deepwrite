@@ -44,12 +44,48 @@ linux:
   target:
     - AppImage
     - deb
+    - pacman
   icon: build/icon.png
   category: Office
   executableName: deepwrite
   maintainer: carswj <wenjia@wenjiadeMacBook-Air.local>
   vendor: DeepWrite
   syncDesktopName: true
+
+# Keep Arch dependencies separate from Debian package names and bundled codecs.
+pacman:
+  packageName: deepwrite
+  artifactName: "${productName}-${version}-${os}-${arch}-test.pkg.tar.xz"
+  compression: xz
+  depends:
+    - alsa-lib
+    - at-spi2-core
+    - cairo
+    - dbus
+    - expat
+    - glib2
+    - glibc
+    - gtk3
+    - libcups
+    - libdrm
+    - libgcc
+    - libsecret
+    - libx11
+    - libxcb
+    - libxcomposite
+    - libxdamage
+    - libxext
+    - libxfixes
+    - libxkbcommon
+    - libxrandr
+    - mesa
+    - nspr
+    - nss
+    - pango
+    - systemd-libs
+    - libnotify
+    - libayatana-appindicator
+    - xdg-utils
 
 nsis:
   oneClick: false

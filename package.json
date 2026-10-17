@@ -1,6 +1,6 @@
 {
   "name": "deepwrite",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -33,7 +33,8 @@
     "pack:test:mac:arm64": "node tools/run-test-package.mjs mac arm64",
     "pack:test:mac:x64": "node tools/run-test-package.mjs mac x64",
     "pack:test:mac": "node tools/run-test-package.mjs mac all",
-    "lint:i18n": "node tools/check-i18n.mjs"
+    "lint:i18n": "node tools/check-i18n.mjs",
+    "pack:test:arch": "node tools/run-test-package.mjs arch x64"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

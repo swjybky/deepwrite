@@ -5,6 +5,23 @@ import { setAppLanguage } from "./index";
 afterEach(() => setAppLanguage("zh-CN", "zh-CN"));
 
 describe("structured application errors", () => {
+  it("shows localized credential and model storage failures from plain IPC objects", () => {
+    for (const code of [
+      "secure_storage.unavailable",
+      "secure_storage.encrypt_failed",
+      "secure_storage.decrypt_failed",
+      "models.permission_denied",
+      "models.disk_full"
+    ]) {
+      const error = { code, message: "private diagnostic" };
+      const chinese = formatError(error, "fallback");
+      expect(chinese).not.toBe("fallback");
+      expect(chinese).not.toContain("private diagnostic");
+      setAppLanguage("en-US", "zh-CN");
+      expect(formatError(error, "fallback")).not.toBe(chinese);
+      setAppLanguage("zh-CN", "zh-CN");
+    }
+  });
   it("shows actionable local storage causes without revealing raw diagnostic content", () => {
     const error = {
       code: "renderer_state.command_failed",

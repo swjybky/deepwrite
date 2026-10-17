@@ -4,6 +4,11 @@ import type { TranslationKey } from "./messages";
 import { t } from "./index";
 
 const errorKeys: Readonly<Record<string, TranslationKey>> = {
+  "secure_storage.unavailable": "foundation.secureStorageUnavailable",
+  "secure_storage.encrypt_failed": "foundation.secureStorageEncryptFailed",
+  "secure_storage.decrypt_failed": "foundation.secureStorageDecryptFailed",
+  "models.permission_denied": "foundation.modelStoragePermissionDenied",
+  "models.disk_full": "foundation.modelStorageDiskFull",
   "catalog.conflict": "foundation.catalogConflict",
   "long.operation.impact_mismatch": "foundation.impactChanged",
   "long.operation.not_found": "foundation.targetNotFound",

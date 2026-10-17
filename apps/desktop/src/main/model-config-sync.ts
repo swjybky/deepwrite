@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import { secureStorage as safeStorage } from "./secure-storage";
 import {
   ModelConfigInputSchema,
   SYNC_MODEL_KEY_MAX_LENGTH,
@@ -75,8 +75,6 @@ export function applySyncedModelChanges(
     }
     const next = toDiskModel(ModelConfigInputSchema.parse(change.next.model));
     if (change.next.apiKey) {
-      if (!safeStorage.isEncryptionAvailable())
-        throw new Error("系统安全存储当前不可用，无法保存同步来的 API Key。");
       encryptedApiKeys[change.id] = safeStorage
         .encryptString(change.next.apiKey)
         .toString("base64");

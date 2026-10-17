@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import { secureStorage as safeStorage } from "../secure-storage";
 import {
   CoverAspectRatioSchema,
   IMAGE_MODEL_PRESETS,

@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import { secureStorage as safeStorage } from "./secure-storage";
 import {
   isDeepWriteSiteOfficialModel,
   ModelSettingsSchema,
@@ -36,11 +36,6 @@ export function withDeepWriteFreeApiKeys(
   const entries = Object.entries(catalog.apiKeys).filter(
     ([id, apiKey]) => currentIds.has(id) && Boolean(apiKey)
   );
-  if (entries.length > 0 && !safeStorage.isEncryptionAvailable()) {
-    throw new Error(
-      "当前系统安全存储不可用，DeepWrite 不会把远程免费模型 API Key 以明文写入磁盘。"
-    );
-  }
   const encryptedApiKeys = { ...secrets.encryptedApiKeys };
   if (catalog.canDeprecateMissingModels) {
     for (const id of currentIds) delete encryptedApiKeys[id];

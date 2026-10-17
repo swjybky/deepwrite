@@ -1,0 +1,161 @@
+name: Build and publish tagged release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package ${{ matrix.id }}
+    if: ${{ !github.event.deleted }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-x64
+            os: ubuntu-24.04
+            command: pnpm pack:test:linux
+          - id: win-x64
+            os: windows-2025
+            command: pnpm pack:test:win
+          - id: mac-arm64
+            os: macos-15
+            command: pnpm pack:test:mac:arm64
+          - id: mac-x64
+            os: macos-15-intel
+            command: pnpm pack:test:mac:x64
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      DEEPWRITE_TEST_MAX_WORKERS: "2"
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Validate tag and package versions
+        run: node tools/validate-release-tag.mjs
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare Linux desktop verification
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            xvfb dbus-x11 xz-utils libgtk-3-0t64 libnotify4 libnss3 \
+            libxss1 libasound2t64 libsecret-1-0 libgbm1 libxtst6 libatspi2.0-0t64
+          # Permit Electron's user-namespace sandbox on this disposable CI runner.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - name: Build and verify Linux installers
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run --auto-servernum pnpm pack:test:linux
+
+      - name: Build and verify native installers
+        if: runner.os != 'Linux'
+        run: ${{ matrix.command }}
+
+      - name: Check macOS ZIP integrity
+        if: runner.os == 'macOS'
+        run: |
+          for archive in apps/desktop/release/DeepWrite-*-mac-*-test.zip; do
+            unzip -t "$archive"
+          done
+
+      - name: Upload verified installers
+        uses: actions/upload-artifact@v6
+        with:
+          name: installers-${{ matrix.id }}
+          path: |
+            apps/desktop/release/DeepWrite-*
+            apps/desktop/release/latest*.yml
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          overwrite: true
+
+  publish:
+    name: Verify assets and publish release
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Validate release version
+        run: node tools/validate-release-tag.mjs
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+
+      - name: Install release tooling
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download platform artifacts separately
+        uses: actions/download-artifact@v7
+        with:
+          pattern: installers-*
+          path: release-input
+          merge-multiple: false
+
+      - name: Verify assets and merge macOS update manifests
+        run: node tools/prepare-release-assets.mjs release-input release-upload
+
+      - name: Upload to draft and publish only when complete
+        uses: actions/github-script@v8
+        with:
+          retries: 3
+          script: |
+            const { pathToFileURL } = require('node:url');
+            const { publishTagRelease } = await import(pathToFileURL(require('node:path').resolve('tools/publish-tag-release.mjs')).href);
+            const url = await publishTagRelease({
+              github, context,
+              directory: require('node:path').resolve('release-upload'),
+              tag: process.env.RELEASE_TAG
+            });
+            await core.summary.addLink('Published release', url).write();

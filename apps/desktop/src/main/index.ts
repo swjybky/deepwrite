@@ -50,6 +50,7 @@ import {
   dialog,
   ipcMain,
   nativeImage,
+  safeStorage,
   nativeTheme
 } from "electron";
 import { existsSync } from "node:fs";
@@ -195,6 +196,10 @@ import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
 import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
 import { configureBootstrapEnvironment } from "./bootstrap-environment";
+import {
+  configureLinuxSecretBackend,
+  rememberLinuxSecretBackend
+} from "./linux-secret-backend";
 import { handleModelCommands } from "./ipc/model-commands";
 import { handleAppearanceCommands } from "./ipc/appearance-commands";
 import {
@@ -216,6 +221,7 @@ let storageBootstrap: ReturnType<typeof initializeStorageLocation> | undefined;
 if (hasSingleInstanceLock) {
   try {
     storageBootstrap = initializeStorageLocation(app);
+    configureLinuxSecretBackend(app.commandLine, app.getPath("userData"));
   } catch (error) {
     dialog.showErrorBox(
       nativeText("storageReadFailure"),
@@ -2373,6 +2379,12 @@ if (!hasSingleInstanceLock) {
 
   void desktopStartup.run(async () => {
     await app.whenReady();
+    if (process.platform === "linux" && safeStorage.isEncryptionAvailable()) {
+      rememberLinuxSecretBackend(
+        app.getPath("userData"),
+        safeStorage.getSelectedStorageBackend()
+      );
+    }
     setNativeLanguage("auto", app.getLocale());
     Menu.setApplicationMenu(null);
     const userDataPath = configureBootstrapEnvironment(

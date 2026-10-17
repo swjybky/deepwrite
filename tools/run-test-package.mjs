@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { pnpmInvocation } from "./pnpm-command.mjs";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,7 +15,9 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 function run(command, args, cwd = workspaceRoot) {
   console.log(`PACKAGE_STEP command=${command} ${args.join(" ")}`);
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, {
+    const invocation =
+      command === pnpmCommand ? pnpmInvocation(args) : { command, args };
+    const child = spawn(invocation.command, invocation.args, {
       cwd,
       env: process.env,
       stdio: "inherit"
@@ -43,19 +46,21 @@ export function parseTarget(args) {
     "mac x64": ["buildMacX64"],
     "win x64": ["buildWinX64"],
     "win arm64": ["buildWinArm64"],
-    "linux x64": ["buildLinuxX64"]
+    "linux x64": ["buildLinuxX64"],
+    "arch x64": ["buildArchX64"]
   };
   const selected = Object.hasOwn(targets, args.join(" "))
     ? targets[args.join(" ")]
     : undefined;
   if (!selected) {
     throw new Error(
-      "Usage: node tools/run-test-package.mjs <all | desktop | linux x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
+      "Usage: node tools/run-test-package.mjs <all | desktop | linux x64 | arch x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
     );
   }
   return Object.fromEntries(
     [
       "buildLinuxX64",
+      "buildArchX64",
       "buildMacArm64",
       "buildMacX64",
       "buildWinX64",
@@ -141,7 +146,7 @@ async function buildWindows(arch, version, archive) {
 }
 
 async function buildLinux(target, version) {
-  if (!target.buildLinuxX64) return;
+  if (!target.buildLinuxX64 && !target.buildArchX64) return;
   await run(
     pnpmCommand,
     [
@@ -151,8 +156,7 @@ async function buildLinux(target, version) {
       "electron-builder.yml",
       `--config.electronVersion=${version}`,
       "--linux",
-      "AppImage",
-      "deb",
+      ...(target.buildLinuxX64 ? ["AppImage", "deb", "pacman"] : ["pacman"]),
       "--x64",
       "--publish",
       "never"
@@ -161,7 +165,13 @@ async function buildLinux(target, version) {
   );
   await run(
     pnpmCommand,
-    ["exec", "node", "scripts/verify-test-package.mjs", "linux", "x64"],
+    [
+      "exec",
+      "node",
+      "scripts/verify-test-package.mjs",
+      target.buildArchX64 ? "arch" : "linux",
+      "x64"
+    ],
     appDirectory
   );
 }

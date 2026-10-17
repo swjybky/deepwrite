@@ -5,6 +5,7 @@ export {
 export * from "./book-templates";
 export { loadBookTemplateDraftSchema } from "./load-book-template-schema";
 export * from "./appearance";
+export type { SecureStorageErrorCode } from "./secure-storage";
 export * from "./voice";
 export * from "./app-alert";
 export * from "./agent-team";

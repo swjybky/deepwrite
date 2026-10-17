@@ -85,8 +85,11 @@ DeepWrite 支持：
 | Windows x64 | `DeepWrite-<version>-win-x64-test.exe` |
 | macOS Apple Silicon | `DeepWrite-<version>-mac-arm64-test.dmg` |
 | macOS Intel | `DeepWrite-<version>-mac-x64-test.dmg` |
+| Arch Linux / CachyOS x64 | `DeepWrite-<version>-linux-x64-test.pkg.tar.xz` |
 
 Windows 用户运行 `.exe` 并按安装向导完成安装。
+
+Arch Linux、CachyOS 等 Arch 系发行版可用 `sudo pacman -U ./DeepWrite-<version>-linux-x64-test.pkg.tar.xz` 安装本地包。应用自带 Electron；保存模型密钥需要已启动并解锁的系统密钥服务（例如 GNOME Keyring 或 KWallet），应用会自动选择后端。
 
 macOS 用户打开 `.dmg`，将 DeepWrite 拖入“应用程序”文件夹。当前测试包使用 ad-hoc 签名且未经过 Apple 公证；通过浏览器、微信等渠道下载后，macOS 可能显示安全提醒。请先确认文件来源可信，再右键应用选择“打开”，或前往“系统设置 → 隐私与安全性”允许打开。
 
@@ -103,7 +106,7 @@ macOS 用户打开 `.dmg`，将 DeepWrite 拖入“应用程序”文件夹。�
 
 - Node.js 24 或更高版本
 - pnpm 11 或更高版本
-- Windows x64，或 macOS Apple Silicon / Intel
+- Windows x64、Linux x64，或 macOS Apple Silicon / Intel
 
 ```bash
 git clone https://github.com/swjybky/deepwrite.git
@@ -132,6 +135,8 @@ pnpm verify    # 运行格式、类型、边界、测试与构建校验
 
 ```bash
 pnpm pack:test             # 当前主机支持的全部测试包
+pnpm pack:test:arch        # Arch Linux / CachyOS x64
+pnpm pack:test:linux       # Linux x64：AppImage、deb 和 Arch 包
 pnpm pack:test:win         # Windows x64
 pnpm pack:test:mac:arm64   # macOS Apple Silicon
 pnpm pack:test:mac:x64     # macOS Intel
@@ -139,6 +144,14 @@ pnpm pack:test:mac         # 两种 macOS 架构
 ```
 
 产物保存在 `apps/desktop/release/`。打包流程会先执行完整校验和生产构建，再生成并验证安装包。
+
+### 标签自动发布
+
+提交并推送工作流及相关改动后，先将根目录和 `apps/desktop/package.json` 的版本同步为目标版本，再推送对应的 `v主版本.次版本.补丁版本` 标签（例如两个版本均为 `1.6.6` 时推送 `v1.6.6`）。
+
+`Build and publish tagged release` 工作流在各自的原生 runner 上构建并验收 Windows x64、macOS ARM64 / Intel 和 Linux x64（AppImage、deb、Arch）安装包。全部任务通过后，工作流校验文件大小和 SHA-512，合并两种 macOS 架构的更新清单，再将资产上传到草稿并自动公开 GitHub Release。失败会保留构建产物或本轮草稿，重新运行该工作流可续传；已有公开 Release 不会被覆盖。
+
+构建产物在 Actions 中保留 14 天。发布使用仓库提供的 `GITHUB_TOKEN`，无需额外发布密钥；当前包仍采用既有的 Windows 未签名、macOS ad-hoc 签名方案。应用内的 `update.json` 继续按既有发布清单流程维护。
 
 ## 项目结构
 

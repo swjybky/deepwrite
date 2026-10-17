@@ -7,7 +7,8 @@ import {
   type MarketplaceSession,
   type MarketplaceUser
 } from "@deepwrite/contracts";
-import { net, safeStorage } from "electron";
+import { net } from "electron";
+import { secureStorage as safeStorage } from "./secure-storage";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEEPWRITE_PUBLIC_DATA_API_BASE_URL } from "./deepwrite-public-data-config";

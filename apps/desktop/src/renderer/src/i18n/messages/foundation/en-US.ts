@@ -1,4 +1,15 @@
 export default {
+  secureStorageUnavailable:
+    "System secret storage is unavailable. Start and unlock your keyring, then try again.",
+  secureStorageEncryptFailed:
+    "Could not encrypt credentials. Check system secret storage and try again.",
+  secureStorageDecryptFailed:
+    "Could not decrypt credentials. Use the original system keyring, or enter and save the credentials again.",
+  modelStoragePermissionDenied:
+    "Could not write model settings. Check write permissions for the user data directory.",
+  modelStorageDiskFull:
+    "Not enough disk space or quota to save model settings.",
+
   permissions: "Permissions",
   approvalLabel: "Default agent approval mode",
   requestApproval: "Ask for approval",

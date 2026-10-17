@@ -34,7 +34,8 @@ describe("test package target selection", () => {
     [["mac", "x64"], ["buildMacX64"]],
     [["win", "x64"], ["buildWinX64"]],
     [["win", "arm64"], ["buildWinArm64"]],
-    [["linux", "x64"], ["buildLinuxX64"]]
+    [["linux", "x64"], ["buildLinuxX64"]],
+    [["arch", "x64"], ["buildArchX64"]]
   ])("preserves the requested targets for %j", (args, targets) => {
     expect(selected(args)).toEqual(targets);
   });
@@ -43,6 +44,8 @@ describe("test package target selection", () => {
     { args: [] },
     { args: ["desktop", "x64"] },
     { args: ["win", "ia32"] },
+    { args: ["arch", "arm64"] },
+    { args: ["arch", "x64", "extra"] },
     { args: ["win", "arm64", "extra"] },
     { args: ["mac"] },
     { args: ["other"] }

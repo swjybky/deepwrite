@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import { secureStorage as safeStorage } from "./secure-storage";
 import {
   AgentProviderRuntimeConfigSchema,
   isDeepWriteSiteOfficialModel,
@@ -13,14 +13,7 @@ import {
 
 export function decryptModelKey(encrypted: string | undefined): string {
   if (!encrypted) return "";
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("系统安全存储当前不可用，无法解密这个模型的 API Key。");
-  }
-  try {
-    return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
-  } catch {
-    throw new Error("模型 API Key 解密失败，请在模型配置中重新填写并保存。");
-  }
+  return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
 }
 
 function storedKey(model: ModelConfigInput, secrets: DiskModelSecrets): string {

@@ -1,4 +1,4 @@
-import { safeStorage } from "electron";
+import { secureStorage as safeStorage } from "./secure-storage";
 import type { ModelSettingsInput } from "@deepwrite/contracts";
 import {
   forgetEnabledFreeModel,
@@ -29,11 +29,6 @@ export function editModelSettings(
     if (model.managedBy) continue;
     const apiKey = model.apiKey?.trim();
     if (apiKey) {
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error(
-          "当前系统安全存储不可用，DeepWrite 不会把 API Key 以明文写入磁盘。"
-        );
-      }
       encryptedApiKeys[model.id] = safeStorage
         .encryptString(apiKey)
         .toString("base64");
