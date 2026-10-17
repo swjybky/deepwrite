@@ -3,13 +3,17 @@ import {
   DecompositionBeatTypeSchema,
   DecompositionReadingCardSchema
 } from "./cards";
-import { DecompositionIdSchema, DecompositionTextSchema } from "./limits";
+import {
+  DECOMPOSITION_MAX_CHAPTERS,
+  DecompositionIdSchema,
+  DecompositionTextSchema
+} from "./limits";
 import {
   DecompositionRegistryDataSchema,
   DecompositionRegistryPlanSchema
 } from "./registry";
 
-const chapterOrder = z.number().int().min(1).max(10_000);
+const chapterOrder = z.number().int().min(1).max(DECOMPOSITION_MAX_CHAPTERS);
 const chroniclePoint = z.object({
   title: z.string().min(1).max(120),
   summary: DecompositionTextSchema,

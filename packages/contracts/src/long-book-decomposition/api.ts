@@ -7,6 +7,7 @@ import { DecompositionRegistrySchema } from "./registry";
 import type { DecompositionRegistryData } from "./registry";
 import { LongBookDecompositionJobSchema } from "./job";
 import { DecompositionContentRefSchema } from "./target";
+import { DECOMPOSITION_MAX_CHAPTERS } from "./limits";
 import { DecompositionRecordSchema } from "./records";
 export const DecompositionResultsSchema = z.array(
   z.object({
@@ -25,7 +26,7 @@ export const DecompositionUnitViewSchema = z.object({
 export type DecompositionUnitView = z.infer<typeof DecompositionUnitViewSchema>;
 export const DecompositionJobsSchema = z
   .array(LongBookDecompositionJobSchema)
-  .max(10_000);
+  .max(DECOMPOSITION_MAX_CHAPTERS);
 export type DecompositionResults = z.infer<typeof DecompositionResultsSchema>;
 export interface LongBookDecompositionApi {
   createJob(

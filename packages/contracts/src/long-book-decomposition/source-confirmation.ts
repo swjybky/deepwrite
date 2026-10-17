@@ -3,7 +3,11 @@ import {
   LongBookAnalysisChapterSchema,
   LongBookAnalysisSavedSourceIdSchema
 } from "../long-book-analysis-sources";
-import { DecompositionIdSchema, DecompositionRangeSchema } from "./limits";
+import {
+  DECOMPOSITION_MAX_CHAPTERS,
+  DecompositionIdSchema,
+  DecompositionRangeSchema
+} from "./limits";
 export const DecompositionSourceConfirmationSchema = z.object({
   id: DecompositionIdSchema,
   sourceId: LongBookAnalysisSavedSourceIdSchema,
@@ -18,7 +22,10 @@ export type DecompositionSourceConfirmation = z.infer<
 export const SaveLongBookSourceInputSchema = z.object({
   sourceId: LongBookAnalysisSavedSourceIdSchema,
   baseRevision: z.number().int().nonnegative(),
-  chapters: z.array(LongBookAnalysisChapterSchema).min(1).max(10_000)
+  chapters: z
+    .array(LongBookAnalysisChapterSchema)
+    .min(1)
+    .max(DECOMPOSITION_MAX_CHAPTERS)
 });
 export const ConfirmLongBookSourceInputSchema = z.object({
   sourceId: LongBookAnalysisSavedSourceIdSchema,

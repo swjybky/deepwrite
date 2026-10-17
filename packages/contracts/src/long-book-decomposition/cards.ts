@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { DecompositionIdSchema } from "./limits";
+import { DECOMPOSITION_MAX_CHAPTERS, DecompositionIdSchema } from "./limits";
 
-const order = z.number().int().min(1).max(10_000);
+const order = z.number().int().min(1).max(DECOMPOSITION_MAX_CHAPTERS);
 const fact = z.object({
   text: z.string().trim().min(1).max(2000),
   chapterOrder: order,
