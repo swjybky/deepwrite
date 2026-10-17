@@ -102,6 +102,7 @@ export class CoverRenderService {
           },
           ownerId
         );
+        if (pending.cancelled) throw new SafeImageError("图片生成已取消。");
         const image = result.images[0]!;
         const record = BookIdentityRecordSchema.parse(
           await identityCore(

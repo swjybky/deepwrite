@@ -416,4 +416,36 @@ describe("CoverRenderService", () => {
     await rejected;
     expect(images.render).not.toHaveBeenCalled();
   });
+
+  it("does not persist an image when cancellation wins the render race", async () => {
+    const current = fixture();
+    const response = deferred<Awaited<ReturnType<ImageService["render"]>>>();
+    const images = imageService();
+    images.render.mockReturnValue(response.promise);
+    const core = renderCore(current, undefined);
+    const service = new CoverRenderService(core, images);
+    const operation = service.render(input, 7);
+    await vi.waitFor(() => expect(images.render).toHaveBeenCalled());
+    expect(service.cancel(input.requestId, 7)).toBe(true);
+    response.resolve({
+      images: [
+        {
+          png: IMAGE_PNG,
+          thumbnail: Buffer.from([255, 216, 255, 217]),
+          previewDataUrl: "data:image/jpeg;base64,/9j/2Q==",
+          width: 600,
+          height: 800
+        }
+      ],
+      imageProfile: {
+        id: "img_test",
+        presetId: "openai-compatible",
+        model: "invalid-test-image-model"
+      }
+    });
+    await expect(operation).rejects.toThrow("已取消");
+    expect(core.mock.calls.map(([command]) => command.type)).not.toContain(
+      "bookIdentity.writeCoverAsset"
+    );
+  });
 });
