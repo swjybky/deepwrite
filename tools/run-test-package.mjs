@@ -147,25 +147,30 @@ async function buildWindows(arch, version, archive) {
   );
 }
 
-/** Build AppImage, deb and pacman for the requested architecture; pacman-only keeps the Arch x64 target. */
+/** Electron Builder appends the Linux platform and architecture to the channel. */
+export function linuxPackageBuilderArgs(
+  arch,
+  version,
+  { pacmanOnly = false } = {}
+) {
+  return [
+    "exec",
+    "electron-builder",
+    "--config",
+    "electron-builder.yml",
+    `--config.electronVersion=${version}`,
+    "--linux",
+    ...(pacmanOnly ? ["pacman"] : ["AppImage", "deb", "pacman"]),
+    `--${arch}`,
+    "--publish",
+    "never"
+  ];
+}
+
 async function buildLinuxPackage(arch, { pacmanOnly = false }, version) {
   await run(
     pnpmCommand,
-    [
-      "exec",
-      "electron-builder",
-      "--config",
-      "electron-builder.yml",
-      `--config.electronVersion=${version}`,
-      ...(arch === "arm64"
-        ? ["--config.publish.channel=latest-linux-arm64"]
-        : []),
-      "--linux",
-      ...(pacmanOnly ? ["pacman"] : ["AppImage", "deb", "pacman"]),
-      `--${arch}`,
-      "--publish",
-      "never"
-    ],
+    linuxPackageBuilderArgs(arch, version, { pacmanOnly }),
     appDirectory
   );
   await run(
