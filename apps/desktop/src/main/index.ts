@@ -10,6 +10,7 @@ import {
   refreshDesktopServices
 } from "./desktop-services";
 import { createDesktopStartup } from "./desktop-startup";
+import { configureLinuxSecretStorage } from "./linux-secret-storage";
 import {
   acquireStorageInstanceLock,
   initializeStorageLocation
@@ -226,6 +227,7 @@ if (hasSingleInstanceLock) {
     app.exit(1);
   }
 }
+configureLinuxSecretStorage(app.commandLine);
 const desktopStartup = createDesktopStartup();
 
 interface ActiveRun extends MainInternalCommandActiveRun {
