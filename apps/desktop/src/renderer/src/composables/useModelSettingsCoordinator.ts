@@ -13,8 +13,8 @@ import { useSiteOfficialModelSettings } from "./useSiteOfficialModelSettings";
 
 const t = createScopedTranslator("workspace.modelSettingsCoordinator");
 
-// A provider's failure reason needs longer than the default toast to read.
-const MODEL_TEST_ERROR_TOAST_MS = 8_000;
+// Save and provider failure reasons need longer than the default toast to read.
+const MODEL_ERROR_TOAST_MS = 8_000;
 
 export interface ModelSettingsNotifications {
   error(message: string, options?: { duration?: number }): void;
@@ -147,11 +147,11 @@ export function useModelSettingsCoordinator(
       );
       uiMessage.success(settingsStore.modelTestMessage);
     } catch (error: unknown) {
-      settingsStore.modelError = errorMessage(
-        error,
-        t("failedToSaveModelSettings")
-      );
-      uiMessage.error(settingsStore.modelError);
+      settingsStore.modelError =
+        getErrorDetail(error) ?? t("failedToSaveModelSettings");
+      uiMessage.error(settingsStore.modelError, {
+        duration: MODEL_ERROR_TOAST_MS
+      });
     } finally {
       settingsStore.modelSaving = false;
     }
@@ -227,7 +227,7 @@ export function useModelSettingsCoordinator(
           ? t("modelConnectionTestFailedWithReason", { reason })
           : headline;
       uiMessage.error(settingsStore.modelError, {
-        duration: MODEL_TEST_ERROR_TOAST_MS
+        duration: MODEL_ERROR_TOAST_MS
       });
     } finally {
       settingsStore.testingModelId = null;
