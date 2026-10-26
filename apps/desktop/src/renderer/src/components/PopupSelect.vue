@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { t } from "../i18n";
+import { computed } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { usePopupSelect } from "../composables/usePopupSelect";
 import type { PopupSelectValue, PopupSelectOption } from "../types/popupSelect";
@@ -15,6 +16,7 @@ const props = withDefaults(
     size?: "small" | "medium" | "large";
     align?: "start" | "end";
     menuMinWidth?: number;
+    menuMaxHeight?: number;
     menuZIndex?: number;
     multiple?: boolean;
     selectedValues?: readonly PopupSelectValue[];
@@ -28,6 +30,7 @@ const props = withDefaults(
     size: "medium",
     align: "start",
     menuMinWidth: 190,
+    menuMaxHeight: 320,
     menuZIndex: 1000,
     multiple: false,
     selectedValues: () => [],
@@ -42,6 +45,22 @@ const emit = defineEmits<{
   optionAction: [value: PopupSelectValue];
   "update:selectedValues": [values: PopupSelectValue[]];
 }>();
+
+const optionGroups = computed(() => {
+  const groups: Array<{
+    group: PopupSelectOption["group"];
+    options: Array<{ option: PopupSelectOption; index: number }>;
+  }> = [];
+  for (const [index, option] of props.options.entries()) {
+    let group = groups.at(-1);
+    if (!group || group.group?.key !== option.group?.key) {
+      group = { group: option.group, options: [] };
+      groups.push(group);
+    }
+    group.options.push({ option, index });
+  }
+  return groups;
+});
 
 const {
   openMenu,
@@ -113,7 +132,10 @@ defineExpose({ openMenu, closeMenu, trigger, open });
           :id="menuId"
           ref="menu"
           class="popup-select-menu"
-          :class="{ 'is-compact-menu': variant === 'compact' }"
+          :class="{
+            'is-compact-menu': variant === 'compact',
+            'has-groups': optionGroups.some((group) => group.group)
+          }"
           :style="menuStyle"
           :role="
             variant === 'menu' ? 'menu' : $slots.footer ? undefined : 'listbox'
@@ -128,67 +150,83 @@ defineExpose({ openMenu, closeMenu, trigger, open });
             :aria-multiselectable="$slots.footer && multiple ? true : undefined"
           >
             <div
-              v-for="(option, index) in options"
-              :key="`${typeof option.value}:${option.value}`"
-              class="popup-select-option-row"
-              :class="{
-                'has-action': Boolean(option.actionIcon && option.actionLabel)
-              }"
-              role="presentation"
+              v-for="(group, groupIndex) in optionGroups"
+              :key="groupIndex"
+              class="popup-select-option-group"
+              :class="{ 'has-label': group.group }"
+              :role="group.group ? 'group' : 'presentation'"
+              :aria-label="group.group?.label"
             >
-              <button
-                :ref="(element) => setOptionElement(element, index)"
-                class="popup-select-option"
+              <div
+                v-if="group.group"
+                class="popup-select-group-label"
+                aria-hidden="true"
+              >
+                {{ group.group.label }}
+              </div>
+              <div
+                v-for="{ option, index } in group.options"
+                :key="`${typeof option.value}:${option.value}`"
+                class="popup-select-option-row"
                 :class="{
-                  'is-selected': isSelected(option.value),
-                  'has-description': Boolean(option.description)
+                  'has-action': Boolean(option.actionIcon && option.actionLabel)
                 }"
-                type="button"
-                :role="variant === 'menu' ? 'menuitem' : 'option'"
-                :aria-selected="
-                  variant === 'menu' ? undefined : isSelected(option.value)
-                "
-                :disabled="option.disabled"
-                :title="option.title"
-                :style="option.style"
-                @click="selectOption(option)"
+                role="presentation"
               >
-                <span class="popup-select-option-copy">
-                  <span>{{ option.label }}</span>
-                  <small v-if="option.description">{{
-                    option.description
-                  }}</small>
-                </span>
-                <span
-                  v-if="multiple"
-                  class="popup-select-checkbox"
-                  :class="{ 'is-checked': isSelected(option.value) }"
-                  aria-hidden="true"
+                <button
+                  :ref="(element) => setOptionElement(element, index)"
+                  class="popup-select-option"
+                  :class="{
+                    'is-selected': isSelected(option.value),
+                    'has-description': Boolean(option.description)
+                  }"
+                  type="button"
+                  :role="variant === 'menu' ? 'menuitem' : 'option'"
+                  :aria-selected="
+                    variant === 'menu' ? undefined : isSelected(option.value)
+                  "
+                  :disabled="option.disabled"
+                  :title="option.title"
+                  :style="option.style"
+                  @click="selectOption(option)"
                 >
+                  <span class="popup-select-option-copy">
+                    <span>{{ option.label }}</span>
+                    <small v-if="option.description">{{
+                      option.description
+                    }}</small>
+                  </span>
+                  <span
+                    v-if="multiple"
+                    class="popup-select-checkbox"
+                    :class="{ 'is-checked': isSelected(option.value) }"
+                    aria-hidden="true"
+                  >
+                    <AppIcon
+                      v-if="isSelected(option.value)"
+                      name="check"
+                      :size="12"
+                    />
+                  </span>
                   <AppIcon
-                    v-if="isSelected(option.value)"
+                    v-else-if="isSelected(option.value)"
+                    class="popup-select-check"
                     name="check"
-                    :size="12"
+                    :size="15"
                   />
-                </span>
-                <AppIcon
-                  v-else-if="isSelected(option.value)"
-                  class="popup-select-check"
-                  name="check"
-                  :size="15"
-                />
-              </button>
-              <button
-                v-if="option.actionIcon && option.actionLabel"
-                class="popup-select-option-action"
-                type="button"
-                :aria-label="option.actionLabel"
-                :title="option.actionLabel"
-                :disabled="option.disabled"
-                @click.stop="runOptionAction(option)"
-              >
-                <AppIcon :name="option.actionIcon" :size="15" />
-              </button>
+                </button>
+                <button
+                  v-if="option.actionIcon && option.actionLabel"
+                  class="popup-select-option-action"
+                  type="button"
+                  :aria-label="option.actionLabel"
+                  :title="option.actionLabel"
+                  :disabled="option.disabled"
+                  @click.stop="runOptionAction(option)"
+                >
+                  <AppIcon :name="option.actionIcon" :size="15" />
+                </button>
+              </div>
             </div>
           </div>
           <div v-if="$slots.footer" class="popup-select-footer">
@@ -201,3 +239,4 @@ defineExpose({ openMenu, closeMenu, trigger, open });
 </template>
 
 <style scoped src="../styles/popup-select.css"></style>
+<style scoped src="../styles/popup-select-groups.css"></style>

@@ -4,6 +4,7 @@ import {
   isWriteTool,
   toolDetail,
   toolKind,
+  toolGroupLabel,
   toolLabel,
   workspaceToolLabel,
   writeToolAction
@@ -21,6 +22,27 @@ function editTrace(overrides: Partial<AgentToolTrace> = {}): AgentToolTrace {
 }
 
 describe("workspace tool presentation", () => {
+  it.each(["read", "edit", "create"])(
+    "keeps a queued %s visibly waiting after its arguments finish streaming",
+    (name) => {
+      const tool = editTrace({
+        name,
+        status: "preparing",
+        argumentsComplete: true
+      });
+      expect(toolLabel(tool)).toBe(`等待执行：${workspaceToolLabel(name)}`);
+      expect(toolDetail(tool)).toBe("等待执行");
+      expect(toolGroupLabel([tool])).toBe("等待执行");
+      expect(toolGroupLabel([{ ...tool, argumentsComplete: false }])).toBe(
+        "参数生成中"
+      );
+      expect(toolGroupLabel([{ ...tool, status: "running" }])).toBe("执行中");
+      expect(toolGroupLabel([{ ...tool, status: "completed" }])).toBe(
+        "执行完成"
+      );
+    }
+  );
+
   it.each([
     ["create_draft_sections", "创建章节文件", "write"],
     ["write_draft_section", "写入正文章节", "write"],

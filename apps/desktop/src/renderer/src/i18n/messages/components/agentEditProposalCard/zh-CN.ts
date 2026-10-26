@@ -72,5 +72,12 @@ export default {
   targetMessage: "目标{arg0}：{arg1}",
   awaitingReviewOnDevice: "在{device}上待审核",
   reviewOnlyOnDevice: "这个提案只能在{device}上审核。",
-  handledOnDevice: "这是{device}上的处理结果，这里只能查看。"
+  handledOnDevice: "这是{device}上的处理结果，这里只能查看。",
+  youEditedThis: "你修改过",
+  staleTextMessage:
+    "智能体读取后你修改过这篇。覆盖会用智能体版本替换你的修改，之后可以撤销；保留则放弃这条修改。",
+  staleLongMessage:
+    "智能体读取后这份内容已被修改。覆盖会用智能体版本替换当前内容；保留则放弃这条修改。",
+  keepMine: "保留我的",
+  overwriteWithAgentVersion: "用智能体版本覆盖"
 };

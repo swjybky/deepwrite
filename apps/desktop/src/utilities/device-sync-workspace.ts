@@ -8,16 +8,19 @@ import {
   sameSyncContent,
   stableSyncJson,
   syncKey,
+  type DeviceSyncIntent,
   type ProjectSyncItem,
   type SyncItem
 } from "@deepwrite/contracts";
 import { writeSyncJson as atomicWriteText } from "../extras/device-sync/atomic-json";
 import {
-  commitProjectTransaction,
-  recoverProjectTransaction,
-  projectTransactionContentSha256,
-  type ProjectTransactionFileOperation
-} from "./project-transaction";
+  commitDeviceSyncFiles,
+  deviceSyncOperations
+} from "./device-sync-transaction";
+import {
+  pauseDeviceSyncRecovery,
+  restorePreviousDeviceSyncItem
+} from "./device-sync-recovery";
 import type { FolderCatalogStore } from "./folder-catalog-store";
 import type { LongWorkspaceService } from "./long-workspace-service";
 import {
@@ -61,7 +64,31 @@ export class DesktopSyncWorkspace {
         return;
       throw error;
     }
-    const intent = DeviceSyncIntentSchema.parse(JSON.parse(raw));
+    let intent: DeviceSyncIntent | undefined;
+    try {
+      intent = DeviceSyncIntentSchema.parse(JSON.parse(raw));
+      await this.resumeIntent(intent);
+      await rm(this.intentPath);
+    } catch (error) {
+      let failure = error;
+      try {
+        await restorePreviousDeviceSyncItem(intent, (root, item) =>
+          this.register(root, item)
+        );
+      } catch (restoreError) {
+        failure = new AggregateError(
+          [error, restoreError],
+          "同步恢复与原版本恢复均未完成。"
+        );
+      }
+      await pauseDeviceSyncRecovery(
+        this.userDataPath,
+        this.intentPath,
+        failure
+      );
+    }
+  }
+  private async resumeIntent(intent: DeviceSyncIntent): Promise<void> {
     if (!isAbsolute(intent.root)) throw new Error("同步恢复目录无效。");
     const identity = intent.item ?? intent.previous;
     if (!identity || syncKey(identity) !== intent.key)
@@ -70,7 +97,6 @@ export class DesktopSyncWorkspace {
     if (intent.item) {
       validateDesktopSyncItem(intent.item);
       await mkdir(intent.root, { recursive: true });
-      await recoverProjectTransaction(intent.root);
       const current = await readDeviceSyncFiles(intent.root);
       if (!sameSyncContent({ ...identity, files: current }, intent.item)) {
         const previousMatches = intent.previous
@@ -80,7 +106,7 @@ export class DesktopSyncWorkspace {
             )
           : Object.keys(current).length === 0;
         if (!previousMatches) await this.pauseChangedIntent(identity, current);
-        await this.commit(intent.root, current, intent.item);
+        await commitDeviceSyncFiles(intent.root, current, intent.item);
       }
       await this.register(intent.root, intent.item);
     } else if (intent.removal) {
@@ -132,7 +158,6 @@ export class DesktopSyncWorkspace {
         ).unregisterProject({ projectId: identity.id, domain });
       }
     }
-    await rm(this.intentPath);
   }
   private async pauseChangedIntent(
     identity: SyncItem,
@@ -142,52 +167,11 @@ export class DesktopSyncWorkspace {
       JSON.parse(files["deepwrite.json"] ?? "null")
     );
     validateDesktopSyncItem({ ...identity, title: manifest.title, files });
-    const recovery = join(this.userDataPath, "device-sync-paused");
-    await mkdir(recovery, { recursive: true });
-    await rename(this.intentPath, join(recovery, `${randomUUID()}.json`));
     throw new Error("正文已发生新修改，请重新同步。");
   }
   private async register(root: string, item: ProjectSyncItem): Promise<void> {
     if (item.kind === "long-book") await this.long.openAtPath(root);
     else await (await this.catalog()).openCatalogProject(root, item.kind);
-  }
-  private async commit(
-    root: string,
-    old: Record<string, string>,
-    item: SyncItem
-  ): Promise<void> {
-    const files = { ...item.files };
-    const manifest: unknown = JSON.parse(files["deepwrite.json"] ?? "null");
-    if (manifest && typeof manifest === "object" && "revision" in manifest) {
-      const previous: unknown = JSON.parse(old["deepwrite.json"] ?? "null");
-      const revision =
-        previous &&
-        typeof previous === "object" &&
-        "revision" in previous &&
-        typeof previous.revision === "number"
-          ? previous.revision
-          : 0;
-      files["deepwrite.json"] =
-        `${stableSyncJson({ ...manifest, revision: revision + 1 })}\n`;
-    }
-    const operations: ProjectTransactionFileOperation[] = [];
-    for (const [path, content] of Object.entries(files))
-      operations.push({
-        path,
-        content,
-        expectedSha256:
-          old[path] === undefined
-            ? null
-            : projectTransactionContentSha256(old[path])
-      });
-    for (const [path, content] of Object.entries(old))
-      if (files[path] === undefined)
-        operations.push({
-          path,
-          action: "delete",
-          expectedSha256: projectTransactionContentSha256(content)
-        });
-    await commitProjectTransaction({ projectRoot: root, operations });
   }
   async apply(
     key: string,
@@ -211,6 +195,8 @@ export class DesktopSyncWorkspace {
     if (registration && !local) throw new Error("本机作品不可读，已停止同步。");
     if (!sameSyncContent(local, expected))
       throw new Error("正文已发生新修改，请重新同步。");
+    // Fail before publishing an intent that can never fit a project transaction.
+    if (next) deviceSyncOperations(local?.files ?? {}, next);
     const identity = next ?? local;
     if (!identity) return;
     assertProjectSyncItem(identity);

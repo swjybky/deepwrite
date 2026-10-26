@@ -277,8 +277,7 @@ export default {
       "正在应用长篇提案，编辑暂时锁定",
     applyingNovelEditsEditingIsTemporarilyLocked:
       "正在应用长篇修改，编辑暂时锁定",
-    acceptingAndSavingAgentEdits: "正在接受并保存智能体修改",
-    acceptOrRejectThePendingChangesFirst: "请先接受或拒绝待审阅变更"
+    acceptingAndSavingAgentEdits: "正在接受并保存智能体修改"
   },
   longWorkspaceRefreshCoordinator: {
     theNovelWorkspaceRefreshReturnedADifferentBook:

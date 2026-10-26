@@ -1,5 +1,6 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
+  SUBAGENT_DRAW_MAX_COUNT,
   activeSubagentDraw,
   subagentWebSearchAllowed,
   type SubagentAgentMode,
@@ -125,5 +126,17 @@ export function subagentModeLabel(mode: SubagentAgentMode): string | undefined {
 
 /** Marker telling the parent that a member answers with one selected draw. */
 export function subagentDrawLabel(draw: SubagentDrawSettings): string {
+  if (draw.countMode === "auto") {
+    return `［按需抽卡：最多 ${SUBAGENT_DRAW_MAX_COUNT} 份。要多个版本时在该任务的 draw_variants 里逐条写出每份的差异要求，条数即份数；不填只运行一次。系统择优后只返回选中的一份］`;
+  }
   return `［抽卡×${draw.count}：系统会自动生成 ${draw.count} 份结果并择优，只返回选中的一份］`;
+}
+
+/** True when some member lets the parent decide its draws per task. */
+export function subagentsAcceptDrawVariants(
+  definitions: readonly RuntimeSubagentDefinition[]
+): boolean {
+  return definitions.some(
+    (definition) => subagentDrawSettings(definition)?.countMode === "auto"
+  );
 }

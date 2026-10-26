@@ -433,7 +433,11 @@ export default {
     theLocalMarkdownFileWasUpdatedElsewhereTheAgent:
       "The local Markdown file was updated elsewhere. The agent edits were not saved. Generate new edits based on the latest manuscript.",
     couldNotSaveTheAgentEditsTheOriginalText:
-      "Could not save the agent edits. The original text is unchanged."
+      "Could not save the agent edits. The original text is unchanged.",
+    userEditedAgentTarget:
+      "You edited “{title}” after the agent read it. This change is paused; keep yours or overwrite it in the conversation.",
+    waitingForYourSaveToFinish:
+      "Waiting for your save to finish before saving automatically…"
   },
   plotStructureLane: {
     theTargetProjectIsNoLongerAvailableThePlot:

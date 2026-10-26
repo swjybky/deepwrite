@@ -1,5 +1,8 @@
 import {
   SUBAGENT_CHILD_RUN_MAX_CONCURRENCY,
+  SUBAGENT_DRAW_MAX_COUNT,
+  SUBAGENT_DRAW_MIN_COUNT,
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
   SUBAGENT_PARALLEL_MAX_CONCURRENCY,
   SUBAGENT_TASK_BATCH_MAX_COUNT
 } from "@deepwrite/contracts";
@@ -18,11 +21,15 @@ import {
   subagentAgentMode,
   subagentDrawLabel,
   subagentDrawSettings,
-  subagentModeLabel
+  subagentModeLabel,
+  subagentsAcceptDrawVariants
 } from "./subagent-mode";
 import { createConcurrencyLimiter } from "./concurrency-limiter";
 import { runSubagentTasks } from "./subagent-scheduler";
-import { planSubagentTasks } from "./subagent-task-plan";
+import {
+  planSubagentTasks,
+  SUBAGENT_TASK_MAX_LENGTH
+} from "./subagent-task-plan";
 import { createSubagentWriteLock } from "./subagent-write-lock";
 import type {
   BuildSpawnSubagentToolInput,
@@ -51,6 +58,22 @@ function spawnParameters(definitions: readonly RuntimeSubagentDefinition[]) {
     maxLength: 40,
     pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$"
   });
+  // Only teams with an auto-count draw member see the field at all.
+  const drawVariants = subagentsAcceptDrawVariants(definitions)
+    ? {
+        draw_variants: Type.Optional(
+          Type.Array(
+            Type.String({
+              minLength: 1,
+              maxLength: SUBAGENT_DRAW_VARIANT_MAX_LENGTH
+            }),
+            {
+              description: `仅用于标有［按需抽卡］的成员。每条写一份候选相对 task 的差异要求，条数就是抽卡份数，${SUBAGENT_DRAW_MIN_COUNT} 到 ${SUBAGENT_DRAW_MAX_COUNT} 条。各份共同的背景和要求写在 task 里，这里只写差异。不需要多个版本时不填，任务只运行一次。`
+            }
+          )
+        )
+      }
+    : {};
   return Type.Object({
     tasks: Type.Array(
       Type.Object({
@@ -62,7 +85,10 @@ function spawnParameters(definitions: readonly RuntimeSubagentDefinition[]) {
           })
         ),
         subagent_id: StringEnum(definitions.map((definition) => definition.id)),
-        task: Type.String({ minLength: 1, maxLength: 20_000 }),
+        task: Type.String({
+          minLength: 1,
+          maxLength: SUBAGENT_TASK_MAX_LENGTH
+        }),
         depends_on: Type.Optional(
           Type.Array(taskKey, { description: "必须先完成的任务 key。" })
         ),
@@ -72,7 +98,8 @@ function spawnParameters(definitions: readonly RuntimeSubagentDefinition[]) {
             maxLength: 512,
             description: "管理子智能体的目标绑定库 id；普通团队成员不填写。"
           })
-        )
+        ),
+        ...drawVariants
       }),
       // The count limit is checked at execution (planSubagentTasks): a schema
       // `maxItems` would reject the whole call before any task ran.
@@ -102,6 +129,11 @@ function spawnDescription(
     )
       ? [
           "带［纯净］标记的成员是受限运行模式：只读成员不能修改作品，无工具成员既看不到作品与素材也不能调用任何工具，需要写入时交给常规成员，或自行根据它们的交接摘要写入。"
+        ]
+      : []),
+    ...(subagentsAcceptDrawVariants(definitions)
+      ? [
+          `带［按需抽卡］标记的成员由你决定每次抽几份：用户指明了份数或差异方向，就照用户的写；只说了份数，由你拟定互不相同、贴合任务的方向；用户没提但任务明显值得多试（标题、开头、关键段落的不同处理），可以自行决定份数，宁少勿多。用户要的份数超过 ${SUBAGENT_DRAW_MAX_COUNT}，按 ${SUBAGENT_DRAW_MAX_COUNT} 份执行，并在回复里告诉用户。draw_variants 写的是同一任务的不同处理方向（语气、节奏、视角、切入点、篇幅），不同的任务拆成多个 task；不要在 task 里要求成员给几个版本。`
         ]
       : []),
     "用户消息里写作 #成员名 的是点名：对应工作必须交给该成员，不要自己做或改派他人。",
@@ -226,19 +258,16 @@ export function buildSpawnSubagentTool(
             progress: {
               type: "planned",
               parentToolCallId,
-              tasks: tasks.map((request) => {
-                const draw = subagentDrawSettings(request.definition);
-                return {
-                  index: request.index,
-                  key: request.key,
-                  dependsOn: [...request.dependsOn],
-                  subagentId: request.definition.id,
-                  name: request.definition.name,
-                  task: request.task,
-                  runtime: childRuntime(input, request),
-                  ...(draw ? { drawCount: draw.count } : {})
-                };
-              })
+              tasks: tasks.map((request) => ({
+                index: request.index,
+                key: request.key,
+                dependsOn: [...request.dependsOn],
+                subagentId: request.definition.id,
+                name: request.definition.name,
+                task: request.task,
+                runtime: childRuntime(input, request),
+                ...(request.draw ? { drawCount: request.draw.count } : {})
+              }))
             }
           })
         );
@@ -270,13 +299,14 @@ export function buildSpawnSubagentTool(
         maxConcurrency: parallel ? SUBAGENT_PARALLEL_MAX_CONCURRENCY : 1,
         ...(signal ? { signal } : {}),
         runTask: (request, handoffs) => {
-          const draw = subagentDrawSettings(request.definition);
-          return draw
+          const settings = subagentDrawSettings(request.definition);
+          return request.draw && settings
             ? runSubagentDrawTask(
                 input,
                 contextFor(request),
                 handoffs,
-                draw,
+                settings,
+                request.draw,
                 limiter
               )
             : limiter.run(() =>

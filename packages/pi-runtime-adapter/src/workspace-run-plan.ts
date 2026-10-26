@@ -10,6 +10,7 @@ import { buildLocalThinking, buildLocalWritingResponse } from "./faux-local";
 import type { AgentRunPlan } from "./kernel/run-plan";
 import { libraryManagementParentPrompt } from "./library-management-runtime";
 import { resolvePortableToolSchemaProfile } from "./portable-tool-schema";
+import { buildLongRuntimeToolBoundary } from "./prompts-long";
 import {
   buildEffectiveSystemPrompt,
   buildFollowUpRawUserMessageContent,
@@ -64,14 +65,8 @@ export function planWorkspaceRun(
             ]
       )
     ],
-    build: (context) => ({
-      systemPrompt: [
-        buildEffectiveSystemPrompt(options.basePrompt, input),
-        libraryManagementParentPrompt(input)
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      tools: buildRunTools(input, {
+    build: (context) => {
+      const tools = buildRunTools(input, {
         model: context.model,
         thinkingLevel: context.thinkingLevel,
         streamFn: context.spawnStreamFn,
@@ -86,8 +81,20 @@ export function planWorkspaceRun(
           : { subagentTimeoutMs: options.subagentTimeoutMs }),
         getParentMessages: context.getParentMessages,
         onContextCompacted: context.onContextCompacted
-      })
-    }),
+      });
+      return {
+        systemPrompt: [
+          buildEffectiveSystemPrompt(options.basePrompt, input),
+          libraryManagementParentPrompt(input),
+          input.longAgentProfile && input.workspaceContext?.longWorkspace
+            ? buildLongRuntimeToolBoundary(tools)
+            : ""
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        tools
+      };
+    },
     ...(contextPolicy ? { contextPolicy } : {}),
     rawUserMessageContent: () => buildRawUserMessage(input).content,
     // Plot-design and draft turns also receive their latest structure

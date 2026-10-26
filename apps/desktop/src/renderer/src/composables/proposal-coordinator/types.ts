@@ -82,6 +82,9 @@ export interface ProposalCoordinatorContext {
       libraryId: string
     ): CatalogLibrary | undefined;
     loadSnapshot(): Promise<unknown>;
+    ensureDocumentLoaded(
+      document: WorkspaceDocument
+    ): Promise<WorkspaceDocument>;
     applyAcceptedDocumentLocally(
       payload: { id: string; title: string; content: string },
       savedProjectRevision: number | undefined,

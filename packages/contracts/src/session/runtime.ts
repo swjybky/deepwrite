@@ -246,8 +246,19 @@ export const WorkspaceRuntimeContextSchema = z
     ] as const;
     for (const { key, label, workspace } of creativeWorkspaces) {
       if (!workspace) continue;
-      const matchesActiveStage =
-        workspace.activeStageId === "draft"
+      // List-style character cards are separate files from the stage overview.
+      // Match the same card used by the writing prompt before checking content.
+      const activeCharacterItem =
+        workspace.activeStageId === "character_design" &&
+        workspace.characterStructure.format === "list" &&
+        active.domain === "creation"
+          ? workspace.characterStructure.items.find(
+              (item) => item.id === active.id || item.title === active.title
+            )
+          : undefined;
+      const matchesActiveStage = activeCharacterItem
+        ? matchesActiveResourceContent(activeCharacterItem, active)
+        : workspace.activeStageId === "draft"
           ? (workspace.activeSectionId === undefined &&
               active.id === workspace.expertDraft.id &&
               active.content === "") ||

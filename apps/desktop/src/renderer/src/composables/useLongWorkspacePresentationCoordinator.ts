@@ -117,7 +117,6 @@ export interface LongWorkspacePresentationCoordinator {
   agentRunScopeHasWriteBarrier(scope: string): boolean;
   agentRunScopeIsBusy(scope: string): boolean;
   agentRunScopeHasPendingEditReview(scope: string): boolean;
-  documentHasWriteBarrier(document: WorkspaceDocument): boolean;
   bindEditor(port: LongWorkspacePresentationEditorPort): void;
 }
 
@@ -272,10 +271,6 @@ export function useLongWorkspacePresentationCoordinator(
     );
   }
 
-  function documentHasWriteBarrier(document: WorkspaceDocument): boolean {
-    return agentRunScopeHasWriteBarrier(agentRunScopeForDocument(document));
-  }
-
   const activeLongAgentRunScope = computed(() => {
     const summary = options.long.activeBookSummary.value;
     return summary ? `long:${summary.id}` : null;
@@ -315,50 +310,49 @@ export function useLongWorkspacePresentationCoordinator(
     return t("applyingNovelEditsEditingIsTemporarilyLocked");
   });
 
+  /**
+   * Scopes whose book-level accepting flag comes from a text edit. Text
+   * accepts also mark their target document, so only that document locks;
+   * structural accepts mark the scope alone and still lock the whole book.
+   */
+  const textAcceptScopes = computed(() => {
+    const documentIds = options.edits.acceptingDocumentIds.value;
+    const scopes = new Set<string>();
+    if (documentIds.size === 0) return scopes;
+    for (const document of options.catalog.documents.value) {
+      if (!documentIds.has(document.id)) continue;
+      scopes.add(agentRunScopeForDocument(document));
+      if (document.workspaceId) scopes.add(document.workspaceId);
+    }
+    return scopes;
+  });
+
+  function scopeHasStructuralAccept(scope: string | undefined): boolean {
+    return (
+      scope !== undefined &&
+      options.edits.acceptingWorkspaceIds.value.has(scope) &&
+      !textAcceptScopes.value.has(scope)
+    );
+  }
+
+  // Running agents and pending reviews never lock editing: proposals check
+  // their base revision when accepted (docs/智能体运行中编辑正文设计.md).
   const editorLocked = computed(() => {
     const editor = editorPort.value;
     if (!editor) return false;
     const activeDocument = editor.activeDocument.value;
-    const activeAgentDocument = editor.activeAgentDocument.value;
-    const selectedDocument =
-      editor.promptDocumentForResourceId(editor.selectedResourceId.value) ??
-      activeDocument;
     return (
       options.edits.acceptingDocumentIds.value.has(activeDocument.id) ||
-      options.edits.acceptingWorkspaceIds.value.has(
-        agentRunScopeForDocument(activeAgentDocument)
+      scopeHasStructuralAccept(
+        agentRunScopeForDocument(editor.activeAgentDocument.value)
       ) ||
-      (activeDocument.workspaceId !== undefined &&
-        options.edits.acceptingWorkspaceIds.value.has(
-          activeDocument.workspaceId
-        )) ||
-      documentHasWriteBarrier(selectedDocument)
+      scopeHasStructuralAccept(activeDocument.workspaceId)
     );
   });
 
-  const editorLockedLabel = computed(() => {
-    const editor = editorPort.value;
-    if (!editor) return undefined;
-    const activeDocument = editor.activeDocument.value;
-    const activeAgentDocument = editor.activeAgentDocument.value;
-    if (
-      options.edits.acceptingDocumentIds.value.has(activeDocument.id) ||
-      options.edits.acceptingWorkspaceIds.value.has(
-        agentRunScopeForDocument(activeAgentDocument)
-      ) ||
-      (activeDocument.workspaceId !== undefined &&
-        options.edits.acceptingWorkspaceIds.value.has(
-          activeDocument.workspaceId
-        ))
-    ) {
-      return t("acceptingAndSavingAgentEdits");
-    }
-    return agentRunScopeHasPendingEditReview(
-      agentRunScopeForDocument(activeAgentDocument)
-    )
-      ? t("acceptOrRejectThePendingChangesFirst")
-      : undefined;
-  });
+  const editorLockedLabel = computed(() =>
+    editorLocked.value ? t("acceptingAndSavingAgentEdits") : undefined
+  );
 
   const editorSaving = computed(() => {
     const activeDocument = editorPort.value?.activeDocument.value;
@@ -391,7 +385,6 @@ export function useLongWorkspacePresentationCoordinator(
     agentRunScopeHasWriteBarrier,
     agentRunScopeIsBusy,
     agentRunScopeHasPendingEditReview,
-    documentHasWriteBarrier,
     bindEditor
   };
 }

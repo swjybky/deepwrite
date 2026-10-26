@@ -1,11 +1,13 @@
 import { syncIssueMessage } from "../../../localization/sync-display-text";
 import {
   clockIncludes,
+  syncErrorMessage,
   type LoadedSyncDevice,
   type SyncIssue
 } from "@deepwrite/contracts";
 import type { SyncCandidate } from "./plan-item";
 import type { SyncRemote } from "./remote";
+import { SyncContentIntegrityError } from "./content-store";
 
 export function indexSyncCandidates(
   devices: LoadedSyncDevice[],
@@ -53,14 +55,21 @@ export async function readSyncCandidates(
         revision,
         item
       });
-    } catch {
+    } catch (error) {
       if (signal.aborted) throw new Error("同步已取消。");
       issues.push({
         key,
         title: revision.title,
         token: "",
         reason: "failed",
-        ...syncIssueMessage("remoteInvalid"),
+        ...syncIssueMessage(
+          error instanceof SyncContentIntegrityError
+            ? "remoteInvalid"
+            : "remoteReadFailed",
+          error instanceof SyncContentIntegrityError
+            ? undefined
+            : { reason: syncErrorMessage(error) }
+        ),
         paths: [],
         local: null,
         versions: []

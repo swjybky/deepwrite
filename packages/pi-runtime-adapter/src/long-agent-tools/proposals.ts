@@ -175,12 +175,16 @@ export function formLongProposal(
       proposalId: proposalId(ctx, input.toolCallId, `write:${changeIndex}`),
       fileId: change.file.id,
       content: change.afterText,
-      mode:
-        change.operation === "create"
-          ? ("create" as const)
-          : ("replace" as const),
       updatedAt: input.timestamp,
-      reason: input.summary
+      reason: input.summary,
+      ...(change.operation === "create"
+        ? { mode: "create" as const }
+        : {
+            mode: "replace" as const,
+            // Users may edit while the agent runs; Core rejects the write if
+            // this file no longer holds the text the agent edited.
+            expectedSha256: stableHash(change.beforeText)
+          })
     }))
   });
   const preflightFailure = preflightLongMutationProposal(input.index, batch);

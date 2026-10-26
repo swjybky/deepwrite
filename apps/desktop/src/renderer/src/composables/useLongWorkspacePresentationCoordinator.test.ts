@@ -562,14 +562,16 @@ describe("useLongWorkspacePresentationCoordinator", () => {
     expect(pendingReviewController.dispose).toHaveBeenCalledOnce();
   });
 
-  it("binds generic editor locks without changing their existing semantics", () => {
+  it("keeps the editor writable while agents run or wait for review", () => {
     const {
       coordinator,
       controllers,
       scopesByKey,
       controllerMap,
       scopeMap,
+      documents,
       acceptingDocumentIds,
+      acceptingWorkspaceIds,
       savingDocumentIds
     } = createHarness();
     const activeDocument = ref(
@@ -578,30 +580,51 @@ describe("useLongWorkspacePresentationCoordinator", () => {
         workspaceType: "short"
       })
     );
-    const selectedDocument = ref(activeDocument.value);
+    const otherDocument = document("other_document", {
+      workspaceId: "short_book",
+      workspaceType: "short"
+    });
+    documents.value = [activeDocument.value, otherDocument];
     coordinator.bindEditor({
       selectedResourceId: ref("selected"),
       activeDocument,
       activeAgentDocument: activeDocument,
-      promptDocumentForResourceId: () => selectedDocument.value
+      promptDocumentForResourceId: () => activeDocument.value
     });
 
     const busy = ref(true);
+    const pendingEditReview = ref(true);
     controllerMap.set("short", {
       isBusy: busy,
-      hasPendingEditReview: ref(false)
+      hasPendingEditReview: pendingEditReview
     });
     scopeMap.set("short", "book:short_book");
     triggerRef(controllers);
     triggerRef(scopesByKey);
-    expect(coordinator.editorLocked.value).toBe(true);
+    expect(coordinator.agentRunScopeHasWriteBarrier("book:short_book")).toBe(
+      true
+    );
+    expect(coordinator.editorLocked.value).toBe(false);
+    expect(coordinator.editorLockedLabel.value).toBeUndefined();
 
-    busy.value = false;
+    // A text edit landing in another document locks only that document.
+    acceptingDocumentIds.value = new Set([otherDocument.id]);
+    acceptingWorkspaceIds.value = new Set(["short_book"]);
+    expect(coordinator.editorLocked.value).toBe(false);
+
     acceptingDocumentIds.value = new Set([activeDocument.value.id]);
+    expect(coordinator.editorLocked.value).toBe(true);
     expect(coordinator.editorLockedLabel.value).toBe(
       "正在接受并保存智能体修改"
     );
+
+    // Structural accepts mark only the book and still lock it whole.
+    acceptingDocumentIds.value = new Set();
+    expect(coordinator.editorLocked.value).toBe(true);
+
+    acceptingWorkspaceIds.value = new Set();
     savingDocumentIds.value = new Set([activeDocument.value.id]);
+    expect(coordinator.editorLocked.value).toBe(false);
     expect(coordinator.editorSaving.value).toBe(true);
   });
 });

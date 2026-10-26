@@ -208,6 +208,38 @@ describe("agent conversation controller: draw-mode tasks", () => {
     });
   });
 
+  it("keeps each candidate's focus through events and history", async () => {
+    const runId = "run_draw_variant";
+    const { controller, sessionId } = await startedController(runId);
+    const draw = {
+      role: "candidate" as const,
+      index: 1,
+      count: 2,
+      variant: "热烈直白"
+    };
+    controller.handleEvent(
+      createEnvelope(
+        "subagent.started",
+        { sessionId, runId, ...candidate(1), draw, batchTask, task: "起标题" },
+        eventOptions(sessionId, runId, "evt_draw_variant")
+      )
+    );
+    const message = controller.messages.value.at(-1)!;
+    const run = message.subagentRuns?.find((item) => item.draw);
+    expect(run?.draw).toEqual(draw);
+    expect(run?.task).toBe("起标题");
+
+    const stored = JSON.parse(
+      JSON.stringify(cloneMessageForPersistence(message))
+    ) as { subagentRuns: { draw?: unknown }[] };
+    const storedRun = stored.subagentRuns.find((item) => item.draw);
+    expect(parseStoredSubagentRun(storedRun)?.draw).toEqual(draw);
+    expect(
+      parseStoredSubagentRun({ ...storedRun, draw: { ...draw, variant: " " } })
+        ?.draw
+    ).toEqual({ role: "candidate", index: 1, count: 2 });
+  });
+
   it("closes a pending selection when the parent run fails", async () => {
     const runId = "run_draw_stop";
     const { controller, sessionId } = await startedController(runId);

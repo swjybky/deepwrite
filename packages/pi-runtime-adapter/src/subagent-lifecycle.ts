@@ -3,6 +3,7 @@ import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { AgentRuntimeRef } from "@deepwrite/contracts";
 import { runAgentWithTurnRetries } from "./agent-turn-retry";
 import { createSubagentReplyGuard } from "./subagent-reply-guard";
+import { createSubagentFailureHandoff } from "./subagent-failure-handoff";
 import {
   RunContextManager,
   estimateRunFixedTokens,
@@ -50,10 +51,12 @@ export async function runSubagentLifecycle(
   let acceptingActivity = true;
   let cutOff = false;
   const replies = createSubagentReplyGuard(child);
+  const failureHandoff = createSubagentFailureHandoff();
   // Declared before the handler so a cut-off reply can stop the child.
   let stopCutOff = (): void => {};
   const handleChildEvent = (event: AgentEvent): void => {
     if (!acceptingActivity) return;
+    failureHandoff.observe(event);
     if (event.type === "message_update" && isAssistantMessage(event.message)) {
       if (event.assistantMessageEvent.type === "thinking_delta") {
         emitProgress(
@@ -404,7 +407,9 @@ export async function runSubagentLifecycle(
         ? `子智能体「${definition.name}」已完成。`
         : summary
     );
-    return { status, summary };
+    // Activity already retains the fragment in the UI. Include it in the
+    // parent's tool result too, while leaving the terminal error unchanged.
+    return failureHandoff.forParent({ status, summary });
   } finally {
     // Timeout/abort remains visible immediately. The parent tool still owns
     // this child until its model, tools and retry listeners really finish.

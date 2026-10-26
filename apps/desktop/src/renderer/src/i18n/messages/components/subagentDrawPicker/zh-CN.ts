@@ -8,6 +8,7 @@ export default {
   taskAssignedByPrimaryAgent: "主智能体下发的任务",
   candidates: "候选结果",
   candidateValue: "候选 {arg0}",
+  variantValue: "侧重：{arg0}",
   noteForThePrimaryAgent: "给主智能体的附言",
   noteForThePrimaryAgentOptional: "附言（可选），随结果交给主智能体",
   adoptNone: "都不采用",

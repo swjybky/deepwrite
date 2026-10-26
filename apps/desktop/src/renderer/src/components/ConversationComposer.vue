@@ -18,6 +18,7 @@ import type {
   EditorTextReference
 } from "../types/conversation";
 import type { IconName } from "../types/workspace";
+import type { ModelSelectOption } from "../utils/modelSelectOptions";
 import type { ComposerReferenceTrigger } from "../utils/composerReferences";
 import { agentTeamMemberReferences } from "../utils/agentTeamMemberReferences";
 import { PROMPT_ATTACHMENT_ACCEPT } from "../utils/promptAttachments";
@@ -74,12 +75,7 @@ const props = defineProps<{
   availableSkills: ComposerReferenceOption[];
   availableMaterials: ComposerReferenceOption[];
   editorReferences: EditorTextReference[];
-  modelOptions: Array<{
-    value: string;
-    label: string;
-    provider: string;
-    providerLabel: string;
-  }>;
+  modelOptions: ModelSelectOption[];
   availableThinkingOptions: Array<{ value: ThinkingLevel; label: string }>;
   webSearchEnabled: boolean;
   webSearchAvailable: boolean;

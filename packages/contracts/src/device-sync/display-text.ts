@@ -40,6 +40,7 @@ export const syncDisplayTextSchema = z
       "missingDependencies",
       "referencedResource",
       "remoteInvalid",
+      "remoteReadFailed",
       "localInvalid",
       "beforeRestore",
       "beforeSync",

@@ -6,12 +6,23 @@ type DirectDocumentWriteInput = Omit<
 >;
 
 /**
- * Short-story and script agent proposals are complete-text writes. Their
- * ordering is owned by the proposal queue, so persistence must not reintroduce
- * a stale content/project revision gate after that queue has selected a write.
+ * Structure-only writes such as a section rename keep the current body
+ * (`preserveCurrentContent`), so they never need a content precondition.
  */
 export function shortAgentDirectDocumentWrite(
   input: DirectDocumentWriteInput
 ): SaveDocumentInput {
   return { ...input, force: true };
+}
+
+/**
+ * Full-text agent proposals. Editing stays open while agents run, so Core
+ * must find exactly the expected text in this one document; the book-level
+ * project revision is not checked, edits to other documents never conflict.
+ */
+export function shortAgentCheckedDocumentWrite(
+  input: DirectDocumentWriteInput,
+  baseRevision: string | undefined
+): SaveDocumentInput {
+  return baseRevision === undefined ? input : { ...input, baseRevision };
 }

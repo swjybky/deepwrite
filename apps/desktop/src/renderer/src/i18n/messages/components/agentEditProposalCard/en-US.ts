@@ -76,5 +76,12 @@ export default {
   targetMessage: "Target {arg0}: {arg1}",
   awaitingReviewOnDevice: "Awaiting review on {device}",
   reviewOnlyOnDevice: "This proposal can only be reviewed on {device}.",
-  handledOnDevice: "Handled on {device}. View only here."
+  handledOnDevice: "Handled on {device}. View only here.",
+  youEditedThis: "You edited this",
+  staleTextMessage:
+    "You edited this after the agent read it. Overwrite replaces your edits with the agent's version (you can undo it later); Keep mine discards this change.",
+  staleLongMessage:
+    "This content changed after the agent read it. Overwrite replaces it with the agent's version; Keep mine discards this change.",
+  keepMine: "Keep mine",
+  overwriteWithAgentVersion: "Overwrite with agent's version"
 };

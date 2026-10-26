@@ -88,10 +88,14 @@ export function planSyncItem(input: {
     baseline?.revision.clock ?? {},
     ...candidates.map((v) => v.revision.clock)
   ]);
-  const token = input.hash(
-    stableSyncJson({ key, local, baseline, common, candidates })
-  );
-  const resolution = input.resolutions.find((value) => value.token === token);
+  let token: string | undefined;
+  const conflictToken = () =>
+    (token ??= input.hash(
+      stableSyncJson({ key, local, baseline, common, candidates })
+    ));
+  const resolution = input.resolutions.length
+    ? input.resolutions.find((value) => value.token === conflictToken())
+    : undefined;
   if (resolution)
     return { item: resolution.item, issue: null, clocks, candidates };
   let item = local;
@@ -128,7 +132,7 @@ export function planSyncItem(input: {
     issue: {
       key,
       title: identity?.title ?? baseline?.revision.title ?? key,
-      token,
+      token: conflictToken(),
       reason: conflicts.length ? "conflict" : "delete",
       ...syncIssueMessage(
         conflicts.length ? "mergeConflict" : "deletionPending"

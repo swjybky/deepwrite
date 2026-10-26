@@ -119,7 +119,7 @@ describe("双端同步 Core 事务与桌面真实契约", () => {
       })
     );
     await writeFile(join(registration.root, path), "中断期间的新编辑");
-    await expect(workspace.recover()).rejects.toThrow("新修改");
+    await expect(workspace.recover()).rejects.toThrow("恢复计划已暂停");
     await expect(workspace.recover()).resolves.toBeUndefined();
     expect(await readFile(join(registration.root, path), "utf8")).toBe(
       "中断期间的新编辑"

@@ -12,6 +12,7 @@ import type {
   BookResourceDialogMode,
   ResourceTreeNode
 } from "../types/workspace";
+import { MATERIAL_KINDS, SKILL_KINDS } from "./bookLibraryKinds";
 
 const t = createScopedTranslator("workspace");
 
@@ -22,101 +23,8 @@ interface BookResourceBindingProps {
   skillLibraries: ResourceTreeNode[];
   materialGroups: readonly MaterialLibraryGroup[];
   skillGroups: readonly SkillLibraryGroup[];
+  loading?: boolean;
 }
-
-const MATERIAL_KINDS: ReadonlyArray<{
-  id: MaterialKind;
-  label: string;
-  description: string;
-}> = [
-  {
-    id: "character",
-    get label() {
-      return t("catalogWorkspace.characterMaterialLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.charactersAndRelationships");
-    }
-  },
-  {
-    id: "gimmick",
-    get label() {
-      return t("catalogWorkspace.storyIdeaLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.coreIdeasAndHooks");
-    }
-  },
-  {
-    id: "plot",
-    get label() {
-      return t("catalogWorkspace.plotMaterialLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.plotOpeningAndRefinement");
-    }
-  },
-  {
-    id: "draft",
-    get label() {
-      return t("catalogWorkspace.proseMaterialLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.proseExcerptsAndWritingReferences");
-    }
-  },
-  {
-    id: "other",
-    get label() {
-      return t("catalogWorkspace.otherMaterialLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.materialsOutsideTheCategoriesAbove");
-    }
-  }
-];
-const SKILL_KINDS: ReadonlyArray<{
-  id: SkillKind;
-  label: string;
-  description: string;
-}> = [
-  {
-    id: "general",
-    get label() {
-      return t("catalogWorkspace.generalSkillLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.availableAcrossMultipleStages");
-    }
-  },
-  {
-    id: "plot",
-    get label() {
-      return t("catalogWorkspace.plotDesignSkillLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.characterPlotAndOutlineMethods");
-    }
-  },
-  {
-    id: "style",
-    get label() {
-      return t("catalogWorkspace.writingStyleSkillLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.manuscriptAndSectionWritingMethods");
-    }
-  },
-  {
-    id: "other",
-    get label() {
-      return t("catalogWorkspace.otherSkillLibrary");
-    },
-    get description() {
-      return t("bookLibraryKinds.customWritingMethods");
-    }
-  }
-];
 
 export function useBookResourceBindings(props: BookResourceBindingProps) {
   const bindingMode = ref<"single" | "group">("single");
@@ -165,7 +73,7 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
   }
 
   function materialGroupLinks(
-    group: MaterialLibraryGroup | undefined
+    group: Pick<MaterialLibraryGroup, "members"> | undefined
   ): LinkedMaterialIdsByKind {
     const links: LinkedMaterialIdsByKind = {
       character: [],
@@ -188,7 +96,7 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
   }
 
   function skillGroupLinks(
-    group: SkillLibraryGroup | undefined
+    group: Pick<SkillLibraryGroup, "members"> | undefined
   ): LinkedSkillIdsByKind {
     const links: LinkedSkillIdsByKind = {
       general: [],
@@ -276,6 +184,26 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
     ];
   }
 
+  function selectedMaterialLinks(): LinkedMaterialIdsByKind {
+    return materialGroupLinks({ members: selectedMaterialIds });
+  }
+
+  function selectedSkillLinks(): LinkedSkillIdsByKind {
+    return skillGroupLinks({ members: selectedSkillIds });
+  }
+
+  function clearUnavailableSelections(): void {
+    if (props.loading) return;
+    const materials = selectedMaterialLinks();
+    const skills = selectedSkillLinks();
+    for (const { id } of MATERIAL_KINDS) {
+      selectedMaterialIds[id] = materials[id][0] ?? "";
+    }
+    for (const { id } of SKILL_KINDS) {
+      selectedSkillIds[id] = skills[id][0] ?? "";
+    }
+  }
+
   function resetBindingDraft(): void {
     bindingMode.value = "single";
     selectedGroupId.value = "";
@@ -287,7 +215,18 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
       selectedSkillIds[id] =
         props.book?.boundSkillLibraryIdsByKind?.[id]?.[0] ?? "";
     }
+    clearUnavailableSelections();
   }
+
+  watch(
+    [
+      () => props.loading,
+      () => props.materialLibraries,
+      () => props.skillLibraries
+    ],
+    clearUnavailableSelections,
+    { deep: true }
+  );
 
   watch(availableGroups, (groups) => {
     if (
@@ -310,6 +249,8 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
     skillKindDescription,
     materialGroupLinks,
     skillGroupLinks,
+    selectedMaterialLinks,
+    selectedSkillLinks,
     availableGroups,
     selectedMaterialGroup,
     selectedSkillGroup,

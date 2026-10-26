@@ -2,6 +2,7 @@ import type {
   AgentToolTrace,
   ChatContextCompaction
 } from "../types/conversation";
+import { activeToolCall } from "./conversationToolStatus";
 
 export type WorkGroupMemberItem =
   | { id: string; type: "thinking"; content: string; createdAt: string }
@@ -20,6 +21,36 @@ export type WorkGroupDisplayItem = {
   running: boolean;
   items: WorkGroupMemberItem[];
 };
+
+type WorkGroupActivity =
+  { type: "thinking" | "compaction" } | { type: "tool"; tool: AgentToolTrace };
+
+/** Only explicit pending work or the latest thinking step is still active. */
+export function workGroupActivity(
+  items: readonly WorkGroupMemberItem[],
+  allowThinking = true
+): WorkGroupActivity | undefined {
+  let pendingTool: AgentToolTrace | undefined;
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]!;
+    if (item.type === "compaction" && item.compaction.status === "running") {
+      return { type: "compaction" };
+    }
+    const tool =
+      item.type === "tool"
+        ? activeToolCall([item.tool])
+        : item.type === "tool-group"
+          ? activeToolCall(item.tools)
+          : undefined;
+    if (tool?.status === "running") return { type: "tool", tool };
+    pendingTool ??= tool;
+  }
+  if (pendingTool) return { type: "tool", tool: pendingTool };
+  if (allowThinking && items.at(-1)?.type === "thinking") {
+    return { type: "thinking" };
+  }
+  return undefined;
+}
 
 const WORK_MEMBER_TYPES = new Set([
   "thinking",
@@ -69,11 +100,12 @@ export function foldWorkGroups<T extends { id: string; type: string }>(
   flush();
 
   if (running) {
-    const last = result.at(-1);
-    if (last && last.type === "work-group" && "running" in last) {
-      const member = (last as WorkGroupDisplayItem).items.at(-1);
-      last.running =
-        member?.type !== "compaction" || member.compaction.status === "running";
+    for (const [index, item] of result.entries()) {
+      if (item.type !== "work-group" || !("items" in item)) continue;
+      const group = item as WorkGroupDisplayItem;
+      group.running = Boolean(
+        workGroupActivity(group.items, index === result.length - 1)
+      );
     }
   }
   return result;

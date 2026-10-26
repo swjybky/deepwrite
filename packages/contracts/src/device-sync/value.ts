@@ -83,5 +83,30 @@ export function sameSyncContent(
   a: SyncItem | null,
   b: SyncItem | null
 ): boolean {
-  return syncEqual(syncContent(a), syncContent(b));
+  const entries = Object.entries(a?.files ?? {});
+  const otherEntries = Object.entries(b?.files ?? {});
+  const jsonFiles = (files: [string, string][]) =>
+    new Map(
+      files
+        .filter(([path]) => path.endsWith(".json"))
+        .map(
+          ([path, content]) =>
+            [path, canonicalMetadata(JSON.parse(content))] as const
+        )
+    );
+  // Preserve validation even when identities differ or only one snapshot exists.
+  const leftJson = jsonFiles(entries);
+  const rightJson = jsonFiles(otherEntries);
+  if (!a || !b) return a === b;
+  if (a.id !== b.id || a.kind !== b.kind || a.title !== b.title) return false;
+  if (entries.length !== otherEntries.length) return false;
+  for (const [path, content] of entries) {
+    const other = b.files[path];
+    if (other === undefined) return false;
+    // Do not serialize every chapter body just to compare it with itself.
+    if (path.endsWith(".json")) {
+      if (!syncEqual(leftJson.get(path), rightJson.get(path))) return false;
+    } else if (content !== other) return false;
+  }
+  return true;
 }

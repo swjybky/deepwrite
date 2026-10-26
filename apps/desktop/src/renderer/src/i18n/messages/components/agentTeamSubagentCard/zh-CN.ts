@@ -14,5 +14,6 @@ export default {
   delete: "删除",
   deleteValue: "删除{arg0}",
   drawBadge: "抽卡×{arg0}",
+  drawBadgeAuto: "抽卡·自动",
   webSearchBadge: "联网"
 };

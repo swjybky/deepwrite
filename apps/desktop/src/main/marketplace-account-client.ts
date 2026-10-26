@@ -7,11 +7,12 @@ import {
   type MarketplaceSession,
   type MarketplaceUser
 } from "@deepwrite/contracts";
-import { net, safeStorage } from "electron";
+import { safeStorage } from "electron";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEEPWRITE_PUBLIC_DATA_API_BASE_URL } from "./deepwrite-public-data-config";
 import { requestMarketplace } from "./marketplace-request";
+import { electronRemoteFetch } from "./electron-remote-fetch";
 
 import {
   MarketplaceBindEmailInputSchema,
@@ -54,7 +55,7 @@ export class MarketplaceAccountClient {
     this.baseUrl = normalizeBaseUrl(
       options.baseUrl ?? DEEPWRITE_PUBLIC_DATA_API_BASE_URL
     );
-    this.fetcher = options.fetcher ?? ((input, init) => net.fetch(input, init));
+    this.fetcher = options.fetcher ?? electronRemoteFetch;
     this.storage = options.secureStorage ?? safeStorage;
     this.now = options.now ?? Date.now;
     this.sessionPath = join(userDataPath, "config", "marketplace-session.json");

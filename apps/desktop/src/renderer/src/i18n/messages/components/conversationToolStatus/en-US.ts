@@ -67,6 +67,8 @@ export default {
   runningValue: "Running {arg0}",
   errorWhileRunningValue: "Error while running {arg0}",
   preparingValue: "Preparing {arg0}",
+  waitingForValue: "Waiting to execute: {arg0}",
+  waitingForExecution: "Waiting to execute",
   readingFile: "Reading file",
   fileRead: "File read",
   runningCommand: "Running command",

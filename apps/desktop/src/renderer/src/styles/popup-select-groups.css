@@ -1,0 +1,26 @@
+.popup-select-menu.has-groups {
+  padding: 9px;
+  border-radius: 18px;
+  overscroll-behavior: contain;
+}
+
+.popup-select-option-group.has-label + .popup-select-option-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+
+.popup-select-group-label {
+  padding: 5px 11px 7px;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.popup-select-menu.has-groups .popup-select-option {
+  gap: 9px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-weight: 540;
+}

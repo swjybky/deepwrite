@@ -196,6 +196,10 @@ export async function runSubagentTask(
       throw new Error("扩展子任务运行上下文不可用。");
     if (prepared?.contextPolicy) childContextPolicy = prepared.contextPolicy;
     if (prepared?.task) childTask = prepared.task;
+    // Only the child sees its draw's requirement; progress keeps the shared task.
+    if (context.draw?.role === "candidate" && context.draw.variant) {
+      childTask = `${childTask}\n\n【本份侧重】在满足上面全部要求的前提下，这一份按以下方向处理：${context.draw.variant}`;
+    }
     if (prepared?.fauxResponses && input.parentRuntime?.mode === "local-faux") {
       const models = createModels();
       const faux = fauxProvider({

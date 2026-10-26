@@ -1,4 +1,7 @@
-import type { SubagentDrawRef } from "@deepwrite/contracts";
+import {
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
+  type SubagentDrawRef
+} from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
 import type { AgentSubagentDraw } from "../../types/conversation";
 import { isRecord } from "./shared";
@@ -42,9 +45,16 @@ export function parseStoredDrawRef(
   if (count === undefined) return undefined;
   if (value.role === "evaluator") return { role: "evaluator", count };
   const index = drawIndex(value.index);
-  return value.role === "candidate" && index !== undefined
-    ? { role: "candidate", index, count }
-    : undefined;
+  if (value.role !== "candidate" || index === undefined) return undefined;
+  const variant = typeof value.variant === "string" ? value.variant.trim() : "";
+  return {
+    role: "candidate",
+    index,
+    count,
+    ...(variant
+      ? { variant: variant.slice(0, SUBAGENT_DRAW_VARIANT_MAX_LENGTH) }
+      : {})
+  };
 }
 
 function optionalString(

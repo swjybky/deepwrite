@@ -23,7 +23,10 @@ import {
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
 import type { CatalogWorkspaceProjection } from "../data/catalogWorkspace";
-import type { AgentEditProposal } from "../types/conversation";
+import type {
+  AgentApprovalMode,
+  AgentEditProposal
+} from "../types/conversation";
 import {
   replaceLongBookSummary,
   resolveLongWorkspaceApi
@@ -32,7 +35,6 @@ import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
 import {
   agentEditProposalGenerationId,
   agentEditProposalId,
-  classifyAgentEditAcceptance,
   latestAgentEditProposalInLane,
   resolveAgentEditProposalGeneration,
   resolveAgentEditorMutationText
@@ -63,7 +65,24 @@ import {
   saveCreatedDraftSectionContents
 } from "./proposal-coordinator/creation-content";
 import { reconcileCreationDependencyAfterAttempt } from "./proposal-coordinator/creation-dependency";
-import { shortAgentDirectDocumentWrite } from "./proposal-coordinator/short-direct-write";
+import { loadProposalDocument } from "./proposal-coordinator/document-content";
+import {
+  shortAgentCheckedDocumentWrite,
+  shortAgentDirectDocumentWrite
+} from "./proposal-coordinator/short-direct-write";
+import {
+  expectedDiskRevision,
+  resolveTextProposalAcceptBase,
+  resolvedStaleBase,
+  stagedStaleBase,
+  staleRevisionAfterConflict,
+  staleTextProposalPatch
+} from "./proposal-coordinator/stale-base";
+import {
+  holdStaleLongProposal as holdStaleLongProposalForUser,
+  isLongDocumentChanged,
+  withConfirmedDocumentHashes
+} from "./proposal-coordinator/long-stale-base";
 import { createAcceptedEditDiscardCoordinator } from "./accepted-edit-discard";
 import type { AgentConversationController } from "./useAgentConversation";
 import type { LongWorkspaceProposalEvent } from "./useLongWorkspaceProposals";
@@ -96,6 +115,9 @@ export interface ProposalCoordinatorContext {
       libraryId: string
     ): CatalogLibrary | undefined;
     loadSnapshot(): Promise<unknown>;
+    ensureDocumentLoaded(
+      document: WorkspaceDocument
+    ): Promise<WorkspaceDocument>;
     applyAcceptedDocumentLocally(
       payload: { id: string; title: string; content: string },
       savedProjectRevision: number | undefined,
@@ -179,6 +201,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     isConflict: isCatalogConflict,
     refreshBookAfterSave: refreshBookAfterSuccessfulDocumentSave
   } = context.catalog;
+  /**
+   * Text the latest accepted agent write left in each document. A base moved
+   * only by agent writes is not a user edit (see proposal-coordinator/stale-base.ts).
+   */
+  const agentWrittenRevisions = new Map<string, string>();
   const {
     documents,
     drafts: editorDrafts,
@@ -778,6 +805,27 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     return undefined;
   }
 
+  function awaitsPredecessor(
+    existing: AgentEditProposal | undefined,
+    coalescesExisting: boolean
+  ): boolean {
+    return Boolean(
+      existing && !coalescesExisting && existing.status !== "accepted"
+    );
+  }
+
+  /** One notice per lane when an automatic edit waits for the user's text. */
+  function notifyAutomaticEditPaused(
+    existing: AgentEditProposal | undefined,
+    runApprovalMode: AgentApprovalMode,
+    title: string
+  ): void {
+    if (existing?.staleBase || runApprovalMode !== "auto-approve") return;
+    uiMessage.warning(
+      t("proposalCoordinator.userEditedAgentTarget", { title })
+    );
+  }
+
   function isShortOrScriptAgentEdit(proposal: AgentEditProposal): boolean {
     if (proposal.libraryTarget) return false;
     const book = catalogBook(proposal.workspaceId);
@@ -892,18 +940,19 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         });
       }
       await loadCatalogSnapshot();
-      if (
-        createdItemId &&
-        !liveWorkspaceDocuments.value.some(
-          (document) =>
-            document.workspaceId === proposal.workspaceId &&
-            document.catalogDocumentId === createdItemId
-        )
-      ) {
+      const createdDocument = createdItemId
+        ? documents.value.find(
+            (document) =>
+              document.workspaceId === proposal.workspaceId &&
+              document.catalogDocumentId === createdItemId
+          )
+        : undefined;
+      if (createdItemId && !createdDocument) {
         throw new Error(
           t("proposalCoordinator.characterEntryCreatedButItsFileCouldNotBe")
         );
       }
+      if (createdDocument) await loadProposalDocument(context, createdDocument);
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
@@ -971,7 +1020,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
-  function stageAgentEditProposal(event: WorkspaceEditorMutationEvent): void {
+  async function stageAgentEditProposal(
+    event: WorkspaceEditorMutationEvent
+  ): Promise<void> {
     if (!rememberWorkspaceMutationEvent(event.id)) return;
     const sourceConversation = allConversations().find((conversation) =>
       conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
@@ -1391,7 +1442,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         : mutationTarget?.kind === "expert-draft-file"
           ? mutationTarget.fileKind
           : undefined;
-    const target = liveWorkspaceDocuments.value.find((document) =>
+    let target = liveWorkspaceDocuments.value.find((document) =>
       mutationTarget?.kind === "character-file"
         ? document.catalogDocumentId === mutationTarget.documentId &&
           document.workspaceId === event.payload.workspaceId &&
@@ -1406,6 +1457,34 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
             document.stageId === event.payload.stageId &&
             document.draftFileKind === undefined
     );
+    if (target && !target.readOnly && target.catalogContentLoaded === false) {
+      try {
+        target = await loadProposalDocument(context, target);
+      } catch (error) {
+        if (proposalQueue.isDisposed()) return;
+        const message = formatError(
+          error,
+          t(
+            "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
+          )
+        );
+        sourceConversation.markToolConflict(
+          event.payload.runId,
+          event.payload.toolCallId,
+          message
+        );
+        uiMessage.error(message);
+        return;
+      }
+      if (
+        proposalQueue.isDisposed() ||
+        !sourceConversation.acceptsRunEvent(
+          event.payload.sessionId,
+          event.payload.runId
+        )
+      )
+        return;
+    }
     if (
       (!target || target.readOnly) &&
       mutationTarget?.kind === "expert-draft-file" &&
@@ -1516,11 +1595,23 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           (!existing ||
             existing.status === "accepted" ||
             identity.coalescesExisting);
+        // A base taken from an unlanded predecessor is checked once it lands.
+        const staleBase =
+          noChanges || awaitsPredecessor(existing, identity.coalescesExisting)
+            ? undefined
+            : stagedStaleBase(
+                existing,
+                realTarget.content,
+                applyBaseRevision,
+                event.timestamp,
+                agentWrittenRevisions.get(realTarget.id)
+              );
         const proposal: AgentEditProposal = {
           id: identity.id,
           laneId,
           generation: identity.generation,
-          approvalMode: runApprovalMode,
+          approvalMode: staleBase ? "request-approval" : runApprovalMode,
+          ...(staleBase ? { staleBase } : {}),
           sourceBaseRevision: event.payload.baseRevision,
           ...(identity.predecessorProposalId
             ? { predecessorProposalId: identity.predecessorProposalId }
@@ -1568,7 +1659,13 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           provisionalExpertSection: false
         };
         sourceConversation.upsertEditProposal(event.payload.runId, proposal);
-        if (!noChanges && runApprovalMode === "auto-approve") {
+        if (staleBase) {
+          notifyAutomaticEditPaused(
+            existing,
+            runApprovalMode,
+            realTarget.title
+          );
+        } else if (!noChanges && runApprovalMode === "auto-approve") {
           queueAgentEdit(
             sourceConversation,
             event.payload.sessionId,
@@ -1773,7 +1870,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         );
         return;
       }
-      const baseText = existing?.proposedText ?? "";
+      const baseText =
+        existing?.proposedText ??
+        creation.characterStructureTarget?.initialContent ??
+        "";
       const resolvedMutation = resolveAgentEditorMutationText(
         baseText,
         event.payload
@@ -1830,7 +1930,13 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
             ? existing.createdAt
             : event.timestamp,
         updatedAt: event.timestamp,
-        provisionalCharacterItemId: mutationTarget.itemId
+        provisionalCharacterItemId: mutationTarget.itemId,
+        discardSnapshot: textEditDiscardSnapshot(
+          existing,
+          identity.coalescesExisting,
+          baseText,
+          creationMutation.title
+        )
       };
       sourceConversation.upsertEditProposal(event.payload.runId, proposal);
       if (runApprovalMode === "auto-approve") {
@@ -1925,11 +2031,23 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       (!existing ||
         existing.status === "accepted" ||
         identity.coalescesExisting);
+    // A base taken from an unlanded predecessor is checked once it lands.
+    const staleBase =
+      noChanges || awaitsPredecessor(existing, identity.coalescesExisting)
+        ? undefined
+        : stagedStaleBase(
+            existing,
+            target.content,
+            applyBaseRevision,
+            event.timestamp,
+            agentWrittenRevisions.get(target.id)
+          );
     const proposal: AgentEditProposal = {
       id: identity.id,
       laneId,
       generation: identity.generation,
-      approvalMode: runApprovalMode,
+      approvalMode: staleBase ? "request-approval" : runApprovalMode,
+      ...(staleBase ? { staleBase } : {}),
       sourceBaseRevision: event.payload.baseRevision,
       ...(identity.predecessorProposalId
         ? { predecessorProposalId: identity.predecessorProposalId }
@@ -1974,7 +2092,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       )
     };
     sourceConversation.upsertEditProposal(event.payload.runId, proposal);
-    if (!noChanges && runApprovalMode === "auto-approve") {
+    if (staleBase) {
+      notifyAutomaticEditPaused(existing, runApprovalMode, target.title);
+    } else if (!noChanges && runApprovalMode === "auto-approve") {
       queueAgentEdit(
         sourceConversation,
         event.payload.sessionId,
@@ -3201,7 +3321,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       const result = await api.applyOperations({
         bookId: target.bookId,
         batch: LongWorkspaceOperationBatchSchema.parse({
-          ...batch,
+          ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
         })
       });
@@ -3211,6 +3331,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
+        ...resolvedStaleBase(proposal, "overwrote"),
         statusMessage: refreshed
           ? t("proposalCoordinator.savedPlotDesign", {
               value: automatic
@@ -3225,6 +3346,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         uiMessage.success(t("proposalCoordinator.plotDesignAcceptedAndSaved"));
       }
     } catch (error: unknown) {
+      if (!applied && isLongDocumentChanged(error)) {
+        holdStaleLongProposal(conversation, request.runId, proposal, error);
+        return;
+      }
       let currentError = error;
       if (
         !applied &&
@@ -3468,7 +3593,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       const result = await api.applyOperations({
         bookId: target.bookId,
         batch: LongWorkspaceOperationBatchSchema.parse({
-          ...batch,
+          ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
         })
       });
@@ -3478,6 +3603,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
+        ...resolvedStaleBase(proposal, "overwrote"),
         statusMessage: isCreation
           ? automatic
             ? t(
@@ -3504,6 +3630,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         );
       }
     } catch (error: unknown) {
+      if (!applied && isLongDocumentChanged(error)) {
+        holdStaleLongProposal(conversation, request.runId, proposal, error);
+        return;
+      }
       let currentError = error;
       if (
         !applied &&
@@ -3675,7 +3805,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       const result = await api.applyOperations({
         bookId: target.bookId,
         batch: LongWorkspaceOperationBatchSchema.parse({
-          ...batch,
+          ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
         })
       });
@@ -3685,6 +3815,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
+        ...resolvedStaleBase(proposal, "overwrote"),
         statusMessage: refreshed
           ? t("proposalCoordinator.savedChapterProseToLocalMarkdown", {
               value: automatic
@@ -3701,6 +3832,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         );
       }
     } catch (error: unknown) {
+      if (!applied && isLongDocumentChanged(error)) {
+        holdStaleLongProposal(conversation, request.runId, proposal, error);
+        return;
+      }
       let currentError = error;
       if (
         !applied &&
@@ -3809,6 +3944,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "rejected",
         proposedText: undefined,
+        ...resolvedStaleBase(proposal, "kept-user"),
         statusMessage: proposal.longPlotDesignTarget
           ? t("proposalCoordinator.rejectedPlotDesignIsUnchanged")
           : proposal.longDraftTarget
@@ -4194,6 +4330,29 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
     }
 
+    const unloadedDocument = documents.value.find(
+      (document) =>
+        document.id === proposal.documentId &&
+        document.catalogContentLoaded === false
+    );
+    if (unloadedDocument) {
+      try {
+        await loadProposalDocument(context, unloadedDocument);
+      } catch (error) {
+        const message = formatError(
+          error,
+          t(
+            "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
+          )
+        );
+        conversation.updateEditProposal(request.runId, request.proposalId, {
+          status: "error",
+          statusMessage: message
+        });
+        uiMessage.error(message);
+        return;
+      }
+    }
     const target = liveWorkspaceDocuments.value.find(
       (document) => document.id === proposal.documentId
     );
@@ -4244,16 +4403,19 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           savingDocumentIds.value.has(document.id)
       )
     ) {
-      const message = automatic
-        ? t(
-            "proposalCoordinator.theProjectIsSavingOtherContentAutomaticSavingIs"
-          )
-        : t("proposalCoordinator.otherEditsToThisProjectAreBeingSavedWait");
+      // Editing stays open during runs, so user saves often overlap automatic
+      // ones; wait in the queue and retry once the user's saves finish.
       conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: automatic ? "error" : "pending",
-        statusMessage: message
+        status: "pending",
+        statusMessage: automatic
+          ? t("proposalCoordinator.waitingForYourSaveToFinish")
+          : t("proposalCoordinator.otherEditsToThisProjectAreBeingSavedWait")
       });
-      uiMessage.info(message);
+      if (!automatic) {
+        uiMessage.info(
+          t("proposalCoordinator.otherEditsToThisProjectAreBeingSavedWait")
+        );
+      }
       return;
     }
 
@@ -4305,18 +4467,23 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       uiMessage.error(message);
       return;
     }
-    if (
-      proposal.libraryTarget &&
-      classifyAgentEditAcceptance(proposal, target.content) === "conflict"
-    ) {
-      const message = t(
-        "proposalCoordinator.theLibraryContentChangedDuringReviewTheAgentEdit"
+    const liveContent =
+      currentDraft?.dirty || persistedDocument.catalogContentLoaded !== false
+        ? target.content
+        : undefined;
+    const acceptBase = resolveTextProposalAcceptBase(
+      proposal,
+      liveContent,
+      agentWrittenRevisions.get(target.id)
+    );
+    if (acceptBase.kind === "stale") {
+      holdStaleTextProposal(
+        conversation,
+        request.runId,
+        proposal,
+        liveContent,
+        acceptBase.currentRevision
       );
-      conversation.updateEditProposal(request.runId, request.proposalId, {
-        status: "conflict",
-        statusMessage: message
-      });
-      uiMessage.warning(message);
       return;
     }
 
@@ -4332,7 +4499,17 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         ? t(
             "proposalCoordinator.automaticallyApprovingAndSavingToLocalMarkdown"
           )
-        : t("proposalCoordinator.savingToLocalMarkdown")
+        : t("proposalCoordinator.savingToLocalMarkdown"),
+      // Overwriting replaces the user's version; undo must restore it.
+      ...(acceptBase.overwrite && liveContent !== undefined
+        ? {
+            discardSnapshot: {
+              ...proposal.discardSnapshot,
+              beforeText: liveContent,
+              beforeTitle: target.title
+            }
+          }
+        : {})
     });
     setAgentEditDocumentAccepting(target.id, true);
     setAgentEditWorkspaceAccepting(proposal.workspaceId, true);
@@ -4350,11 +4527,18 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           throw new Error(t("short.theDesktopFileServiceIsUnavailable"));
         }
         const saved = await currentApi.catalog.saveDocument(
-          shortAgentDirectDocumentWrite({
-            bookId: persistedDocument.workspaceId,
-            documentId: persistedDocument.catalogDocumentId,
-            content: payload.content
-          })
+          shortAgentCheckedDocumentWrite(
+            {
+              bookId: persistedDocument.workspaceId,
+              documentId: persistedDocument.catalogDocumentId,
+              content: payload.content
+            },
+            expectedDiskRevision(
+              persistedDocument.catalogContentLoaded === false
+                ? undefined
+                : persistedDocument.content
+            )
+          )
         );
         const normalizedPayload = {
           id: payload.id,
@@ -4478,9 +4662,16 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         newerDraftPreserved = Boolean(editorDrafts.value[payload.id]);
       }
 
+      agentWrittenRevisions.set(
+        target.id,
+        createShortWorkspaceContentRevision(proposedText)
+      );
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
+        ...(acceptBase.overwrite
+          ? resolvedStaleBase(proposal, "overwrote")
+          : {}),
         statusMessage: newerDraftPreserved
           ? t(
               "proposalCoordinator.savedTheReviewedAgentEditsNewerChangesMadeDuring",
@@ -4514,6 +4705,34 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
     } catch (error: unknown) {
       const conflict = isCatalogConflict(error);
+      const bookId = persistedDocument.catalogDocumentId
+        ? persistedDocument.workspaceId
+        : undefined;
+      if (conflict && bookId) {
+        // The text changed between the check and Core's write: reload it and
+        // let the user decide, exactly as if it had been stale beforehand.
+        await refreshBookAfterSuccessfulDocumentSave(
+          bookId,
+          captureWorkspaceDocumentBaselines(documents.value, bookId)
+        ).catch(() => false);
+        const latest = liveWorkspaceDocuments.value.find(
+          (document) => document.id === proposal.documentId
+        );
+        const latestContent =
+          latest &&
+          (editorDrafts.value[latest.id]?.dirty ||
+            latest.catalogContentLoaded !== false)
+            ? latest.content
+            : undefined;
+        holdStaleTextProposal(
+          conversation,
+          request.runId,
+          proposal,
+          latestContent,
+          staleRevisionAfterConflict(error, latestContent, proposal)
+        );
+        return;
+      }
       const message = conflict
         ? t(
             "proposalCoordinator.theLocalMarkdownFileWasUpdatedElsewhereTheAgent"
@@ -4535,6 +4754,49 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     } finally {
       setAgentEditDocumentAccepting(target.id, false);
       setAgentEditWorkspaceAccepting(proposal.workspaceId, false);
+    }
+  }
+
+  /** Long counterpart of holdStaleTextProposal; see long-stale-base.ts. */
+  function holdStaleLongProposal(
+    conversation: AgentConversationController,
+    runId: string,
+    proposal: AgentEditProposal,
+    error: unknown
+  ): void {
+    holdStaleLongProposalForUser({
+      conversation,
+      runId,
+      proposal,
+      error,
+      removeQueued: removeQueuedAgentEdit,
+      warn: uiMessage.warning
+    });
+  }
+
+  /**
+   * Leaves a full-text proposal pending until the user keeps their version
+   * (reject) or overwrites the revision recorded here (accept).
+   */
+  function holdStaleTextProposal(
+    conversation: AgentConversationController,
+    runId: string,
+    proposal: AgentEditProposal,
+    liveContent: string | undefined,
+    currentRevision: string
+  ): void {
+    removeQueuedAgentEdit(conversation, runId, proposal.id);
+    conversation.updateEditProposal(
+      runId,
+      proposal.id,
+      staleTextProposalPatch(proposal, liveContent, currentRevision)
+    );
+    if (proposal.staleBase?.currentRevision !== currentRevision) {
+      uiMessage.warning(
+        t("proposalCoordinator.userEditedAgentTarget", {
+          title: proposal.title
+        })
+      );
     }
   }
 
@@ -4614,9 +4876,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     },
     stageAgentEditProposal: (
       ...args: Parameters<typeof stageAgentEditProposal>
-    ) => {
-      if (!proposalQueue.isDisposed()) stageAgentEditProposal(...args);
-    },
+    ) => invokeWhileActive(() => stageAgentEditProposal(...args)),
     stageLibraryEditProposal: (
       ...args: Parameters<typeof stageLibraryEditProposal>
     ) => {

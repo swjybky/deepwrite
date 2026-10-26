@@ -137,6 +137,7 @@ describe("conversation tool presentation", () => {
 
   it("preserves interleaved thinking, responses and tools while streaming", () => {
     const message = orderedMessage("streaming");
+    message.toolCalls!.at(-1)!.status = "running";
 
     expect(processingItems(message).map((item) => item.type)).toEqual([
       "thinking",

@@ -51,7 +51,9 @@ const emit = defineEmits<{
             >{{ t("webSearchBadge") }}</span
           >
           <span v-if="activeSubagentDraw(subagent)" class="model-badge">{{
-            t("drawBadge", { arg0: activeSubagentDraw(subagent)!.count })
+            activeSubagentDraw(subagent)!.countMode === "auto"
+              ? t("drawBadgeAuto")
+              : t("drawBadge", { arg0: activeSubagentDraw(subagent)!.count })
           }}</span>
           <span class="model-badge">{{ modelSummary }}</span>
         </span>

@@ -19,6 +19,7 @@ import type { ConcurrencyLimiter } from "./concurrency-limiter";
 import type { SubagentHandoff } from "./subagent-scheduler";
 import type {
   BuildSpawnSubagentToolInput,
+  SubagentDrawPlan,
   SubagentTaskOutcome
 } from "./subagent-types";
 
@@ -54,6 +55,10 @@ function settledOutcome(
       };
 }
 
+function variantNote(candidate: DrawCandidate): string {
+  return candidate.variant ? `（侧重：${candidate.variant}）` : "";
+}
+
 function selectedSummary(
   count: number,
   successCount: number,
@@ -63,8 +68,8 @@ function selectedSummary(
 ): string {
   const head =
     selectedBy === "only-success"
-      ? `【抽卡结果】共 ${count} 份，只有第 ${candidate.number} 份成功，已直接采用。`
-      : `【抽卡结果】共 ${count} 份（成功 ${successCount} 份），${SELECTED_BY_LABELS[selectedBy]}第 ${candidate.number} 份。`;
+      ? `【抽卡结果】共 ${count} 份，只有第 ${candidate.number} 份${variantNote(candidate)}成功，已直接采用。`
+      : `【抽卡结果】共 ${count} 份（成功 ${successCount} 份），${SELECTED_BY_LABELS[selectedBy]}第 ${candidate.number} 份${variantNote(candidate)}。`;
   return [
     [
       head,
@@ -78,7 +83,7 @@ function selectedSummary(
 async function askUserToChoose(
   input: BuildSpawnSubagentToolInput,
   context: SubagentTaskContext,
-  settings: SubagentDrawSettings,
+  count: number,
   candidates: readonly DrawCandidate[],
   fallbackReason: string | undefined
 ): Promise<DrawChoice> {
@@ -103,12 +108,13 @@ async function askUserToChoose(
         name: request.definition.name,
         ...(context.batchTask ? { taskKey: context.batchTask.key } : {}),
         task: request.task,
-        count: settings.count,
+        count,
         candidates: candidates.map((candidate) => ({
           id: `c${candidate.number}`,
           index: candidate.index,
           subagentRunId: candidate.subagentRunId,
-          text: candidate.summary
+          text: candidate.summary,
+          ...(candidate.variant ? { variant: candidate.variant } : {})
         })),
         ...(fallbackReason
           ? { fallbackReason: fallbackReason.slice(0, 2_000) }
@@ -134,17 +140,19 @@ async function askUserToChoose(
 /**
  * Runs one task of a draw-mode member: every draw is a fresh child, all of
  * them start at once (bounded by the call's limiter), and only the selected
- * result returns as the task's outcome.
+ * result returns as the task's outcome. An auto-count plan gives each draw
+ * its own requirement.
  */
 export async function runSubagentDrawTask(
   input: BuildSpawnSubagentToolInput,
   context: SubagentTaskContext,
   handoffs: readonly SubagentHandoff[],
   settings: SubagentDrawSettings,
+  plan: SubagentDrawPlan,
   limiter: ConcurrencyLimiter
 ): Promise<SubagentTaskOutcome> {
   const { request, signal } = context;
-  const count = settings.count;
+  const count = plan.count;
   const emit = emitter(context);
   const update = (fields: DrawUpdate, text: string): void =>
     emit(
@@ -169,35 +177,43 @@ export async function runSubagentDrawTask(
   );
   const outcomes = (
     await Promise.allSettled(
-      runIds.map((subagentRunId, index) =>
-        limiter.run(() =>
+      runIds.map((subagentRunId, index) => {
+        const variant = plan.variants?.[index];
+        return limiter.run(() =>
           runSubagentTask(
             input,
             {
               ...context,
               subagentRunId,
-              draw: { role: "candidate", index, count }
+              draw: {
+                role: "candidate",
+                index,
+                count,
+                ...(variant ? { variant } : {})
+              }
             },
             handoffs
           )
-        )
-      )
+        );
+      })
     )
   ).map(settledOutcome);
   if (signal?.aborted) return aborted();
 
-  const candidates: DrawCandidate[] = outcomes.flatMap((outcome, index) =>
-    outcome.status === "completed"
+  const candidates: DrawCandidate[] = outcomes.flatMap((outcome, index) => {
+    const variant = plan.variants?.[index];
+    return outcome.status === "completed"
       ? [
           {
             number: index + 1,
             index,
             subagentRunId: runIds[index]!,
-            summary: outcome.summary
+            summary: outcome.summary,
+            ...(variant ? { variant } : {})
           }
         ]
-      : []
-  );
+      : [];
+  });
   if (candidates.length === 0) {
     const reason = outcomes[0]?.summary ?? "没有候选完成。";
     update(
@@ -249,6 +265,7 @@ export async function runSubagentDrawTask(
         ...(signal ? { signal } : {}),
         ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}),
         settings,
+        count,
         candidates
       })
     );
@@ -273,7 +290,7 @@ export async function runSubagentDrawTask(
     choice = await askUserToChoose(
       input,
       context,
-      settings,
+      count,
       candidates,
       fallbackReason
     );
@@ -292,10 +309,14 @@ export async function runSubagentDrawTask(
     { phase: "rejected", ...(choice.note ? { note: choice.note } : {}) },
     "用户没有采用任何候选。"
   );
+  // Listing the directions lets the parent pick new ones for a retry.
+  const directions = candidates.some((candidate) => candidate.variant)
+    ? `（侧重依次为：${candidates.map((candidate) => `${candidate.number} ${candidate.variant ?? "无"}`).join("；")}）`
+    : "";
   return {
     status: "error",
     summary: [
-      `用户没有采用这次抽卡的 ${candidates.length} 份候选，本任务未完成。`,
+      `用户没有采用这次抽卡的 ${candidates.length} 份候选${directions}，本任务未完成。`,
       ...(choice.note ? [`用户附言：${choice.note}`] : [])
     ].join("\n")
   };

@@ -3,6 +3,7 @@ import type { DecompositionService } from "./service";
 import { decompositionErrorMessage } from "./error-message";
 import { currentDecompositionRefs } from "./content-guard";
 import { mapDecompositionReads } from "./read-cache";
+import { decompositionUnitIsRecordOnly } from "./record-store";
 
 export async function recoverDecompositionJob(
   service: DecompositionService,
@@ -96,6 +97,11 @@ export async function recoverDecompositionJob(
         unit.status = "done";
         delete unit.lastError;
         unit.outputRefs = receipt.refs;
+        if (
+          unit.requiredReceiptIds &&
+          decompositionUnitIsRecordOnly(job, receipt.unitId)
+        )
+          unit.requiredReceiptIds = [receipt.id];
         unit.receiptIds = unit.requiredReceiptIds ?? [receipt.id];
       });
     }

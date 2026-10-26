@@ -13,6 +13,7 @@ import type { ThinkingLevel } from "@deepwrite/contracts/renderer";
 import { createId } from "@deepwrite/shared";
 import AppIcon from "./AppIcon.vue";
 import { scrollSelectedIntoView } from "../utils/scrollSelectedIntoView";
+import type { ModelSelectOption } from "../utils/modelSelectOptions";
 
 const t = createScopedTranslator("components.conversationModelConfigSelect");
 
@@ -26,12 +27,7 @@ interface ConfigOption {
 
 const props = defineProps<{
   selectedModelId: string;
-  modelOptions: Array<{
-    value: string;
-    label: string;
-    provider: string;
-    providerLabel: string;
-  }>;
+  modelOptions: ModelSelectOption[];
   thinkingLevel: ThinkingLevel;
   thinkingOptions: Array<{ value: ThinkingLevel; label: string }>;
   temperature: number;
@@ -72,14 +68,14 @@ const modelGroups = computed(() => {
     }
   >();
   for (const option of props.modelOptions) {
-    let group = groups.get(option.provider);
+    let group = groups.get(option.group.key);
     if (!group) {
       group = {
-        provider: option.provider,
-        label: option.providerLabel,
+        provider: option.group.key,
+        label: option.group.label,
         options: []
       };
-      groups.set(option.provider, group);
+      groups.set(option.group.key, group);
     }
     group.options.push(option);
   }

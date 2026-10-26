@@ -4,6 +4,7 @@ import {
 } from "./folder-catalog-store/managed-entry";
 import { registerCatalogProject } from "./folder-catalog-store/project-registration";
 import { deleteRegisteredProject } from "./folder-catalog-store/project-deletion";
+import { assertBookLibraryReferences } from "./folder-catalog-store/book-library-references";
 import {
   CATALOG_PROJECT_DOMAINS,
   type FolderCatalogProjectDomain,
@@ -1313,7 +1314,12 @@ export class FolderCatalogStore {
       } satisfies FolderCurrentBookProjectManifest;
       const validated = FolderCurrentBookProjectManifestSchema.parse(next);
       const snapshot = await this.aggregateSnapshot(registry);
-      assertBookLibraryReferences(validated, snapshot);
+      // Unchanged bindings may refer to deleted or temporarily unavailable
+      // libraries. They must not block repairing another domain or metadata.
+      assertBookLibraryReferences(
+        { ...input, title: validated.title },
+        snapshot
+      );
       await atomicWriteJson(
         join(opened.projectDirectory, MANIFEST_FILE),
         validated,
@@ -5597,47 +5603,6 @@ function isCreateScriptAtDirectoryInput(
   value: CreateScriptBookInput | CreateScriptBookAtDirectoryInput
 ): value is CreateScriptBookAtDirectoryInput {
   return "input" in value;
-}
-
-function assertBookLibraryReferences(
-  book: Pick<
-    Book,
-    "title" | "bookType" | "linkedMaterialIdsByKind" | "linkedSkillIdsByKind"
-  >,
-  snapshot: Pick<CatalogSnapshot, "materials" | "skills">
-): void {
-  const materials = new Map(
-    snapshot.materials.map((material) => [material.id, material])
-  );
-  const skills = new Map(snapshot.skills.map((skill) => [skill.id, skill]));
-  for (const [kind, materialIds] of Object.entries(
-    book.linkedMaterialIdsByKind
-  )) {
-    for (const materialId of materialIds) {
-      const material = materials.get(materialId);
-      if (!material) {
-        throw new Error(
-          `书籍「${book.title}」关联了不存在的素材库：${materialId}`
-        );
-      }
-      if (material.materialKind !== "mixed" && material.materialKind !== kind) {
-        throw new Error(`素材库「${material.title}」不能关联到 ${kind} 分类。`);
-      }
-    }
-  }
-  for (const [kind, skillIds] of Object.entries(book.linkedSkillIdsByKind)) {
-    for (const skillId of skillIds) {
-      const skill = skills.get(skillId);
-      if (!skill) {
-        throw new Error(
-          `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
-        );
-      }
-      if (skill.skillKind !== kind) {
-        throw new Error(`技能库「${skill.title}」不能绑定到 ${kind} 分类。`);
-      }
-    }
-  }
 }
 
 function assertBaseRevision(

@@ -12,25 +12,26 @@ import shortConversationSource from "./composables/useShortConversationCoordinat
 import eventRoutesSource from "./events/registerWorkspaceSystemEventRoutes.ts?raw";
 
 describe("App agent realtime auto persistence", () => {
-  it("keeps editor writes behind the active run and review write barrier", () => {
+  it("keeps editing open during runs and reviews, guarding only structure", () => {
+    // Structure operations still wait for the run and its review.
     expect(presentationCoordinatorSource).toContain(
       "function agentRunScopeHasWriteBarrier"
     );
     expect(presentationCoordinatorSource).toContain(
-      "conversation.isBusy.value"
-    );
-    expect(presentationCoordinatorSource).toContain(
       "conversation.hasPendingEditReview.value"
     );
-    expect(presentationCoordinatorSource).toContain(
-      "agentRunScopeHasWriteBarrier(agentRunScopeForDocument(document))"
+    expect(source).toContain("hasWriteBarrier: agentRunScopeHasWriteBarrier");
+    // Text editing, autosave and formatting no longer read the run barrier.
+    expect(presentationCoordinatorSource).not.toContain(
+      "documentHasWriteBarrier"
     );
+    expect(presentationCoordinatorSource).not.toContain(
+      "acceptOrRejectThePendingChangesFirst"
+    );
+    expect(source).not.toContain("documentHasAgentRunWriteBarrier");
     expect(source).toContain("useLongWorkspacePresentationCoordinator({");
     expect(source).not.toContain("function agentRunScopeHasWriteBarrier");
     expect(autoSaveSource).toContain("options.isWriteBlocked(document)");
-    expect(presentationCoordinatorSource).toContain(
-      "acceptOrRejectThePendingChangesFirst"
-    );
   });
 
   it("allows every short, script, library, and long content proposal to commit during a run", () => {

@@ -8,6 +8,7 @@ import {
   syncKindSchema,
   syncIdSchema,
   syncHashSchema,
+  syncPathSchema,
   syncMetadataSchema
 } from "./device-sync";
 
@@ -77,6 +78,10 @@ export const DeviceSyncIntentSchema = z
     previous: syncItemSchema.nullable(),
     removal: z.string().nullable()
   })
+  .strict();
+export type DeviceSyncIntent = z.infer<typeof DeviceSyncIntentSchema>;
+export const DeviceSyncValidationFailureDetailsSchema = z
+  .object({ paths: z.array(syncPathSchema) })
   .strict();
 export const DeviceSyncCatalogRegistrySchema = z
   .object({

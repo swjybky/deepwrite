@@ -10,6 +10,7 @@ import { AgentRuntimeRefSchema } from "./agent-event-identity";
 import {
   SUBAGENT_DRAW_MAX_COUNT,
   SUBAGENT_DRAW_MIN_COUNT,
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
   SUBAGENT_TASK_BATCH_MAX_COUNT
 } from "../agent-team";
 
@@ -52,7 +53,14 @@ export const SubagentDrawRefSchema = z.discriminatedUnion("role", [
       .int()
       .min(0)
       .max(SUBAGENT_DRAW_MAX_COUNT - 1),
-    count: SubagentDrawCountSchema
+    count: SubagentDrawCountSchema,
+    /** The parent's requirement for this draw in auto-count mode. */
+    variant: z
+      .string()
+      .trim()
+      .min(1)
+      .max(SUBAGENT_DRAW_VARIANT_MAX_LENGTH)
+      .optional()
   }),
   z.object({ role: z.literal("evaluator"), count: SubagentDrawCountSchema })
 ]);

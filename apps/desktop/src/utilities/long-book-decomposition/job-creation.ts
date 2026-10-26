@@ -52,6 +52,9 @@ export async function createDecompositionJob(
         reused.set(id, (await service.reader.record(reusable, id)).data);
         job.units[id] = {
           ...structuredClone(unit),
+          // Receipts are scoped to the destination task, even for record-only units.
+          receiptIds: [],
+          requiredReceiptIds: undefined,
           runId: undefined,
           attemptId: undefined
         };

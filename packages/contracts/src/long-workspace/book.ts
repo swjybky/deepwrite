@@ -12,7 +12,10 @@ import {
   LongProjectManifestSchemaVersionSchema,
   LongWorkspaceSchemaVersionSchema
 } from "./ids";
-import { LongWorkspaceIndexSnapshotSchema } from "./index-validation";
+import {
+  LongWorkspaceIndexSnapshotSchema,
+  type LongWorkspaceIndexSnapshot
+} from "./index-validation";
 import {
   createLongWorkspaceNavigationSnapshot,
   LongWorkspaceNavigationSnapshotSchema
@@ -192,3 +195,20 @@ export const LongProjectManifestSchema = z
   })
   .strict();
 export type LongProjectManifest = z.infer<typeof LongProjectManifestSchema>;
+
+/** Disk loading and sync must accept the same manifest/index revision pair. */
+export function assertLongProjectIndexMetadata(
+  manifest: Pick<
+    LongProjectManifest,
+    "id" | "updatedAt" | "workspaceIndexFile"
+  >,
+  index: Pick<LongWorkspaceIndexSnapshot, "bookId" | "updatedAt">
+): void {
+  if (manifest.id !== index.bookId)
+    throw new Error("长篇 manifest 与工作区索引的 book id 不一致。");
+  if (
+    manifest.updatedAt !== index.updatedAt ||
+    manifest.workspaceIndexFile.updatedAt !== index.updatedAt
+  )
+    throw new Error("长篇 manifest 与工作区索引的更新时间不一致。");
+}

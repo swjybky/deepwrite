@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator, locale } from "../i18n";
+import { formatModelProviderError } from "../i18n/errors";
 import { computed, onBeforeUnmount, ref, useId } from "vue";
 import {
   provideConversationDisclosureScope,
@@ -79,14 +80,14 @@ const hasApprovalCards = computed(
     approvalItems.value.length > 0
 );
 const approvalCardsId = useId();
-const approvalCardsCollapsed = useConversationDisclosure(
-  () => `${props.message.id}:approval-cards-collapsed`
+const approvalCardsExpanded = useConversationDisclosure(
+  () => `${props.message.id}:approval-cards-expanded`
 );
 const approvalCardsToggleLabel = computed(() =>
   t(
-    approvalCardsCollapsed.value
-      ? "expandApprovalCards"
-      : "collapseApprovalCards"
+    approvalCardsExpanded.value
+      ? "collapseApprovalCards"
+      : "expandApprovalCards"
   )
 );
 const copied = ref(false);
@@ -201,7 +202,7 @@ onBeforeUnmount(() => {
         </div>
         <section
           v-if="hasApprovalCards"
-          v-show="!approvalCardsCollapsed"
+          v-show="approvalCardsExpanded"
           :id="approvalCardsId"
           class="approval-card-stack"
           :aria-label="t('approvalCardsForThisTurn')"
@@ -271,15 +272,15 @@ onBeforeUnmount(() => {
           type="button"
           :title="approvalCardsToggleLabel"
           :aria-label="approvalCardsToggleLabel"
-          :aria-expanded="!approvalCardsCollapsed"
+          :aria-expanded="approvalCardsExpanded"
           :aria-controls="approvalCardsId"
-          @click="approvalCardsCollapsed = !approvalCardsCollapsed"
+          @click="approvalCardsExpanded = !approvalCardsExpanded"
         >
           <AppIcon
             name="chevron"
             :size="15"
             class="approval-cards-chevron"
-            :class="{ 'is-collapsed': approvalCardsCollapsed }"
+            :class="{ 'is-collapsed': !approvalCardsExpanded }"
           />
         </button>
         <span v-if="message.remote">{{
@@ -294,7 +295,11 @@ onBeforeUnmount(() => {
         class="message-error-copy"
         role="status"
       >
-        {{ message.errorMessage || t("couldNotCompleteGenerationTryAgain") }}
+        {{
+          formatModelProviderError(
+            message.errorMessage || t("couldNotCompleteGenerationTryAgain")
+          )
+        }}
       </p>
     </div>
   </article>

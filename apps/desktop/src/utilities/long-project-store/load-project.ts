@@ -2,6 +2,7 @@ import {
   LONG_WORKSPACE_INDEX_PATH,
   LongProjectManifestSchema,
   LongWorkspaceIndexSnapshotSchema,
+  assertLongProjectIndexMetadata,
   createLongBookSummary,
   type LongBook
 } from "@deepwrite/contracts";
@@ -175,15 +176,7 @@ export async function loadProject(
     return await loadProject(ctx, projectDirectory);
   }
   const index = LongWorkspaceIndexSnapshotSchema.parse(rawIndex);
-  if (manifest.id !== index.bookId) {
-    throw new Error("长篇 manifest 与工作区索引的 book id 不一致。");
-  }
-  if (
-    manifest.updatedAt !== index.updatedAt ||
-    manifest.workspaceIndexFile.updatedAt !== index.updatedAt
-  ) {
-    throw new Error("长篇 manifest 与工作区索引的更新时间不一致。");
-  }
+  assertLongProjectIndexMetadata(manifest, index);
 
   const slots = indexedFileSlots(index);
   validatePortableAndCanonicalPaths(slots);

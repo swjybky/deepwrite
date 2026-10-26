@@ -193,6 +193,9 @@ export function toolIcon(tool: AgentToolTrace): IconName {
 
 export function toolLabel(tool: AgentToolTrace): string {
   const displayName = workspaceToolLabel(tool.name);
+  if (tool.status === "preparing" && tool.argumentsComplete) {
+    return t("waitingForValue", { arg0: displayName });
+  }
   if (tool.status === "completed" && isWriteTool(tool)) {
     const unchanged = tool.resultSummary
       ?.trim()
@@ -249,18 +252,35 @@ export function toolLabel(tool: AgentToolTrace): string {
   });
 }
 
-export function toolGroupIsRunning(tools: AgentToolTrace[]): boolean {
-  return tools.some(
-    (tool) => tool.status === "preparing" || tool.status === "running"
-  );
+/** Executing calls take precedence over calls waiting in the same model turn. */
+export function activeToolCall(
+  tools: readonly AgentToolTrace[]
+): AgentToolTrace | undefined {
+  let preparing: AgentToolTrace | undefined;
+  for (let index = tools.length - 1; index >= 0; index -= 1) {
+    const tool = tools[index]!;
+    if (tool.status === "running") return tool;
+    if (tool.status === "preparing") preparing ??= tool;
+  }
+  return preparing;
 }
 
-export function toolGroupLabel(tools: AgentToolTrace[]): string {
-  return toolGroupIsRunning(tools) ? t("runningLabel") : t("completed");
+export function toolGroupIsRunning(tools: readonly AgentToolTrace[]): boolean {
+  return activeToolCall(tools) !== undefined;
+}
+
+export function toolGroupLabel(tools: readonly AgentToolTrace[]): string {
+  const tool = activeToolCall(tools);
+  if (!tool) return t("completed");
+  if (tool.status === "running") return t("runningLabel");
+  return tool.argumentsComplete
+    ? t("waitingForExecution")
+    : t("generatingArguments");
 }
 
 export function toolDetail(tool: AgentToolTrace): string | undefined {
   if (tool.status === "preparing") {
+    if (tool.argumentsComplete) return t("waitingForExecution");
     const length = writeToolText(tool).length;
     return length > 0
       ? t("generatedValueCharacters", {

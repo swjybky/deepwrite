@@ -15,6 +15,8 @@ export default {
   searchContent: "搜索内容",
   queryReferences: "查询资料",
   runTool: "执行工具",
+  preparingToolCall: "准备工具调用",
+  waitingForExecution: "等待执行",
   finished: "处理完成",
   thinking: "思考中",
   compactingContext: "压缩上下文中",

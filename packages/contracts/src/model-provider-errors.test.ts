@@ -1,5 +1,41 @@
 import { expect, it } from "vitest";
-import { isModelQuotaExhausted } from "./model-provider-errors";
+import {
+  getModelContentBlockReason,
+  isModelQuotaExhausted
+} from "./model-provider-errors";
+
+it.each([
+  ["Provider stopped with: PROHIBITED_CONTENT", "PROHIBITED_CONTENT"],
+  ["503 Provider returned error: PROHIBITED_CONTENT", "PROHIBITED_CONTENT"],
+  ['502 {"finishReason":"SAFETY"}', "SAFETY"],
+  ["Provider stopped with: BLOCKLIST", "BLOCKLIST"],
+  ["Provider stopped with: RECITATION", "RECITATION"],
+  ["Provider finish_reason: content_filter", "CONTENT_FILTER"],
+  [{ rawStopReason: "SPII", errorMessage: "503 upstream error" }, "SPII"],
+  [{ error: { code: "prohibited_content" } }, "PROHIBITED_CONTENT"],
+  [new Error("请求失败", { cause: { blockReason: "SAFETY" } }), "SAFETY"]
+])("识别内容限制并保留服务端原因：%j", (cause, reason) => {
+  expect(getModelContentBlockReason(cause)).toBe(reason);
+});
+
+it.each([
+  "503 Service Unavailable",
+  "Safety settings are not supported",
+  "Unable to load blocklist configuration",
+  "PROHIBITED_CONTENT_EXTRA",
+  "Provider stopped with: OTHER",
+  "maximum context length exceeded",
+  { content: [{ type: "text", text: "PROHIBITED_CONTENT" }] },
+  undefined
+])("普通故障与正文中的词语不属于内容拦截：%j", (cause) => {
+  expect(getModelContentBlockReason(cause)).toBeUndefined();
+});
+
+it("内容限制识别可处理循环包装错误", () => {
+  const cause: { cause?: unknown } = {};
+  cause.cause = cause;
+  expect(getModelContentBlockReason(cause)).toBeUndefined();
+});
 
 it.each([
   "429 insufficient_quota",

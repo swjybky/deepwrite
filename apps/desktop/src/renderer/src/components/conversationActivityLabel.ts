@@ -1,5 +1,9 @@
 import { createScopedTranslator } from "../i18n";
 import type { AgentSubagentRun } from "../types/conversation";
+import {
+  workGroupActivity,
+  type WorkGroupDisplayItem
+} from "./conversationWorkGroups";
 
 const t = createScopedTranslator("components.conversationActivityLabel");
 
@@ -45,12 +49,6 @@ const TOOL_ACTIVITY: Readonly<Record<string, string>> = {
   }
 };
 
-type WorkActivityItem =
-  | { type: "thinking" }
-  | { type: "tool"; tool: { name: string } }
-  | { type: "tool-group"; tools: readonly { name: string }[] }
-  | { type: string };
-
 /** Short stage name for a real tool call. Unknown tools stay generic. */
 export function toolActivityLabel(toolName: string): string {
   const known = TOOL_ACTIVITY[toolName];
@@ -75,21 +73,21 @@ export function toolActivityLabel(toolName: string): string {
   return t("runTool");
 }
 
-/** Running groups name their latest member; finished groups stay summarized. */
-export function workGroupActivityLabel(group: {
-  running: boolean;
-  items: readonly WorkActivityItem[];
-}): string {
+/** Name the active call rather than a completed or queued call beside it. */
+export function workGroupActivityLabel(
+  group: Pick<WorkGroupDisplayItem, "running" | "items">
+): string {
   if (!group.running) return t("finished");
-  const last = group.items.at(-1);
-  if (last?.type === "thinking") return t("thinking");
-  if (last?.type === "compaction") return t("compactingContext");
-  if (last?.type === "tool" && "tool" in last) {
-    return toolActivityLabel(last.tool.name);
-  }
-  if (last?.type === "tool-group" && "tools" in last) {
-    const tool = last.tools.at(-1);
-    if (tool) return toolActivityLabel(tool.name);
+  const activity = workGroupActivity(group.items);
+  if (activity?.type === "thinking") return t("thinking");
+  if (activity?.type === "compaction") return t("compactingContext");
+  if (activity?.type === "tool") {
+    if (activity.tool.status === "preparing") {
+      return activity.tool.argumentsComplete
+        ? t("waitingForExecution")
+        : t("preparingToolCall");
+    }
+    return toolActivityLabel(activity.tool.name);
   }
   return t("finished");
 }

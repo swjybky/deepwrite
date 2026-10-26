@@ -80,6 +80,64 @@ function responseStream(message: AssistantMessage) {
 }
 
 describe("agent turn retry coordinator", () => {
+  it.each([
+    "Provider stopped with: PROHIBITED_CONTENT",
+    "503 Provider returned error: Provider stopped with: PROHIBITED_CONTENT",
+    "502 gateway error: Provider stopped with: SAFETY"
+  ])(
+    "does not retry content restrictions, including gateway wrappers: %s",
+    async (errorMessage) => {
+      let calls = 0;
+      const failure = assistantMessage("error", [], errorMessage);
+      const agent = new Agent({
+        initialState: { model, systemPrompt: "test", thinkingLevel: "off" },
+        streamFn: () => {
+          calls++;
+          return responseStream(failure);
+        }
+      });
+      const retries: AgentTurnRetrySchedule[] = [];
+      const failures: AssistantMessage[] = [];
+      let observations = 0;
+      let overflowChecks = 0;
+      await runAgentWithTurnRetries({
+        agent,
+        initialPrompt: { role: "user", content: "fixture task", timestamp: 1 },
+        runId: "run_content_block",
+        retryPolicy: { delaysMs: [0, 0], sleep: async () => {} },
+        // A caller's broad classifier must not override a content restriction.
+        classifyFailure: () => "503 upstream error",
+        contextOverflow: {
+          matches: () => {
+            overflowChecks++;
+            return true;
+          },
+          recover: async () => true
+        },
+        onRetryScheduled: (schedule) => {
+          retries.push(schedule);
+        },
+        onAssistantMessageEnded: () => {
+          observations++;
+        },
+        onEvent: (event) => {
+          if (
+            event.type === "message_end" &&
+            event.message.role === "assistant"
+          )
+            failures.push(event.message);
+        }
+      });
+      expect(calls).toBe(1);
+      expect(retries).toEqual([]);
+      expect(observations).toBe(1);
+      expect(overflowChecks).toBe(0);
+      expect(failures).toEqual([failure]);
+      expect(agent.state.messages.at(-1)).toBe(failure);
+      expect(failure.errorMessage).toBe(errorMessage);
+    }
+  );
+
   it("applies bounded +/-20% jitter", () => {
     expect(jitterAgentTurnRetryDelay(10_000, () => 0)).toBe(8_000);
     expect(jitterAgentTurnRetryDelay(10_000, () => 0.5)).toBe(10_000);

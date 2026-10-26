@@ -74,6 +74,8 @@ You can add your own API services in Model Settings. DeepWrite currently support
 
 Model keys are never exposed to the renderer. Each model can have a default thinking level, and you can switch models by task during a conversation.
 
+Models added through the official site entry send `X-DeepWrite-Session-ID`, keeping the same ID across turns, retries, and tool continuations and using a new ID for each new conversation. This lets the gateway keep the same source and account. Free models and custom connections do not automatically receive this header, even when they use the same endpoint or provider name.
+
 ## Installation and Setup
 
 ### Use an installer

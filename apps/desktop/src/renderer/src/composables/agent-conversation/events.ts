@@ -1,4 +1,5 @@
 import { createScopedTranslator } from "../../i18n";
+import { formatModelProviderError } from "../../i18n/errors";
 import { handleToolEvent } from "./tool-events";
 import type { AgentConversationContext } from "./context";
 import type { SystemEventEnvelope } from "@deepwrite/contracts";
@@ -202,7 +203,9 @@ export function handleEvent(
     if (event.payload.phase === "failed") {
       uiMessage.warning(
         t("contextCompactionFailedTheOriginalContextWasPreserved", {
-          value: event.payload.errorMessage ?? t("unknownReason")
+          value: formatModelProviderError(
+            event.payload.errorMessage ?? t("unknownReason")
+          )
         }),
         { duration: 6_000 }
       );
@@ -341,6 +344,6 @@ export function handleEvent(
     return;
   }
   ctx.markRunError(runId, event.payload.message, event.payload.runtime);
-  ctx.conversationError.value = event.payload.message;
+  ctx.conversationError.value = formatModelProviderError(event.payload.message);
   ctx.finishRun(runId);
 }

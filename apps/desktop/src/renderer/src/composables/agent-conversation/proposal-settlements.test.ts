@@ -111,6 +111,39 @@ describe("collectProposalSettlements", () => {
     });
   });
 
+  it("tells the agent how the user settled an edit made during its run", () => {
+    const staleBase = (resolution: "kept-user" | "overwrote") => ({
+      detectedAt: "2026-10-12T01:00:15.000Z",
+      currentRevision: "v1:3:abcdef01",
+      resolution
+    });
+    expect(
+      collectProposalSettlements([
+        user("2026-10-12T01:00:00.000Z"),
+        assistant([
+          proposal("kept", {
+            status: "rejected",
+            staleBase: staleBase("kept-user")
+          }),
+          proposal("overwrote", { staleBase: staleBase("overwrote") })
+        ])
+      ])?.items
+    ).toEqual([
+      {
+        title: "文档 kept",
+        summary: "修改 kept",
+        status: "rejected",
+        detail: "用户在你修改期间编辑了该文档，选择保留自己的版本。"
+      },
+      {
+        title: "文档 overwrote",
+        summary: "修改 overwrote",
+        status: "saved",
+        detail: "用户在你修改期间编辑过该文档，确认用你的版本覆盖。"
+      }
+    ]);
+  });
+
   it("reports nothing for undecided proposals or a turn without writes", () => {
     expect(
       collectProposalSettlements([

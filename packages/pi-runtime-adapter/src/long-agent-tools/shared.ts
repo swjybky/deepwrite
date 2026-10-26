@@ -36,7 +36,8 @@ export function preflightLongMutationProposal(
       invalid_order: "排序范围或顺序不完整",
       recorded_chapter_order: "已写入连续性账本的章节位置固定",
       invalid_document_write: "文档写入目标无效",
-      invalid_result: "操作后的结构不满足长篇约束"
+      invalid_result: "操作后的结构不满足长篇约束",
+      document_changed: "文档在读取后已有改动"
     };
     return textResult(
       [

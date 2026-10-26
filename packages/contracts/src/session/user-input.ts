@@ -2,7 +2,8 @@ import { z } from "zod";
 import { AgentRuntimeRefSchema } from "./agent-event-identity";
 import {
   SUBAGENT_DRAW_MAX_COUNT,
-  SUBAGENT_DRAW_MIN_COUNT
+  SUBAGENT_DRAW_MIN_COUNT,
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH
 } from "../subagent-settings";
 
 export const AGENT_USER_INPUT_MAX_QUESTIONS = 3;
@@ -123,7 +124,9 @@ export const AgentUserInputDrawCandidateSchema = z
       .min(0)
       .max(SUBAGENT_DRAW_MAX_COUNT - 1),
     subagentRunId: z.string().min(1),
-    text: z.string().min(1).max(20_000)
+    text: z.string().min(1).max(20_000),
+    /** The parent's requirement for this draw in auto-count mode. */
+    variant: z.string().min(1).max(SUBAGENT_DRAW_VARIANT_MAX_LENGTH).optional()
   })
   .strict();
 export type AgentUserInputDrawCandidate = z.infer<

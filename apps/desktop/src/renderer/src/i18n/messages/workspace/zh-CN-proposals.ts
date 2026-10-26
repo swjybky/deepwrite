@@ -408,7 +408,10 @@ export default {
     theLocalMarkdownFileWasUpdatedElsewhereTheAgent:
       "本地 Markdown 已在其他位置更新，未保存智能体修改；请基于最新文稿重新生成。",
     couldNotSaveTheAgentEditsTheOriginalText:
-      "保存智能体修改失败，原文保持不变。"
+      "保存智能体修改失败，原文保持不变。",
+    userEditedAgentTarget:
+      "你在智能体读取后修改了《{title}》，这条修改已暂停，请在对话中选择保留或覆盖。",
+    waitingForYourSaveToFinish: "等待你的保存完成后自动保存…"
   },
   plotStructureLane: {
     theTargetProjectIsNoLongerAvailableThePlot:

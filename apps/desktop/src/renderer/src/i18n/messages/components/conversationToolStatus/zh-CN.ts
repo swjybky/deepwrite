@@ -66,6 +66,8 @@ export default {
   runningValue: "正在{arg0}",
   errorWhileRunningValue: "执行 {arg0} 时出错",
   preparingValue: "正在准备{arg0}",
+  waitingForValue: "等待执行：{arg0}",
+  waitingForExecution: "等待执行",
   readingFile: "正在读取文件",
   fileRead: "已读取文件",
   runningCommand: "正在运行命令",

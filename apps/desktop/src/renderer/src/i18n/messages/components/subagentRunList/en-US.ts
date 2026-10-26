@@ -16,6 +16,8 @@ export default {
   batchQueued: "{arg0} queued",
   batchFinished: "{arg0} finished",
   candidateValue: "Candidate {arg0}",
+  variantValue: "Focus: {arg0}",
+  drawVariant: "This draw's focus",
   adopted: "Adopted",
   drawCountValue: "Draw ×{arg0}"
 };

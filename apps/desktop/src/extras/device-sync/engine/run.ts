@@ -173,7 +173,7 @@ export async function runSync(
       continue;
     }
     if (selected && !selected.has(key)) continue;
-    if (!adoption && baseline) remote.reuseItems([baseline.item]);
+    if (!adoption && baseline) await remote.reuseItems([baseline.item]);
     state.progress = {
       phase: "transferring",
       completed,

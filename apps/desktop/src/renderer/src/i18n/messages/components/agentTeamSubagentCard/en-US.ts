@@ -14,5 +14,6 @@ export default {
   delete: "Delete",
   deleteValue: "Delete {arg0}",
   drawBadge: "Draw ×{arg0}",
+  drawBadgeAuto: "Draw · auto",
   webSearchBadge: "Web"
 };

@@ -13,6 +13,7 @@ import AppIcon from "../../components/AppIcon.vue";
 import PopupSelect from "../../components/PopupSelect.vue";
 import { thinkingLabel } from "../../components/modelSettingsDraft";
 import { createScopedTranslator } from "../../i18n";
+import { buildModelSelectOptions } from "../../utils/modelSelectOptions";
 import "./analysis-model-settings.css";
 
 const t = createScopedTranslator("extras");
@@ -45,10 +46,7 @@ const selectedModel = computed(() =>
   availableModels.value.find((model) => model.id === props.modelId)
 );
 const modelOptions = computed(() =>
-  availableModels.value.map((model) => ({
-    value: model.id,
-    label: model.label
-  }))
+  buildModelSelectOptions(availableModels.value)
 );
 const thinkingLevels = computed<ThinkingLevel[]>(() => [
   "off",

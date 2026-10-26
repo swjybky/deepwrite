@@ -86,7 +86,10 @@ export async function persistDecompositionUnit(
       job,
       unitId,
       data,
-      job.units["registry:merge"]?.status === "done"
+      // Record-only writes need no target context. A registry edit already has
+      // its new revision, whose record does not exist until this write.
+      !decompositionUnitIsRecordOnly(job, unitId) &&
+        job.units["registry:merge"]?.status === "done"
         ? await readDecompositionRegistry(job, service.reader)
         : emptyDecompositionRegistry()
     );

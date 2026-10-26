@@ -3,8 +3,11 @@ import { parseSyncModelEntry, SYNC_MODEL_SECRET_FILE } from "./model-config";
 import { safeSyncFile } from "./value";
 
 export class SyncItemValidationError extends Error {
-  constructor(readonly paths: string[]) {
-    super("作品缺少索引引用的文件，请在来源设备更新应用并重新上传。");
+  constructor(
+    readonly paths: string[],
+    message = "作品缺少索引引用的文件，请在来源设备更新应用并重新上传。"
+  ) {
+    super(message);
   }
 }
 

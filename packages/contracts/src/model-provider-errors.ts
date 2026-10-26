@@ -7,6 +7,43 @@ const QUOTA_EXCEEDED =
 const RATE_LIMIT =
   /rate.?limit|per (?:minute|second)|requests? per|tokens? per/iu;
 
+const CONTENT_BLOCK_CODE =
+  /^(PROHIBITED_CONTENT|SAFETY|BLOCKLIST|SPII|RECITATION|content_filter)$/iu;
+const CONTENT_BLOCK_MESSAGE =
+  /(?:Provider (?:stopped with|finish_reason):\s*|["'](?:finishReason|finish_reason|blockReason)["']\s*:\s*["'])(PROHIBITED_CONTENT|SAFETY|BLOCKLIST|SPII|RECITATION|content_filter)\b/iu;
+const CONTENT_BLOCK_MARKER = /\b(PROHIBITED_CONTENT|content_filter)\b/iu;
+
+/** Content restrictions remain terminal even inside a transient gateway error. */
+export function getModelContentBlockReason(
+  cause: unknown,
+  depth = 0
+): string | undefined {
+  if (typeof cause === "string") {
+    const match =
+      CONTENT_BLOCK_CODE.exec(cause.trim()) ??
+      CONTENT_BLOCK_MESSAGE.exec(cause) ??
+      CONTENT_BLOCK_MARKER.exec(cause);
+    return match?.[1]?.toUpperCase();
+  }
+  if (!cause || typeof cause !== "object" || depth >= 4) return undefined;
+  const value = cause as Record<string, unknown>;
+  for (const part of [
+    value.rawStopReason,
+    value.finishReason,
+    value.blockReason,
+    value.code,
+    value.type,
+    value.errorMessage,
+    value.message,
+    value.error,
+    value.cause
+  ]) {
+    const reason = getModelContentBlockReason(part, depth + 1);
+    if (reason) return reason;
+  }
+  return undefined;
+}
+
 /** Account exhaustion needs user action; a transient request throttle does not. */
 export function isModelQuotaExhausted(cause: unknown, depth = 0): boolean {
   if (typeof cause === "string")

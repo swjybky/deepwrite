@@ -88,6 +88,20 @@ export interface AgentEditProposal {
     beforeDescription?: string;
     appliedProjectRevision?: number;
   };
+  /**
+   * The target changed after the agent based this edit on it (usually the
+   * user editing during the run). Accepting then overwrites only the version
+   * recorded here; see docs/智能体运行中编辑正文设计.md.
+   */
+  staleBase?: {
+    detectedAt: string;
+    /** Short/script/library: revision of the text the user saw. */
+    currentRevision?: string;
+    /** Long: disk SHA-256 per file id reported by Core. */
+    currentSha256ByFileId?: Record<string, string>;
+    /** How the user settled it; reported with the next turn. */
+    resolution?: "kept-user" | "overwrote";
+  };
   /** Presentation and retry state for restoring an accepted edit. */
   discardState?: {
     status: "discarding" | "discarded" | "conflict" | "error";

@@ -500,6 +500,7 @@ async function handleCatalogCommand(
           code: `long.operation.${error.code}`,
           message: error.message,
           details: {
+            ...error.details,
             kind: error.name,
             operationCode: error.code
           }

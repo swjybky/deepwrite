@@ -16,6 +16,8 @@ export default {
   batchQueued: "{arg0} 个排队",
   batchFinished: "{arg0} 个已结束",
   candidateValue: "候选 {arg0}",
+  variantValue: "侧重：{arg0}",
+  drawVariant: "本份侧重",
   adopted: "已采用",
   drawCountValue: "抽卡×{arg0}"
 };

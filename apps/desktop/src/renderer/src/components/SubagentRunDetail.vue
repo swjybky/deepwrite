@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
+import { formatModelProviderError } from "../i18n/errors";
 import { computed } from "vue";
 import {
   subagentRunDetailId,
@@ -18,6 +19,17 @@ const t = createScopedTranslator("components.subagentRunList");
 
 const props = defineProps<{ run: AgentSubagentRun }>();
 
+const summary = computed(() =>
+  props.run.status === "error" && props.run.summary
+    ? formatModelProviderError(props.run.summary)
+    : props.run.summary
+);
+const errorMessage = computed(() =>
+  props.run.errorMessage
+    ? formatModelProviderError(props.run.errorMessage)
+    : undefined
+);
+
 // Built once per change, reusing unchanged groups so a streaming child only
 // re-renders the part that grew.
 const items = computed<SubagentProcessingDisplayItem[]>((previous) =>
@@ -30,6 +42,13 @@ const items = computed<SubagentProcessingDisplayItem[]>((previous) =>
     <section class="subagent-run-handoff subagent-run-assigned-task">
       <strong>{{ t("taskAssignedByPrimaryAgent") }}</strong>
       <p>{{ run.task }}</p>
+    </section>
+    <section
+      v-if="run.draw?.role === 'candidate' && run.draw.variant"
+      class="subagent-run-handoff subagent-run-assigned-task"
+    >
+      <strong>{{ t("drawVariant") }}</strong>
+      <p>{{ run.draw.variant }}</p>
     </section>
     <ConversationRunClock v-slot="{ now }" :active="run.status === 'running'">
       <div v-if="subagentRetryStatus(run, now)" class="subagent-run-waiting">
@@ -65,20 +84,16 @@ const items = computed<SubagentProcessingDisplayItem[]>((previous) =>
     </div>
 
     <section
-      v-if="run.summary || run.errorMessage"
+      v-if="summary || errorMessage"
       class="subagent-run-handoff"
       :class="{ 'is-error': run.status === 'error' }"
     >
       <strong>{{
         run.status === "completed" ? t("handoffSummary") : t("completionNotes")
       }}</strong>
-      <StreamedContent
-        v-if="run.summary"
-        :content="run.summary"
-        format="markdown"
-      />
-      <p v-if="run.errorMessage && !run.summary?.includes(run.errorMessage)">
-        {{ run.errorMessage }}
+      <StreamedContent v-if="summary" :content="summary" format="markdown" />
+      <p v-if="errorMessage && !summary?.includes(errorMessage)">
+        {{ errorMessage }}
       </p>
     </section>
   </div>

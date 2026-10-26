@@ -39,6 +39,7 @@ export default {
   referencedResource:
     "此资料仍被 {sources} 引用，请先解除引用，或将引用方一并确认同步删除。",
   remoteInvalid: "网盘中的作品未通过完整性校验，本次未改动该作品。",
+  remoteReadFailed: "读取网盘作品失败：{reason}",
   localInvalid: "此作品目录不可读或结构不兼容，本次不参与同步。",
   beforeRestore: "恢复历史前的版本",
   beforeSync: "同步前的版本",

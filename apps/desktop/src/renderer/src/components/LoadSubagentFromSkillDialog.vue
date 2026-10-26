@@ -2,6 +2,7 @@
 import { createScopedTranslator } from "../i18n";
 import {
   SUBAGENT_AUTHORING_MAX_SKILLS,
+  type ModelConfig,
   type SkillLibrary,
   type SubagentAuthoringDraft,
   type SubagentAuthoringOutputMode,
@@ -19,7 +20,7 @@ import {
 } from "vue";
 import { buildSubagentAuthoringSkillOptions } from "../utils/subagentAuthoringSkillTree";
 import { uiMessage } from "../ui-feedback";
-import type { PopupSelectOption } from "./PopupSelect.vue";
+import { buildModelSelectOptions } from "../utils/modelSelectOptions";
 import SkillTreeSelect from "./SkillTreeSelect.vue";
 import SubagentAuthoringDraftFields from "./SubagentAuthoringDraftFields.vue";
 import SubagentAuthoringGenerateControls from "./SubagentAuthoringGenerateControls.vue";
@@ -33,7 +34,7 @@ const props = defineProps<{
   parentAgentLabel: string;
   existingSubagentNames: readonly string[];
   skills: readonly SkillLibrary[];
-  models: readonly { id: string; label: string }[];
+  models: readonly ModelConfig[];
   preferredModelId: string | null;
   generating: boolean;
   draft: SubagentAuthoringDraft | null;
@@ -75,9 +76,7 @@ const skillOptions = computed(() =>
   buildSubagentAuthoringSkillOptions(props.skills)
 );
 
-const modelOptions = computed<PopupSelectOption[]>(() =>
-  props.models.map((model) => ({ value: model.id, label: model.label }))
-);
+const modelOptions = computed(() => buildModelSelectOptions(props.models));
 
 // Follows the order the skills were picked in, which is the order of the
 // sections in the generated prompt.

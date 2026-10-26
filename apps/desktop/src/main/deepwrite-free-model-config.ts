@@ -8,6 +8,7 @@ import {
   deepWritePublicDataHeaders,
   deepWritePublicDataUrl
 } from "./deepwrite-public-data-config";
+import { electronRemoteFetch } from "./electron-remote-fetch";
 
 export const DEEPWRITE_FREE_MODEL_CONFIG_URL =
   deepWritePublicDataUrl("MODEL.json");
@@ -261,7 +262,7 @@ export class DeepWriteFreeModelCatalogStore {
       "deepwrite-free-models-cache.json"
     );
     this.appVersion = options.appVersion ?? "0.0.0";
-    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
+    this.fetcher = options.fetcher ?? electronRemoteFetch;
     this.now = options.now ?? Date.now;
     this.configUrl = options.configUrl ?? DEEPWRITE_FREE_MODEL_CONFIG_URL;
     this.refreshIntervalMs =

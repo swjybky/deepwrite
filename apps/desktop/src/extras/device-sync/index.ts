@@ -5,6 +5,8 @@ import {
   DEVICE_SYNC_IPC_CHANNEL,
   DeviceSyncRequestEnvelopeSchema,
   DeviceSyncInventorySchema,
+  DeviceSyncValidationFailureDetailsSchema,
+  SyncItemValidationError,
   DeviceSyncWorkspaceCommandEnvelopeSchema,
   DeviceSyncConversationCommandEnvelopeSchema,
   type DeviceSyncConversationRequest,
@@ -47,7 +49,20 @@ export function createDesktopDeviceSync(
       createEnvelope("deviceSync.workspace", payload, { id, correlationId: id })
     );
     const result = await options.command(command);
-    if (result.status !== "accepted") throw new Error(result.error.message);
+    if (result.status !== "accepted") {
+      const validation = DeviceSyncValidationFailureDetailsSchema.safeParse(
+        result.error.details
+      );
+      if (
+        result.error.code === "device_sync.validation_failed" &&
+        validation.success
+      )
+        throw new SyncItemValidationError(
+          validation.data.paths,
+          result.error.message
+        );
+      throw new Error(result.error.message);
+    }
     return result.payload;
   };
   const conversationRequest = async (

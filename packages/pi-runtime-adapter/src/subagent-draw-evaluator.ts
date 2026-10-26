@@ -33,6 +33,8 @@ export interface DrawCandidate {
   index: number;
   subagentRunId: string;
   summary: string;
+  /** The parent's requirement for this draw in auto-count mode. */
+  variant?: string;
 }
 
 export type DrawEvaluation =
@@ -46,6 +48,8 @@ export interface DrawEvaluatorContext {
   signal?: AbortSignal;
   onUpdate?: (partialResult: AgentToolResult<SubagentToolDetails>) => void;
   settings: SubagentDrawSettings;
+  /** Draws the task ran, failed ones included. */
+  count: number;
   candidates: readonly DrawCandidate[];
 }
 
@@ -56,6 +60,13 @@ const RUN_BOUNDARY = [
   "- 不要改写、合并或续写候选，你的工作只是选择。",
   "- 标注“已截断”的候选超出了评估长度，只能依据可见部分判断。"
 ].join("\n");
+// The rules a user edits know nothing of per-draw requirements.
+const VARIANT_BOUNDARY =
+  "- 候选标注的“侧重”是有意安排的差异方向。以原任务为准判断哪一份最合适：方向本身是否适合任务可以作为比较的一部分，但不要因为候选遵循了自己的侧重就判它偏离任务。";
+
+function hasVariants(candidates: readonly DrawCandidate[]): boolean {
+  return candidates.some((candidate) => candidate.variant);
+}
 
 /** Splits the evaluator's reading budget evenly between the candidates. */
 export function drawCandidateCharBudget(
@@ -74,7 +85,7 @@ export function drawEvaluatorTaskMessage(
 ): string {
   const numbers = candidates.map((candidate) => candidate.number).join("、");
   return [
-    `【评估任务】请从下面 ${candidates.length} 份候选中选出最好的一份。读完后必须调用 ${SELECT_TOOL_NAME} 提交选择：candidate 填候选编号（${numbers} 之一），reason 写选择理由。调用这个工具是本次评估唯一有效的输出。`,
+    `【评估任务】请从下面 ${candidates.length} 份候选中选出最好的一份。${hasVariants(candidates) ? "各份候选按不同侧重生成，侧重标在候选标题里。" : ""}读完后必须调用 ${SELECT_TOOL_NAME} 提交选择：candidate 填候选编号（${numbers} 之一），reason 写选择理由。调用这个工具是本次评估唯一有效的输出。`,
     "",
     "【原任务】",
     task,
@@ -82,7 +93,7 @@ export function drawEvaluatorTaskMessage(
       const truncated = candidate.summary.length > perCandidateChars;
       return [
         "",
-        `【候选 ${candidate.number}】${truncated ? `（已截断，原文共 ${candidate.summary.length} 字）` : ""}`,
+        `【候选 ${candidate.number}${candidate.variant ? `｜侧重：${candidate.variant}` : ""}】${truncated ? `（已截断，原文共 ${candidate.summary.length} 字）` : ""}`,
         truncated
           ? `${candidate.summary.slice(0, perCandidateChars)}…`
           : candidate.summary
@@ -150,7 +161,7 @@ export async function runDrawEvaluator(
   input: BuildSpawnSubagentToolInput,
   context: DrawEvaluatorContext
 ): Promise<DrawEvaluation> {
-  const { request, settings, candidates, signal } = context;
+  const { request, settings, count, candidates, signal } = context;
   const evaluator = settings.evaluator;
   const base: SubagentProgressBase = {
     parentToolCallId: context.parentToolCallId,
@@ -159,7 +170,7 @@ export async function runDrawEvaluator(
     name: DRAW_EVALUATOR_NAME,
     runtime: subagentModelRuntime(input, evaluator),
     ...(context.batchTask ? { batchTask: context.batchTask } : {}),
-    draw: { role: "evaluator", count: settings.count }
+    draw: { role: "evaluator", count }
   };
   const emitProgress = emitter(context);
   emitProgress(
@@ -197,7 +208,8 @@ export async function runDrawEvaluator(
         systemPrompt: [
           (evaluator.prompt ?? DEFAULT_SUBAGENT_DRAW_EVALUATOR_PROMPT).trim(),
           "",
-          RUN_BOUNDARY
+          RUN_BOUNDARY,
+          ...(hasVariants(candidates) ? [VARIANT_BOUNDARY] : [])
         ].join("\n"),
         model: resolved.model,
         thinkingLevel: resolved.thinkingLevel,

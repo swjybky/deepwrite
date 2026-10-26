@@ -277,8 +277,6 @@ const {
   scheduleAutoSave: (documentId) => scheduleEditorAutoSave(documentId),
   notifications: uiMessage
 });
-let documentHasAgentRunWriteBarrier = (_document: WorkspaceDocument): boolean =>
-  false;
 const {
   apply: applyDocument,
   cancel: cancelEditorAutoSave,
@@ -297,12 +295,19 @@ const {
   isConflicted: () => saveConflict.value !== null,
   isWriteBlocked: (document) =>
     savingDocumentIds.value.size > 0 ||
-    documentHasAgentRunWriteBarrier(document) ||
     acceptingAgentEditDocumentIds.value.has(document.id) ||
     (document.workspaceId !== undefined &&
       acceptingAgentEditWorkspaceIds.value.has(document.workspaceId)),
   onIdle: async () => {
     await retryPendingBookReconciliations();
+    // Editing stays open during runs: automatic agent edits that waited for
+    // the user's saves resume once the save lane is quiet.
+    if (
+      allConversations().some(
+        ({ hasPendingEditReview }) => hasPendingEditReview.value
+      )
+    )
+      scheduleQueuedAgentEdits((queued) => queued.automatic);
   },
   onUnexpectedError: (error) =>
     uiMessage.error(formatError(error, t("couldNotSaveEditorDraft")))
@@ -608,10 +613,8 @@ const {
   buildLongLibraryAttachmentsForProfile,
   filterLongReadableAttachmentsForProfile,
   longCatalogContextDocuments,
-  agentRunScopeHasWriteBarrier,
-  documentHasWriteBarrier
+  agentRunScopeHasWriteBarrier
 } = longWorkspacePresentation;
-documentHasAgentRunWriteBarrier = documentHasWriteBarrier;
 const {
   workspaceProposals: longWorkspaceProposals,
   activeConversationProposalItems: activeLongConversationProposalItems,
@@ -1664,7 +1667,6 @@ const catalogManuscriptFormatting = useCatalogManuscriptFormatting({
     targets.some(
       (document) =>
         document.readOnly ||
-        documentHasAgentRunWriteBarrier(document) ||
         acceptingAgentEditDocumentIds.value.has(document.id) ||
         (document.workspaceId !== undefined &&
           acceptingAgentEditWorkspaceIds.value.has(document.workspaceId))
@@ -2219,6 +2221,8 @@ const {
     catalogBook,
     findCatalogLibrary,
     loadSnapshot: loadCatalogSnapshot,
+    ensureDocumentLoaded: (document) =>
+      ensureCatalogDocumentLoaded(document, { notify: false }),
     applyAcceptedDocumentLocally: applyAcceptedAgentDocumentLocally,
     applyCreatedLibraryEntry,
     applySavedLibraryEntry,

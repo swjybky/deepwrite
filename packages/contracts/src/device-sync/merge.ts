@@ -23,18 +23,26 @@ function mergeArrays(
 ): unknown {
   if (!entityArray(base) || !entityArray(a) || !entityArray(b))
     return preferredValue;
+  const preferredEntities = entityArray(preferredValue)
+    ? preferredValue
+    : undefined;
+  const indexed = (items: (Record<string, unknown> & { id: string })[]) =>
+    new Map(items.map((item) => [item.id, item]));
+  const baseById = indexed(base);
+  const aById = indexed(a);
+  const bById = indexed(b);
+  const preferredById = preferredEntities
+    ? indexed(preferredEntities)
+    : undefined;
   const ids = (items: { id: string }[]) => items.map(({ id }) => id);
   const orderConflict =
     !syncEqual(ids(a), ids(b)) &&
     !syncEqual(ids(a), ids(base)) &&
     !syncEqual(ids(b), ids(base));
-  if (orderConflict && !entityArray(preferredValue)) return CONFLICT;
+  if (orderConflict && !preferredEntities) return CONFLICT;
   const commonIds = new Set(
     base
-      .filter(
-        (item) =>
-          a.some((v) => v.id === item.id) && b.some((v) => v.id === item.id)
-      )
+      .filter((item) => aById.has(item.id) && bById.has(item.id))
       .map(({ id }) => id)
   );
   const order = (items: { id: string }[]) =>
@@ -46,12 +54,12 @@ function mergeArrays(
     !syncEqual(ao, bo) &&
     !syncEqual(ao, original) &&
     !syncEqual(bo, original) &&
-    !entityArray(preferredValue)
+    !preferredEntities
   )
     return CONFLICT;
   const preferred =
-    orderConflict && entityArray(preferredValue)
-      ? preferredValue
+    orderConflict && preferredEntities
+      ? preferredEntities
       : !syncEqual(bo, original)
         ? b
         : a;
@@ -59,12 +67,10 @@ function mergeArrays(
   const result: unknown[] = [];
   for (const id of allIds) {
     const value = mergeValue(
-      base.find((v) => v.id === id),
-      a.find((v) => v.id === id),
-      b.find((v) => v.id === id),
-      entityArray(preferredValue)
-        ? preferredValue.find((v) => v.id === id)
-        : CONFLICT
+      baseById.get(id),
+      aById.get(id),
+      bById.get(id),
+      preferredById ? preferredById.get(id) : CONFLICT
     );
     if (value === CONFLICT) return CONFLICT;
     if (value !== undefined) result.push(value);

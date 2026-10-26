@@ -1,9 +1,18 @@
-import { SUBAGENT_TASK_BATCH_MAX_COUNT } from "@deepwrite/contracts";
+import {
+  SUBAGENT_DRAW_MAX_COUNT,
+  SUBAGENT_DRAW_MIN_COUNT,
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
+  SUBAGENT_TASK_BATCH_MAX_COUNT
+} from "@deepwrite/contracts";
+import { subagentDrawSettings } from "./subagent-mode";
 import type {
   RuntimeSubagentDefinition,
+  SubagentDrawPlan,
   SubagentTaskRequest
 } from "./subagent-types";
 
+/** Also the limit of the task text progress events carry. */
+export const SUBAGENT_TASK_MAX_LENGTH = 20_000;
 const TASK_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
 
 interface RawSubagentTask {
@@ -12,14 +21,67 @@ interface RawSubagentTask {
   task?: unknown;
   depends_on?: unknown;
   library_id?: unknown;
+  draw_variants?: unknown;
 }
 
-function stringList(value: unknown, field: string, key: string): string[] {
-  if (value === undefined) return [];
+function stringArray(value: unknown, field: string, key: string): string[] {
+  if (value === undefined || value === null) return [];
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw new Error(`任务 ${key} 的 ${field} 必须是字符串数组。`);
   }
-  return [...new Set(value.map((item: string) => item.trim()))].filter(Boolean);
+  return value.map((item: string) => item.trim()).filter(Boolean);
+}
+
+function stringList(value: unknown, field: string, key: string): string[] {
+  return [...new Set(stringArray(value, field, key))];
+}
+
+/**
+ * Fixed draws keep the member's count. Auto draws take one draw per listed
+ * requirement; none runs the task once, and a single one joins the task.
+ */
+function planDraw(
+  definition: RuntimeSubagentDefinition,
+  key: string,
+  task: string,
+  rawVariants: unknown
+): { task: string; draw?: SubagentDrawPlan } {
+  const variants = stringArray(rawVariants, "draw_variants", key);
+  const settings = subagentDrawSettings(definition);
+  const auto = settings?.countMode === "auto";
+  if (variants.length > 0 && !auto) {
+    throw new Error(
+      settings
+        ? `成员「${definition.name}」每次固定抽 ${settings.count} 份，不接受 draw_variants，未执行任何任务。去掉任务 ${key} 的 draw_variants 即可。`
+        : `只有按需抽卡成员接受 draw_variants，成员「${definition.name}」不是，未执行任何任务。去掉任务 ${key} 的 draw_variants 即可。`
+    );
+  }
+  if (!settings) return { task };
+  if (!auto) return { task, draw: { count: settings.count } };
+  const tooLong = variants.findIndex(
+    (variant) => variant.length > SUBAGENT_DRAW_VARIANT_MAX_LENGTH
+  );
+  if (tooLong >= 0) {
+    throw new Error(
+      `任务 ${key} 的第 ${tooLong + 1} 条 draw_variants 超过 ${SUBAGENT_DRAW_VARIANT_MAX_LENGTH} 字，未执行任何任务。共同要求写进 task，这里只写差异。`
+    );
+  }
+  if (variants.length > SUBAGENT_DRAW_MAX_COUNT) {
+    throw new Error(
+      `任务 ${key} 的 draw_variants 有 ${variants.length} 条，超过上限 ${SUBAGENT_DRAW_MAX_COUNT}，未执行任何任务。请删减到 ${SUBAGENT_DRAW_MAX_COUNT} 条以内。`
+    );
+  }
+  if (variants.length >= SUBAGENT_DRAW_MIN_COUNT) {
+    return { task, draw: { count: variants.length, variants } };
+  }
+  if (variants.length === 0) return { task };
+  const joined = `${task}\n\n【补充要求】${variants[0]}`;
+  if (joined.length > SUBAGENT_TASK_MAX_LENGTH) {
+    throw new Error(
+      `任务 ${key} 并入 draw_variants 后超过 ${SUBAGENT_TASK_MAX_LENGTH} 字，未执行任何任务。请精简 task。`
+    );
+  }
+  return { task: joined };
 }
 
 function assertAcyclic(tasks: readonly SubagentTaskRequest[]): void {
@@ -89,8 +151,14 @@ export function planSubagentTasks(
     if (!libraryManager && libraryId) {
       throw new Error("普通团队成员不能指定资料库管理目标。");
     }
-    const task = String(raw.task ?? "").trim();
-    if (!task) throw new Error("子智能体任务不能为空。");
+    const rawTask = String(raw.task ?? "").trim();
+    if (!rawTask) throw new Error("子智能体任务不能为空。");
+    const { task, draw } = planDraw(
+      definition,
+      key,
+      rawTask,
+      raw.draw_variants
+    );
 
     return {
       index,
@@ -99,7 +167,8 @@ export function planSubagentTasks(
       task,
       ...(libraryId ? { libraryId } : {}),
       dependsOn: stringList(raw.depends_on, "depends_on", key),
-      ...(libraryManager ? { exclusive: true } : {})
+      ...(libraryManager ? { exclusive: true } : {}),
+      ...(draw ? { draw } : {})
     };
   });
 

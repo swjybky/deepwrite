@@ -47,6 +47,8 @@ export default {
     "Auto-save is active, but its preference could not be saved locally.",
   catalogConflict:
     "The local file changed elsewhere. Reload it and review your changes.",
+  modelContentBlocked:
+    "The model service stopped generation due to a content restriction ({reason}). Review the prompt, conversation history, and manuscript context. If ordinary content is repeatedly blocked, contact your model or gateway service. Retrying unchanged content may be blocked again.",
   conversationStoragePermissionDenied:
     "The user data folder is not writable. Check its permissions ({code}).",
   conversationStorageDiskFull: "The user data disk is full ({code}).",

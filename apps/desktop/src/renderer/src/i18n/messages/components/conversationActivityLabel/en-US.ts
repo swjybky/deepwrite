@@ -15,6 +15,8 @@ export default {
   searchContent: "Search content",
   queryReferences: "Query references",
   runTool: "Run tool",
+  preparingToolCall: "Preparing tool call",
+  waitingForExecution: "Waiting to execute",
   finished: "Finished",
   thinking: "Thinking",
   compactingContext: "Compacting context",

@@ -81,7 +81,12 @@ function localDate(
 afterEach(async () => {
   await Promise.all(
     [...temporaryRoots].map((root) =>
-      rm(root, { recursive: true, force: true })
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100
+      })
     )
   );
   temporaryRoots.clear();

@@ -39,7 +39,12 @@ export const LongDocumentWriteProposalSchema = z.discriminatedUnion("mode", [
   z
     .object({
       ...DocumentWriteProposalBaseShape,
-      mode: z.enum(["replace", "append"])
+      mode: z.enum(["replace", "append"]),
+      /** SHA-256 of the UTF-8 text the agent edited; Core rejects drift. */
+      expectedSha256: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .optional()
     })
     .strict()
 ]);
@@ -328,7 +333,8 @@ export const LONG_WORKSPACE_OPERATION_ERROR_CODES = [
   "invalid_order",
   "recorded_chapter_order",
   "invalid_document_write",
-  "invalid_result"
+  "invalid_result",
+  "document_changed"
 ] as const;
 export const LongWorkspaceOperationErrorCodeSchema = z.enum(
   LONG_WORKSPACE_OPERATION_ERROR_CODES
@@ -339,10 +345,16 @@ export type LongWorkspaceOperationErrorCode = z.infer<
 
 export class LongWorkspaceOperationError extends Error {
   readonly code: LongWorkspaceOperationErrorCode;
+  readonly details: Readonly<Record<string, string>> | undefined;
 
-  constructor(code: LongWorkspaceOperationErrorCode, message: string) {
+  constructor(
+    code: LongWorkspaceOperationErrorCode,
+    message: string,
+    details?: Readonly<Record<string, string>>
+  ) {
     super(message);
     this.name = "LongWorkspaceOperationError";
     this.code = code;
+    this.details = details;
   }
 }

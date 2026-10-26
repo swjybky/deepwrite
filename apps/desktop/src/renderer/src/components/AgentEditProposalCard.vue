@@ -86,11 +86,19 @@ const proposalStatusMessages: Record<AgentEditProposal["status"], string> = {
   }
 };
 
+/** The target changed after the agent read it; the user must choose. */
+const isStale = computed(
+  () =>
+    props.proposal.staleBase !== undefined &&
+    props.proposal.status === "pending"
+);
+
 function proposalStatusLabel(): string {
   if (props.remoteDevice && props.proposal.status === "pending")
     return t("awaitingReviewOnDevice", { device: props.remoteDevice });
   const discardLabel = approvalDiscardStatusLabel(proposalDiscardState());
   if (discardLabel) return discardLabel;
+  if (isStale.value) return t("youEditedThis");
   if (
     props.proposal.status === "pending" &&
     props.proposal.approvalMode === "auto-approve"
@@ -107,7 +115,8 @@ function proposalStatusLabel(): string {
 
 function proposalVisualStatus(): AgentEditProposal["status"] {
   return (
-    approvalDiscardVisualStatus(proposalDiscardState()) ?? props.proposal.status
+    approvalDiscardVisualStatus(proposalDiscardState()) ??
+    (isStale.value ? "conflict" : props.proposal.status)
   );
 }
 
@@ -122,6 +131,7 @@ function showDiscardButton(): boolean {
 
 function proposalAcceptLabel(): string {
   if (props.proposal.status === "accepting") return t("savingLabel");
+  if (isStale.value) return t("overwriteWithAgentVersion");
   if (isLongProposal()) {
     if (!longExpectedImpact.value) return t("reviewImpact");
     return props.proposal.status === "error"
@@ -171,6 +181,7 @@ function canReviewProposalWhileStreaming(): boolean {
 function showProposalReviewActions(): boolean {
   if (props.remoteDevice) return false;
   if (
+    !isStale.value &&
     props.proposal.approvalMode === "auto-approve" &&
     canReviewProposalWhileStreaming() &&
     (props.proposal.status === "pending" ||
@@ -210,6 +221,9 @@ function proposalStatusMessage(): string {
     );
   const discardMessage = approvalDiscardStatusMessage(proposalDiscardState());
   if (discardMessage) return discardMessage;
+  if (isStale.value) {
+    return isLongProposal() ? t("staleLongMessage") : t("staleTextMessage");
+  }
   if (!proposal.statusMessage && isLongProposal()) {
     if (proposal.status === "accepting") {
       return t("savingThisNovelChange");
@@ -435,7 +449,7 @@ function review(decision: "accept" | "reject"): void {
           :disabled="proposalReviewDisabled('reject')"
           @click="review('reject')"
         >
-          {{ t("reject") }}
+          {{ isStale ? t("keepMine") : t("reject") }}
         </button>
         <button
           v-if="proposal.status !== 'conflict'"

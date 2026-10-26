@@ -8,6 +8,7 @@ import {
 import { computed } from "vue";
 import { createScopedTranslator } from "../i18n";
 import type { PopupSelectOption } from "./PopupSelect.vue";
+import { buildModelSelectOptions } from "../utils/modelSelectOptions";
 import {
   agentTeamModelDefaults,
   agentTeamThinkingLabel
@@ -32,9 +33,7 @@ export function useSubagentModelConfig(source: {
   const modelById = computed(
     () => new Map(source.models().map((model) => [model.id, model]))
   );
-  const modelOptions = computed<PopupSelectOption[]>(() =>
-    source.models().map((model) => ({ value: model.id, label: model.label }))
-  );
+  const modelOptions = computed(() => buildModelSelectOptions(source.models()));
 
   function modelOf(subagent: SubagentModelTarget) {
     return subagent.modelId ? modelById.value.get(subagent.modelId) : undefined;

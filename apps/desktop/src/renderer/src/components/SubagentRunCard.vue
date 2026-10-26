@@ -33,6 +33,13 @@ function waitingLabel(run: AgentSubagentRun): string | undefined {
     : undefined;
 }
 
+/** A draw group already shows the shared task; a candidate shows its focus. */
+function taskLine(run: AgentSubagentRun): string {
+  return run.draw?.role === "candidate" && run.draw.variant
+    ? t("variantValue", { arg0: run.draw.variant })
+    : run.task;
+}
+
 function keyLabel(run: AgentSubagentRun): string | undefined {
   if (run.draw?.role === "candidate") {
     return t("candidateValue", { arg0: run.draw.index + 1 });
@@ -79,7 +86,7 @@ function keyLabel(run: AgentSubagentRun): string | undefined {
             >{{ t("drawCountValue", { arg0: run.drawCount }) }}</span
           >
         </span>
-        <span class="subagent-run-task">{{ run.task }}</span>
+        <span class="subagent-run-task">{{ taskLine(run) }}</span>
       </span>
       <span class="subagent-run-meta" :aria-label="t('subtaskSummary')">
         <ConversationRunClock

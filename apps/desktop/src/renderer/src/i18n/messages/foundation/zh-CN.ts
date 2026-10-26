@@ -38,6 +38,8 @@ export default {
   loadFailed: "加载常规设置失败，已使用默认设置",
   autoSaveFailed: "自动保存设置已生效，但暂时无法写入本机配置",
   catalogConflict: "本地文件已在其他位置更新，请重新加载后核对修改。",
+  modelContentBlocked:
+    "模型服务因内容限制中止了生成（{reason}）。请检查提示词、会话历史和作品上下文；若普通内容也频繁触发，请联系模型或反代服务确认限制。原样重试可能再次被拦截。",
   conversationStoragePermissionDenied:
     "用户数据目录无法写入，请检查文件夹权限（{code}）。",
   conversationStorageDiskFull: "用户数据磁盘空间不足（{code}）。",

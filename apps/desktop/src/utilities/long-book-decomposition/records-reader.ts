@@ -215,9 +215,13 @@ export class DecompositionRecordsReader {
     return [...receipts.values()]
       .filter(
         (receipt) =>
-          job.units[receipt.unitId]!.requiredReceiptIds?.every((id) =>
+          // The task-local record proves these units are saved. Older reused
+          // tasks may still require receipt ids from their source task.
+          decompositionUnitIsRecordOnly(job, receipt.unitId) ||
+          (job.units[receipt.unitId]!.requiredReceiptIds?.every((id) =>
             ids.get(receipt.unitId)?.has(id)
-          ) ?? true
+          ) ??
+            true)
       )
       .map((receipt) => ({
         ...receipt,

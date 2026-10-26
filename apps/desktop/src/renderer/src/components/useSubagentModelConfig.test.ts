@@ -8,6 +8,7 @@ import { useSubagentModelConfig } from "./useSubagentModelConfig";
 const opus = {
   id: "model-opus",
   label: "Opus",
+  provider: "anthropic",
   thinkingLevelOptions: ["low", "high"],
   temperatureOptions: [0.2, 0.6, 1],
   defaultThinkingLevel: "high"
@@ -15,6 +16,7 @@ const opus = {
 const sonnet = {
   id: "model-sonnet",
   label: "Sonnet",
+  provider: "anthropic",
   thinkingLevelOptions: ["medium"],
   temperatureOptions: [0.3, 0.9],
   defaultThinkingLevel: "medium"

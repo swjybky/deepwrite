@@ -322,8 +322,14 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         ) {
           return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
         }
-        if (!evidence || evidence.content !== live.content) {
+        if (!evidence) {
           return textResult(`未修改：请先用 read 完整读取 ${target.title}。`);
+        }
+        if (evidence.content !== live.content) {
+          // Editing stays open during runs, so this is usually the user.
+          return textResult(
+            `未修改：${target.title} 在你读取后已有改动（可能是用户正在编辑），请先用 read 完整读取最新内容再修改。`
+          );
         }
       }
       const next = params.replacements

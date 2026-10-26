@@ -11,6 +11,7 @@ import {
   deepWritePublicDataHeaders,
   deepWritePublicDataUrl
 } from "./deepwrite-public-data-config";
+import { electronRemoteFetch } from "./electron-remote-fetch";
 
 export const APP_ALERT_CONFIG_URL = deepWritePublicDataUrl("ALERT.json");
 
@@ -88,7 +89,7 @@ export class AppAlertStore {
 
   constructor(userDataPath: string, options: AppAlertStoreOptions = {}) {
     this.statePath = join(userDataPath, "config", "app-alert-state.json");
-    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
+    this.fetcher = options.fetcher ?? electronRemoteFetch;
     this.configUrl = options.configUrl ?? APP_ALERT_CONFIG_URL;
     this.now = options.now ?? Date.now;
     this.stateLoad = this.loadState();

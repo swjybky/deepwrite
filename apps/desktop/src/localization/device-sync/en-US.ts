@@ -50,6 +50,7 @@ export default {
     "Linked resources are not ready. Add the corresponding libraries and resolve their sync issues.",
   referencedResource:
     "This resource is still referenced by {sources}. Remove the links first, or confirm deletion of the referring items as well.",
+  remoteReadFailed: "Could not read the remote work: {reason}",
   remoteInvalid:
     "The remote work failed integrity checks. This work has not been changed.",
   localInvalid:

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AgentUserInputRequestedPayloadSchema,
   ShortAgentSubagentDefinitionSchema,
+  SubagentDrawRefSchema,
   SubagentDrawSettingsSchema,
   SubagentDrawUpdatedPayloadSchema,
   activeSubagentDraw,
@@ -27,6 +28,22 @@ describe("subagent draw settings", () => {
     expect(ShortAgentSubagentDefinitionSchema.parse(member).draw).toBe(
       undefined
     );
+  });
+
+  it("treats an absent count mode as fixed and keeps the count in auto", () => {
+    const auto = SubagentDrawSettingsSchema.parse({
+      enabled: true,
+      countMode: "auto",
+      count: 5
+    });
+    expect(auto).toMatchObject({ countMode: "auto", count: 5 });
+    expect(
+      SubagentDrawSettingsSchema.parse({ enabled: true }).countMode
+    ).toBeUndefined();
+    expect(
+      SubagentDrawSettingsSchema.safeParse({ enabled: true, countMode: "many" })
+        .success
+    ).toBe(false);
   });
 
   it("limits the count to 2–10 and validates a custom evaluator model", () => {
@@ -144,6 +161,28 @@ describe("draw events and selection requests", () => {
         }
       }).success
     ).toBe(false);
+  });
+
+  it("carries each candidate's focus within its length limit", () => {
+    const withVariant = (variant: string) =>
+      AgentUserInputRequestedPayloadSchema.safeParse({
+        ...request,
+        source: "subagent_draw",
+        draw: {
+          ...draw,
+          candidates: [{ ...draw.candidates[0], variant }, draw.candidates[1]]
+        }
+      }).success;
+    expect(withVariant("冷峻")).toBe(true);
+    expect(withVariant("长".repeat(1_001))).toBe(false);
+    expect(
+      SubagentDrawRefSchema.parse({
+        role: "candidate",
+        index: 0,
+        count: 2,
+        variant: " 冷峻 "
+      })
+    ).toEqual({ role: "candidate", index: 0, count: 2, variant: "冷峻" });
   });
 
   it("names the selection only when a draw is selected", () => {

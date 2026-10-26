@@ -7,8 +7,13 @@ export default {
     "每次委派生成 {arg0} 份结果，只把选中的一份交回主智能体，消耗约为 {arg0} 倍。",
   enabledHintAuto:
     "每次委派生成 {arg0} 份结果，由评估助手选出一份交回主智能体，消耗约为 {arg0} 倍，另加一次评估。",
+  enabledHintAutoCount:
+    "主智能体按你的要求或任务需要决定每次抽几份（最多 {arg0} 份），并为每份写明差异要求，只把选中的一份交回主智能体；不需要多个版本时只运行一次。消耗随份数增加。",
+  enabledHintAutoCountEvaluated:
+    "主智能体按你的要求或任务需要决定每次抽几份（最多 {arg0} 份），并为每份写明差异要求，由评估助手选出一份交回主智能体；不需要多个版本时只运行一次。消耗随份数增加，另加一次评估。",
   drawCount: "抽卡次数",
   countValue: "{arg0} 次",
+  countAuto: "自动（按需，最多 {arg0} 份）",
   selection: "选择方式",
   manual: "手动",
   auto: "自动",

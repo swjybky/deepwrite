@@ -21,6 +21,12 @@ import {
   previewLongProposalImpact
 } from "./long-impact-approval";
 import { refreshSavedLongProposal } from "./refresh-saved-long-proposal";
+import {
+  holdStaleLongProposal,
+  isLongDocumentChanged,
+  withConfirmedDocumentHashes
+} from "./long-stale-base";
+import { resolvedStaleBase } from "./stale-base";
 
 const t = createScopedTranslator("workspace");
 
@@ -217,7 +223,7 @@ export function createLongWorldbuildingProposalLane(
       const result = await api.applyOperations({
         bookId: target.bookId,
         batch: LongWorkspaceOperationBatchSchema.parse({
-          ...batch,
+          ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
         })
       });
@@ -226,6 +232,7 @@ export function createLongWorldbuildingProposalLane(
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
+        ...resolvedStaleBase(proposal, "overwrote"),
         statusMessage:
           target.file.operation === "create"
             ? automatic
@@ -253,6 +260,17 @@ export function createLongWorldbuildingProposalLane(
         );
       }
     } catch (error: unknown) {
+      if (!applied && isLongDocumentChanged(error)) {
+        holdStaleLongProposal({
+          conversation,
+          runId: request.runId,
+          proposal,
+          error,
+          removeQueued: removeQueuedAgentEdit,
+          warn: uiMessage.warning
+        });
+        return;
+      }
       let currentError = error;
       if (
         !applied &&

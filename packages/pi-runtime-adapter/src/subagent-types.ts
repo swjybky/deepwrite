@@ -67,6 +67,13 @@ export type SubagentProjectedActivity =
       isError: boolean;
     };
 
+/** How many draws one task runs, and in auto-count mode what each is for. */
+export interface SubagentDrawPlan {
+  count: number;
+  /** One parent-written requirement per draw; absent in fixed mode. */
+  variants?: string[];
+}
+
 /** One validated entry of a `spawn_subagent` task list. */
 export interface SubagentTaskRequest {
   index: number;
@@ -77,6 +84,8 @@ export interface SubagentTaskRequest {
   dependsOn: string[];
   /** Library managers own their tools and never run beside another task. */
   exclusive?: boolean;
+  /** Present when the task runs as a draw; otherwise one ordinary run. */
+  draw?: SubagentDrawPlan;
 }
 
 export type SubagentTaskStatus = "completed" | "error" | "aborted" | "skipped";

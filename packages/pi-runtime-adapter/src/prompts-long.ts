@@ -12,6 +12,21 @@ import {
   renderLongPlotNavigation
 } from "./prompts-long-navigation";
 
+/** Authoritative per-run capabilities, including for saved legacy role prompts. */
+export function buildLongRuntimeToolBoundary(
+  tools: readonly { name: string }[]
+): string {
+  const names = tools.map((tool) => tool.name);
+  return [
+    "【本轮长篇工具边界】",
+    `本轮实际可用工具：${names.join("、")}。`,
+    "工具权限以本轮实际清单为准，优先于角色提示词中的固定数量、旧清单与历史回复；未列出的工具不可调用。",
+    names.includes("spawn_subagent")
+      ? "spawn_subagent 已开放：可用成员、成员 id 与委派方式见工具说明，只能选择其中列出的成员。用户以 #成员名 点名的工作必须交给该成员；不要因旧提示词或历史回复未提及委派工具而声称不能调用。"
+      : "本轮没有 spawn_subagent，不能调用子智能体，也不得声称已委派。"
+  ].join("\n");
+}
+
 function renderLongListScopeGuide(): string {
   return [
     "【list 范围规则】",

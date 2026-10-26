@@ -57,12 +57,15 @@ export function savedSubagentDraw(
   if (!draw) return undefined;
   const saved: SubagentDrawSettings = {
     enabled: draw.enabled,
+    // `fixed` is the default and is not stored.
+    ...(draw.countMode === "auto" ? { countMode: "auto" as const } : {}),
     count: draw.count,
     selection: draw.selection,
     evaluator: savedEvaluator(draw.evaluator)
   };
   const untouched =
     !saved.enabled &&
+    saved.countMode === undefined &&
     saved.count === SUBAGENT_DRAW_DEFAULT_COUNT &&
     saved.selection === "manual" &&
     saved.evaluator.modelMode === "inherit" &&

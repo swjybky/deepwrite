@@ -1,10 +1,36 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { formatError, getErrorCode, getErrorPayload } from "./errors";
+import {
+  formatError,
+  formatModelProviderError,
+  getErrorCode,
+  getErrorDetail,
+  getErrorPayload
+} from "./errors";
 import { setAppLanguage } from "./index";
 
 afterEach(() => setAppLanguage("zh-CN", "zh-CN"));
 
 describe("structured application errors", () => {
+  it("explains content restrictions while preserving raw provider diagnostics", () => {
+    const raw = "Provider stopped with: PROHIBITED_CONTENT";
+    const error = { code: "pi_agent.provider_error", message: raw };
+    expect(formatError(error, "fallback")).toContain("内容限制");
+    expect(formatError(error, "fallback")).toContain("会话历史和作品上下文");
+    expect(formatError(error, "fallback")).toContain("反代服务");
+    expect(formatError(error, "fallback")).toContain("PROHIBITED_CONTENT");
+    expect(getErrorDetail(error)).toContain("内容限制");
+    expect(getErrorPayload(error)?.message).toBe(raw);
+    setAppLanguage("en-US", "zh-CN");
+    expect(formatError(error, "fallback")).toContain("content restriction");
+    expect(formatModelProviderError(raw)).toContain("PROHIBITED_CONTENT");
+    expect(formatModelProviderError("503 Service Unavailable")).toBe(
+      "503 Service Unavailable"
+    );
+    expect(
+      formatError(new Error("Gateway failed", { cause: error }), "fallback")
+    ).toContain("content restriction");
+  });
+
   it("localizes the authoritative prompt budget without exposing diagnostic text", () => {
     const error = {
       code: "session.prompt_budget_exceeded",

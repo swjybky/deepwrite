@@ -78,6 +78,8 @@ const {
   groupOptions,
   materialOptions,
   skillOptions,
+  selectedMaterialLinks,
+  selectedSkillLinks,
   resetBindingDraft
 } = useBookResourceBindings(props);
 
@@ -146,12 +148,7 @@ function submit(): void {
       linksByKind:
         bindingMode.value === "group"
           ? materialGroupLinks(selectedMaterialGroup.value)
-          : (Object.fromEntries(
-              MATERIAL_KINDS.map(({ id }) => [
-                id,
-                selectedMaterialIds[id] ? [selectedMaterialIds[id]] : []
-              ])
-            ) as LinkedMaterialIdsByKind)
+          : selectedMaterialLinks()
     });
   } else if (bindingDomain.value === "skill") {
     emit("updateBindings", {
@@ -160,12 +157,7 @@ function submit(): void {
       linksByKind:
         bindingMode.value === "group"
           ? skillGroupLinks(selectedSkillGroup.value)
-          : (Object.fromEntries(
-              SKILL_KINDS.map(({ id }) => [
-                id,
-                selectedSkillIds[id] ? [selectedSkillIds[id]] : []
-              ])
-            ) as LinkedSkillIdsByKind)
+          : selectedSkillLinks()
     });
   }
 }

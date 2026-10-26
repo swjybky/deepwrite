@@ -38,6 +38,21 @@ function clip(value: string | undefined, limit: number): string | undefined {
   return text ? text.slice(0, limit) : undefined;
 }
 
+/** Editing stays open during runs; tell the agent the user's version won. */
+function concurrentEditDetail(
+  proposal: AgentEditProposal,
+  status: ProposalSettlementStatus
+): string | undefined {
+  const resolution = proposal.staleBase?.resolution;
+  if (status === "rejected" && resolution === "kept-user") {
+    return "用户在你修改期间编辑了该文档，选择保留自己的版本。";
+  }
+  if (status === "saved" && resolution === "overwrote") {
+    return "用户在你修改期间编辑过该文档，确认用你的版本覆盖。";
+  }
+  return undefined;
+}
+
 function toSettlement(
   proposal: AgentEditProposal,
   status: ProposalSettlementStatus
@@ -52,7 +67,7 @@ function toSettlement(
   const detail =
     status === "conflict" || status === "failed"
       ? clip(proposal.statusMessage, PROPOSAL_SETTLEMENT_TEXT_MAX_LENGTH)
-      : undefined;
+      : concurrentEditDetail(proposal, status);
   return {
     title,
     status,

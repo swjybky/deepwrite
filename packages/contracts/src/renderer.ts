@@ -116,7 +116,10 @@ export type * from "./material-query";
 export { MATERIAL_STAGE_KINDS } from "./material-stages";
 export type * from "./models";
 export type * from "./model-usage";
-export { isModelQuotaExhausted } from "./model-provider-errors";
+export {
+  getModelContentBlockReason,
+  isModelQuotaExhausted
+} from "./model-provider-errors";
 export type * from "./preload-api";
 export type * from "./renderer-state";
 export type * from "./session";
@@ -194,6 +197,7 @@ export {
   SUBAGENT_DRAW_EVALUATOR_PROMPT_MAX_LENGTH,
   SUBAGENT_DRAW_MAX_COUNT,
   SUBAGENT_DRAW_MIN_COUNT,
+  SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
   activeSubagentDraw,
   WorkspaceAgentTeamSettingsInputSchema
 } from "./agent-team";

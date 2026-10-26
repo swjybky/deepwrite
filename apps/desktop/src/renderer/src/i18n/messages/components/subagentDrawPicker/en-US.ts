@@ -8,6 +8,7 @@ export default {
   taskAssignedByPrimaryAgent: "Task assigned by primary agent",
   candidates: "Candidates",
   candidateValue: "Candidate {arg0}",
+  variantValue: "Focus: {arg0}",
   noteForThePrimaryAgent: "Note for the primary agent",
   noteForThePrimaryAgentOptional:
     "Note (optional), sent to the primary agent with the result",

@@ -25,6 +25,7 @@ import { useChatAssistantMode } from "./useChatAssistantMode";
 import { useChatAssistantHistoryActions } from "./useChatAssistantHistoryActions";
 import { useChatAssistantWebSearch } from "./useChatAssistantWebSearch";
 import { useWebSearchStatusStore } from "../../stores/webSearchStatus";
+import { buildModelSelectOptions } from "../../utils/modelSelectOptions";
 
 const t = createScopedTranslator("extras");
 
@@ -83,13 +84,14 @@ const webSearchDisabledReason = computed(() =>
   t("chatAssistant.webSearchUnavailable")
 );
 const modelOptions = computed(() =>
-  controller.value!.configuredModels.value.map((model) => ({
-    value: model.id,
-    label: model.label,
-    ...(model.id === controller.value!.selectedModelId.value
-      ? { description: t("chatAssistant.currentModel") }
-      : {})
-  }))
+  buildModelSelectOptions(controller.value!.configuredModels.value).map(
+    (option) => ({
+      ...option,
+      ...(option.value === controller.value!.selectedModelId.value
+        ? { description: t("chatAssistant.currentModel") }
+        : {})
+    })
+  )
 );
 const thinkingLabels: Record<string, string> = {
   get off() {

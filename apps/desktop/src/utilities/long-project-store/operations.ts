@@ -3,8 +3,10 @@ import {
   LONG_WORKSPACE_INDEX_PATH,
   LongProjectManifestSchema,
   LongWorkspaceOperationBatchSchema,
+  LongWorkspaceOperationError,
   applyLongWorkspaceOperations,
   previewLongWorkspaceOperations,
+  type LongDocumentWriteProposal,
   type LongWorkspaceFileReference,
   type LongWorkspaceImpactPreview,
   type LongWorkspaceOperationBatch
@@ -131,6 +133,7 @@ export async function applyWorkspaceOperations(
         throw new Error(`长篇文档提案目标不存在或不可写：${proposal.fileId}`);
       }
       const current = await loadIndexedFile(loaded, proposal.fileId);
+      assertDocumentBaseUnchanged(proposal, current.disk.content);
       const content =
         proposal.mode === "append"
           ? `${current.disk.content}${proposal.content}`
@@ -140,7 +143,11 @@ export async function applyWorkspaceOperations(
       updateChapterBodyStatus(nextIndex, nextFile.id, content);
       fileOperations.push({
         path: current.reference.path,
-        content
+        content,
+        // The checked text must still be on disk when the transaction commits.
+        ...(proposal.expectedSha256 === undefined
+          ? {}
+          : { expectedSha256: current.disk.sha256 })
       });
     }
 
@@ -180,6 +187,29 @@ export async function applyWorkspaceOperations(
       }
     };
   });
+}
+
+/**
+ * Editing stays open while agents run, so a write carries the hash of the
+ * text the agent edited. Comparing decoded text keeps a BOM or other byte
+ * detail from turning into a false conflict.
+ */
+function assertDocumentBaseUnchanged(
+  proposal: LongDocumentWriteProposal,
+  diskContent: string
+): void {
+  if (proposal.mode === "create" || proposal.expectedSha256 === undefined) {
+    return;
+  }
+  const actualSha256 = createHash("sha256")
+    .update(diskContent, "utf8")
+    .digest("hex");
+  if (actualSha256 === proposal.expectedSha256) return;
+  throw new LongWorkspaceOperationError(
+    "document_changed",
+    "文档在智能体读取后已被修改，未覆盖当前内容。",
+    { fileId: proposal.fileId, actualSha256 }
+  );
 }
 
 export async function materializeWorldbuildingConversionBatch(

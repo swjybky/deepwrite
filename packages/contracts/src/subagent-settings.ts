@@ -92,6 +92,8 @@ export const SUBAGENT_DRAW_MIN_COUNT = 2;
 export const SUBAGENT_DRAW_MAX_COUNT = 10;
 export const SUBAGENT_DRAW_DEFAULT_COUNT = 3;
 export const SUBAGENT_DRAW_EVALUATOR_PROMPT_MAX_LENGTH = 20_000;
+/** One per-draw requirement the parent writes for an auto-count draw. */
+export const SUBAGENT_DRAW_VARIANT_MAX_LENGTH = 1_000;
 /**
  * Upper bound of child runs (ordinary tasks, draws and evaluators) one
  * `spawn_subagent` call keeps running at the same time.
@@ -112,6 +114,14 @@ export const DEFAULT_SUBAGENT_DRAW_EVALUATOR_PROMPT = [
 
 export const SubagentDrawSelectionSchema = z.enum(["manual", "auto"]);
 export type SubagentDrawSelection = z.infer<typeof SubagentDrawSelectionSchema>;
+
+/**
+ * `fixed` draws `count` identical copies of every task. `auto` lets the parent
+ * decide per task: one draw for each requirement it lists, up to
+ * `SUBAGENT_DRAW_MAX_COUNT`, and a single ordinary run when it lists none.
+ */
+export const SubagentDrawCountModeSchema = z.enum(["fixed", "auto"]);
+export type SubagentDrawCountMode = z.infer<typeof SubagentDrawCountModeSchema>;
 
 export const SubagentDrawEvaluatorSchema = z
   .object({
@@ -142,6 +152,12 @@ export type SubagentDrawEvaluator = z.infer<typeof SubagentDrawEvaluatorSchema>;
  */
 export const SubagentDrawSettingsSchema = z.object({
   enabled: z.boolean(),
+  /**
+   * Absent means `fixed`, and `fixed` is not stored. A separate field rather
+   * than `count: "auto"`, so older clients drop it and draw `count` copies.
+   */
+  countMode: SubagentDrawCountModeSchema.optional(),
+  /** Draws per task in `fixed` mode; kept but unused in `auto` mode. */
   count: z
     .number()
     .int()

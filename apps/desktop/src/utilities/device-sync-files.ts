@@ -5,6 +5,7 @@ import {
   CurrentBookProjectManifestSchema,
   LongProjectManifestSchema,
   LongWorkspaceIndexSnapshotSchema,
+  assertLongProjectIndexMetadata,
   assertProjectSyncItem,
   checkedSyncItem,
   safeSyncFile,
@@ -12,6 +13,9 @@ import {
   SyncItemValidationError,
   type SyncItem
 } from "@deepwrite/contracts";
+import { recoverProjectTransaction } from "./project-transaction";
+import { MAX_LEDGER_RECORD_BYTES } from "./long-project-store/types";
+import { assertDeviceSyncFileCount } from "./device-sync-transaction";
 
 /** Workspace subfolder that holds each kind of synced project. */
 export function syncProjectParentFolder(kind: ProjectSyncItem["kind"]): string {
@@ -32,7 +36,11 @@ export async function readDeviceSyncFiles(
   const rootStat = await lstat(root);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink())
     throw new Error("同步项目目录无效。");
+  // An interrupted decomposition may have installed its index before its manifest.
+  // Export only the coherent revision recovered by the ordinary project writer.
+  await recoverProjectTransaction(root, MAX_LEDGER_RECORD_BYTES);
   const files: Record<string, string> = {};
+  let count = 0;
   async function walk(path: string, prefix: string): Promise<void> {
     for (const entry of await readdir(path, { withFileTypes: true })) {
       if (
@@ -45,6 +53,7 @@ export async function readDeviceSyncFiles(
       if (entry.isDirectory())
         await walk(join(path, entry.name), `${relative}/`);
       else if (entry.isFile() && safeSyncFile(relative)) {
+        assertDeviceSyncFileCount(++count);
         const stat = await lstat(join(path, entry.name));
         if (stat.size > 32 * 1024 * 1024)
           throw new Error("作品文件超过同步大小限制。");
@@ -70,6 +79,7 @@ export function validateDesktopSyncItem(
   raw: SyncItem
 ): asserts raw is ProjectSyncItem {
   assertProjectSyncItem(raw);
+  assertDeviceSyncFileCount(Object.keys(raw.files).length);
   const item = checkedSyncItem(raw);
   const decoded: unknown = JSON.parse(item.files["deepwrite.json"] ?? "null");
   const manifest =
@@ -89,7 +99,17 @@ export function validateDesktopSyncItem(
     const index = LongWorkspaceIndexSnapshotSchema.parse(
       JSON.parse(item.files["long/index.json"] ?? "null")
     );
-    if (index.bookId !== item.id) throw new Error("长篇索引身份不一致。");
+    try {
+      assertLongProjectIndexMetadata(
+        LongProjectManifestSchema.parse(decoded),
+        index
+      );
+    } catch (error) {
+      throw new SyncItemValidationError(
+        ["deepwrite.json", "long/index.json"],
+        error instanceof Error ? error.message : "长篇索引结构不兼容。"
+      );
+    }
     paths = [...paths, ...requiredPaths(index)];
   }
   const missing = paths.filter((path) => item.files[path] === undefined);

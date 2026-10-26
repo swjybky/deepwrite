@@ -4,6 +4,7 @@ import { renderToString } from "vue/server-renderer";
 import { parseStoredMessage } from "../composables/agent-conversation/parse-message";
 import type { ChatMessage } from "../types/conversation";
 import ConversationMessageItem from "./ConversationMessageItem.vue";
+import SubagentRunDetail from "./SubagentRunDetail.vue";
 
 const at = "2026-10-07T12:00:00.000Z";
 const reason = "模型返回了空回复，任务尚未完成。";
@@ -42,6 +43,50 @@ async function render(message: ChatMessage) {
 }
 
 describe("persistent conversation errors", () => {
+  it("explains a stored Gemini block without rewriting its diagnostics or partial output", async () => {
+    const raw = "Provider stopped with: PROHIBITED_CONTENT";
+    const message = { ...failedMessage(true), errorMessage: raw };
+    const restored = parseStoredMessage(JSON.parse(JSON.stringify(message)))!;
+    const html = await render({ ...restored, content: "已经生成的部分正文。" });
+    expect(html).toContain("内容限制");
+    expect(html).toContain("PROHIBITED_CONTENT");
+    expect(html).toContain("已经生成的部分正文。");
+    expect(html).not.toContain(raw);
+    expect(restored.errorMessage).toBe(raw);
+  });
+
+  it("explains a failed subagent summary once when it repeats the provider error", async () => {
+    const raw = "Provider stopped with: PROHIBITED_CONTENT";
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(SubagentRunDetail, {
+            run: {
+              parentToolCallId: "spawn",
+              subagentRunId: "blocked-child",
+              subagentId: "fixture-child",
+              name: "Fixture child",
+              task: "Fixture task",
+              status: "error",
+              runtime: {
+                mode: "local-faux",
+                provider: "fixture",
+                model: "fixture"
+              },
+              startedAt: at,
+              summary: raw,
+              errorMessage: raw,
+              toolCalls: [],
+              processingSteps: []
+            }
+          })
+      })
+    );
+    expect(html).toContain("内容限制");
+    expect(html.match(/PROHIBITED_CONTENT/gu)).toHaveLength(1);
+    expect(html).not.toContain(raw);
+  });
+
   it.each([false, true])(
     "shows the failure outside collapsed work details (activity: %s)",
     async (withActivity) => {

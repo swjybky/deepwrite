@@ -76,6 +76,27 @@ describe("draw drafts", () => {
     ).toMatchObject({ enabled: false, count: 6 });
   });
 
+  it("stores the auto count mode only, keeping the fixed count beside it", () => {
+    const auto = { ...newSubagentDraw(), countMode: "auto" as const, count: 6 };
+    expect(savedSubagentDraw(auto)).toMatchObject({
+      countMode: "auto",
+      count: 6
+    });
+    expect(savedSubagentDraw({ ...auto, enabled: false })).toMatchObject({
+      countMode: "auto"
+    });
+    expect(savedSubagentDraw(newSubagentDraw())).not.toHaveProperty(
+      "countMode"
+    );
+    expect(
+      savedSubagentDraw({ ...newSubagentDraw(), countMode: "fixed" })
+    ).not.toHaveProperty("countMode");
+    expect(cloneSubagentDraw(auto)?.countMode).toBe("auto");
+    expect(signature(member({ draw: auto }))).not.toBe(
+      signature(member({ draw: { ...auto, countMode: undefined } }))
+    );
+  });
+
   it("drops evaluator model fields that the chosen mode does not use", () => {
     const draw = newSubagentDraw();
     draw.evaluator = {

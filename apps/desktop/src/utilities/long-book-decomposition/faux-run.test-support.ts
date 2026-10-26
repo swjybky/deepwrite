@@ -6,7 +6,8 @@ import { planDecompositionTopic } from "./topic-plan";
 import type { decompositionFixture } from "./test-support";
 
 export async function runDecompositionFaux(
-  fixture: Awaited<ReturnType<typeof decompositionFixture>>
+  fixture: Awaited<ReturnType<typeof decompositionFixture>>,
+  stopAt: "done" | "registry_review" = "done"
 ) {
   const { service } = fixture;
   let job = fixture.job;
@@ -19,7 +20,7 @@ export async function runDecompositionFaux(
   };
   for (
     let packageIndex = 0;
-    job.phase !== "done" && packageIndex < 100;
+    job.phase !== stopAt && packageIndex < 100;
     packageIndex++
   ) {
     const ids = readyDecompositionUnits(job);
@@ -76,6 +77,6 @@ export async function runDecompositionFaux(
       );
     job = await service.advance(job);
   }
-  if (job.phase !== "done") throw new Error(`工作包数量超限: ${job.phase}`);
+  if (job.phase !== stopAt) throw new Error(`工作包数量超限: ${job.phase}`);
   return job;
 }

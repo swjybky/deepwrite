@@ -294,9 +294,7 @@ export default {
       "Applying a novel proposal. Editing is temporarily locked.",
     applyingNovelEditsEditingIsTemporarilyLocked:
       "Applying novel edits. Editing is temporarily locked.",
-    acceptingAndSavingAgentEdits: "Accepting and saving agent edits",
-    acceptOrRejectThePendingChangesFirst:
-      "Accept or reject the pending changes first"
+    acceptingAndSavingAgentEdits: "Accepting and saving agent edits"
   },
   longWorkspaceRefreshCoordinator: {
     theNovelWorkspaceRefreshReturnedADifferentBook:

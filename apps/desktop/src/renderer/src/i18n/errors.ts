@@ -1,4 +1,7 @@
-import { ErrorPayloadSchema } from "@deepwrite/contracts/renderer";
+import {
+  ErrorPayloadSchema,
+  getModelContentBlockReason
+} from "@deepwrite/contracts/renderer";
 import type { ErrorPayload } from "@deepwrite/contracts";
 import type { TranslationKey } from "./messages";
 import { locale, t } from "./index";
@@ -28,6 +31,12 @@ export function getErrorCode(error: unknown): string | undefined {
 
 const MAX_ERROR_DETAIL_LENGTH = 240;
 
+/** Keep stored provider diagnostics intact and localize only their display. */
+export function formatModelProviderError(message: string): string {
+  const reason = getModelContentBlockReason(message);
+  return reason ? t("foundation.modelContentBlocked", { reason }) : message;
+}
+
 /**
  * Remote diagnostics (provider responses, network failures) cannot be
  * translated by code, so `formatError` falls back to the caller's headline.
@@ -37,7 +46,7 @@ export function getErrorDetail(error: unknown): string | undefined {
   const raw =
     getErrorPayload(error)?.message ??
     (error instanceof Error ? error.message : "");
-  const detail = raw.replace(/\s+/gu, " ").trim();
+  const detail = formatModelProviderError(raw).replace(/\s+/gu, " ").trim();
   if (!detail) return undefined;
   return detail.length > MAX_ERROR_DETAIL_LENGTH
     ? `${detail.slice(0, MAX_ERROR_DETAIL_LENGTH)}…`
@@ -45,6 +54,9 @@ export function getErrorDetail(error: unknown): string | undefined {
 }
 
 export function formatError(error: unknown, fallback: string): string {
+  const contentBlockReason = getModelContentBlockReason(error);
+  if (contentBlockReason)
+    return t("foundation.modelContentBlocked", { reason: contentBlockReason });
   const payload = getErrorPayload(error);
   if (payload) {
     if (payload.code === "session.prompt_budget_exceeded") {

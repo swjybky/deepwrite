@@ -38,7 +38,10 @@ function response(
   };
 }
 
-function toolGroup(id: string): {
+function toolGroup(
+  id: string,
+  status: AgentToolTrace["status"] = "completed"
+): {
   id: string;
   type: "tool-group";
   tools: AgentToolTrace[];
@@ -51,7 +54,7 @@ function toolGroup(id: string): {
         id,
         name: "read_workspace_content",
         args: {},
-        status: "completed",
+        status,
         requestedAt: "2026-01-01T00:00:00.000Z"
       }
     ]
@@ -193,15 +196,15 @@ describe("foldWorkGroups", () => {
       true
     );
     expect(items.map((item) => item.type)).toEqual(["work-group"]);
-    expect((items[0] as WorkGroupDisplayItem).running).toBe(true);
+    expect((items[0] as WorkGroupDisplayItem).running).toBe(false);
     expect(
       (items[0] as WorkGroupDisplayItem).items.map((item) => item.id)
     ).toEqual(["t1", "g1"]);
   });
 
-  it("marks only the trailing work group as running", () => {
+  it("keeps earlier thinking closed while a later tool executes", () => {
     const items = foldWorkGroups(
-      [thinking("t1"), response("r1", "正文"), toolGroup("g1")],
+      [thinking("t1"), response("r1", "正文"), toolGroup("g1", "running")],
       true
     );
     expect(items.map((item) => item.type)).toEqual([
@@ -224,7 +227,7 @@ describe("foldWorkGroups", () => {
     );
     const running = foldWorkGroups([thinking("t2"), toolGroup("g1")], true);
     expect(workGroupActivityLabel(running[0] as WorkGroupDisplayItem)).toBe(
-      "读取文件"
+      "处理完成"
     );
     const thinkingLast = foldWorkGroups(
       [toolGroup("g1"), thinking("after")],
@@ -233,5 +236,59 @@ describe("foldWorkGroups", () => {
     expect(
       workGroupActivityLabel(thinkingLast[0] as WorkGroupDisplayItem)
     ).toBe("思考中");
+  });
+
+  it.each(["completed", "error"] as const)(
+    "does not keep a %s tool busy while the model is still streaming",
+    (status) => {
+      const group = foldWorkGroups(
+        [thinking("before"), toolGroup("read", status)],
+        true
+      )[0] as WorkGroupDisplayItem;
+      expect(group.running).toBe(false);
+      expect(workGroupActivityLabel(group)).toBe("处理完成");
+    }
+  );
+
+  it("distinguishes streamed arguments, queued calls and execution", () => {
+    const tools = toolGroup("read", "preparing");
+    const current = () =>
+      foldWorkGroups([tools], true)[0] as WorkGroupDisplayItem;
+    expect(workGroupActivityLabel(current())).toBe("准备工具调用");
+    tools.tools[0]!.argumentsComplete = true;
+    expect(workGroupActivityLabel(current())).toBe("等待执行");
+    tools.tools[0]!.status = "running";
+    expect(workGroupActivityLabel(current())).toBe("读取文件");
+    tools.tools[0]!.status = "completed";
+    expect(current().running).toBe(false);
+    expect(workGroupActivityLabel(current())).toBe("处理完成");
+  });
+
+  it("names the executing tool even when later calls are queued or completed", () => {
+    const tools = toolGroup("read", "running");
+    tools.tools.push({
+      ...tools.tools[0]!,
+      id: "web",
+      name: "web_search",
+      status: "preparing",
+      argumentsComplete: true
+    });
+    const current = () =>
+      foldWorkGroups([tools], true)[0] as WorkGroupDisplayItem;
+    expect(workGroupActivityLabel(current())).toBe("读取文件");
+    tools.tools[1]!.status = "completed";
+    expect(workGroupActivityLabel(current())).toBe("读取文件");
+  });
+
+  it("keeps queued work pending when a subagent card follows it", () => {
+    const tools = toolGroup("read", "preparing");
+    tools.tools[0]!.argumentsComplete = true;
+    const items = foldWorkGroups(
+      [tools, { id: "child", type: "subagent" }],
+      true
+    );
+    const group = items[0] as WorkGroupDisplayItem;
+    expect(group.running).toBe(true);
+    expect(workGroupActivityLabel(group)).toBe("等待执行");
   });
 });

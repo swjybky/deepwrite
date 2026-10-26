@@ -124,6 +124,7 @@ export default {
   modePureRead: "Pure read-only",
   modePureBare: "Pure, no tools",
   drawMode: "Draws ×{count}",
+  drawModeAuto: "Draws · auto",
   inheritModel: "Uses the parent agent model",
   showPrompt: "Show prompt",
   hidePrompt: "Hide prompt",

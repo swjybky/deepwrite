@@ -8,8 +8,13 @@ export default {
     "Each delegation produces {arg0} results and hands back only the selected one, at about {arg0}× the usage.",
   enabledHintAuto:
     "Each delegation produces {arg0} results and the evaluator hands back the best one, at about {arg0}× the usage plus one evaluation.",
+  enabledHintAutoCount:
+    "The primary agent decides how many draws each delegation needs (up to {arg0}) from your request or the task, and states what each one should do differently. Only the selected one comes back; without such requirements the task runs once. Usage grows with the number of draws.",
+  enabledHintAutoCountEvaluated:
+    "The primary agent decides how many draws each delegation needs (up to {arg0}) from your request or the task, and states what each one should do differently. The evaluator hands back the best one; without such requirements the task runs once. Usage grows with the number of draws, plus one evaluation.",
   drawCount: "Draws",
   countValue: "{arg0} times",
+  countAuto: "Auto (as needed, up to {arg0})",
   selection: "Selection",
   manual: "Manual",
   auto: "Automatic",

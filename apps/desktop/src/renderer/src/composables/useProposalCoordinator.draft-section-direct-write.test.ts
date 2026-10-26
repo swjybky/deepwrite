@@ -3,6 +3,7 @@ import {
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
   createEnvelope,
+  createShortWorkspaceContentRevision,
   type Book,
   type CreateDraftSectionsInput,
   type CreateDraftSectionsResult,
@@ -481,22 +482,23 @@ describe("short/script section creation followed by direct writes", () => {
       });
       await fixture.coordinator.drain();
 
+      // Remapped onto the new empty files, each write expects them empty.
       expect(fixture.saveDocument.mock.calls.map(([input]) => input)).toEqual([
         {
           bookId: BOOK_ID,
           documentId: REAL_BODY_ID,
           content: bodyText,
-          force: true
+          baseRevision: createShortWorkspaceContentRevision("")
         },
         {
           bookId: BOOK_ID,
           documentId: REAL_STATE_ID,
           content: characterStateText,
-          force: true
+          baseRevision: createShortWorkspaceContentRevision("")
         }
       ]);
       for (const [input] of fixture.saveDocument.mock.calls) {
-        expect(input).not.toHaveProperty("baseRevision");
+        expect(input).not.toHaveProperty("force");
         expect(input).not.toHaveProperty("baseProjectRevision");
       }
       expect(fixture.documents.value.map(({ content }) => content)).toEqual([

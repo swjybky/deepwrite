@@ -2072,16 +2072,8 @@ function registerIpc(): void {
         {
           requireModelConfigStore,
           requireModelUsageStore,
-          listRemoteModels: (input) =>
-            listRemoteModels(
-              input,
-              cachedGeneralSettings.useNetworkProxy
-                ? fetch
-                : electronRemoteFetch
-            ),
-          remoteFetch: cachedGeneralSettings.useNetworkProxy
-            ? fetch
-            : electronRemoteFetch,
+          listRemoteModels,
+          remoteFetch: electronRemoteFetch,
           supervisor
         },
         command

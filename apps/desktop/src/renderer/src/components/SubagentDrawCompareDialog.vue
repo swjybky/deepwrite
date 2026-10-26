@@ -96,6 +96,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 class="draw-compare-tab"
                 :class="{ 'is-active': candidate.id === paneId }"
                 :aria-selected="candidate.id === paneId"
+                :title="candidate.variant"
                 @click="panes[paneIndex] = candidate.id"
               >
                 {{ drawCandidateNumber(candidate) }}
@@ -117,6 +118,15 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 {{ t("adoptThisOne") }}
               </button>
             </div>
+            <p
+              v-if="candidateOf(paneId).variant"
+              class="draw-compare-variant"
+              :title="candidateOf(paneId).variant"
+            >
+              {{
+                t("variantValue", { arg0: candidateOf(paneId).variant ?? "" })
+              }}
+            </p>
             <div class="draw-compare-preview" role="tabpanel">
               <StreamedContent
                 :content="candidateOf(paneId).text"
@@ -162,12 +172,31 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
   padding: 0 20px;
 }
 
+/* A column, so the optional focus line never takes the preview's row. */
 .draw-compare-pane {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   min-width: 0;
   min-height: 0;
+}
+
+.draw-compare-tabs,
+.draw-compare-meta,
+.draw-compare-variant {
+  flex: 0 0 auto;
+}
+
+.draw-compare-variant {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .draw-compare-tabs {
@@ -216,6 +245,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 }
 
 .draw-compare-preview {
+  flex: 1 1 auto;
   min-height: 0;
   padding: 12px 14px;
   overflow: auto;

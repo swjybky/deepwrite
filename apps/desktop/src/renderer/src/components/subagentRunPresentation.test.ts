@@ -205,6 +205,13 @@ describe("subagentRunPresentation", () => {
     expect(grown[0]).toBe(first[0]);
     expect(grown[1]).toBe(first[1]);
     expect(grown[2]).not.toBe(first[2]);
-    expect(grown[2]).toMatchObject({ type: "work-group", running: true });
+    expect(grown[2]).toMatchObject({ type: "work-group", running: false });
+
+    current.toolCalls.at(-1)!.status = "running";
+    const active = subagentProcessingDisplayItems(current, grown);
+    expect(active[0]).toBe(grown[0]);
+    expect(active[1]).toBe(grown[1]);
+    expect(active[2]).not.toBe(grown[2]);
+    expect(active[2]).toMatchObject({ type: "work-group", running: true });
   });
 });

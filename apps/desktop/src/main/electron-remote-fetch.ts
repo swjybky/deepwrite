@@ -1,8 +1,10 @@
 import { net } from "electron";
+import { waitForNetworkProxyPreference } from "./network-proxy-preference";
 
-export function electronRemoteFetch(
+export async function electronRemoteFetch(
   input: string,
   init?: RequestInit
 ): Promise<Response> {
+  await waitForNetworkProxyPreference();
   return net.fetch(input, init);
 }

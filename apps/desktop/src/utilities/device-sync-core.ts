@@ -6,11 +6,13 @@ import {
 import {
   DeviceSyncInventorySchema,
   syncErrorMessage,
+  SyncItemValidationError,
   type CommandEnvelope,
   type CommandResult,
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
 import { DesktopSyncWorkspace } from "./device-sync-workspace";
+import { DeviceSyncRecoveryPausedError } from "./device-sync-recovery";
 import type { FolderCatalogStore } from "./folder-catalog-store";
 import type { LongWorkspaceService } from "./long-workspace-service";
 
@@ -33,7 +35,17 @@ export function withDeviceSyncCommands(
     const result = tail.then(async (): Promise<CommandResult> => {
       try {
         await recoverDesktopInitialization(userDataPath);
-        await workspace.recover();
+        try {
+          await workspace.recover();
+        } catch (error) {
+          // The plan is durably isolated now. Unrelated Core commands may proceed;
+          // a damaged target still has its own project transaction/version guards.
+          if (
+            command.type === "deviceSync.workspace" ||
+            !(error instanceof DeviceSyncRecoveryPausedError)
+          )
+            throw error;
+        }
         if (command.type !== "deviceSync.workspace")
           return handler(command, emitEvent);
         const input = command.payload;
@@ -69,8 +81,14 @@ export function withDeviceSyncCommands(
           status: "rejected",
           requestId: command.id,
           error: {
-            code: "device_sync.workspace_failed",
-            message: syncErrorMessage(error)
+            code:
+              error instanceof SyncItemValidationError
+                ? "device_sync.validation_failed"
+                : "device_sync.workspace_failed",
+            message: syncErrorMessage(error),
+            ...(error instanceof SyncItemValidationError
+              ? { details: { paths: error.paths } }
+              : {})
           }
         };
       }

@@ -1,5 +1,7 @@
 import type { ModelApi, RemoteModelListItem } from "@deepwrite/contracts";
 import { createOpenCodeRequestHeaders } from "@deepwrite/pi-runtime-adapter";
+import { electronRemoteFetch } from "./electron-remote-fetch";
+import { describeModelNetworkError } from "./model-network-error";
 export { parseRemoteModelList } from "./remote-model-list-parser";
 import { parseRemoteModelList } from "./remote-model-list-parser";
 
@@ -155,35 +157,9 @@ function httpErrorMessage(status: number): string {
   return `拉取模型失败（HTTP ${status}）。`;
 }
 
-function errorChainText(error: unknown): string {
-  const parts: string[] = [];
-  let current: unknown = error;
-  for (let depth = 0; depth < 4 && current; depth += 1) {
-    if (current instanceof Error) {
-      parts.push(current.message);
-      current = current.cause;
-      continue;
-    }
-    parts.push(String(current));
-    break;
-  }
-  return parts.join(" ");
-}
-
-function networkErrorMessage(error: unknown): string {
-  if (
-    /ECONNREFUSED\s+(?:127\.0\.0\.1|::1|localhost):\d+/iu.test(
-      errorChainText(error)
-    )
-  ) {
-    return "无法连接本地网络代理。这个接口不需要 VPN，请先关闭失效的 HTTP 代理后再刷新。";
-  }
-  return "无法连接模型服务，请检查 API 地址后重试。";
-}
-
 export async function listRemoteModels(
   input: ListRemoteModelsInput,
-  fetcher: RemoteModelsFetcher = fetch
+  fetcher: RemoteModelsFetcher = electronRemoteFetch
 ): Promise<RemoteModelListItem[]> {
   if (!input.baseUrl.trim()) {
     throw new RemoteModelListError(
@@ -215,12 +191,10 @@ export async function listRemoteModels(
     if (error instanceof RemoteModelListError) {
       throw error;
     }
-    const timedOut =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
+    const failure = describeModelNetworkError(error);
     throw new RemoteModelListError(
-      timedOut ? "models.list_remote_timeout" : "models.list_remote_network",
-      timedOut ? "拉取模型超时，请稍后重试。" : networkErrorMessage(error)
+      `models.list_remote_${failure.kind === "unknown" ? "network" : failure.kind}`,
+      failure.message
     );
   }
 

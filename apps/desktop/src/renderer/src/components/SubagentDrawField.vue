@@ -29,15 +29,40 @@ const props = defineProps<{
   modelConfig: SubagentModelConfig;
 }>();
 
+const AUTO_COUNT = "auto";
 const pure = computed(() => props.agentMode !== "standard");
 const enabled = computed(() => pure.value && draw.value?.enabled === true);
-const countOptions: PopupSelectOption[] = Array.from(
-  { length: SUBAGENT_DRAW_MAX_COUNT - SUBAGENT_DRAW_MIN_COUNT + 1 },
-  (_, offset) => {
-    const value = SUBAGENT_DRAW_MIN_COUNT + offset;
-    return { value, label: t("countValue", { arg0: value }) };
-  }
+const countOptions: PopupSelectOption[] = [
+  {
+    value: AUTO_COUNT,
+    label: t("countAuto", { arg0: SUBAGENT_DRAW_MAX_COUNT })
+  },
+  ...Array.from(
+    { length: SUBAGENT_DRAW_MAX_COUNT - SUBAGENT_DRAW_MIN_COUNT + 1 },
+    (_, offset) => {
+      const value = SUBAGENT_DRAW_MIN_COUNT + offset;
+      return { value, label: t("countValue", { arg0: value }) };
+    }
+  )
+];
+const countValue = computed(() =>
+  draw.value?.countMode === "auto"
+    ? AUTO_COUNT
+    : (draw.value?.count ?? SUBAGENT_DRAW_MIN_COUNT)
 );
+const enabledHint = computed(() => {
+  if (!draw.value) return "";
+  const evaluated = draw.value.selection === "auto";
+  if (draw.value.countMode === "auto") {
+    return t(
+      evaluated ? "enabledHintAutoCountEvaluated" : "enabledHintAutoCount",
+      { arg0: SUBAGENT_DRAW_MAX_COUNT }
+    );
+  }
+  return t(evaluated ? "enabledHintAuto" : "enabledHint", {
+    arg0: draw.value.count
+  });
+});
 const selectionOptions = computed(() => [
   { value: "manual" as const, label: t("manual") },
   { value: "auto" as const, label: t("auto") }
@@ -67,8 +92,15 @@ function setEnabled(value: boolean): void {
   else if (value) draw.value = newSubagentDraw();
 }
 
+// Auto keeps the fixed count, so switching back restores it.
 function setCount(value: string | number): void {
-  if (draw.value && !props.disabled) draw.value.count = Number(value);
+  if (!draw.value || props.disabled) return;
+  if (value === AUTO_COUNT) {
+    draw.value.countMode = "auto";
+    return;
+  }
+  delete draw.value.countMode;
+  draw.value.count = Number(value);
 }
 
 function setSelection(value: SubagentDrawSelection): void {
@@ -101,9 +133,7 @@ function restoreDefaultPrompt(): void {
         !pure
           ? t("onlyAvailableInPureModes")
           : enabled && draw
-            ? t(draw.selection === "auto" ? "enabledHintAuto" : "enabledHint", {
-                arg0: draw.count
-              })
+            ? enabledHint
             : t("drawHint")
       }}
     </p>
@@ -114,12 +144,12 @@ function restoreDefaultPrompt(): void {
           <span class="draw-field-label">{{ t("drawCount") }}</span>
           <PopupSelect
             class="draw-count"
-            :model-value="draw.count"
+            :model-value="countValue"
             :options="countOptions"
             :accessible-label="t('drawCount')"
             size="large"
             :disabled="disabled"
-            :menu-min-width="140"
+            :menu-min-width="220"
             :menu-z-index="1200"
             @update:model-value="setCount"
           />
@@ -230,8 +260,10 @@ function restoreDefaultPrompt(): void {
   justify-items: start;
   gap: 6px;
 }
+/* rem, so the auto label still fits at larger UI font sizes. */
 .draw-count {
-  width: 140px;
+  width: 16rem;
+  max-width: 100%;
 }
 .draw-evaluator {
   display: grid;

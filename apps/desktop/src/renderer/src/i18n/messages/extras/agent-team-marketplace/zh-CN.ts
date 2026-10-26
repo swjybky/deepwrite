@@ -118,6 +118,7 @@ export default {
   modePureRead: "纯净只读",
   modePureBare: "纯净无工具",
   drawMode: "抽卡 ×{count}",
+  drawModeAuto: "抽卡 · 自动",
   inheritModel: "跟随主智能体模型",
   showPrompt: "查看提示词",
   hidePrompt: "收起提示词",

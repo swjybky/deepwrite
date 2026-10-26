@@ -152,6 +152,7 @@ function adoptFromCompare(optionId: string): void {
           :class="{ 'is-active': candidate.id === active.id }"
           :aria-selected="candidate.id === active.id"
           :tabindex="candidate.id === active.id ? 0 : -1"
+          :title="candidate.variant"
           @click="activeId = candidate.id"
         >
           <strong>{{
@@ -161,6 +162,13 @@ function adoptFromCompare(optionId: string): void {
         </button>
       </div>
 
+      <p
+        v-if="active.variant"
+        class="draw-picker-variant"
+        :title="active.variant"
+      >
+        {{ t("variantValue", { arg0: active.variant }) }}
+      </p>
       <div class="draw-picker-preview" role="tabpanel">
         <StreamedContent :content="active.text" format="markdown" />
       </div>

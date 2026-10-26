@@ -13,6 +13,7 @@ import {
   normalizeStoredLongProposalStatusMessage
 } from "./long-proposal-persistence-compatibility";
 import { parseStoredLibraryTarget } from "./library-target";
+import { parseStoredStaleBase } from "./parse-stale-base";
 import { parseStoredTextDiffHunk } from "./parse-diff";
 import {
   parseStoredDraftSectionCreationTarget,
@@ -169,6 +170,7 @@ export function parseStoredEditProposal(
   if (hunks.length !== value.hunks.length) return undefined;
   const discardSnapshot = parseStoredDiscardSnapshot(value.discardSnapshot);
   const discardState = parseStoredDiscardState(value.discardState);
+  const staleBase = parseStoredStaleBase(value.staleBase);
   const statusMessage = isLongFormProposal
     ? value.status === "conflict"
       ? undefined
@@ -229,6 +231,7 @@ export function parseStoredEditProposal(
     updatedAt: value.updatedAt,
     ...(!isLongFormProposal && discardSnapshot ? { discardSnapshot } : {}),
     ...(!isLongFormProposal && discardState ? { discardState } : {}),
+    ...(staleBase ? { staleBase } : {}),
     ...(libraryTarget ? { libraryTarget } : {}),
     ...(longWorldbuildingTarget ? { longWorldbuildingTarget } : {}),
     ...(longCharacterTarget ? { longCharacterTarget } : {}),

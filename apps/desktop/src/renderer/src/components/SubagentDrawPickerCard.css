@@ -103,6 +103,20 @@
   overflow-wrap: anywhere;
 }
 
+/* Two lines at most, so the preview keeps its height; the title has it all. */
+.draw-picker-variant {
+  display: -webkit-box;
+  flex: 0 0 auto;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .draw-picker-task summary {
   color: var(--text-tertiary);
   font-size: 0.785714rem;

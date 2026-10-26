@@ -19,13 +19,17 @@ export const GEMINI_OPENAI_COMPLETIONS_COMPAT = {
   requiresToolResultName: true
 } as const satisfies Model<"openai-completions">["compat"];
 
+export function isGeminiModelId(modelId: string): boolean {
+  return GEMINI_MODEL_PATTERN.test(modelId);
+}
+
 export function isGeminiOpenAIConfig(
   config: Pick<AgentProviderRuntimeConfig, "api" | "modelId" | "requestModelId">
 ): boolean {
   return (
     config.api === "openai-completions" &&
-    (GEMINI_MODEL_PATTERN.test(config.modelId) ||
-      GEMINI_MODEL_PATTERN.test(config.requestModelId ?? ""))
+    (isGeminiModelId(config.modelId) ||
+      isGeminiModelId(config.requestModelId ?? ""))
   );
 }
 

@@ -105,10 +105,7 @@ describe("conversation view behavior", () => {
     }));
     const result = useConversationModelOptions({ ...options, models });
     expect(
-      result.modelOptions.value.map(({ value, providerLabel }) => [
-        value,
-        providerLabel
-      ])
+      result.modelOptions.value.map(({ value, group }) => [value, group.label])
     ).toEqual([
       ["deepwrite-site-official-example", "官方小站"],
       ["custom-first", "OpenAI"],

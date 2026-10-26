@@ -33,7 +33,11 @@ function togglePrompt(id: string): void {
       <div class="member-tags">
         <span class="badge">{{ agentModeLabel(member.agentMode) }}</span>
         <span v-if="activeSubagentDraw(member)" class="badge">
-          {{ t("drawMode", { count: activeSubagentDraw(member)?.count ?? 0 }) }}
+          {{
+            activeSubagentDraw(member)?.countMode === "auto"
+              ? t("drawModeAuto")
+              : t("drawMode", { count: activeSubagentDraw(member)?.count ?? 0 })
+          }}
         </span>
         <span class="badge">{{ t("inheritModel") }}</span>
         <span v-if="!member.enabled" class="badge">{{

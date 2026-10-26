@@ -58,6 +58,7 @@ const modeOptions = computed(() => [
         size="large"
         :disabled="disabled || modelOptions.length === 0"
         :menu-min-width="260"
+        :menu-max-height="520"
         :menu-z-index="1200"
         @update:model-value="emit('setModelId', String($event))"
       >
@@ -102,8 +103,13 @@ const modeOptions = computed(() => [
 <style scoped>
 .model-field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
+  min-width: 0;
   gap: 6px;
+}
+.model-field :deep(.segmented) {
+  flex-wrap: wrap;
 }
 .model-field-label {
   color: var(--text-secondary);

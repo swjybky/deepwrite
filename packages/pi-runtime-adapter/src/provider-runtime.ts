@@ -29,7 +29,9 @@ import {
 import { findProviderModel } from "./provider-model-catalog";
 import { enforceProviderToolSchemaCompatibility } from "./provider-tool-schema-compat";
 import { applyGoogleClaudeThinkingCompatibility } from "./google-claude-thinking";
+import { applyGeminiWritingSafetySettings } from "./gemini-safety";
 import { createOpenCodeRequestHeaders } from "./opencode-request-headers";
+import { createSiteSessionHeaders } from "./site-session-headers";
 import {
   isGeminiOpenAIConfig,
   withGeminiOpenAIToolSignatures
@@ -184,6 +186,7 @@ export function buildProviderRuntime(
     provider: config.provider,
     baseUrl
   });
+  const siteSessionHeaders = createSiteSessionHeaders(config);
   const isOllamaProvider = isOllamaProviderName(config.provider);
   const streamFn = (
     requestModel: Model<Api>,
@@ -191,6 +194,11 @@ export function buildProviderRuntime(
     options?: SimpleStreamOptions
   ) => {
     const openCodeHeaders = openCodeRequestHeaders(options?.sessionId);
+    const sessionHeaders = siteSessionHeaders(options?.sessionId);
+    const requestHeaders =
+      openCodeHeaders || sessionHeaders
+        ? { ...openCodeHeaders, ...sessionHeaders }
+        : undefined;
     return streams.streamSimple(
       requestModel,
       normalizeContext(
@@ -202,9 +210,9 @@ export function buildProviderRuntime(
         )
       ),
       applyGoogleClaudeThinkingCompatibility(config.api, requestModel.id, {
-        ...options,
-        ...(openCodeHeaders
-          ? { headers: { ...options?.headers, ...openCodeHeaders } }
+        ...applyGeminiWritingSafetySettings(config, options ?? {}),
+        ...(requestHeaders
+          ? { headers: { ...options?.headers, ...requestHeaders } }
           : {}),
         ...(mandatoryZaiThinkingFallback
           ? { reasoning: mandatoryZaiThinkingFallback }
