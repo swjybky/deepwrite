@@ -219,7 +219,9 @@ describe("settings feature coordinator", () => {
     expect(settingsStore.modelSettings).toBe(existing);
     expect(onModelsLoaded).not.toHaveBeenCalled();
     expect(notifications.error).toHaveBeenCalledOnce();
-    expect(notifications.error).toHaveBeenCalledWith("模型配置暂时不可写");
+    expect(notifications.error).toHaveBeenCalledWith("模型配置暂时不可写", {
+      duration: 8_000
+    });
   });
 
   it("publishes a refreshed free-model snapshot without clearing the cached one first", async () => {
