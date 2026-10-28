@@ -21,7 +21,9 @@ const lazySource = `${asyncComponentsSource}\n${featureImportsSource}`;
 
 describe("long-book analysis feature wiring", () => {
   it("is a preset-driven page without a conversation composer", () => {
-    expect(pageSource).toContain("selectionCount <= 50");
+    expect(pageSource).toContain(
+      "selectionCount <= LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS"
+    );
     expect(pageSource).toContain("<PopupSelect");
     expect(runControlsSource).toContain("batch.retryFailed()");
     expect(runControlsSource).toContain("batch.stop()");

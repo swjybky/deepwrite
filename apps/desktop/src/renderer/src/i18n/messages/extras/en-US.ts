@@ -478,7 +478,7 @@ export default {
     importNovelToStart: "Import a novel to start analyzing",
     novelImportHelp:
       "Choose TXT, a chapter folder, or an imported novel above. After importing, start the analysis directly or correct the chapters as needed.",
-    maxFiftyChapters: "Up to 50 chapters per run",
+    maxSelectedChapters: "Up to {count} chapters per run",
     defaultTokenBudget:
       "{provider} · Calculated using the default 272,000-token budget",
     selectSpecificLibrary: "Choose a specific library",
@@ -564,7 +564,7 @@ export default {
     invalidChapterOrder:
       "The last chapter cannot come before the first chapter.",
     consecutiveChapterLimit:
-      "You can analyze up to 50 consecutive chapters per run.",
+      "You can analyze up to {count} consecutive chapters per run.",
     chapterRangeChanged:
       "The selected range no longer matches the chapter list. Please select it again.",
     analysisNotReady: "The analysis task is not ready.",

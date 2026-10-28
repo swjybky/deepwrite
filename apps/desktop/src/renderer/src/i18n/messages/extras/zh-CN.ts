@@ -441,7 +441,7 @@ export default {
     importNovelToStart: "导入一本长篇开始分析",
     novelImportHelp:
       "选择上方 TXT、章节文件夹或已导入长篇。导入后可直接分析，也可按需校正章节。",
-    maxFiftyChapters: "单次最多 50 章",
+    maxSelectedChapters: "单次最多 {count} 章",
     defaultTokenBudget: "{provider} · 默认按 272,000 tokens 计算",
     selectSpecificLibrary: "请选择具体资料库",
     cannotStartAnalysis: "无法开始分析。",
@@ -518,7 +518,7 @@ export default {
     selectAvailableModel: "请选择可用模型。",
     unsupportedThinking: "所选思考等级不在当前模型配置中，请重新选择。",
     invalidChapterOrder: "结束章节不能早于起始章节。",
-    consecutiveChapterLimit: "单次最多分析连续 50 章。",
+    consecutiveChapterLimit: "单次最多分析连续 {count} 章。",
     chapterRangeChanged: "选择范围与当前章节列表不一致，请重新选择。",
     analysisNotReady: "拆书任务尚未准备。",
     phaseFailed: "拆书分析阶段失败。",

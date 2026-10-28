@@ -3,6 +3,7 @@ import { presetLabel } from "../analysis-ui/preset-labels";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import { computed, ref, watch } from "vue";
+import { LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS } from "@deepwrite/contracts/renderer";
 import PopupSelect, {
   type PopupSelectOption,
   type PopupSelectValue
@@ -67,7 +68,10 @@ watch(
     if (!next) return;
     if (next.id !== previous?.id) {
       startOrder.value = 1;
-      endOrder.value = Math.min(50, next.chapters.length);
+      endOrder.value = Math.min(
+        LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS,
+        next.chapters.length
+      );
     } else normalizeRange("start");
   },
   { immediate: true }
@@ -86,12 +90,18 @@ function normalizeRange(anchor: "start" | "end"): void {
   if (anchor === "start") {
     endOrder.value = Math.max(
       startOrder.value,
-      Math.min(endOrder.value, startOrder.value + 49)
+      Math.min(
+        endOrder.value,
+        startOrder.value + LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS - 1
+      )
     );
   } else {
     startOrder.value = Math.min(
       endOrder.value,
-      Math.max(startOrder.value, endOrder.value - 49)
+      Math.max(
+        startOrder.value,
+        endOrder.value - LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS + 1
+      )
     );
   }
 }
@@ -142,7 +152,11 @@ async function start(): Promise<void> {
       <div class="setup-field setup-range-field">
         <span class="setup-field-label"
           >{{ t("chapterRange")
-          }}<small>{{ t("maxFiftyChapters") }}</small></span
+          }}<small>{{
+            t("maxSelectedChapters", {
+              count: LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
+            })
+          }}</small></span
         >
         <div class="chapter-range-inputs">
           <input
@@ -196,7 +210,7 @@ async function start(): Promise<void> {
         selectedPresets.length > 0 &&
         !!controller.selectedModelId.value &&
         selectionCount >= 1 &&
-        selectionCount <= 50
+        selectionCount <= LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
       "
       :disabled="controller.sourceDeleting.value"
       :resume-label="t('continueIncompletePhase')"

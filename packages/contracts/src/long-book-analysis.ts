@@ -103,7 +103,7 @@ export const LongBookAnalysisRuntimeContextSchema = z
       context.addIssue({
         code: "custom",
         path: ["selectionEnd"],
-        message: "Long-book analysis may include at most 50 chapters."
+        message: `Long-book analysis may include at most ${LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS} chapters.`
       });
     }
   });

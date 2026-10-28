@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, ref, watch } from "vue";
+import { LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS } from "@deepwrite/contracts/renderer";
 import AppIcon from "../../components/AppIcon.vue";
 import ChapterEditor from "./ChapterEditor.vue";
 import type { LongBookAnalysisController } from "./useLongBookAnalysis";
@@ -11,7 +12,7 @@ const props = defineProps<{
     LongBookAnalysisController,
     "source" | "isBusy" | "sourceSaving" | "sourceDeleting" | "replaceChapters"
   >;
-  /** Overrides for pages whose scope differs from a 50-chapter analysis. */
+  /** Overrides for pages whose scope differs from a long-book analysis. */
   emptyTitle?: string;
   emptyHelp?: string;
   emptyChips?: readonly string[];
@@ -83,7 +84,11 @@ watch(
       >
       <template v-else
         ><span>TXT / Markdown</span
-        ><span>{{ t("maxFiftyChapters") }}</span></template
+        ><span>{{
+          t("maxSelectedChapters", {
+            count: LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
+          })
+        }}</span></template
       >
     </div>
   </section>

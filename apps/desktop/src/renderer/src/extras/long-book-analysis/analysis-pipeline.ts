@@ -114,7 +114,11 @@ export class LongBookAnalysisPipeline {
       input.endOrder - input.startOrder + 1 >
       LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
     ) {
-      throw new Error(t("consecutiveChapterLimit"));
+      throw new Error(
+        t("consecutiveChapterLimit", {
+          count: LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
+        })
+      );
     }
     const chapters = source.chapters.filter(
       (chapter) =>

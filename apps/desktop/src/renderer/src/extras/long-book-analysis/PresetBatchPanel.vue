@@ -14,7 +14,7 @@ const lt = createScopedTranslator("extras.longBookAnalysis");
 const props = defineProps<{
   batch: PresetBatch<LongBookAnalysisPreset, unknown>;
   presets: readonly LongBookAnalysisPreset[];
-  /** "已选 50 章" / "已选 1 本" */
+  /** "已选 N 章" / "已选 1 本" */
   scopeText: string;
   canStart: boolean;
   disabled: boolean;

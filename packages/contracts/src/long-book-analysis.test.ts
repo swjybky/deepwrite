@@ -4,7 +4,8 @@ import {
   createEnvelope,
   LongBookAnalysisSavedSourceCatalogSchema,
   ExtrasAgentSettingsInputSchema,
-  LongBookAnalysisRuntimeContextSchema
+  LongBookAnalysisRuntimeContextSchema,
+  LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS
 } from "./index";
 
 const segment = {
@@ -152,12 +153,16 @@ describe("long-book analysis contracts", () => {
     }
   );
 
-  it("allows exactly 50 continuous chapters and rejects 51", () => {
+  it("allows the configured maximum continuous chapters and rejects the next one", () => {
     expect(
-      LongBookAnalysisRuntimeContextSchema.parse(runtime(50)).selectionEnd
-    ).toBe(50);
+      LongBookAnalysisRuntimeContextSchema.parse(
+        runtime(LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS)
+      ).selectionEnd
+    ).toBe(LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS);
     expect(() =>
-      LongBookAnalysisRuntimeContextSchema.parse(runtime(51))
-    ).toThrow(/50/iu);
+      LongBookAnalysisRuntimeContextSchema.parse(
+        runtime(LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS + 1)
+      )
+    ).toThrow(new RegExp(`${LONG_BOOK_ANALYSIS_MAX_SELECTED_CHAPTERS}`));
   });
 });
