@@ -2,21 +2,18 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.7.4",
-  "title": "DeepWrite 1.7.4",
-  "publishedAt": "2026-10-24T10:51:43+08:00",
+  "version": "1.7.9",
+  "title": "DeepWrite 1.7.9",
+  "publishedAt": "2026-10-30T17:09:25+08:00",
   "releaseNotes": [
-    "运行智能体期间可继续编辑正文，接受修改提案时会检查版本，保护期间的手动修改。",
-    "改进子智能体任务交接、按需多方案生成与比对，并在角色比对前读取相关角色资料。",
-    "增强设备同步和拆书任务的中断恢复，优化大作品同步响应，修复素材与技能删除后残留的作品关联。",
-    "改进模型列表的分组、显示高度与展开方向，便于查找和选择子智能体模型。",
-    "优化网络连接、代理兼容性与错误提示，并提供 Windows 公共服务诊断脚本。",
-    "远程构建注入发布配置，并在包内首次启动和重新打开时验证公共服务与云备份配置。",
-    "提供 Windows x64、macOS Apple Silicon / Intel、Linux x64 安装包；Linux 包含 AppImage、DEB、RPM 和 Arch 格式。",
-    "macOS 使用 ad-hoc 签名，未进行 Apple 公证；Windows 安装包未签名。"
+    "新增可选的任务完成通知：智能体任务和整书拆解结束时，在主窗口不在前台的情况下发送系统提醒。",
+    "智能体运行期间可继续输入并排队发送；点击队列中的发送按钮，可将消息插入正在运行的回合。",
+    "聊天助手支持附件，改进正文修改、上下文摘要和每轮文件改动汇总。",
+    "保护分析预设的未保存修改，恢复默认仅修改草稿，并改进素材导入和已保存结果的跳转。",
+    "修复新建整书拆解方案保存后的选择，按方案使用设定分类，并明确待审修改阻止发送的原因。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.7.4",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.7.9",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
