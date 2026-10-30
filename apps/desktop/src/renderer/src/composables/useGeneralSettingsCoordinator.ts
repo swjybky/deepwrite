@@ -238,6 +238,11 @@ export function useGeneralSettingsCoordinator(
     queueSave();
   }
 
+  function updateTaskNotification(enabled: boolean): void {
+    applyLocalPatch({ taskNotification: enabled });
+    queueSave();
+  }
+
   function updateUseNetworkProxy(enabled: boolean): void {
     applyLocalPatch({ useNetworkProxy: enabled });
     queueSave();
@@ -326,6 +331,7 @@ export function useGeneralSettingsCoordinator(
     updateTextAttachmentMaxCharacters,
     updateContextCompaction,
     updateShowInMenuBar,
+    updateTaskNotification,
     updateUseNetworkProxy,
     updateWorkspacePaneLayout
   };

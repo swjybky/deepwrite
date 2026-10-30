@@ -85,6 +85,7 @@ const emit = defineEmits<{
   updateTextAttachmentMaxCharacters: [value: number];
   updateContextCompaction: [settings: ContextCompactionSettings];
   updateShowInMenuBar: [enabled: boolean];
+  updateTaskNotification: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
@@ -141,6 +142,7 @@ const emit = defineEmits<{
     :text-attachment-max-characters="module.textAttachmentMaxCharacters"
     :context-compaction="module.contextCompaction"
     :show-in-menu-bar="module.showInMenuBar"
+    :task-notification="module.taskNotification"
     :use-network-proxy="module.useNetworkProxy"
     :workspace-pane-layout="module.workspacePaneLayout"
     :default-text-view-mode="module.defaultTextViewMode"
@@ -185,6 +187,7 @@ const emit = defineEmits<{
     "
     @update-context-compaction="emit('updateContextCompaction', $event)"
     @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
+    @update-task-notification="emit('updateTaskNotification', $event)"
     @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
     @update-workspace-pane-layout="emit('updateWorkspacePaneLayout', $event)"
     @update-default-text-view-mode="emit('updateDefaultTextViewMode', $event)"

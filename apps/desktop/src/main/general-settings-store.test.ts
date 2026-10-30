@@ -199,6 +199,7 @@ describe("GeneralSettingsStore", () => {
         autoSave: false,
         language: "zh-CN",
         showInMenuBar: false,
+        taskNotification: false,
         showContextUsage: true,
         textAttachmentMaxCharacters: 100_000,
         contextCompaction: createDefaultGeneralSettings().contextCompaction,
@@ -208,6 +209,35 @@ describe("GeneralSettingsStore", () => {
         bodyTextFormats: createDefaultGeneralSettings().bodyTextFormats,
         moreFeatures: createDefaultGeneralSettings().moreFeatures
       }
+    });
+  });
+
+  it("keeps task notifications off for older files and persists the choice", async () => {
+    const { root, store } = await createStore();
+    const file = join(root, "config", "general-settings.json");
+    await mkdir(join(root, "config"));
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: 2,
+        permissionMode: "auto-approve",
+        autoSave: true,
+        language: "auto",
+        showInMenuBar: true
+      })
+    );
+    const legacy = await store.list();
+    expect(legacy.persisted).toBe(true);
+    expect(legacy.settings.taskNotification).toBe(false);
+
+    await store.save({ ...legacy.settings, taskNotification: true });
+    expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
+      version: 2,
+      taskNotification: true
+    });
+    await expect(new GeneralSettingsStore(root).list()).resolves.toMatchObject({
+      persisted: true,
+      settings: { taskNotification: true }
     });
   });
 

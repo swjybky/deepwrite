@@ -62,6 +62,7 @@ const props = defineProps<{
   textAttachmentMaxCharacters: number;
   contextCompaction: ContextCompactionSettings;
   showInMenuBar: boolean;
+  taskNotification: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;
@@ -107,6 +108,7 @@ const emit = defineEmits<{
   updateTextAttachmentMaxCharacters: [value: number];
   updateContextCompaction: [settings: ContextCompactionSettings];
   updateShowInMenuBar: [enabled: boolean];
+  updateTaskNotification: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
@@ -341,6 +343,7 @@ async function selectCategory(id: string): Promise<void> {
             :auto-save-enabled="autoSaveEnabled"
             :language="language"
             :show-in-menu-bar="showInMenuBar"
+            :task-notification="taskNotification"
             :use-network-proxy="useNetworkProxy"
             :workspace-pane-layout="workspacePaneLayout"
             @update-permission-mode="emit('updatePermissionMode', $event)"
@@ -350,6 +353,7 @@ async function selectCategory(id: string): Promise<void> {
             @update-auto-save="emit('updateAutoSave', $event)"
             @update-language="emit('updateLanguage', $event)"
             @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
+            @update-task-notification="emit('updateTaskNotification', $event)"
             @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
             @update-workspace-pane-layout="
               emit('updateWorkspacePaneLayout', $event)

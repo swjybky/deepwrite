@@ -25,6 +25,16 @@ describe("general settings coordinator", () => {
     );
   });
 
+  it("saves the task notification choice with the other preferences", async () => {
+    const test = harness();
+    test.coordinator.updateTaskNotification(true);
+    expect(test.settings.value.taskNotification).toBe(true);
+    await test.coordinator.drain();
+    expect(test.api!.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskNotification: true })
+    );
+  });
+
   it("blocks strict close after an unsuccessful save and retries the same preferences", async () => {
     const test = harness();
     const save = vi.mocked(test.api!.save);

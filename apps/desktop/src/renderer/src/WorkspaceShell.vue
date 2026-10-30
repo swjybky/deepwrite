@@ -327,6 +327,7 @@ const {
   updateTextAttachmentMaxCharacters,
   updateContextCompaction,
   updateShowInMenuBar,
+  updateTaskNotification,
   updateUseNetworkProxy,
   updateWorkspacePaneLayout
 } = useGeneralSettingsCoordinator({
@@ -2457,6 +2458,7 @@ onBeforeUnmount(() => {
     @update-text-attachment-max-characters="updateTextAttachmentMaxCharacters"
     @update-context-compaction="updateContextCompaction"
     @update-show-in-menu-bar="updateShowInMenuBar"
+    @update-task-notification="updateTaskNotification"
     @update-use-network-proxy="updateUseNetworkProxy"
     @update-workspace-pane-layout="updateWorkspacePaneLayout"
     @update-default-text-view-mode="updateDefaultTextViewMode"

@@ -52,6 +52,8 @@ export const GeneralSettingsSchema = z
     autoSave: z.boolean(),
     language: AppLanguageSchema,
     showInMenuBar: z.boolean(),
+    /** Show a system notification when an agent run or a task settles. */
+    taskNotification: z.boolean().default(false),
     showContextUsage: z.boolean().default(true),
     textAttachmentMaxCharacters: z
       .number()
@@ -98,6 +100,7 @@ export function createDefaultGeneralSettings(): GeneralSettings {
     autoSave: true,
     language: "auto",
     showInMenuBar: true,
+    taskNotification: false,
     showContextUsage: true,
     textAttachmentMaxCharacters: PROMPT_TEXT_ATTACHMENT_DEFAULT_CONTENT_LENGTH,
     contextCompaction: createDefaultContextCompactionSettings(),

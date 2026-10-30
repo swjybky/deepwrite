@@ -1,4 +1,5 @@
 import { decompositionTargetEvent } from "./target-event";
+import { createDecompositionSettledEvents } from "./settled-event";
 import { join } from "node:path";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import {
@@ -26,6 +27,7 @@ export function withDecompositionCommands(
     "long-book-decomposition-registry.json"
   );
   const queues = new Map<string, Promise<unknown>>();
+  const settledEvent = createDecompositionSettledEvents();
   let registryTail: Promise<unknown> = Promise.resolve();
   const locations = new Map<string, string>();
   async function locate(id: string) {
@@ -218,6 +220,8 @@ export function withDecompositionCommands(
         const result = await dispatch(command);
         const event = decompositionTargetEvent(command, result);
         if (event) emitEvent?.(event);
+        const settled = settledEvent(command, result);
+        if (settled) emitEvent?.(settled);
         return result;
       });
     queues.set(key, result);

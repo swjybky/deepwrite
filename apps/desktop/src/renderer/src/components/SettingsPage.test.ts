@@ -128,6 +128,12 @@ describe("SettingsPage", () => {
     expectSourceToContain(generalSettingsSource, "emit('updateShowInMenuBar'");
   });
 
+  it("offers a persisted task notification switch next to the menu-bar one", () => {
+    expect(generalSettingsSource).toContain(':checked="taskNotification"');
+    expectSourceToContain(generalSettingsSource, "'updateTaskNotification'");
+    expect(generalSettingsSource).toContain('t("taskNotificationDescription")');
+  });
+
   it("offers a persisted network proxy switch that defaults to direct access", () => {
     expectSourceToContain(generalSettingsSource, "network");
     expectSourceToContain(generalSettingsSource, "proxy");

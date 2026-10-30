@@ -12,7 +12,9 @@ import {
   type LongMaterialProgressEventEnvelope
 } from "./long-material-pack/commands";
 import {
+  DecompositionJobSettledEventSchema,
   DecompositionTargetUpdatedEventSchema,
+  type DecompositionJobSettledEvent,
   type DecompositionTargetUpdatedEvent
 } from "./long-book-decomposition/events";
 import { ErrorPayloadSchema, type ErrorPayload } from "./error-payload";
@@ -407,6 +409,16 @@ export const SystemWorkerRestartingEventEnvelopeSchema =
     })
   });
 
+/**
+ * The system refused the confirmation shown when task notifications are
+ * switched on, so the Renderer can say why nothing appeared.
+ */
+export const SystemNotificationBlockedEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("system.notification_blocked"),
+    payload: z.object({})
+  });
+
 export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   BookIdentityUpdatedEventEnvelopeSchema,
   LongMaterialProgressEventEnvelopeSchema,
@@ -415,6 +427,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   DeviceSyncConversationsChangedEventEnvelopeSchema,
   SystemReadyEventEnvelopeSchema,
   SystemWorkerRestartingEventEnvelopeSchema,
+  SystemNotificationBlockedEventEnvelopeSchema,
   SystemWorkerRestartedEventEnvelopeSchema,
   AgentEvaluationSnapshotEventEnvelopeSchema,
   AgentTurnStartedEventEnvelopeSchema,
@@ -436,6 +449,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   SubagentDrawUpdatedEventEnvelopeSchema,
   ExtrasAgentOutputUpdatedEventEnvelopeSchema,
   DecompositionTargetUpdatedEventSchema,
+  DecompositionJobSettledEventSchema,
   SubagentAuthoringDraftUpdatedEventEnvelopeSchema,
   LongMutationProposalEventEnvelopeSchema,
   LongWorldbuildingFileProposalEventEnvelopeSchema,
@@ -462,16 +476,22 @@ export type SystemWorkerRestartingEventEnvelope = Envelope<
   { worker: UtilityWorkerName; reason: string; detectedAt: string },
   "system.worker_restarting"
 >;
+export type SystemNotificationBlockedEventEnvelope = Envelope<
+  Record<string, never>,
+  "system.notification_blocked"
+>;
 export type SystemEventEnvelope =
   | BookIdentityUpdatedEventEnvelope
   | LongMaterialProgressEventEnvelope
   | DecompositionTargetUpdatedEvent
+  | DecompositionJobSettledEvent
   | ExtrasAgentOutputUpdatedEventEnvelope
   | z.infer<typeof RendererStateFlushRequestedEventEnvelopeSchema>
   | z.infer<typeof DeviceSyncConversationLeaseEventEnvelopeSchema>
   | z.infer<typeof DeviceSyncConversationsChangedEventEnvelopeSchema>
   | SystemReadyEventEnvelope
   | SystemWorkerRestartingEventEnvelope
+  | SystemNotificationBlockedEventEnvelope
   | SystemWorkerRestartedEventEnvelope
   | AgentEvaluationSnapshotEventEnvelope
   | AgentTurnStartedEventEnvelope

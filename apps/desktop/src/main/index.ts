@@ -196,6 +196,7 @@ import {
 import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
 import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
+import { createTaskNotifier } from "./task-notification";
 import { configureBootstrapEnvironment } from "./bootstrap-environment";
 import { handleModelCommands } from "./ipc/model-commands";
 import { handleAppearanceCommands } from "./ipc/appearance-commands";
@@ -285,6 +286,21 @@ const legacySyncPreviews = new LegacySyncPreviewRegistry();
 const mainWindowStartupGate = createMainWindowStartupGate(() =>
   showMainWindow()
 );
+const taskNotifier = createTaskNotifier({
+  isEnabled: () => cachedGeneralSettings.taskNotification,
+  getWindow: () => mainWindow,
+  onActivate: () => showMainWindow(),
+  onEnableRefused: () =>
+    broadcastEvent(
+      SystemEventEnvelopeSchema.parse(
+        createEnvelope(
+          "system.notification_blocked",
+          {},
+          { id: createId("evt_notification_blocked") }
+        )
+      ) as SystemEventEnvelope
+    )
+});
 
 function broadcastEvent(event: SystemEventEnvelope): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -429,6 +445,11 @@ function handleUtilityEvent(
   const validated = SystemEventEnvelopeSchema.parse(
     event
   ) as SystemEventEnvelope;
+  if (validated.type === "decomposition.job_settled") {
+    // Only Core reports task state; Main turns it into a notification.
+    if (worker === "core") taskNotifier.notifyJobEvent(validated);
+    return;
+  }
   if (validated.type === "agent.run_drained") {
     releaseDrainedAgentRun(
       activeRuns,
@@ -464,6 +485,14 @@ function handleUtilityEvent(
       const activeRun = activeRuns.get(runId);
       const previouslyTerminal = terminalRuns.has(runId);
       rememberTerminalRun(runId);
+      taskNotifier.notifyRunEnd(validated, {
+        module: (
+          activeRun?.usageContext ??
+          pendingUsageContexts.get(validated.context.correlationId)
+        )?.module,
+        decompositionJobId: activeRun?.decompositionJobId,
+        previouslyTerminal
+      });
       // Revoke Core authority on UI termination, but keep ownership while
       // model/tool execution drains in Agent Utility.
       if (activeRun) activeRun.accepted = false;
@@ -525,6 +554,11 @@ function handleUnexpectedExit(worker: UtilityWorkerName, reason: string): void {
           }
         )
       ) as SystemEventEnvelope;
+      taskNotifier.notifyRunEnd(event, {
+        module: run.usageContext?.module,
+        decompositionJobId: run.decompositionJobId,
+        previouslyTerminal: terminalRuns.has(runId)
+      });
       rememberTerminalRun(runId);
       smokeEventTap?.(event);
       broadcastEvent(event);
@@ -1312,7 +1346,11 @@ function registerIpc(): void {
           const snapshot = GeneralSettingsSnapshotSchema.parse(
             await requireGeneralSettingsStore().save(command.payload)
           );
+          const enablesTaskNotification =
+            snapshot.settings.taskNotification &&
+            !cachedGeneralSettings.taskNotification;
           syncGeneralSettings(snapshot.settings);
+          if (enablesTaskNotification) taskNotifier.notifyEnabled();
           return {
             status: "accepted",
             requestId: command.id,
@@ -2398,6 +2436,9 @@ if (!hasSingleInstanceLock) {
     await app.whenReady();
     setNativeLanguage("auto", app.getLocale());
     Menu.setApplicationMenu(null);
+    // Windows attributes system notifications to this id; it matches appId.
+    if (process.platform === "win32")
+      app.setAppUserModelId("cn.deepwrite.desktop");
     const userDataPath = configureBootstrapEnvironment(
       app,
       import.meta.env.MAIN_VITE_DEEPWRITE_APP_MODE

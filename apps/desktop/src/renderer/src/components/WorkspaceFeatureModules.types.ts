@@ -35,6 +35,7 @@ export interface SettingsFeatureModule {
   textAttachmentMaxCharacters: number;
   contextCompaction: ContextCompactionSettings;
   showInMenuBar: boolean;
+  taskNotification: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;

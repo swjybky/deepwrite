@@ -57,6 +57,9 @@ describe("App general settings integration", () => {
     expect(source).toContain('@update-language="updateAppLanguage"');
     expect(source).toContain('@update-show-in-menu-bar="updateShowInMenuBar"');
     expect(source).toContain(
+      '@update-task-notification="updateTaskNotification"'
+    );
+    expect(source).toContain(
       '@update-use-network-proxy="updateUseNetworkProxy"'
     );
   });

@@ -20,6 +20,7 @@ export function buildSettingsFeatureModule(
       settingsStore.generalSettings.textAttachmentMaxCharacters,
     contextCompaction: settingsStore.generalSettings.contextCompaction,
     showInMenuBar: settingsStore.generalSettings.showInMenuBar,
+    taskNotification: settingsStore.generalSettings.taskNotification,
     useNetworkProxy: settingsStore.generalSettings.useNetworkProxy,
     workspacePaneLayout: settingsStore.generalSettings.workspacePaneLayout,
     defaultTextViewMode: settingsStore.generalSettings.defaultTextViewMode,

@@ -25,6 +25,11 @@ export default {
   english: "English",
   menuBar: "在菜单栏中显示",
   menuBarDescription: "关闭主窗口后，仍在菜单栏中保留应用图标",
+  taskNotification: "任务完成通知",
+  taskNotificationBlocked:
+    "系统未允许 DeepWrite 发送通知，任务完成通知暂时无法生效。请先在系统的通知设置中允许 DeepWrite，再重新打开此开关。",
+  taskNotificationDescription:
+    "智能体任务或整书拆解结束时发送系统通知；主窗口在前台时不打扰",
   network: "网络设置",
   proxy: "网络代理",
   proxyDescription:

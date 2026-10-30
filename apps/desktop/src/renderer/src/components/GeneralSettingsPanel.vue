@@ -16,6 +16,7 @@ defineProps<{
   autoSaveEnabled: boolean;
   language: AppLanguage;
   showInMenuBar: boolean;
+  taskNotification: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
 }>();
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   updateAutoSave: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowInMenuBar: [enabled: boolean];
+  updateTaskNotification: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
 }>();
@@ -174,6 +176,22 @@ const workspacePaneLayoutOptions = computed<
             @change="
               emit(
                 'updateShowInMenuBar',
+                ($event.target as HTMLInputElement).checked
+              )
+            " /></span
+      ></label>
+      <label class="settings-item"
+        ><span class="settings-item-text"
+          ><strong>{{ t("taskNotification") }}</strong
+          ><small>{{ t("taskNotificationDescription") }}</small></span
+        ><span class="settings-toggle"
+          ><input
+            type="checkbox"
+            :checked="taskNotification"
+            :aria-label="t('taskNotification')"
+            @change="
+              emit(
+                'updateTaskNotification',
                 ($event.target as HTMLInputElement).checked
               )
             " /></span

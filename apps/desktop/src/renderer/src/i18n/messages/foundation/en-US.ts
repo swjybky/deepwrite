@@ -32,6 +32,11 @@ export default {
   menuBar: "Show in menu bar",
   menuBarDescription:
     "Keep the app icon in the menu bar after closing the main window",
+  taskNotification: "Task completion notifications",
+  taskNotificationBlocked:
+    "The system did not allow DeepWrite to send notifications, so task notifications cannot appear yet. Allow DeepWrite in your system notification settings, then turn this switch off and on again.",
+  taskNotificationDescription:
+    "Send a system notification when an agent task or book decomposition finishes. Stays quiet while the main window is in the foreground.",
   network: "Network settings",
   proxy: "Network proxy",
   proxyDescription:

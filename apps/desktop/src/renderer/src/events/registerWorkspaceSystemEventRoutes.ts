@@ -1,4 +1,5 @@
 import type { SystemEventEnvelope } from "@deepwrite/contracts";
+import { subscribeNotificationBlockedToast } from "./notificationBlockedToast";
 import type { SystemEventCenter } from "./systemEventCenter";
 
 type EventOf<Type extends SystemEventEnvelope["type"]> = Extract<
@@ -117,7 +118,9 @@ export function registerWorkspaceSystemEventRoutes(
             queued.runId === event.payload.runId
         );
       }
-    })
+    }),
+    // Independent of the routes above: it only shows a toast.
+    subscribeNotificationBlockedToast(center)
   ];
   let disposed = false;
 

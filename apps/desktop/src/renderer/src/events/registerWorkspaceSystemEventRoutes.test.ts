@@ -5,6 +5,7 @@ import {
   type WorkspaceSystemEventRouteDependencies
 } from "./registerWorkspaceSystemEventRoutes";
 import { createSystemEventCenter } from "./systemEventCenter";
+import { dismissUiMessage, uiMessageItems } from "../ui-feedback";
 
 function event(value: unknown): SystemEventEnvelope {
   return value as SystemEventEnvelope;
@@ -115,6 +116,21 @@ describe("workspace system event routes", () => {
 
     expect(conversation.handleEvent).toHaveBeenCalledWith(received);
     expect(dependencies.onAsyncError).toHaveBeenCalledWith(failure, received);
+  });
+
+  it("explains a refused notification with a toast, until the routes are released", () => {
+    const center = createSystemEventCenter();
+    const { dependencies } = createDependencies();
+    const dispose = registerWorkspaceSystemEventRoutes(center, dependencies);
+    const refused = event({ type: "system.notification_blocked", payload: {} });
+
+    center.publish(refused);
+    expect(uiMessageItems.value).toHaveLength(1);
+    for (const item of [...uiMessageItems.value]) dismissUiMessage(item.id);
+
+    dispose();
+    center.publish(refused);
+    expect(uiMessageItems.value).toHaveLength(0);
   });
 
   it("releases every route once and ignores repeated disposal", () => {

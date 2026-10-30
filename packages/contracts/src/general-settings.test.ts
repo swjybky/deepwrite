@@ -33,6 +33,21 @@ describe("general settings contracts", () => {
     });
   });
 
+  it("leaves task notifications off until the user turns them on", () => {
+    expect(createDefaultGeneralSettings().taskNotification).toBe(false);
+    const parsed = GeneralSettingsSchema.parse({
+      permissionMode: "auto-approve",
+      autoSave: true,
+      language: "auto",
+      showInMenuBar: true
+    });
+    expect(parsed.taskNotification).toBe(false);
+    expect(
+      GeneralSettingsSchema.parse({ ...parsed, taskNotification: true })
+        .taskNotification
+    ).toBe(true);
+  });
+
   it("enables both automatic approval preferences by default", () => {
     expect(createDefaultGeneralSettings()).toMatchObject({
       permissionMode: "auto-approve",
