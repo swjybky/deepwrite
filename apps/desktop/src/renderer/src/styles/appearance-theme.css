@@ -283,6 +283,7 @@ html[data-theme] .view-tabs button.is-active {
 }
 
 html[data-theme] .send-button:disabled,
+html[data-theme] .send-button.is-blocked,
 html[data-theme] .save-button:disabled {
   background: var(--surface-selected);
   color: var(--text-tertiary);

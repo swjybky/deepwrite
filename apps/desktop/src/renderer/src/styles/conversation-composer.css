@@ -479,7 +479,8 @@
   background: var(--text-primary);
 }
 
-.send-button:disabled {
+.send-button:disabled,
+.send-button.is-blocked {
   background: var(--theme-line);
   color: var(--sidebar-surface);
 }

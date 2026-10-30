@@ -25,5 +25,6 @@ export default {
   voiceInput: "Voice input",
   sendMessage: "Send message",
   stopGeneration: "Stop generation",
+  reviewBlocksSend: "{count} edit proposal(s) need review before you can send.",
   withdrawTooManyAttachments: "Too many attachments; some were not moved back."
 };

@@ -24,5 +24,6 @@ export default {
   voiceInput: "语音输入",
   sendMessage: "发送消息",
   stopGeneration: "停止生成",
+  reviewBlocksSend: "还有 {count} 条修改提案未处理，处理后才能发送。",
   withdrawTooManyAttachments: "附件过多，部分附件未能放回输入框。"
 };

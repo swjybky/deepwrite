@@ -29,6 +29,8 @@ export function useConversationComposer(options: {
   /** While the agent runs, submitting queues the message instead. */
   responding?: () => boolean;
   canQueue?: () => boolean;
+  /** Enter pressed while the message cannot be sent. */
+  onSubmitBlocked?: () => void;
   runtimeAvailable: () => boolean;
   libraryDomain: () => LibraryAgentDomain | undefined;
   availableSkills: () => readonly ComposerReferenceOption[];
@@ -307,6 +309,7 @@ export function useConversationComposer(options: {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     event.preventDefault();
     if (canSubmit.value) submitMessage();
+    else options.onSubmitBlocked?.();
   }
 
   return {

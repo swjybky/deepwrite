@@ -322,6 +322,7 @@ export default {
       "The agent stopped before tool calls returned their final state."
   },
   sendMessage: {
+    acceptStalled: "Applying the change timed out. Try again.",
     messageExceedsContextBudget:
       "The message and attachments need about {used} tokens, above the available {limit} tokens. A 10% reserve is kept within your {budget}-token compaction budget. Shorten the content or adjust the setting.",
     messageTooLong:

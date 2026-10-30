@@ -1,3 +1,7 @@
+import {
+  countPendingEditReviews,
+  createAcceptingWatchdog
+} from "./agent-conversation/pending-review";
 import { createPersistenceJournal } from "./agent-conversation/persistence-journal";
 import { createHistoryLoader } from "./agent-conversation/history-loading";
 import { createHistoryManagement } from "./agent-conversation/history-management";
@@ -58,13 +62,8 @@ export function useAgentConversation(
       ctx.historyOperationPending.value ||
       ctx.activeRunId.value !== null
   );
-  ctx.hasPendingEditReview = computed(() =>
-    ctx.messages.value.some((message) =>
-      message.editProposals?.some(
-        (proposal) =>
-          proposal.status === "pending" || proposal.status === "accepting"
-      )
-    )
+  ctx.hasPendingEditReview = computed(
+    () => countPendingEditReviews(ctx.messages.value) > 0
   );
   ctx.canSend = computed(
     () =>
@@ -95,6 +94,7 @@ export function useAgentConversation(
       !ctx.stopping.value
   );
   ctx.followUps = createFollowUpQueue(ctx);
+  const stopAcceptingWatchdog = createAcceptingWatchdog(ctx);
   ctx.history = createConversationHistory({
     ...ctx,
     createdAt: ctx.currentCreatedAt,
@@ -215,6 +215,7 @@ export function useAgentConversation(
       // Unsent follow-ups go back into the saved draft rather than vanish.
       const queuedTexts = ctx.followUps.takeTexts();
       ctx.followUps.stop();
+      stopAcceptingWatchdog();
       if (queuedTexts.length && !disposeOptions?.clearPersistence) {
         ctx.draft.value = [...queuedTexts, ctx.draft.value]
           .filter((text) => text.trim())

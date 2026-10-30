@@ -25,6 +25,8 @@ import { PROMPT_ATTACHMENT_ACCEPT } from "../utils/promptAttachments";
 import { useConversationAttachments } from "../composables/useConversationAttachments";
 import { useConversationComposer } from "../composables/useConversationComposer";
 import { useAttachmentDrop } from "../composables/useAttachmentDrop";
+import { countPendingEditReviews } from "../composables/agent-conversation/pending-review";
+import { uiMessage } from "../ui-feedback";
 import { useVoiceInput } from "../composables/useVoiceInput";
 import { useComposerQueue } from "../composables/useComposerQueue";
 import type { FollowUpQueueController } from "../composables/agent-conversation/follow-up-queue";
@@ -163,6 +165,9 @@ const {
   canSendAttachments: () => props.canSendAttachments,
   responding: () => props.responding,
   canQueue: () => props.followUps?.canQueue.value ?? false,
+  onSubmitBlocked: () => {
+    if (blockedByReview.value) notifyReviewBlocked();
+  },
   runtimeAvailable: () => props.runtimeAvailable,
   libraryDomain: () => props.libraryDomain,
   availableSkills: () => props.availableSkills,
@@ -182,6 +187,22 @@ const {
   emitClearEditorReferences: () => emit("clearEditorReferences")
 });
 closeReferenceMenuHolder.run = closeReferenceMenu;
+const pendingReviewCount = computed(() =>
+  countPendingEditReviews(props.messages)
+);
+const blockedByReview = computed(
+  () =>
+    !props.responding &&
+    !canSubmit.value &&
+    hasContent.value &&
+    pendingReviewCount.value > 0
+);
+const reviewBlockedText = computed(() =>
+  t("reviewBlocksSend", { count: pendingReviewCount.value })
+);
+function notifyReviewBlocked(): void {
+  uiMessage.warning(reviewBlockedText.value);
+}
 const {
   draggingFiles,
   handleDragEnter,
@@ -536,9 +557,14 @@ defineExpose({ focusInput });
                 v-if="!responding || (followUps && hasContent)"
                 class="send-button"
                 type="button"
+                :class="{ 'is-blocked': blockedByReview }"
                 :aria-label="t('sendMessage')"
-                :disabled="!canSubmit"
-                @click="submitMessage"
+                :aria-disabled="!canSubmit"
+                :title="blockedByReview ? reviewBlockedText : undefined"
+                :disabled="!canSubmit && !blockedByReview"
+                @click="
+                  blockedByReview ? notifyReviewBlocked() : submitMessage()
+                "
               >
                 <AppIcon name="arrow-up" :size="18" />
               </button>
