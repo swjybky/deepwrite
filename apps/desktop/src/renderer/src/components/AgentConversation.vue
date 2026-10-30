@@ -172,7 +172,7 @@ const {
   currentSessionId: () => props.currentSessionId,
   longProposalItems: () => props.longProposalItems,
   pendingMessageIds: () =>
-    props.followUps?.items.value.map((item) => item.id) ?? [],
+    props.followUps?.sentItems.value.map((item) => item.id) ?? [],
   onScroll: () => scheduleActiveConversationTurnUpdate()
 });
 const messageList = ref<HTMLElement>();
@@ -364,7 +364,7 @@ const {
           :allow-live-edit-review="allowLiveEditReview"
           :long-proposal-items="longProposalItems"
           :long-workspace-index="longWorkspaceIndex"
-          :pending-messages="followUps?.items.value"
+          :pending-messages="followUps?.sentItems.value"
           :welcome-content="welcomeContent"
           :show-welcome-details="
             agentWorkspaceType !== 'short' && agentWorkspaceType !== 'long'

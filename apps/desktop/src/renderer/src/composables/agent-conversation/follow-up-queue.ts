@@ -22,9 +22,8 @@ const tSend = createScopedTranslator("workspace.sendMessage");
 export const FOLLOW_UP_QUEUE_MAX_ITEMS = 5;
 
 /**
- * A message sent while the agent works, shown as the user's bubble until it
- * lands. `steering` was handed to the run for its next model call, `queued`
- * waits to be sent as the next turn (images, or a steer the run missed), and
+ * A message typed while the agent works. `queued` follows the run as the next
+ * turn, `steering` was handed to the run for its next model call, and
  * `sending` is being sent as a new turn.
  */
 export interface QueuedComposerMessage {
@@ -35,6 +34,8 @@ export interface QueuedComposerMessage {
   state: "queued" | "steering" | "sending";
   /** The run a steer went to; unset while it waits for the run id. */
   steerRunId?: string;
+  /** The user sent it now: it shows in the conversation, not above the composer. */
+  sentNow?: boolean;
 }
 
 /** Sends one queued message through the coordinator's ordinary send path. */
@@ -57,17 +58,23 @@ interface FollowUpQueueState {
 
 export interface FollowUpQueueController {
   items: ComputedRef<readonly QueuedComposerMessage[]>;
+  /** Waiting above the composer for the run to end. */
+  waitingItems: ComputedRef<readonly QueuedComposerMessage[]>;
+  /** Already sent by the user; shown in the conversation until they land. */
+  sentItems: ComputedRef<readonly QueuedComposerMessage[]>;
   paused: ComputedRef<boolean>;
   canQueue: ComputedRef<boolean>;
+  /** True when a queued message could start a new turn right now. */
+  canSendNow: ComputedRef<boolean>;
+  reviewPending: ComputedRef<boolean>;
   /** A queued message is on its way out; the draft is not being sent. */
   dispatching: ComputedRef<boolean>;
-  /**
-   * Sends the draft into the running turn, or holds it for the next turn when
-   * it cannot steer; false when too many messages are waiting.
-   */
+  /** Moves the draft into the queue; false when the queue is full. */
   enqueue(attachments: UserPromptAttachment[]): boolean;
   /** Removes a queued message so the composer can take it back. */
   withdraw(itemId: string): QueuedComposerMessage | undefined;
+  /** Steers the running agent, or sends now when nothing runs. */
+  sendNow(itemId: string): void;
   setDispatcher(dispatcher: FollowUpDispatcher | null): void;
   markDelivered(steerId: string): void;
   /** Unsent texts of the current conversation, for folding into the draft. */
@@ -164,20 +171,19 @@ export function createFollowUpQueue(
         );
         if (live?.state !== "steering" || live.steerRunId !== runId) return;
         returnToFront(queues.value[sessionId]!, [live]);
-        // A run that already ended takes it as the next turn instead.
+        // A run that just ended takes it as the next turn instead.
         const code = getErrorPayload(error)?.code;
-        if (code !== "agent.run_not_active" && code !== "agent.steering_closed")
-          uiMessage.warning(formatError(error, t("steerFailed")));
+        if (code === "agent.run_not_active" || code === "agent.steering_closed")
+          return;
+        delete live.sentNow;
+        uiMessage.warning(formatError(error, t("steerFailed")));
       });
   }
 
-  function steer(item: QueuedComposerMessage): void {
-    // Images cannot join a running turn; they wait for the next one.
-    if (item.attachments.some((attachment) => attachment.kind === "image"))
-      return;
-    item.state = "steering";
-    const runId = ctx.activeRunId.value;
-    if (runId) submitSteer(item, runId);
+  /** Nothing leaves on its own while paused, so everything waits in the queue. */
+  function pause(queue: FollowUpQueueState): void {
+    queue.paused = true;
+    for (const item of queue.items) delete item.sentNow;
   }
 
   async function dispatch(
@@ -207,17 +213,14 @@ export function createFollowUpQueue(
       dispatching.value = false;
     }
     if (queued.sent && !queued.failed) return;
-    // Unsent or rejected: the composer takes the words back.
+    // Unsent or rejected: keep the words and wait for the user.
     const queue = queueFor(sessionId);
     if (queued.sent) queue.items.unshift({ ...item, state: "queued" });
     else item.state = "queued";
-    queue.paused = true;
+    pause(queue);
   }
 
-  /**
-   * A run ended: missed steers wait for the next turn. After a stop or a
-   * failure the queue pauses and the composer takes the messages back.
-   */
+  /** A run ended: return missed steers and decide whether to keep following. */
   function settleRun(runId: string): void {
     const sessionId = ctx.sessionId.value;
     const queue = queues.value[sessionId];
@@ -229,7 +232,7 @@ export function createFollowUpQueue(
     const reply = ctx.messages.value.find(
       (message) => message.role === "assistant" && message.runId === runId
     );
-    if (reply?.status !== "completed") queue.paused = true;
+    if (reply?.status !== "completed") pause(queue);
   }
 
   const scope = effectScope(true);
@@ -271,7 +274,11 @@ export function createFollowUpQueue(
 
   return {
     items,
+    waitingItems: computed(() => items.value.filter((item) => !item.sentNow)),
+    sentItems: computed(() => items.value.filter((item) => item.sentNow)),
     paused,
+    canSendNow: canSendNewTurn,
+    reviewPending: computed(() => ctx.hasPendingEditReview.value),
     dispatching: computed(() => dispatching.value),
     canQueue: computed(
       () =>
@@ -301,7 +308,6 @@ export function createFollowUpQueue(
         state: "queued"
       });
       ctx.draft.value = "";
-      if (ctx.isBusy.value) steer(queue.items.at(-1)!);
       return true;
     },
     withdraw(itemId) {
@@ -313,6 +319,25 @@ export function createFollowUpQueue(
       const taken = { ...item, attachments: [...item.attachments] };
       remove(sessionId, itemId);
       return taken;
+    },
+    sendNow(itemId) {
+      const sessionId = ctx.sessionId.value;
+      const queue = queues.value[sessionId];
+      const item = queue?.items.find((entry) => entry.id === itemId);
+      if (!queue || item?.state !== "queued") return;
+      if (!ctx.isBusy.value) {
+        if (!canSendNewTurn.value) return;
+        queue.paused = false;
+        item.sentNow = true;
+        void dispatch(sessionId, item);
+        return;
+      }
+      if (item.attachments.some((attachment) => attachment.kind === "image"))
+        return;
+      item.sentNow = true;
+      item.state = "steering";
+      const runId = ctx.activeRunId.value;
+      if (runId) submitSteer(item, runId);
     },
     setDispatcher(next) {
       dispatcher.value = next;

@@ -26,5 +26,12 @@ export default {
   sendMessage: "Send message",
   stopGeneration: "Stop generation",
   reviewBlocksSend: "{count} edit proposal(s) need review before you can send.",
-  withdrawTooManyAttachments: "Too many attachments; some were not moved back."
+  queueMessage: "Queue",
+  queuedMessages: "Queued messages",
+  withdrawQueued: "Move back to input",
+  steerNow: "Add to this reply now",
+  sendQueuedNow: "Send now",
+  imageNeedsNextTurn: "Images go in the next turn",
+  reviewFirst: "Review changes first",
+  withdrawTooManyAttachments: "Too many attachments to move back."
 };

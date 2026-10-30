@@ -40,6 +40,7 @@ import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
 import PopupSelect from "./PopupSelect.vue";
 import ComposerContextBar from "./ComposerContextBar.vue";
 import ComposerMoreSettings from "./ComposerMoreSettings.vue";
+import ComposerQueuedMessages from "./ComposerQueuedMessages.vue";
 import VoiceInputBar from "./VoiceInputBar.vue";
 
 const t = createScopedTranslator("components.conversationComposer");
@@ -256,11 +257,12 @@ const voice = useVoiceInput({
 
 // Without a queue the composer keeps waiting for the run, as before.
 const lockedWhileRunning = computed(() => props.responding && !props.followUps);
-useComposerQueue({
-  queue: () => props.followUps,
+const queue = useComposerQueue({
   draft: () => props.draft,
   emitDraft: (value) => emit("update:draft", value),
+  input: composerInput,
   pendingAttachments,
+  take: (itemId) => props.followUps?.withdraw(itemId),
   tooManyAttachments: () => t("withdrawTooManyAttachments")
 });
 
@@ -367,6 +369,15 @@ defineExpose({ focusInput });
         </div>
       </div>
 
+      <ComposerQueuedMessages
+        v-if="followUps?.waitingItems.value.length"
+        :items="followUps.waitingItems.value"
+        :responding="responding"
+        :has-pending-edit-review="followUps.reviewPending.value"
+        :can-send-now="followUps.canSendNow.value"
+        @withdraw="queue.withdraw"
+        @send-now="followUps.sendNow"
+      />
       <div class="composer" :class="{ 'is-disabled': lockedWhileRunning }">
         <ComposerContextBar
           v-if="messagesEmpty"
@@ -558,9 +569,15 @@ defineExpose({ focusInput });
                 class="send-button"
                 type="button"
                 :class="{ 'is-blocked': blockedByReview }"
-                :aria-label="t('sendMessage')"
+                :aria-label="responding ? t('queueMessage') : t('sendMessage')"
                 :aria-disabled="!canSubmit"
-                :title="blockedByReview ? reviewBlockedText : undefined"
+                :title="
+                  blockedByReview
+                    ? reviewBlockedText
+                    : responding
+                      ? t('queueMessage')
+                      : undefined
+                "
                 :disabled="!canSubmit && !blockedByReview"
                 @click="
                   blockedByReview ? notifyReviewBlocked() : submitMessage()

@@ -1,6 +1,5 @@
-import { effectScope, nextTick, ref } from "vue";
+import { nextTick } from "vue";
 import type { UserPromptAttachment } from "@deepwrite/contracts";
-import { useComposerQueue } from "./useComposerQueue";
 import {
   createDeferredApi,
   createEnvelope,
@@ -98,13 +97,20 @@ function delivered(sessionId: string, runId: string, steerId: string) {
 }
 
 describe("agent conversation controller: follow-up queue", () => {
-  it("sends a message the run missed as the next turn without touching the draft", async () => {
+  it("waits above the composer and follows the run without touching the draft", async () => {
     const { controller, deferred, sessionId, runId } = await startRun();
     expect(controller.followUps.canQueue.value).toBe(true);
     controller.draft.value = "主角改名林舟";
     expect(controller.followUps.enqueue([])).toBe(true);
     expect(controller.draft.value).toBe("");
     controller.draft.value = "还在想的下一句";
+
+    // Sending only queues it: nothing reaches the run until the user says so.
+    expect(deferred.steers).toEqual([]);
+    expect(
+      controller.followUps.waitingItems.value.map((item) => item.content)
+    ).toEqual(["主角改名林舟"]);
+    expect(controller.followUps.sentItems.value).toEqual([]);
 
     controller.handleEvent(completed(sessionId, runId));
     await settle();
@@ -149,41 +155,31 @@ describe("agent conversation controller: follow-up queue", () => {
     expect(deferred.prompts[2]?.message).toBe("第二条");
   });
 
-  it("hands the messages back to the composer after a stop", async () => {
+  it("pauses after a stop and sends only when asked", async () => {
     const { controller, deferred, sessionId, runId } = await startRun();
     controller.draft.value = "停下后再说";
     controller.followUps.enqueue([]);
-    controller.draft.value = "还有一句";
-    controller.followUps.enqueue([image]);
-    controller.draft.value = "正在写";
-    const pendingAttachments = ref<UserPromptAttachment[]>([]);
-    const scope = effectScope();
-    scope.run(() =>
-      useComposerQueue({
-        queue: () => controller.followUps,
-        draft: () => controller.draft.value,
-        emitDraft: (value) => {
-          controller.draft.value = value;
-        },
-        pendingAttachments,
-        tooManyAttachments: () => "附件过多"
-      })
-    );
 
     controller.handleEvent(aborted(sessionId, runId));
     await settle();
-    scope.stop();
     expect(deferred.prompts).toHaveLength(1);
-    expect(controller.followUps.items.value).toEqual([]);
-    expect(controller.draft.value).toBe("停下后再说\n还有一句\n正在写");
-    expect(pendingAttachments.value).toEqual([image]);
+    expect(controller.followUps.paused.value).toBe(true);
+
+    const item = controller.followUps.items.value[0]!;
+    controller.followUps.sendNow(item.id);
+    await settle();
+    expect(deferred.prompts[1]?.message).toBe("停下后再说");
   });
 
-  it("holds an image for the next turn instead of steering", async () => {
+  it("keeps an image for the next turn when asked to send it now", async () => {
     const { controller, deferred, sessionId, runId } = await startRun();
     controller.draft.value = "看这张图";
     controller.followUps.enqueue([image]);
+    const item = controller.followUps.items.value[0]!;
+
+    controller.followUps.sendNow(item.id);
     expect(controller.followUps.items.value[0]?.state).toBe("queued");
+    expect(controller.followUps.waitingItems.value).toHaveLength(1);
     expect(deferred.steers).toEqual([]);
 
     controller.handleEvent(completed(sessionId, runId));
@@ -197,7 +193,13 @@ describe("agent conversation controller: follow-up queue", () => {
     controller.followUps.enqueue([]);
     const item = controller.followUps.items.value[0]!;
 
-    expect(item.state).toBe("steering");
+    controller.followUps.sendNow(item.id);
+    expect(controller.followUps.items.value[0]?.state).toBe("steering");
+    // Send now moves it from above the composer into the conversation.
+    expect(controller.followUps.waitingItems.value).toEqual([]);
+    expect(
+      controller.followUps.sentItems.value.map((entry) => entry.content)
+    ).toEqual(["主角改名林舟"]);
     expect(deferred.steers).toEqual([
       { sessionId, runId, steerId: item.id, message: "主角改名林舟" }
     ]);
@@ -226,33 +228,67 @@ describe("agent conversation controller: follow-up queue", () => {
     );
   });
 
-  it("sends a steer that missed the run as the next turn", async () => {
+  it("sends a steer that missed the run as the next turn from its bubble", async () => {
     const { controller, deferred, sessionId, runId } = await startRun();
     controller.draft.value = "没赶上的补充";
     controller.followUps.enqueue([]);
+    controller.followUps.sendNow(controller.followUps.items.value[0]!.id);
 
     controller.handleEvent(completed(sessionId, runId));
+    expect(controller.followUps.waitingItems.value).toEqual([]);
     await settle();
     expect(deferred.prompts[1]?.message).toBe("没赶上的补充");
+    expect(controller.followUps.items.value).toEqual([]);
   });
 
-  it("returns a refused steer to the queue", async () => {
+  it("moves an undelivered steer back above the composer after a stop", async () => {
+    const { controller, deferred, sessionId, runId } = await startRun();
+    controller.draft.value = "停下时还没送达";
+    controller.followUps.enqueue([]);
+    controller.followUps.sendNow(controller.followUps.items.value[0]!.id);
+
+    controller.handleEvent(aborted(sessionId, runId));
+    await settle();
+    expect(deferred.prompts).toHaveLength(1);
+    expect(controller.followUps.sentItems.value).toEqual([]);
+    expect(
+      controller.followUps.waitingItems.value.map((item) => item.state)
+    ).toEqual(["queued"]);
+  });
+
+  it("keeps a steer refused at the end of the run for the next turn", async () => {
     const { controller, deferred } = await startRun();
-    vi.spyOn(deferred.api.session, "steer").mockRejectedValueOnce(
-      Object.assign(new Error("本轮已在收尾"), {
-        payload: { code: "agent.steering_closed", message: "本轮已在收尾" }
-      })
-    );
+    vi.spyOn(deferred.api.session, "steer").mockRejectedValueOnce({
+      code: "agent.steering_closed",
+      message: "本轮已在收尾"
+    });
     controller.draft.value = "被拒的补充";
     controller.followUps.enqueue([]);
+    controller.followUps.sendNow(controller.followUps.items.value[0]!.id);
     await settle();
     expect(controller.followUps.items.value[0]?.state).toBe("queued");
+    expect(controller.followUps.waitingItems.value).toEqual([]);
   });
 
-  it("gives a waiting message back and folds unsent ones into the draft", async () => {
+  it("returns a steer that failed outright to the queue", async () => {
+    const { controller, deferred } = await startRun();
+    vi.spyOn(deferred.api.session, "steer").mockRejectedValueOnce(
+      new Error("通道断开")
+    );
+    controller.draft.value = "发不出去的补充";
+    controller.followUps.enqueue([]);
+    controller.followUps.sendNow(controller.followUps.items.value[0]!.id);
+    await settle();
+    expect(controller.followUps.sentItems.value).toEqual([]);
+    expect(
+      controller.followUps.waitingItems.value.map((item) => item.state)
+    ).toEqual(["queued"]);
+  });
+
+  it("gives a withdrawn message back and folds unsent ones into the draft", async () => {
     const { controller } = await startRun();
     controller.draft.value = "先撤回";
-    controller.followUps.enqueue([image]);
+    controller.followUps.enqueue([]);
     controller.draft.value = "留在队列";
     controller.followUps.enqueue([]);
     const [first] = controller.followUps.items.value;

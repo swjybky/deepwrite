@@ -25,5 +25,12 @@ export default {
   sendMessage: "发送消息",
   stopGeneration: "停止生成",
   reviewBlocksSend: "还有 {count} 条修改提案未处理，处理后才能发送。",
-  withdrawTooManyAttachments: "附件过多，部分附件未能放回输入框。"
+  queueMessage: "加入排队",
+  queuedMessages: "排队消息",
+  withdrawQueued: "删除并放回输入框",
+  steerNow: "立即插入本轮",
+  sendQueuedNow: "立即发送",
+  imageNeedsNextTurn: "含图片，只能下一轮发送",
+  reviewFirst: "先审阅修改",
+  withdrawTooManyAttachments: "附件过多，无法放回输入框。"
 };

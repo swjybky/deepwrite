@@ -263,7 +263,7 @@ export default {
       "联网搜索未启用或未配置密钥，请先在设置 → 个人 → 联网搜索中开启"
   },
   followUpQueue: {
-    steerFailed: "插入本轮失败，本轮结束后会作为新消息发送。",
+    steerFailed: "插话失败，已放回排队。",
     queueIsFull: "最多排队 {count} 条。"
   },
   history: {

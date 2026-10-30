@@ -280,7 +280,7 @@ export default {
       "Web search is off or has no key. Turn it on under Settings > Personal > Web search"
   },
   followUpQueue: {
-    steerFailed: "Could not add it to this reply; it will be sent next.",
+    steerFailed: "Could not add it; it is queued again.",
     queueIsFull: "Up to {count} queued messages."
   },
   history: {
