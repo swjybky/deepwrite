@@ -243,6 +243,7 @@ export function useLongBookDecomposition(options: {
       await inspect();
     },
     async saveProfiles(next: LongBookDecompositionProfile[]) {
+      const previous = new Set(profiles.value.map(({ id }) => id));
       profiles.value = (
         await api().extrasAgents.profiles.save({
           agentId: "long-book-decomposition",
@@ -255,6 +256,13 @@ export function useLongBookDecomposition(options: {
           }))
         })
       ).profiles;
+      // A profile created in this save is the one the user means to run next.
+      const created = profiles.value
+        .filter(({ id, builtin }) => !builtin && !previous.has(id))
+        .at(-1);
+      if (created) profileId.value = created.id;
+      else if (!profiles.value.some(({ id }) => id === profileId.value))
+        profileId.value = profiles.value[0]?.id ?? profileId.value;
     },
     async loadProfileDefaults() {
       return (

@@ -68,9 +68,6 @@ async function save(): Promise<void> {
   saving.value = true;
   try {
     await props.controller.saveProfiles(snapshot());
-    const { profiles, profileId } = props.controller;
-    if (!profiles.value.some(({ id }) => id === profileId.value))
-      profileId.value = profiles.value[0]?.id ?? profileId.value;
     uiMessage.success(t("profilesSaved"));
     emit("close");
   } catch (error) {
