@@ -14,6 +14,7 @@ import {
 import { decompositionResourceId } from "./identity";
 import { assertDecompositionMaterialCapacity } from "./capacity";
 import { appendDecompositionSourceChapters } from "./source-chapters";
+import { resetWorldCategoriesToProfile } from "./long-world-assets";
 
 const kinds = ["character", "plot", "draft", "other", "gimmick"] as const;
 const kindNames = {
@@ -140,6 +141,10 @@ export async function prepareDecompositionTarget(
           loaded.index.plot.arcs = [];
           loaded.index.plot.chapterCards = [];
           loaded.index.chapters = [];
+          const worldOperations = await resetWorldCategoriesToProfile(
+            job,
+            loaded
+          );
           loaded.index.writeReceipts = [
             ...(loaded.index.writeReceipts ?? []),
             {
@@ -150,6 +155,7 @@ export async function prepareDecompositionTarget(
           ];
           return {
             operations: [
+              ...worldOperations,
               {
                 path: `long/analysis/receipts/${marker}.md`,
                 content: prep.operationId,

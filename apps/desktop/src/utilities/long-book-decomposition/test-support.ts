@@ -6,7 +6,8 @@ import {
   LongBookDecompositionJobSchema,
   splitDecompositionChunks,
   type LongBookAnalysisSource,
-  type LongBookDecompositionJob
+  type LongBookDecompositionJob,
+  type LongBookDecompositionProfile
 } from "@deepwrite/contracts";
 import { LongBookAnalysisSourceStore } from "../../extras/agents/sources/long-book-source-store";
 import { LongWorkspaceService } from "../long-workspace-service";
@@ -16,7 +17,8 @@ import { DecompositionService } from "./service";
 export async function decompositionFixture(
   mode: LongBookDecompositionJob["mode"],
   chapterCount = 3,
-  chapterText?: (order: number) => string
+  chapterText?: (order: number) => string,
+  profile: LongBookDecompositionProfile = DEFAULT_DECOMPOSITION_PROFILE
 ) {
   const root = await realpath(
     await mkdtemp(join(tmpdir(), "deepwrite-decomposition-"))
@@ -79,7 +81,7 @@ export async function decompositionFixture(
       ),
       range: confirmation.range
     },
-    profile: DEFAULT_DECOMPOSITION_PROFILE,
+    profile,
     models: { reading: model, integration: model },
     chunks: splitDecompositionChunks(saved.chapters, model),
     targetSelection: {

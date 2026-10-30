@@ -6,6 +6,9 @@ import {
   type LongBookDecompositionJob,
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
+import type { ProjectTransactionFileOperation } from "../project-transaction";
+import { readSecureTextFile } from "../long-project-store/io";
+import type { LoadedLongProject } from "../long-project-store/types";
 import { decompositionResourceId } from "./identity";
 import type { NativeAssetWriter } from "./long-native-assets";
 
@@ -13,8 +16,68 @@ type LongWorldbuildingCategory =
   LongWorkspaceIndexSnapshot["worldbuilding"][number];
 
 /**
- * A new book already carries the default list categories (规则、势力……). Reuse an
- * empty one with the same title instead of adding a duplicate beside it.
+ * An empty continuation target takes the profile's categories in place of the
+ * new-book defaults (规则、势力……), so unused defaults never linger beside them.
+ * The caller has already checked that every category and file is empty.
+ */
+export async function resetWorldCategoriesToProfile(
+  job: LongBookDecompositionJob,
+  loaded: LoadedLongProject
+): Promise<ProjectTransactionFileOperation[]> {
+  const operations: ProjectTransactionFileOperation[] = [];
+  for (const category of loaded.index.worldbuilding) {
+    const files =
+      category.format === "text"
+        ? [category.file]
+        : [
+            ...(category.overview ? [category.overview] : []),
+            ...category.items.map(({ file }) => file)
+          ];
+    for (const { path } of files) {
+      try {
+        const { sha256 } = await readSecureTextFile(
+          loaded.projectDirectory,
+          path,
+          32 * 1024 * 1024
+        );
+        operations.push({ action: "delete", path, expectedSha256: sha256 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+  }
+  const now = new Date().toISOString();
+  loaded.index.worldbuilding = job.profile.worldCategories.map(
+    ({ id: key, title }, index) => {
+      const id = decompositionResourceId("world", job.id, key);
+      const overview = {
+        id: longWorldbuildingOverviewFileId(id),
+        path: longWorldbuildingOverviewContentPath(id),
+        updatedAt: now
+      };
+      operations.push({
+        path: overview.path,
+        content: "",
+        expectedSha256: null
+      });
+      return {
+        id,
+        title,
+        order: index + 1,
+        format: "list" as const,
+        contentAuthority: "files" as const,
+        overview,
+        items: []
+      };
+    }
+  );
+  return operations;
+}
+
+/**
+ * Targets prepared before the reset above still carry the default list
+ * categories. Reuse an empty one with the same title instead of adding a
+ * duplicate beside it.
  */
 function claimWorldCategory(
   job: LongBookDecompositionJob,

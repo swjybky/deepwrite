@@ -14,6 +14,7 @@ import {
   LongProjectManifestSchema
 } from "@deepwrite/contracts";
 import { indexedFileSlots } from "../long-project-store/paths";
+import { DEFAULT_WORLD_CATEGORIES } from "../long-project-store/types";
 import {
   LONG_PORTABLE_BUNDLE_SCHEMA,
   LONG_PORTABLE_BUNDLE_SCHEMA_VERSION,
@@ -225,4 +226,44 @@ describe("整书拆解持久化工作流", () => {
     },
     60_000
   );
+
+  it("拆到新长篇时世界观类别以所选模版为准，不留默认空类别", async () => {
+    const fixture = await decompositionFixture("continuation", 2, undefined, {
+      id: "decomposition-custom",
+      name: "仙侠",
+      description: "只拆宗门与功法。",
+      systemPrompt: "",
+      worldCategories: [
+        { id: "sects", title: "宗门" },
+        { id: "skills", title: "功法" }
+      ]
+    });
+    roots.push(fixture.root);
+    expect(fixture.job.lastError).toBeUndefined();
+    const target = fixture.job.target;
+    if (target?.kind !== "long") throw new Error("应拆到长篇。");
+    const { bookId } = target;
+    const world = async () =>
+      (await fixture.longs.open({ bookId })).book.workspaceIndex.worldbuilding;
+    expect((await world()).map(({ title }) => title)).toEqual(["宗门", "功法"]);
+    const { projectDirectory } = await fixture.longs.catalog.open(bookId);
+    for (const [id] of DEFAULT_WORLD_CATEGORIES)
+      await expect(
+        readFile(join(projectDirectory, `long/worldbuilding/${id}/overview.md`))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+
+    const job = await runDecompositionFaux(fixture);
+    expect(job.status).toBe("completed");
+    const categories = await world();
+    expect(
+      categories.map((category) => ({
+        title: category.title,
+        order: category.order,
+        filled: category.format === "list" && category.items.length > 0
+      }))
+    ).toEqual([
+      { title: "宗门", order: 1, filled: true },
+      { title: "功法", order: 2, filled: false }
+    ]);
+  }, 60_000);
 });
