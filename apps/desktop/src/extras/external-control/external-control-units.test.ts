@@ -1,4 +1,5 @@
 import { EXTERNAL_CONTROL_LAUNCH_FLAG } from "@deepwrite/contracts/external-control";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -105,11 +106,12 @@ describe("line reader", () => {
 });
 
 describe("app launch command", () => {
+  const appDirectory = resolve("/repo/apps/desktop");
   const packagedUrl = pathToFileURL(
     "/Applications/DeepWrite.app/Contents/Resources/app.asar/out/main/extras/external-control/bridge-entry.js"
   ).href;
   const unpackagedUrl = pathToFileURL(
-    "/repo/apps/desktop/out/main/extras/external-control/bridge-entry.js"
+    resolve(appDirectory, "out/main/extras/external-control/bridge-entry.js")
   ).href;
 
   it("detects packaged and unpackaged bridges", () => {
@@ -134,7 +136,7 @@ describe("app launch command", () => {
       env: { DEEPWRITE_EXTERNAL_CONTROL_USER_DATA: "/tmp/data" }
     });
     expect(launch.args).toEqual([
-      "/repo/apps/desktop",
+      appDirectory,
       "--user-data-dir=/tmp/data",
       EXTERNAL_CONTROL_LAUNCH_FLAG
     ]);
