@@ -28,5 +28,8 @@ export default {
   goToTemplateSettings: "前往模板配置",
   cancel: "取消",
   creating: "创建中…",
-  createWork: "创建作品"
+  createWork: "创建作品",
+  agentTeams: "智能体团队",
+  usesTheEnabledTeam: "使用启用的团队",
+  unavailableAgentTeam: "已失效的团队"
 };

@@ -11,18 +11,22 @@ import { assertModelRunSettings } from "./model-run-settings";
 export interface AgentTeamRunTarget {
   workspaceType: AgentTeamWorkspaceType;
   parentAgentId: WorkspaceAgentId | "long";
+  /** The book being written; a book's team binding outranks the enabled team. */
+  bookId?: string;
 }
 
 export interface AgentTeamRunModeDependencies {
   resolveDefinitions(
     workspaceType: AgentTeamWorkspaceType,
-    parentAgentId: WorkspaceAgentId | "long"
+    parentAgentId: WorkspaceAgentId | "long",
+    bookId?: string
   ): Promise<ShortAgentSubagentDefinition[]>;
   resolveModel(
     modelId: string
   ): Promise<AgentProviderRuntimeConfig | undefined>;
   resolveParallelSubagents?(
-    workspaceType: AgentTeamWorkspaceType
+    workspaceType: AgentTeamWorkspaceType,
+    bookId?: string
   ): Promise<boolean>;
 }
 
@@ -46,7 +50,8 @@ export async function resolveAgentTeamRuntime(
 
   const subagentDefinitions = await dependencies.resolveDefinitions(
     target.workspaceType,
-    target.parentAgentId
+    target.parentAgentId,
+    target.bookId
   );
   if (subagentDefinitions.length === 0) {
     throw new Error(
@@ -67,7 +72,9 @@ export async function resolveAgentTeamRuntime(
       subagentRuntimeConfigs[settings.modelId] ??
       (await dependencies.resolveModel(settings.modelId));
     if (!resolved) {
-      throw new Error(`${owner}配置的模型不存在，请刷新模型配置后重试。`);
+      throw new Error(
+        `团队智能体有未知模型配置：${owner}选择的模型已不存在，请在“智能体团队”中重新选择模型。`
+      );
     }
     assertModelRunSettings(resolved, {
       thinkingLevel: settings.thinkingLevel,
@@ -99,8 +106,10 @@ export async function resolveAgentTeamRuntime(
   }
 
   const parallelSubagents =
-    (await dependencies.resolveParallelSubagents?.(target.workspaceType)) ===
-    true;
+    (await dependencies.resolveParallelSubagents?.(
+      target.workspaceType,
+      target.bookId
+    )) === true;
   return {
     subagentDefinitions,
     subagentRuntimeConfigs,

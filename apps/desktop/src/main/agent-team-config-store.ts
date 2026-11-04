@@ -5,6 +5,7 @@ import {
 import { join } from "node:path";
 import {
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
+  AgentTeamBookBindingInputSchema,
   AgentTeamCatalogSnapshotSchema,
   AgentTeamMarketplaceSourceSchema,
   AgentTeamProfileSchema,
@@ -14,8 +15,15 @@ import {
   AgentTeamProfileSetEnabledInputSchema,
   AgentTeamProfileTargetInputSchema,
   LongAgentIdSchema,
+  SHORT_AGENT_SUBAGENT_MAX_COUNT,
   ScriptWorkspaceAgentIdSchema,
   ShortWorkspaceAgentIdSchema,
+  activeAgentTeamMembers,
+  activeAgentTeams,
+  activeAgentTeamsParallel,
+  withoutAgentTeamBindings,
+  type AgentTeamBookBindingInput,
+  type AgentTeamBookBindings,
   type AgentTeamCatalogSnapshot,
   type AgentTeamMarketplaceSource,
   type AgentTeamProfile,
@@ -40,6 +48,11 @@ import {
   tryMigrateStandaloneCatalog,
   type AgentTeamDiskCatalog
 } from "./agent-team-config-migration";
+import {
+  readAgentTeamBookBindings,
+  withAgentTeamBookBinding,
+  writeAgentTeamBookBindings
+} from "./agent-team-book-binding-file";
 
 function cloneSnapshot(
   snapshot: AgentTeamCatalogSnapshot
@@ -49,6 +62,7 @@ function cloneSnapshot(
 
 export class AgentTeamConfigStore {
   private readonly settingsPath: string;
+  private readonly bookBindingsPath: string;
   private readonly legacyShortPath: string;
   private readonly legacyScriptPath: string;
   private readonly legacyLongPath: string;
@@ -57,6 +71,7 @@ export class AgentTeamConfigStore {
   constructor(userDataPath: string) {
     const configRoot = join(userDataPath, "config");
     this.settingsPath = join(configRoot, "agent-team-profiles.json");
+    this.bookBindingsPath = join(configRoot, "agent-team-book-bindings.json");
     this.legacyShortPath = join(configRoot, "agent-teams.json");
     this.legacyScriptPath = join(configRoot, "agent-teams-script.json");
     this.legacyLongPath = join(configRoot, "long-agent-teams.json");
@@ -99,10 +114,25 @@ export class AgentTeamConfigStore {
   private async writeSnapshot(
     snapshot: AgentTeamCatalogSnapshot
   ): Promise<void> {
+    // Bindings have their own file so the profiles file stays readable by
+    // older versions, whose schema is strict.
+    const { bookBindings: _bookBindings, ...profiles } =
+      cloneSnapshot(snapshot);
     await atomicWriteAgentTeamJson(this.settingsPath, {
       version: AGENT_TEAM_CATALOG_DISK_VERSION,
-      ...cloneSnapshot(snapshot)
+      ...profiles
     } satisfies AgentTeamDiskCatalog);
+  }
+
+  private withBookBindings(
+    snapshot: AgentTeamCatalogSnapshot,
+    bookBindings: AgentTeamBookBindings
+  ): AgentTeamCatalogSnapshot {
+    return cloneSnapshot(
+      Object.keys(bookBindings).length > 0
+        ? { ...snapshot, bookBindings }
+        : snapshot
+    );
   }
 
   private async queue<Result>(
@@ -128,12 +158,37 @@ export class AgentTeamConfigStore {
       operation(snapshot);
       const parsed = AgentTeamCatalogSnapshotSchema.parse(snapshot);
       await this.writeSnapshot(parsed);
-      return cloneSnapshot(parsed);
+      return this.withBookBindings(
+        parsed,
+        await readAgentTeamBookBindings(this.bookBindingsPath)
+      );
+    });
+  }
+
+  private async updateBookBindings(
+    update: (
+      bindings: AgentTeamBookBindings,
+      snapshot: AgentTeamCatalogSnapshot
+    ) => AgentTeamBookBindings
+  ): Promise<AgentTeamCatalogSnapshot> {
+    return this.queue(async () => {
+      const snapshot = await this.readSnapshot();
+      const next = update(
+        await readAgentTeamBookBindings(this.bookBindingsPath),
+        snapshot
+      );
+      await writeAgentTeamBookBindings(this.bookBindingsPath, next);
+      return this.withBookBindings(snapshot, next);
     });
   }
 
   async list(): Promise<AgentTeamCatalogSnapshot> {
-    return this.queue(async () => cloneSnapshot(await this.readSnapshot()));
+    return this.queue(async () =>
+      this.withBookBindings(
+        await this.readSnapshot(),
+        await readAgentTeamBookBindings(this.bookBindingsPath)
+      )
+    );
   }
 
   async create(
@@ -162,7 +217,7 @@ export class AgentTeamConfigStore {
     rawInput: AgentTeamProfileTargetInput
   ): Promise<AgentTeamCatalogSnapshot> {
     const input = AgentTeamProfileTargetInputSchema.parse(rawInput);
-    return this.mutate((snapshot) => {
+    await this.mutate((snapshot) => {
       const team = this.requireTeam(snapshot, input.teamId);
       if (snapshot.enabledTeamIds[team.workspaceType] === team.id) {
         throw new Error("已启用的团队不能删除，请先关闭该团队。");
@@ -173,6 +228,9 @@ export class AgentTeamConfigStore {
         (candidate) => candidate.id !== team.id
       );
     });
+    return this.updateBookBindings((bindings) =>
+      withoutAgentTeamBindings(bindings, input.teamId)
+    );
   }
 
   async setEnabled(
@@ -184,6 +242,35 @@ export class AgentTeamConfigStore {
         snapshot.enabledTeamIds,
         this.requireTeam(snapshot, input.teamId),
         input.enabled
+      );
+    });
+  }
+
+  async setBookBinding(
+    rawInput: AgentTeamBookBindingInput
+  ): Promise<AgentTeamCatalogSnapshot> {
+    const input = AgentTeamBookBindingInputSchema.parse(rawInput);
+    return this.updateBookBindings((bindings, snapshot) => {
+      for (const teamId of input.teamIds) {
+        if (
+          this.requireTeam(snapshot, teamId).workspaceType !==
+          input.workspaceType
+        ) {
+          throw new Error("绑定的团队与作品的写作类型不一致。");
+        }
+      }
+      return withAgentTeamBookBinding(bindings, input.bookId, input.teamIds);
+    });
+  }
+
+  /** Forgets a permanently deleted book; a no-op for books never bound. */
+  async removeBookBinding(bookId: string): Promise<void> {
+    await this.queue(async () => {
+      const bindings = await readAgentTeamBookBindings(this.bookBindingsPath);
+      if (!bindings[bookId]) return;
+      await writeAgentTeamBookBindings(
+        this.bookBindingsPath,
+        withAgentTeamBookBinding(bindings, bookId, [])
       );
     });
   }
@@ -253,34 +340,39 @@ export class AgentTeamConfigStore {
 
   async resolve(
     workspaceType: AgentTeamWorkspaceType,
-    rawParentAgentId: WorkspaceAgentId | "long"
+    rawParentAgentId: WorkspaceAgentId | "long",
+    bookId?: string
   ): Promise<ShortAgentSubagentDefinition[]> {
-    const snapshot = await this.list();
-    const enabledId = snapshot.enabledTeamIds[workspaceType];
-    if (!enabledId) return [];
-    const team = this.requireTeam(snapshot, enabledId);
+    const active = activeAgentTeams(await this.list(), workspaceType, bookId);
+    if (active.source === "enabled" && active.teams.length === 0) return [];
     const parentAgentId =
       workspaceType === "long"
         ? LongAgentIdSchema.parse(rawParentAgentId)
         : workspaceType === "script"
           ? ScriptWorkspaceAgentIdSchema.parse(rawParentAgentId)
           : ShortWorkspaceAgentIdSchema.parse(rawParentAgentId);
-    return (
-      team.settings.teams
-        .find((candidate) => candidate.parentAgentId === parentAgentId)
-        ?.subagents.filter((definition) => definition.enabled)
-        .map((definition) => ({ ...definition })) ?? []
-    );
+    const members = activeAgentTeamMembers(active, parentAgentId);
+    if (active.source === "bound" && members.length === 0) {
+      throw new Error(
+        "本作品绑定的智能体团队已失效或没有当前智能体可用的成员，请在作品菜单的“团队绑定”中调整。"
+      );
+    }
+    if (members.length > SHORT_AGENT_SUBAGENT_MAX_COUNT) {
+      throw new Error(
+        `本作品绑定的团队合计 ${members.length} 个成员，超过单次运行 ${SHORT_AGENT_SUBAGENT_MAX_COUNT} 个的上限，请减少绑定的团队或关闭部分成员。`
+      );
+    }
+    return members;
   }
 
-  /** Team-wide parallel switch of the enabled team for this writing type. */
+  /** Team-wide parallel switch of the teams active for this book. */
   async parallelSubagentsEnabled(
-    workspaceType: AgentTeamWorkspaceType
+    workspaceType: AgentTeamWorkspaceType,
+    bookId?: string
   ): Promise<boolean> {
-    const snapshot = await this.list();
-    const enabledId = snapshot.enabledTeamIds[workspaceType];
-    if (!enabledId) return false;
-    return this.requireTeam(snapshot, enabledId).settings.parallelSubagents;
+    return activeAgentTeamsParallel(
+      activeAgentTeams(await this.list(), workspaceType, bookId)
+    );
   }
 
   private requireTeam(

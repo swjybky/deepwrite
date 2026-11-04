@@ -7,7 +7,7 @@ import {
   type CommandResult
 } from "@deepwrite/contracts";
 import { createId } from "@deepwrite/shared";
-import { safeStorage } from "electron";
+import { app, safeStorage } from "electron";
 import { createCloudBackupFeature } from "../extras/cloud-backup/create-service";
 import { createDesktopDeviceSync } from "../extras/device-sync";
 import type { ConversationSyncLease } from "../extras/device-sync/conversations/lease";
@@ -16,6 +16,7 @@ import { AppAlertStore } from "./app-alert-store";
 import { AppearanceService } from "./appearance-service";
 import { createExtrasAgentService } from "../extras/agents";
 import { AgentTeamMarketplaceClient } from "../extras/agent-team-marketplace";
+import { FeedbackClient } from "../extras/feedback";
 import { GeneralSettingsStore } from "./general-settings-store";
 import { VoiceService } from "./voice/voice-service";
 import { ImageService } from "./image/image-service";
@@ -125,7 +126,8 @@ export function createDesktopServices(options: DesktopServiceOptions) {
     cloudBackupService: createCloudBackupFeature(
       userDataPath,
       workspaceDirectory,
-      command
+      command,
+      marketplaceClient.fetchBackup.bind(marketplaceClient)
     ),
     deviceSyncService: createDesktopDeviceSync(userDataPath, {
       workspaceDirectory,
@@ -138,7 +140,11 @@ export function createDesktopServices(options: DesktopServiceOptions) {
     agentTeamMarketplaceClient: new AgentTeamMarketplaceClient(
       marketplaceClient,
       agentTeamConfigStore
-    )
+    ),
+    feedbackClient: new FeedbackClient(marketplaceClient, {
+      version: app.getVersion(),
+      platform: process.platform
+    })
   };
 }
 

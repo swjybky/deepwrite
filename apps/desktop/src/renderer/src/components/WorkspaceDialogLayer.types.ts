@@ -67,10 +67,17 @@ export type BookBindingPayload =
       linksByKind: LinkedMaterialIdsByKind;
     };
 
-export type CreateCreativeBookPayload =
-  | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
-  | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput)
-  | ({ workspaceType: "long" } & CreateLongBookInput);
+/** Teams are a device-local choice, bound once the book exists. */
+export interface BookAgentTeamChoice {
+  linkedAgentTeamIds?: string[] | undefined;
+}
+
+export type CreateCreativeBookPayload = BookAgentTeamChoice &
+  (
+    | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
+    | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput)
+    | ({ workspaceType: "long" } & CreateLongBookInput)
+  );
 
 export type LibraryDomain = "material" | "skill";
 export type LibraryProjectOperation =

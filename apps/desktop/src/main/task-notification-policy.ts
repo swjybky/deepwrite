@@ -26,6 +26,27 @@ export interface RunNoticeContext {
   previouslyTerminal: boolean;
 }
 
+const MAC_NOTIFICATIONS_PANE =
+  "x-apple.systempreferences:com.apple.Notifications-Settings.extension";
+
+/**
+ * Where the system lets people allow this app's notifications, if it has such
+ * a page. macOS scrolls to the app named by `id`; Windows only has the list.
+ */
+export function notificationSettingsUrl(
+  platform: NodeJS.Platform,
+  isPackaged: boolean
+): string | undefined {
+  if (platform === "darwin") {
+    // A development run is the stock Electron bundle, listed under its own id.
+    const bundleId = isPackaged
+      ? "cn.deepwrite.desktop"
+      : "com.github.Electron";
+    return `${MAC_NOTIFICATIONS_PANE}?id=${bundleId}`;
+  }
+  return platform === "win32" ? "ms-settings:notifications" : undefined;
+}
+
 /** The user is looking at the app, so a system notification is only noise. */
 export function isWindowInUse(window: NotificationWindow | undefined): boolean {
   return Boolean(

@@ -13,6 +13,7 @@ interface DiskGeneralSettings extends Omit<
   | "permissionMode"
   | "autoApproveCrossStageOperations"
   | "taskNotification"
+  | "externalControlEnabled"
   | "defaultTextViewMode"
   | "bodyTextFormats"
   | "showContextUsage"
@@ -25,6 +26,7 @@ interface DiskGeneralSettings extends Omit<
   permissionMode: GeneralSettings["permissionMode"] | "full-access";
   autoApproveCrossStageOperations?: boolean;
   taskNotification?: boolean;
+  externalControlEnabled?: boolean;
   bodyTextFormats?: GeneralSettings["bodyTextFormats"];
   defaultTextViewMode?: GeneralSettings["defaultTextViewMode"];
   showContextUsage?: boolean;
@@ -95,6 +97,7 @@ export class GeneralSettingsStore {
         language: candidate.language,
         showInMenuBar: candidate.showInMenuBar,
         taskNotification: candidate.taskNotification,
+        externalControlEnabled: candidate.externalControlEnabled,
         showContextUsage: candidate.showContextUsage,
         textAttachmentMaxCharacters: candidate.textAttachmentMaxCharacters,
         contextCompaction: candidate.contextCompaction,

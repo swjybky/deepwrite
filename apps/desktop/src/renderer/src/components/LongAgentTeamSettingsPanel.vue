@@ -135,6 +135,16 @@ function syncDraft(force = false): void {
   const teams = settings ? cloneTeams(settings) : [];
   const signature = agentTeamDraftSignature(parallel, teams);
   if (!force && seeded && signature === baselineSignature.value) return;
+  // A change from outside must not wipe unsaved edits; discarding picks it up.
+  if (
+    !force &&
+    seeded &&
+    dirty.value &&
+    signature !==
+      agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value)
+  ) {
+    return;
+  }
   seeded = true;
   draftParallelSubagents.value = parallel;
   draftTeams.value = teams;

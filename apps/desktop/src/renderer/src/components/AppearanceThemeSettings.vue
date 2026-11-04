@@ -74,7 +74,7 @@ function updateTheme<K extends keyof ThemeConfig>(
 }
 
 type ThemeColorKey = "accent" | "background" | "foreground";
-type ThemeFontSizeKey = "uiFontSize" | "codeFontSize";
+type ThemeFontSizeKey = "uiFontSize" | "editorFontSize" | "codeFontSize";
 
 function applyColor(key: ThemeColorKey, value: string): void {
   appearance.updateTheme(editingScheme.value, {
@@ -381,6 +381,26 @@ async function importThemeFile(event: Event): Promise<void> {
             :aria-label="t('interfaceFontSizePixels')"
             @input="previewFontSize('uiFontSize', $event)"
             @change="commitFontSize('uiFontSize', $event)"
+          />
+          <span>px</span>
+        </div>
+      </div>
+      <div class="theme-setting-row">
+        <label for="editor-font-size">{{ t("editorFontSize") }}</label>
+        <div class="font-size-control">
+          <input
+            id="editor-font-size"
+            type="number"
+            :min="FONT_SIZE_LIMITS.editorFontSize.min"
+            :max="FONT_SIZE_LIMITS.editorFontSize.max"
+            step="0.5"
+            :value="editingTheme.editorFontSize"
+            :placeholder="String(editingTheme.editorFontSize)"
+            inputmode="decimal"
+            required
+            :aria-label="t('editorFontSizePixels')"
+            @input="previewFontSize('editorFontSize', $event)"
+            @change="commitFontSize('editorFontSize', $event)"
           />
           <span>px</span>
         </div>

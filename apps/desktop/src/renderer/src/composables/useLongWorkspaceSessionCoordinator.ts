@@ -37,6 +37,7 @@ export interface LongWorkspaceSessionNotifications {
 
 export interface LongWorkspaceEditorPort {
   saveAllChanges(): Promise<boolean>;
+  hasUnsavedEdits(): boolean;
   selectBookLineVolume(volumeId: string): void;
   focusFile(fileId: string): Promise<boolean>;
   focusTarget(target: LongApprovalEditorFocus): Promise<boolean>;
@@ -50,6 +51,7 @@ export interface LongWorkspaceEditorPort {
 
 const LONG_WORKSPACE_EDITOR_PORT_METHODS = [
   "saveAllChanges",
+  "hasUnsavedEdits",
   "selectBookLineVolume",
   "focusFile",
   "focusTarget",

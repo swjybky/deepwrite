@@ -36,6 +36,7 @@ export interface SettingsFeatureModule {
   contextCompaction: ContextCompactionSettings;
   showInMenuBar: boolean;
   taskNotification: boolean;
+  externalControlEnabled: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;

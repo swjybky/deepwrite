@@ -21,6 +21,8 @@ export function buildSettingsFeatureModule(
     contextCompaction: settingsStore.generalSettings.contextCompaction,
     showInMenuBar: settingsStore.generalSettings.showInMenuBar,
     taskNotification: settingsStore.generalSettings.taskNotification,
+    externalControlEnabled:
+      settingsStore.generalSettings.externalControlEnabled,
     useNetworkProxy: settingsStore.generalSettings.useNetworkProxy,
     workspacePaneLayout: settingsStore.generalSettings.workspacePaneLayout,
     defaultTextViewMode: settingsStore.generalSettings.defaultTextViewMode,

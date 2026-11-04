@@ -1,6 +1,9 @@
 import { t } from "../i18n";
 import { computed, provide } from "vue";
-import type { ChatAssistantProjectRef } from "@deepwrite/contracts";
+import type {
+  ChatAssistantProjectRef,
+  ExternalWindowTarget
+} from "@deepwrite/contracts";
 import type { ResourceTreeNode } from "../types/workspace";
 import type { ApprovalNavigationTarget } from "../utils/approvalNavigation";
 import {
@@ -77,6 +80,40 @@ export function useWorkspaceResourceNavigation(
     await resources.selectResource(node);
   }
 
+  /** Opens the first readable document; returns false when there is none. */
+  async function openExternalTarget(
+    target: ExternalWindowTarget
+  ): Promise<boolean> {
+    const root = resources.findResourceNodeWhere((node) =>
+      target.kind === "long"
+        ? node.longBookId === target.id && node.catalogNodeType === "long-book"
+        : target.kind === "library"
+          ? node.libraryId === target.id && node.catalogNodeType === "library"
+          : node.id === target.id && node.catalogNodeType === "book"
+    );
+    function opening(
+      node: ResourceTreeNode | undefined
+    ): ResourceTreeNode | undefined {
+      if (!node || node.unavailable || node.missing) return undefined;
+      if (
+        target.kind === "long"
+          ? node.longWorkspaceSelection?.key === "root:worldbuilding"
+          : resources.documentForResourceId(node.id)
+      ) {
+        return node;
+      }
+      for (const child of node.children ?? []) {
+        const found = opening(child);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    const node = opening(root);
+    if (!node) return false;
+    await resources.selectResource(node);
+    return true;
+  }
+
   async function selectEditorEntrySearchResult(
     documentId: string,
     navigate: (target: ApprovalNavigationTarget) => Promise<boolean>
@@ -121,6 +158,7 @@ export function useWorkspaceResourceNavigation(
   return {
     ...resources,
     openIdentityBook,
+    openExternalTarget,
     selectEditorEntrySearchResult,
     selectLongEntrySearchResult
   };

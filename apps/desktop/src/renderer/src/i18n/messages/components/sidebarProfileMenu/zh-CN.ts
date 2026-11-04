@@ -15,6 +15,7 @@ export default {
   couldNotLoadAnnouncements: "加载公告失败，请稍后重试",
   updates: "版本更新",
   contactAuthor: "联系作者",
+  feedback: "反馈",
   supportTheAuthor: "赞赏作者",
   openSettings: "打开设置",
   close: "关闭",

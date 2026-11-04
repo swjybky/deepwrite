@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./external-control": "./src/external-control/index.ts",
     "./renderer": "./src/renderer.ts",
     "./system": "./src/system.ts"
   },

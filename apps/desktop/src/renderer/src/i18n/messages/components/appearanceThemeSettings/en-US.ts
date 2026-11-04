@@ -29,6 +29,8 @@ export default {
   enterForegroundColor: "Enter foreground color",
   interfaceFontSize: "Interface font size",
   interfaceFontSizePixels: "Interface font size (pixels)",
+  editorFontSize: "Manuscript font size",
+  editorFontSizePixels: "Manuscript font size (pixels)",
   codeFontSize: "Code font size",
   codeFontSizePixels: "Code font size (pixels)",
   translucentSidebar: "Translucent sidebar"

@@ -35,6 +35,7 @@ import {
   type ReadLongDocumentResult,
   type RenameLongBookInput,
   type UpdateLongBookBindingsInput,
+  LongDocumentConflictError,
   type WriteLongDocumentInput,
   type WriteLongDocumentResult
 } from "./types";
@@ -243,6 +244,14 @@ export async function writeDocument(
     const loaded = await loadProject(ctx, canonical);
     const fileId = LongFileIdSchema.parse(input.fileId);
     assertDirectlyMutableDocument(loaded.index, fileId);
+    // Before loadIndexedFile, which replaces this index time with the mtime;
+    // readDocument reports the index time, so that is what callers send back.
+    if (
+      input.expectedUpdatedAt !== undefined &&
+      input.expectedUpdatedAt !== loaded.files.get(fileId)?.reference.updatedAt
+    ) {
+      throw new LongDocumentConflictError();
+    }
     const file = await loadIndexedFile(loaded, fileId);
     if (file.kind !== "markdown") {
       throw new Error("第一阶段只允许通过 writeDocument 写入 Markdown 文件。");

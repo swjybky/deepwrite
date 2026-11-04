@@ -145,6 +145,7 @@ export function useAgentConversation(
       })
   });
   return {
+    activeRunId: ctx.activeRunId,
     messages: ctx.messages,
     draft: ctx.draft,
     sessionId: ctx.sessionId,
@@ -195,6 +196,12 @@ export function useAgentConversation(
     selectWebSearchEnabled: ctx.selectWebSearchEnabled,
     selectTemperature: ctx.selectTemperature,
     selectApprovalMode: ctx.selectApprovalMode,
+    overrideNextApprovalMode(mode) {
+      ctx.nextApprovalMode = mode;
+    },
+    overrideNextAgentTeamMode(mode) {
+      ctx.nextAgentTeamMode = mode;
+    },
     selectAgentTeamMode: ctx.selectAgentTeamMode,
     capturePersistenceSnapshot: ctx.capturePersistenceSnapshot,
     capturePersistenceChanges() {

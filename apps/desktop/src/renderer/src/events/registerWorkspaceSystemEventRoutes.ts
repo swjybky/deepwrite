@@ -45,6 +45,7 @@ export interface WorkspaceSystemEventRouteDependencies {
   stageAgentEditProposal(event: EventOf<"workspace.editor_mutation">): void;
   stageLibraryEditProposal(event: EventOf<"library.editor_mutation">): void;
   navigateToWorkspaceStage(event: EventOf<"workspace.stage_selection">): void;
+  refreshAfterExternalChange?(): Promise<unknown>;
   allConversations(): readonly WorkspaceEventConversation[];
   scheduleQueuedAgentEdits(
     predicate: (queued: QueuedAgentEditRun) => boolean
@@ -101,6 +102,12 @@ export function registerWorkspaceSystemEventRoutes(
     }),
     center.subscribe("workspace.stage_selection", (event) => {
       dependencies.navigateToWorkspaceStage(event);
+    }),
+    center.subscribe("externalControl.resource_changed", (event) => {
+      if (event.payload.domain === "agent_team") return;
+      void dependencies
+        .refreshAfterExternalChange?.()
+        .catch((error) => dependencies.onAsyncError(error, event));
     }),
     center.subscribeAll((event) => {
       for (const conversation of dependencies.allConversations()) {

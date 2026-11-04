@@ -13,9 +13,11 @@ import featureHostModuleSource from "../../composables/workspaceFeatureHostModul
 const featureHostSource = `${featureHostCoordinatorSource}\n${featureHostModuleSource}`;
 
 describe("CloudBackupPage", () => {
-  it("lives under more features and never asks the user to log in", () => {
+  it("lives under more features and reuses marketplace sign-in", () => {
     expect(source).toContain("cloudBackup.cloudBackup");
-    expect(messages.cloudBackup.cloudBackupDescription).toContain("无需登录");
+    expect(messages.cloudBackup.cloudBackupDescription).toContain(
+      "同一账号登录"
+    );
     expect(source).toContain("cloudBackup.localBackupKey");
     expect(source).not.toContain("password");
     expect(source).not.toContain("authMode");

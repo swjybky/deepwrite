@@ -1,3 +1,10 @@
+export type { ExternalControlOverview } from "./external-control/commands";
+export type {
+  ExternalAgentRun,
+  ExternalWindowRequest,
+  ExternalWindowResponse,
+  ExternalWindowTarget
+} from "./external-control/run-tools";
 export {
   BUILTIN_AGENT_METADATA,
   DEFAULT_LONG_AGENT_WELCOME_SHORTCUTS
@@ -25,7 +32,9 @@ export {
 export type * from "./app-alert";
 export type * from "./agent-team";
 export type * from "./agent-team-catalog";
+export type * from "./agent-team-book-binding";
 export type * from "./agent-team-marketplace";
+export type * from "./feedback";
 export type * from "./catalog";
 export type * from "./chat-assistant";
 export type * from "./cloud-backup";
@@ -215,10 +224,21 @@ export {
   withAgentTeamEnabled
 } from "./agent-team-catalog";
 export {
+  activeAgentTeamMembers,
+  activeAgentTeams,
+  activeAgentTeamsParallel,
+  agentTeamBoundBookCount
+} from "./agent-team-book-binding";
+export {
   AGENT_TEAM_MARKETPLACE_OVERVIEW_MAX_LENGTH,
   agentTeamCustomModelCount,
   agentTeamMemberCount
 } from "./agent-team-marketplace";
+export {
+  FEEDBACK_CONTENT_MAX_LENGTH,
+  FEEDBACK_IMAGE_MAX_BYTES,
+  FEEDBACK_MAX_IMAGES
+} from "./feedback";
 export {
   CATALOG_LIBRARY_ENTRY_MAX_CHARACTERS,
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,

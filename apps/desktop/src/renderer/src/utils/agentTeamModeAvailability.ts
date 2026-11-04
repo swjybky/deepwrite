@@ -1,4 +1,8 @@
 import { createScopedTranslator } from "../i18n";
+import {
+  activeAgentTeamMembers,
+  activeAgentTeams
+} from "@deepwrite/contracts/renderer";
 import type {
   AgentTeamCatalogSnapshot,
   AgentTeamWorkspaceType,
@@ -11,6 +15,7 @@ export interface AgentTeamModeAvailabilityInput {
   catalog: AgentTeamCatalogSnapshot | null;
   workspaceType: AgentTeamWorkspaceType;
   parentAgentId: string;
+  bookId?: string | undefined;
   loaded: boolean;
   loading: boolean;
   loadError: string | null;
@@ -22,27 +27,18 @@ export interface AgentTeamModeAvailability {
 }
 
 /**
- * Members the main agent can delegate to: the enabled subagents of the
- * enabled team for this writing type and parent agent.
+ * Members the main agent can delegate to: the enabled subagents of the teams
+ * the book is bound to, or of the enabled team when it has no binding.
  */
 export function enabledTeamMembers(
   catalog: AgentTeamCatalogSnapshot,
   workspaceType: AgentTeamWorkspaceType,
-  parentAgentId: string
+  parentAgentId: string,
+  bookId?: string
 ): readonly ShortAgentSubagentDefinition[] {
-  const enabledTeamId = catalog.enabledTeamIds[workspaceType];
-  if (!enabledTeamId) return [];
-  const profile = catalog.teams.find(
-    (team) => team.id === enabledTeamId && team.workspaceType === workspaceType
-  );
-  const teams: readonly {
-    parentAgentId: string;
-    subagents: readonly ShortAgentSubagentDefinition[];
-  }[] = profile?.settings.teams ?? [];
-  return (
-    teams
-      .find((team) => team.parentAgentId === parentAgentId)
-      ?.subagents.filter((member) => member.enabled) ?? []
+  return activeAgentTeamMembers(
+    activeAgentTeams(catalog, workspaceType, bookId),
+    parentAgentId
   );
 }
 
@@ -67,13 +63,26 @@ export function resolveAgentTeamModeAvailability(
       description: t("agentTeamConfigurationHasNotLoadedYet")
     };
   }
-  if (
-    enabledTeamMembers(input.catalog, input.workspaceType, input.parentAgentId)
-      .length === 0
-  ) {
+  const active = activeAgentTeams(
+    input.catalog,
+    input.workspaceType,
+    input.bookId
+  );
+  const bound = active.source === "bound";
+  if (activeAgentTeamMembers(active, input.parentAgentId).length === 0) {
     return {
       available: false,
-      description: t("thisAgentHasNoEnabledTeamWithAvailableMembers")
+      description: bound
+        ? t("theTeamsBoundToThisBookHaveNoAvailableMembers")
+        : t("thisAgentHasNoEnabledTeamWithAvailableMembers")
+    };
+  }
+  if (bound) {
+    return {
+      available: true,
+      description: t("useTheTeamsBoundToThisBook", {
+        names: active.teams.map((team) => team.name).join("、")
+      })
     };
   }
   return {

@@ -4,6 +4,7 @@ export default {
   duplicate: "Duplicate",
   skillLibraryLinks: "Skill library links",
   materialLibraryLinks: "Material library links",
+  agentTeamLinks: "Agent team links",
   export: "Export",
   syncLegacyVersion: "Sync legacy version",
   keepChangesOnDiskResolveFileConflictsAndRefresh:

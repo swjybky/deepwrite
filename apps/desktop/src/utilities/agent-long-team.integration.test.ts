@@ -212,7 +212,8 @@ describe("long team from Main through the Agent utility to the provider", () => 
 
     expect(fixture.resolveMembers).toHaveBeenCalledExactlyOnceWith(
       "long",
-      "long"
+      "long",
+      "longbook_tools"
     );
     expect(requests).toHaveLength(5);
     const names = (index: number) =>

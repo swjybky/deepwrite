@@ -161,6 +161,7 @@ export function selection(
 export function editorPort(overrides: Partial<LongWorkspaceEditorPort> = {}) {
   return {
     saveAllChanges: vi.fn(async () => true),
+    hasUnsavedEdits: vi.fn(() => false),
     selectBookLineVolume: vi.fn(),
     focusFile: vi.fn(async () => true),
     focusTarget: vi.fn(async () => true),

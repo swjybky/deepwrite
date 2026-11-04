@@ -592,7 +592,7 @@ describe("agent conversation controller: snapshot-persistence", () => {
       api: () => undefined,
       ...storage.options(persistenceKey)
     });
-    expect(controller.approvalMode.value).toBe("request-approval");
+    expect(controller.approvalMode.value).toBe("auto-approve");
     controller.messages.value = [
       {
         id: "sent-first",

@@ -637,7 +637,9 @@ export const LongWriteDocumentInputSchema = z
   .object({
     bookId: LongBookIdSchema,
     fileId: LongFileIdSchema,
-    content: z.string().max(16 * 1024 * 1024)
+    content: z.string().max(16 * 1024 * 1024),
+    /** Refuses the write if the file changed after this index timestamp. */
+    expectedUpdatedAt: z.string().datetime().optional()
   })
   .strict();
 export type LongWriteDocumentInput = z.infer<

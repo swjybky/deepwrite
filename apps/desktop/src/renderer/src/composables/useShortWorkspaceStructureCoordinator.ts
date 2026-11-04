@@ -19,6 +19,7 @@ import type {
   WorkspaceDocument
 } from "../types/workspace";
 import { agentRunScopeForDocument } from "../utils/agentRunPreferences";
+import { copyBookAgentTeamBinding } from "./useBookAgentTeamBinding";
 import { suggestedDraftSectionTitle } from "../utils/draftFileTitles";
 
 const t = createScopedTranslator("workspace");
@@ -335,6 +336,11 @@ export function useShortWorkspaceStructureCoordinator(
           domain: "book",
           projectId: book.id
         });
+        await copyBookAgentTeamBinding(
+          book.id,
+          duplicated.projectId,
+          book.workspaceType ?? "short"
+        );
         await options.refreshWorkspaceDirectory();
         await catalog.refresh();
         if (canPublish(context)) {

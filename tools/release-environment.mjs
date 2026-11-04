@@ -6,12 +6,7 @@ import { parseEnv } from "node:util";
 export const releaseEnvironmentKeys = [
   "MAIN_VITE_DEEPWRITE_APP_MODE",
   "MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_BASE_URL",
-  "MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY",
-  "MAIN_VITE_OSS_ACCESS_KEY_ID",
-  "MAIN_VITE_OSS_ACCESS_KEY_SECRET",
-  "MAIN_VITE_OSS_BUCKET",
-  "MAIN_VITE_OSS_ENDPOINT",
-  "MAIN_VITE_OSS_REGION"
+  "MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY"
 ];
 
 export function validateReleaseEnvironment(source) {
@@ -19,6 +14,11 @@ export function validateReleaseEnvironment(source) {
     throw new Error("缺少 DEEPWRITE_RELEASE_ENV，拒绝构建缺少配置的安装包。");
   }
   const values = parseEnv(source);
+  if (Object.keys(values).some((key) => key.startsWith("MAIN_VITE_OSS_"))) {
+    throw new Error(
+      "发布配置不得包含 MAIN_VITE_OSS_ 凭据；请迁移到 DeepwriteApi 服务端。"
+    );
+  }
   const missing = releaseEnvironmentKeys.filter((key) => !values[key]?.trim());
   if (missing.length) {
     throw new Error(`发布配置缺少必填项：${missing.join(", ")}`);
@@ -33,7 +33,7 @@ export function validateReleaseEnvironment(source) {
     throw new Error("MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_BASE_URL 格式无效。");
   }
   if (
-    !["https:", "http:"].includes(url.protocol) ||
+    url.protocol !== "https:" ||
     url.username ||
     url.password ||
     url.search ||

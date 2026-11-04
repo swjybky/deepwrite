@@ -150,6 +150,7 @@ export interface PendingSubagentTextDelta {
   chunks: string[];
 }
 export interface AgentConversationController {
+  activeRunId: Readonly<Ref<string | null>>;
   messages: Ref<ChatMessage[]>;
   draft: Ref<string>;
   sessionId: Ref<string>;
@@ -245,6 +246,8 @@ export interface AgentConversationController {
   selectThinkingLevel(level: ThinkingLevel): void;
   selectWebSearchEnabled(enabled: boolean): void;
   selectTemperature(temperature: number): void;
+  overrideNextApprovalMode(mode: AgentApprovalMode | null): void;
+  overrideNextAgentTeamMode(mode: AgentTeamRunMode | null): void;
   selectApprovalMode(mode: AgentApprovalMode): void;
   selectAgentTeamMode(mode: AgentTeamRunMode): void;
   useSuggestion(value: string): void;

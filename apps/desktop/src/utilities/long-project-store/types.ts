@@ -174,9 +174,18 @@ export interface SearchLongProjectResult {
   truncated: boolean;
 }
 
+/** The file changed after the caller read it; nothing was written. */
+export class LongDocumentConflictError extends Error {
+  constructor() {
+    super("长篇文档已被修改，请重新读取后再写入。");
+    this.name = "LongDocumentConflictError";
+  }
+}
+
 export interface WriteLongDocumentInput {
   fileId: string;
   content: string;
+  expectedUpdatedAt?: string;
 }
 
 export interface WriteLongDocumentResult extends OpenedLongBook {

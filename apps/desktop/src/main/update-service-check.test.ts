@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtime = vi.hoisted(() => ({
+  currentVersion: "1.6.303",
   manifestVersion: "1.6.4",
   feedVersion: "1.6.4",
   enabled: true,
@@ -10,7 +11,7 @@ const runtime = vi.hoisted(() => ({
 }));
 
 vi.mock("electron", () => ({
-  app: { getVersion: () => "1.6.303", isPackaged: true },
+  app: { getVersion: () => runtime.currentVersion, isPackaged: true },
   net: {
     fetch: vi.fn(async () => ({
       ok: true,
@@ -79,8 +80,9 @@ vi.mock("electron-updater", async () => {
 import { autoUpdater } from "electron-updater";
 import { UpdateService } from "./update-service";
 
-describe("UpdateService character version ordering", () => {
+describe("UpdateService version ordering", () => {
   beforeEach(() => {
+    runtime.currentVersion = "1.6.303";
     runtime.manifestVersion = "1.6.4";
     runtime.feedVersion = "1.6.4";
     runtime.enabled = true;
@@ -138,8 +140,8 @@ describe("UpdateService character version ordering", () => {
     }
   );
 
-  it.each(["1.6.10", "1.6.1000", "1.6.302", "1.6.303"])(
-    "blocks character-older or equal %s before reaching the updater",
+  it.each(["1.6.2", "1.6.3", "1.6.302", "1.6.303"])(
+    "blocks older or equal %s before reaching the updater",
     async (version) => {
       runtime.manifestVersion = version;
       const service = new UpdateService(() => undefined);
@@ -150,6 +152,20 @@ describe("UpdateService character version ordering", () => {
       });
       expect(autoUpdater.setFeedURL).not.toHaveBeenCalled();
       await expect(service.download()).rejects.toThrow("请先检查更新");
+    }
+  );
+
+  it.each(["1.7.9", "1.7.10", "1.7.11"])(
+    "does not offer %s when 1.7.11 is already installed",
+    async (version) => {
+      runtime.currentVersion = "1.7.11";
+      runtime.manifestVersion = version;
+      const service = new UpdateService(() => undefined);
+      expect(await service.check()).toMatchObject({
+        status: "not-available",
+        canDownload: false
+      });
+      expect(autoUpdater.setFeedURL).not.toHaveBeenCalled();
     }
   );
 
@@ -164,7 +180,7 @@ describe("UpdateService character version ordering", () => {
     expect(autoUpdater.allowDowngrade).toBe(false);
   });
 
-  it("uses character order to enforce the minimum supported version", async () => {
+  it("uses legacy build compatibility to enforce the minimum supported version", async () => {
     runtime.minimumSupportedVersion = "1.6.4";
     const service = new UpdateService(() => undefined);
     expect(await service.check()).toMatchObject({

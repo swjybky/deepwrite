@@ -26,13 +26,15 @@ function customizedSettings(): AppearanceSettings {
     light: {
       ...defaults.light,
       uiFontSize: 16,
+      editorFontSize: 22,
       codeFontSize: 14
     },
     dark: {
       ...defaults.dark,
       preset: "custom",
       accent: "#FF8800",
-      uiFontSize: 18
+      uiFontSize: 18,
+      editorFontSize: 24
     }
   };
 }

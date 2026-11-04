@@ -1,3 +1,5 @@
+import type { ExternalControl } from "../extras/external-control";
+import { runExternalConcurrencySmoke } from "./smoke-external-concurrency";
 import type { BrowserWindow } from "electron";
 import {
   CommandEnvelopeSchema,
@@ -12,6 +14,7 @@ import type { UtilitySupervisor } from "./supervisor";
 import { runBookTemplateSmoke } from "./smoke-book-templates";
 import { runExtrasAgentSmoke } from "./smoke-extras-agents";
 import { runExtrasChatSmoke } from "./smoke-extras-chat";
+import { runFeedbackSmoke } from "./smoke-feedback";
 import { runContextCompactionSmoke } from "./smoke-context-compaction";
 import { runConversationSmoke } from "./smoke-conversation";
 import { runVoiceSmoke } from "./smoke-voice";
@@ -39,9 +42,20 @@ export async function runApplicationSmoke(
   health: SystemHealthPayload,
   supervisor: UtilitySupervisor,
   window: BrowserWindow,
-  setEventTap: (tap: ((event: SystemEventEnvelope) => void) | undefined) => void
+  setEventTap: (
+    tap: ((event: SystemEventEnvelope) => void) | undefined
+  ) => void,
+  externalCall?: ExternalControl["call"]
 ): Promise<void> {
   const releaseConfig = smokeReleaseConfig();
+  if (process.env.DEEPWRITE_SMOKE_SUITE === "external-concurrency") {
+    if (!externalCall) throw new Error("External control smoke unavailable");
+    const concurrency = await runExternalConcurrencySmoke(externalCall);
+    console.log(
+      `DEEPWRITE_SMOKE_OK ${JSON.stringify({ health, concurrency })}`
+    );
+    return;
+  }
   if (process.env.DEEPWRITE_SMOKE_SUITE === "preset-protection") {
     const presetProtection = await runPresetProtectionSmoke(window);
     console.log(
@@ -202,6 +216,7 @@ export async function runApplicationSmoke(
     const shortBookSources = await runShortBookSourceSmoke(window);
     const extrasAgents = await runExtrasAgentSmoke(window);
     const extrasChat = await runExtrasChatSmoke(window);
+    const feedback = await runFeedbackSmoke(window);
     const contextCompaction = await runContextCompactionSmoke(window);
     const voice = await runVoiceSmoke(window);
     const voiceUi = await runVoiceUiSmoke(window);
@@ -215,6 +230,7 @@ export async function runApplicationSmoke(
         shortBookSources,
         extrasAgents,
         extrasChat,
+        feedback,
         contextCompaction,
         voice,
         voiceUi,

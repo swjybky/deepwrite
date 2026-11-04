@@ -4,6 +4,7 @@ export default {
   duplicate: "复制",
   skillLibraryLinks: "技能库绑定",
   materialLibraryLinks: "素材库绑定",
+  agentTeamLinks: "团队绑定",
   export: "导出",
   syncLegacyVersion: "同步旧版本",
   keepChangesOnDiskResolveFileConflictsAndRefresh:

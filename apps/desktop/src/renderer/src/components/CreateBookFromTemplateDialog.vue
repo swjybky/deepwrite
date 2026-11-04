@@ -6,6 +6,7 @@ import type { CreateCreativeBookPayload } from "./WorkspaceDialogLayer.types";
 import PopupSelect from "./PopupSelect.vue";
 import { useBookTemplates } from "../composables/useBookTemplates";
 import { bookTemplateReferenceError } from "../utils/bookTemplateReferences";
+import { useBookAgentTeamCatalog } from "../composables/useBookAgentTeamBinding";
 import { uiMessage } from "../ui-feedback";
 
 const t = createScopedTranslator("components.createBookFromTemplateDialog");
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   settings: [];
 }>();
 const { templates, catalog, loading, failed, load } = useBookTemplates();
+const { catalog: teamCatalog } = useBookAgentTeamCatalog();
 const templateId = ref("");
 const title = ref("");
 const selected = computed(() =>
@@ -70,6 +72,16 @@ const librarySummary = computed(() => {
     skills: skills.join("、") || t("noLink")
   };
 });
+const teamSummary = computed(
+  () =>
+    configuration.value?.linkedAgentTeamIds
+      ?.map(
+        (id) =>
+          teamCatalog.value?.teams.find((team) => team.id === id)?.name ??
+          t("unavailableAgentTeam")
+      )
+      .join("、") || t("usesTheEnabledTeam")
+);
 function submit() {
   if (props.submitting || loading.value) return;
   if (!selected.value || !catalog.value) {
@@ -82,7 +94,8 @@ function submit() {
   }
   const error = bookTemplateReferenceError(
     selected.value.configuration,
-    catalog.value
+    catalog.value,
+    teamCatalog.value
   );
   if (error) {
     uiMessage.warning(error);
@@ -92,7 +105,12 @@ function submit() {
     workspaceType: selected.value.configuration.workspaceType,
     genre: selected.value.configuration.genre,
     templateId: selected.value.id,
-    title: title.value.trim()
+    title: title.value.trim(),
+    ...(selected.value.configuration.linkedAgentTeamIds
+      ? {
+          linkedAgentTeamIds: selected.value.configuration.linkedAgentTeamIds
+        }
+      : {})
   });
 }
 </script>
@@ -184,6 +202,10 @@ function submit() {
                 {{ t("materialLibrary") }}
               </dt>
               <dd>{{ librarySummary.materials }}</dd>
+              <dt>
+                {{ t("agentTeams") }}
+              </dt>
+              <dd>{{ teamSummary }}</dd>
             </dl>
             <label
               >{{ t("workTitle")

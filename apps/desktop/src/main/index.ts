@@ -34,6 +34,12 @@ import {
 import { releaseDrainedAgentRun } from "./ipc/agent-run-drain";
 import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
 import { createConversationSyncLeaseCoordinator } from "../extras/device-sync/conversations/lease";
+import {
+  EXTERNAL_CONTROL_LAUNCH_FLAG,
+  createClientConfirmDialog,
+  createExternalControl,
+  resolveExternalControlPaths
+} from "../extras/external-control";
 import { createGracefulShutdown } from "./graceful-shutdown";
 import { guardConversationWindowClose } from "./conversation-window-close";
 import { createDesktopWindow } from "./create-desktop-window";
@@ -55,6 +61,7 @@ import {
 } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   BookSchema,
   SaveDocumentResultSchema,
@@ -129,6 +136,7 @@ import {
   type AgentRuntimeRef,
   type AppearanceSettings,
   type AppAlertSnapshot,
+  type CommandEnvelope,
   type CommandResult,
   type GeneralSettings,
   type SystemEventEnvelope,
@@ -197,6 +205,10 @@ import {
 import { LegacySyncPreviewRegistry } from "./legacy-sync-preview-registry";
 import { readExternalLibraryEntries } from "./external-library-import";
 import { createMainWindowStartupGate } from "./main-window-startup-gate";
+import {
+  canOpenNotificationSettings,
+  openNotificationSettings
+} from "./notification-settings";
 import { createTaskNotifier } from "./task-notification";
 import { configureBootstrapEnvironment } from "./bootstrap-environment";
 import { handleModelCommands } from "./ipc/model-commands";
@@ -210,6 +222,7 @@ import {
   registerAgentTeamMarketplaceIpc,
   type AgentTeamMarketplaceClient
 } from "../extras/agent-team-marketplace";
+import { registerFeedbackIpc, type FeedbackClient } from "../extras/feedback";
 
 registerAppearanceFontScheme();
 registerCoverScheme();
@@ -258,6 +271,62 @@ let longAgentConfigStore: LongAgentConfigStore | undefined;
 let cachedAppearanceSettings: AppearanceSettings =
   createDefaultAppearanceSettings();
 let cachedGeneralSettings: GeneralSettings = createDefaultGeneralSettings();
+type CommandRoute = (
+  event: Electron.IpcMainInvokeEvent,
+  rawCommand: unknown
+) => Promise<CommandResult>;
+let commandRoute: CommandRoute | undefined;
+const externalControl = createExternalControl({
+  paths: resolveExternalControlPaths({
+    homeDirectory: app.getPath("home"),
+    packaged: app.isPackaged
+  }),
+  app: {
+    appVersion: app.getVersion(),
+    platform: process.platform,
+    rendererReady: () =>
+      Boolean(
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        !mainWindow.webContents.isLoading()
+      ),
+    activeRunCount: () => activeRuns.size,
+    activeResourceIds: () =>
+      new Set(
+        [...activeRuns.values()].flatMap(
+          (run) =>
+            run.externalResourceIds ??
+            (run.resourceId ? [run.resourceId] : ["*"])
+        )
+      ),
+    generalSettings: () => cachedGeneralSettings,
+    core: (command, timeoutMs) =>
+      supervisor.requestCommand("core", command, timeoutMs),
+    command: routeExternalCommand,
+    broadcastChange: (change) =>
+      broadcastEvent(
+        SystemEventEnvelopeSchema.parse(
+          createEnvelope("externalControl.resource_changed", change, {
+            id: createId("evt_external_changed")
+          })
+        )
+      ),
+    agentTeams: () => requireAgentTeamConfigStore().list(),
+    dataDirectory: () => app.getPath("userData")
+  },
+  sendWindowRequest: (id, request) =>
+    broadcastEvent(
+      SystemEventEnvelopeSchema.parse(
+        createEnvelope("externalControl.window_request", request, { id })
+      )
+    ),
+  homeDirectory: app.getPath("home"),
+  connection: bridgeConnection,
+  confirmClient: createClientConfirmDialog({
+    getWindow: () => mainWindow,
+    showWindow: () => showMainWindow()
+  })
+});
 let utilitiesStarted = false;
 let nativeAppearanceListenerBound = false;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
@@ -270,6 +339,7 @@ let updateService: UpdateService | undefined;
 let appAlertStore: AppAlertStore | undefined;
 let marketplaceClient: MarketplaceClient | undefined;
 let agentTeamMarketplaceClient: AgentTeamMarketplaceClient | undefined;
+let feedbackClient: FeedbackClient | undefined;
 let cloudBackupService: CloudBackupService | undefined;
 let deviceSyncService: ReturnType<typeof createDesktopDeviceSync> | undefined;
 const rendererStateFlush = createRendererStateFlushCoordinator();
@@ -297,7 +367,7 @@ const taskNotifier = createTaskNotifier({
       SystemEventEnvelopeSchema.parse(
         createEnvelope(
           "system.notification_blocked",
-          {},
+          { canOpenSettings: canOpenNotificationSettings() },
           { id: createId("evt_notification_blocked") }
         )
       ) as SystemEventEnvelope
@@ -319,7 +389,10 @@ const gracefulShutdown = createGracefulShutdown({
       await rendererStateFlush.request(mainWindow);
     mainWindow?.close();
   },
-  shutdownUtilities: () => supervisor.shutdownAll(),
+  shutdownUtilities: async () => {
+    await externalControl.stop();
+    await supervisor.shutdownAll();
+  },
   flushUsage: () => modelUsageStore?.flush(),
   reportUsage: () => softwareTokenUsageReporter?.reportBeforeShutdown(),
   complete(installUpdate) {
@@ -717,11 +790,51 @@ function syncMenuBarTray(): void {
   );
 }
 
+/** How an MCP client starts the bridge on this install. */
+function bridgeConnection() {
+  return {
+    command: process.env.APPIMAGE ?? process.execPath,
+    args: [
+      fileURLToPath(
+        new URL("./extras/external-control/bridge-entry.js", import.meta.url)
+      )
+    ]
+  };
+}
+
+/** Sends a command through the window's route, as if the window had sent it. */
+function routeExternalCommand(
+  command: CommandEnvelope
+): Promise<CommandResult> {
+  const webContents = mainWindow?.webContents;
+  if (!webContents || !commandRoute) {
+    return Promise.resolve({
+      status: "rejected",
+      requestId: command.id,
+      error: { code: "ipc.window_unavailable", message: "No window." }
+    });
+  }
+  return commandRoute(
+    {
+      sender: webContents,
+      senderFrame: webContents.mainFrame
+    } as Electron.IpcMainInvokeEvent,
+    command
+  );
+}
+
+function handleCommandChannel(channel: string, route: CommandRoute): void {
+  commandRoute = route;
+  ipcMain.handle(channel, route);
+}
+
 function syncGeneralSettings(settings: GeneralSettings): void {
   const shouldRestartAgent =
     utilitiesStarted &&
     cachedGeneralSettings.useNetworkProxy !== settings.useNetworkProxy;
   cachedGeneralSettings = settings;
+  // Startup connects after the window step, once Core can answer tools.
+  if (mainWindow) void externalControl.sync(settings.externalControlEnabled);
   setNativeLanguage(settings.language, app.getLocale());
   syncMenuBarTray();
   applyNetworkProxyPreference(settings.useNetworkProxy);
@@ -788,6 +901,15 @@ function requireMainWindow(): BrowserWindow {
     throw new Error("DeepWrite 主窗口尚未初始化。");
   }
   return mainWindow;
+}
+
+/** The book is already gone, so a leftover binding must not fail the delete. */
+async function forgetBookTeamBinding(bookId: string): Promise<void> {
+  try {
+    await requireAgentTeamConfigStore().removeBookBinding(bookId);
+  } catch (error: unknown) {
+    console.warn("DeepWrite could not clear a book's team binding:", error);
+  }
 }
 
 function requireAgentTeamConfigStore(): AgentTeamConfigStore {
@@ -972,6 +1094,10 @@ function registerIpc(): void {
     () => agentTeamMarketplaceClient,
     () => mainWindow
   );
+  registerFeedbackIpc(
+    () => feedbackClient,
+    () => mainWindow
+  );
 
   registerDeviceSyncIpc(
     () => deviceSyncService,
@@ -983,7 +1109,7 @@ function registerIpc(): void {
     () => mainWindow
   );
 
-  ipcMain.handle(
+  handleCommandChannel(
     IPC_COMMAND_CHANNEL,
     async (event, rawCommand: unknown): Promise<CommandResult> => {
       const requestId = extractCommandRequestId(rawCommand);
@@ -1118,7 +1244,19 @@ function registerIpc(): void {
         );
         if (result) return result;
       }
+      const externalSettingsResult =
+        await externalControl.handleSettingsCommand(command);
+      if (externalSettingsResult) return externalSettingsResult;
+      if (command.type === "externalControl.window_response") {
+        externalControl.resolveWindowResponse(command.payload);
+        return {
+          status: "accepted",
+          requestId: command.id,
+          payload: { ok: true }
+        };
+      }
       if (
+        command.type === "externalControl.locateProject" ||
         command.type === "deviceSync.workspace" ||
         command.type === "deviceSync.conversations" ||
         command.type === "agent.prompt" ||
@@ -1370,6 +1508,10 @@ function registerIpc(): void {
             }
           };
         }
+      }
+
+      if (command.type === "generalSettings.openNotificationSettings") {
+        return openNotificationSettings(command.id);
       }
 
       if (
@@ -1847,6 +1989,9 @@ function registerIpc(): void {
             case "long.unregister":
             case "long.delete":
               payload = LongRemoveBookResultSchema.parse(result.payload);
+              if (command.type === "long.delete") {
+                await forgetBookTeamBinding(command.payload.bookId);
+              }
               break;
           }
           return { status: "accepted", requestId: command.id, payload };
@@ -2034,6 +2179,7 @@ function registerIpc(): void {
               break;
             case "catalog.deleteBook":
               payload = DeleteBookResultSchema.parse(result.payload);
+              await forgetBookTeamBinding(command.payload.bookId);
               break;
             case "catalog.saveDocument":
               payload = SaveDocumentResultSchema.parse(result.payload);
@@ -2413,9 +2559,15 @@ async function announceReady(window: BrowserWindow): Promise<void> {
   }
   if (process.env.DEEPWRITE_SMOKE === "1") {
     try {
-      await runApplicationSmoke(health, supervisor, window, (tap) => {
-        smokeEventTap = tap;
-      });
+      await runApplicationSmoke(
+        health,
+        supervisor,
+        window,
+        (tap) => {
+          smokeEventTap = tap;
+        },
+        externalControl.call
+      );
     } catch (error: unknown) {
       console.error(`DEEPWRITE_SMOKE_FAIL ${smokeErrorMessage(error)}`);
     } finally {
@@ -2433,6 +2585,12 @@ if (!hasSingleInstanceLock) {
   app.on("second-instance", () => {
     mainWindowStartupGate.requestShow();
   });
+  app.on("second-instance", (_event, argv) => {
+    if (argv.includes(EXTERNAL_CONTROL_LAUNCH_FLAG))
+      void externalControl.noteLaunchRequest();
+  });
+  if (process.argv.includes(EXTERNAL_CONTROL_LAUNCH_FLAG))
+    void externalControl.noteLaunchRequest();
 
   void desktopStartup.run(async () => {
     await app.whenReady();
@@ -2476,7 +2634,8 @@ if (!hasSingleInstanceLock) {
       cloudBackupService,
       deviceSyncService,
       marketplaceClient,
-      agentTeamMarketplaceClient
+      agentTeamMarketplaceClient,
+      feedbackClient
     } = services);
     storageSettingsService = createStorageSettingsService({
       locations: storageBootstrap!.locations,
@@ -2538,6 +2697,7 @@ if (!hasSingleInstanceLock) {
       mainWindow = createMainWindow();
     });
     mainWindowStartupGate.markReady();
+    void externalControl.sync(cachedGeneralSettings.externalControlEnabled);
 
     app.on("activate", () => {
       showMainWindow();

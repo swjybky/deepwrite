@@ -9,10 +9,11 @@ import { enabledTeamMembers } from "./agentTeamModeAvailability";
 export function agentTeamMemberReferences(
   catalog: AgentTeamCatalogSnapshot | null,
   workspaceType: AgentTeamWorkspaceType,
-  parentAgentId: string
+  parentAgentId: string,
+  bookId?: string
 ): ComposerReferenceOption[] {
   if (!catalog) return [];
-  return enabledTeamMembers(catalog, workspaceType, parentAgentId).map(
+  return enabledTeamMembers(catalog, workspaceType, parentAgentId, bookId).map(
     (member) => ({
       id: member.id,
       label: member.name,

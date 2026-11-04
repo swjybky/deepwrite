@@ -1,21 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { smokeReleaseConfig } from "./smoke-release-config";
 
-const state = vi.hoisted(() => ({ publicData: true, oss: true }));
+const state = vi.hoisted(() => ({ publicData: true, backup: true }));
 vi.mock("./deepwrite-public-data-config", () => ({
   get DEEPWRITE_PUBLIC_DATA_API_CONFIGURED() {
     return state.publicData;
   }
 }));
 vi.mock("../extras/cloud-backup/config", () => ({
-  loadCloudBackupOssConfig: () =>
-    state.oss
+  loadCloudBackupApiConfig: () =>
+    state.backup
       ? {
-          accessKeyId: "invalid-test-id",
-          accessKeySecret: "invalid-test-secret",
-          bucket: "invalid-test-bucket",
-          endpoint: "oss.example.test",
-          region: "invalid-test-region"
+          baseUrl: "https://backup.example.test"
         }
       : null
 }));
@@ -25,12 +21,12 @@ const environment = {
 };
 beforeEach(() => {
   state.publicData = true;
-  state.oss = true;
+  state.backup = true;
 });
 describe("bundled release configuration smoke", () => {
   it("keeps ordinary development smoke independent of private configuration", () => {
     state.publicData = false;
-    state.oss = false;
+    state.backup = false;
     expect(smokeReleaseConfig({})).toBeUndefined();
   });
   it("returns only success flags, without credentials or endpoint values", () => {
@@ -46,10 +42,10 @@ describe("bundled release configuration smoke", () => {
       "bundled public service configuration is missing"
     );
   });
-  it("rejects a package without OSS credentials", () => {
-    state.oss = false;
+  it("rejects a package without backup API configuration", () => {
+    state.backup = false;
     expect(() => smokeReleaseConfig(environment)).toThrow(
-      "bundled OSS configuration is missing"
+      "bundled backup API configuration is missing"
     );
   });
   it("rejects evaluation capture in a release package", () => {

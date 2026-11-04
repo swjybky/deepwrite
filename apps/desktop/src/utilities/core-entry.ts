@@ -6,6 +6,7 @@ import { LongLedgerAuditError } from "./long-ledger-v4-audit";
 import { withLongBookAnalysisSources } from "./long-book-analysis-sources";
 import { withShortBookAnalysisSources } from "./short-book-analysis-sources";
 import { handleLongCoreCommand } from "./long-core-commands";
+import { LongDocumentConflictError } from "./long-project-store/types";
 import { legacyDataRootsFromEnvironment } from "./legacy-data-roots";
 import { withDeviceSyncCommands } from "./device-sync-core";
 import { createCoreConversationRuntime } from "./core-conversation-runtime";
@@ -23,6 +24,7 @@ import {
   ImportLibraryEntriesResultSchema,
   CatalogOpenProjectResultSchema,
   CatalogIndexSnapshotSchema,
+  ExternalControlLocateProjectResultSchema,
   CatalogReadDocumentResultSchema,
   ReadWritingContextResultSchema,
   CatalogSnapshotSchema,
@@ -165,6 +167,19 @@ async function handleCatalogCommand(
         status: "accepted",
         requestId: command.id,
         payload: await materialQueryService.query(command.payload)
+      };
+    }
+    if (command.type === "externalControl.locateProject") {
+      const { source, projectId } = command.payload;
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: ExternalControlLocateProjectResultSchema.parse({
+          projectDirectory:
+            source === "long"
+              ? await longWorkspaceService.resolveProjectDirectory(projectId)
+              : await catalogStore.projectDirectory(projectId)
+        })
       };
     }
     if (command.type === "catalog.index") {
@@ -505,6 +520,13 @@ async function handleCatalogCommand(
             operationCode: error.code
           }
         }
+      };
+    }
+    if (error instanceof LongDocumentConflictError) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: { code: "long.document_conflict", message: error.message }
       };
     }
     if (error instanceof FolderCatalogConflictError) {

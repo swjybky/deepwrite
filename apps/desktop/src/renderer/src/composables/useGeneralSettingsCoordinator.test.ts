@@ -35,6 +35,25 @@ describe("general settings coordinator", () => {
     );
   });
 
+  it("groups plain switches under the event names the settings page emits", () => {
+    const { generalSwitchEvents } = harness().coordinator;
+    expect(Object.keys(generalSwitchEvents).sort()).toEqual([
+      "updateExternalControlEnabled",
+      "updateShowInMenuBar",
+      "updateTaskNotification"
+    ]);
+  });
+
+  it("saves the external control choice with the other preferences", async () => {
+    const test = harness();
+    test.coordinator.generalSwitchEvents.updateExternalControlEnabled(true);
+    expect(test.settings.value.externalControlEnabled).toBe(true);
+    await test.coordinator.drain();
+    expect(test.api!.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ externalControlEnabled: true })
+    );
+  });
+
   it("blocks strict close after an unsuccessful save and retries the same preferences", async () => {
     const test = harness();
     const save = vi.mocked(test.api!.save);

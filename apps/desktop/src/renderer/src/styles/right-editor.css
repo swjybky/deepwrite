@@ -408,7 +408,7 @@
   background: transparent;
   color: var(--text-primary);
   font-family: var(--editor-font);
-  font-size: 1.07143rem;
+  font-size: var(--editor-font-size, 15px);
   line-height: 1.95;
   letter-spacing: 0.025em;
 }
@@ -435,6 +435,20 @@ html[data-theme="dark"] .document-editor:focus-visible {
 
 .document-preview .markdown-content {
   white-space: normal;
+}
+
+:is(.document-preview, .long-document-preview) .markdown-content h1 {
+  font-size: 1.333333em;
+}
+
+:is(.document-preview, .long-document-preview) .markdown-content h2 {
+  font-size: 1.2em;
+}
+
+:is(.document-preview, .long-document-preview)
+  .markdown-content
+  :is(h3, h4, h5, h6) {
+  font-size: 1em;
 }
 
 .document-preview-empty {

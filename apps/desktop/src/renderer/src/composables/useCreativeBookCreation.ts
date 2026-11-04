@@ -5,7 +5,10 @@ import type {
   CreateLongBookInput,
   WorkspaceAgentSettings
 } from "@deepwrite/contracts";
-import type { CreateCreativeBookPayload } from "../components/WorkspaceDialogLayer.types";
+import type {
+  BookAgentTeamChoice,
+  CreateCreativeBookPayload
+} from "../components/WorkspaceDialogLayer.types";
 import type { CreateShortOrScriptBookInput } from "./useShortBookLifecycleCoordinator";
 import { uiMessage } from "../ui-feedback";
 export interface CreativeBookCreationOptions {
@@ -14,7 +17,7 @@ export interface CreativeBookCreationOptions {
   settings: Ref<WorkspaceAgentSettings[]>;
   catalog: Ref<CatalogIndexSnapshot | null>;
   createShort(input: CreateShortOrScriptBookInput): Promise<void>;
-  createLong(input: CreateLongBookInput): Promise<void>;
+  createLong(input: CreateLongBookInput & BookAgentTeamChoice): Promise<void>;
   openSettings(category: string): Promise<void>;
 }
 export function useCreativeBookCreation(options: CreativeBookCreationOptions) {

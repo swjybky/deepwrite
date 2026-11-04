@@ -103,6 +103,7 @@ export async function handleAgentTeamCommands(
     command.type === "agentTeams.rename" ||
     command.type === "agentTeams.delete" ||
     command.type === "agentTeams.setEnabled" ||
+    command.type === "agentTeams.setBookBinding" ||
     command.type === "agentTeams.save" ||
     command.type === "agentTeams.saveBuiltins"
   ) {
@@ -117,9 +118,11 @@ export async function handleAgentTeamCommands(
               ? await store.delete(command.payload)
               : command.type === "agentTeams.setEnabled"
                 ? await store.setEnabled(command.payload)
-                : command.type === "agentTeams.saveBuiltins"
-                  ? await store.saveBuiltins(command.payload)
-                  : await store.save(command.payload);
+                : command.type === "agentTeams.setBookBinding"
+                  ? await store.setBookBinding(command.payload)
+                  : command.type === "agentTeams.saveBuiltins"
+                    ? await store.saveBuiltins(command.payload)
+                    : await store.save(command.payload);
       return {
         status: "accepted",
         requestId: command.id,

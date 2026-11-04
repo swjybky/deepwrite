@@ -29,5 +29,6 @@ export default {
   download: "Download",
   rename: "Rename",
   deleteTeam: "Delete team",
-  disableThisTeamFirst: "Disable this team first"
+  disableThisTeamFirst: "Disable this team first",
+  boundToBooks: "Linked to {arg0} books"
 };

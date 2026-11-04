@@ -89,32 +89,35 @@ async function send(): Promise<void> {
         required
         @input="changeEmail"
     /></label>
-    <button
-      type="button"
-      :disabled="disabled || sending || remaining > 0"
-      @click="send"
-    >
-      {{
-        sending
-          ? t("sending")
-          : remaining > 0
-            ? t("resendInValueS", {
-                arg0: remaining
-              })
-            : t("sendCode")
-      }}
-    </button>
-    <label
-      ><span>{{ t("emailVerificationCode") }}</span
-      ><input
-        v-model="code"
-        inputmode="numeric"
-        autocomplete="one-time-code"
-        maxlength="6"
-        pattern="[0-9]{6}"
-        :disabled="disabled || sending"
-        required
-    /></label>
+    <div class="code-row">
+      <label
+        ><span>{{ t("emailVerificationCode") }}</span
+        ><input
+          v-model="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          pattern="[0-9]{6}"
+          :disabled="disabled || sending"
+          required
+      /></label>
+      <button
+        class="send-code"
+        type="button"
+        :disabled="disabled || sending || remaining > 0"
+        @click="send"
+      >
+        {{
+          sending
+            ? t("sending")
+            : remaining > 0
+              ? t("resendInValueS", {
+                  arg0: remaining
+                })
+              : t("sendCode")
+        }}
+      </button>
+    </div>
     <small>{{ t("enterTheSixDigitEmailCodeItExpiresIn") }}</small>
   </div>
 </template>

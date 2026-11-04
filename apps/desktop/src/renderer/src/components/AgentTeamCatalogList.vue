@@ -4,8 +4,10 @@ import type {
   AgentTeamProfile,
   AgentTeamWorkspaceType
 } from "@deepwrite/contracts/renderer";
+import { agentTeamBoundBookCount } from "@deepwrite/contracts/renderer";
 import { computed, ref } from "vue";
 import { createScopedTranslator } from "../i18n";
+import AgentTeamBindingGuide from "./AgentTeamBindingGuide.vue";
 import AgentTeamSwitch from "./AgentTeamSwitch.vue";
 import AppIcon from "./AppIcon.vue";
 import BuiltinSubagentSettings from "./BuiltinSubagentSettings.vue";
@@ -69,6 +71,10 @@ function workspaceTypeLabel(type: AgentTeamWorkspaceType): string {
 
 function isEnabled(team: AgentTeamProfile): boolean {
   return props.catalog?.enabledTeamIds[team.workspaceType] === team.id;
+}
+
+function boundBookCount(team: AgentTeamProfile): number {
+  return agentTeamBoundBookCount(props.catalog?.bookBindings, team.id);
 }
 
 function subagentCount(team: AgentTeamProfile): number {
@@ -145,6 +151,8 @@ function subagentCount(team: AgentTeamProfile): number {
         </div>
       </section>
 
+      <AgentTeamBindingGuide />
+
       <section class="team-section" aria-labelledby="creative-teams-title">
         <header class="section-header">
           <h3 id="creative-teams-title">
@@ -195,6 +203,9 @@ function subagentCount(team: AgentTeamProfile): number {
                   team.settings.parallelSubagents
                     ? t("parallelOn")
                     : t("parallelOff")
+                }}</span>
+                <span v-if="boundBookCount(team)">{{
+                  t("boundToBooks", { arg0: boundBookCount(team) })
                 }}</span>
               </span>
             </button>

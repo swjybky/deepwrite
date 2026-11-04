@@ -34,6 +34,7 @@ type WritingConversationContext = Readonly<
     | "agentLabel"
     | "agentId"
     | "agentWorkspaceType"
+    | "agentBookId"
     | "allowLiveEditReview"
     | "libraryDomain"
     | "librarySkills"

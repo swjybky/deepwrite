@@ -60,6 +60,11 @@ export default {
     "Your current data has not been saved. Migration and restart were canceled. Save your work and try again.",
   migrationIncomplete: "User Data Migration Incomplete",
   workspaceRejected: "Workspace Folder Changed",
+  externalClientTitle: "External Agent Connection",
+  externalClientDetail:
+    "If you allow it, this agent can view and operate your works, material libraries, skill libraries and agent teams. DeepWrite won't ask again for this agent.",
+  externalClientAllow: "Allow",
+  externalClientDeny: "Deny",
   startupFailure: "DeepWrite Could Not Start",
   downloadTeam: "Download Team",
   installTeam: "Import Team",

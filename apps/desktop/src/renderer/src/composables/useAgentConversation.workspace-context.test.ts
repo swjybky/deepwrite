@@ -45,7 +45,7 @@ describe("agent conversation controller: workspace-context", () => {
     await sending;
 
     expect(deferred.prompts[0]?.autoApproveCrossStageOperations).toBe(true);
-    expect(deferred.prompts[0]?.agentTeamMode).toBe("normal");
+    expect(deferred.prompts[0]?.agentTeamMode).toBe("team");
 
     const context = deferred.prompts[0]?.workspaceContext;
     const plotStage = context?.shortWorkspace?.stages.find(
@@ -760,7 +760,7 @@ describe("agent conversation controller: workspace-context", () => {
         })
       ]
     });
-    expect(deferred.prompts[0]?.agentTeamMode).toBe("normal");
+    expect(deferred.prompts[0]?.agentTeamMode).toBe("team");
     expect(deferred.prompts[0]?.workspaceContext).not.toHaveProperty(
       "activeResource"
     );

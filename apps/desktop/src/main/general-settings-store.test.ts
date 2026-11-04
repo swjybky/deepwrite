@@ -200,6 +200,7 @@ describe("GeneralSettingsStore", () => {
         language: "zh-CN",
         showInMenuBar: false,
         taskNotification: false,
+        externalControlEnabled: false,
         showContextUsage: true,
         textAttachmentMaxCharacters: 100_000,
         contextCompaction: createDefaultGeneralSettings().contextCompaction,
@@ -229,15 +230,21 @@ describe("GeneralSettingsStore", () => {
     const legacy = await store.list();
     expect(legacy.persisted).toBe(true);
     expect(legacy.settings.taskNotification).toBe(false);
+    expect(legacy.settings.externalControlEnabled).toBe(false);
 
-    await store.save({ ...legacy.settings, taskNotification: true });
+    await store.save({
+      ...legacy.settings,
+      taskNotification: true,
+      externalControlEnabled: true
+    });
     expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({
       version: 2,
-      taskNotification: true
+      taskNotification: true,
+      externalControlEnabled: true
     });
     await expect(new GeneralSettingsStore(root).list()).resolves.toMatchObject({
       persisted: true,
-      settings: { taskNotification: true }
+      settings: { taskNotification: true, externalControlEnabled: true }
     });
   });
 

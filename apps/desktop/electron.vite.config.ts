@@ -9,6 +9,11 @@ const workspaceRoot = resolve(__dirname, "../..");
 const appRoot = resolve(__dirname);
 
 const aliases = {
+  // Before the package alias, which would otherwise capture this subpath.
+  "@deepwrite/contracts/external-control": resolve(
+    workspaceRoot,
+    "packages/contracts/src/external-control/index.ts"
+  ),
   "@deepwrite/contracts": resolve(
     workspaceRoot,
     "packages/contracts/src/index.ts"
@@ -45,12 +50,18 @@ const rendererAliases = [
 export default defineConfig({
   main: {
     envDir: workspaceRoot,
+    // Never bundle legacy OSS credentials from a developer or release .env.
+    envPrefix: ["MAIN_VITE_DEEPWRITE_"],
     resolve: { alias: aliases },
     build: {
       rollupOptions: {
         external: ["electron", ...Object.keys(dependencies)],
         input: {
           index: resolve(appRoot, "src/main/index.ts"),
+          "extras/external-control/bridge-entry": resolve(
+            appRoot,
+            "src/extras/external-control/bridge-entry.ts"
+          ),
           "utilities/conversation-storage/worker-entry": resolve(
             appRoot,
             "src/utilities/conversation-storage/worker-entry.ts"

@@ -157,8 +157,8 @@ export class UpdateService {
         return this.replaceState({ ...availableState, status: "unsupported" });
       }
 
-      // The manifest has passed DeepWrite's character ordering. Permit the
-      // download when the native updater considers that version numerically older.
+      // Historical 1.6.3xx builds preceded 1.6.4. Permit that upgrade when
+      // the native updater considers the accepted version numerically older.
       autoUpdater.allowDowngrade =
         autoUpdater.currentVersion.compare(manifest.version) > 0;
       autoUpdater.setFeedURL({

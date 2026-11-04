@@ -18,7 +18,7 @@ export interface SecureStorageLike {
 export interface StoredMarketplaceSession {
   version: 1;
   encryptedToken: string;
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 export interface MarketplaceClientOptions {

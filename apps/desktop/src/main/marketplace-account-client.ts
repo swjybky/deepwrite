@@ -11,7 +11,10 @@ import { safeStorage } from "electron";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEEPWRITE_PUBLIC_DATA_API_BASE_URL } from "./deepwrite-public-data-config";
-import { requestMarketplace } from "./marketplace-request";
+import {
+  requestMarketplace,
+  type MarketplaceRequestOptions
+} from "./marketplace-request";
 import { electronRemoteFetch } from "./electron-remote-fetch";
 
 import {
@@ -206,10 +209,7 @@ export class MarketplaceAccountClient {
   async request(
     method: string,
     path: string,
-    options: {
-      authenticated: boolean | "optional";
-      body?: unknown;
-    }
+    options: MarketplaceRequestOptions
   ): Promise<unknown> {
     await this.loadPromise;
     const headers = new Headers({ Accept: "application/json" });
@@ -244,15 +244,61 @@ export class MarketplaceAccountClient {
     );
   }
 
+  /** Binary backups share the marketplace session; credentials never leave Main. */
+  async fetchBackup(
+    url: string | URL | Request,
+    init?: RequestInit
+  ): Promise<Response> {
+    const allowed = ["manifest.json", "snapshot.zip"].map(
+      (file) => `${this.baseUrl}/deepwrite/v1/backups/${file}`
+    );
+    if (
+      !allowed.includes(String(url)) ||
+      !["GET", "PUT"].includes(init?.method ?? "GET") ||
+      this.insecureTransport
+    ) {
+      throw new Error("云端备份请求地址无效。");
+    }
+    await this.loadPromise;
+    if (!this.token || this.isExpired()) {
+      await this.clearSession();
+      throw new MarketplaceClientError(
+        "marketplace.unauthorized",
+        "请先登录后使用云备份。",
+        401
+      );
+    }
+    const requestedToken = this.token;
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${requestedToken}`);
+    const response = await this.fetcher(String(url), {
+      ...init,
+      headers,
+      redirect: "error",
+      cache: "no-store"
+    });
+    if (response.status === 401) {
+      await response.body?.cancel();
+      if (this.token === requestedToken) await this.clearSession();
+      throw new MarketplaceClientError(
+        "marketplace.unauthorized",
+        "登录已失效，请重新登录后使用云备份。",
+        401
+      );
+    }
+    return response;
+  }
+
   private async acceptAuthentication(
     data: Record<string, unknown>
   ): Promise<void> {
     const token = requiredString(data, "token");
-    const expiresAt = requiredString(data, "expires_at");
+    const expiresAt =
+      data.expires_at === null ? undefined : requiredString(data, "expires_at");
     const user = normalizeUser(data.user);
     if (
       !token.startsWith("dw_user_") ||
-      !Number.isFinite(Date.parse(expiresAt))
+      (expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt)))
     ) {
       throw new MarketplaceClientError(
         "marketplace.invalid_response",
@@ -278,9 +324,9 @@ export class MarketplaceAccountClient {
 
   private isExpired(): boolean {
     return (
-      !this.expiresAt ||
-      !Number.isFinite(Date.parse(this.expiresAt)) ||
-      Date.parse(this.expiresAt) <= this.now()
+      this.expiresAt !== undefined &&
+      (!Number.isFinite(Date.parse(this.expiresAt)) ||
+        Date.parse(this.expiresAt) <= this.now())
     );
   }
 
@@ -294,7 +340,9 @@ export class MarketplaceAccountClient {
       if (
         raw.version !== MARKETPLACE_SESSION_FILE_VERSION ||
         typeof raw.encryptedToken !== "string" ||
-        typeof raw.expiresAt !== "string"
+        (raw.expiresAt !== undefined &&
+          (typeof raw.expiresAt !== "string" ||
+            !Number.isFinite(Date.parse(raw.expiresAt))))
       ) {
         return;
       }
@@ -303,7 +351,7 @@ export class MarketplaceAccountClient {
       );
       if (!token.startsWith("dw_user_")) return;
       this.token = token;
-      this.expiresAt = raw.expiresAt;
+      this.expiresAt = raw.expiresAt as string | undefined;
       this.persistent = true;
       if (this.isExpired()) await this.clearSession();
     } catch {
@@ -315,17 +363,13 @@ export class MarketplaceAccountClient {
 
   private async persistSession(): Promise<void> {
     this.persistent = false;
-    if (
-      !this.token ||
-      !this.expiresAt ||
-      !this.storage.isEncryptionAvailable()
-    ) {
+    if (!this.token || !this.storage.isEncryptionAvailable()) {
       return;
     }
     const stored: StoredMarketplaceSession = {
       version: MARKETPLACE_SESSION_FILE_VERSION,
       encryptedToken: this.storage.encryptString(this.token).toString("base64"),
-      expiresAt: this.expiresAt
+      ...(this.expiresAt ? { expiresAt: this.expiresAt } : {})
     };
     await mkdir(dirname(this.sessionPath), { recursive: true });
     const temporary = `${this.sessionPath}.tmp-${process.pid}-${this.now()}`;

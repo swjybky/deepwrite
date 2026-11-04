@@ -12,6 +12,7 @@ import {
   LinkedSkillIdsByKindSchema
 } from "./catalog";
 import type { Book } from "./catalog";
+import { LinkedAgentTeamIdsSchema } from "./agent-team-book-binding";
 
 const CatalogIdSchema = z.string().trim().min(1).max(512);
 const CatalogTitleSchema = z.string().trim().min(1).max(256);
@@ -24,7 +25,9 @@ const shape = {
     .max(CREATIVE_PLOT_STAGE_MAX_COUNT)
     .refine((ids) => new Set(ids).size === ids.length, "剧情阶段不能重复"),
   linkedMaterialIdsByKind: LinkedMaterialIdsByKindSchema,
-  linkedSkillIdsByKind: LinkedSkillIdsByKindSchema
+  linkedSkillIdsByKind: LinkedSkillIdsByKindSchema,
+  /** Absent when the template leaves the team choice to the default. */
+  linkedAgentTeamIds: LinkedAgentTeamIdsSchema.min(1).optional()
 };
 export const BookTemplateDraftSchema = z.discriminatedUnion("workspaceType", [
   z

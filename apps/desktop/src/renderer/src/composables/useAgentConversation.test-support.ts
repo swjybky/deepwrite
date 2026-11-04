@@ -484,6 +484,20 @@ function createDeferredApi(): {
         throw new Error("Marketplace is not used by conversation tests.");
       }
     },
+    feedback: {
+      async list() {
+        throw new Error("Feedback is not used by conversation tests.");
+      },
+      async submit() {
+        throw new Error("Feedback is not used by conversation tests.");
+      },
+      async image() {
+        throw new Error("Feedback is not used by conversation tests.");
+      },
+      async captureWindow() {
+        throw new Error("Feedback is not used by conversation tests.");
+      }
+    },
     agentTeamMarketplace: {
       async list() {
         throw new Error("Team plaza is not used by conversation tests.");
@@ -707,6 +721,9 @@ function createDeferredApi(): {
       async saveBuiltins() {
         return this.list();
       },
+      async setBookBinding() {
+        return this.list();
+      },
       async list() {
         return {
           enabledTeamIds: {},
@@ -767,6 +784,9 @@ function createDeferredApi(): {
       }
     },
     ...createBookAnalysisTestApi(),
+    externalControl: {
+      respond: vi.fn(async () => undefined)
+    } as unknown as DeepWriteApi["externalControl"],
     extrasAgents: {
       ...createBookAnalysisTestApi().extrasAgents,
       run(request) {

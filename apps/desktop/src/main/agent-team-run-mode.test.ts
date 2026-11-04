@@ -70,8 +70,30 @@ describe("agent team run mode", () => {
       subagentDefinitions: [inheritedMember, customMember],
       subagentRuntimeConfigs: { [runtimeConfig.id]: runtimeConfig }
     });
-    expect(resolveDefinitions).toHaveBeenCalledWith("short", "short");
+    expect(resolveDefinitions).toHaveBeenCalledWith(
+      "short",
+      "short",
+      undefined
+    );
     expect(resolveModel).toHaveBeenCalledWith(runtimeConfig.id);
+  });
+
+  it("resolves members and parallelism for the book being written", async () => {
+    const resolveDefinitions = vi.fn(async () => [inheritedMember]);
+    const resolveParallelSubagents = vi.fn(async () => false);
+
+    await resolveAgentTeamRuntime(
+      "team",
+      { workspaceType: "long", parentAgentId: "long", bookId: "book-1" },
+      {
+        resolveDefinitions,
+        resolveModel: async () => undefined,
+        resolveParallelSubagents
+      }
+    );
+
+    expect(resolveDefinitions).toHaveBeenCalledWith("long", "long", "book-1");
+    expect(resolveParallelSubagents).toHaveBeenCalledWith("long", "book-1");
   });
 
   it("passes the enabled team's parallel switch only in team mode", async () => {
@@ -91,7 +113,7 @@ describe("agent team run mode", () => {
       subagentRuntimeConfigs: {},
       parallelSubagents: true
     });
-    expect(resolveParallelSubagents).toHaveBeenCalledWith("script");
+    expect(resolveParallelSubagents).toHaveBeenCalledWith("script", undefined);
 
     await expect(
       resolveAgentTeamRuntime(

@@ -107,7 +107,15 @@ export default {
       "模板中的剧情阶段已失效，请编辑模板后重试。",
     aMaterialLibraryInThisTemplateIsNoLonger:
       "模板中的素材库已失效，请重新选择。",
-    aSkillLibraryInThisTemplateIsNoLonger: "模板中的技能库已失效，请重新选择。"
+    aSkillLibraryInThisTemplateIsNoLonger: "模板中的技能库已失效，请重新选择。",
+    anAgentTeamInThisTemplateIsNoLonger:
+      "模板中的智能体团队已失效，请编辑模板。"
+  },
+  bookAgentTeamBinding: {
+    failedToLoadAgentTeams: "加载智能体团队失败。",
+    availableInTheDesktopAppOnly: "团队绑定仅在桌面应用中可用。",
+    createdButTeamBindingFailed:
+      "作品已创建，但绑定团队失败，请在作品菜单的“团队绑定”中重试。"
   },
   shortLibraryReferences: {
     linkedToThisBook: "{value} · 当前书籍已绑定"

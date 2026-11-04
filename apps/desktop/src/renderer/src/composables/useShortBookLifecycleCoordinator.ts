@@ -20,6 +20,7 @@ import type {
 import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import { executeShortManuscriptExport } from "./short-manuscript-export-transaction";
 import { disposeShortBookRemovalRuntime } from "./book-removal-runtime";
+import type { BookAgentTeamChoice } from "../components/WorkspaceDialogLayer.types";
 
 const t = createScopedTranslator("workspace");
 
@@ -27,9 +28,11 @@ type MaybePromise<Value> = Value | Promise<Value>;
 type PendingLane = "catalog" | "manuscript-export";
 type DraftFileKind = "body" | "character-state";
 
-export type CreateShortOrScriptBookInput =
-  | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
-  | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput);
+export type CreateShortOrScriptBookInput = BookAgentTeamChoice &
+  (
+    | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
+    | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput)
+  );
 
 export type ShortBookBindingsUpdate =
   | {

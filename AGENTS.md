@@ -38,6 +38,7 @@ DeepWrite 是 pnpm workspace，`apps/desktop/` 是唯一桌面客户端。根目
 - **IPC 与凭据：**Renderer 只从 `@deepwrite/contracts/renderer` 引入契约运行时值；不得直接引入 `electron`、`node:`、Pi SDK 或 `@deepwrite/pi-runtime-adapter`。Provider 凭据和模型密钥只留在 Main / Agent。跨进程通信使用 `@deepwrite/contracts` 的 Envelope 命令与事件，不开放任意 IPC 通道。
 - **契约变更：**新增命令、事件、清单字段或 Preload API 时，先更新 `packages/contracts` 的类型与 schema，再接通 Preload、Main 路由和相应 Utility；Renderer 所需的契约运行时值还要从 `packages/contracts/src/renderer.ts` 导出。Preload 只暴露经过双向校验的专用方法。
 - **本地写入：**Core Utility 是本地项目与路径注册表的唯一写入者，写入须保持原子性。本地作品以文件夹存放，清单为 `deepwrite.json`，正文与设定为 UTF-8 Markdown；短篇、剧本、素材库和技能库由 `folder-catalog-store` 管理，长篇由 `long-project-store` / `long-workspace-service` 管理。Agent 读取作品须经 Main 授权的 Core 只读桥；修改文稿须先展示 proposal 差异，用户接受后才由 Core 落盘，并处理版本冲突。
+- **外部控制接口：**外部智能体经 MCP 操作运行中的软件，实现在 `extras/external-control/` 和 contracts 的 `external-control/`，设计见 `docs/外部智能体控制接口设计.md`。外部直接操作是“修改文稿须先展示 proposal”的例外：不走提案和审批，但必须带版本校验、不得使用 `force`，基础操作与发送交接经短队列串行；不同作品智能体可并行，同一作品或共享可写资源被运行占用时返回 `external.busy`，团队全局设置与恢复仍保守互斥，写后广播 `externalControl.resource_changed`。删除必须可恢复：小节和条目先存回收区，作品和库只移出列表。工具经 `tool-routes.ts` 白名单开放，结果用严格 schema 约束；Core 专用命令要加入 `main/index.ts` 的内联拦截。外部运行内置智能体由 Renderer 的 `extras/external-control/useExternalControlBridge.ts` 走和发送按钮相同的入口，必须用 `overrideNextApprovalMode` 按次自动审批，且要求“跨阶段操作自动审批”已打开；发往 contextBridge 的数据先转成纯对象。设置页的管理命令（撤销授权、清空回收站、安装 Skill）只从窗口进入，不得开放成 MCP 工具；Skill 正文在 `extras/external-control/skill/SKILL.md`，改工具或错误码时同步。
 - **界面组织：**`WorkspaceShell.vue` 是工作台壳，默认三栏写作面留在入口，其他领域界面按现有 `lazyAppComponents` 按需加载。界面状态放 `stores/`，跨组件流程放 `composables/`，领域页面放 `features/` 或 `extras/`；业务写入留在 coordinator / Utility handler。可选能力沿用 Main `extras/`、Renderer `extras/` 和同一套 contracts。
 - **智能体运行分域：**所有智能体共用 `pi-runtime-adapter/src/kernel/` 的运行内核（模型接入、重试、超时、工具流、用量事件、中止）。创作空间和资料库经 `session.prompt` 进入创作域（`workspace-run-plan.ts`）；“更多功能”的智能体（聊天与各类分析）经 `extrasAgent.run` 进入扩展域，不得再向 `session.prompt` 载荷或 `WorkspaceRuntimeContext` 添加扩展功能字段。
 - **扩展智能体服务：**
@@ -95,10 +96,10 @@ DeepWrite 是 pnpm workspace，`apps/desktop/` 是唯一桌面客户端。根目
 按“现象 → 根源 → 守则”记录已经出过、容易重犯的问题；新增条目沿用这个格式，并附上可复用的实现位置。
 
 - **远端安装包构建成功，公共服务和云备份却缺少配置：**
-  - **现象：**本地运行正常，GitHub 构建的安装包没有公共服务地址和 OSS 凭据。
+  - **现象：**本地运行正常，GitHub 构建的安装包没有公共服务地址。
   - **根源：**仓库根目录 `.env` 被 Git 忽略，远端 checkout 不包含本机配置；Main 的 `MAIN_VITE_*` 需要在编译时读入。
-  - **守则：**官方发布使用仓库 Actions Secret `DEEPWRITE_RELEASE_ENV`，由 `tools/release-environment.mjs` 校验并恢复 `.env`；缺失必填项时在打包前失败。禁止将真实值写入源码、夹具、日志或发布说明。
-  - **验证：**发布时启用 `DEEPWRITE_REQUIRE_RELEASE_CONFIG=1`，包内冒烟清除宿主 `MAIN_VITE_*` 后检查公共服务及 OSS 配置，首次启动与重开都须通过；保留 `releaseConfig` 成功标记。参考 `smoke-release-config.ts`、`package-smoke-runner.mjs`。
+  - **守则：**官方发布使用仓库 Actions Secret `DEEPWRITE_RELEASE_ENV`，由 `tools/release-environment.mjs` 校验并恢复 `.env`；缺失必填项时在打包前失败；云备份经 DeepwriteApi 中转，禁止把 MAIN_VITE_OSS_* 放入发布环境，OSS 凭据仅留在 API 服务端。禁止将真实值写入源码、夹具、日志或发布说明。
+  - **验证：**发布时启用 `DEEPWRITE_REQUIRE_RELEASE_CONFIG=1`，包内冒烟清除宿主 `MAIN_VITE_*` 后检查公共服务及备份 API 配置，首次启动与重开都须通过；保留 `releaseConfig` 成功标记。参考 `smoke-release-config.ts`、`package-smoke-runner.mjs`。
 - **本地检查通过，Windows 发版却在测试阶段失败：**
   - **现象：**迁移、拆书测试单独运行通过，全量运行却触及默认 5 秒超时，清理临时目录或已提交的事务目录又报 `ENOTEMPTY`；事务锁测试依赖大量写盘和轮询，耗时随机器负载波动。
   - **根源：**日常 CI 只覆盖 Linux，真实文件系统和 SQLite 测试又与普通测试争抢磁盘；竞态测试靠运行速度制造时序，发版时才暴露 Windows 差异。

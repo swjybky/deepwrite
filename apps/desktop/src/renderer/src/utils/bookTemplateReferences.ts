@@ -1,5 +1,6 @@
 import { createScopedTranslator } from "../i18n";
 import type {
+  AgentTeamCatalogSnapshot,
   BookTemplateDraft,
   CreativePlotStage,
   MaterialLibrary,
@@ -13,7 +14,8 @@ export function bookTemplateReferenceError(
     creativePlotStages: readonly CreativePlotStage[];
     materials: readonly Pick<MaterialLibrary, "id" | "materialKind">[];
     skills: readonly Pick<SkillLibrary, "id" | "skillKind">[];
-  }
+  },
+  teams: Pick<AgentTeamCatalogSnapshot, "teams"> | null = null
 ): string | null {
   if (
     configuration.defaultPlotStageIds.some(
@@ -49,5 +51,16 @@ export function bookTemplateReferenceError(
     )
       return t("aSkillLibraryInThisTemplateIsNoLonger");
   }
+  if (
+    teams &&
+    configuration.linkedAgentTeamIds?.some(
+      (id) =>
+        !teams.teams.some(
+          (team) =>
+            team.id === id && team.workspaceType === configuration.workspaceType
+        )
+    )
+  )
+    return t("anAgentTeamInThisTemplateIsNoLonger");
   return null;
 }

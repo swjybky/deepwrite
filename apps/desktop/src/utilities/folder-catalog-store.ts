@@ -532,6 +532,13 @@ export class FolderCatalogStore {
     });
   }
 
+  async projectDirectory(projectId: string): Promise<string> {
+    return await this.readAfterWrites(async () => {
+      const registry = await this.ensureRegistry();
+      return findRegistrationByProjectId(registry, projectId).projectDirectory;
+    });
+  }
+
   async indexSnapshot(): Promise<CatalogIndexSnapshot> {
     return await this.readAfterWrites(async () => {
       const registry = await this.ensureRegistry();

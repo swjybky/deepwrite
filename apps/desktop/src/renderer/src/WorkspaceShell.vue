@@ -76,6 +76,9 @@ import { useWorkspaceDialogModuleCoordinator } from "./composables/useWorkspaceD
 import { useWorkspaceFeatureHostCoordinator } from "./composables/useWorkspaceFeatureHostCoordinator";
 import { useChatAssistant } from "./features/chat-assistant/useChatAssistant";
 import { uiMessage } from "./ui-feedback";
+import { prepareLibraryProjects } from "./composables/libraryProjectPreparation";
+import { externalTeamAvailable } from "./extras/external-control/team-availability";
+import { useExternalControlBridge } from "./extras/external-control/useExternalControlBridge";
 import { resourceSections } from "./data/demoWorkspace";
 import { EMPTY_WORKSPACE_DOCUMENT } from "./data/emptyWorkspaceDocument";
 import {
@@ -326,8 +329,7 @@ const {
   updateShowContextUsage,
   updateTextAttachmentMaxCharacters,
   updateContextCompaction,
-  updateShowInMenuBar,
-  updateTaskNotification,
+  generalSwitchEvents,
   updateUseNetworkProxy,
   updateWorkspacePaneLayout
 } = useGeneralSettingsCoordinator({
@@ -768,6 +770,7 @@ const {
   liveWorkspaceDocuments,
   locateEditorSelectionReference,
   openIdentityBook,
+  openExternalTarget,
   promptDocumentForResourceId,
   removeEditorSelectionReference,
   resourceIdForDocumentId,
@@ -1701,42 +1704,16 @@ const writingEditorViewModel = computed(() => ({
   deleteSectionLabel: editorDeleteSectionLabel.value,
   entrySearchItems: activeEditorEntrySearchItems.value
 }));
-async function prepareLibraryProjectsForDuplicate(
+function prepareLibraryProjectsForDuplicate(
   libraryIds: ReadonlySet<string>,
   operation: "duplicate" | "export" = "duplicate"
 ): Promise<boolean> {
-  await drainEditorSaves();
-  const scopedDocuments = documents.value.filter(
-    (document) => document.libraryId && libraryIds.has(document.libraryId)
+  return prepareLibraryProjects(
+    { documents, editorDrafts, saveConflict },
+    { drainEditorSaves, cancelEditorAutoSave, persistEditorDocument },
+    libraryIds,
+    operation
   );
-  if (
-    saveConflict.value &&
-    scopedDocuments.some(({ id }) => id === saveConflict.value?.documentId)
-  ) {
-    uiMessage.warning(t("resolveTheLibrarySSaveConflictsFirst"));
-    return false;
-  }
-  for (const document of scopedDocuments) {
-    if (document.readOnly) continue;
-    const draft = editorDrafts.value[document.id];
-    if (!draft?.dirty) continue;
-    cancelEditorAutoSave(document.id);
-    const saved = await persistEditorDocument(
-      { id: document.id, title: draft.title, content: draft.content },
-      false
-    );
-    if (!saved) {
-      uiMessage.warning(
-        t(
-          operation === "export"
-            ? "someLibraryDraftsCannotBeSavedSafelyExportWas"
-            : "someLibraryDraftsCannotBeSavedSafelyCopyingWas"
-        )
-      );
-      return false;
-    }
-  }
-  return true;
 }
 
 function selectEditorSection(sectionId: string): void {
@@ -2162,6 +2139,28 @@ async function locateAcceptedEditProposal(input: {
   }
 }
 
+useExternalControlBridge({
+  api: () => window.deepwrite,
+  open: openExternalTarget,
+  conversation: () =>
+    isLongWorkspaceActive.value
+      ? activeLongConversation.value
+      : activeConversation.value,
+  conversationsRestored: conversationRuntimeRegistry.drain,
+  teamAvailable: (target) =>
+    externalTeamAvailable(
+      settingsStore,
+      target,
+      activeLongAgentProfile.value?.id
+    ),
+  sendReady: () =>
+    !isLongWorkspaceActive.value || activeLongWorkspaceContextReady.value,
+  send: () => (isLongWorkspaceActive.value ? sendLongMessage() : sendMessage()),
+  longEditorHasUnsavedChanges: (bookId) =>
+    activeLongBookId.value === bookId &&
+    Boolean(longWorkspaceEditor.value?.hasUnsavedEdits())
+});
+
 function setAgentEditDocumentAccepting(
   documentId: string,
   accepting: boolean
@@ -2291,6 +2290,8 @@ function startWorkspaceSystemEvents(): () => void {
     stageAgentEditProposal,
     stageLibraryEditProposal,
     navigateToWorkspaceStage,
+    refreshAfterExternalChange: () =>
+      loadLongBookList().finally(workspaceLifecycle.requestFocusRefresh),
     allConversations,
     scheduleQueuedAgentEdits,
     onAsyncError(error) {
@@ -2457,8 +2458,7 @@ onBeforeUnmount(() => {
     @update-show-context-usage="updateShowContextUsage"
     @update-text-attachment-max-characters="updateTextAttachmentMaxCharacters"
     @update-context-compaction="updateContextCompaction"
-    @update-show-in-menu-bar="updateShowInMenuBar"
-    @update-task-notification="updateTaskNotification"
+    v-on="generalSwitchEvents"
     @update-use-network-proxy="updateUseNetworkProxy"
     @update-workspace-pane-layout="updateWorkspacePaneLayout"
     @update-default-text-view-mode="updateDefaultTextViewMode"
@@ -2517,6 +2517,7 @@ onBeforeUnmount(() => {
       @open-agent-teams="featureHost.openAgentTeams"
       @open-marketplace="featureHost.openMarketplace"
       @open-agent-team-marketplace="featureHost.openAgentTeamMarketplace"
+      @marketplace-session-change="featureHost.applyMarketplaceSession"
       @open-cloud-backup="featureHost.openCloudBackup"
       @open-device-sync="featureHost.openDeviceSync"
       @open-zhuque-detection="featureHost.openZhuqueDetection"

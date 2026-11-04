@@ -25,6 +25,7 @@ const t = createScopedTranslator("components.agentTeamCatalogDialogs");
 const props = defineProps<{
   mode: AgentTeamDialogMode | null;
   team: AgentTeamProfile | null;
+  boundBookCount: number;
   saving: boolean;
 }>();
 
@@ -154,6 +155,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             <div>
               <strong>{{ team?.name }}</strong>
               <p>{{ t("theSubagentSettingsInThisTeamWillBeDeleted") }}</p>
+              <p v-if="boundBookCount > 0">
+                {{ t("boundBooksWillLoseThisTeam", { arg0: boundBookCount }) }}
+              </p>
             </div>
           </div>
           <p v-else class="book-resource-help leave-hint">

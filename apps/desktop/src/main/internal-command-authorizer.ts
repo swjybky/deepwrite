@@ -32,6 +32,8 @@ const LONG_QUERY_COMMAND_TYPES = new Set<string>(
 
 export interface MainInternalCommandActiveRun {
   sessionId: string;
+  /** Resources held by a creation/library run, for external write isolation. */
+  externalResourceIds?: string[];
   /** Present only for a long-form run accepted from Main's session.prompt. */
   resourceId?: string;
   /** Main->Agent transport request that created the accepted run. */

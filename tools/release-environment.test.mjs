@@ -14,12 +14,7 @@ const fixture = {
   MAIN_VITE_DEEPWRITE_APP_MODE: "runtime",
   MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_BASE_URL:
     "https://gateway.example.test/prefix",
-  MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY: "invalid-test-public-key",
-  MAIN_VITE_OSS_ACCESS_KEY_ID: "invalid-test-oss-id",
-  MAIN_VITE_OSS_ACCESS_KEY_SECRET: "invalid-test-oss-secret",
-  MAIN_VITE_OSS_BUCKET: "invalid-test-bucket",
-  MAIN_VITE_OSS_ENDPOINT: "oss.example.test",
-  MAIN_VITE_OSS_REGION: "invalid-test-region"
+  MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY: "invalid-test-public-key"
 };
 const serialize = (values) =>
   Object.entries(values)
@@ -40,10 +35,20 @@ afterEach(async () => {
 });
 
 describe("private release environment", () => {
+  it("rejects legacy OSS secrets without echoing their values", () => {
+    expect(() =>
+      validateReleaseEnvironment(
+        serialize({
+          ...fixture,
+          MAIN_VITE_OSS_ACCESS_KEY_SECRET: "invalid-legacy-secret"
+        })
+      )
+    ).toThrow("不得包含 MAIN_VITE_OSS_");
+  });
   it("registers individual values for GitHub log masking with escaped workflow commands", () => {
     const source = serialize({
       ...fixture,
-      MAIN_VITE_OSS_ACCESS_KEY_SECRET: "invalid-test-secret%value"
+      MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY: "invalid-test-secret%value"
     });
     const output = execFileSync(
       process.execPath,
@@ -61,7 +66,7 @@ describe("private release environment", () => {
       }
     );
     expect(output).toContain("::add-mask::invalid-test-secret%25value");
-    expect(output).toContain("RELEASE_ENVIRONMENT_OK keys=8");
+    expect(output).toContain("RELEASE_ENVIRONMENT_OK keys=3");
     expect(output).not.toContain("::add-mask::runtime");
   });
   it.each([undefined, "", " \r\n"])("rejects an absent secret", (source) => {
@@ -83,7 +88,9 @@ describe("private release environment", () => {
           message = cause.message;
         }
         expect(message).toContain(key);
-        expect(message).not.toContain(fixture.MAIN_VITE_OSS_ACCESS_KEY_SECRET);
+        expect(message).not.toContain(
+          fixture.MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_KEY
+        );
         expect(message).not.toContain(
           fixture.MAIN_VITE_DEEPWRITE_PUBLIC_DATA_API_BASE_URL
         );

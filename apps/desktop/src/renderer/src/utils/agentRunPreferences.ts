@@ -119,7 +119,7 @@ function parseAgentRunPreference(
   return {
     temperature: value.temperature,
     approvalMode: value.approvalMode,
-    agentTeamMode: value.agentTeamMode === "team" ? "team" : "normal"
+    agentTeamMode: value.agentTeamMode === "normal" ? "normal" : "team"
   };
 }
 

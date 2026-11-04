@@ -54,6 +54,8 @@ export const GeneralSettingsSchema = z
     showInMenuBar: z.boolean(),
     /** Show a system notification when an agent run or a task settles. */
     taskNotification: z.boolean().default(false),
+    /** Lets local MCP clients operate the running app; off until opted in. */
+    externalControlEnabled: z.boolean().default(false),
     showContextUsage: z.boolean().default(true),
     textAttachmentMaxCharacters: z
       .number()
@@ -101,6 +103,7 @@ export function createDefaultGeneralSettings(): GeneralSettings {
     language: "auto",
     showInMenuBar: true,
     taskNotification: false,
+    externalControlEnabled: false,
     showContextUsage: true,
     textAttachmentMaxCharacters: PROMPT_TEXT_ATTACHMENT_DEFAULT_CONTENT_LENGTH,
     contextCompaction: createDefaultContextCompactionSettings(),
@@ -122,4 +125,15 @@ export const GeneralSettingsSaveCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("generalSettings.save"),
     payload: GeneralSettingsSchema
+  });
+
+export const OpenNotificationSettingsResultSchema = z
+  .object({ opened: z.literal(true) })
+  .strict();
+
+/** Main alone decides the destination, so no URL crosses this boundary. */
+export const GeneralSettingsOpenNotificationSettingsCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("generalSettings.openNotificationSettings"),
+    payload: z.object({}).strict()
   });

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { dirname } from "node:path";
 import {
   createLongBookMetadata,
+  listLongWorkspaceFiles,
   LongApplyOperationsInputSchema,
   LongApplyOperationsResultSchema,
   LongApplyLegacySyncAtPathInputSchema,
@@ -67,7 +68,7 @@ import {
   type LongUpdateBindingsInput,
   type LongWorkspaceFileReference,
   type LongWorkspaceIndexResult,
-  type LongWorkspaceRoot,
+  type LongIndexedFile,
   type LongWriteChapterInput,
   type LongWriteChapterResult,
   type LongWriteDocumentInput,
@@ -93,12 +94,6 @@ import {
   previewWriteClawLongSync
 } from "./write-claw-long-sync";
 import { nextCopyTitle } from "./copy-title";
-
-interface IndexedSearchFile {
-  file: LongWorkspaceFileReference;
-  root: LongWorkspaceRoot;
-  title: string;
-}
 
 export interface LongWorkspaceServiceOptions {
   userDataPath: string;
@@ -433,7 +428,9 @@ export class LongWorkspaceService {
     const parsed = LongSearchInputSchema.parse(input);
     const opened = await this.openProject(parsed);
     const query = parsed.query.normalize("NFC");
-    const candidates = searchFiles(opened.book.workspaceIndex).filter(
+    const candidates = listLongWorkspaceFiles(
+      opened.book.workspaceIndex
+    ).filter(
       (candidate) => parsed.scope === "all" || candidate.root === parsed.scope
     );
     const cursorContext: SearchCursorContext = {
@@ -497,7 +494,10 @@ export class LongWorkspaceService {
     const opened = await this.openProject(parsed);
     const written = await this.store.writeDocument(opened.projectDirectory, {
       fileId: parsed.fileId,
-      content: parsed.content
+      content: parsed.content,
+      ...(parsed.expectedUpdatedAt
+        ? { expectedUpdatedAt: parsed.expectedUpdatedAt }
+        : {})
     });
     await this.updateCatalogSummaryBestEffort(
       parsed.bookId,
@@ -611,6 +611,10 @@ export class LongWorkspaceService {
     return LongRemoveBookResultSchema.parse(
       await this.catalog.delete(parsed.bookId)
     );
+  }
+
+  resolveProjectDirectory(bookId: string): Promise<string> {
+    return this.catalog.resolveProjectDirectory(bookId);
   }
 
   getDiagnostics(): readonly LongWorkspaceServiceDiagnostic[] {
@@ -747,142 +751,6 @@ function findWorkspaceFile(
   return file;
 }
 
-function searchFiles(
-  index: LongWorkspaceIndexResult["workspaceIndex"]
-): IndexedSearchFile[] {
-  const characterById = new Map(
-    index.characters.map((character) => [character.id, character])
-  );
-  const chapterById = new Map(
-    index.plot.chapterCards.map((chapter) => [chapter.id, chapter])
-  );
-  return [
-    {
-      file: index.bookLine,
-      root: "plot_design",
-      title: "全书主线"
-    },
-    ...index.worldbuilding.flatMap((category) =>
-      category.format === "text"
-        ? [
-            {
-              file: category.file,
-              root: "worldbuilding" as const,
-              title: category.title
-            }
-          ]
-        : [
-            ...(category.overview
-              ? [
-                  {
-                    file: category.overview,
-                    root: "worldbuilding" as const,
-                    title: `${category.title} / 概览`
-                  }
-                ]
-              : []),
-            ...category.items.map((item) => ({
-              file: item.file,
-              root: "worldbuilding" as const,
-              title: `${category.title} / ${item.title}`
-            }))
-          ]
-    ),
-    ...(index.characterOverview
-      ? [
-          {
-            file: index.characterOverview,
-            root: "character_design" as const,
-            title: "人物概览"
-          }
-        ]
-      : []),
-    ...index.characterFiles.flatMap((entry) => {
-      const title =
-        characterById.get(entry.characterId)?.name ?? entry.characterId;
-      return [
-        {
-          file: entry.coreProfile,
-          root: "character_design" as const,
-          title: `${title} · 核心档案`
-        },
-        {
-          file: entry.relationships,
-          root: "character_design" as const,
-          title: `${title} · 人物关系`
-        }
-      ];
-    }),
-    ...index.chapters.flatMap((entry) => {
-      const title =
-        chapterById.get(entry.chapterCardId)?.title ?? entry.chapterCardId;
-      return [
-        {
-          file: entry.body,
-          root: "draft" as const,
-          title: `${title} · 正文`
-        },
-        {
-          file: entry.card,
-          root: "plot_design" as const,
-          title: `${title} · 章卡`
-        },
-        {
-          file: entry.characterState,
-          root: "draft" as const,
-          title: `${title} · 人物状态`
-        },
-        {
-          file: entry.handoff,
-          root: "draft" as const,
-          title: `${title} · 交接`
-        },
-        {
-          file: entry.foreshadowingChanges,
-          root: "continuity_ledger" as const,
-          title: `${title} · 伏笔变化`
-        },
-        ...(entry.worldReveals
-          ? [
-              {
-                file: entry.worldReveals,
-                root: "continuity_ledger" as const,
-                title: `${title} · 世界观揭露`
-              }
-            ]
-          : []),
-        ...entry.characterContinuity.flatMap((continuity) => {
-          const characterTitle =
-            characterById.get(continuity.characterId)?.name ??
-            continuity.characterId;
-          return [
-            {
-              file: continuity.currentState,
-              root: "continuity_ledger" as const,
-              title: `${title} · ${characterTitle} · 当前状态`
-            },
-            {
-              file: continuity.history,
-              root: "continuity_ledger" as const,
-              title: `${title} · ${characterTitle} · 历史轨迹`
-            }
-          ];
-        })
-      ];
-    }),
-    ...index.plot.storyPlots.map((entry) => ({
-      file: entry.file,
-      root: "plot_design" as const,
-      title: entry.title
-    })),
-    ...index.ledger.commits.map((commit) => ({
-      file: commit.recordFile,
-      root: "continuity_ledger" as const,
-      title: `提交 ${commit.sequence} · ${commit.chapterCardId}`
-    }))
-  ];
-}
-
 interface SearchCursorContext {
   bookId: string;
   query: string;
@@ -917,7 +785,7 @@ function invalidSearchCursor(): never {
 function parseSearchCursor(
   value: string | undefined,
   context: SearchCursorContext,
-  candidates: readonly IndexedSearchFile[]
+  candidates: readonly LongIndexedFile[]
 ): LongProjectSearchResume | undefined {
   if (value === undefined) return undefined;
   if (!value.startsWith("v1.")) invalidSearchCursor();

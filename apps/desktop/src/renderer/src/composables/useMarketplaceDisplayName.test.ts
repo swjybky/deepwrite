@@ -63,6 +63,26 @@ describe("marketplace sidebar display name", () => {
     ).toBe("新笔名");
   });
 
+  it("restores a permanent session name without an expiry", () => {
+    const storage = createStorage();
+    const profile = useMarketplaceDisplayName(
+      () => storage,
+      () => NOW
+    );
+    const session = signedIn();
+    delete session.expiresAt;
+    profile.applyDisplayName(session);
+    expect(
+      [...storage.values.values()].map((value) => JSON.parse(value))
+    ).toEqual([{ displayName: "广场笔名" }]);
+    expect(
+      useMarketplaceDisplayName(
+        () => storage,
+        () => Date.parse("2126-01-01T00:00:00.000Z")
+      ).marketplaceDisplayName.value
+    ).toBe("广场笔名");
+  });
+
   it("clears the visible and saved name when logout or session invalidation is confirmed", () => {
     const storage = createStorage();
     const profile = useMarketplaceDisplayName(

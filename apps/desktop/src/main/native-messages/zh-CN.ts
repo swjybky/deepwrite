@@ -57,6 +57,11 @@ export default {
     "当前数据尚未保存，迁移和重启已取消。请完成保存后重试。",
   migrationIncomplete: "用户数据迁移未完成",
   workspaceRejected: "工作目录已更换",
+  externalClientTitle: "外部智能体请求连接",
+  externalClientDetail:
+    "允许后，它可以查看和操作你的作品、素材库、技能库与智能体团队。以后这个智能体连接时不再询问。",
+  externalClientAllow: "允许",
+  externalClientDeny: "拒绝",
   startupFailure: "DeepWrite 无法启动",
   downloadTeam: "下载团队",
   installTeam: "导入团队",

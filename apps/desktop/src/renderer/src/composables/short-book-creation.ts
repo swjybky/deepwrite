@@ -1,5 +1,6 @@
 import { createScopedTranslator } from "../i18n";
 import type { Book } from "@deepwrite/contracts";
+import { bindCreatedBookAgentTeams } from "./useBookAgentTeamBinding";
 import type {
   CreateShortOrScriptBookInput,
   ShortBookLifecycleCoordinatorOptions
@@ -68,6 +69,13 @@ export function createShortBookCreator<Lease>(
                 linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
                 linkedSkillIdsByKind: input.linkedSkillIdsByKind
               });
+        if (created) {
+          await bindCreatedBookAgentTeams(
+            created.id,
+            input.workspaceType,
+            input.linkedAgentTeamIds
+          );
+        }
         if (!created || !leaseIsOwned(lease)) return;
 
         let directoryRefreshFailed = false;

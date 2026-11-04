@@ -11,10 +11,14 @@ export function announcedVersionStatus(
     return { hasVersionNotice: false, manualUpdateRequired: false };
   }
   try {
+    const hasVersionNotice =
+      compareVersions(announcedVersion, currentVersion) > 0;
     return {
-      hasVersionNotice: compareVersions(announcedVersion, currentVersion) !== 0,
+      hasVersionNotice,
       manualUpdateRequired: Boolean(
-        remoteVersion && compareVersions(remoteVersion, announcedVersion) < 0
+        hasVersionNotice &&
+        remoteVersion &&
+        compareVersions(remoteVersion, announcedVersion) < 0
       )
     };
   } catch {

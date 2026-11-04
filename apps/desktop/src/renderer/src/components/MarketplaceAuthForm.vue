@@ -101,21 +101,13 @@ async function submitAuth(): Promise<void> {
 <template>
   <section class="auth-shell">
     <div class="auth-card">
-      <div class="auth-tabs" role="tablist" :aria-label="t('signInOrRegister')">
-        <button
-          v-for="mode in ['login', 'register'] as const"
-          :key="mode"
-          type="button"
-          role="tab"
-          :aria-selected="authMode === mode"
-          :class="{ active: authMode === mode }"
-          :disabled="pending || sending"
-          @click="authMode = mode"
-        >
-          {{ mode === "login" ? t("signIn") : t("register") }}
-        </button>
-      </div>
-      <form class="auth-form" @submit.prevent="submitAuth">
+      <header class="auth-head">
+        <h2>
+          {{ authMode === "login" ? t("welcomeBack") : t("createAccount") }}
+        </h2>
+        <p>{{ authMode === "login" ? t("signInLead") : t("registerLead") }}</p>
+      </header>
+      <form class="auth-form" novalidate @submit.prevent="submitAuth">
         <div
           v-if="authMode === 'login'"
           class="auth-methods"
@@ -144,16 +136,28 @@ async function submitAuth(): Promise<void> {
             }}
           </button>
         </div>
-        <label
+        <div
           v-if="authMode === 'register' || loginMethod === 'username-password'"
-          ><span>{{ t("username") }}</span
-          ><input
-            v-model="username"
-            autocomplete="username"
-            maxlength="120"
-            required
-            :disabled="pending"
-        /></label>
+          class="auth-pair"
+        >
+          <label
+            ><span>{{ t("username") }}</span
+            ><input
+              v-model="username"
+              autocomplete="username"
+              maxlength="120"
+              required
+              :disabled="pending"
+          /></label>
+          <label v-if="authMode === 'register'"
+            ><span>{{ t("displayNameOptional") }}</span
+            ><input
+              v-model="displayName"
+              autocomplete="nickname"
+              maxlength="120"
+              :disabled="pending"
+          /></label>
+        </div>
         <label v-if="authMode === 'login' && loginMethod === 'email-password'">
           <span>{{ t("email") }}</span>
           <input
@@ -177,23 +181,14 @@ async function submitAuth(): Promise<void> {
             required
             :disabled="pending"
         /></label>
-        <template v-if="authMode === 'register'">
-          <label
-            ><span>{{ t("displayNameOptional") }}</span
-            ><input
-              v-model="displayName"
-              autocomplete="nickname"
-              maxlength="120"
-              :disabled="pending"
-          /></label>
-          <MarketplaceEmailFields
-            v-model:email="email"
-            v-model:code="emailCode"
-            purpose="register"
-            :disabled="pending"
-            @sending="sending = $event"
-          />
-        </template>
+        <MarketplaceEmailFields
+          v-if="authMode === 'register'"
+          v-model:email="email"
+          v-model:code="emailCode"
+          purpose="register"
+          :disabled="pending"
+          @sending="sending = $event"
+        />
         <MarketplaceEmailFields
           v-if="authMode === 'login' && loginMethod === 'email-code'"
           v-model:email="loginEmail"
@@ -215,11 +210,18 @@ async function submitAuth(): Promise<void> {
                 : t("registerAndSignIn")
           }}
         </button>
-        <small>{{
-          loginMethod === "email-code" && authMode === "login"
-            ? t("emailCodeOnlyVerified")
-            : t("existingUsersCanSignInDirectlyEmailLinkingIs")
-        }}</small>
+        <p class="auth-switch">
+          <span>{{
+            authMode === "login" ? t("noAccountYet") : t("alreadyHaveAccount")
+          }}</span>
+          <button
+            type="button"
+            :disabled="pending || sending"
+            @click="authMode = authMode === 'login' ? 'register' : 'login'"
+          >
+            {{ authMode === "login" ? t("register") : t("signIn") }}
+          </button>
+        </p>
       </form>
     </div>
   </section>

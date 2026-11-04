@@ -196,7 +196,7 @@ export async function restorePersistenceSnapshot(
       (active?.messages ?? []).map(cloneMessage)
     );
     ctx.draft.value = active?.draft ?? "";
-    ctx.approvalMode.value = active?.approvalMode ?? "request-approval";
+    ctx.approvalMode.value = active?.approvalMode ?? "auto-approve";
     ctx.temperature.value = active?.temperature ?? 0.7;
     ctx.currentCreatedAt.value = active?.createdAt ?? restoredTimestamp;
     ctx.currentUpdatedAt.value = restoredTimestamp;

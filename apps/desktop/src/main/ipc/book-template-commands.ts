@@ -36,6 +36,7 @@ export async function handleBookTemplateCommands(
       const {
         workspaceType,
         name: _name,
+        linkedAgentTeamIds: _linkedAgentTeamIds,
         ...configuration
       } = template.configuration;
       return await handleCatalogProjectCommands(

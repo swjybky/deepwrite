@@ -44,6 +44,9 @@ import WebSearchSettingsPanel from "./WebSearchSettingsPanel.vue";
 import MoreFeaturesSettingsPanel from "./MoreFeaturesSettingsPanel.vue";
 import { settingsSections as sections } from "./settingsCategories";
 
+const ExternalControlSettingsPanel = defineAsyncComponent(
+  () => import("../extras/external-control/ExternalControlSettingsPanel.vue")
+);
 const ArchivedConversationsPanel = defineAsyncComponent(
   () => import("./ArchivedConversationsPanel.vue")
 );
@@ -63,6 +66,7 @@ const props = defineProps<{
   contextCompaction: ContextCompactionSettings;
   showInMenuBar: boolean;
   taskNotification: boolean;
+  externalControlEnabled: boolean;
   useNetworkProxy: boolean;
   workspacePaneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;
@@ -109,6 +113,7 @@ const emit = defineEmits<{
   updateContextCompaction: [settings: ContextCompactionSettings];
   updateShowInMenuBar: [enabled: boolean];
   updateTaskNotification: [enabled: boolean];
+  updateExternalControlEnabled: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
@@ -401,6 +406,13 @@ async function selectCategory(id: string): Promise<void> {
         />
 
         <WebSearchSettingsPanel v-else-if="activeCategory === 'web-search'" />
+        <ExternalControlSettingsPanel
+          v-else-if="activeCategory === 'external-control'"
+          :external-control-enabled="externalControlEnabled"
+          @update-external-control-enabled="
+            emit('updateExternalControlEnabled', $event)
+          "
+        />
 
         <section v-else class="settings-group">
           <div class="settings-card">

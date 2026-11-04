@@ -32,11 +32,21 @@ export default {
   menuBar: "Show in menu bar",
   menuBarDescription:
     "Keep the app icon in the menu bar after closing the main window",
+  externalControl: "Allow external agents to operate DeepWrite",
+  externalControlDescription:
+    "When on, local agents such as Claude and Codex can connect to DeepWrite through MCP and operate it.",
   taskNotification: "Task completion notifications",
+  taskNotificationSaveFailed:
+    "Could not save notification settings. Please try again.",
+  taskNotificationSaveFailedDetail:
+    "Could not save notification settings. Please try again: {message}",
   taskNotificationBlocked:
-    "The system did not allow DeepWrite to send notifications, so task notifications cannot appear yet. Allow DeepWrite in your system notification settings, then turn this switch off and on again.",
+    "The system hasn't allowed DeepWrite to send notifications. Turn them on in your system settings to get an alert when a task finishes.",
   taskNotificationDescription:
     "Send a system notification when an agent task or book decomposition finishes. Stays quiet while the main window is in the foreground.",
+  taskNotificationOpenSettings: "Open System Settings",
+  taskNotificationOpenSettingsFailed:
+    "Couldn't open System Settings. Open your system's notification settings manually.",
   network: "Network settings",
   proxy: "Network proxy",
   proxyDescription:

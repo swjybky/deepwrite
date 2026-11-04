@@ -93,6 +93,11 @@ export function sanitizeAppearanceTheme(
       fallback.uiFontSize,
       FONT_SIZE_LIMITS.uiFontSize
     ),
+    editorFontSize: sanitizeFontSize(
+      candidate.editorFontSize,
+      fallback.editorFontSize,
+      FONT_SIZE_LIMITS.editorFontSize
+    ),
     codeFontSize: sanitizeFontSize(
       candidate.codeFontSize,
       fallback.codeFontSize,
@@ -206,6 +211,7 @@ export function applyAppearanceThemeToDocument(input: {
     mix(theme.background, theme.foreground, scheme === "dark" ? 0.52 : 0.5)
   );
   root.style.setProperty("--ui-font-size", `${theme.uiFontSize}px`);
+  root.style.setProperty("--editor-font-size", `${theme.editorFontSize}px`);
   root.style.setProperty("--code-font-size", `${theme.codeFontSize}px`);
   root.style.setProperty(
     "--ui-font",

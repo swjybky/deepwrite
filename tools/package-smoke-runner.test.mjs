@@ -48,7 +48,7 @@ describe("packaged persistence smoke acceptance", () => {
       }).MAIN_VITE_OSS_ACCESS_KEY_SECRET
     ).toBe("invalid-test-host-secret");
   });
-  it("requires bundled public service and OSS configuration for release builds", () => {
+  it("requires bundled public service and backup API configuration for release builds", () => {
     expect(() => validateSmokeSummary(summary(), false, true)).toThrow(
       "bundled release configuration"
     );

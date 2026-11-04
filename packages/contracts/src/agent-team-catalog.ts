@@ -8,8 +8,16 @@ import {
   ScriptAgentTeamSettingsSchema,
   WorkspaceAgentTeamSettingsInputSchema
 } from "./agent-team";
+import {
+  AgentTeamBookBindingsSchema,
+  AgentTeamBookIdSchema,
+  AgentTeamProfileIdSchema,
+  LinkedAgentTeamIdsSchema
+} from "./agent-team-book-binding";
 import { EnvelopeBaseSchema } from "./envelope";
 import { LongAgentTeamSettingsSchema } from "./long-agent-team";
+
+export { AgentTeamProfileIdSchema };
 
 export const AGENT_TEAM_PROFILE_NAME_MAX_LENGTH = 80;
 
@@ -17,13 +25,6 @@ export const AgentTeamWorkspaceTypeSchema = z.enum(["short", "script", "long"]);
 export type AgentTeamWorkspaceType = z.infer<
   typeof AgentTeamWorkspaceTypeSchema
 >;
-
-export const AgentTeamProfileIdSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(120)
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 
 export const AgentTeamProfileNameSchema = z
   .string()
@@ -98,7 +99,9 @@ export const AgentTeamCatalogSnapshotSchema = z
     builtinSubagents: BuiltinSubagentSettingsSchema.default(
       defaultBuiltinSubagentSettings
     ),
-    teams: z.array(AgentTeamProfileSchema).min(1)
+    teams: z.array(AgentTeamProfileSchema).min(1),
+    /** Kept in its own device-local file; never part of the profiles file. */
+    bookBindings: AgentTeamBookBindingsSchema.optional()
   })
   .strict()
   .superRefine((value, context) => {
@@ -175,6 +178,18 @@ export const AgentTeamProfileSetEnabledInputSchema = z
   .strict();
 export type AgentTeamProfileSetEnabledInput = z.infer<
   typeof AgentTeamProfileSetEnabledInputSchema
+>;
+
+export const AgentTeamBookBindingInputSchema = z
+  .object({
+    bookId: AgentTeamBookIdSchema,
+    workspaceType: AgentTeamWorkspaceTypeSchema,
+    /** Empty removes the binding and returns the book to the enabled team. */
+    teamIds: LinkedAgentTeamIdsSchema
+  })
+  .strict();
+export type AgentTeamBookBindingInput = z.infer<
+  typeof AgentTeamBookBindingInputSchema
 >;
 
 export const AgentTeamProfileSaveInputSchema = z
@@ -256,6 +271,11 @@ export const AgentTeamsSetEnabledCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("agentTeams.setEnabled"),
     payload: AgentTeamProfileSetEnabledInputSchema
+  });
+export const AgentTeamsSetBookBindingCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("agentTeams.setBookBinding"),
+    payload: AgentTeamBookBindingInputSchema
   });
 export const AgentTeamsSaveCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agentTeams.save"),

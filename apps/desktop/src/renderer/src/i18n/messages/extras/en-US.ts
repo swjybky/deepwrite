@@ -1,11 +1,15 @@
 import bookIdentity from "./book-identity/en-US";
 import agentTeamMarketplace from "./agent-team-marketplace/en-US";
+import externalControl from "./external-control/en-US";
+import feedback from "./feedback/en-US";
 import deviceSyncService from "../../../../../localization/device-sync/en-US";
 import longBookDecomposition from "./long-book-decomposition/en-US";
 import longMaterialPack from "./long-material-pack/en-US";
 export default {
   bookIdentity,
   agentTeamMarketplace,
+  externalControl,
+  feedback,
   longBookDecomposition,
   longMaterialPack,
   deviceSyncService,
@@ -124,17 +128,17 @@ export default {
     syncFailed: "Sync failed.",
     cloudBackup: "Cloud backup",
     cloudBackupDescription:
-      "Back up your local writing space, skills, and materials to the cloud, or use another computer's key to sync its backup. No sign-in required.",
+      "Back up your local writing space, skills, and materials to the cloud, or use another computer's key to sync its backup. Sign in with your Skill Plaza or Team Plaza account.",
     refreshing: "Refreshing…",
     refreshStatus: "Refresh status",
     desktopUnavailable: "Desktop features are unavailable",
     openDesktop: "Open cloud backup in the DeepWrite desktop app.",
     cloudNotConfigured: "Cloud backup is not configured",
     configureEnvironment:
-      "Add the OSS settings to the local `.env` file and restart the app.",
+      "Cloud backup is unavailable. Try again later or contact the administrator.",
     localBackupKey: "Local backup key",
     backupKeyDescription:
-      "Share this key with another computer to preview and sync this backup. Anyone with the key can read its cloud data.",
+      "Share this key with another computer to preview and sync this backup. Signed-in users with this key can read and overwrite its backup. Keep it private.",
     copied: "Copied",
     copyKey: "Copy key",
     usage: "Usage",

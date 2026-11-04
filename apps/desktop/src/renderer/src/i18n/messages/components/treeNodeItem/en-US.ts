@@ -31,6 +31,7 @@ export default {
   export: "Export",
   skillLibraryLinks: "Skill library links",
   materialLibraryLinks: "Material library links",
+  agentTeamLinks: "Agent team links",
   exportManuscript: "Export manuscript",
   remove: "Remove",
   newEntry: "New entry",

@@ -110,7 +110,16 @@ export default {
     aMaterialLibraryInThisTemplateIsNoLonger:
       "A material library in this template is no longer available. Select another library.",
     aSkillLibraryInThisTemplateIsNoLonger:
-      "A skill library in this template is no longer available. Select another library."
+      "A skill library in this template is no longer available. Select another library.",
+    anAgentTeamInThisTemplateIsNoLonger:
+      "An agent team in this template is no longer available. Edit the template."
+  },
+  bookAgentTeamBinding: {
+    failedToLoadAgentTeams: "Failed to load agent teams.",
+    availableInTheDesktopAppOnly:
+      "Team links are available in the desktop app only.",
+    createdButTeamBindingFailed:
+      "The book was created, but its team links could not be saved. Try again from the book's Agent team links menu."
   },
   shortLibraryReferences: {
     linkedToThisBook: "{value} · Linked to this book"

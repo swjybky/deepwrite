@@ -13,8 +13,14 @@ function lazyFeature<T extends Component>(
   });
 }
 // The default writing surface remains eager; optional pages and dialogs load on demand.
+export const FeedbackDialog = lazyFeature((features) =>
+  features.loadFeedbackDialog()
+);
 export const AuthorSupportDialog = lazyFeature((features) =>
   features.loadAuthorSupportDialog()
+);
+export const BookAgentTeamDialog = lazyFeature((features) =>
+  features.loadBookAgentTeamDialog()
 );
 export const AgentTeamSettingsPanel = lazyFeature((features) =>
   features.loadAgentTeamSettingsPanel()

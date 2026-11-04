@@ -67,6 +67,56 @@ function catalogWithMember(
   });
 }
 
+describe("agent team mode availability for bound books", () => {
+  const availability = (
+    catalog: AgentTeamCatalogSnapshot,
+    bookId: string | undefined
+  ) =>
+    resolveAgentTeamModeAvailability({
+      catalog,
+      workspaceType: "short",
+      parentAgentId: "short",
+      bookId,
+      loaded: true,
+      loading: false,
+      loadError: null
+    });
+
+  it("uses the enabled team for a book with no binding", () => {
+    const catalog = catalogWithMember("short");
+    expect(availability(catalog, "book-1")).toEqual(
+      availability(catalog, undefined)
+    );
+  });
+
+  it("names the bound teams when a book has them", () => {
+    const catalog = catalogWithMember("short");
+    const team = catalog.teams[0]!;
+    const result = availability(
+      {
+        ...catalog,
+        enabledTeamIds: {},
+        bookBindings: { "book-1": [team.id] }
+      },
+      "book-1"
+    );
+    expect(result.available).toBe(true);
+    expect(result.description).toContain(team.name);
+  });
+
+  it("stays unavailable instead of using the enabled team when bound teams are gone", () => {
+    const result = availability(
+      {
+        ...catalogWithMember("short"),
+        bookBindings: { "book-1": ["deleted-team"] }
+      },
+      "book-1"
+    );
+    expect(result.available).toBe(false);
+    expect(result.description).toContain("绑定的团队");
+  });
+});
+
 describe("agent team mode availability", () => {
   it("enables team mode only for the current parent agent with an enabled member", () => {
     for (const [workspaceType, parentAgentId] of [

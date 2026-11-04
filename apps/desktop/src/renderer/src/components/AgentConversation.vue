@@ -74,6 +74,7 @@ const props = withDefaults(
     agentLabel: string;
     agentId: WorkspaceAgentId | LongAgentId | undefined;
     agentWorkspaceType?: "short" | "script" | "long";
+    agentBookId?: string | undefined;
     allowLiveEditReview?: boolean;
     libraryDomain: LibraryAgentDomain | undefined;
     librarySkills: readonly Pick<LibraryAgentSkill, "name">[] | undefined;
@@ -438,6 +439,7 @@ const {
         :agent-team-mode="agentTeamMode"
         :agent-id="agentId"
         :agent-workspace-type="agentWorkspaceType"
+        :agent-book-id="agentBookId"
         :library-domain="libraryDomain"
         :available-skills="availableSkills"
         :available-materials="availableMaterials"

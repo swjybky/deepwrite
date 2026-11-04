@@ -86,6 +86,7 @@ const emit = defineEmits<{
   updateContextCompaction: [settings: ContextCompactionSettings];
   updateShowInMenuBar: [enabled: boolean];
   updateTaskNotification: [enabled: boolean];
+  updateExternalControlEnabled: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
   updateDefaultTextViewMode: [mode: TextViewMode];
@@ -143,6 +144,7 @@ const emit = defineEmits<{
     :context-compaction="module.contextCompaction"
     :show-in-menu-bar="module.showInMenuBar"
     :task-notification="module.taskNotification"
+    :external-control-enabled="module.externalControlEnabled"
     :use-network-proxy="module.useNetworkProxy"
     :workspace-pane-layout="module.workspacePaneLayout"
     :default-text-view-mode="module.defaultTextViewMode"
@@ -188,6 +190,9 @@ const emit = defineEmits<{
     @update-context-compaction="emit('updateContextCompaction', $event)"
     @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
     @update-task-notification="emit('updateTaskNotification', $event)"
+    @update-external-control-enabled="
+      emit('updateExternalControlEnabled', $event)
+    "
     @update-use-network-proxy="emit('updateUseNetworkProxy', $event)"
     @update-workspace-pane-layout="emit('updateWorkspacePaneLayout', $event)"
     @update-default-text-view-mode="emit('updateDefaultTextViewMode', $event)"

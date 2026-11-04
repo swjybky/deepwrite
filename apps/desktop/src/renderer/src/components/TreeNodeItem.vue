@@ -22,6 +22,7 @@ import type {
 import AppIcon from "./AppIcon.vue";
 import { createLongTreeItemBoundaries } from "../utils/longTreeItemBoundaries";
 import LongBookActionMenu from "./LongBookActionMenu.vue";
+import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog";
 import LibraryGroupActionMenu from "./LibraryGroupActionMenu.vue";
 import { useTreeNodeDisclosure } from "../composables/useTreeNodeDisclosure";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
@@ -270,6 +271,16 @@ function toggleActionMenu(): void {
 function openBookAction(mode: BookResourceDialogMode): void {
   actionMenuOpen.value = false;
   emit("bookAction", mode, props.node);
+}
+
+function openAgentTeamBinding(): void {
+  actionMenuOpen.value = false;
+  const { id, label, longBookId, workspaceType } = props.node;
+  bookAgentTeamBindingTarget.value = {
+    bookId: longBookId ?? id,
+    title: label,
+    workspaceType: workspaceType ?? "short"
+  };
 }
 
 function exportBook(): void {
@@ -784,6 +795,7 @@ onBeforeUnmount(() => {
           :unavailable="node.unavailable"
           :pending="longTreeActionsDisabled"
           @action="activateLongBookAction"
+          @bind-agent-teams="openAgentTeamBinding"
         />
         <template v-else-if="hasBookAction">
           <template v-if="!node.unavailable">
@@ -831,6 +843,15 @@ onBeforeUnmount(() => {
             >
               <AppIcon name="archive" :size="16" />
               <span>{{ t("materialLibraryLinks") }}</span>
+            </button>
+            <button
+              class="tree-node-action-menu-item"
+              type="button"
+              role="menuitem"
+              @click.stop="openAgentTeamBinding"
+            >
+              <AppIcon name="brain" :size="16" />
+              <span>{{ t("agentTeamLinks") }}</span>
             </button>
             <button
               class="tree-node-action-menu-item"

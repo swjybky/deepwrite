@@ -19,5 +19,7 @@ export default {
   deleteMessage: "Delete",
   discardAndLeave: "Discard and leave",
   confirm: "Confirm",
-  close: "Close"
+  close: "Close",
+  boundBooksWillLoseThisTeam:
+    "{arg0} books are linked to this team. Deleting it removes those links, and books with no other link return to the enabled team."
 };

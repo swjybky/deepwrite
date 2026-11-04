@@ -27,7 +27,7 @@ export function applyRunSettings(
 ): void {
   ctx.hasRunSettingsPreference = true;
   ctx.approvalMode.value = settings.approvalMode;
-  ctx.agentTeamMode.value = settings.agentTeamMode ?? "normal";
+  ctx.agentTeamMode.value = settings.agentTeamMode ?? "team";
   if (ctx.configuredModels.value.length === 0) {
     if (ctx.modelSettingsApplied) {
       ctx.selectedModelId.value = "";

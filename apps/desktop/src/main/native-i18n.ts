@@ -34,6 +34,7 @@ const dynamicMessages = {
     ) =>
       `${phase}时发生错误（${code}）。\n\n${configuration ? "请检查用户配置目录的访问权限和磁盘空间，再尝试启动。\n\n" : ""}请将下方本地诊断记录提供给开发者协助排查。\n\n记录位置（目录可写时生成）：\n${path}`,
     downloadTeam: (name: string) => `下载智能体团队“${name}”`,
+    externalClientRequest: (name: string) => `“${name}”想要连接 DeepWrite`,
     invalidAgentTeamConfig: (path: string, reason: string) =>
       `智能体团队 JSON 配置无效：${path} ${reason}`,
     migrationDetails: (
@@ -55,6 +56,8 @@ const dynamicMessages = {
     ) =>
       `Startup failed during: ${phase} (${code}).\n\n${configuration ? "Check configuration folder permissions and available disk space, then try again.\n\n" : ""}Share the local diagnostic log below with the developer for troubleshooting.\n\nLog location (created if the folder is writable):\n${path}`,
     downloadTeam: (name: string) => `Download Agent Team “${name}”`,
+    externalClientRequest: (name: string) =>
+      `“${name}” wants to connect to DeepWrite`,
     invalidAgentTeamConfig: (path: string, reason: string) =>
       `Invalid agent team JSON configuration: ${path} ${reason}`,
     migrationDetails: (

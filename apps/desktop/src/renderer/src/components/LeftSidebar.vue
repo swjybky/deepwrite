@@ -15,9 +15,14 @@ import type {
   ResourceTreeSection
 } from "../types/workspace";
 import { configuredMoreFeatures } from "./sidebarMoreFeatures";
-import type { MoreFeaturesSettings } from "@deepwrite/contracts";
+import type {
+  MarketplaceSession,
+  MoreFeaturesSettings
+} from "@deepwrite/contracts";
 import { createDefaultMoreFeaturesSettings } from "@deepwrite/contracts/renderer";
 import AppIcon from "./AppIcon.vue";
+import { BookAgentTeamDialog } from "./lazyAppComponents";
+import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog";
 import SidebarResourceList from "./SidebarResourceList.vue";
 import SidebarProfileMenu from "./SidebarProfileMenu.vue";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
@@ -62,6 +67,7 @@ const emit = defineEmits<{
   openDeviceSync: [];
   openZhuqueDetection: [];
   openSettings: [];
+  marketplaceSessionChange: [session: MarketplaceSession];
   selectResource: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
   exportBook: [node: ResourceTreeNode];
@@ -402,6 +408,8 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
     <SidebarProfileMenu
       :marketplace-display-name="marketplaceDisplayName"
       @open-settings="emit('openSettings')"
+      @marketplace-session-change="emit('marketplaceSessionChange', $event)"
     />
+    <BookAgentTeamDialog v-if="bookAgentTeamBindingTarget" />
   </aside>
 </template>

@@ -55,10 +55,7 @@ describe("App general settings integration", () => {
       "function updateUseNetworkProxy(enabled: boolean)"
     );
     expect(source).toContain('@update-language="updateAppLanguage"');
-    expect(source).toContain('@update-show-in-menu-bar="updateShowInMenuBar"');
-    expect(source).toContain(
-      '@update-task-notification="updateTaskNotification"'
-    );
+    expect(source).toContain('v-on="generalSwitchEvents"');
     expect(source).toContain(
       '@update-use-network-proxy="updateUseNetworkProxy"'
     );

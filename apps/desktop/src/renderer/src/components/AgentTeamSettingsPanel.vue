@@ -199,6 +199,16 @@ function syncDraft(force = false): void {
   ) {
     return;
   }
+  // A change from outside must not wipe unsaved edits; discarding picks it up.
+  if (
+    !force &&
+    syncedWorkspaceType === activeWorkspaceType.value &&
+    dirty.value &&
+    signature !==
+      agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value)
+  ) {
+    return;
+  }
   syncedWorkspaceType = activeWorkspaceType.value;
   draftParallelSubagents.value = parallel;
   draftTeams.value = teams;

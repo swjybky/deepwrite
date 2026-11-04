@@ -4,6 +4,8 @@ import { createEnvelope, type SystemEventEnvelope } from "@deepwrite/contracts";
 
 const electron = vi.hoisted(() => ({
   supported: true,
+  activate: undefined as undefined | ((details: { type: string }) => void),
+  handleActivation: vi.fn(),
   shown: [] as unknown[]
 }));
 
@@ -11,6 +13,12 @@ vi.mock("electron", async () => {
   const { EventEmitter } = await import("node:events");
   class Notification extends EventEmitter {
     static isSupported = () => electron.supported;
+    static handleActivation = (
+      callback: (details: { type: string }) => void
+    ) => {
+      electron.handleActivation(callback);
+      electron.activate = callback;
+    };
     constructor(readonly options: { title: string; body: string }) {
       super();
       electron.shown.push(this);
@@ -66,11 +74,57 @@ function completedRun(): SystemEventEnvelope {
 afterEach(() => {
   electron.supported = true;
   electron.shown.length = 0;
+  electron.activate = undefined;
+  electron.handleActivation.mockClear();
   vi.restoreAllMocks();
 });
 
 describe("system notification through Electron", () => {
+  it("handles Windows Action Center clicks after the banner and its listeners are gone", () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    const { notifier, onActivate } = enabledNotifier();
+    notifier.notifyEnabled();
+    const shown = electron.shown[0] as FakeNotification;
+    shown.emit("close", { reason: "timedOut" });
+    shown.removeAllListeners();
+    electron.shown.length = 0;
+    electron.activate?.({ type: "click" });
+    expect(onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it("raises the Windows window once when both activation paths fire", () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    const { notifier, onActivate } = enabledNotifier();
+    notifier.notifyEnabled();
+    (electron.shown[0] as FakeNotification).emit("click");
+    electron.activate?.({ type: "click" });
+    expect(onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one activation callback for successive Windows notifications", () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    const { notifier, onActivate } = enabledNotifier();
+    notifier.notifyEnabled();
+    notifier.notifyRunEnd(completedRun(), { previouslyTerminal: false });
+    expect(electron.handleActivation).toHaveBeenCalledTimes(1);
+    electron.activate?.({ type: "click" });
+    expect(onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["darwin", "linux"] as const)(
+    "uses instance clicks on %s",
+    (platform) => {
+      vi.spyOn(process, "platform", "get").mockReturnValue(platform);
+      const { notifier, onActivate } = enabledNotifier();
+      notifier.notifyEnabled();
+      expect(electron.handleActivation).not.toHaveBeenCalled();
+      (electron.shown[0] as FakeNotification).emit("click");
+      expect(onActivate).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it("shows the notice and raises the window when it is clicked", () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
     const { notifier, onActivate } = enabledNotifier();
     notifier.notifyEnabled();
     const shown = electron.shown[0] as FakeNotification;

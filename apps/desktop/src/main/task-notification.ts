@@ -68,28 +68,41 @@ type PresentNotice = (
   onRefused?: () => void
 ) => void;
 
-const presentWithElectron: PresentNotice = (notice, onClick, onRefused) => {
-  if (!Notification.isSupported()) {
-    onRefused?.();
-    return;
-  }
-  const notification = new Notification(notice);
-  livingNotifications.add(notification);
-  const release = () => livingNotifications.delete(notification);
-  notification.on("click", () => {
-    release();
-    onClick();
-  });
-  notification.on("close", release);
-  notification.on("failed", (_event, error) => {
-    release();
-    // macOS reports UNErrorDomain error 1 when notifications are not allowed
-    // for the app in System Settings; nothing else would show why it is silent.
-    console.warn("DeepWrite system notification was not shown:", error);
-    onRefused?.();
-  });
-  notification.show();
-};
+function createElectronPresenter(): PresentNotice {
+  let activationRegistered = false;
+  return (notice, onClick, onRefused) => {
+    if (!Notification.isSupported()) {
+      onRefused?.();
+      return;
+    }
+    const usesGlobalActivation = process.platform === "win32";
+    if (usesGlobalActivation && !activationRegistered) {
+      // Windows keeps timed-out banners in Action Center after `close`. Its
+      // activation callback survives collection of the original notice object.
+      Notification.handleActivation(({ type }) => {
+        if (type === "click") onClick();
+      });
+      activationRegistered = true;
+    }
+    const notification = new Notification(notice);
+    livingNotifications.add(notification);
+    const release = () => livingNotifications.delete(notification);
+    notification.on("click", () => {
+      release();
+      // Windows also emits the global activation; raise the window only once.
+      if (!usesGlobalActivation) onClick();
+    });
+    notification.on("close", release);
+    notification.on("failed", (_event, error) => {
+      release();
+      // macOS reports UNErrorDomain error 1 when notifications are not allowed
+      // for the app in System Settings; nothing else would show why it is silent.
+      console.warn("DeepWrite system notification was not shown:", error);
+      onRefused?.();
+    });
+    notification.show();
+  };
+}
 
 export interface TaskNotifierOptions {
   isEnabled: () => boolean;
@@ -101,7 +114,7 @@ export interface TaskNotifierOptions {
 }
 
 export function createTaskNotifier(options: TaskNotifierOptions) {
-  const present = options.present ?? presentWithElectron;
+  const present = options.present ?? createElectronPresenter();
   const deliver = (notice: TaskNotice | undefined): void => {
     if (!notice || !options.isEnabled()) return;
     if (isWindowInUse(options.getWindow())) return;

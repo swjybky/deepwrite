@@ -15,7 +15,7 @@ const APP_READY_APPLICATION_JS_BUDGET_BYTES = 1_200_000;
 const I18N_RUNTIME_JS_BUDGET_BYTES = 60_000;
 const APP_READY_JS_BUDGET_BYTES =
   APP_READY_APPLICATION_JS_BUDGET_BYTES + I18N_RUNTIME_JS_BUDGET_BYTES;
-const APP_READY_LANGUAGE_DATA_BUDGET_BYTES = 815_000;
+const APP_READY_LANGUAGE_DATA_BUDGET_BYTES = 830_000;
 const APP_READY_BASELINE_BYTES = 2_504_722;
 
 try {
@@ -142,7 +142,9 @@ console.log(
   `Renderer language data: ${localeResources.rawBytes.toLocaleString("en-US")} B raw / ${localeResources.gzipBytes.toLocaleString("en-US")} B gzip; total app-ready JS + language data ${(appReady.rawBytes + localeResources.rawBytes).toLocaleString("en-US")} B raw.`
 );
 if (localeResources.rawBytes >= APP_READY_LANGUAGE_DATA_BUDGET_BYTES) {
-  console.error("Renderer language data exceeds its 815,000 B budget.");
+  console.error(
+    `Renderer language data exceeds its ${APP_READY_LANGUAGE_DATA_BUDGET_BYTES.toLocaleString("en-US")} B budget.`
+  );
   process.exit(1);
 }
 

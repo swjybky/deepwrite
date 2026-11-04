@@ -29,5 +29,6 @@ export default {
   download: "下载",
   rename: "重命名",
   deleteTeam: "删除团队",
-  disableThisTeamFirst: "请先关闭该团队"
+  disableThisTeamFirst: "请先关闭该团队",
+  boundToBooks: "绑定 {arg0} 部作品"
 };

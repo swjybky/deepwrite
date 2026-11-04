@@ -85,7 +85,10 @@ export default {
     thisAgentHasNoEnabledTeamWithAvailableMembers:
       "This agent has no enabled team with available members. Configure one in Agent Teams first.",
     allowThisMainAgentToCallSubagentsInEnabled:
-      "Allow this main agent to call subagents in enabled teams."
+      "Allow this main agent to call subagents in enabled teams.",
+    useTheTeamsBoundToThisBook: "Use the teams linked to this book: {names}.",
+    theTeamsBoundToThisBookHaveNoAvailableMembers:
+      "The teams linked to this book are unavailable or have no members for this agent. Adjust them from the book's Agent team links menu."
   },
   marketplacePublishContent: {
     theSkillHasNoContentAndCannotBePublished:

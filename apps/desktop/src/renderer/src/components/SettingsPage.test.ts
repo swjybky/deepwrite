@@ -7,6 +7,7 @@ import featureHostModuleSource from "../composables/workspaceFeatureHostModule.t
 import settingsFeatureModuleSource from "../composables/settingsFeatureModule.ts?raw";
 import bodyTextSource from "./BodyTextSettingsPanel.vue?raw";
 import configurationPanelSource from "./ConfigurationSettingsPanel.vue?raw";
+import externalControlPanelSource from "../extras/external-control/ExternalControlSettingsPanel.vue?raw";
 import generalPanelSource from "./GeneralSettingsPanel.vue?raw";
 import fontSource from "./AppearanceFontSettings.vue?raw";
 import appearancePanelSource from "./AppearanceSettingsPanel.vue?raw";
@@ -132,6 +133,22 @@ describe("SettingsPage", () => {
     expect(generalSettingsSource).toContain(':checked="taskNotification"');
     expectSourceToContain(generalSettingsSource, "'updateTaskNotification'");
     expect(generalSettingsSource).toContain('t("taskNotificationDescription")');
+  });
+
+  it("offers external agent control in its dedicated settings panel", () => {
+    expect(generalPanelSource).not.toContain("externalControlEnabled");
+    expect(externalControlPanelSource).toContain(
+      ':checked="externalControlEnabled"'
+    );
+    expect(externalControlPanelSource).toContain(
+      "updateExternalControlEnabled"
+    );
+    expect(externalControlPanelSource).toContain(
+      'foundation("externalControlDescription")'
+    );
+    expect(settingsPageSource).toContain(
+      ':external-control-enabled="externalControlEnabled"'
+    );
   });
 
   it("offers a persisted network proxy switch that defaults to direct access", () => {

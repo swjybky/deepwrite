@@ -1,11 +1,15 @@
 import bookIdentity from "./book-identity/zh-CN";
 import agentTeamMarketplace from "./agent-team-marketplace/zh-CN";
+import externalControl from "./external-control/zh-CN";
+import feedback from "./feedback/zh-CN";
 import deviceSyncService from "../../../../../localization/device-sync/zh-CN";
 import longBookDecomposition from "./long-book-decomposition/zh-CN";
 import longMaterialPack from "./long-material-pack/zh-CN";
 export default {
   bookIdentity,
   agentTeamMarketplace,
+  externalControl,
+  feedback,
   longBookDecomposition,
   longMaterialPack,
   deviceSyncService,
@@ -117,16 +121,16 @@ export default {
     syncFailed: "同步失败。",
     cloudBackup: "云端备份",
     cloudBackupDescription:
-      "把本机创作空间、技能库和素材库备份到云端，或用另一台机器的密钥同步过来。无需登录。",
+      "把本机创作空间、技能库和素材库备份到云端，或用另一台机器的密钥同步过来。请使用技能广场、团队广场的同一账号登录。",
     refreshing: "刷新中…",
     refreshStatus: "刷新状态",
     desktopUnavailable: "当前环境未连接桌面端能力",
     openDesktop: "请在 DeepWrite 桌面客户端中打开云端备份。",
     cloudNotConfigured: "当前环境未配置云端备份",
-    configureEnvironment: "请在本地 `.env` 中填写 OSS 配置后重新启动应用。",
+    configureEnvironment: "云备份服务暂不可用，请稍后重试或联系管理员。",
     localBackupKey: "本机备份密钥",
     backupKeyDescription:
-      "把这串密钥发给另一台电脑，即可预览并同步这份备份。知道密钥的人都能读取对应云端数据。",
+      "把这串密钥发给另一台电脑，即可预览并同步这份备份。登录后持有密钥的人可以读取和覆盖对应云端备份，请妥善保管。",
     copied: "已复制",
     copyKey: "复制密钥",
     usage: "用量",

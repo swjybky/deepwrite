@@ -8,7 +8,10 @@ defineProps<{
   unavailable?: boolean | undefined;
   pending?: boolean | undefined;
 }>();
-const emit = defineEmits<{ action: [action: LongBookResourceNodeAction] }>();
+const emit = defineEmits<{
+  action: [action: LongBookResourceNodeAction];
+  bindAgentTeams: [];
+}>();
 function activateLongBookAction(action: LongBookResourceNodeAction): void {
   emit("action", action);
 }
@@ -59,6 +62,15 @@ function activateLongBookAction(action: LongBookResourceNodeAction): void {
     >
       <AppIcon name="archive" :size="16" />
       <span>{{ t("materialLibraryLinks") }}</span>
+    </button>
+    <button
+      class="tree-node-action-menu-item"
+      type="button"
+      role="menuitem"
+      @click.stop="emit('bindAgentTeams')"
+    >
+      <AppIcon name="brain" :size="16" />
+      <span>{{ t("agentTeamLinks") }}</span>
     </button>
     <button
       class="tree-node-action-menu-item"

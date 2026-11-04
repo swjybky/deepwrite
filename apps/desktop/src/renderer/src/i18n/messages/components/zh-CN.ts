@@ -8,6 +8,7 @@ import agentEditProposalCard from "./agentEditProposalCard/zh-CN";
 import agentEditProposalDiff from "./agentEditProposalDiff/zh-CN";
 import agentTeamCatalogDialogs from "./agentTeamCatalogDialogs/zh-CN";
 import agentTeamCatalogFeature from "./agentTeamCatalogFeature/zh-CN";
+import agentTeamBindingGuide from "./agentTeamBindingGuide/zh-CN";
 import agentTeamCatalogList from "./agentTeamCatalogList/zh-CN";
 import agentTeamModeSelect from "./agentTeamModeSelect/zh-CN";
 import agentTeamParallelSwitch from "./agentTeamParallelSwitch/zh-CN";
@@ -26,6 +27,7 @@ import approvalDiscardButton from "./approvalDiscardButton/zh-CN";
 import approvalDiscardPresentation from "./approvalDiscardPresentation/zh-CN";
 import authorSupportDialog from "./authorSupportDialog/zh-CN";
 import bodyTextSettingsPanel from "./bodyTextSettingsPanel/zh-CN";
+import bookAgentTeamBindings from "./bookAgentTeamBindings/zh-CN";
 import bookLibraryBindings from "./bookLibraryBindings/zh-CN";
 import bookResourceDialog from "./bookResourceDialog/zh-CN";
 import bookTemplateEditor from "./bookTemplateEditor/zh-CN";
@@ -199,6 +201,7 @@ export default {
   agentEditProposalDiff,
   agentTeamCatalogDialogs,
   agentTeamCatalogFeature,
+  agentTeamBindingGuide,
   agentTeamCatalogList,
   agentTeamModeSelect,
   agentTeamParallelSwitch,
@@ -217,6 +220,7 @@ export default {
   approvalDiscardPresentation,
   authorSupportDialog,
   bodyTextSettingsPanel,
+  bookAgentTeamBindings,
   bookLibraryBindings,
   bookResourceDialog,
   bookTemplateEditor,

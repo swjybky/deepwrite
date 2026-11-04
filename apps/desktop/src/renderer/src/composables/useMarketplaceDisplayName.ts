@@ -23,9 +23,9 @@ export function useMarketplaceDisplayName(
       typeof cached.displayName === "string" &&
       cached.displayName.trim().length > 0 &&
       cached.displayName.length <= 120 &&
-      "expiresAt" in cached &&
-      typeof cached.expiresAt === "string" &&
-      Date.parse(cached.expiresAt) > now()
+      (!("expiresAt" in cached) ||
+        (typeof cached.expiresAt === "string" &&
+          Date.parse(cached.expiresAt) > now()))
     ) {
       marketplaceDisplayName.value = cached.displayName.trim();
     } else {
@@ -43,8 +43,7 @@ export function useMarketplaceDisplayName(
       if (
         marketplaceDisplayName.value &&
         session.persistent &&
-        session.expiresAt &&
-        Date.parse(session.expiresAt) > now()
+        (!session.expiresAt || Date.parse(session.expiresAt) > now())
       ) {
         storage()?.setItem(
           STORAGE_KEY,

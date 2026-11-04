@@ -6,7 +6,12 @@ export default {
   signedIn: "登录成功",
   registeredAndSignedIn: "注册并登录成功",
   couldNotSignInOrRegisterTryAgainLater: "登录或注册失败，请稍后重试。",
-  signInOrRegister: "登录或注册",
+  welcomeBack: "欢迎回来",
+  createAccount: "创建账号",
+  signInLead: "登录后使用广场、云备份等在线服务。",
+  registerLead: "注册后使用广场、云备份等在线服务。",
+  noAccountYet: "还没有账号？",
+  alreadyHaveAccount: "已有账号？",
   signIn: "登录",
   signInMethod: "登录方式",
   usernamePassword: "用户名密码",
@@ -18,9 +23,5 @@ export default {
   password: "密码",
   displayNameOptional: "显示名（可选）",
   pleaseWait: "请稍候…",
-  registerAndSignIn: "注册并登录",
-  existingUsersCanSignInDirectlyEmailLinkingIs:
-    "老用户可直接登录，邮箱绑定为可选操作。登录会话有效期为 30 天；安全存储不可用时仅保留到本次运行结束。",
-  emailCodeOnlyVerified:
-    "验证码登录仅适用于已验证的邮箱；历史账号可先用密码登录，再自愿验证邮箱。"
+  registerAndSignIn: "注册并登录"
 };

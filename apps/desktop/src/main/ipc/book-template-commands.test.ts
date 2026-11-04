@@ -92,6 +92,36 @@ function command(templateId: string) {
   );
 }
 describe("book template IPC routing", () => {
+  it("keeps a template's team choice out of the Core creation command", async () => {
+    const h = await setup();
+    const saved = await h.store.save({
+      configuration: { ...h.configuration, linkedAgentTeamIds: ["team-a"] }
+    });
+
+    const result = await handleBookTemplateCommands(
+      h.ctx,
+      command(saved.id),
+      () => h.store
+    );
+
+    expect(result).toMatchObject({ status: "accepted" });
+    expect(saved.configuration.linkedAgentTeamIds).toEqual(["team-a"]);
+    expect((await h.store.list())[0]?.configuration.linkedAgentTeamIds).toEqual(
+      ["team-a"]
+    );
+    expect(JSON.stringify(h.requestCommand.mock.calls[0]?.[1])).not.toContain(
+      "linkedAgentTeamIds"
+    );
+  });
+
+  it("omits the team field from templates that bind no team", async () => {
+    const h = await setup();
+
+    const saved = await h.store.save({ configuration: h.configuration });
+
+    expect(saved.configuration).not.toHaveProperty("linkedAgentTeamIds");
+  });
+
   it.each(["short", "script"] as const)(
     "resolves saved %s configuration in Main and forwards it through the existing authorized path",
     async (workspaceType) => {

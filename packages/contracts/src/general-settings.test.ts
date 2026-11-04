@@ -35,6 +35,7 @@ describe("general settings contracts", () => {
 
   it("leaves task notifications off until the user turns them on", () => {
     expect(createDefaultGeneralSettings().taskNotification).toBe(false);
+    expect(createDefaultGeneralSettings().externalControlEnabled).toBe(false);
     const parsed = GeneralSettingsSchema.parse({
       permissionMode: "auto-approve",
       autoSave: true,
@@ -42,6 +43,7 @@ describe("general settings contracts", () => {
       showInMenuBar: true
     });
     expect(parsed.taskNotification).toBe(false);
+    expect(parsed.externalControlEnabled).toBe(false);
     expect(
       GeneralSettingsSchema.parse({ ...parsed, taskNotification: true })
         .taskNotification

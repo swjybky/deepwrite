@@ -18,6 +18,7 @@ export function createGeneralSettingsTestApi(): DeepWriteApi["generalSettings"] 
     },
     async save(settings) {
       return { persisted: true, settings };
-    }
+    },
+    async openNotificationSettings() {}
   };
 }

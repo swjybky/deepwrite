@@ -26,10 +26,18 @@ export default {
   menuBar: "在菜单栏中显示",
   menuBarDescription: "关闭主窗口后，仍在菜单栏中保留应用图标",
   taskNotification: "任务完成通知",
+  taskNotificationSaveFailed: "通知设置保存失败，请重试。",
+  taskNotificationSaveFailedDetail: "通知设置保存失败，请重试：{message}",
   taskNotificationBlocked:
-    "系统未允许 DeepWrite 发送通知，任务完成通知暂时无法生效。请先在系统的通知设置中允许 DeepWrite，再重新打开此开关。",
+    "系统未允许 DeepWrite 发送通知。在系统设置中打开通知权限后，任务完成时就能收到提醒。",
   taskNotificationDescription:
     "智能体任务或整书拆解结束时发送系统通知；主窗口在前台时不打扰",
+  taskNotificationOpenSettings: "打开系统设置",
+  taskNotificationOpenSettingsFailed:
+    "无法打开系统设置，请手动前往系统的通知设置。",
+  externalControl: "允许外部智能体操作软件",
+  externalControlDescription:
+    "打开后，本机的 Claude、Codex 等智能体可以通过 MCP 连接并操作 DeepWrite",
   network: "网络设置",
   proxy: "网络代理",
   proxyDescription:

@@ -17,8 +17,10 @@ import type {
   SaveBookTemplateInput
 } from "@deepwrite/contracts";
 import PopupSelect from "./PopupSelect.vue";
+import BookAgentTeamBindings from "./BookAgentTeamBindings.vue";
 import BookLibraryBindings from "./BookLibraryBindings.vue";
 import { bookTemplateReferenceError } from "../utils/bookTemplateReferences";
+import { useSettingsStore } from "../stores/settingsStore";
 import { uiMessage } from "../ui-feedback";
 
 const t = createScopedTranslator("components.bookTemplateEditor");
@@ -30,6 +32,7 @@ const props = defineProps<{
   saving: boolean;
 }>();
 const emit = defineEmits<{ close: []; save: [input: SaveBookTemplateInput] }>();
+const settingsStore = useSettingsStore();
 const initial = props.template?.configuration;
 const enabled = new Set(
   props.workspaceType === "short"
@@ -87,6 +90,11 @@ function toggleStage(id: string, checked: boolean) {
     ...invalidStages.value
   ].filter((value) => ids.has(value));
 }
+/** Unbound templates omit the field, so saving leaves them unchanged. */
+function setAgentTeams(ids: string[]) {
+  if (ids.length > 0) draft.linkedAgentTeamIds = ids;
+  else delete draft.linkedAgentTeamIds;
+}
 const validating = ref(false);
 const busy = computed(() => validating.value || props.saving);
 async function submit() {
@@ -103,7 +111,11 @@ async function submit() {
       );
       return;
     }
-    const error = bookTemplateReferenceError(result.data, props.catalog);
+    const error = bookTemplateReferenceError(
+      result.data,
+      props.catalog,
+      settingsStore.agentTeamCatalog
+    );
     if (error) {
       uiMessage.warning(error);
       return;
@@ -231,6 +243,12 @@ async function submit() {
             preserve-missing
             :submitting="busy"
             @change="Object.assign(draft, $event)"
+          />
+          <BookAgentTeamBindings
+            :model-value="draft.linkedAgentTeamIds ?? []"
+            :workspace-type="workspaceType"
+            :disabled="busy"
+            @update:model-value="setAgentTeams"
           />
           <div class="dialog-actions">
             <button

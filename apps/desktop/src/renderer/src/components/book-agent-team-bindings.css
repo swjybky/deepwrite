@@ -1,0 +1,30 @@
+.book-agent-team-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.book-agent-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 4px 6px 4px 8px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 999px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+  font-size: 0.714286rem;
+  overflow-wrap: anywhere;
+}
+
+.book-agent-team-chip button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--text-tertiary);
+}

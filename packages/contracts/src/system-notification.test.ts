@@ -1,17 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { createEnvelope } from "./envelope";
-import { SystemEventEnvelopeSchema } from "./system";
+import { CommandEnvelopeSchema, SystemEventEnvelopeSchema } from "./system";
 
 describe("system notification events", () => {
-  it("accepts the refused-notification event with an empty payload", () => {
-    const event = createEnvelope(
-      "system.notification_blocked",
-      {},
-      { id: "evt_notification_blocked" }
+  it("says whether a refused notification has a settings page to open", () => {
+    const blocked = (payload: object) =>
+      createEnvelope("system.notification_blocked", payload, {
+        id: "evt_notification_blocked"
+      });
+    expect(
+      SystemEventEnvelopeSchema.parse(blocked({ canOpenSettings: true })).type
+    ).toBe("system.notification_blocked");
+    expect(SystemEventEnvelopeSchema.safeParse(blocked({})).success).toBe(
+      false
     );
-    expect(SystemEventEnvelopeSchema.parse(event).type).toBe(
-      "system.notification_blocked"
-    );
+  });
+
+  it("opens notification settings without letting the caller name a target", () => {
+    const open = (payload: object) =>
+      createEnvelope("generalSettings.openNotificationSettings", payload, {
+        id: "cmd_open_notification_settings"
+      });
+    expect(CommandEnvelopeSchema.safeParse(open({})).success).toBe(true);
+    expect(
+      CommandEnvelopeSchema.safeParse(open({ url: "file:///tmp/x" })).success
+    ).toBe(false);
   });
 
   it("accepts a decomposition task settling and rejects an unknown outcome", () => {

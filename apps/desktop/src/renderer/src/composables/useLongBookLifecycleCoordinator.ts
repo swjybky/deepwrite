@@ -29,6 +29,11 @@ export type * from "./longBookLifecycleTypes";
 import { useLongConflictResolution } from "./useLongConflictResolution";
 import { createLongManuscriptExportFlow } from "./useLongManuscriptExportFlow";
 import { disposeLongBookRemovalRuntime } from "./book-removal-runtime";
+import type { BookAgentTeamChoice } from "../components/WorkspaceDialogLayer.types";
+import {
+  bindCreatedBookAgentTeams,
+  copyBookAgentTeamBinding
+} from "./useBookAgentTeamBinding";
 
 const t = createScopedTranslator("workspace");
 
@@ -199,7 +204,10 @@ export function useLongBookLifecycleCoordinator(
     resources.revealEditor();
   }
 
-  function createLongBook(input: CreateLongBookInput): Promise<void> {
+  function createLongBook({
+    linkedAgentTeamIds,
+    ...input
+  }: CreateLongBookInput & BookAgentTeamChoice): Promise<void> {
     const api = options.api();
     if (!api) {
       uiMessage.warning(
@@ -216,6 +224,13 @@ export function useLongBookLifecycleCoordinator(
         if (!(await session.saveActiveEditorBeforeLeaving())) return;
         if (!leaseIsCurrent(lease)) return;
         const opened = await api.create(input);
+        if (opened) {
+          await bindCreatedBookAgentTeams(
+            opened.book.id,
+            "long",
+            linkedAgentTeamIds
+          );
+        }
         if (!opened || !leaseIsCurrent(lease)) return;
         state.createBookDialogOpen.value = false;
         activateLongBookWorkspace(opened);
@@ -468,6 +483,7 @@ export function useLongBookLifecycleCoordinator(
         }
         if (!leaseIsCurrent(lease)) return;
         const duplicated = await api.duplicateBook({ bookId });
+        await copyBookAgentTeamBinding(bookId, duplicated.book.id, "long");
         if (!leaseIsCurrent(lease)) return;
         await catalog.loadBookList({ force: true });
         if (!leaseIsCurrent(lease)) return;

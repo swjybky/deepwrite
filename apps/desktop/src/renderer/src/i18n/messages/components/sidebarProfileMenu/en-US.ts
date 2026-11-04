@@ -15,6 +15,7 @@ export default {
   couldNotLoadAnnouncements: "Could not load announcements. Try again later.",
   updates: "Updates",
   contactAuthor: "Contact author",
+  feedback: "Feedback",
   supportTheAuthor: "Support the author",
   openSettings: "Open settings",
   close: "Close",

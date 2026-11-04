@@ -9,6 +9,8 @@ import {
 export type MarketplaceRequestOptions = {
   authenticated: boolean | "optional";
   body?: unknown;
+  /** Replaces the default timeout for requests that carry images. */
+  timeoutMs?: number;
 };
 const MARKETPLACE_REQUEST_TIMEOUT_MS = 12_000;
 const ACCOUNT_ERRORS: Record<string, string> = {
@@ -54,7 +56,9 @@ export async function requestMarketplace(
     response = await context.fetcher(`${context.baseUrl}${path}`, {
       method,
       cache: "no-store",
-      signal: AbortSignal.timeout(MARKETPLACE_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(
+        options.timeoutMs ?? MARKETPLACE_REQUEST_TIMEOUT_MS
+      ),
       headers,
       ...(options.body !== undefined
         ? { body: JSON.stringify(options.body) }

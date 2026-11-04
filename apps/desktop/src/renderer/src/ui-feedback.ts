@@ -2,14 +2,21 @@ import { readonly, shallowRef } from "vue";
 
 export type UiMessageKind = "success" | "error" | "warning" | "info";
 
+export interface UiMessageAction {
+  label: string;
+  run: () => void;
+}
+
 export interface UiMessageItem {
   id: number;
   kind: UiMessageKind;
   content: string;
+  action?: UiMessageAction;
 }
 
 export interface UiMessageOptions {
   duration?: number;
+  action?: UiMessageAction;
 }
 
 const DEFAULT_DURATION_MS = 3_200;
@@ -37,7 +44,11 @@ function show(
   const id = ++messageId;
   const overflow = Math.max(0, items.value.length + 1 - MAX_VISIBLE_MESSAGES);
   items.value.slice(0, overflow).forEach((item) => remove(item.id));
-  items.value = [...items.value, { id, kind, content: normalized }];
+  const { action } = options;
+  items.value = [
+    ...items.value,
+    { id, kind, content: normalized, ...(action && { action }) }
+  ];
   const duration = Math.max(0, options.duration ?? DEFAULT_DURATION_MS);
   if (duration > 0) {
     timers.set(

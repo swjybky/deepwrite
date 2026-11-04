@@ -14,6 +14,9 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 const presetProtectionOnly = process.argv.includes("--preset-protection-only");
 const i18nOnly = process.argv.includes("--i18n-only");
+const externalConcurrencyOnly = process.argv.includes(
+  "--external-concurrency-only"
+);
 const conversationOnly = process.argv.includes("--conversation-only");
 const decompositionOnly = process.argv.includes("--decomposition-only");
 const bookIdentityOnly = process.argv.includes("--book-identity-only");
@@ -76,23 +79,25 @@ const child = spawn(command, args, {
   env: {
     ...process.env,
     DEEPWRITE_SMOKE: "1",
-    DEEPWRITE_SMOKE_SUITE: presetProtectionOnly
-      ? "preset-protection"
-      : shortBookSourcesOnly
-        ? "short-book-sources"
-        : libraryGroupsOnly
-          ? "library-groups"
-          : bookIdentityOnly
-            ? "book-identity"
-            : decompositionRealModel
-              ? "decomposition-real-model"
-              : decompositionOnly
-                ? "decomposition"
-                : conversationOnly
-                  ? "conversation"
-                  : i18nOnly
-                    ? "i18n"
-                    : "all",
+    DEEPWRITE_SMOKE_SUITE: externalConcurrencyOnly
+      ? "external-concurrency"
+      : presetProtectionOnly
+        ? "preset-protection"
+        : shortBookSourcesOnly
+          ? "short-book-sources"
+          : libraryGroupsOnly
+            ? "library-groups"
+            : bookIdentityOnly
+              ? "book-identity"
+              : decompositionRealModel
+                ? "decomposition-real-model"
+                : decompositionOnly
+                  ? "decomposition"
+                  : conversationOnly
+                    ? "conversation"
+                    : i18nOnly
+                      ? "i18n"
+                      : "all",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
   },
   stdio: ["ignore", "pipe", "pipe"]
@@ -158,6 +163,19 @@ child.on("close", async (code) => {
     process.exit(1);
   }
 
+  if (externalConcurrencyOnly) {
+    if (
+      summary.concurrency?.sessions !== 5 ||
+      !summary.concurrency?.continuation
+    ) {
+      console.error("External concurrency smoke returned an invalid summary.");
+      process.exit(1);
+    }
+    console.log(
+      "External concurrency smoke passed: five independent sessions, creation during generation, continuation and retained results."
+    );
+    return;
+  }
   if (presetProtectionOnly) {
     if (
       summary.presetProtection?.status !== "ok" ||
@@ -309,6 +327,9 @@ child.on("close", async (code) => {
     summary.extrasAgents?.longNote !== true ||
     summary.extrasAgents?.profileRoundTrip !== true ||
     summary.extrasAgents?.modelRequired !== true ||
+    summary.feedback?.status !== "ok" ||
+    summary.feedback?.signInRequired !== true ||
+    !(summary.feedback?.captureBytes > 0) ||
     summary.extrasChat?.status !== "ok" ||
     summary.extrasChat?.runtime !== "local-faux" ||
     summary.extrasChat?.turns !== 2 ||

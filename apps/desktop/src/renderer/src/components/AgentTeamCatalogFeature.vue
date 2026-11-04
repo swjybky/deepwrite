@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
+import { agentTeamBoundBookCount } from "@deepwrite/contracts/renderer";
 import {
   type AgentTeamCatalogSnapshot,
   type AgentTeamProfile,
@@ -257,6 +258,9 @@ function discardAndLeave(): void {
   <AgentTeamCatalogDialogs
     :mode="dialogMode"
     :team="dialogTeam"
+    :bound-book-count="
+      agentTeamBoundBookCount(catalog?.bookBindings, dialogTeam?.id ?? '')
+    "
     :saving="saving"
     @close="closeDialog()"
     @create="submitCreate"

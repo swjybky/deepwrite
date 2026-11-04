@@ -4,6 +4,14 @@ import type {
 } from "./book-templates";
 import type { WindowFrameApi } from "./window-frame";
 import type {
+  FeedbackImage,
+  FeedbackImageTarget,
+  FeedbackItem,
+  FeedbackListFilter,
+  FeedbackPage,
+  FeedbackSubmitInput
+} from "./feedback";
+import type {
   MarketplaceEmailCodeInput,
   MarketplaceEmailCodeResult,
   MarketplaceBindEmailInput,
@@ -38,6 +46,7 @@ import type {
   AgentTeamProfileCreateInput,
   AgentTeamProfileRenameInput,
   AgentTeamProfileSaveInput,
+  AgentTeamBookBindingInput,
   AgentTeamProfileSetEnabledInput,
   AgentTeamProfileTargetInput
 } from "./agent-team-catalog";
@@ -184,6 +193,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
   imageModels: import("./image-models").ImageModelsApi;
   webSearch: import("./web-search").WebSearchApi;
   windowFrame?: WindowFrameApi;
+  externalControl: import("./external-control/run-tools").ExternalControlPreloadApi;
   system: {
     health(): Promise<SystemHealthPayload>;
   };
@@ -227,6 +237,13 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
       ref: MarketplaceContentRef
     ): Promise<MarketplaceInstallPreview>;
     install(input: MarketplaceInstallInput): Promise<MarketplaceInstallResult>;
+  };
+  /** The signed-in user's feedback; sign-in goes through `marketplace`. */
+  feedback: {
+    list(filter?: FeedbackListFilter): Promise<FeedbackPage>;
+    submit(input: FeedbackSubmitInput): Promise<FeedbackItem>;
+    image(target: FeedbackImageTarget): Promise<FeedbackImage>;
+    captureWindow(): Promise<FeedbackImage>;
   };
   /** Whole-team plaza; sign-in goes through `marketplace`. */
   agentTeamMarketplace: {
@@ -407,6 +424,9 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     setEnabled(
       input: AgentTeamProfileSetEnabledInput
     ): Promise<AgentTeamCatalogSnapshot>;
+    setBookBinding(
+      input: AgentTeamBookBindingInput
+    ): Promise<AgentTeamCatalogSnapshot>;
     save(input: AgentTeamProfileSaveInput): Promise<AgentTeamCatalogSnapshot>;
     download(
       input: AgentTeamProfileTargetInput
@@ -456,6 +476,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
   generalSettings: {
     list(): Promise<GeneralSettingsSnapshot>;
     save(settings: GeneralSettings): Promise<GeneralSettingsSnapshot>;
+    openNotificationSettings(): Promise<void>;
   };
   manuscript: {
     exportLong(

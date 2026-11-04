@@ -80,6 +80,10 @@ export interface AgentConversationState {
   seenTurnIds: Set<string>;
   seenSubagentTurnIds: Set<string>;
   observedRunByAttempt: Map<number, string>;
+  /** Applies to the next send only, and never touches `approvalMode`. */
+  nextApprovalMode: AgentApprovalMode | null;
+  /** Applies to the next send only, and never touches `agentTeamMode`. */
+  nextAgentTeamMode: AgentTeamRunMode | null;
   approvalModeByAttempt: Map<number, AgentApprovalMode>;
   approvalModeByRun: Map<string, AgentApprovalMode>;
   sessionsRequiringHistoryReplacement: Set<string>;
@@ -152,10 +156,10 @@ export function createAgentConversationState(
     draft: ref(storedActive?.draft ?? ""),
     sessionId: ref(storedActive?.sessionId ?? id("session")),
     approvalMode: ref<AgentApprovalMode>(
-      storedActive?.approvalMode ?? "request-approval"
+      storedActive?.approvalMode ?? "auto-approve"
     ),
     thinkingLevel: ref<ThinkingLevel>("medium"),
-    agentTeamMode: ref<AgentTeamRunMode>("normal"),
+    agentTeamMode: ref<AgentTeamRunMode>("team"),
     webSearchEnabled: ref(false),
     temperature: ref(storedActive?.temperature ?? 0.7),
     configuredModels: ref<ModelConfig[]>([]),
@@ -191,6 +195,8 @@ export function createAgentConversationState(
     seenTurnIds: new Set<string>(),
     seenSubagentTurnIds: new Set<string>(),
     observedRunByAttempt: new Map<number, string>(),
+    nextApprovalMode: null,
+    nextAgentTeamMode: null,
     approvalModeByAttempt: new Map<number, AgentApprovalMode>(),
     approvalModeByRun: new Map<string, AgentApprovalMode>(),
     sessionsRequiringHistoryReplacement: new Set<string>(),

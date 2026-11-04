@@ -39,6 +39,7 @@ export function parseTarget(args) {
   const targets = {
     all: ["buildLinuxX64", "buildMacArm64", "buildMacX64", "buildWinX64"],
     desktop: ["buildMacArm64", "buildMacX64", "buildWinX64"],
+    "desktop arm64": ["buildMacArm64", "buildWinX64"],
     "mac all": ["buildMacArm64", "buildMacX64"],
     "mac arm64": ["buildMacArm64"],
     "mac x64": ["buildMacX64"],
@@ -51,7 +52,7 @@ export function parseTarget(args) {
     : undefined;
   if (!selected) {
     throw new Error(
-      "Usage: node tools/run-test-package.mjs <all | desktop | linux x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
+      "Usage: node tools/run-test-package.mjs <all | desktop | desktop arm64 | linux x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
     );
   }
   return Object.fromEntries(

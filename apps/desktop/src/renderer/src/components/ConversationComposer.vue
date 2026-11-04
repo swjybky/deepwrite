@@ -73,6 +73,7 @@ const props = defineProps<{
   agentTeamMode: AgentTeamRunMode;
   agentId: WorkspaceAgentId | LongAgentId | undefined;
   agentWorkspaceType: "short" | "script" | "long" | undefined;
+  agentBookId?: string | undefined;
   libraryDomain: LibraryAgentDomain | undefined;
   availableSkills: ComposerReferenceOption[];
   availableMaterials: ComposerReferenceOption[];
@@ -115,7 +116,8 @@ const teamMemberOptions = computed(() =>
     ? agentTeamMemberReferences(
         settingsStore.agentTeamCatalog,
         props.agentWorkspaceType,
-        props.agentId
+        props.agentId,
+        props.agentBookId
       )
     : null
 );
@@ -538,6 +540,7 @@ defineExpose({ focusInput });
                   :model-value="agentTeamMode"
                   :workspace-type="agentWorkspaceType"
                   :parent-agent-id="agentId"
+                  :book-id="agentBookId"
                   @update:model-value="emit('selectAgentTeamMode', $event)"
                 />
                 <PopupSelect

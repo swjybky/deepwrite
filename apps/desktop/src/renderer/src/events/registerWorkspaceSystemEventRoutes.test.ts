@@ -122,7 +122,10 @@ describe("workspace system event routes", () => {
     const center = createSystemEventCenter();
     const { dependencies } = createDependencies();
     const dispose = registerWorkspaceSystemEventRoutes(center, dependencies);
-    const refused = event({ type: "system.notification_blocked", payload: {} });
+    const refused = event({
+      type: "system.notification_blocked",
+      payload: { canOpenSettings: true }
+    });
 
     center.publish(refused);
     expect(uiMessageItems.value).toHaveLength(1);
@@ -131,6 +134,27 @@ describe("workspace system event routes", () => {
     dispose();
     center.publish(refused);
     expect(uiMessageItems.value).toHaveLength(0);
+  });
+
+  it("refreshes the window after an external change", async () => {
+    const center = createSystemEventCenter();
+    const { dependencies } = createDependencies();
+    const refreshAfterExternalChange = vi.fn(async () => undefined);
+    registerWorkspaceSystemEventRoutes(center, {
+      ...dependencies,
+      refreshAfterExternalChange
+    });
+
+    center.publish(
+      event({
+        type: "externalControl.resource_changed",
+        payload: { domain: "work", resourceId: "book-1" }
+      })
+    );
+
+    expect(refreshAfterExternalChange).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(dependencies.onAsyncError).not.toHaveBeenCalled();
   });
 
   it("releases every route once and ignores repeated disposal", () => {

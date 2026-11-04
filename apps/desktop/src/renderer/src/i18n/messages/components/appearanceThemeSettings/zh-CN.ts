@@ -29,6 +29,8 @@ export default {
   enterForegroundColor: "输入前景色",
   interfaceFontSize: "UI 字号",
   interfaceFontSizePixels: "UI 字号（像素）",
+  editorFontSize: "正文字号",
+  editorFontSizePixels: "正文字号（像素）",
   codeFontSize: "代码字号",
   codeFontSizePixels: "代码字号（像素）",
   translucentSidebar: "半透明侧边栏"

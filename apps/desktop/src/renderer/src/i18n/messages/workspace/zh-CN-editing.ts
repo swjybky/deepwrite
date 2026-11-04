@@ -79,7 +79,10 @@ export default {
     thisAgentHasNoEnabledTeamWithAvailableMembers:
       "当前智能体没有已启用且含可用成员的团队，请先到智能体团队设置中配置。",
     allowThisMainAgentToCallSubagentsInEnabled:
-      "允许当前主智能体调用已启用团队中的子智能体。"
+      "允许当前主智能体调用已启用团队中的子智能体。",
+    useTheTeamsBoundToThisBook: "使用本作品绑定的团队：{names}。",
+    theTeamsBoundToThisBookHaveNoAvailableMembers:
+      "本作品绑定的团队已失效或没有当前智能体可用的成员，请在作品菜单的“团队绑定”中调整。"
   },
   marketplacePublishContent: {
     theSkillHasNoContentAndCannotBePublished:

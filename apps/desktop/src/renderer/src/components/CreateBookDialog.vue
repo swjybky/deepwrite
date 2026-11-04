@@ -18,9 +18,6 @@ import {
   ShortBookGenreSchema
 } from "@deepwrite/contracts";
 import type {
-  CreateLongBookInput,
-  CreateScriptBookInput,
-  CreateShortBookInput,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   MaterialLibrary,
@@ -29,7 +26,9 @@ import type {
   SkillLibraryGroup
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
+import BookAgentTeamBindings from "./BookAgentTeamBindings.vue";
 import BookLibraryBindings from "./BookLibraryBindings.vue";
+import type { CreateCreativeBookPayload } from "./WorkspaceDialogLayer.types";
 
 const t = createScopedTranslator("components.createBookDialog");
 
@@ -52,11 +51,6 @@ const props = withDefaults(
     submitting: false
   }
 );
-
-type CreateCreativeBookPayload =
-  | ({ workspaceType: "short" } & CreateShortBookInput)
-  | ({ workspaceType: "script" } & CreateScriptBookInput)
-  | ({ workspaceType: "long" } & CreateLongBookInput);
 
 const emit = defineEmits<{
   close: [];
@@ -107,6 +101,7 @@ const bindings = ref<{
   linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
   linkedSkillIdsByKind: LinkedSkillIdsByKind;
 }>();
+const agentTeamIds = ref<string[]>([]);
 function workspaceTypeLabel(): string {
   return (
     workspaceTypeOptions.find((option) => option.value === workspaceType.value)
@@ -119,6 +114,7 @@ function resetDraft(): void {
   workspaceType.value = "short";
   genre.value = "世情";
   bindings.value = undefined;
+  agentTeamIds.value = [];
 }
 
 function requestClose(): void {
@@ -134,6 +130,9 @@ function submit(): void {
   }
   const linkedMaterialIdsByKind = bindings.value?.linkedMaterialIdsByKind;
   const linkedSkillIdsByKind = bindings.value?.linkedSkillIdsByKind;
+  const teamChoice = agentTeamIds.value.length
+    ? { linkedAgentTeamIds: agentTeamIds.value }
+    : {};
   if (workspaceType.value === "long") {
     if (Array.from(normalizedTitle).length > 256) {
       uiMessage.warning(t("novelTitlesCannotExceed256Characters"));
@@ -145,7 +144,8 @@ function submit(): void {
       title: normalizedTitle,
       genre: LongBookGenreSchema.parse(genre.value),
       linkedMaterialIdsByKind,
-      linkedSkillIdsByKind
+      linkedSkillIdsByKind,
+      ...teamChoice
     });
     return;
   }
@@ -155,7 +155,8 @@ function submit(): void {
       title: normalizedTitle,
       genre: ScriptBookGenreSchema.parse(genre.value),
       linkedMaterialIdsByKind,
-      linkedSkillIdsByKind
+      linkedSkillIdsByKind,
+      ...teamChoice
     });
     return;
   }
@@ -164,7 +165,8 @@ function submit(): void {
     title: normalizedTitle,
     genre: ShortBookGenreSchema.parse(genre.value),
     linkedMaterialIdsByKind,
-    linkedSkillIdsByKind
+    linkedSkillIdsByKind,
+    ...teamChoice
   });
 }
 
@@ -185,6 +187,7 @@ watch(
 watch(workspaceType, () => {
   genre.value = genreOptions.value[0] ?? "世情";
   bindings.value = undefined;
+  agentTeamIds.value = [];
 });
 
 onMounted(() => document.addEventListener("keydown", handleKeydown));
@@ -334,6 +337,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             :loading="loading"
             :submitting="submitting"
             @change="bindings = $event"
+          />
+          <BookAgentTeamBindings
+            v-model="agentTeamIds"
+            :workspace-type="workspaceType"
+            :disabled="submitting"
           />
 
           <div class="dialog-actions create-short-book-actions">

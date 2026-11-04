@@ -29,6 +29,15 @@ describe("task notification wiring in Main", () => {
   it("tells the Renderer when the system refuses the confirmation", () => {
     expect(source).toContain("onEnableRefused: () =>");
     expect(source).toContain('"system.notification_blocked"');
+    expect(source).toContain(
+      "{ canOpenSettings: canOpenNotificationSettings() }"
+    );
+  });
+
+  it("routes the settings button to the one place that opens the system page", () => {
+    expect(source).toMatch(
+      /"generalSettings\.openNotificationSettings"\) \{\s*return openNotificationSettings\(command\.id\);/
+    );
   });
 
   it("confirms only the moment the setting turns on, and names Windows notifications", () => {

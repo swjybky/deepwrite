@@ -3,7 +3,11 @@ import { formatError } from "../../i18n/errors";
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import type { CloudBackupPreview } from "@deepwrite/contracts";
+import MarketplaceAuthForm from "../../components/MarketplaceAuthForm.vue";
+import type {
+  MarketplaceSession,
+  CloudBackupPreview
+} from "@deepwrite/contracts";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { uiMessage } from "../../ui-feedback";
 import CloudBackupPreviewDialog from "./CloudBackupPreviewDialog.vue";
@@ -21,6 +25,7 @@ const emit = defineEmits<{
 const settingsStore = useSettingsStore();
 const { cloudBackupStatus: status, cloudBackupLoading: loading } =
   storeToRefs(settingsStore);
+const session = ref<MarketplaceSession | null>(null);
 const pending = ref(false);
 const remoteKey = ref("");
 const preview = ref<CloudBackupPreview | null>(null);
@@ -56,12 +61,23 @@ function formatTime(value: string | null): string {
 async function ensureStatusLoaded(): Promise<void> {
   if (!window.deepwrite?.cloudBackup) return;
   try {
+    session.value = await window.deepwrite.marketplace.session();
+    if (!session.value.authenticated) {
+      settingsStore.invalidate("cloudBackup");
+      preview.value = null;
+      return;
+    }
     await settingsStore.ensureCloudBackupLoaded(() =>
       window.deepwrite!.cloudBackup!.status()
     );
   } catch (error: unknown) {
     uiMessage.error(errorMessage(error, t("cloudBackup.loadStatusFailed")));
   }
+}
+
+async function signedIn(value: MarketplaceSession): Promise<void> {
+  session.value = value;
+  await refreshStatus();
 }
 
 async function refreshStatus(): Promise<void> {
@@ -175,7 +191,11 @@ watch(
       <span>{{ t("cloudBackup.openDesktop") }}</span>
     </div>
 
-    <template v-else-if="status">
+    <MarketplaceAuthForm
+      v-else-if="session && !session.authenticated"
+      @authenticated="signedIn"
+    />
+    <template v-else-if="session?.authenticated && status">
       <section v-if="!status.configured" class="backup-card warning-card">
         <strong>{{ t("cloudBackup.cloudNotConfigured") }}</strong>
         <p>{{ t("cloudBackup.configureEnvironment") }}</p>

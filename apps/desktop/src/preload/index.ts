@@ -1,4 +1,5 @@
 import { bookTemplates, createBookFromTemplate } from "./book-templates-api";
+import { externalControl } from "./external-control-api";
 import { desktopEvents } from "./desktop-events-api";
 import { voice } from "./voice-api";
 import { imageModels } from "./image-models-api";
@@ -19,6 +20,7 @@ import {
   renameAgentTeam,
   deleteAgentTeam,
   setAgentTeamEnabled,
+  setAgentTeamBookBinding,
   saveAgentTeams,
   downloadAgentTeam,
   installAgentTeam,
@@ -71,6 +73,7 @@ import {
   ImportLibraryEntriesResultSchema,
   GeneralSettingsSchema,
   GeneralSettingsSnapshotSchema,
+  OpenNotificationSettingsResultSchema,
   UPDATE_CHECK_CHANNEL,
   UPDATE_DOWNLOAD_CHANNEL,
   UPDATE_GET_STATE_CHANNEL,
@@ -204,6 +207,7 @@ import {
 import { steer } from "./session-steer-api";
 import { marketplace } from "./marketplace-api";
 import { agentTeamMarketplace } from "./agent-team-marketplace-api";
+import { feedback } from "./feedback-api";
 
 async function getHealth(): Promise<SystemHealthPayload> {
   const id = browserId("cmd_health");
@@ -950,6 +954,19 @@ async function saveGeneralSettings(
   );
 }
 
+async function openNotificationSettings(): Promise<void> {
+  const id = browserId("cmd_general_settings_open_notification_settings");
+  OpenNotificationSettingsResultSchema.parse(
+    await invokeCommand(
+      createEnvelope(
+        "generalSettings.openNotificationSettings",
+        {},
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
 async function exportShortManuscript(
   rawInput: ExportShortManuscriptInput
 ): Promise<ExportShortManuscriptResult> {
@@ -981,6 +998,7 @@ async function exportLongManuscript(
 }
 
 const api: DeepWriteApi = {
+  externalControl,
   imageModels,
   webSearch,
   bookIdentity,
@@ -1022,6 +1040,7 @@ const api: DeepWriteApi = {
   },
   marketplace,
   agentTeamMarketplace,
+  feedback,
 
   deviceSync,
   cloudBackup,
@@ -1089,6 +1108,7 @@ const api: DeepWriteApi = {
     rename: renameAgentTeam,
     delete: deleteAgentTeam,
     setEnabled: setAgentTeamEnabled,
+    setBookBinding: setAgentTeamBookBinding,
     save: saveAgentTeams,
     download: downloadAgentTeam,
     install: installAgentTeam
@@ -1106,7 +1126,8 @@ const api: DeepWriteApi = {
   appearance,
   generalSettings: {
     list: listGeneralSettings,
-    save: saveGeneralSettings
+    save: saveGeneralSettings,
+    openNotificationSettings
   },
   manuscript: {
     exportLong: exportLongManuscript,

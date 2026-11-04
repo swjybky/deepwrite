@@ -123,6 +123,7 @@ import {
   AgentTeamsInstallPackageCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
   AgentTeamsRenameCommandEnvelopeSchema,
+  AgentTeamsSetBookBindingCommandEnvelopeSchema,
   AgentTeamsSetEnabledCommandEnvelopeSchema,
   AgentTeamsSaveCommandEnvelopeSchema
 } from "./agent-team-catalog";
@@ -209,6 +210,7 @@ import {
 } from "./appearance";
 import {
   GeneralSettingsListCommandEnvelopeSchema,
+  GeneralSettingsOpenNotificationSettingsCommandEnvelopeSchema,
   GeneralSettingsSaveCommandEnvelopeSchema
 } from "./general-settings";
 import { ExportShortManuscriptCommandEnvelopeSchema } from "./short-manuscript-export";
@@ -223,6 +225,15 @@ import {
   RendererStateFlushRequestedEventEnvelopeSchema
 } from "./renderer-state";
 import { LongWorkspaceCommandSchemas } from "./long-workspace-commands";
+import {
+  ExternalControlSettingsCommandSchemas,
+  ExternalControlLocateProjectCommandEnvelopeSchema,
+  ExternalControlResourceChangedEventEnvelopeSchema
+} from "./external-control/commands";
+import {
+  ExternalControlWindowRequestEventEnvelopeSchema,
+  ExternalControlWindowResponseCommandEnvelopeSchema
+} from "./external-control/run-tools";
 
 export const IPC_COMMAND_CHANNEL = "deepwrite:command";
 export const IPC_EVENT_CHANNEL = "deepwrite:event";
@@ -253,6 +264,9 @@ export const SystemHealthCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 });
 
 export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
+  ExternalControlLocateProjectCommandEnvelopeSchema,
+  ExternalControlWindowResponseCommandEnvelopeSchema,
+  ...ExternalControlSettingsCommandSchemas,
   ...StorageSettingsCommandSchemas,
   ...VoiceCommandSchemas,
   ...BookIdentityCommandSchemas,
@@ -344,6 +358,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AgentTeamsRenameCommandEnvelopeSchema,
   AgentTeamsDeleteCommandEnvelopeSchema,
   AgentTeamsSetEnabledCommandEnvelopeSchema,
+  AgentTeamsSetBookBindingCommandEnvelopeSchema,
   AgentTeamsSaveCommandEnvelopeSchema,
   AgentTeamsExportPackageCommandEnvelopeSchema,
   AgentTeamsInstallPackageCommandEnvelopeSchema,
@@ -356,6 +371,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AppearanceFontsRemoveCommandEnvelopeSchema,
   GeneralSettingsListCommandEnvelopeSchema,
   GeneralSettingsSaveCommandEnvelopeSchema,
+  GeneralSettingsOpenNotificationSettingsCommandEnvelopeSchema,
   ExportLongManuscriptCommandEnvelopeSchema,
   ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
@@ -411,15 +427,18 @@ export const SystemWorkerRestartingEventEnvelopeSchema =
 
 /**
  * The system refused the confirmation shown when task notifications are
- * switched on, so the Renderer can say why nothing appeared.
+ * switched on, so the Renderer can say why nothing appeared and, where the
+ * platform has a settings page for it, offer to open that page.
  */
 export const SystemNotificationBlockedEventEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("system.notification_blocked"),
-    payload: z.object({})
+    payload: z.object({ canOpenSettings: z.boolean() })
   });
 
 export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
+  ExternalControlResourceChangedEventEnvelopeSchema,
+  ExternalControlWindowRequestEventEnvelopeSchema,
   BookIdentityUpdatedEventEnvelopeSchema,
   LongMaterialProgressEventEnvelopeSchema,
   RendererStateFlushRequestedEventEnvelopeSchema,
@@ -477,10 +496,12 @@ export type SystemWorkerRestartingEventEnvelope = Envelope<
   "system.worker_restarting"
 >;
 export type SystemNotificationBlockedEventEnvelope = Envelope<
-  Record<string, never>,
+  { canOpenSettings: boolean },
   "system.notification_blocked"
 >;
 export type SystemEventEnvelope =
+  | z.infer<typeof ExternalControlResourceChangedEventEnvelopeSchema>
+  | z.infer<typeof ExternalControlWindowRequestEventEnvelopeSchema>
   | BookIdentityUpdatedEventEnvelope
   | LongMaterialProgressEventEnvelope
   | DecompositionTargetUpdatedEvent

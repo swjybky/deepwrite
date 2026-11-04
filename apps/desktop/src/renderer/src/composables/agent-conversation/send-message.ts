@@ -1,4 +1,4 @@
-import { formatError } from "../../i18n/errors";
+import { formatError, getErrorCode, getErrorDetail } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import { preparePromptContext } from "./request-context";
 import type { AgentConversationContext } from "./context";
@@ -73,6 +73,8 @@ type SendMessageContext = Pick<
   | "activeRunId"
   | "markRunError"
   | "queuedDispatch"
+  | "nextApprovalMode"
+  | "nextAgentTeamMode"
 >;
 export async function sendMessage(
   ctx: SendMessageContext,
@@ -164,7 +166,8 @@ export async function sendMessage(
     ctx.sessionsRequiringHistoryReplacement.has(sendSessionId)
   );
   const attemptId = ++ctx.attemptSequence;
-  const requestedAgentTeamMode = ctx.agentTeamMode.value;
+  const requestedAgentTeamMode =
+    ctx.nextAgentTeamMode ?? ctx.agentTeamMode.value;
   const preparedContext = preparePromptContext(
     ctx,
     api,
@@ -228,7 +231,12 @@ export async function sendMessage(
   ctx.unconfirmedUserMessageId = userMessage.id;
   ctx.conversationError.value = null;
   ctx.pendingAttemptId.value = attemptId;
-  ctx.approvalModeByAttempt.set(attemptId, ctx.approvalMode.value);
+  ctx.approvalModeByAttempt.set(
+    attemptId,
+    ctx.nextApprovalMode ?? ctx.approvalMode.value
+  );
+  ctx.nextApprovalMode = null;
+  ctx.nextAgentTeamMode = null;
   ctx.submitting.value = true;
   ctx.scheduleIdleTimeout({
     expectedEpoch: sendEpoch,
@@ -387,14 +395,20 @@ export async function sendMessage(
     ) {
       ctx.draft.value = content;
     }
-    const messageText = formatError(
-      error,
-      t(
-        savedBeforeSending
-          ? "theAgentRequestCouldNotBeAccepted"
-          : "couldNotSaveBeforeSending"
-      )
+    const failureHeadline = t(
+      savedBeforeSending
+        ? "theAgentRequestCouldNotBeAccepted"
+        : "couldNotSaveBeforeSending"
     );
+    // Main rejects with the concrete reason (e.g. a team member's unknown
+    // model); the headline alone would hide it.
+    const rejectionDetail =
+      getErrorCode(error) === "ipc.agent_command_failed"
+        ? getErrorDetail(error)
+        : undefined;
+    const messageText = rejectionDetail
+      ? `${failureHeadline} ${rejectionDetail}`
+      : formatError(error, failureHeadline);
     const observedRunId = ctx.observedRunByAttempt.get(attemptId);
     if (observedRunId) {
       ctx.markRunError(

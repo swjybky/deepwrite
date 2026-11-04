@@ -28,5 +28,8 @@ export default {
   goToTemplateSettings: "Go to template settings",
   cancel: "Cancel",
   creating: "Creating…",
-  createWork: "Create work"
+  createWork: "Create work",
+  agentTeams: "Agent teams",
+  usesTheEnabledTeam: "Use the enabled team",
+  unavailableAgentTeam: "Unavailable team"
 };

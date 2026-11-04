@@ -1,0 +1,129 @@
+.external-control-intro,
+.external-control-empty {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 0.928571rem;
+  line-height: 1.6;
+}
+
+.external-control-empty {
+  margin: 0;
+  padding: 14px 16px;
+}
+
+.external-control-row,
+.external-control-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-item.external-control-row,
+.settings-item.external-control-config {
+  cursor: default;
+}
+
+.external-control-config {
+  display: block;
+}
+
+.external-control-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.external-control-tab {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.928571rem;
+}
+
+.external-control-tab:hover {
+  background: var(--surface-hover);
+}
+
+.external-control-tab.is-active {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+
+.external-control-hint {
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+}
+
+.external-control-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
+  flex: none;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.928571rem;
+}
+
+.external-control-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.external-control-button:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.external-control-code {
+  max-height: 180px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  line-height: 1.55;
+  user-select: text;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.external-control-activity {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.external-control-log {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--theme-line-soft);
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+}
+
+.external-control-log:last-child {
+  border-bottom: 0;
+}
+
+.external-control-log code {
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  overflow-wrap: anywhere;
+}

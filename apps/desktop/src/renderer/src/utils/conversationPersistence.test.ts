@@ -300,12 +300,12 @@ describe("conversation persistence adapter", () => {
       general: {
         temperature: 0.8,
         approvalMode: "auto-approve",
-        agentTeamMode: "normal"
+        agentTeamMode: "team"
       },
       "book:one": {
         temperature: 1.1,
         approvalMode: "auto-approve",
-        agentTeamMode: "normal"
+        agentTeamMode: "team"
       }
     });
     expect(storage.length).toBe(0);

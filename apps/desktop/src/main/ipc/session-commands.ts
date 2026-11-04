@@ -88,22 +88,27 @@ export async function handleSessionCommands(
           agentProfile
             ? {
                 workspaceType: creativeWorkspaceType,
-                parentAgentId: agentProfile.id
+                parentAgentId: agentProfile.id,
+                ...(creativeWorkspace ? { bookId: creativeWorkspace.id } : {})
               }
             : longAgentProfile
-              ? { workspaceType: "long", parentAgentId: longAgentProfile.id }
+              ? {
+                  workspaceType: "long",
+                  parentAgentId: longAgentProfile.id,
+                  ...(longWorkspace ? { bookId: longWorkspace.bookId } : {})
+                }
               : undefined,
           {
-            resolveDefinitions: (workspaceType, parentAgentId) =>
+            resolveDefinitions: (workspaceType, parentAgentId, bookId) =>
               ctx
                 .requireAgentTeamConfigStore()
-                .resolve(workspaceType, parentAgentId),
+                .resolve(workspaceType, parentAgentId, bookId),
             resolveModel: (modelId) =>
               ctx.requireModelConfigStore().resolve(modelId),
-            resolveParallelSubagents: (workspaceType) =>
+            resolveParallelSubagents: (workspaceType, bookId) =>
               ctx
                 .requireAgentTeamConfigStore()
-                .parallelSubagentsEnabled(workspaceType)
+                .parallelSubagentsEnabled(workspaceType, bookId)
           }
         );
       // Search exists for the run when the user switched it on or a member asks
@@ -236,6 +241,14 @@ export async function handleSessionCommands(
         if (!ctx.terminalRuns.has(accepted.runId)) {
           ctx.activeRuns.set(accepted.runId, {
             sessionId: accepted.sessionId,
+            externalResourceIds: [
+              ...(creativeWorkspace ? [creativeWorkspace.id] : []),
+              ...(longWorkspace ? [longWorkspace.bookId] : []),
+              ...(libraryWorkspace ? [libraryWorkspace.libraryId] : []),
+              ...(libraryManagement?.libraries
+                .filter((library) => !library.readOnly)
+                .map((library) => library.libraryId) ?? [])
+            ],
             correlationId: command.context.correlationId,
             runtime: accepted.runtime,
             accepted: true,

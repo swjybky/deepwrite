@@ -18,6 +18,7 @@ const props = defineProps<{
   modelValue: AgentTeamRunMode;
   workspaceType: AgentTeamWorkspaceType;
   parentAgentId: WorkspaceAgentId | LongAgentId;
+  bookId?: string | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +31,7 @@ const availability = computed(() =>
     catalog: settingsStore.agentTeamCatalog,
     workspaceType: props.workspaceType,
     parentAgentId: props.parentAgentId,
+    bookId: props.bookId,
     loaded: settingsStore.agentTeamLoaded,
     loading: settingsStore.agentTeamLoading,
     loadError: settingsStore.agentTeamLoadError
@@ -56,11 +58,11 @@ watch(
   () =>
     [
       props.modelValue,
-      settingsStore.agentTeamLoaded,
+      settingsStore.agentTeamLoaded && !settingsStore.agentTeamLoading,
       availability.value.available
     ] as const,
-  ([mode, loaded, available]) => {
-    if (mode === "team" && loaded && !available) {
+  ([mode, settled, available]) => {
+    if (mode === "team" && settled && !available) {
       emit("update:modelValue", "normal");
     }
   },

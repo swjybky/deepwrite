@@ -1,5 +1,5 @@
 import { DEEPWRITE_PUBLIC_DATA_API_CONFIGURED } from "./deepwrite-public-data-config";
-import { loadCloudBackupOssConfig } from "../extras/cloud-backup/config";
+import { loadCloudBackupApiConfig } from "../extras/cloud-backup/config";
 
 export function smokeReleaseConfig(
   environment: NodeJS.ProcessEnv = process.env
@@ -13,9 +13,9 @@ export function smokeReleaseConfig(
       "Release config smoke: bundled public service configuration is missing."
     );
   }
-  if (!loadCloudBackupOssConfig()) {
+  if (!loadCloudBackupApiConfig()) {
     throw new Error(
-      "Release config smoke: bundled OSS configuration is missing."
+      "Release config smoke: bundled backup API configuration is missing."
     );
   }
   return { status: "ok", publicData: true, cloudBackup: true } as const;

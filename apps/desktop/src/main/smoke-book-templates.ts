@@ -119,6 +119,52 @@ async function bookTemplateSmokeInRenderer() {
       await api.catalog.deleteBook(book.id);
     }
   }
+  const team = (await api.agentTeams.list()).teams.find(
+    (candidate) => candidate.workspaceType === "short"
+  );
+  if (!team) throw new Error("Book template smoke: no short team");
+  const boundTemplate = await api.bookTemplates.save({
+    configuration: {
+      workspaceType: "short",
+      characterFormat: "text",
+      name: "团队绑定模板",
+      genre: "其他",
+      defaultPlotStageIds: ["outline"],
+      linkedSkillIdsByKind: { general: [], plot: [], style: [], other: [] },
+      linkedMaterialIdsByKind: {
+        character: [],
+        gimmick: [],
+        plot: [],
+        draft: [],
+        other: []
+      },
+      linkedAgentTeamIds: [team.id]
+    }
+  });
+  ensure(
+    boundTemplate.configuration.linkedAgentTeamIds?.[0] === team.id,
+    "template lost its team binding"
+  );
+  const boundBook = await api.catalog.createBookFromTemplate({
+    templateId: boundTemplate.id,
+    title: "团队绑定作品"
+  });
+  if (!boundBook) throw new Error("Bound template creation was canceled");
+  const bound = await api.agentTeams.setBookBinding({
+    bookId: boundBook.id,
+    workspaceType: "short",
+    teamIds: [team.id]
+  });
+  ensure(
+    bound.bookBindings?.[boundBook.id]?.[0] === team.id,
+    "book team binding was not saved"
+  );
+  await api.catalog.deleteBook(boundBook.id);
+  ensure(
+    !(await api.agentTeams.list()).bookBindings?.[boundBook.id],
+    "deleting a book left its team binding behind"
+  );
+  await api.bookTemplates.delete({ id: boundTemplate.id });
   ensure(
     (await api.bookTemplates.list()).length === before.length,
     "temporary templates were not removed"
@@ -128,7 +174,8 @@ async function bookTemplateSmokeInRenderer() {
     created: 4,
     crud: true,
     reopened: true,
-    deletedRejected: true
+    deletedRejected: true,
+    teamBinding: true
   };
 }
 

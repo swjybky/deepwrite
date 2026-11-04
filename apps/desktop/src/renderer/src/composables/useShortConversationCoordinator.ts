@@ -406,6 +406,7 @@ export function useShortConversationCoordinator(
         descriptor.workspaceType === "script"
           ? ("script" as const)
           : ("short" as const),
+      agentBookId: descriptor.workspaceId,
       libraryDomain: activeLibraryDomain.value,
       librarySkills: activeLibraryAgentProfile.value?.readAccess.skills.map(
         (skill) => ({

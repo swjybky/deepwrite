@@ -351,6 +351,7 @@ function forwardPreviewMutation(
         :agent-label="builtinAgentLabel('long', agentProfile.label)"
         :agent-id="agentProfile.id"
         agent-workspace-type="long"
+        :agent-book-id="book.id"
         :library-domain="undefined"
         :library-skills="undefined"
         :available-skills="availableSkillReferences"

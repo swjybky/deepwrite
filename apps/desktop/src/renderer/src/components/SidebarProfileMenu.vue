@@ -9,10 +9,10 @@ import {
   onMounted,
   ref
 } from "vue";
-import type { UpdateState } from "@deepwrite/contracts";
+import type { MarketplaceSession, UpdateState } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useAnnouncedVersion } from "../composables/useAnnouncedVersion";
-import { AuthorSupportDialog } from "./lazyAppComponents";
+import { AuthorSupportDialog, FeedbackDialog } from "./lazyAppComponents";
 import { uiMessage } from "../ui-feedback";
 
 const t = createScopedTranslator("components.sidebarProfileMenu");
@@ -23,12 +23,15 @@ const AnnouncementDialog = defineAsyncComponent(
   () => import("./AnnouncementDialog.vue")
 );
 const props = defineProps<{ marketplaceDisplayName?: string | undefined }>();
-const emit = defineEmits<{ openSettings: [] }>();
+const emit = defineEmits<{
+  openSettings: [];
+  marketplaceSessionChange: [session: MarketplaceSession];
+}>();
 
 const accountMenuRoot = ref<HTMLElement | null>(null);
 const accountMenuOpen = ref(false);
 const profileDialog = ref<
-  "announcement" | "contact" | "update" | "support" | null
+  "announcement" | "contact" | "update" | "support" | "feedback" | null
 >(null);
 const displayedUserName = computed(
   () => props.marketplaceDisplayName?.trim() || t("author")
@@ -75,6 +78,11 @@ function openContactDialog(): void {
 function openSupportDialog(): void {
   accountMenuOpen.value = false;
   profileDialog.value = "support";
+}
+
+function openFeedbackDialog(): void {
+  accountMenuOpen.value = false;
+  profileDialog.value = "feedback";
 }
 
 function openAnnouncementDialog(): void {
@@ -140,7 +148,9 @@ async function installUpdate(): Promise<void> {
 function closeProfileDialog(): void {
   if (profileDialog.value === "update" && updateInstalling.value) return;
   const restoreFocus =
-    profileDialog.value === "support" || profileDialog.value === "announcement";
+    profileDialog.value === "support" ||
+    profileDialog.value === "announcement" ||
+    profileDialog.value === "feedback";
   profileDialog.value = null;
   if (restoreFocus) {
     void nextTick(() => {
@@ -249,6 +259,15 @@ onBeforeUnmount(() => {
             <AppIcon name="sparkles" :size="16" />
             <span>{{ t("supportTheAuthor") }}</span>
           </button>
+          <button
+            class="account-feedback-button"
+            type="button"
+            role="menuitem"
+            @click="openFeedbackDialog"
+          >
+            <AppIcon name="message" :size="16" />
+            <span>{{ t("feedback") }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -260,6 +279,11 @@ onBeforeUnmount(() => {
   <AuthorSupportDialog
     v-if="profileDialog === 'support'"
     @close="closeProfileDialog"
+  />
+  <FeedbackDialog
+    v-if="profileDialog === 'feedback'"
+    @close="closeProfileDialog"
+    @session-change="emit('marketplaceSessionChange', $event)"
   />
   <Teleport to="body">
     <div

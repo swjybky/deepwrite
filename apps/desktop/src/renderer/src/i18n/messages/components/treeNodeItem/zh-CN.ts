@@ -30,6 +30,7 @@ export default {
   export: "导出",
   skillLibraryLinks: "技能库绑定",
   materialLibraryLinks: "素材库绑定",
+  agentTeamLinks: "团队绑定",
   exportManuscript: "导出正文",
   remove: "移除",
   newEntry: "新建条目",

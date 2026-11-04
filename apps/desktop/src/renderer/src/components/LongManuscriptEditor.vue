@@ -187,7 +187,7 @@ function updateTitle(event: Event): void {
   background: transparent;
   color: var(--text-primary);
   font-family: var(--editor-font);
-  font-size: 1.07143rem;
+  font-size: var(--editor-font-size, 15px);
   line-height: 1.95;
   letter-spacing: 0.025em;
 }

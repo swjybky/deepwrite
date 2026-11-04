@@ -18,9 +18,7 @@ describe("update install lifecycle", () => {
     );
 
     expect(helperStart).toBeGreaterThanOrEqual(0);
-    expect(helper).toContain(
-      "shutdownUtilities: () => supervisor.shutdownAll()"
-    );
+    expect(helper).toContain("await supervisor.shutdownAll();");
     expect(helper).toContain("flushUsage: () => modelUsageStore?.flush()");
     const shutdownCompleteIndex = helper.indexOf("shutdownComplete = true");
     expect(shutdownCompleteIndex).toBeLessThan(

@@ -9,6 +9,7 @@ export type AppearanceColorScheme = z.infer<typeof AppearanceColorSchemeSchema>;
 
 export const APPEARANCE_FONT_SIZE_LIMITS = {
   uiFontSize: { min: 10, max: 24 },
+  editorFontSize: { min: 10, max: 40 },
   codeFontSize: { min: 10, max: 24 }
 } as const;
 
@@ -253,6 +254,9 @@ export const AppearanceThemeConfigSchema = z.object({
   background: HexColorSchema,
   foreground: HexColorSchema,
   uiFontSize: fontSizeSchema(APPEARANCE_FONT_SIZE_LIMITS.uiFontSize),
+  editorFontSize: fontSizeSchema(
+    APPEARANCE_FONT_SIZE_LIMITS.editorFontSize
+  ).default(15),
   codeFontSize: fontSizeSchema(APPEARANCE_FONT_SIZE_LIMITS.codeFontSize),
   translucentSidebar: z.boolean()
 });
@@ -289,6 +293,7 @@ export function createDefaultAppearanceTheme(
       background: "#17191C",
       foreground: "#F3F4F6",
       uiFontSize: DEFAULT_APPEARANCE_UI_FONT_SIZE,
+      editorFontSize: 15,
       codeFontSize: DEFAULT_APPEARANCE_CODE_FONT_SIZE,
       translucentSidebar: true
     };
@@ -299,6 +304,7 @@ export function createDefaultAppearanceTheme(
     background: "#FFFFFF",
     foreground: "#1A1C1F",
     uiFontSize: DEFAULT_APPEARANCE_UI_FONT_SIZE,
+    editorFontSize: 15,
     codeFontSize: DEFAULT_APPEARANCE_CODE_FONT_SIZE,
     translucentSidebar: true
   };

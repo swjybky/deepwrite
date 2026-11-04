@@ -1,0 +1,246 @@
+.feedback-dialog {
+  width: min(620px, calc(100vw - 48px));
+  /* Keeps the dialog still when switching between the form and a short list. */
+  min-height: min(560px, calc(100vh - 60px));
+}
+
+.feedback-body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.feedback-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--theme-line-soft);
+}
+
+.feedback-tabs button {
+  margin-bottom: -1px;
+  padding: 7px 12px;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.feedback-tabs button:hover {
+  color: var(--text-primary);
+}
+
+.feedback-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--text-primary);
+  color: var(--text-primary);
+  font-weight: 590;
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+}
+
+.feedback-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary);
+  font-size: 0.892857rem;
+}
+
+.feedback-tag-choice {
+  justify-self: start;
+}
+
+.feedback-field small {
+  color: var(--text-tertiary);
+  font-size: 0.821429rem;
+  line-height: 1.5;
+}
+
+.feedback-field textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 9px 11px;
+  resize: vertical;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.6;
+}
+
+.feedback-field textarea:focus {
+  border-color: var(--text-tertiary);
+  outline: none;
+}
+
+.feedback-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feedback-previews li {
+  position: relative;
+  width: 120px;
+  height: 80px;
+}
+
+.feedback-previews img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.feedback-preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--theme-line);
+  cursor: pointer;
+}
+
+.feedback-history {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-history-placeholder {
+  margin: 0;
+  padding: 28px 0;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.feedback-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.feedback-item header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedback-item time {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 0.821429rem;
+  font-weight: 400;
+}
+
+.feedback-status,
+.feedback-item-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.821429rem;
+}
+
+.feedback-status[data-status="processing"] {
+  color: var(--text-primary);
+}
+
+.feedback-status[data-status="done"] {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.feedback-item-tag {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--theme-line-soft);
+}
+
+.feedback-item-content,
+.feedback-reply p {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.feedback-link-button {
+  justify-self: start;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.feedback-item-images {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-item-images img {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 8px;
+}
+
+.feedback-image-placeholder {
+  color: var(--text-tertiary);
+  font-size: 0.857143rem;
+}
+
+.feedback-reply {
+  display: grid;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.feedback-reply h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  font-weight: 590;
+}
+
+.feedback-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}

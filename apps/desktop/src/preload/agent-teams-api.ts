@@ -7,6 +7,7 @@ import {
   AgentTeamProfileCreateInputSchema,
   AgentTeamProfileRenameInputSchema,
   AgentTeamProfileSaveInputSchema,
+  AgentTeamBookBindingInputSchema,
   AgentTeamProfileSetEnabledInputSchema,
   AgentTeamProfileTargetInputSchema,
   BuiltinSubagentSettingsSchema,
@@ -17,6 +18,7 @@ import {
   type AgentTeamProfileCreateInput,
   type AgentTeamProfileRenameInput,
   type AgentTeamProfileSaveInput,
+  type AgentTeamBookBindingInput,
   type AgentTeamProfileSetEnabledInput,
   type AgentTeamProfileTargetInput
 } from "@deepwrite/contracts";
@@ -36,6 +38,7 @@ async function mutateAgentTeams(
     | "agentTeams.rename"
     | "agentTeams.delete"
     | "agentTeams.setEnabled"
+    | "agentTeams.setBookBinding"
     | "agentTeams.save"
     | "agentTeams.saveBuiltins",
   payload: object
@@ -69,6 +72,11 @@ export const setAgentTeamEnabled = (input: AgentTeamProfileSetEnabledInput) =>
   mutateAgentTeams(
     "agentTeams.setEnabled",
     AgentTeamProfileSetEnabledInputSchema.parse(input)
+  );
+export const setAgentTeamBookBinding = (input: AgentTeamBookBindingInput) =>
+  mutateAgentTeams(
+    "agentTeams.setBookBinding",
+    AgentTeamBookBindingInputSchema.parse(input)
   );
 export const saveAgentTeams = (input: AgentTeamProfileSaveInput) =>
   mutateAgentTeams(

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CloudBackupService } from "./service";
-import type { CloudBackupObjectStore } from "./oss-client";
+import type { CloudBackupObjectStore } from "./api-client";
 import { CLOUD_BACKUP_QUOTA_BYTES } from "@deepwrite/contracts";
 import { packBackupSnapshot, snapshotObjectKeys } from "./packager";
 import { createZip, readZip } from "./zip";

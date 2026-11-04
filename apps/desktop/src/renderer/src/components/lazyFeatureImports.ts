@@ -1,6 +1,10 @@
 // Dependency preload manifests are loaded with optional features, never during workspace startup.
 export const loadAuthorSupportDialog = () =>
   import("./AuthorSupportDialog.vue");
+export const loadFeedbackDialog = () =>
+  import("../extras/feedback/FeedbackDialog.vue");
+export const loadBookAgentTeamDialog = () =>
+  import("./BookAgentTeamDialog.vue");
 export const loadAgentTeamSettingsPanel = () =>
   import("./AgentTeamCatalogFeature.vue");
 export const loadShortBookAnalysisPage = async () =>

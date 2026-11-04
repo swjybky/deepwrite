@@ -184,6 +184,21 @@ describe("agent run preferences", () => {
     ).toBe(activeBookDocument);
   });
 
+  it("defaults a project to team mode but keeps a saved normal choice", () => {
+    const preference = { temperature: 0.7, approvalMode: "auto-approve" };
+    expect(
+      parseAgentRunPreferences(
+        JSON.stringify({
+          "book:new": preference,
+          "book:saved": { ...preference, agentTeamMode: "normal" }
+        })
+      )
+    ).toEqual({
+      "book:new": { ...preference, agentTeamMode: "team" },
+      "book:saved": { ...preference, agentTeamMode: "normal" }
+    });
+  });
+
   it("accepts the longest valid book-scoped preference key", () => {
     const scope = `book:${"b".repeat(512)}`;
     const preference = {
@@ -194,7 +209,7 @@ describe("agent run preferences", () => {
     expect(
       parseAgentRunPreferences(JSON.stringify({ [scope]: preference }))
     ).toEqual({
-      [scope]: { ...preference, agentTeamMode: "normal" }
+      [scope]: { ...preference, agentTeamMode: "team" }
     });
     expect(
       parseAgentRunPreferences(JSON.stringify({ [`${scope}x`]: preference }))
@@ -229,7 +244,7 @@ describe("agent run preferences", () => {
       "book:book-two": {
         temperature: 0.6,
         approvalMode: "request-approval",
-        agentTeamMode: "normal"
+        agentTeamMode: "team"
       }
     });
   });
@@ -265,7 +280,7 @@ describe("agent run preferences", () => {
       "book:valid": {
         temperature: 0.7,
         approvalMode: "request-approval",
-        agentTeamMode: "normal"
+        agentTeamMode: "team"
       }
     });
     expect(parseAgentRunPreferences("not-json")).toEqual({});

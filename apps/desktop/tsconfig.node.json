@@ -5,6 +5,9 @@
     "types": ["node", "electron"],
     "paths": {
       "@deepwrite/contracts": ["../../packages/contracts/src/index.ts"],
+      "@deepwrite/contracts/external-control": [
+        "../../packages/contracts/src/external-control/index.ts"
+      ],
       "@deepwrite/pi-runtime-adapter": [
         "../../packages/pi-runtime-adapter/src/index.ts"
       ],

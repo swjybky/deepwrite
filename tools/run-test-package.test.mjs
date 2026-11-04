@@ -25,6 +25,13 @@ describe("test package target selection", () => {
     ]);
   });
 
+  it("selects Mac ARM and Windows x64 without building Mac Intel", () => {
+    expect(selected(["desktop", "arm64"])).toEqual([
+      "buildMacArm64",
+      "buildWinX64"
+    ]);
+  });
+
   it.each([
     [
       ["mac", "all"],

@@ -9,14 +9,14 @@ describe("announcement version reminders", () => {
     });
   });
 
-  it("uses character order for every version segment and prerelease suffix", () => {
+  it("uses numeric version ordering and treats stable releases as newer than prereleases", () => {
     expect(
       announcedVersionStatus("1.10.0", "1.9.0", "1.9.9").manualUpdateRequired
-    ).toBe(false);
+    ).toBe(true);
     expect(
       announcedVersionStatus("1.5.3", "1.5.3-beta.2", "1.5.3-beta.10")
         .manualUpdateRequired
-    ).toBe(false);
+    ).toBe(true);
     expect(
       announcedVersionStatus("1.5.3", "1.5.2", "1.5.4").manualUpdateRequired
     ).toBe(false);
@@ -33,18 +33,32 @@ describe("announcement version reminders", () => {
     });
   });
 
-  it("clears the reminder only when versions match or the announcement is removed", () => {
-    expect(
-      announcedVersionStatus("1.5.3", "1.5.3", "1.5.0").hasVersionNotice
-    ).toBe(false);
-    expect(
-      announcedVersionStatus("1.5.3", "1.5.4", "1.5.3").hasVersionNotice
-    ).toBe(true);
-    expect(announcedVersionStatus(undefined, "1.5.2", "1.5.0")).toEqual({
-      hasVersionNotice: false,
-      manualUpdateRequired: false
-    });
-  });
+  it.each([
+    ["1.5.3", "1.5.3"],
+    ["1.5.3", "1.5.4"],
+    ["1.7.9", "1.7.11"],
+    ["1.7.11", "1.7.11"],
+    ["1.7.11-beta.10", "1.7.11"],
+    [undefined, "1.5.2"]
+  ])(
+    "clears all reminders for announcement %s when current version is %s",
+    (announced, current) => {
+      expect(announcedVersionStatus(announced, current, "1.5.0")).toEqual({
+        hasVersionNotice: false,
+        manualUpdateRequired: false
+      });
+    }
+  );
+
+  it.each([undefined, "1.7.9", "1.7.11"])(
+    "shows a reminder for 1.7.11 over current 1.7.9 with update source %s",
+    (remote) => {
+      expect(announcedVersionStatus("1.7.11", "1.7.9", remote)).toEqual({
+        hasVersionNotice: true,
+        manualUpdateRequired: remote === "1.7.9"
+      });
+    }
+  );
 
   it("keeps the announcement reminder when no update source version is available", () => {
     expect(announcedVersionStatus("1.5.3", "1.5.2", undefined)).toEqual({

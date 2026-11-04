@@ -13,14 +13,10 @@ import {
   writeProjectFiles
 } from "./apply";
 import { listLocalBackupProjects, toManifestItems } from "./catalog-reader";
-import { loadCloudBackupOssConfig } from "./config";
 import { backupItemKey, countChanges, diffBackupItems } from "./diff";
 import { registerGroupInCatalogRegistry } from "./group-registry";
 import { CloudBackupIdentityStore, formatMachineKey } from "./identity";
-import {
-  AliyunOssObjectStore,
-  type CloudBackupObjectStore
-} from "./oss-client";
+import type { CloudBackupObjectStore } from "./api-client";
 import {
   readBackupSnapshot,
   packBackupSnapshot,
@@ -50,7 +46,7 @@ export class CloudBackupService {
   constructor(
     private readonly userDataPath: string,
     private readonly hooks: CloudBackupServiceHooks,
-    private readonly store: CloudBackupObjectStore | null = createDefaultStore(),
+    private readonly store: CloudBackupObjectStore | null = null,
     private readonly now: () => Date = () => new Date()
   ) {
     this.identity = new CloudBackupIdentityStore(userDataPath);
@@ -245,9 +241,4 @@ export class CloudBackupService {
   private isoNow(): string {
     return this.now().toISOString();
   }
-}
-
-function createDefaultStore(): CloudBackupObjectStore | null {
-  const config = loadCloudBackupOssConfig();
-  return config ? new AliyunOssObjectStore(config) : null;
 }

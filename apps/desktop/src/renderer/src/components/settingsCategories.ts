@@ -2,6 +2,7 @@ import { createScopedTranslator } from "../i18n";
 
 const imageT = createScopedTranslator("components.imageModelSettings");
 const webSearchT = createScopedTranslator("components.webSearchSettings");
+const externalControlT = createScopedTranslator("extras.externalControl");
 const t = createScopedTranslator("components.settingsPage");
 
 export interface SettingsCategory {
@@ -81,6 +82,16 @@ export const settingsSections: SettingsSection[] = [
           return webSearchT("keywords");
         },
         icon: "globe"
+      },
+      {
+        id: "external-control",
+        get label() {
+          return externalControlT("title");
+        },
+        get keywords() {
+          return externalControlT("keywords");
+        },
+        icon: "brain"
       }
     ]
   },

@@ -78,6 +78,7 @@ export function useGeneralSettingsCoordinator(
   let localPatch: Partial<GeneralSettings> = {};
   let bodyTextPatch: Partial<GeneralSettings["bodyTextFormats"]> = {};
   let savedMoreFeatures = options.settings.value.moreFeatures;
+  let savedTaskNotification = options.settings.value.taskNotification;
   let moreFeaturesRevision = 0;
   let savedMoreFeaturesRevision = 0;
   let saveRevision = 0;
@@ -102,15 +103,33 @@ export function useGeneralSettingsCoordinator(
       .catch(() => undefined)
       .then(async () => {
         const saved = await api.save(snapshot);
+        savedTaskNotification = saved.settings.taskNotification;
         savedMoreFeatures = saved.settings.moreFeatures;
         savedMoreFeaturesRevision = featureRevision;
         if (featureRevision > 0 && revision === saveRevision) {
           applyLocalPatch({ moreFeatures: savedMoreFeatures });
         }
         saveFailed = false;
+        if (revision === saveRevision) {
+          applyLocalPatch({ taskNotification: savedTaskNotification });
+        }
       });
-    saveChain = operation.catch((error: unknown) => {
+    saveChain = operation.catch(async (error: unknown) => {
       saveFailed = true;
+      const notificationSaveFailed =
+        snapshot.taskNotification !== savedTaskNotification;
+      if (notificationSaveFailed && revision === saveRevision) {
+        // Main applies this switch only after saving. Re-read its authority,
+        // falling back to the last acknowledged value if reading also fails.
+        try {
+          savedTaskNotification = (await api.list()).settings.taskNotification;
+        } catch {
+          // The last successful load/save remains the best known state.
+        }
+        if (revision === saveRevision) {
+          applyLocalPatch({ taskNotification: savedTaskNotification });
+        }
+      }
       const restoredMoreFeatures =
         revision === saveRevision &&
         featureRevision > savedMoreFeaturesRevision;
@@ -123,10 +142,18 @@ export function useGeneralSettingsCoordinator(
           ? t(
               restoredMoreFeatures
                 ? "moreFeaturesSaveFailedDetail"
-                : "saveFailedDetail",
+                : notificationSaveFailed
+                  ? "taskNotificationSaveFailedDetail"
+                  : "saveFailedDetail",
               { message: error.message }
             )
-          : t(restoredMoreFeatures ? "moreFeaturesSaveFailed" : "saveFailed")
+          : t(
+              restoredMoreFeatures
+                ? "moreFeaturesSaveFailed"
+                : notificationSaveFailed
+                  ? "taskNotificationSaveFailed"
+                  : "saveFailed"
+            )
       );
     });
   }
@@ -164,6 +191,7 @@ export function useGeneralSettingsCoordinator(
         ? { ...snapshot.settings, autoSave: true }
         : snapshot.settings;
       savedMoreFeatures = settings.moreFeatures;
+      savedTaskNotification = settings.taskNotification;
       if (disposed) {
         loading = false;
         return;
@@ -235,6 +263,11 @@ export function useGeneralSettingsCoordinator(
 
   function updateShowInMenuBar(enabled: boolean): void {
     applyLocalPatch({ showInMenuBar: enabled });
+    queueSave();
+  }
+
+  function updateExternalControlEnabled(enabled: boolean): void {
+    applyLocalPatch({ externalControlEnabled: enabled });
     queueSave();
   }
 
@@ -320,6 +353,12 @@ export function useGeneralSettingsCoordinator(
     dispose,
     drain,
     load,
+    /** Plain on/off preferences: one binding keeps new switches out of the shell. */
+    generalSwitchEvents: {
+      updateExternalControlEnabled,
+      updateShowInMenuBar,
+      updateTaskNotification
+    },
     updateAutoApproveCrossStageOperations,
     updateAutoSave,
     updateDefaultTextViewMode,
@@ -331,6 +370,7 @@ export function useGeneralSettingsCoordinator(
     updateTextAttachmentMaxCharacters,
     updateContextCompaction,
     updateShowInMenuBar,
+    updateExternalControlEnabled,
     updateTaskNotification,
     updateUseNetworkProxy,
     updateWorkspacePaneLayout
