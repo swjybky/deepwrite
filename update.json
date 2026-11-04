@@ -2,18 +2,18 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.7.9",
-  "title": "DeepWrite 1.7.9",
-  "publishedAt": "2026-10-30T17:09:25+08:00",
+  "version": "1.8.0",
+  "title": "DeepWrite 1.8.0",
+  "publishedAt": "2026-11-04T20:21:08+08:00",
   "releaseNotes": [
-    "新增可选的任务完成通知：智能体任务和整书拆解结束时，在主窗口不在前台的情况下发送系统提醒。",
-    "智能体运行期间可继续输入并排队发送；点击队列中的发送按钮，可将消息插入正在运行的回合。",
-    "聊天助手支持附件，改进正文修改、上下文摘要和每轮文件改动汇总。",
-    "保护分析预设的未保存修改，恢复默认仅修改草稿，并改进素材导入和已保存结果的跳转。",
-    "修复新建整书拆解方案保存后的选择，按方案使用设定分类，并明确待审修改阻止发送的原因。"
+    "新增外部智能体 MCP 控制，可读取和管理作品、资料库并运行内置智能体，支持不同作品并发运行及可恢复删除。",
+    "支持为作品单独绑定智能体团队，并改进团队选择与运行错误提示。",
+    "新增意见反馈入口，支持截图、图片附件和反馈记录。",
+    "云备份改由 DeepwriteApi 中转，客户端不再携带 OSS 凭据。",
+    "改进通知设置、账号交互和外观设置，修复版本号比较与 Linux 模型密钥存储。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.7.9",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.0",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
