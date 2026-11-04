@@ -10,11 +10,6 @@ on:
         description: Existing release tag (vMAJOR.MINOR.PATCH)
         required: true
         type: string
-      publish_release:
-        description: Publish verified installers to GitHub Release
-        required: false
-        type: boolean
-        default: false
       reuse_run_id:
         description: Reuse verified installers from an earlier run (optional)
         required: false
@@ -273,7 +268,7 @@ jobs:
   upload:
     name: Publish verified release installers
     needs: [prepare, package]
-    if: ${{ inputs.publish_release && !cancelled() && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
