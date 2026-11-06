@@ -1,11 +1,16 @@
 import type { ModelConfig, ModelSettings } from "@deepwrite/contracts";
-import { isDeepWriteSiteOfficialModel } from "@deepwrite/contracts/renderer";
+import {
+  isDeepWriteSiteOfficialModel,
+  isTextGenerationModel
+} from "@deepwrite/contracts/renderer";
 
 export function selectableModels(
   models: readonly ModelConfig[]
 ): ModelConfig[] {
   return models.filter(
-    (model) => !isDeepWriteSiteOfficialModel(model) || model.enabled !== false
+    (model) =>
+      isTextGenerationModel(model) &&
+      (!isDeepWriteSiteOfficialModel(model) || model.enabled !== false)
   );
 }
 

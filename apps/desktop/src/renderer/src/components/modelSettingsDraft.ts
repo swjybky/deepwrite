@@ -101,6 +101,7 @@ export function toModelInput(model: DraftModel): ModelConfigInput {
     defaultThinkingLevel: model.reasoning ? model.defaultThinkingLevel : "off",
     thinkingLevelOptions: cloneThinkingLevelOptions(model.thinkingLevelOptions),
     temperatureOptions: cloneTemperatureOptions(model.temperatureOptions),
+    ...(model.modelKind === "jev" ? { modelKind: "jev" as const } : {}),
     ...(model.managedBy ? { managedBy: model.managedBy } : {}),
     ...(model.status !== undefined ? { status: model.status } : {}),
     ...(model.discount !== undefined ? { discount: model.discount } : {}),

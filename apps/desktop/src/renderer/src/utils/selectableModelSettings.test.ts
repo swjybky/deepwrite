@@ -35,6 +35,24 @@ describe("selectableModelSettings", () => {
     });
   });
 
+  it("hides JEV models from text-generation selectors and repairs default", () => {
+    const jev: ModelConfig = {
+      ...model("jev-scorer"),
+      modelKind: "jev"
+    };
+    const custom = model("custom");
+    const settings: ModelSettings = {
+      models: [jev, custom],
+      defaultModelId: jev.id
+    };
+
+    expect(selectableModelSettings(settings)).toEqual({
+      ...settings,
+      models: [custom],
+      defaultModelId: custom.id
+    });
+  });
+
   it("preserves the original snapshot when nothing is filtered", () => {
     const settings: ModelSettings = {
       models: [model("deepwrite-site-official-example", true)],

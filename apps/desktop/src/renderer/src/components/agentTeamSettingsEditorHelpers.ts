@@ -2,6 +2,8 @@ import { createScopedTranslator } from "../i18n";
 import {
   BUILT_IN_REASONING_LEVELS,
   activeSubagentDraw,
+  isJevModel,
+  resolveDrawEvaluationMethod,
   type BuiltInReasoningLevel,
   type ModelConfig,
   type ShortAgentSubagentDefinition,
@@ -100,19 +102,32 @@ function customModelProblem(
   settings: Pick<
     ShortAgentSubagentDefinition,
     "modelMode" | "modelId" | "thinkingLevel" | "temperature"
-  >,
+  > & { evaluationMethod?: "llm" | "jev" | undefined },
   models: readonly ModelConfig[],
-  owner: string
+  owner: string,
+  options?: { requireJev?: boolean }
 ): string | null {
-  if (settings.modelMode !== "custom") return null;
+  const requireJev = options?.requireJev === true;
+  if (!requireJev && settings.modelMode !== "custom") return null;
   if (!settings.modelId?.trim()) {
-    return t("selectAModelForASeparateConfiguration");
+    return requireJev
+      ? t("selectAJevModelForEvaluation")
+      : t("selectAModelForASeparateConfiguration");
   }
   const model = models.find((candidate) => candidate.id === settings.modelId);
   if (!model) {
     return t("theModelSelectedForSubagentValueNoLongerExists", {
       arg0: owner
     });
+  }
+  if (requireJev) {
+    if (!isJevModel(model)) {
+      return t("jevEvaluationRequiresAJevModel", { arg0: owner });
+    }
+    return null;
+  }
+  if (isJevModel(model)) {
+    return t("textGenerationCannotUseAJevModel", { arg0: owner });
   }
   if (settings.thinkingLevel === undefined) {
     return t("selectAReasoningLevelForASeparateConfiguration");
@@ -158,7 +173,10 @@ export function validateAgentTeamDraft(
         const evaluatorProblem = customModelProblem(
           draw.evaluator,
           models,
-          t("evaluatorOfValue", { arg0: owner })
+          t("evaluatorOfValue", { arg0: owner }),
+          {
+            requireJev: resolveDrawEvaluationMethod(draw.evaluator) === "jev"
+          }
         );
         if (evaluatorProblem) return evaluatorProblem;
       }

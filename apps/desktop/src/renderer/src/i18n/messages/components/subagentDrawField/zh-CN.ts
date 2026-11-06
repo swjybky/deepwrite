@@ -21,8 +21,19 @@ export default {
   autoHint:
     "全部候选完成后由评估助手按规则选择；它没能完成选择时改为由你手动选择。",
   evaluator: "评估助手",
+  evaluationMethod: "评估方式",
+  llmEvaluation: "大模型评估",
+  jevEvaluation: "JEV 模型评估",
+  selectJevModel: "选择 JEV 模型",
+  noJevModelsConfigured:
+    "尚未配置 JEV 模型。请先在「自定义模型」中添加 JEV 模型后再启用。",
+  jevModelHint:
+    "仅使用已配置的 JEV 模型独立打分，不会跟随主智能体，也不会混用大模型。",
   evaluationRules: "评估规则",
   restoreDefault: "恢复默认",
   evaluatorBoundaryHint:
-    "评估助手只看任务和候选，不读作品；系统会另外要求它必须调用选择工具提交结果。"
+    "评估助手只看任务和候选，不读作品；系统会另外要求它必须调用选择工具提交结果。",
+  jevEvaluatorBoundaryHint:
+    "JEV 评估只看任务和候选摘要，不读作品；对每份候选独立打分后取最高分提交选择，失败时改为手动选择且不会回退大模型评估。",
+  jevRulesAppliedHint: "补充规则会写入 JEV 评分问题的 instructions。"
 };

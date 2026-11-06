@@ -1,4 +1,5 @@
 import {
+  resolveDrawEvaluationMethod,
   SUBAGENT_DRAW_QUESTION_ID,
   SUBAGENT_DRAW_REJECT_OPTION_ID,
   type SubagentDrawSelectedBy,
@@ -15,6 +16,7 @@ import {
   runDrawEvaluator,
   type DrawCandidate
 } from "./subagent-draw-evaluator";
+import { runDrawJevEvaluator } from "./subagent-draw-jev-evaluator";
 import type { ConcurrencyLimiter } from "./concurrency-limiter";
 import type { SubagentHandoff } from "./subagent-scheduler";
 import type {
@@ -256,26 +258,40 @@ export async function runSubagentDrawTask(
 
   let fallbackReason: string | undefined;
   if (settings.selection === "auto") {
-    update({ phase: "evaluating" }, "评估助手正在选择。");
-    const evaluation = await limiter.run(() =>
-      runDrawEvaluator(input, {
+    const jev = resolveDrawEvaluationMethod(settings.evaluator) === "jev";
+    update(
+      { phase: "evaluating" },
+      jev ? "评估助手正在用 JEV 评分。" : "评估助手正在选择。"
+    );
+    const evaluation = await limiter.run(() => {
+      const evaluatorContext = {
         parentToolCallId: context.parentToolCallId,
         request,
         ...(context.batchTask ? { batchTask: context.batchTask } : {}),
         ...(signal ? { signal } : {}),
         ...(context.onUpdate ? { onUpdate: context.onUpdate } : {}),
+        onProgress: (message: string) =>
+          update(
+            { phase: "evaluating" as const, reason: message.slice(0, 2_000) },
+            message
+          ),
         settings,
         count,
         candidates
-      })
-    );
+      };
+      return jev
+        ? runDrawJevEvaluator(input, evaluatorContext)
+        : runDrawEvaluator(input, evaluatorContext);
+    });
     if (signal?.aborted) return aborted();
     if (evaluation.status === "selected") {
       return select(evaluation.candidate, "evaluator", {
         reason: evaluation.reason
       });
     }
-    fallbackReason = `评估助手没有完成选择，已改为手动选择：${evaluation.reason}`;
+    fallbackReason = jev
+      ? `JEV 模型评估没有完成选择，已改为手动选择：${evaluation.reason}`
+      : `评估助手没有完成选择，已改为手动选择：${evaluation.reason}`;
   }
 
   update(

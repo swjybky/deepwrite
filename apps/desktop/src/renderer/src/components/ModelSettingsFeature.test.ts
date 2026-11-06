@@ -77,6 +77,14 @@ describe("ModelSettingsFeature DeepWrite free models", () => {
     );
     expect(draftSource.match(/actions\.editorOpened\(\);/g)).toHaveLength(2);
   });
+
+  it("offers separate LLM and JEV add actions with a purpose hint", () => {
+    expect(featureSource).toContain("createModel('llm')");
+    expect(featureSource).toContain("createModel('jev')");
+    expect(featureSource).toContain('t("addJevModel")');
+    expect(featureSource).toContain('t("modelPurposeHint")');
+    expect(draftSource).toContain('modelKind: ModelKind = "llm"');
+  });
 });
 
 describe("ModelSettingsFeature provider presets", () => {

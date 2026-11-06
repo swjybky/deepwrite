@@ -123,6 +123,41 @@ export type SubagentDrawSelection = z.infer<typeof SubagentDrawSelectionSchema>;
 export const SubagentDrawCountModeSchema = z.enum(["fixed", "auto"]);
 export type SubagentDrawCountMode = z.infer<typeof SubagentDrawCountModeSchema>;
 
+/** How auto draw selection judges candidates. Absent means large-model eval. */
+export const SubagentDrawEvaluationMethodSchema = z.enum(["llm", "jev"]);
+export type SubagentDrawEvaluationMethod = z.infer<
+  typeof SubagentDrawEvaluationMethodSchema
+>;
+
+export function resolveDrawEvaluationMethod(evaluator: {
+  evaluationMethod?: SubagentDrawEvaluationMethod | undefined;
+}): SubagentDrawEvaluationMethod {
+  return evaluator.evaluationMethod === "jev" ? "jev" : "llm";
+}
+
+function validateDrawEvaluator(
+  value: {
+    evaluationMethod?: SubagentDrawEvaluationMethod | undefined;
+    modelMode: ShortAgentSubagentModelMode;
+    modelId?: string | undefined;
+    thinkingLevel?: string | undefined;
+    temperature?: number | undefined;
+  },
+  context: z.core.$RefinementCtx<unknown>
+): void {
+  if (resolveDrawEvaluationMethod(value) === "jev") {
+    if (!value.modelId?.trim()) {
+      context.addIssue({
+        code: "custom",
+        path: ["modelId"],
+        message: "JEV 模型评估必须选择已配置的 JEV 模型。"
+      });
+    }
+    return;
+  }
+  validateSubagentCustomModel(value, context);
+}
+
 export const SubagentDrawEvaluatorSchema = z
   .object({
     /** Absent: `DEFAULT_SUBAGENT_DRAW_EVALUATOR_PROMPT`. */
@@ -132,6 +167,8 @@ export const SubagentDrawEvaluatorSchema = z
       .min(1)
       .max(SUBAGENT_DRAW_EVALUATOR_PROMPT_MAX_LENGTH)
       .optional(),
+    /** Absent: large-model evaluation (`llm`). */
+    evaluationMethod: SubagentDrawEvaluationMethodSchema.optional(),
     modelMode: ShortAgentSubagentModelModeSchema.default("inherit"),
     modelId: z
       .string()
@@ -142,7 +179,7 @@ export const SubagentDrawEvaluatorSchema = z
     thinkingLevel: ThinkingLevelSchema.optional(),
     temperature: TemperatureSchema.optional()
   })
-  .superRefine((value, context) => validateSubagentCustomModel(value, context));
+  .superRefine((value, context) => validateDrawEvaluator(value, context));
 export type SubagentDrawEvaluator = z.infer<typeof SubagentDrawEvaluatorSchema>;
 
 /**
@@ -196,12 +233,14 @@ export function subagentCustomModelIds(
       ids.add(definition.modelId);
     }
     const draw = activeSubagentDraw(definition);
-    if (
-      draw?.selection === "auto" &&
-      draw.evaluator.modelMode === "custom" &&
-      draw.evaluator.modelId
-    ) {
-      ids.add(draw.evaluator.modelId);
+    if (draw?.selection !== "auto") continue;
+    const evaluator = draw.evaluator;
+    if (resolveDrawEvaluationMethod(evaluator) === "jev" && evaluator.modelId) {
+      ids.add(evaluator.modelId);
+      continue;
+    }
+    if (evaluator.modelMode === "custom" && evaluator.modelId) {
+      ids.add(evaluator.modelId);
     }
   }
   return [...ids];

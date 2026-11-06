@@ -67,6 +67,9 @@ const selectionTitle = computed(() => {
     return t("youChoseValue", { arg0: selectedNumber.value ?? "" });
   }
   if (current.phase === "rejected") return t("youAdoptedNone");
+  if (current.phase === "evaluating" && current.reason) {
+    return t("evaluating");
+  }
   if (current.phase === "selecting" && current.reason) {
     return t("evaluatorHandedTheChoiceToYou");
   }

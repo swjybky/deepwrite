@@ -3,7 +3,10 @@ import { createScopedTranslator } from "../i18n";
 import { computed, ref, watch } from "vue";
 import {
   BUILT_IN_REASONING_LEVELS,
-  isDeepWriteSiteOfficialModel
+  isDeepWriteSiteOfficialModel,
+  isJevModel,
+  isTextGenerationModel,
+  type ModelKind
 } from "@deepwrite/contracts";
 import type {
   ModelConfigInput,
@@ -140,7 +143,7 @@ export function useModelSettingsDraft(
     }
   );
 
-  function createModel(): void {
+  function createModel(modelKind: ModelKind = "llm"): void {
     if (props.modelSaving) return;
     modelEditor.value = {
       id: createId("model"),
@@ -155,7 +158,8 @@ export function useModelSettingsDraft(
       temperatureOptions: [0.1, 0.7, 1],
       hasApiKey: false,
       apiKey: "",
-      customThinkingLevel: ""
+      customThinkingLevel: "",
+      ...(modelKind === "jev" ? { modelKind: "jev" as const } : {})
     };
     actions.editorOpened();
   }
@@ -218,12 +222,15 @@ export function useModelSettingsDraft(
           props.modelSettings?.models.find(
             (model) =>
               model.id !== modelId &&
+              isTextGenerationModel(model) &&
               (Boolean(model.managedBy) || remainingCustomIds.has(model.id))
           )?.id ??
-          draftModels.value[0]?.id ??
+          draftModels.value.find((model) => isTextGenerationModel(model))?.id ??
           "";
       } else {
-        draftDefaultModelId.value = draftModels.value[0]?.id ?? "";
+        draftDefaultModelId.value =
+          draftModels.value.find((model) => isTextGenerationModel(model))?.id ??
+          "";
       }
     }
     if (advancedConfigModel.value?.id === modelId) {
@@ -276,13 +283,21 @@ export function useModelSettingsDraft(
     defaultModelId = draftDefaultModelId.value
   ): void {
     const draftInputs = models.map(toModelInput);
+    const resolvedDefaultModelId =
+      (defaultModelId &&
+      models.some(
+        (model) => model.id === defaultModelId && isTextGenerationModel(model)
+      )
+        ? defaultModelId
+        : models.find((model) => isTextGenerationModel(model))?.id) || "";
+    draftDefaultModelId.value = resolvedDefaultModelId;
     actions.saveModels(
       mergeCustomModelSettings(
         (props.modelSettings?.models ?? []).map((model) =>
           toModelInput(cloneDraftModel(model))
         ),
         draftInputs,
-        defaultModelId || draftInputs[0]?.id || ""
+        resolvedDefaultModelId
       )
     );
   }
@@ -295,6 +310,8 @@ export function useModelSettingsDraft(
     ) {
       return;
     }
+    const target = draftModels.value.find((model) => model.id === modelId);
+    if (!target || isJevModel(target)) return;
     draftDefaultModelId.value = modelId;
     pendingDefaultModelId.value = modelId;
     submitModelSettings();

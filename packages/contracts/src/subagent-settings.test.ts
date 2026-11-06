@@ -79,6 +79,27 @@ describe("subagent draw settings", () => {
     ).toBe(undefined);
   });
 
+  it("accepts JEV evaluation without thinking level and requires a model id", () => {
+    expect(
+      SubagentDrawSettingsSchema.safeParse({
+        enabled: true,
+        selection: "auto",
+        evaluator: {
+          evaluationMethod: "jev",
+          modelMode: "custom",
+          modelId: "jev-1"
+        }
+      }).success
+    ).toBe(true);
+    expect(
+      SubagentDrawSettingsSchema.safeParse({
+        enabled: true,
+        selection: "auto",
+        evaluator: { evaluationMethod: "jev", modelMode: "custom" }
+      }).success
+    ).toBe(false);
+  });
+
   it("asks Main to resolve the models of custom members and auto evaluators", () => {
     const evaluator = {
       modelMode: "custom" as const,
@@ -96,6 +117,20 @@ describe("subagent draw settings", () => {
         {
           modelMode: "inherit",
           agentMode: "pure-bare",
+          draw: {
+            enabled: true,
+            count: 3,
+            selection: "auto",
+            evaluator: {
+              evaluationMethod: "jev",
+              modelMode: "custom",
+              modelId: "jev-scorer"
+            }
+          }
+        },
+        {
+          modelMode: "inherit",
+          agentMode: "pure-bare",
           draw: { enabled: true, count: 3, selection: "manual", evaluator }
         },
         {
@@ -105,7 +140,7 @@ describe("subagent draw settings", () => {
           draw: { enabled: true, count: 3, selection: "auto", evaluator }
         }
       ])
-    ).toEqual(["writer", "judge"]);
+    ).toEqual(["writer", "judge", "jev-scorer"]);
   });
 });
 

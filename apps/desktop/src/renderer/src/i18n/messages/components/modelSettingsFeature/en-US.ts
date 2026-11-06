@@ -5,7 +5,12 @@ export default {
   readingModelSettings: "Reading model settings…",
   providers: " providers",
   models: " models",
-  addModel: "Add model",
+  addModel: "Add LLM",
+  addJevModel: "Add JEV model",
+  modelPurposeHint:
+    "LLMs are for text generation; JEV models are for scoring and judgment.",
+  llmModel: "LLM",
+  jevModel: "JEV",
   noCustomModelsConfigured: "No custom models configured",
   noLiveModelsConfigured: "No live models configured",
   afterAddingACustomModelTestItsConnectionManage:

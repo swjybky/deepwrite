@@ -6,6 +6,11 @@ export default {
   subagentCapabilitiesAreRequired: "子智能体能力说明不能为空",
   subagentSystemPromptIsRequired: "子智能体系统提示词不能为空",
   selectAModelForASeparateConfiguration: "单独配置模型时必须选择模型",
+  selectAJevModelForEvaluation: "JEV 模型评估必须选择已配置的 JEV 模型",
+  jevEvaluationRequiresAJevModel:
+    "「{arg0}」的 JEV 评估只能选择 JEV 模型，请重新选择",
+  textGenerationCannotUseAJevModel:
+    "「{arg0}」不能使用 JEV 模型做文本生成，请选择大模型",
   theModelSelectedForSubagentValueNoLongerExists:
     "子智能体「{arg0}」所选模型不存在，请重新选择",
   untitled: "未命名",

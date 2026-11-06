@@ -3,6 +3,7 @@ import { createScopedTranslator } from "../i18n";
 import { computed, nextTick, ref } from "vue";
 import {
   isDeepWriteSiteOfficialModel,
+  isJevModel,
   type ModelConfigInput,
   type ModelSettings,
   type ModelSettingsInput
@@ -128,16 +129,27 @@ const knownUserProviders = computed(() =>
                 t("modelsMessage", {
                   arg0: draftModels.length ?? ""
                 })
-              }}</span
+              }}<span class="model-list-dot">·</span
+              >{{ t("modelPurposeHint") }}</span
             >
-            <button
-              class="model-list-add"
-              type="button"
-              :disabled="modelSaving || Boolean(modelEditor)"
-              @click="createModel"
-            >
-              <AppIcon name="plus" :size="14" />{{ t("addModel") }}
-            </button>
+            <div class="model-list-actions">
+              <button
+                class="model-list-add"
+                type="button"
+                :disabled="modelSaving || Boolean(modelEditor)"
+                @click="createModel('llm')"
+              >
+                <AppIcon name="plus" :size="14" />{{ t("addModel") }}
+              </button>
+              <button
+                class="model-list-add"
+                type="button"
+                :disabled="modelSaving || Boolean(modelEditor)"
+                @click="createModel('jev')"
+              >
+                <AppIcon name="plus" :size="14" />{{ t("addJevModel") }}
+              </button>
+            </div>
           </div>
           <div v-if="draftModels.length === 0" class="model-empty-state">
             <strong>{{
@@ -204,7 +216,12 @@ const knownUserProviders = computed(() =>
                   }"
                 >
                   <div class="model-config-details">
-                    <strong>{{ row.model.label }}</strong>
+                    <strong
+                      >{{ row.model.label
+                      }}<span class="model-kind-badge">{{
+                        isJevModel(row.model) ? t("jevModel") : t("llmModel")
+                      }}</span></strong
+                    >
                     <small>
                       {{
                         isDeepWriteSiteOfficialModel(row.model)
@@ -239,6 +256,7 @@ const knownUserProviders = computed(() =>
                   </div>
                   <div class="model-card-actions">
                     <button
+                      v-if="!isJevModel(row.model)"
                       class="model-default-action"
                       type="button"
                       :class="{

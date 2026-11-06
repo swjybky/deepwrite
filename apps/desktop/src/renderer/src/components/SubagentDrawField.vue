@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {
   DEFAULT_SUBAGENT_DRAW_EVALUATOR_PROMPT,
+  resolveDrawEvaluationMethod,
   SUBAGENT_DRAW_EVALUATOR_PROMPT_MAX_LENGTH,
   SUBAGENT_DRAW_MAX_COUNT,
   SUBAGENT_DRAW_MIN_COUNT,
   type SubagentAgentMode,
+  type SubagentDrawEvaluationMethod,
   type SubagentDrawSelection,
   type SubagentDrawSettings
 } from "@deepwrite/contracts/renderer";
@@ -12,6 +14,7 @@ import { computed, watch } from "vue";
 import { createScopedTranslator } from "../i18n";
 import AgentTeamSegmented from "./AgentTeamSegmented.vue";
 import AgentTeamSwitch from "./AgentTeamSwitch.vue";
+import AppIcon from "./AppIcon.vue";
 import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
 import SubagentModelField from "./SubagentModelField.vue";
 import { newSubagentDraw } from "./agentTeamDrawDraft";
@@ -67,6 +70,14 @@ const selectionOptions = computed(() => [
   { value: "manual" as const, label: t("manual") },
   { value: "auto" as const, label: t("auto") }
 ]);
+const evaluationMethodOptions = computed(() => [
+  { value: "llm" as const, label: t("llmEvaluation") },
+  { value: "jev" as const, label: t("jevEvaluation") }
+]);
+const evaluationMethod = computed(() =>
+  draw.value ? resolveDrawEvaluationMethod(draw.value.evaluator) : "llm"
+);
+const jevEvaluation = computed(() => evaluationMethod.value === "jev");
 const evaluatorPrompt = computed(
   () => draw.value?.evaluator.prompt ?? DEFAULT_SUBAGENT_DRAW_EVALUATOR_PROMPT
 );
@@ -105,6 +116,46 @@ function setCount(value: string | number): void {
 
 function setSelection(value: SubagentDrawSelection): void {
   if (draw.value && !props.disabled) draw.value.selection = value;
+}
+
+function setEvaluationMethod(value: SubagentDrawEvaluationMethod): void {
+  if (!draw.value || props.disabled) return;
+  const evaluator = draw.value.evaluator;
+  if (value === "jev") {
+    evaluator.evaluationMethod = "jev";
+    evaluator.modelMode = "custom";
+    delete evaluator.thinkingLevel;
+    delete evaluator.temperature;
+    if (
+      evaluator.modelId &&
+      !props.modelConfig.jevModelOptions.value.some(
+        (option) => option.value === evaluator.modelId
+      )
+    ) {
+      delete evaluator.modelId;
+    }
+    return;
+  }
+  delete evaluator.evaluationMethod;
+  if (
+    evaluator.modelId &&
+    !props.modelConfig.modelOptions.value.some(
+      (option) => option.value === evaluator.modelId
+    )
+  ) {
+    delete evaluator.modelId;
+    evaluator.modelMode = "inherit";
+    delete evaluator.thinkingLevel;
+    delete evaluator.temperature;
+  }
+}
+
+function setJevModelId(modelId: string): void {
+  if (!draw.value || props.disabled) return;
+  draw.value.evaluator.modelMode = "custom";
+  draw.value.evaluator.modelId = modelId;
+  delete draw.value.evaluator.thinkingLevel;
+  delete draw.value.evaluator.temperature;
 }
 
 function setPrompt(event: Event): void {
@@ -176,7 +227,19 @@ function restoreDefaultPrompt(): void {
         :aria-label="t('evaluator')"
       >
         <span class="draw-evaluator-title">{{ t("evaluator") }}</span>
+        <div class="draw-setting">
+          <span class="draw-field-label">{{ t("evaluationMethod") }}</span>
+          <AgentTeamSegmented
+            :model-value="evaluationMethod"
+            :options="evaluationMethodOptions"
+            :name="`${name}-evaluation-method`"
+            :label="t('evaluationMethod')"
+            :disabled="disabled"
+            @update:model-value="setEvaluationMethod"
+          />
+        </div>
         <SubagentModelField
+          v-if="!jevEvaluation"
           :name="`${name}-evaluator-model`"
           :model-mode="draw.evaluator.modelMode"
           :model-id="draw.evaluator.modelId"
@@ -195,6 +258,32 @@ function restoreDefaultPrompt(): void {
           "
           @set-temperature="modelConfig.setTemperature(draw.evaluator, $event)"
         />
+        <div v-else class="draw-jev-model">
+          <span class="draw-field-label">{{ t("selectJevModel") }}</span>
+          <PopupSelect
+            class="draw-jev-select"
+            :model-value="draw.evaluator.modelId ?? ''"
+            :options="[...modelConfig.jevModelOptions.value]"
+            :accessible-label="t('selectJevModel')"
+            :placeholder="t('selectJevModel')"
+            size="large"
+            :disabled="
+              disabled || modelConfig.jevModelOptions.value.length === 0
+            "
+            :menu-min-width="260"
+            :menu-z-index="1200"
+            @update:model-value="setJevModelId(String($event))"
+          >
+            <template #prefix><AppIcon name="model" :size="14" /></template>
+          </PopupSelect>
+          <p
+            v-if="modelConfig.jevModelOptions.value.length === 0"
+            class="draw-hint"
+          >
+            {{ t("noJevModelsConfigured") }}
+          </p>
+          <p v-else class="draw-hint">{{ t("jevModelHint") }}</p>
+        </div>
         <div class="draw-prompt-header">
           <span class="draw-field-label">{{ t("evaluationRules") }}</span>
           <span class="draw-prompt-tools">
@@ -222,7 +311,16 @@ function restoreDefaultPrompt(): void {
           spellcheck="false"
           @input="setPrompt"
         />
-        <p class="draw-hint">{{ t("evaluatorBoundaryHint") }}</p>
+        <p class="draw-hint">
+          {{
+            jevEvaluation
+              ? t("jevRulesAppliedHint")
+              : t("evaluatorBoundaryHint")
+          }}
+        </p>
+        <p v-if="jevEvaluation" class="draw-hint">
+          {{ t("jevEvaluatorBoundaryHint") }}
+        </p>
       </section>
     </template>
   </div>
@@ -279,6 +377,14 @@ function restoreDefaultPrompt(): void {
   color: var(--text-primary);
   font-size: 0.857143rem;
   font-weight: 650;
+}
+.draw-jev-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.draw-jev-select {
+  width: min(100%, 22rem);
 }
 .draw-prompt-header {
   display: flex;

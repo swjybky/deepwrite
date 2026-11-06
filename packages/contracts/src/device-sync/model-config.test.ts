@@ -79,6 +79,16 @@ describe("synced model configuration", () => {
       contextWindow: 32_768,
       maxTokens: 4_096
     });
+    expect(model({ modelKind: "jev" }).modelKind).toBe("jev");
+  });
+
+  it("round-trips JEV model kind across devices", () => {
+    const configured = model({ modelKind: "jev" });
+    const item = syncModelConfigItem(configured);
+    expect(parseSyncModelEntry(checkedSyncItem(item)).model).toEqual(
+      configured
+    );
+    expect(item.files[SYNC_MODEL_FILE]).toContain('"modelKind":"jev"');
   });
 
   it("round-trips custom context and output limits across devices", () => {

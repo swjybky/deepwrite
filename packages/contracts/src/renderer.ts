@@ -166,7 +166,12 @@ export {
   isOnDemandMaterial,
   MATERIAL_ON_DEMAND_MARKER
 } from "./material-context-policy";
-export { isDeepWriteSiteOfficialModel } from "./models";
+export {
+  isDeepWriteSiteOfficialModel,
+  isJevModel,
+  isTextGenerationModel,
+  resolveModelKind
+} from "./models";
 export {
   APPEARANCE_CUSTOM_FONT_DISPLAY_NAME_MAX_LENGTH,
   APPEARANCE_CUSTOM_FONT_MAX_COUNT,
@@ -212,8 +217,18 @@ export {
   SUBAGENT_DRAW_MIN_COUNT,
   SUBAGENT_DRAW_VARIANT_MAX_LENGTH,
   activeSubagentDraw,
+  resolveDrawEvaluationMethod,
   WorkspaceAgentTeamSettingsInputSchema
 } from "./agent-team";
+export {
+  DRAW_JEV_SCORE_CRITERIA,
+  DRAW_JEV_SCORE_INSTRUCTIONS,
+  DRAW_JEV_SCORE_QUESTION_ID,
+  buildDrawJevScoreInstructions,
+  buildDrawJevScoreQuestion,
+  parseJevSystemOneScoreAnswer,
+  resolveJevSystemOneUrl
+} from "./jev-systemone";
 export {
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
   AgentTeamCatalogSnapshotSchema,

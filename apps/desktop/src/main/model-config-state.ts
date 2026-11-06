@@ -1,6 +1,7 @@
 import { safeStorage } from "electron";
 import {
   isDeepWriteSiteOfficialModel,
+  isTextGenerationModel,
   ModelSettingsSchema,
   type ModelConfigInput,
   type ModelSettings
@@ -99,12 +100,14 @@ function synchronizeSettings(
   const models = [...freeModels, ...customModels];
   const requestedDefaultModelId = settings.defaultModelId;
   const defaultModelId = models.some(
-    (model) => model.id === requestedDefaultModelId
+    (model) =>
+      model.id === requestedDefaultModelId && isTextGenerationModel(model)
   )
     ? requestedDefaultModelId
     : (models.find(
         (model) =>
-          !isDeepWriteSiteOfficialModel(model) || model.enabled !== false
+          isTextGenerationModel(model) &&
+          (!isDeepWriteSiteOfficialModel(model) || model.enabled !== false)
       )?.id ?? "");
   return {
     version: 2,

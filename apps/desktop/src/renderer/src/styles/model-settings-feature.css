@@ -15,11 +15,19 @@
   margin-bottom: 14px;
 }
 .model-list-summary {
+  flex: 1;
+  min-width: 0;
   color: var(--text-tertiary);
   font-size: 0.857143rem;
 }
 .model-list-dot {
   padding: 0 8px;
+}
+.model-list-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
 }
 .model-list-add {
   display: inline-flex;
@@ -35,6 +43,18 @@
   font-size: 0.857143rem;
   font-weight: 550;
   cursor: pointer;
+}
+.model-kind-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.714286rem;
+  font-weight: 500;
+  vertical-align: middle;
 }
 .model-list-add:disabled {
   opacity: 0.45;

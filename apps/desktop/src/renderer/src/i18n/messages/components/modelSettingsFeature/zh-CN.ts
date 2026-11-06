@@ -5,7 +5,11 @@ export default {
   readingModelSettings: "正在读取模型配置…",
   providers: "个提供商",
   models: "个模型",
-  addModel: "添加模型",
+  addModel: "添加大模型",
+  addJevModel: "添加 JEV 模型",
+  modelPurposeHint: "大模型用于文本生成，JEV 模型用于打分判断。",
+  llmModel: "大模型",
+  jevModel: "JEV",
   noCustomModelsConfigured: "尚未配置自定义模型",
   noLiveModelsConfigured: "尚未配置真实模型",
   afterAddingACustomModelTestItsConnectionManage:

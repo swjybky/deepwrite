@@ -30,6 +30,14 @@ function savedEvaluator(
       ? { prompt }
       : {};
   const modelId = evaluator.modelId?.trim();
+  if (evaluator.evaluationMethod === "jev") {
+    return {
+      ...customPrompt,
+      evaluationMethod: "jev",
+      modelMode: "custom",
+      ...(modelId ? { modelId } : {})
+    };
+  }
   if (evaluator.modelMode !== "custom" || !modelId) {
     return { ...customPrompt, modelMode: "inherit" };
   }
@@ -69,6 +77,7 @@ export function savedSubagentDraw(
     saved.count === SUBAGENT_DRAW_DEFAULT_COUNT &&
     saved.selection === "manual" &&
     saved.evaluator.modelMode === "inherit" &&
+    saved.evaluator.evaluationMethod === undefined &&
     saved.evaluator.prompt === undefined;
   return untouched ? undefined : saved;
 }

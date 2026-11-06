@@ -18,7 +18,12 @@ import {
   runtime,
   shortWorkspaceRuntimeFixture
 } from "./index.test-support";
-import { ModelConnectionTestResultSchema } from "./models";
+import {
+  isJevModel,
+  isTextGenerationModel,
+  ModelConnectionTestResultSchema,
+  resolveModelKind
+} from "./models";
 import { SessionPromptCommandPayloadSchema } from "./session/commands";
 
 describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
@@ -346,7 +351,44 @@ describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
       "max"
     ]);
     expect(settings.models[0]?.temperatureOptions).toEqual([0.1, 0.7, 1]);
+    expect(settings.models[0]?.modelKind).toBeUndefined();
     expect("apiKey" in (settings.models[0] ?? {})).toBe(false);
+  });
+
+  it("accepts optional modelKind and treats legacy models as llm", () => {
+    const settings = ModelSettingsSchema.parse({
+      defaultModelId: "legacy",
+      models: [
+        {
+          id: "legacy",
+          label: "Legacy",
+          provider: "deepseek",
+          modelId: "deepseek-chat",
+          api: "openai-completions",
+          baseUrl: "https://api.deepseek.com.example.test/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off",
+          hasApiKey: false
+        },
+        {
+          id: "jev-1",
+          label: "JEV",
+          provider: "deepseek",
+          modelId: "deepseek-chat",
+          api: "openai-completions",
+          baseUrl: "https://api.deepseek.com.example.test/v1",
+          reasoning: false,
+          defaultThinkingLevel: "off",
+          modelKind: "jev",
+          hasApiKey: true
+        }
+      ]
+    });
+
+    expect(resolveModelKind(settings.models[0]!)).toBe("llm");
+    expect(isTextGenerationModel(settings.models[0]!)).toBe(true);
+    expect(isJevModel(settings.models[1]!)).toBe(true);
+    expect(settings.models[1]?.modelKind).toBe("jev");
   });
 
   it("accepts current, enabled, and deprecated free-model state", () => {

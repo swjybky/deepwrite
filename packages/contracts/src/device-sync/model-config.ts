@@ -3,6 +3,7 @@ import {
   ModelApiSchema,
   ModelConfigInputSchema,
   ModelContextWindowSchema,
+  ModelKindSchema,
   ModelMaxTokensSchema,
   TemperatureOptionsSchema,
   ThinkingLevelOptionsSchema,
@@ -35,7 +36,8 @@ const syncModelObject = z.object({
   thinkingLevelOptions: ThinkingLevelOptionsSchema,
   temperatureOptions: TemperatureOptionsSchema,
   contextWindow: ModelContextWindowSchema.optional(),
-  maxTokens: ModelMaxTokensSchema.optional()
+  maxTokens: ModelMaxTokensSchema.optional(),
+  modelKind: ModelKindSchema.optional()
 });
 
 /** A model's public identity. It is strict so key material can never ride along. */

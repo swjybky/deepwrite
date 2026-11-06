@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { nextTick, ref, watch } from "vue";
-import type { ModelConfigInput } from "@deepwrite/contracts";
+import { computed, nextTick, ref, watch } from "vue";
+import { isJevModel, type ModelConfigInput } from "@deepwrite/contracts";
 import {
   useModelEditor,
   type ModelEditorSavePayload
@@ -22,6 +22,14 @@ const props = withDefaults(
   }>(),
   { knownUserProviders: () => [] }
 );
+
+const jevEditor = computed(() => isJevModel(props.model));
+const editorTitle = computed(() => {
+  if (props.editing) {
+    return jevEditor.value ? t("editJevModel") : t("editModel");
+  }
+  return jevEditor.value ? t("addJevModel") : t("addModel");
+});
 
 const emit = defineEmits<{
   cancel: [];
@@ -84,7 +92,7 @@ watch(fetchHintDialog, (message) => {
 <template>
   <section class="model-editor" :inert="saving">
     <div class="model-editor-heading">
-      <strong>{{ editing ? t("editModel") : t("addModel") }}</strong>
+      <strong>{{ editorTitle }}</strong>
       <button type="button" @click="emit('cancel')">
         {{ t("cancel") }}
       </button>

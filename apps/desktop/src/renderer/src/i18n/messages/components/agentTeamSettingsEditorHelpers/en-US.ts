@@ -7,6 +7,12 @@ export default {
   subagentSystemPromptIsRequired: "Subagent system prompt is required",
   selectAModelForASeparateConfiguration:
     "Select a model for a separate configuration",
+  selectAJevModelForEvaluation:
+    "JEV evaluation requires a configured JEV model",
+  jevEvaluationRequiresAJevModel:
+    "“{arg0}” can only use a JEV model for JEV evaluation. Select another.",
+  textGenerationCannotUseAJevModel:
+    "“{arg0}” cannot use a JEV model for text generation. Select an LLM.",
   theModelSelectedForSubagentValueNoLongerExists:
     "The model selected for subagent “{arg0}” no longer exists. Select another.",
   untitled: "Untitled",

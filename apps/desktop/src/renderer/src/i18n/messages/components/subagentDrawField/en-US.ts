@@ -22,8 +22,20 @@ export default {
   autoHint:
     "When every draw is done, the evaluator picks one by its rules. If it can't, you choose instead.",
   evaluator: "Evaluator",
+  evaluationMethod: "Evaluation method",
+  llmEvaluation: "LLM evaluation",
+  jevEvaluation: "JEV evaluation",
+  selectJevModel: "Select a JEV model",
+  noJevModelsConfigured:
+    "No JEV model is configured yet. Add one under Custom models before enabling this.",
+  jevModelHint:
+    "Uses only configured JEV models for scoring. It never follows the primary agent or mixes in text-generation models.",
   evaluationRules: "Evaluation rules",
   restoreDefault: "Restore default",
   evaluatorBoundaryHint:
-    "The evaluator sees only the task and the candidates, not the work, and is always required to submit its choice through the select tool."
+    "The evaluator sees only the task and the candidates, not the work, and is always required to submit its choice through the select tool.",
+  jevEvaluatorBoundaryHint:
+    "JEV evaluation sees only the task and candidate summaries, scores each candidate independently, picks the highest score, and falls back to manual selection on failure without switching to LLM evaluation.",
+  jevRulesAppliedHint:
+    "Extra rules are appended to the JEV score question instructions."
 };

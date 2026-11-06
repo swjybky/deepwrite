@@ -1,5 +1,7 @@
 import {
   BUILT_IN_REASONING_LEVELS,
+  isJevModel,
+  isTextGenerationModel,
   type ModelConfig,
   type ShortAgentSubagentDefinition,
   type ShortAgentSubagentModelMode,
@@ -33,7 +35,12 @@ export function useSubagentModelConfig(source: {
   const modelById = computed(
     () => new Map(source.models().map((model) => [model.id, model]))
   );
-  const modelOptions = computed(() => buildModelSelectOptions(source.models()));
+  const modelOptions = computed(() =>
+    buildModelSelectOptions(source.models().filter(isTextGenerationModel))
+  );
+  const jevModelOptions = computed(() =>
+    buildModelSelectOptions(source.models().filter(isJevModel))
+  );
 
   function modelOf(subagent: SubagentModelTarget) {
     return subagent.modelId ? modelById.value.get(subagent.modelId) : undefined;
@@ -145,6 +152,7 @@ export function useSubagentModelConfig(source: {
 
   return {
     modelOptions,
+    jevModelOptions,
     thinkingOptionsFor,
     temperatureOptionsFor,
     setModelMode,

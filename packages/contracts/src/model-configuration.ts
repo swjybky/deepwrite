@@ -82,6 +82,32 @@ export type ToolSchemaProfile = z.infer<typeof ToolSchemaProfileSchema>;
 export const ModelManagedBySchema = z.enum(["deepwrite-free"]);
 export type ModelManagedBy = z.infer<typeof ModelManagedBySchema>;
 
+/**
+ * Distinguishes text-generation models from JEV scoring/judgment models.
+ * Absent or unknown values resolve to llm so existing configs stay compatible.
+ */
+export const MODEL_KINDS = ["llm", "jev"] as const;
+export const ModelKindSchema = z.enum(MODEL_KINDS);
+export type ModelKind = z.infer<typeof ModelKindSchema>;
+
+export function resolveModelKind(model: {
+  modelKind?: ModelKind | undefined;
+}): ModelKind {
+  return model.modelKind === "jev" ? "jev" : "llm";
+}
+
+export function isJevModel(model: {
+  modelKind?: ModelKind | undefined;
+}): boolean {
+  return resolveModelKind(model) === "jev";
+}
+
+export function isTextGenerationModel(model: {
+  modelKind?: ModelKind | undefined;
+}): boolean {
+  return resolveModelKind(model) === "llm";
+}
+
 export const DEEPWRITE_SITE_OFFICIAL_MODEL_ID_PREFIX =
   "deepwrite-site-official-";
 
@@ -147,6 +173,11 @@ const ModelIdentitySchema = z
     maxTokens: ModelMaxTokensSchema.optional(),
     /** User visibility toggle for separately managed model catalogs. */
     enabled: z.boolean().optional(),
+    /**
+     * Optional model kind. Omit for legacy configs (treated as llm / 大模型).
+     * `"jev"` marks scoring/judgment models configured on the custom-model page.
+     */
+    modelKind: ModelKindSchema.optional(),
     managedBy: ModelManagedBySchema.optional(),
     /** Remote official-catalog availability: 0 = available, 1 = unavailable. */
     status: z.union([z.literal(0), z.literal(1)]).optional(),

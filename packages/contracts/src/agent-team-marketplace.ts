@@ -270,6 +270,9 @@ export function agentTeamCustomModelCount(settings: TeamSettings): number {
 function inheritModel(
   settings: ShortAgentSubagentDefinition | SubagentDrawEvaluator
 ): void {
+  if ("evaluationMethod" in settings && settings.evaluationMethod === "jev") {
+    delete settings.evaluationMethod;
+  }
   if (settings.modelMode !== "custom") return;
   settings.modelMode = "inherit";
   delete settings.modelId;

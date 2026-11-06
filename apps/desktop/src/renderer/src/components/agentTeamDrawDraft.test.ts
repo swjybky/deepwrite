@@ -116,6 +116,23 @@ describe("draw drafts", () => {
     });
   });
 
+  it("persists JEV evaluation without thinking or temperature fields", () => {
+    const draw = newSubagentDraw();
+    draw.selection = "auto";
+    draw.evaluator = {
+      evaluationMethod: "jev",
+      modelMode: "custom",
+      modelId: " jev-1 ",
+      thinkingLevel: "high",
+      temperature: 0.2
+    };
+    expect(savedSubagentDraw(draw)?.evaluator).toEqual({
+      evaluationMethod: "jev",
+      modelMode: "custom",
+      modelId: "jev-1"
+    });
+  });
+
   it("marks draw edits unsaved, but not an on-off round trip", () => {
     const pristine = member({ draw: undefined });
     const toggled = member({ draw: { ...newSubagentDraw(), enabled: false } });
@@ -164,6 +181,8 @@ describe("SubagentDrawField", () => {
     expect(fieldSource).toContain('mode === "standard" && draw.value?.enabled');
     expect(fieldSource).toContain("v-if=\"draw.selection === 'auto'\"");
     expect(fieldSource).toContain("<SubagentModelField");
+    expect(fieldSource).toContain('t("evaluationMethod")');
+    expect(fieldSource).toContain('t("jevEvaluation")');
     expect(fieldSource).toContain("delete draw.value.evaluator.prompt");
   });
 });

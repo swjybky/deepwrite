@@ -52,6 +52,7 @@ export * from "./material-metadata";
 export * from "./material-query";
 export * from "./material-stages";
 export * from "./models";
+export * from "./jev-systemone";
 export * from "./model-usage";
 export * from "./model-provider-errors";
 export * from "./preload-api";

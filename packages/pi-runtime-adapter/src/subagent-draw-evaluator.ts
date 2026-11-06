@@ -47,6 +47,8 @@ export interface DrawEvaluatorContext {
   batchTask?: SubagentBatchTaskRef;
   signal?: AbortSignal;
   onUpdate?: (partialResult: AgentToolResult<SubagentToolDetails>) => void;
+  /** Progress text for the draw card (e.g. per-candidate JEV scores). */
+  onProgress?: (message: string) => void;
   settings: SubagentDrawSettings;
   /** Draws the task ran, failed ones included. */
   count: number;
