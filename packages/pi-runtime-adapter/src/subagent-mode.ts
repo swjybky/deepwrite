@@ -31,11 +31,15 @@ export const PURE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_FETCH_TOOL_NAME
 ]);
 
-/** Library managers own their tools and prompts, so they are never pure. */
+/** Built-in managers own their tools and prompts, so they are never pure. */
 export function subagentAgentMode(
   definition: Pick<RuntimeSubagentDefinition, "agentMode" | "toolSource">
 ): SubagentAgentMode {
-  if (definition.toolSource === "library-management") return "standard";
+  if (
+    definition.toolSource === "library-management" ||
+    definition.toolSource === "team-management"
+  )
+    return "standard";
   return definition.agentMode ?? "standard";
 }
 

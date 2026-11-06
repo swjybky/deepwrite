@@ -33,6 +33,7 @@ export type * from "./app-alert";
 export type * from "./agent-team";
 export type * from "./agent-team-catalog";
 export type * from "./agent-team-book-binding";
+export type * from "./agent-team-management";
 export type * from "./agent-team-marketplace";
 export type * from "./feedback";
 export type * from "./catalog";

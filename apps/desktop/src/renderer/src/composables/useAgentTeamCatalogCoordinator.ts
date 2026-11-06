@@ -27,6 +27,11 @@ export function useAgentTeamCatalogCoordinator(
   const { settingsStore, notifications: uiMessage } = context;
   let enabledRevision = 0;
 
+  systemEventCenter.subscribe("agentTeams.prompt_saved", () => {
+    const api = context.api();
+    if (api) void restoreAgentTeamCatalog(api);
+  });
+
   // Teams live in Main, so an external change is only seen by asking again.
   systemEventCenter.subscribe("externalControl.resource_changed", (event) => {
     const api = context.api();

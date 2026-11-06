@@ -2,34 +2,12 @@
 import { createScopedTranslator } from "../i18n";
 import { onMounted, ref } from "vue";
 import wechatCode from "../assets/author-support/wechat.jpg";
-import alipayCode from "../assets/author-support/alipay.jpg";
 
 const t = createScopedTranslator("components.authorSupportDialog");
 
 const emit = defineEmits<{ close: [] }>();
 const closeButton = ref<HTMLButtonElement | null>(null);
 const doneButton = ref<HTMLButtonElement | null>(null);
-
-const paymentMethods = [
-  {
-    get name() {
-      return t("weChatDonation");
-    },
-    get instruction() {
-      return t("scanWithWeChat");
-    },
-    image: wechatCode
-  },
-  {
-    get name() {
-      return t("alipay");
-    },
-    get instruction() {
-      return t("scanWithAlipay");
-    },
-    image: alipayCode
-  }
-];
 
 function handleTab(event: KeyboardEvent): void {
   if (event.shiftKey && document.activeElement === closeButton.value) {
@@ -93,22 +71,20 @@ onMounted(() => closeButton.value?.focus());
             </p>
           </div>
 
-          <div class="author-support-methods">
-            <figure v-for="method in paymentMethods" :key="method.name">
-              <figcaption>
-                <strong>{{ method.name }}</strong>
-                <span>{{ method.instruction }}</span>
-              </figcaption>
-              <img
-                :src="method.image"
-                :alt="
-                  t('valuePaymentCode', {
-                    arg0: method.name
-                  })
-                "
-              />
-            </figure>
-          </div>
+          <figure class="author-support-method">
+            <figcaption>
+              <strong>{{ t("weChatDonation") }}</strong>
+              <span>{{ t("scanWithWeChat") }}</span>
+            </figcaption>
+            <img
+              :src="wechatCode"
+              :alt="
+                t('valuePaymentCode', {
+                  arg0: t('weChatDonation')
+                })
+              "
+            />
+          </figure>
 
           <div class="dialog-actions">
             <button
@@ -128,7 +104,7 @@ onMounted(() => closeButton.value?.focus());
 
 <style scoped>
 .author-support-dialog {
-  width: min(760px, calc(100vw - 60px));
+  width: min(440px, calc(100vw - 60px));
 }
 
 .author-support-content {
@@ -147,51 +123,39 @@ onMounted(() => closeButton.value?.focus());
   line-height: 1.7;
 }
 
-.author-support-methods {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: 16px;
-}
-
-.author-support-methods figure {
+.author-support-method {
+  width: min(100%, 320px);
   min-width: 0;
-  margin: 0;
+  margin: 0 auto;
   padding: 12px;
   border: 1px solid var(--theme-line);
   border-radius: 12px;
   background: var(--surface-raised);
 }
 
-.author-support-methods figcaption {
+.author-support-method figcaption {
   display: grid;
   gap: 5px;
   margin-bottom: 12px;
   text-align: center;
 }
 
-.author-support-methods strong {
+.author-support-method strong {
   color: var(--text-primary);
   font-size: 1rem;
 }
 
-.author-support-methods span {
+.author-support-method span {
   color: var(--text-secondary);
   font-size: 0.857143rem;
 }
 
-.author-support-methods img {
+.author-support-method img {
   display: block;
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
   object-position: center bottom;
   border-radius: 8px;
-}
-
-@media (max-width: 600px) {
-  .author-support-methods {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 </style>

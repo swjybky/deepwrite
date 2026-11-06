@@ -1,4 +1,5 @@
 import { LibraryManagementRuntimeContextSchema } from "../library-management";
+import { TeamManagementRuntimeContextSchema } from "../agent-team-management";
 import { z } from "zod";
 import {
   ShortAgentSubagentDefinitionsSchema,
@@ -238,6 +239,7 @@ export const AgentPromptCommandPayloadSchema =
     scriptAgentProfile: ScriptWorkspaceAgentProfileSchema.optional(),
     longAgentProfile: LongAgentProfileSchema.optional(),
     libraryManagement: LibraryManagementRuntimeContextSchema.optional(),
+    teamManagement: TeamManagementRuntimeContextSchema.optional(),
     subagentDefinitions: ShortAgentSubagentDefinitionsSchema.optional(),
     /**
      * Runtime-only map of model config id → resolved provider config for
@@ -258,7 +260,8 @@ export const AgentPromptCommandPayloadSchema =
     const longWorkspace = value.workspaceContext?.longWorkspace;
     if (
       (value.subagentDefinitions !== undefined ||
-        value.libraryManagement !== undefined) &&
+        value.libraryManagement !== undefined ||
+        value.teamManagement !== undefined) &&
       !(
         (shortWorkspace && value.agentProfile) ||
         (scriptWorkspace && value.scriptAgentProfile) ||
@@ -272,8 +275,9 @@ export const AgentPromptCommandPayloadSchema =
           "Subagent definitions require a short, script or long workspace and its agent profile."
       });
     }
-    if (value.libraryManagement) {
-      const scope = value.libraryManagement.scope;
+    for (const management of [value.libraryManagement, value.teamManagement]) {
+      if (!management) continue;
+      const scope = management.scope;
       const expectedBookId =
         scope.bookType === "long"
           ? longWorkspace?.bookId
@@ -283,7 +287,12 @@ export const AgentPromptCommandPayloadSchema =
       if (expectedBookId !== scope.bookId)
         context.addIssue({
           code: "custom",
-          path: ["libraryManagement", "scope"],
+          path: [
+            management === value.libraryManagement
+              ? "libraryManagement"
+              : "teamManagement",
+            "scope"
+          ],
           message:
             "Library management must be bound to the active writing work."
         });

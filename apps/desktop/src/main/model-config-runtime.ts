@@ -6,6 +6,7 @@ import {
   type ModelConfigInput
 } from "@deepwrite/contracts";
 import type { DiskModelSecrets } from "./model-config-persistence";
+import { ModelNotFoundError } from "./model-config-errors";
 import {
   synchronizeManagedModel,
   type ModelConfigSnapshot
@@ -41,7 +42,7 @@ export function resolveSavedModel(
       : enabledModels[0]?.id);
   if (!id) return undefined;
   const stored = state.settings.models.find((model) => model.id === id);
-  if (!stored) throw new Error("所选模型不存在，请刷新模型配置后重试。");
+  if (!stored) throw new ModelNotFoundError();
   const model = synchronizeManagedModel(stored, state.freeCatalog, true);
   return AgentProviderRuntimeConfigSchema.parse({
     ...model,

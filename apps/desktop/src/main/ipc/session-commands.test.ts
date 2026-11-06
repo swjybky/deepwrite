@@ -260,11 +260,12 @@ function teamFixture(
     requireAgentTeamConfigStore: () => ({
       resolve: async () => members,
       parallelSubagentsEnabled: async () => false,
-      // Both built-in managers off: no library management query is made.
+      // Built-in managers off: no management context is attached.
       list: async () => ({
         builtinSubagents: {
           skill: { enabled: false, description: "" },
-          material: { enabled: false, description: "" }
+          material: { enabled: false, description: "" },
+          team: { enabled: false, description: "管理团队" }
         }
       })
     })

@@ -9,6 +9,7 @@ import {
   type CommandResult
 } from "@deepwrite/contracts";
 import { safeErrorDetails } from "./errors";
+import { teamPromptReviews } from "../team-prompt-reviews";
 import type { IpcCommandContext } from "./command-types";
 
 type RunControlContext = Pick<
@@ -78,7 +79,8 @@ export async function handleSessionRunControlCommands(
 ): Promise<CommandResult | undefined> {
   if (command.type === "session.user_input_response") {
     const request = command.payload;
-    return forwardRunControl(ctx, command, {
+    teamPromptReviews.answer(request);
+    const result = await forwardRunControl(ctx, command, {
       internalType: "agent.user_input_response",
       parseAccepted: (payload) =>
         SessionUserInputResponseAcceptedPayloadSchema.parse(payload),
@@ -95,6 +97,9 @@ export async function handleSessionRunControlCommands(
         message: "提交用户回答失败。"
       }
     });
+    if (result.status !== "accepted")
+      teamPromptReviews.clearRequest(request.runId, request.requestId);
+    return result;
   }
 
   if (command.type === "session.abort") {

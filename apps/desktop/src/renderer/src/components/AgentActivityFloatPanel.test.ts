@@ -39,8 +39,8 @@ describe("agent activity floating panel", () => {
     expect(workspaceSource).toContain(
       "resolveAgentActivityDescriptor(conversationKey"
     );
-    expect(workspaceSource).toContain(
-      "resolveAgentActivityNavigationNode(item"
+    expect(workspaceSource).toMatch(
+      /resolveAgentActivityNavigationNode\(\s*item/u
     );
     expect(workspaceSource).toContain(
       "selectLongChapterCardTab(item.chapterCardId)"

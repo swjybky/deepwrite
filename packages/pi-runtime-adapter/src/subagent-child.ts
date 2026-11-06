@@ -136,14 +136,16 @@ export async function runSubagentTask(
 ): Promise<SubagentTaskOutcome> {
   const { request, signal } = context;
   const definition = request.definition;
-  const libraryManager = definition.toolSource === "library-management";
+  const managementChild =
+    definition.toolSource === "library-management" ||
+    definition.toolSource === "team-management";
   const mode = subagentAgentMode(definition);
   const childMessages =
     definition.contextMode === "parent-snapshot"
       ? snapshotSubagentHistory(input.getParentMessages?.() ?? [])
       : [];
   if (
-    !libraryManager &&
+    !managementChild &&
     mode !== "pure-bare" &&
     input.materialContext?.trim()
   ) {
@@ -178,7 +180,7 @@ export async function runSubagentTask(
     let childStreamFn = resolvedModel.streamFn;
     const childThinkingLevel = resolvedModel.thinkingLevel;
     const prepared =
-      libraryManager || input.workspaceAccess === "none"
+      managementChild || input.workspaceAccess === "none"
         ? await waitForSubagentPreparation(
             input.prepareChild?.(
               definition,
@@ -190,8 +192,8 @@ export async function runSubagentTask(
           )
         : undefined;
     signal?.throwIfAborted();
-    if (libraryManager && !prepared)
-      throw new Error("资料库管理运行上下文不可用。");
+    if (managementChild && !prepared)
+      throw new Error("管理子智能体运行上下文不可用。");
     if (input.workspaceAccess === "none" && !prepared)
       throw new Error("扩展子任务运行上下文不可用。");
     if (prepared?.contextPolicy) childContextPolicy = prepared.contextPolicy;
@@ -226,15 +228,15 @@ export async function runSubagentTask(
           ).filter(
             (tool) =>
               tool.name !== "spawn_subagent" &&
-              (libraryManager ||
+              (managementChild ||
                 (tool.name !== "load_skill" &&
                   tool.name !== "ask_user_question"))
           );
-    // Library managers and extras children own their tools; only the work's
+    // Built-in managers and extras children own their tools; only the work's
     // write tools of a parallel standard child share the lock.
     const sharesWorkspace =
       input.parallel === true &&
-      !libraryManager &&
+      !managementChild &&
       mode === "standard" &&
       input.workspaceAccess !== "none";
     const searchTools = applySubagentWebSearch(
@@ -249,7 +251,7 @@ export async function runSubagentTask(
           `「${definition.name}」（${request.key}）`
         )
       : applySubagentAgentMode(searchTools, mode);
-    if (libraryManager) {
+    if (managementChild) {
       for (const [index, tool] of childTools.entries()) {
         childTools[index] = {
           ...tool,

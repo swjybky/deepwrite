@@ -7,7 +7,7 @@ import ConversationDetails from "./ConversationDetails.vue";
 const t = createScopedTranslator("components.agentEditProposalDiff");
 withDefaults(
   defineProps<{
-    proposal: AgentEditProposal;
+    proposal: Pick<AgentEditProposal, "id" | "hunks" | "truncated">;
     /** Show the hunks directly, for a container that is itself a disclosure. */
     inline?: boolean;
   }>(),

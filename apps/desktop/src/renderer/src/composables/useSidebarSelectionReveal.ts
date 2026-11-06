@@ -8,7 +8,24 @@ export function useSidebarSelectionReveal(options: {
   sections(): readonly ResourceTreeSection[];
   selectionActive: Readonly<Ref<boolean>>;
   scroller: Readonly<Ref<HTMLElement | null>>;
-}): void {
+}) {
+  async function revealSelection(
+    block: "center" | "nearest" = "center"
+  ): Promise<void> {
+    const selectedId = options.selectedId();
+    if (!selectedId || !options.selectionActive.value) return;
+    await nextTick();
+    if (options.selectedId() !== selectedId || !options.selectionActive.value)
+      return;
+    scrollSelectedIntoView(
+      options.scroller.value,
+      options.scroller.value?.querySelector<HTMLElement>(
+        ".tree-row.is-selected"
+      ),
+      { block }
+    );
+  }
+
   watch(
     [options.selectedId, options.selectionActive],
     async ([selectedId, active], [previousId, wasActive]) => {
@@ -23,17 +40,10 @@ export function useSidebarSelectionReveal(options: {
           .some(({ nodes }) => resourceTreeContainsResource(nodes, previousId))
       )
         return;
-      await nextTick();
-      if (options.selectedId() !== selectedId || !options.selectionActive.value)
-        return;
-      scrollSelectedIntoView(
-        options.scroller.value,
-        options.scroller.value?.querySelector<HTMLElement>(
-          ".tree-row.is-selected"
-        ),
-        { block: wasActive ? "nearest" : "center" }
-      );
+      await revealSelection(wasActive ? "nearest" : "center");
     },
     { flush: "post" }
   );
+
+  return { revealSelection };
 }

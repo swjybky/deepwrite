@@ -1,8 +1,6 @@
 export default {
   weChatDonation: "WeChat donation",
   scanWithWeChat: "Scan with WeChat",
-  alipay: "Alipay",
-  scanWithAlipay: "Scan with Alipay",
   supportTheAuthor: "Support the author",
   closeSupportDialog: "Close support dialog",
   donationsSupportDeepWriteSServersMaintenanceDevelopmentAndUsability:

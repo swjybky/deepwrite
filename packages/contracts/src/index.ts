@@ -10,6 +10,7 @@ export * from "./app-alert";
 export * from "./agent-team";
 export * from "./agent-team-catalog";
 export * from "./agent-team-book-binding";
+export * from "./agent-team-management";
 export * from "./agent-team-import";
 export * from "./agent-team-marketplace";
 export * from "./feedback";

@@ -7,6 +7,7 @@ import type { AgentRunInput, AgentUserInputRequester } from "./runtime-types";
 import type { BuildSpawnSubagentToolInput } from "./subagent-types";
 import type { PortableToolSchemaProfile } from "./portable-tool-schema";
 import { createLibraryManagementRuntime } from "./library-management-runtime";
+import { createTeamManagementRuntime } from "./team-management-runtime";
 import { createMaterialQueryRunner } from "./material-query-runtime";
 import { buildLibraryAgentTools } from "./library-agent-tools";
 import {
@@ -175,6 +176,7 @@ export function buildRunTools(
     input,
     mainWebSearch ? { webSearch: mainWebSearch } : {}
   );
+  const teamManagement = createTeamManagementRuntime(input, requestUserInput);
   let tools: AgentTool[] = subagentAuthoring
     ? withWebSearchTool(
         buildSubagentAuthoringTools(subagentAuthoring),
@@ -221,9 +223,13 @@ export function buildRunTools(
       requestUserInput,
       definitions: [
         ...(input.subagentDefinitions ?? []),
-        ...management.definitions
+        ...management.definitions,
+        ...teamManagement.definitions
       ],
-      prepareChild: management.prepareChild,
+      prepareChild: (definition, libraryId, signal) =>
+        definition.toolSource === "team-management"
+          ? teamManagement.prepareChild(definition)
+          : management.prepareChild(definition, libraryId, signal),
       getParentMessages: options.getParentMessages,
       ...(childContextPolicy ? { contextPolicy: childContextPolicy } : {}),
       materialContext: buildSubagentMaterialContext(input),

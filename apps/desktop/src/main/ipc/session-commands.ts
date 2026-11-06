@@ -2,6 +2,7 @@ import { acquireConversationOperation } from "./conversation-operation-guard";
 import { createId } from "@deepwrite/shared";
 import { resolveAgentTeamRuntime } from "../agent-team-run-mode";
 import { prepareLibraryManagementRunContext } from "../library-management-run-context";
+import { prepareTeamManagementRunContext } from "../team-management-run-context";
 import { prepareMaterialRunContext } from "../material-run-context";
 import {
   CommandEnvelopeSchema,
@@ -163,6 +164,10 @@ export async function handleSessionCommands(
         ctx.requireLibraryAgentConfigStore(),
         (query) => ctx.supervisor.requestCommand("core", query, 60_000)
       );
+      const teamManagement = await prepareTeamManagementRunContext(
+        command.payload.workspaceContext,
+        ctx.requireAgentTeamConfigStore()
+      );
       const materialWorkspaceContext = await prepareMaterialRunContext(
         {
           workspaceContext: command.payload.workspaceContext,
@@ -178,6 +183,7 @@ export async function handleSessionCommands(
           {
             ...promptPayload,
             ...(libraryManagement ? { libraryManagement } : {}),
+            ...(teamManagement ? { teamManagement } : {}),
             ...(materialWorkspaceContext
               ? { workspaceContext: materialWorkspaceContext }
               : {}),
@@ -253,6 +259,9 @@ export async function handleSessionCommands(
             runtime: accepted.runtime,
             accepted: true,
             promptRequestId: internalCommand.id,
+            ...(teamManagement
+              ? { teamManagementScope: teamManagement.scope }
+              : {}),
             ...(libraryManagement
               ? { libraryManagementScope: libraryManagement.scope }
               : {}),

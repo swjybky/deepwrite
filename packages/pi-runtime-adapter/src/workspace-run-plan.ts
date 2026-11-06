@@ -9,6 +9,7 @@ import { conversationAgentKey } from "./conversation-agent-rebuild";
 import { buildLocalThinking, buildLocalWritingResponse } from "./faux-local";
 import type { AgentRunPlan } from "./kernel/run-plan";
 import { libraryManagementParentPrompt } from "./library-management-runtime";
+import { teamManagementParentPrompt } from "./team-management-runtime";
 import { resolvePortableToolSchemaProfile } from "./portable-tool-schema";
 import { buildLongRuntimeToolBoundary } from "./prompts-long";
 import {
@@ -86,6 +87,7 @@ export function planWorkspaceRun(
         systemPrompt: [
           buildEffectiveSystemPrompt(options.basePrompt, input),
           libraryManagementParentPrompt(input),
+          teamManagementParentPrompt(input),
           input.longAgentProfile && input.workspaceContext?.longWorkspace
             ? buildLongRuntimeToolBoundary(tools)
             : ""

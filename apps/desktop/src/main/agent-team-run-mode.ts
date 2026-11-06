@@ -7,6 +7,10 @@ import {
   type WorkspaceAgentId
 } from "@deepwrite/contracts";
 import { assertModelRunSettings } from "./model-run-settings";
+import { ModelNotFoundError } from "./model-config-errors";
+
+const missingTeamModelMessage =
+  "智能体团队成员配置模型不存在，请检查团队配置。";
 
 export interface AgentTeamRunTarget {
   workspaceType: AgentTeamWorkspaceType;
@@ -60,21 +64,23 @@ export async function resolveAgentTeamRuntime(
   }
 
   const subagentRuntimeConfigs: Record<string, AgentProviderRuntimeConfig> = {};
-  const resolveCustomModel = async (
-    owner: string,
-    settings: {
-      modelId: string;
-      thinkingLevel: ShortAgentSubagentDefinition["thinkingLevel"];
-      temperature: ShortAgentSubagentDefinition["temperature"];
-    }
-  ): Promise<void> => {
+  const resolveCustomModel = async (settings: {
+    modelId: string;
+    thinkingLevel: ShortAgentSubagentDefinition["thinkingLevel"];
+    temperature: ShortAgentSubagentDefinition["temperature"];
+  }): Promise<void> => {
     const resolved =
       subagentRuntimeConfigs[settings.modelId] ??
-      (await dependencies.resolveModel(settings.modelId));
+      (await dependencies
+        .resolveModel(settings.modelId)
+        .catch((error: unknown) => {
+          if (error instanceof ModelNotFoundError) {
+            throw new Error(missingTeamModelMessage);
+          }
+          throw error;
+        }));
     if (!resolved) {
-      throw new Error(
-        `团队智能体有未知模型配置：${owner}选择的模型已不存在，请在“智能体团队”中重新选择模型。`
-      );
+      throw new Error(missingTeamModelMessage);
     }
     assertModelRunSettings(resolved, {
       thinkingLevel: settings.thinkingLevel,
@@ -84,7 +90,7 @@ export async function resolveAgentTeamRuntime(
   };
   for (const definition of subagentDefinitions) {
     if (definition.modelMode === "custom" && definition.modelId) {
-      await resolveCustomModel(`子智能体「${definition.name}」`, {
+      await resolveCustomModel({
         modelId: definition.modelId,
         thinkingLevel: definition.thinkingLevel,
         temperature: definition.temperature
@@ -97,7 +103,7 @@ export async function resolveAgentTeamRuntime(
       evaluator?.modelMode === "custom" &&
       evaluator.modelId
     ) {
-      await resolveCustomModel(`子智能体「${definition.name}」的评估助手`, {
+      await resolveCustomModel({
         modelId: evaluator.modelId,
         thinkingLevel: evaluator.thinkingLevel,
         temperature: evaluator.temperature

@@ -1,5 +1,7 @@
 export default {
   howTeamsApply: "团队如何生效",
+  expand: "展开",
+  collapse: "收起",
   byDefaultTitle: "默认：使用启用的团队",
   byDefaultBody:
     "短篇、剧本、长篇各启用一个团队。没有绑定团队的作品，在团队模式下都使用它。",

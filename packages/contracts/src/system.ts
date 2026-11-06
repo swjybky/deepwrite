@@ -32,6 +32,10 @@ import {
   DeviceSyncConversationsChangedEventEnvelopeSchema
 } from "./device-sync-conversation-commands";
 import { AgentTeamsSaveBuiltinsCommandEnvelopeSchema } from "./builtin-subagents";
+import {
+  AgentTeamPromptSavedEventEnvelopeSchema,
+  TeamManagementCommandSchemas
+} from "./agent-team-management";
 import { CatalogQueryLibraryManagementCommandEnvelopeSchema } from "./library-management";
 import { z } from "zod";
 import {
@@ -352,6 +356,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   LongBookAnalysisLoadSourceCommandEnvelopeSchema,
   LongBookAnalysisDeleteSourceCommandEnvelopeSchema,
   AgentTeamsSaveBuiltinsCommandEnvelopeSchema,
+  ...TeamManagementCommandSchemas,
   CatalogQueryLibraryManagementCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
   AgentTeamsCreateCommandEnvelopeSchema,
@@ -437,6 +442,7 @@ export const SystemNotificationBlockedEventEnvelopeSchema =
   });
 
 export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
+  AgentTeamPromptSavedEventEnvelopeSchema,
   ExternalControlResourceChangedEventEnvelopeSchema,
   ExternalControlWindowRequestEventEnvelopeSchema,
   BookIdentityUpdatedEventEnvelopeSchema,
@@ -500,6 +506,7 @@ export type SystemNotificationBlockedEventEnvelope = Envelope<
   "system.notification_blocked"
 >;
 export type SystemEventEnvelope =
+  | z.infer<typeof AgentTeamPromptSavedEventEnvelopeSchema>
   | z.infer<typeof ExternalControlResourceChangedEventEnvelopeSchema>
   | z.infer<typeof ExternalControlWindowRequestEventEnvelopeSchema>
   | BookIdentityUpdatedEventEnvelope

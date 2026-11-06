@@ -15,6 +15,9 @@ const BUILTIN_SUBAGENT_NAMES = {
   },
   get material() {
     return t("materialManager");
+  },
+  get team() {
+    return t("teamManager");
   }
 };
 
@@ -22,7 +25,7 @@ const props = defineProps<{
   settings: BuiltinSubagentSettings;
   disabled?: boolean;
 }>();
-const domains = ["skill", "material"] as const;
+const domains = ["skill", "material", "team"] as const;
 type Domain = (typeof domains)[number];
 const editing = ref<Domain | null>(null);
 const draft = ref(defaultBuiltinSubagentSettings());

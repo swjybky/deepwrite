@@ -104,7 +104,10 @@ export class AgentRunKernel {
               source: request.source,
               questions: request.questions,
               ...(request.draw ? { draw: request.draw } : {}),
-              runtime
+              runtime,
+              ...(request.promptReview
+                ? { promptReview: request.promptReview }
+                : {})
             }
           });
           return await response;

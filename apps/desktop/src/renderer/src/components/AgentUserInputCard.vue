@@ -15,6 +15,7 @@ import type {
   AgentUserInputRequestedPayload
 } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
+import AgentTeamPromptReview from "./AgentTeamPromptReview.vue";
 
 const t = createScopedTranslator("components.agentUserInputCard");
 
@@ -251,6 +252,7 @@ function recommended(label: string): boolean {
 <template>
   <section
     class="agent-user-input-card"
+    :class="{ 'is-prompt-review': !!request.promptReview }"
     :aria-label="
       request.source === 'cross_stage_write'
         ? t('confirmOperationAcrossStages')
@@ -271,6 +273,11 @@ function recommended(label: string): boolean {
     </header>
 
     <div class="agent-user-input-questions" @scroll.passive="hideOptionDetail">
+      <AgentTeamPromptReview
+        v-if="request.promptReview"
+        :review="request.promptReview"
+        :request-id="request.requestId"
+      />
       <fieldset
         v-for="question in visibleQuestions"
         :key="question.id"

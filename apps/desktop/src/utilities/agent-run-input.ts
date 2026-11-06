@@ -6,7 +6,8 @@ import type {
   AgentRunInput,
   LongCommandExecutor,
   LibraryManagementCommandExecutor,
-  MaterialCommandExecutor
+  MaterialCommandExecutor,
+  TeamManagementCommandExecutor
 } from "@deepwrite/pi-runtime-adapter";
 import type { UtilityCommandHandlerContext } from "./runtime";
 
@@ -23,7 +24,8 @@ export function createCoreCommandExecutor(
   command:
     | Parameters<LongCommandExecutor>[0]
     | Parameters<MaterialCommandExecutor>[0]
-    | Parameters<LibraryManagementCommandExecutor>[0],
+    | Parameters<LibraryManagementCommandExecutor>[0]
+    | Parameters<TeamManagementCommandExecutor>[0],
   signal?: AbortSignal
 ) => Promise<CommandResult> {
   return (command, signal) => {
@@ -127,6 +129,12 @@ export function createAgentRunInput(
       ? {
           libraryManagement: payload.libraryManagement,
           libraryManagementCommandExecutor: createCoreCommandExecutor(context)
+        }
+      : {}),
+    ...(payload.teamManagement && context
+      ? {
+          teamManagement: payload.teamManagement,
+          teamManagementCommandExecutor: createCoreCommandExecutor(context)
         }
       : {}),
     ...(payload.libraryAgentProfile

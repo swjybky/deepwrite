@@ -15,10 +15,13 @@ export function i18nResourcesPlugin(messagesDirectory: string): Plugin {
   let catalogPromise: Promise<MessageTree> | undefined;
   let development = false;
   let invalidateClient: (() => void) | undefined;
-  const watchedPaths = new Set<string>();
+  let watchedPaths = new Set<string>();
 
-  async function readModule(path: string): Promise<MessageTree> {
-    watchedPaths.add(path);
+  async function readModule(
+    path: string,
+    paths: Set<string>
+  ): Promise<MessageTree> {
+    paths.add(path);
     const source = ts.createSourceFile(
       path,
       await readFile(path, "utf8"),
@@ -35,7 +38,8 @@ export function i18nResourcesPlugin(messagesDirectory: string): Plugin {
         imports.set(
           statement.importClause.name.text,
           await readModule(
-            resolve(dirname(path), `${statement.moduleSpecifier.text}.ts`)
+            resolve(dirname(path), `${statement.moduleSpecifier.text}.ts`),
+            paths
           )
         );
       }
@@ -90,15 +94,33 @@ export function i18nResourcesPlugin(messagesDirectory: string): Plugin {
     throw new Error(`No static message export in ${path}`);
   }
 
-  const catalog = () =>
-    (catalogPromise ??= readModule(resolve(messagesDirectory, "index.ts")));
+  function catalog(): Promise<MessageTree> {
+    if (catalogPromise) return catalogPromise;
+    // Each read owns its dependencies; deleted files must not survive a reload.
+    watchedPaths = new Set<string>();
+    const pending = readModule(
+      resolve(messagesDirectory, "index.ts"),
+      watchedPaths
+    ).catch((error: unknown) => {
+      // A checkout can temporarily leave imports and files out of sync.
+      if (catalogPromise === pending) catalogPromise = undefined;
+      throw error;
+    });
+    catalogPromise = pending;
+    return pending;
+  }
   return {
     name: "deepwrite-locale-resources",
     configResolved(config) {
       development = config.command === "serve";
     },
     configureServer(server) {
-      invalidateClient = () => server.ws.send({ type: "full-reload" });
+      invalidateClient = () => {
+        const graph = server.environments.client.moduleGraph;
+        const module = graph.getModuleById(resolvedId);
+        if (module) graph.invalidateModule(module);
+        server.ws.send({ type: "full-reload" });
+      };
       server.middlewares.use((request, response, next) => {
         const locale = locales.find(
           (language) => request.url === `/@deepwrite-locales/${language}.json`

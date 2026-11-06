@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { ref, useId } from "vue";
 import { createScopedTranslator } from "../i18n";
+import AppIcon from "./AppIcon.vue";
 
 const t = createScopedTranslator("components.agentTeamBindingGuide");
+const expanded = ref(false);
+const titleId = useId();
+const contentId = useId();
 const rules = [
   { title: "byDefaultTitle", body: "byDefaultBody" },
   { title: "bookBindingTitle", body: "bookBindingBody" },
@@ -11,9 +16,26 @@ const rules = [
 </script>
 
 <template>
-  <section class="binding-guide" aria-labelledby="team-binding-guide-title">
-    <h3 id="team-binding-guide-title">{{ t("howTeamsApply") }}</h3>
-    <dl>
+  <section class="binding-guide" :aria-labelledby="titleId">
+    <header class="binding-guide-header">
+      <h3 :id="titleId">{{ t("howTeamsApply") }}</h3>
+      <button
+        type="button"
+        class="binding-guide-toggle"
+        :aria-expanded="expanded"
+        :aria-controls="contentId"
+        @click="expanded = !expanded"
+      >
+        {{ expanded ? t("collapse") : t("expand") }}
+        <AppIcon
+          class="binding-guide-chevron"
+          :class="{ 'is-open': expanded }"
+          name="chevron"
+          :size="14"
+        />
+      </button>
+    </header>
+    <dl v-if="expanded" :id="contentId">
       <div v-for="rule in rules" :key="rule.title">
         <dt>{{ t(rule.title) }}</dt>
         <dd>{{ t(rule.body) }}</dd>
@@ -32,10 +54,44 @@ const rules = [
   border-radius: 12px;
   background: var(--surface-raised);
 }
+.binding-guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .binding-guide h3 {
   margin: 0;
   font-size: 1rem;
   font-weight: 650;
+}
+.binding-guide-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.857143rem;
+  cursor: pointer;
+}
+.binding-guide-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.binding-guide-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+.binding-guide-chevron {
+  transition: transform 150ms ease;
+}
+.binding-guide-chevron.is-open {
+  transform: rotate(90deg);
 }
 .binding-guide dl {
   display: grid;

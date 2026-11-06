@@ -45,6 +45,7 @@ const diskIntegrationTests = [
   "apps/desktop/src/main/appearance-service.test.ts",
   "apps/desktop/src/main/book-template-store.test.ts",
   "apps/desktop/src/main/builtin-subagent-config.test.ts",
+  "apps/desktop/src/main/team-management.integration.test.ts",
   "apps/desktop/src/main/deepwrite-free-model-config.test.ts",
   "apps/desktop/src/main/deepwrite-site-official-model-store.test.ts",
   "apps/desktop/src/main/external-library-import.test.ts",

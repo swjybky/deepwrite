@@ -122,7 +122,8 @@ function harness(savedPrompt = legacyPrompt) {
       list: async () => ({
         builtinSubagents: {
           skill: { enabled: false, description: "" },
-          material: { enabled: false, description: "" }
+          material: { enabled: false, description: "" },
+          team: { enabled: false, description: "团队管理" }
         }
       })
     }),

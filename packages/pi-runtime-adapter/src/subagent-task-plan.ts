@@ -167,7 +167,9 @@ export function planSubagentTasks(
       task,
       ...(libraryId ? { libraryId } : {}),
       dependsOn: stringList(raw.depends_on, "depends_on", key),
-      ...(libraryManager ? { exclusive: true } : {}),
+      ...(libraryManager || definition.toolSource === "team-management"
+        ? { exclusive: true }
+        : {}),
       ...(draw ? { draw } : {})
     };
   });

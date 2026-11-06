@@ -3,6 +3,8 @@ import {
   type BuiltinSubagentSettings
 } from "@deepwrite/contracts";
 import { join } from "node:path";
+import { applyActiveTeamPrompt } from "./agent-team-prompt-management";
+import type { AgentTeamPromptChange } from "@deepwrite/contracts";
 import {
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
   AgentTeamBookBindingInputSchema,
@@ -189,6 +191,19 @@ export class AgentTeamConfigStore {
         await readAgentTeamBookBindings(this.bookBindingsPath)
       )
     );
+  }
+
+  async applyActivePrompt(
+    input: AgentTeamPromptChange
+  ): Promise<AgentTeamCatalogSnapshot> {
+    return this.queue(async () => {
+      const snapshot = await this.readSnapshot();
+      const bindings = await readAgentTeamBookBindings(this.bookBindingsPath);
+      applyActiveTeamPrompt(snapshot, bindings, input);
+      const parsed = AgentTeamCatalogSnapshotSchema.parse(snapshot);
+      await this.writeSnapshot(parsed);
+      return this.withBookBindings(parsed, bindings);
+    });
   }
 
   async create(

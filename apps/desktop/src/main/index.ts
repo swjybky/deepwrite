@@ -159,6 +159,8 @@ import {
   registerCoverScheme
 } from "../extras/book-identity/cover-protocol";
 import { handleBookIdentitySubmission } from "../extras/book-identity/submit-bridge";
+import { handleTeamManagementCommand } from "./team-management-bridge";
+import { teamPromptReviews } from "./team-prompt-reviews";
 import { handleVoiceCommands } from "./ipc/voice-commands";
 import {
   installVoicePermissions,
@@ -520,12 +522,15 @@ function handleUtilityEvent(
   const validated = SystemEventEnvelopeSchema.parse(
     event
   ) as SystemEventEnvelope;
+  if (validated.type === "agent.user_input_requested")
+    teamPromptReviews.receive(validated.payload);
   if (validated.type === "decomposition.job_settled") {
     // Only Core reports task state; Main turns it into a notification.
     if (worker === "core") taskNotifier.notifyJobEvent(validated);
     return;
   }
   if (validated.type === "agent.run_drained") {
+    teamPromptReviews.clear(validated.payload.runId);
     releaseDrainedAgentRun(
       activeRuns,
       pendingUsageContexts,
@@ -634,6 +639,7 @@ function handleUnexpectedExit(worker: UtilityWorkerName, reason: string): void {
         decompositionJobId: run.decompositionJobId,
         previouslyTerminal: terminalRuns.has(runId)
       });
+      teamPromptReviews.clear(runId);
       rememberTerminalRun(runId);
       smokeEventTap?.(event);
       broadcastEvent(event);
@@ -678,7 +684,23 @@ const supervisor: UtilitySupervisor = new UtilitySupervisor({
   },
   internalCommandAuthorize: (context) =>
     authorizeMainInternalCommand(context, activeRuns),
-  internalCommandHandle: (context) =>
+  internalCommandHandle: async (context) =>
+    (await handleTeamManagementCommand(
+      context,
+      activeRuns,
+      requireAgentTeamConfigStore,
+      (teamId) => {
+        broadcastEvent(
+          SystemEventEnvelopeSchema.parse(
+            createEnvelope(
+              "agentTeams.prompt_saved",
+              { teamId },
+              { id: createId("evt") }
+            )
+          )
+        );
+      }
+    )) ??
     handleBookIdentitySubmission(context, activeRuns, (command) =>
       supervisor.requestCommand("core", command, 60_000)
     )
@@ -1266,6 +1288,9 @@ function registerIpc(): void {
         command.type === "agent.steer" ||
         command.type === "agent.model_test" ||
         command.type === "agent.model_capacity" ||
+        command.type === "agentTeams.listActivePrompts" ||
+        command.type === "agentTeams.readActivePrompt" ||
+        command.type === "agentTeams.applyActivePrompt" ||
         command.type === "catalog.createShortBookAtPath" ||
         command.type === "catalog.createScriptBookAtPath" ||
         command.type === "long.createBookAtPath" ||

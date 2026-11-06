@@ -102,12 +102,13 @@ const selectionActive = computed(
   () => props.activePrimaryFeature === undefined
 );
 provide(SIDEBAR_SELECTION_ACTIVE, selectionActive);
-useSidebarSelectionReveal({
+const { revealSelection } = useSidebarSelectionReveal({
   selectedId: () => props.selectedId,
   sections: () => props.sections,
   selectionActive,
   scroller: sidebarScroll
 });
+defineExpose({ revealSelection });
 function handleSidebarScroll(event: Event): void {
   const element = event.currentTarget;
   if (element instanceof HTMLElement) sidebarScrollbar.reveal(element);

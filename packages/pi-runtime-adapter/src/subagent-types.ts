@@ -32,10 +32,10 @@ export type RuntimeSubagentDefinition = Omit<
   "id" | "agentMode"
 > & {
   id: string;
-  /** Absent means `standard`; library managers are always `standard`. */
+  /** Absent means `standard`; built-in managers are always `standard`. */
   agentMode?: SubagentAgentMode;
   contextMode?: "isolated" | "parent-snapshot";
-  toolSource?: "writing" | "library-management";
+  toolSource?: "writing" | "library-management" | "team-management";
 };
 export interface AgentToolExecutionHooks {
   beforeToolCall?: (
@@ -82,7 +82,7 @@ export interface SubagentTaskRequest {
   task: string;
   libraryId?: string;
   dependsOn: string[];
-  /** Library managers own their tools and never run beside another task. */
+  /** Built-in managers own their tools and never run beside another task. */
   exclusive?: boolean;
   /** Present when the task runs as a draw; otherwise one ordinary run. */
   draw?: SubagentDrawPlan;

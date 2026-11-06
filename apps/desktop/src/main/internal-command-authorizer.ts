@@ -20,6 +20,9 @@ export const AGENT_CORE_QUERY_COMMANDS = [
   ...AGENT_CORE_LONG_QUERY_COMMANDS,
   "catalog.queryMaterials",
   "catalog.queryLibraryManagement",
+  "agentTeams.listActivePrompts",
+  "agentTeams.readActivePrompt",
+  "agentTeams.applyActivePrompt",
   "longBookDecomposition.query",
   "longBookDecomposition.submitUnit",
   "longBookDecomposition.planTopic",
@@ -42,6 +45,7 @@ export interface MainInternalCommandActiveRun {
   bookIdentity?: BookIdentityRunRegistration;
   materialScope?: MaterialReadScope;
   libraryManagementScope?: LibraryManagementScope;
+  teamManagementScope?: LibraryManagementScope;
   decompositionJobId?: string;
   decompositionOutputVersion?: number;
   decompositionAttemptId?: string;
@@ -72,6 +76,33 @@ export function authorizeMainInternalCommand(
       "main.invalid_bridge_route",
       "Only Agent-to-Core internal commands are authorized."
     );
+  }
+  if (
+    message.command.type === "agentTeams.listActivePrompts" ||
+    message.command.type === "agentTeams.readActivePrompt" ||
+    message.command.type === "agentTeams.applyActivePrompt"
+  ) {
+    const command = message.command;
+    const run = command.context.runId
+      ? activeRuns.get(command.context.runId)
+      : undefined;
+    const scope = run?.teamManagementScope;
+    if (
+      !run?.accepted ||
+      !scope ||
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId ||
+      command.context.sessionId !== run.sessionId ||
+      command.context.resourceId !== scope.bookId ||
+      command.payload.scope.bookId !== scope.bookId ||
+      command.payload.scope.bookType !== scope.bookType
+    ) {
+      return denied(
+        "main.team_management_not_authorized",
+        "团队提示词管理必须属于 Main 接受的当前作品与运行。"
+      );
+    }
+    return true;
   }
   if (message.command.type === "bookIdentity.submitRound") {
     const command = message.command;

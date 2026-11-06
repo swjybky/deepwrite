@@ -4,6 +4,7 @@ import type {
   ShortAgentSubagentDefinition
 } from "@deepwrite/contracts";
 import { resolveAgentTeamRuntime } from "./agent-team-run-mode";
+import { ModelNotFoundError } from "./model-config-errors";
 
 const inheritedMember: ShortAgentSubagentDefinition = {
   id: "researcher",
@@ -154,5 +155,50 @@ describe("agent team run mode", () => {
         }
       )
     ).rejects.toThrow("没有已启用且含可用成员的团队");
+  });
+
+  it.each(["missing", "rejected"])(
+    "points to team settings when a member model is %s",
+    async (result) => {
+      await expect(
+        resolveAgentTeamRuntime(
+          "team",
+          { workspaceType: "long", parentAgentId: "long" },
+          {
+            resolveDefinitions: async () => [
+              {
+                ...inheritedMember,
+                modelMode: "custom",
+                modelId: "deleted-model"
+              }
+            ],
+            resolveModel: async () => {
+              if (result === "rejected") throw new ModelNotFoundError();
+              return undefined;
+            }
+          }
+        )
+      ).rejects.toThrow("智能体团队成员配置模型不存在，请检查团队配置。");
+    }
+  );
+
+  it("preserves model resolution errors unrelated to a missing model", async () => {
+    const error = new Error(
+      "模型 API Key 解密失败，请在模型配置中重新填写并保存。"
+    );
+    await expect(
+      resolveAgentTeamRuntime(
+        "team",
+        { workspaceType: "long", parentAgentId: "long" },
+        {
+          resolveDefinitions: async () => [
+            { ...inheritedMember, modelMode: "custom", modelId: "model" }
+          ],
+          resolveModel: async () => {
+            throw error;
+          }
+        }
+      )
+    ).rejects.toBe(error);
   });
 });

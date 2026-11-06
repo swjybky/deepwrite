@@ -1,8 +1,6 @@
 export default {
   weChatDonation: "微信赞赏",
   scanWithWeChat: "打开微信扫一扫",
-  alipay: "支付宝",
-  scanWithAlipay: "打开支付宝扫一扫",
   supportTheAuthor: "赞赏作者",
   closeSupportDialog: "关闭赞赏作者",
   donationsSupportDeepWriteSServersMaintenanceDevelopmentAndUsability:

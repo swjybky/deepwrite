@@ -20,6 +20,15 @@
   line-height: 1.45;
 }
 
+.agent-user-input-card.is-prompt-review {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.is-prompt-review > .agent-user-input-questions {
+  min-height: 0;
+}
+
 .agent-user-input-heading,
 .agent-user-input-option,
 .agent-user-input-actions,

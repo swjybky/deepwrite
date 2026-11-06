@@ -254,6 +254,9 @@ export function toEventEnvelope(
         source: event.payload.source,
         questions: event.payload.questions,
         ...(event.payload.draw ? { draw: event.payload.draw } : {}),
+        ...(event.payload.promptReview
+          ? { promptReview: event.payload.promptReview }
+          : {}),
         runtime: event.payload.runtime
       },
       { id: createId("evt"), context }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentRuntimeRefSchema } from "./agent-event-identity";
+import { AgentTeamPromptReviewSchema } from "../agent-team-management";
 import {
   SUBAGENT_DRAW_MAX_COUNT,
   SUBAGENT_DRAW_MIN_COUNT,
@@ -12,7 +13,8 @@ export const AGENT_USER_INPUT_MAX_OPTIONS = 5;
 export const AgentUserInputSourceSchema = z.enum([
   "ask_user_question",
   "cross_stage_write",
-  "subagent_draw"
+  "subagent_draw",
+  "agent_team_prompt"
 ]);
 export type AgentUserInputSource = z.infer<typeof AgentUserInputSourceSchema>;
 
@@ -166,10 +168,21 @@ export const AgentUserInputRequestedPayloadSchema = z
     questions: AgentUserInputQuestionsSchema,
     /** Present exactly when `source` is `subagent_draw`. */
     draw: AgentUserInputDrawSchema.optional(),
+    promptReview: AgentTeamPromptReviewSchema.optional(),
     runtime: AgentRuntimeRefSchema
   })
   .strict()
   .superRefine((value, context) => {
+    if (
+      (value.source === "agent_team_prompt") !==
+      (value.promptReview !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["promptReview"],
+        message: "Team prompt changes require a dedicated review request."
+      });
+    }
     if ((value.source === "subagent_draw") !== (value.draw !== undefined)) {
       context.addIssue({
         code: "custom",

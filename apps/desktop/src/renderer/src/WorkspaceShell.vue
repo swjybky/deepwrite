@@ -150,6 +150,7 @@ const {
 // Keep the workspace unselected on launch. A resource ID is set only after the
 // user explicitly opens a book or another resource from the tree.
 const selectedResourceId = ref("");
+const leftSidebar = ref<InstanceType<typeof LeftSidebar> | null>(null);
 const activeCreationResourceId = ref("");
 // Catalog documents are immutable snapshots replaced as a unit. Avoid creating
 // deep reactive proxies for every document body in a potentially large library.
@@ -1623,39 +1624,37 @@ const currentAgentActivityView = useCurrentAgentActivityView({
   longSelection: activeLongSelection,
   longRoot: activeLongRoot
 });
+const activityContext = computed(() => ({
+  documents: documents.value,
+  resourceTree: resourceTreeLookup.value,
+  workspaceAgents: workspaceAgentSettings.value,
+  longAgents: longAgentSettings.value,
+  libraryAgents: libraryAgentSettings.value,
+  longBooks: longBooks.value
+}));
 const agentActivity = useAgentActivityCoordinator({
   controllers: conversationControllers,
   scopesByKey: conversationScopesByKey,
   registryRevision: controllerRegistryRevision,
   currentView: currentAgentActivityView,
   resolveDescriptor: (conversationKey) =>
-    resolveAgentActivityDescriptor(conversationKey, {
-      documents: documents.value,
-      resourceTree: resourceTreeLookup.value,
-      workspaceAgents: workspaceAgentSettings.value,
-      longAgents: longAgentSettings.value,
-      libraryAgents: libraryAgentSettings.value,
-      longBooks: longBooks.value
-    }),
+    resolveAgentActivityDescriptor(conversationKey, activityContext.value),
   async navigate(item) {
-    const node = resolveAgentActivityNavigationNode(item, {
-      documents: documents.value,
-      resourceTree: resourceTreeLookup.value,
-      workspaceAgents: workspaceAgentSettings.value,
-      longAgents: longAgentSettings.value,
-      libraryAgents: libraryAgentSettings.value,
-      longBooks: longBooks.value
-    });
+    const node = resolveAgentActivityNavigationNode(
+      item,
+      activityContext.value
+    );
     if (!node) return "missing";
     await selectResource(node);
     if (item.chapterCardId) {
       await selectLongChapterCardTab(item.chapterCardId);
     }
-    return selectedResourceId.value === node.id ||
+    const navigated =
+      selectedResourceId.value === node.id ||
       (item.chapterCardId !== undefined &&
-        activeLongSelection.value?.chapterCardId === item.chapterCardId)
-      ? "navigated"
-      : "blocked";
+        activeLongSelection.value?.chapterCardId === item.chapterCardId);
+    if (navigated) await leftSidebar.value?.revealSelection();
+    return navigated ? "navigated" : "blocked";
   },
   notifications: uiMessage
 });
@@ -2497,6 +2496,7 @@ onBeforeUnmount(() => {
   >
     <LeftSidebar
       v-if="!leftCollapsed"
+      ref="leftSidebar"
       :sections="resourceTreeSections"
       :selected-id="selectedResourceId"
       :more-features-settings="generalSettings.moreFeatures"

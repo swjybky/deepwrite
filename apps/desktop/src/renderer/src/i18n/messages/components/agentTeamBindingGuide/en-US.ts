@@ -1,5 +1,7 @@
 export default {
   howTeamsApply: "How teams apply",
+  expand: "Expand",
+  collapse: "Collapse",
   byDefaultTitle: "By default: the enabled team",
   byDefaultBody:
     "Short stories, screenplays, and novels each have one enabled team. In team mode, every book without a team link uses it.",

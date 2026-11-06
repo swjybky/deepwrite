@@ -1,8 +1,11 @@
 import type {
+  TeamManagementRuntimeContext,
+  AgentTeamPromptReview,
   LibraryManagementRuntimeContext,
   LibraryManagementScope
 } from "@deepwrite/contracts";
 import type { LibraryManagementCommandExecutor } from "./library-management-runtime";
+import type { TeamManagementCommandExecutor } from "./team-management-runtime";
 import type {
   AgentContextCompactionPayload,
   AgentEvaluationSnapshot,
@@ -74,6 +77,8 @@ export interface AgentRunInput {
   libraryAgentProfile?: LibraryAgentProfile;
   libraryManagement?: LibraryManagementRuntimeContext;
   libraryManagementCommandExecutor?: LibraryManagementCommandExecutor;
+  teamManagement?: TeamManagementRuntimeContext;
+  teamManagementCommandExecutor?: TeamManagementCommandExecutor;
   workspaceContext?: WorkspaceRuntimeContext;
   /**
    * Narrow Agent Utility -> Core query bridge for the active long-form book.
@@ -96,6 +101,7 @@ export interface AgentUserInputRequest {
   questions: AgentUserInputQuestion[];
   /** Candidates of a `subagent_draw` request. */
   draw?: AgentUserInputDraw;
+  promptReview?: AgentTeamPromptReview;
 }
 
 export type AgentUserInputRequester = (
@@ -257,6 +263,7 @@ export type AgentRuntimeEvent =
         source: AgentUserInputSource;
         questions: AgentUserInputQuestion[];
         draw?: AgentUserInputDraw;
+        promptReview?: AgentTeamPromptReview;
         runtime: AgentRuntimeRef;
       };
     }
