@@ -30,18 +30,30 @@ function createHarness() {
     scrollTop: 400,
     contains: () => true,
     getBoundingClientRect: () => ({ top: 100, height: 200 }),
-    querySelector: vi.fn(() => selected)
+    querySelector: vi.fn(
+      (): {
+        getBoundingClientRect: () => { top: number; height: number };
+      } | null => selected
+    )
   };
   const scope = effectScope();
-  scope.run(() =>
+  const api = scope.run(() =>
     useSidebarSelectionReveal({
       selectedId: () => selectedId.value,
       sections: () => sections.value,
       selectionActive,
       scroller: shallowRef(scroller as unknown as HTMLElement)
     })
-  );
-  return { selectedId, selectionActive, sections, scroller, scope };
+  )!;
+  return {
+    selectedId,
+    selectionActive,
+    sections,
+    scroller,
+    selected,
+    scope,
+    api
+  };
 }
 
 async function flushReveal(): Promise<void> {
@@ -117,6 +129,59 @@ describe("useSidebarSelectionReveal", () => {
       harness.selectionActive.value = false;
       await flushReveal();
       expect(harness.scroller.scrollTop).toBe(400);
+    } finally {
+      harness.scope.stop();
+    }
+  });
+
+  it("centers after a preferred agent-activity jump even when the row was already visible", async () => {
+    const harness = createHarness();
+    try {
+      harness.api.preferCenteredReveal();
+      harness.selectedId.value = "character-b";
+      await flushReveal();
+      expect(harness.scroller.scrollTop).toBe(235);
+    } finally {
+      harness.scope.stop();
+    }
+  });
+
+  it("waits for a delayed selected row and ignores an older reveal target", async () => {
+    const harness = createHarness();
+    try {
+      let visibleId: string | null = null;
+      harness.scroller.querySelector.mockImplementation(() =>
+        visibleId === harness.selectedId.value ? harness.selected : null
+      );
+
+      harness.api.preferCenteredReveal();
+      harness.selectedId.value = "character-b";
+      const firstReveal = harness.api.revealSelection();
+      await nextTick();
+      await nextTick();
+      expect(harness.scroller.scrollTop).toBe(400);
+
+      harness.api.preferCenteredReveal();
+      harness.selectedId.value = "character-a";
+      const secondReveal = harness.api.revealSelection();
+      await nextTick();
+      visibleId = "character-a";
+      await firstReveal;
+      await secondReveal;
+      expect(harness.scroller.scrollTop).toBe(235);
+    } finally {
+      harness.scope.stop();
+    }
+  });
+
+  it("lets an authoritative center reveal win over the nearest watch", async () => {
+    const harness = createHarness();
+    try {
+      harness.api.preferCenteredReveal();
+      harness.selectedId.value = "character-b";
+      await nextTick();
+      await harness.api.revealSelection();
+      expect(harness.scroller.scrollTop).toBe(235);
     } finally {
       harness.scope.stop();
     }

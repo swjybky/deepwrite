@@ -15,6 +15,16 @@ describe("agent activity floating panel", () => {
     expect(rendererStyles).toContain(".agent-activity-panel {");
     expect(rendererStyles).toContain("position: absolute;");
     expect(rendererStyles).toContain("max-height: min(40vh, 420px);");
+    expect(rendererStyles).toContain(
+      "grid-template-rows: auto minmax(0, 1fr);"
+    );
+    const listStart = rendererStyles.indexOf(".agent-activity-list {");
+    const listEnd = rendererStyles.indexOf("}", listStart);
+    const listStyles = rendererStyles.slice(listStart, listEnd);
+    expect(listStyles).toContain("min-height: 0;");
+    expect(listStyles).toContain("overflow-y: auto;");
+    expect(listStyles).toContain("overscroll-behavior: contain;");
+    expect(panelSource).toContain("@wheel.stop");
   });
 
   it("adds a persistent header toggle and a collapsed activity badge", () => {
@@ -44,6 +54,10 @@ describe("agent activity floating panel", () => {
     );
     expect(workspaceSource).toContain(
       "selectLongChapterCardTab(item.chapterCardId)"
+    );
+    expect(workspaceSource).toContain("preferCenteredReveal()");
+    expect(workspaceSource).toContain(
+      "await leftSidebar.value?.revealSelection()"
     );
     expect(workspaceSource).toContain('return "missing"');
   });

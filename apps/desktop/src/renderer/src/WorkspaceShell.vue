@@ -1645,15 +1645,15 @@ const agentActivity = useAgentActivityCoordinator({
       activityContext.value
     );
     if (!node) return "missing";
+    leftSidebar.value?.preferCenteredReveal();
     await selectResource(node);
-    if (item.chapterCardId) {
-      await selectLongChapterCardTab(item.chapterCardId);
-    }
+    if (item.chapterCardId) await selectLongChapterCardTab(item.chapterCardId);
     const navigated =
       selectedResourceId.value === node.id ||
       (item.chapterCardId !== undefined &&
         activeLongSelection.value?.chapterCardId === item.chapterCardId);
     if (navigated) await leftSidebar.value?.revealSelection();
+    else leftSidebar.value?.preferCenteredReveal(false);
     return navigated ? "navigated" : "blocked";
   },
   notifications: uiMessage

@@ -3,27 +3,59 @@ import type { ResourceTreeSection } from "../types/workspace";
 import { resourceTreeContainsResource } from "../utils/resourceTreeLookup";
 import { scrollSelectedIntoView } from "../utils/scrollSelectedIntoView";
 
+const SELECTED_ROW_SELECTOR = ".tree-row.is-selected";
+/** Cascading tree disclosure can take several mount ticks before the row exists. */
+const REVEAL_ATTEMPTS = 8;
+
 export function useSidebarSelectionReveal(options: {
   selectedId(): string;
   sections(): readonly ResourceTreeSection[];
   selectionActive: Readonly<Ref<boolean>>;
   scroller: Readonly<Ref<HTMLElement | null>>;
 }) {
+  let revealGeneration = 0;
+  let centerRevealPreferred = false;
+
+  function preferCenteredReveal(prefer = true): void {
+    centerRevealPreferred = prefer;
+    if (prefer) revealGeneration += 1;
+  }
+
   async function revealSelection(
     block: "center" | "nearest" = "center"
   ): Promise<void> {
     const selectedId = options.selectedId();
-    if (!selectedId || !options.selectionActive.value) return;
-    await nextTick();
-    if (options.selectedId() !== selectedId || !options.selectionActive.value)
+    if (!selectedId || !options.selectionActive.value) {
+      if (block === "center") centerRevealPreferred = false;
       return;
-    scrollSelectedIntoView(
-      options.scroller.value,
-      options.scroller.value?.querySelector<HTMLElement>(
-        ".tree-row.is-selected"
-      ),
-      { block }
-    );
+    }
+
+    const effectiveBlock =
+      block === "center" || centerRevealPreferred ? "center" : "nearest";
+    if (effectiveBlock === "center") centerRevealPreferred = true;
+
+    const generation = ++revealGeneration;
+
+    for (let attempt = 0; attempt < REVEAL_ATTEMPTS; attempt += 1) {
+      await nextTick();
+      if (
+        generation !== revealGeneration ||
+        options.selectedId() !== selectedId ||
+        !options.selectionActive.value
+      ) {
+        return;
+      }
+      const scroller = options.scroller.value;
+      const selected = scroller?.querySelector<HTMLElement>(
+        SELECTED_ROW_SELECTOR
+      );
+      if (!selected) continue;
+      scrollSelectedIntoView(scroller, selected, { block: effectiveBlock });
+      if (generation === revealGeneration) centerRevealPreferred = false;
+      return;
+    }
+
+    if (generation === revealGeneration) centerRevealPreferred = false;
   }
 
   watch(
@@ -40,10 +72,12 @@ export function useSidebarSelectionReveal(options: {
           .some(({ nodes }) => resourceTreeContainsResource(nodes, previousId))
       )
         return;
-      await revealSelection(wasActive ? "nearest" : "center");
+      await revealSelection(
+        centerRevealPreferred || !wasActive ? "center" : "nearest"
+      );
     },
     { flush: "post" }
   );
 
-  return { revealSelection };
+  return { revealSelection, preferCenteredReveal };
 }

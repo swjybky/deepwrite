@@ -62,6 +62,7 @@ const statusLabels: Record<AgentActivityStatus, string> = {
     class="agent-activity-panel"
     :aria-label="t('agentActivityList')"
     aria-live="polite"
+    @wheel.stop
   >
     <header class="agent-activity-panel-header">
       <strong>{{ t("agentActivity") }}</strong>

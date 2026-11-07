@@ -35,6 +35,9 @@
   top: 10px;
   left: 10px;
   display: grid;
+  /* Keep the header sized to content and force the list row to absorb the
+     max-height clamp so overflow-y scrolling actually engages. */
+  grid-template-rows: auto minmax(0, 1fr);
   width: min(300px, calc(100% - 24px));
   max-height: min(40vh, 420px);
   overflow: hidden;
@@ -71,6 +74,7 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
 }
 
