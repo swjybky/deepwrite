@@ -16,7 +16,14 @@ beforeAll(async () => {
   appData = await mkdtemp(join(tmpdir(), "deepwrite-development-profile-"));
   installedProfile = join(appData, name);
 });
-afterAll(() => rm(appData, { recursive: true, force: true }));
+afterAll(() =>
+  rm(appData, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 50
+  })
+);
 
 function application(options: { isPackaged: boolean; userData?: string }) {
   const paths = { appData, userData: options.userData ?? installedProfile };
@@ -61,7 +68,7 @@ describe("development profile", () => {
 
   it("accepts an explicit development profile", () => {
     const app = application({ isPackaged: false });
-    const copy = join("/", "profiles", "copy");
+    const copy = join(appData, "profiles", "copy");
     expect(
       applyDevelopmentProfile(app, { [DEVELOPMENT_USER_DATA_ENV]: ` ${copy} ` })
     ).toBeUndefined();
@@ -69,10 +76,10 @@ describe("development profile", () => {
   });
 
   it("leaves a profile chosen by --user-data-dir or a smoke fixture", () => {
-    const chosen = join("/", "tmp", "smoke-profile");
+    const chosen = join(appData, "smoke-profile");
     const app = application({ isPackaged: false, userData: chosen });
     applyDevelopmentProfile(app, {
-      [DEVELOPMENT_USER_DATA_ENV]: join("/", "ignored")
+      [DEVELOPMENT_USER_DATA_ENV]: join(appData, "ignored")
     });
     expect(app.paths.userData).toBe(chosen);
   });

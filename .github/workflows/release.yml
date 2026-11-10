@@ -221,9 +221,30 @@ jobs:
       - name: Check Windows filesystem and renderer regressions early
         if: runner.os == 'Windows'
         run: |
-          pnpm exec vitest run \
+          pnpm exec vitest run --bail=0 \
             tools/i18n-resources.test.mjs \
             apps/desktop/src/main/agent-team-book-binding.test.ts \
+            apps/desktop/src/main/development-profile.test.ts \
+            apps/desktop/src/main/builtin-agent-prompts.test.ts \
+            apps/desktop/src/main/marketplace-backup.test.ts \
+            apps/desktop/src/extras/external-control/settings-commands.test.ts \
+            tools/windows-runtime-architecture.test.mjs \
+            tools/smoke-workspace.test.mjs \
+            apps/desktop/src/extras/cloud-backup/identity.test.ts \
+            apps/desktop/src/extras/agents/config-store.decomposition.test.ts \
+            apps/desktop/src/utilities/folder-catalog-store.plot-stage-import.test.ts \
+            apps/desktop/src/utilities/long-workspace-service.index.test.ts \
+            apps/desktop/src/main/book-template-store.test.ts \
+            apps/desktop/src/main/smoke-model-config.test.ts \
+            apps/desktop/src/main/startup-log.test.ts \
+            apps/desktop/src/main/smoke-conversation.test.ts \
+            apps/desktop/src/main/model-config-store.batch.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/generated-record-storage.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/usage-guard.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/scale.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/creation-recovery.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/job-state-store.test.ts \
+            apps/desktop/src/utilities/device-sync-ledger.test.ts \
             tools/package-runtime-archive.test.mjs \
             tools/renderer-state-history-migration.test.mjs \
             tools/renderer-vendor-graph.test.mjs \
