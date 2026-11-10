@@ -7,8 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag (vMAJOR.MINOR.PATCH)
+        description: Version label (vMAJOR.MINOR.PATCH); publication requires an existing tag
         required: true
+        type: string
+      publish:
+        description: Publish verified installers as a public GitHub Release
+        required: true
+        type: boolean
+        default: false
+      source_ref:
+        description: Source commit or branch for build-only runs (optional)
+        required: false
         type: string
       reuse_run_id:
         description: Reuse verified installers from an earlier run (optional)
@@ -42,7 +51,7 @@ jobs:
         id: source
         uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish && inputs.source_ref || format('refs/tags/{0}', env.RELEASE_TAG) }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -268,7 +277,7 @@ jobs:
   upload:
     name: Publish verified release installers
     needs: [prepare, package]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
+    if: ${{ !cancelled() && (github.event_name == 'push' || inputs.publish == true) && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
