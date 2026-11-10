@@ -222,6 +222,8 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           pnpm exec vitest run \
+            tools/i18n-resources.test.mjs \
+            apps/desktop/src/main/agent-team-book-binding.test.ts \
             tools/package-runtime-archive.test.mjs \
             tools/renderer-state-history-migration.test.mjs \
             tools/renderer-vendor-graph.test.mjs \
