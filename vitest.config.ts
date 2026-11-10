@@ -18,6 +18,10 @@ const scaleTest =
 // Durable filesystem, SQLite, and native diagnostics run on one worker.
 // In-memory unit tests keep the normal timeout and parallel scheduling.
 const diskIntegrationTests = [
+  "apps/desktop/src/main/agent-team-book-binding.test.ts",
+  "apps/desktop/src/main/builtin-agent-prompts.test.ts",
+  "apps/desktop/src/main/development-profile.test.ts",
+  "apps/desktop/src/main/marketplace-backup.test.ts",
   "apps/desktop/src/extras/agent-team-marketplace/client.test.ts",
   "apps/desktop/src/extras/agents/chat/chat-config.test.ts",
   "apps/desktop/src/extras/agents/config-store*.test.ts",
