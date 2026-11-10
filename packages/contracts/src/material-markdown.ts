@@ -4,6 +4,10 @@ export const MATERIAL_DESCRIPTION_PREVIEW_LENGTH = 160;
 export const MATERIAL_METADATA_AUTHORING_GUIDANCE =
   "新建素材时，建议在每条 Markdown 顶部用 --- 包裹可选的 name 和 description 单行字段，说明素材名称与适用场景，然后保留正式素材正文。两个字段都不强制；旧素材缺少配置仍可正常读取和修改，不要为了补齐配置拒绝任务或批量改写旧素材。库介绍不需要此头部，写入仍遵循原有预览与提案流程。";
 
+/** English counterpart of {@link MATERIAL_METADATA_AUTHORING_GUIDANCE}. */
+export const MATERIAL_METADATA_AUTHORING_GUIDANCE_EN =
+  "When creating a material, a Markdown header wrapped in --- with optional single-line name and description fields is recommended at the top of the entry, stating what the material is and where it applies, followed by the material body. Neither field is mandatory: older materials without the header can still be read and edited, so never refuse a task or rewrite old materials in bulk just to add it. Library overviews do not take this header, and writes still go through the usual preview and proposal flow.";
+
 export type MaterialMetadataState =
   "configured" | "partial" | "legacy" | "malformed";
 

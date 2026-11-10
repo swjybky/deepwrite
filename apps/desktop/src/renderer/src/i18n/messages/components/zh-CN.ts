@@ -132,6 +132,7 @@ import marketplaceBindEmail from "./marketplaceBindEmail/zh-CN";
 import marketplaceEmailFields from "./marketplaceEmailFields/zh-CN";
 import materialMetadataEditor from "./materialMetadataEditor/zh-CN";
 import modelAdvancedConfigDialog from "./modelAdvancedConfigDialog/zh-CN";
+import jevModelEditorPanel from "./jevModelEditorPanel/zh-CN";
 import modelEditorPanel from "./modelEditorPanel/zh-CN";
 import modelProviderPresets from "./modelProviderPresets/zh-CN";
 import modelSettingsDraft from "./modelSettingsDraft/zh-CN";
@@ -325,6 +326,7 @@ export default {
   marketplaceEmailFields,
   materialMetadataEditor,
   modelAdvancedConfigDialog,
+  jevModelEditorPanel,
   modelEditorPanel,
   modelProviderPresets,
   modelSettingsDraft,

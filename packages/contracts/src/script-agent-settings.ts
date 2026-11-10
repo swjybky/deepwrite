@@ -10,6 +10,7 @@ import {
   type ScriptWorkspaceAgentId
 } from "./script-workspace";
 import { DEFAULT_SCRIPT_SYSTEM_PROMPT } from "./writing-agent-prompts";
+import type { PromptLocale } from "./prompt-locale";
 
 export { DEFAULT_SCRIPT_SYSTEM_PROMPT } from "./writing-agent-prompts";
 
@@ -22,6 +23,24 @@ export const SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS = `剧本正文必须严格�
 - 闪回、梦境等时空转换必须使用清晰且成对的开始/结束标记。
 - 通过 edit 写入 document=body 时，不得使用 Markdown 表格、分析标题或格式讲解，只能写可直接进入成稿的剧本正文。
 `;
+
+/** English counterpart of {@link SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS}. */
+export const SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS_EN = `Screenplay pages must follow this format exactly:
+- Scene headings use "N. INT./EXT. LOCATION - TIME" (in a Chinese screenplay: "序号. 内景/外景 地点 - 时间"). Start a new scene whenever the location or time changes.
+- Action and visual description go on their own lines starting with "△", and describe only what the camera can show.
+- Dialogue starts with the character's name; performance directions go in parentheses after the name.
+- OS marks the inner voice of a character who is on screen; VO marks a character who is off screen, or a voice from outside such as a phone or broadcast.
+- Flashbacks, dreams and other shifts in time or space use clear, paired start and end markers.
+- When writing document=body through edit, never use Markdown tables, analysis headings or format explanations; write only screenplay text ready for the final draft.
+`;
+
+export function scriptScreenplayFormatRequirements(
+  locale: PromptLocale | undefined
+): string {
+  return locale === "en-US"
+    ? SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS_EN
+    : SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS;
+}
 
 export const DEFAULT_SCRIPT_WORKSPACE_AGENT_SYSTEM_PROMPTS: Record<
   ScriptWorkspaceAgentId,

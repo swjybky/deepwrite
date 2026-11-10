@@ -263,9 +263,23 @@ function diffLineMark(type: "context" | "addition" | "deletion"): string {
               </span>
             </div>
           </header>
-          <p v-else class="edit-proposal-row-summary">
-            {{ item.event.payload.summary }}
-          </p>
+          <div v-else class="edit-proposal-row-toolbar">
+            <p class="edit-proposal-row-summary">
+              {{ item.event.payload.summary }}
+            </p>
+            <div
+              v-if="item.status === 'accepted'"
+              class="edit-proposal-actions"
+            >
+              <button
+                class="approval-target-button"
+                type="button"
+                @click.stop="emit('locate', item.event.id)"
+              >
+                {{ t("goToTargetFile") }}
+              </button>
+            </div>
+          </div>
 
           <component
             :is="rowBody ? 'div' : 'details'"
@@ -347,7 +361,10 @@ function diffLineMark(type: "context" | "addition" | "deletion"): string {
             {{ t("aBlankMarkdownFileWasCreatedNoManuscriptLine") }}
           </p>
 
-          <footer class="edit-proposal-footer">
+          <footer
+            v-if="!rowBody || item.status !== 'accepted'"
+            class="edit-proposal-footer"
+          >
             <span class="edit-proposal-message">
               {{
                 isStructureProposalItem(item)
@@ -388,18 +405,6 @@ function diffLineMark(type: "context" | "addition" | "deletion"): string {
                     ? structureProposalAcceptLabel(item)
                     : contentProposalAcceptLabel(item)
                 }}
-              </button>
-            </div>
-            <div
-              v-else-if="rowBody && item.status === 'accepted'"
-              class="edit-proposal-actions"
-            >
-              <button
-                class="approval-target-button"
-                type="button"
-                @click.stop="emit('locate', item.event.id)"
-              >
-                {{ t("goToTargetFile") }}
               </button>
             </div>
           </footer>

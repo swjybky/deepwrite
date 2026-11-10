@@ -92,6 +92,9 @@ function isBatchProposal(
   );
 }
 
+/** Re-previews allowed when the impact changes under an automatic save. */
+const AUTOMATIC_IMPACT_RETRIES = 2;
+
 function isLongImpactMismatch(error: unknown): boolean {
   return getErrorCode(error) === "long.operation.impact_mismatch";
 }
@@ -894,27 +897,9 @@ export function useLongWorkspaceProposals(
         await previewMutation(current);
         current = currentItem(event.payload.bookId, event.id);
       }
+      // Destructive automatic batches are saved too (with a restore point):
+      // holding one for review would stall every later item of the run.
       if (!current || current.status !== "ready") return;
-      if (
-        isBatchProposal(current.event) &&
-        current.preview &&
-        longWorkspaceOperationsRequireImpactConfirmation(
-          (current.effectiveBatch ?? current.event.payload.batch).operations,
-          current.preview.confirmation
-        )
-      ) {
-        updateItem(event.payload.bookId, event.id, {
-          approvalMode: "request-approval",
-          status: "ready",
-          clearError: true
-        });
-        options.notifications.warning(
-          t(
-            "longWorkspaceProposals.thisProposalDeletesItemsOrUnlinksRelatedRecordsReview"
-          )
-        );
-        return;
-      }
       if (!prepared) {
         try {
           await options.prepareAutoApprove?.(event);
@@ -1095,9 +1080,15 @@ export function useLongWorkspaceProposals(
     }
   }
 
+  /**
+   * Automatic items never fall back to manual review: a changed impact is
+   * previewed again and retried a bounded number of times, then reported as a
+   * retryable failure. Manual items show the refreshed impact for a decision.
+   */
   async function approveCurrent(
     bookId: string,
-    eventId: string
+    eventId: string,
+    automaticRetries = AUTOMATIC_IMPACT_RETRIES
   ): Promise<void> {
     const item = currentItem(bookId, eventId);
     const api = options.api();
@@ -1122,18 +1113,16 @@ export function useLongWorkspaceProposals(
     ) {
       await previewMutation(item);
       const refreshed = currentItem(bookId, eventId);
-      if (refreshed?.status === "ready" && refreshed.preview) {
-        updateItem(bookId, eventId, {
-          approvalMode: "request-approval",
-          status: "ready",
-          clearError: true
-        });
-        options.notifications.warning(
-          t(
-            "longWorkspaceProposals.relatedImpactsHaveBeenCheckedReviewTheLatestImpacts"
-          )
-        );
+      if (refreshed?.status !== "ready" || !refreshed.preview) return;
+      if (refreshed.approvalMode === "auto-approve") {
+        await approveCurrent(bookId, eventId, automaticRetries);
+        return;
       }
+      options.notifications.warning(
+        t(
+          "longWorkspaceProposals.relatedImpactsHaveBeenCheckedReviewTheLatestImpacts"
+        )
+      );
       return;
     }
     const mutationPreview =
@@ -1160,9 +1149,16 @@ export function useLongWorkspaceProposals(
         isContentFileProposal(item.event)
       ) {
         const effectiveBatch = item.effectiveBatch ?? item.event.payload.batch;
+        const destructive = longWorkspaceOperationsRequireImpactConfirmation(
+          effectiveBatch.operations,
+          mutationPreview!.confirmation
+        );
         await api.applyOperations(
           ipcSafeJson({
             bookId,
+            ...(destructive && item.approvalMode === "auto-approve"
+              ? { captureRestorePoint: true }
+              : {}),
             batch: LongWorkspaceOperationBatchSchema.parse({
               ...effectiveBatch,
               expectedImpact: mutationPreview!.confirmation
@@ -1184,18 +1180,29 @@ export function useLongWorkspaceProposals(
       ) {
         await previewMutation(item);
         const refreshed = currentItem(bookId, eventId);
-        if (refreshed?.status === "ready" && refreshed.preview) {
-          updateItem(bookId, eventId, {
-            approvalMode: "request-approval",
-            status: "ready",
-            clearError: true
-          });
+        if (refreshed?.status !== "ready" || !refreshed.preview) return;
+        if (refreshed.approvalMode !== "auto-approve") {
           options.notifications.warning(
             t(
               "longWorkspaceProposals.relationshipsOrDeletionImpactsChangedReviewTheLatestImpacts"
             )
           );
+          return;
         }
+        if (automaticRetries > 0) {
+          await approveCurrent(bookId, eventId, automaticRetries - 1);
+          return;
+        }
+        const message = t(
+          "longWorkspaceProposals.impactKeptChangingDuringAutomaticSave"
+        );
+        updateItem(bookId, eventId, {
+          status: "error",
+          error: message,
+          errorPhase: "apply",
+          errorRetryable: true
+        });
+        options.notifications.error(message);
         return;
       }
       updateItem(bookId, eventId, {

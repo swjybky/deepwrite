@@ -64,7 +64,9 @@ describe("agent welcome content", () => {
     for (const domain of LIBRARY_AGENT_DOMAINS) {
       const welcome = resolveAgentWelcome(undefined, domain);
       expect(welcome.title).toBeTruthy();
-      expect(welcome.description).toContain("智能体");
+      expect(welcome.description).toContain(
+        `全部${domain === "skill" ? "技能" : "素材"}库`
+      );
       expect(welcome.questions).toHaveLength(3);
     }
 

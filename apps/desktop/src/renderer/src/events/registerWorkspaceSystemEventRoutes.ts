@@ -43,6 +43,9 @@ export interface WorkspaceSystemEventRouteDependencies {
   ): void;
   handleLongWorkspaceProposal(event: SystemEventEnvelope): Promise<unknown>;
   stageAgentEditProposal(event: EventOf<"workspace.editor_mutation">): void;
+  stageLibraryStructureProposal?(
+    event: EventOf<"library.structure_proposal">
+  ): void;
   stageLibraryEditProposal(event: EventOf<"library.editor_mutation">): void;
   navigateToWorkspaceStage(event: EventOf<"workspace.stage_selection">): void;
   refreshAfterExternalChange?(): Promise<unknown>;
@@ -96,6 +99,9 @@ export function registerWorkspaceSystemEventRoutes(
     }),
     center.subscribe("workspace.editor_mutation", (event) => {
       dependencies.stageAgentEditProposal(event);
+    }),
+    center.subscribe("library.structure_proposal", (event) => {
+      dependencies.stageLibraryStructureProposal?.(event);
     }),
     center.subscribe("library.editor_mutation", (event) => {
       dependencies.stageLibraryEditProposal(event);

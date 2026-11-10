@@ -18,6 +18,8 @@ import {
   profile,
   workspace
 } from "../../../../packages/pi-runtime-adapter/src/long-agent-tools.test-support";
+import { buildLongRuntimeToolBoundary } from "../../../../packages/pi-runtime-adapter/src/prompts-long";
+import { buildLongWorkspaceRules } from "../../../../packages/pi-runtime-adapter/src/prompts-long-rules";
 import type { IpcCommandContext } from "../main/ipc/command-types";
 import { releaseConversationRun } from "../main/ipc/conversation-operation-guard";
 import { handleSessionCommands } from "../main/ipc/session-commands";
@@ -262,8 +264,18 @@ describe("long team from Main through the Agent utility to the provider", () => 
   });
 
   it("keeps the builtin prompt open to optional tools without a fixed total", () => {
-    const prompt = profile("long").systemPrompt;
-    expect(prompt).not.toContain("exactly nine tools");
-    expect(prompt).toContain("spawn_subagent");
+    for (const locale of ["zh-CN", "en-US"] as const) {
+      const prompt = [
+        profile("long").systemPrompt,
+        buildLongWorkspaceRules(locale)
+      ].join("\n");
+      expect(prompt).not.toContain("exactly nine tools");
+      expect(prompt).toMatch(
+        /可按当前配置追加可选工具|optional tools may be added/
+      );
+      expect(
+        buildLongRuntimeToolBoundary([{ name: "spawn_subagent" }], locale)
+      ).toContain("spawn_subagent");
+    }
   });
 });

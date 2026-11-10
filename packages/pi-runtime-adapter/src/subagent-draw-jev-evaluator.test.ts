@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  JEV_STATE_CHAR_BUDGET,
+  JEV_STATE_TASK_CHAR_BUDGET
+} from "@deepwrite/contracts";
+import {
+  candidateState,
   pickHighestDrawJevScore,
   type DrawJevCandidateScore
 } from "./subagent-draw-jev-evaluator";
@@ -59,5 +64,23 @@ describe("pickHighestDrawJevScore", () => {
         { number: 2, error: "bad" }
       ])
     ).toMatchObject({ status: "failed" });
+  });
+});
+
+describe("candidateState", () => {
+  it("keeps short drafts intact", () => {
+    const state = candidateState("写一段开场", candidate(2));
+    expect(state).toContain("【候选 2】");
+    expect(state).toContain("draft 2");
+    expect(state).not.toContain("已截断");
+  });
+
+  it("caps task and draft under Jev's per-question budget", () => {
+    const task = "甲".repeat(JEV_STATE_TASK_CHAR_BUDGET * 2);
+    const long = { ...candidate(1), summary: "稿".repeat(100_000) };
+    const state = candidateState(task, long);
+    expect(state.length).toBeLessThanOrEqual(JEV_STATE_CHAR_BUDGET);
+    expect(state).toContain("已截断，原文共 100000 字");
+    expect(state.split("甲").length - 1).toBe(JEV_STATE_TASK_CHAR_BUDGET);
   });
 });

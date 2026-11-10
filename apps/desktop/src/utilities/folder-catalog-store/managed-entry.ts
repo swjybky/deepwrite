@@ -66,7 +66,7 @@ export async function writeManagedMaterialEntry(
   const manifest = MaterialLibraryProjectManifestSchema.parse(
     JSON.parse(manifestText)
   );
-  if (manifest.id !== input.libraryId || manifest.materialType !== "long")
+  if (manifest.id !== input.libraryId)
     throw new Error("拆解目标素材库不匹配。");
   assertManagedStage(manifest.materialKind, input.stageId);
   const receiptPath = `receipts/${input.receipt.id}.md`;

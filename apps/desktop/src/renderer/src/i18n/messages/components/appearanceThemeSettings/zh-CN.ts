@@ -1,4 +1,14 @@
 export default {
+  startupWindowSize: "启动窗口大小",
+  startupWindowSizeHelp:
+    "调整窗口大小后，点击“使用当前大小”将其固定为下次启动大小。之后拖动不会自动更新；恢复默认后，下次启动使用 1200 × 800。",
+  defaultWindowSize: "默认：1200 × 800",
+  useCurrentWindowSize: "使用当前大小",
+  restoreDefaultWindowSize: "恢复默认大小",
+  windowSizeSaved: "已将当前窗口大小用于下次启动",
+  windowSizeReset: "下次启动将使用默认窗口大小",
+  windowSizeSaveFailed: "保存启动窗口大小失败，请重试",
+
   lightTheme: "浅色主题",
   darkTheme: "深色主题",
   custom: "自定义",

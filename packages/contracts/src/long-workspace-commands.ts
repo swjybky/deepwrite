@@ -30,6 +30,7 @@ import {
   LongWriteChapterInputSchema
 } from "./long-ledger";
 import { LongResolveConflictsCommandEnvelopeSchema } from "./long-project-recovery";
+import { LongRestoreOperationsCommandEnvelopeSchema } from "./long-workspace-restore";
 export const LongCreateBookCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("long.createBook"),
   payload: CreateLongBookInputSchema
@@ -216,6 +217,7 @@ export const LongWorkspaceCommandSchemas = [
   LongWriteAgentsMdCommandEnvelopeSchema,
   LongPreviewOperationsCommandEnvelopeSchema,
   LongApplyOperationsCommandEnvelopeSchema,
+  LongRestoreOperationsCommandEnvelopeSchema,
   LongWriteChapterCommandEnvelopeSchema,
   LongCommitChapterCommandEnvelopeSchema,
   LongDeleteLedgerCommitCommandEnvelopeSchema

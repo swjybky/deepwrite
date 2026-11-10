@@ -62,7 +62,11 @@ describe("handleWebSearchCommands", () => {
       })
     ).toMatchObject({
       status: "accepted",
-      payload: { profiles: [{ hasApiKey: true }] }
+      payload: {
+        profiles: expect.arrayContaining([
+          expect.objectContaining({ providerId: "deepseek", hasApiKey: true })
+        ])
+      }
     });
     expect(
       await run("webSearch.test", { providerId: "deepseek" })

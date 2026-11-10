@@ -1,5 +1,6 @@
 import {
   LongApplyOperationsResultSchema,
+  LongRestoreOperationsResultSchema,
   LongResolveConflictsResultSchema,
   LongCommitChapterResultSchema,
   LongDeleteLedgerCommitResultSchema,
@@ -40,6 +41,7 @@ export async function handleLongWorkspaceCommands(
     command.type === "long.writeAgentsMd" ||
     command.type === "long.previewOperations" ||
     command.type === "long.applyOperations" ||
+    command.type === "long.restoreOperations" ||
     command.type === "long.writeChapter" ||
     command.type === "long.commitChapter" ||
     command.type === "long.deleteLedgerCommit" ||
@@ -90,6 +92,9 @@ export async function handleLongWorkspaceCommands(
           break;
         case "long.applyOperations":
           payload = LongApplyOperationsResultSchema.parse(result.payload);
+          break;
+        case "long.restoreOperations":
+          payload = LongRestoreOperationsResultSchema.parse(result.payload);
           break;
         case "long.writeChapter":
           payload = LongWriteChapterResultSchema.parse(result.payload);

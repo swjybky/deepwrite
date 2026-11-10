@@ -1,8 +1,6 @@
 export default {
   editModel: "Edit LLM",
-  editJevModel: "Edit JEV model",
   addModel: "Add LLM",
-  addJevModel: "Add JEV model",
   cancel: "Cancel",
   name: "Name",
   forExampleDeepSeekWritingLeaveBlankToUseThe:

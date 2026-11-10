@@ -2,7 +2,6 @@ import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import {
   LibraryAgentDomainSchema,
-  LibraryAgentProfileSchema,
   LibraryAgentWorkspaceSnapshotSchema
 } from "./library-agent";
 import { LibraryManagementScopeSchema } from "./library-management-scope";
@@ -57,8 +56,7 @@ export const LibraryManagementRuntimeContextSchema = z
         z
           .object({
             domain: LibraryAgentDomainSchema,
-            description: BuiltinSubagentSettingSchema.shape.description,
-            profile: LibraryAgentProfileSchema
+            description: BuiltinSubagentSettingSchema.shape.description
           })
           .strict()
       )
@@ -68,14 +66,11 @@ export const LibraryManagementRuntimeContextSchema = z
   .superRefine((value, ctx) => {
     const domains = new Set<string>();
     for (const [index, manager] of value.managers.entries()) {
-      if (
-        manager.domain !== manager.profile.domain ||
-        domains.has(manager.domain)
-      ) {
+      if (domains.has(manager.domain)) {
         ctx.addIssue({
           code: "custom",
           path: ["managers", index],
-          message: "Manager domains must be unique and match their profile."
+          message: "Manager domains must be unique."
         });
       }
       domains.add(manager.domain);

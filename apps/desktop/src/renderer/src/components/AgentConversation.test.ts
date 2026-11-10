@@ -137,8 +137,10 @@ describe("AgentConversation edit proposal placement", () => {
     expect(writingWorkspaceSource).toContain(
       "@discard-edit-proposal=\"emit('discardEditProposal', $event)\""
     );
-    expect(longWorkspaceSource).not.toContain("discardEditProposal");
-    expect(longWorkspaceSource).not.toContain("discardLongProposal");
+    // Long cards undo through Core restore points, on the same relay.
+    expect(longWorkspaceSource).toContain(
+      "@discard-edit-proposal=\"emit('discardEditProposal', $event)\""
+    );
     expect(presentationSource).not.toContain("longApprovalCanDiscard");
   });
 

@@ -39,7 +39,7 @@ export function agentRunScopeForDocument(document: WorkspaceDocument): string {
     document.libraryId &&
     (document.domain === "skill" || document.domain === "material")
   ) {
-    return `library:${document.domain}:${document.libraryId}`;
+    return `library:${document.domain}`;
   }
   return document.workspaceId ? `book:${document.workspaceId}` : "general";
 }
@@ -51,7 +51,7 @@ export function agentConversationKeyForDocument(
     document.libraryId &&
     (document.domain === "skill" || document.domain === "material")
   ) {
-    return `library:${document.domain}:${document.libraryId}`;
+    return `library:${document.domain}`;
   }
   return document.workspaceId
     ? shortBookConversationKey(document.workspaceId)

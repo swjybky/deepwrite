@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { withConfigurationLock } from "../configuration-lock";
 import {
   ImageModelSettingsInputSchema,
   ImageModelSettingsSchema,
@@ -34,10 +35,11 @@ export class ImagePersistence {
 
   constructor(
     userDataPath: string,
-    private readonly storage: VoiceSecureStorage
+    private readonly storage: VoiceSecureStorage,
+    usageDataPath = userDataPath
   ) {
     this.settingsPath = join(userDataPath, "config", "image-models.json");
-    this.usagePath = join(userDataPath, "config", "image-usage.json");
+    this.usagePath = join(usageDataPath, "config", "image-usage.json");
   }
 
   private async readSettings(): Promise<StoredSettings> {
@@ -199,7 +201,9 @@ export class ImagePersistence {
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.chain.then(operation);
+    const result = this.chain.then(() =>
+      withConfigurationLock(this.settingsPath, operation)
+    );
     this.chain = result.then(
       () => undefined,
       () => undefined

@@ -152,6 +152,7 @@ describe("agent run preferences", () => {
     const secondMaterialEntry: WorkspaceDocument = {
       ...materialEntry,
       id: "material-entry-2",
+      libraryId: "other-library",
       catalogEntryId: "entry-2"
     };
     const skillEntry: WorkspaceDocument = {
@@ -161,17 +162,13 @@ describe("agent run preferences", () => {
     };
 
     expect(agentConversationKeyForDocument(materialEntry)).toBe(
-      "library:material:shared-library"
+      "library:material"
     );
     expect(agentConversationKeyForDocument(secondMaterialEntry)).toBe(
-      "library:material:shared-library"
+      "library:material"
     );
-    expect(agentConversationKeyForDocument(skillEntry)).toBe(
-      "library:skill:shared-library"
-    );
-    expect(agentRunScopeForDocument(materialEntry)).toBe(
-      "library:material:shared-library"
-    );
+    expect(agentConversationKeyForDocument(skillEntry)).toBe("library:skill");
+    expect(agentRunScopeForDocument(materialEntry)).toBe("library:material");
     const activeBookDocument = workspaceDocument("book-one", "outline");
     expect(
       activeAgentDocumentForSelection(materialEntry, activeBookDocument)

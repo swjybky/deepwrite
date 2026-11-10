@@ -124,3 +124,15 @@ describe("edit tool result labels", () => {
     expect(toolLabel(editTrace({ status: "error" }))).toBe("修改失败");
   });
 });
+
+it.each([
+  ["manage_skill_read_skill_entry", "read"],
+  ["manage_material_create_material_entry", "write"],
+  ["manage_skill_edit_skill_library_overview", "write"],
+  ["list_active_agent_teams", "read"],
+  ["read_agent_team_prompt", "read"],
+  ["propose_agent_team_prompt", "write"]
+])("shows a readable status for %s", (name, kind) => {
+  expect(workspaceToolLabel(name)).not.toBe(name);
+  expect(toolKind(name)).toBe(kind);
+});

@@ -87,7 +87,7 @@ export async function writeManagedEntries(
 ): Promise<{ revision: number }> {
   await recoverProjectTransaction(root);
   const { text, manifest } = await readManifest(root);
-  if (manifest.id !== input.libraryId || manifest.materialType !== "long")
+  if (manifest.id !== input.libraryId)
     throw new Error("转换目标素材库不匹配。");
   if (decompositionSha(text) !== input.manifestSha256)
     throw new Error("素材库在转换期间被修改，请重新转换。");

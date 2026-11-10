@@ -1,3 +1,4 @@
+import type { LongRestorePoint } from "@deepwrite/contracts";
 import {
   LONG_AGENTS_MD_MAX_CHARACTERS,
   type LongBook,
@@ -194,10 +195,12 @@ export interface WriteLongDocumentResult extends OpenedLongBook {
 
 export interface ApplyLongWorkspaceOperationsInput {
   batch: LongWorkspaceOperationBatch;
+  captureRestorePoint?: boolean;
 }
 
 export interface ApplyLongWorkspaceOperationsResult extends OpenedLongBook {
   operationResult: LongWorkspaceOperationResult;
+  restorePoint?: LongRestorePoint;
 }
 
 export type StoreWriteLongChapterInput = Omit<LongWriteChapterInput, "bookId">;

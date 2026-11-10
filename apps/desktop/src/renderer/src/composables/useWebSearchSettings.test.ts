@@ -367,10 +367,12 @@ describe("useWebSearchSettings test search", () => {
     expect(api.test).not.toHaveBeenCalled();
     controller.draft.apiKey = "invalid-test-key";
     await controller.test();
-    expect(api.test).toHaveBeenCalledWith({
-      providerId: "deepseek",
-      apiKey: "invalid-test-key"
-    });
+    expect(api.test).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: "deepseek",
+        apiKey: "invalid-test-key"
+      })
+    );
     expect(messages().map((message) => message.content)).toEqual([
       t("testNeedsKey"),
       t("testSuccess", { count: 3, seconds: "1.2" })

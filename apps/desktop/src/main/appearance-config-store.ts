@@ -10,6 +10,7 @@ import {
 
 interface DiskAppearanceSettings {
   version: 1;
+  startupWindowSize?: AppearanceSettings["startupWindowSize"];
   mode: AppearanceSettings["mode"];
   light: AppearanceSettings["light"];
   dark: AppearanceSettings["dark"];
@@ -65,6 +66,7 @@ export class AppearanceConfigStore {
       return AppearanceSettingsSnapshotSchema.parse({
         persisted: true,
         settings: toPublicSettings({
+          startupWindowSize: candidate.startupWindowSize,
           mode: candidate.mode,
           light: candidate.light,
           dark: candidate.dark,
@@ -91,6 +93,7 @@ export class AppearanceConfigStore {
     const operation = this.writeChain.then(async () => {
       const disk: DiskAppearanceSettings = {
         version: 1,
+        startupWindowSize: settings.startupWindowSize,
         mode: settings.mode,
         light: settings.light,
         dark: settings.dark,

@@ -92,7 +92,7 @@ describe("ConversationFileChangeSummary", () => {
     const accepted = rowHtml(html, "edit:run:book:draft:第三章");
     expect(accepted).toContain('aria-expanded="false"');
     expect(accepted).not.toContain("新句子");
-    expect(accepted).toContain("跳转到目标文件");
+    expect(accepted).toContain("跳转文件");
   });
 
   it("lists a fully saved turn without expanding any diff", async () => {

@@ -147,8 +147,7 @@ const {
   handleResizeKeydown,
   disposeLayout
 } = layoutStore;
-// Keep the workspace unselected on launch. A resource ID is set only after the
-// user explicitly opens a book or another resource from the tree.
+// Nothing is selected on launch; only an explicit open from the tree sets this.
 const selectedResourceId = ref("");
 const leftSidebar = ref<InstanceType<typeof LeftSidebar> | null>(null);
 const activeCreationResourceId = ref("");
@@ -397,6 +396,7 @@ const {
 } = storeToRefs(longWorkspaceStore);
 const {
   libraryProjectDialog,
+  openLibraryCreation,
   externalLibraryImport,
   libraryPackage,
   libraryGroupDialog,
@@ -1411,6 +1411,7 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
 
 const {
   loadModelSettings,
+  refreshModelSettings,
   loadAppAlerts,
   closeStartupAlert,
   loadModelUsage,
@@ -1817,19 +1818,10 @@ async function handleResourceAction(
   }
 
   if (
-    payload.action === "create" &&
+    (payload.action === "create" || payload.action === "create-entry") &&
     (payload.domain === "material" || payload.domain === "skill")
   ) {
-    if (!window.deepwrite) {
-      uiMessage.warning(
-        t("browserPreviewsCannotCreateLocalLibrariesUseTheDesktop")
-      );
-      return;
-    }
-    libraryProjectDialog.value = {
-      operation: "create-library",
-      domain: payload.domain
-    };
+    openLibraryCreation(payload.domain, payload.action === "create-entry");
     return;
   }
 
@@ -2205,6 +2197,7 @@ const {
   discardAgentEdit,
   scheduleQueuedAgentEdits,
   stageAgentEditProposal,
+  stageLibraryStructureProposal,
   stageLibraryEditProposal,
   stageLongCharacterEditProposal,
   stageLongDraftEditProposal,
@@ -2287,6 +2280,7 @@ function startWorkspaceSystemEvents(): () => void {
     handleLongWorkspaceProposal: (event) =>
       longWorkspaceProposals.handleEvent(event),
     stageAgentEditProposal,
+    stageLibraryStructureProposal,
     stageLibraryEditProposal,
     navigateToWorkspaceStage,
     refreshAfterExternalChange: () =>
@@ -2469,7 +2463,7 @@ onBeforeUnmount(() => {
     @save-library-agents="saveLibraryAgentSettings"
     @reset-library-agent="resetLibraryAgentSettings"
     @load-model-usage="loadModelUsage"
-    @load-models="loadModelSettings"
+    @load-models="refreshModelSettings"
     @save-models="saveModelSettings"
     @test-model="testModel"
     @load-site-official-models="loadSiteOfficialModels"
@@ -2617,6 +2611,7 @@ onBeforeUnmount(() => {
       @review-edit="reviewLongAgentEdit"
       @locate-edit-proposal="locateAcceptedEditProposal"
       @approve-long-proposal="approveLongProposal"
+      @discard-edit-proposal="discardAgentEdit"
       @reject-long-proposal="rejectLongProposal"
       @retry-long-proposal-preview="retryLongProposalPreview"
       @locate-long-proposal="locateAcceptedLongProposal"

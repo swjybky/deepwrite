@@ -1,4 +1,13 @@
 import {
+  CatalogPreviewLibraryStructureCommandEnvelopeSchema,
+  CatalogApplyLibraryStructureCommandEnvelopeSchema,
+  LibraryStructureProposalEventEnvelopeSchema,
+  type LibraryStructureProposalEventEnvelope
+} from "./library-structure";
+import { CatalogCreateUnboundEntryCommandEnvelopeSchema } from "./library-organization";
+import { CatalogReorderLibraryCommandEnvelopeSchema } from "./library-organization";
+import { CatalogReadLibraryAgentLibraryCommandEnvelopeSchema } from "./library-agent";
+import {
   BookIdentityCommandSchemas,
   BookIdentityUpdatedEventEnvelopeSchema,
   type BookIdentityUpdatedEventEnvelope
@@ -283,6 +292,10 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   DeviceSyncConversationCommandEnvelopeSchema,
   DeviceSyncConversationLeaseResultCommandEnvelopeSchema,
   CatalogQueryMaterialsCommandEnvelopeSchema,
+  CatalogPreviewLibraryStructureCommandEnvelopeSchema,
+  CatalogApplyLibraryStructureCommandEnvelopeSchema,
+  CatalogCreateUnboundEntryCommandEnvelopeSchema,
+  CatalogReorderLibraryCommandEnvelopeSchema,
   SystemHealthCommandEnvelopeSchema,
   ...RendererStateCommandEnvelopeSchemas,
   ...ConversationExportCommandEnvelopeSchemas,
@@ -358,6 +371,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AgentTeamsSaveBuiltinsCommandEnvelopeSchema,
   ...TeamManagementCommandSchemas,
   CatalogQueryLibraryManagementCommandEnvelopeSchema,
+  CatalogReadLibraryAgentLibraryCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
   AgentTeamsCreateCommandEnvelopeSchema,
   AgentTeamsRenameCommandEnvelopeSchema,
@@ -482,6 +496,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   LongContinuityFileProposalEventEnvelopeSchema,
   LongChapterWriteProposalEventEnvelopeSchema,
   LongLedgerCommitProposalEventEnvelopeSchema,
+  LibraryStructureProposalEventEnvelopeSchema,
   LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
@@ -546,6 +561,7 @@ export type SystemEventEnvelope =
   | LongContinuityFileProposalEventEnvelope
   | LongChapterWriteProposalEventEnvelope
   | LongLedgerCommitProposalEventEnvelope
+  | LibraryStructureProposalEventEnvelope
   | LibraryEditorMutationEventEnvelope
   | WorkspaceEditorMutationEventEnvelope
   | WorkspaceStageSelectionEventEnvelope

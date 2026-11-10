@@ -38,7 +38,11 @@ describe("ModelConfigStore atomic configuration commits", () => {
         fault.stage = stage;
         await expect(store.save(edit.input)).rejects.toThrow("Injected");
         expect(await readFile(context.modelsPath, "utf8")).toBe(previous);
-        expect(await readdir(context.configDirectory)).toEqual(["models.json"]);
+        expect(
+          (await readdir(context.configDirectory)).filter(
+            (name) => name !== ".locks"
+          )
+        ).toEqual(["models.json"]);
         await expect(
           context.createStore().resolve(oldModel.id)
         ).resolves.toMatchObject({

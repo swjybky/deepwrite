@@ -1,3 +1,4 @@
+import { LibraryOrganizationSchema } from "@deepwrite/contracts";
 import {
   CatalogLegacyImportSchema,
   CreativePlotStagesSchema,
@@ -130,6 +131,20 @@ export function parseRegistry(value: unknown): FolderCatalogRegistry {
     schemaVersion: 1,
     revision,
     updatedAt,
+    ...(value.libraryOrganization === undefined
+      ? {}
+      : {
+          libraryOrganization: LibraryOrganizationSchema.parse(
+            isRecord(value.libraryOrganization)
+              ? Object.fromEntries(
+                  // Accept older registries without exposing retired recovery metadata.
+                  Object.entries(value.libraryOrganization).filter(
+                    ([key]) => key !== "recycledEntries"
+                  )
+                )
+              : value.libraryOrganization
+          )
+        }),
     sourceCatalogMigrated: value.sourceCatalogMigrated,
     creativePlotStages,
     projects,

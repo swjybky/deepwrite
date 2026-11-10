@@ -1,4 +1,6 @@
 export default {
+  acceptToApplyLibraryOrganization:
+    "接受后按上方清单整理资料库；移除库保留文件，删除条目可恢复。",
   awaitingReview: "待审阅",
   applying: "正在应用",
   accepted: "已接受",
@@ -59,7 +61,7 @@ export default {
     "接受后将校验结构影响并保存剧情设计。",
   acceptToSaveTheCurrentChapterManuscriptToIts:
     "接受后将把当前章正文保存到该章节独立的 Markdown 文件。",
-  goToTargetFile: "跳转到目标文件",
+  goToTargetFile: "跳转文件",
   skillLibrary: "技能库",
   materialLibrary: "素材库",
   valueLinesAddedValueLinesRemoved: "增加 {arg0} 行，删除 {arg1} 行",

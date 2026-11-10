@@ -60,6 +60,51 @@ describe("appearance persistence before close", () => {
     );
   });
 
+  it("keeps the captured startup size when changing other appearance settings", async () => {
+    const { appearance, save } = await setup();
+    const size = { width: 1500, height: 950 };
+    save.mockImplementation(async () => ({
+      persisted: true,
+      settings: {
+        ...createDefaultAppearanceSettings(),
+        startupWindowSize: size
+      }
+    }));
+    await appearance.saveStartupWindowSize(true);
+    expect(save).toHaveBeenCalledWith(expect.anything(), {
+      captureCurrentWindowSize: true
+    });
+    expect(appearance.state.startupWindowSize).toEqual(size);
+    appearance.setMode("dark");
+    await appearance.flush();
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "dark", startupWindowSize: size })
+    );
+    save.mockImplementation(async () => ({
+      persisted: true,
+      settings: {
+        ...createDefaultAppearanceSettings(),
+        startupWindowSize: null
+      }
+    }));
+    await appearance.saveStartupWindowSize(false);
+    expect(appearance.state.startupWindowSize).toBeNull();
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startupWindowSize: null }),
+      { captureCurrentWindowSize: false }
+    );
+  });
+
+  it("keeps the previous size when saving a new size fails", async () => {
+    const { appearance, save } = await setup();
+    await appearance.flush();
+    save.mockRejectedValueOnce(new Error("disk unavailable"));
+    await expect(appearance.saveStartupWindowSize(true)).rejects.toThrow(
+      "disk unavailable"
+    );
+    expect(appearance.state.startupWindowSize).toBeUndefined();
+  });
+
   it("blocks close on failed persistence and retries without discarding the live theme", async () => {
     const { appearance, save } = await setup();
     save.mockRejectedValueOnce(new Error("disk unavailable"));

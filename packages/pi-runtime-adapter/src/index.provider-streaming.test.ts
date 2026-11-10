@@ -992,9 +992,7 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
         >;
       }
     ).conversationAgents;
-    const agent = cache.get(
-      "session_library:library:material:material-library-1"
-    );
+    const agent = cache.get("session_library:library:material");
     expect(agent?.state.tools.map(({ name }) => name)).toEqual([
       "list_material_entries",
       "read_material_entry",
@@ -1002,7 +1000,10 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
       "load_skill",
       "create_material_entry",
       "edit_material_entry",
-      "edit_material_library_overview"
+      "edit_material_library_overview",
+      "manage_library",
+      "manage_group",
+      "organize_entries"
     ]);
     expect(agent?.state.systemPrompt).toContain("素材库管理智能体");
     const userMessages = agent?.state.messages.filter(

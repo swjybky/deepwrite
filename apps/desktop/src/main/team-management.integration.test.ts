@@ -45,6 +45,9 @@ async function fixture(
   const root = await mkdtemp(join(tmpdir(), "deepwrite-team-prompts-"));
   roots.push(root);
   const store = new AgentTeamConfigStore(root);
+  const builtinSettings = defaultBuiltinSubagentSettings();
+  builtinSettings.team.enabled = true;
+  await store.saveBuiltins(builtinSettings);
   const catalog = await store.list();
   const profile = catalog.teams.find(
     (team) => team.workspaceType === workspaceType

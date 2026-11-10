@@ -2,12 +2,12 @@ export default {
   skillLibrary: "技能库",
   skillLibraryAgent: "技能库管理智能体",
   configureTheSkillLibraryAgentSSystemPromptAnd:
-    "配置技能库管理智能体的系统提示词，以及可按需加载的方法技能（名称、描述与正文）。",
+    "配置管理全部技能库的智能体系统提示词，以及可按需加载的方法技能（名称、描述与正文）。",
   saveSkillLibrarySettings: "保存技能库配置",
   materialLibrary: "素材库",
   materialLibraryAgent: "素材库管理智能体",
   configureTheMaterialLibraryAgentSSystemPromptAnd:
-    "配置素材库管理智能体的系统提示词，以及可按需加载的方法技能（名称、描述与正文）。",
+    "配置管理全部素材库的智能体系统提示词，以及可按需加载的方法技能（名称、描述与正文）。",
   saveMaterialLibrarySettings: "保存素材库配置",
   systemPrompt: "系统提示词",
   roleAndWorkflow: "职责与工作流程",

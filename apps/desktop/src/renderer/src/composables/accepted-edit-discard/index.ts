@@ -11,6 +11,7 @@ import type {
   AgentEditReviewRequest,
   ProposalCoordinatorContext
 } from "../proposal-coordinator/types";
+import { discardAcceptedLongEdit, isLongRestoreConflict } from "./long";
 import {
   discardAcceptedCatalogTextEdit,
   discardAcceptedShortStructureEdit
@@ -80,7 +81,10 @@ export function createAcceptedEditDiscardCoordinator(
     );
     context.editor.setWorkspaceAccepting(proposal.workspaceId, true);
     try {
-      if (!(await discardAcceptedShortStructureEdit(context, proposal))) {
+      if (
+        !(await discardAcceptedLongEdit(context, proposal)) &&
+        !(await discardAcceptedShortStructureEdit(context, proposal))
+      ) {
         await discardAcceptedCatalogTextEdit(context, proposal);
       }
       updateDiscardState(
@@ -94,6 +98,7 @@ export function createAcceptedEditDiscardCoordinator(
     } catch (error: unknown) {
       const conflict =
         error instanceof AcceptedEditDiscardConflictError ||
+        isLongRestoreConflict(error) ||
         context.catalog.isConflict(error);
       const message = formatError(error, t("failedToDiscardThisEdit"));
       updateDiscardState(
@@ -110,7 +115,18 @@ export function createAcceptedEditDiscardCoordinator(
   }
 
   return {
-    discardAgentEdit: (request: Omit<AgentEditReviewRequest, "decision">) =>
-      discardProposal(context.conversations.active.value, request)
+    /** A card may live in the short or the long conversation; undo it there. */
+    discardAgentEdit: (request: Omit<AgentEditReviewRequest, "decision">) => {
+      const owner = [
+        context.conversations.active.value,
+        context.conversations.activeLong.value
+      ].find((conversation) =>
+        conversation?.getEditProposal(request.runId, request.proposalId)
+      );
+      return discardProposal(
+        owner ?? context.conversations.active.value,
+        request
+      );
+    }
   };
 }

@@ -163,12 +163,13 @@ describe("AppearanceService", () => {
   });
 
   it("does not delete a selected font when persisting its fallback fails", async () => {
+    const { userData } = await setup();
     const missing = `font_${"c".repeat(64)}` as AppearanceCustomFontId;
     const settings = {
       ...createDefaultAppearanceSettings(),
       uiFontFamily: missing
     };
-    const configStore = new AppearanceConfigStore("/unused");
+    const configStore = new AppearanceConfigStore(userData);
     vi.spyOn(configStore, "list").mockResolvedValue({
       persisted: true,
       settings
@@ -176,7 +177,7 @@ describe("AppearanceService", () => {
     vi.spyOn(configStore, "save").mockRejectedValue(
       new Error("persistence failed")
     );
-    const fontStore = new AppearanceFontStore("/unused");
+    const fontStore = new AppearanceFontStore(userData);
     vi.spyOn(fontStore, "list").mockResolvedValue({
       fonts: [
         {
@@ -189,7 +190,7 @@ describe("AppearanceService", () => {
       ]
     });
     const remove = vi.spyOn(fontStore, "remove");
-    const service = new AppearanceService("/unused", {
+    const service = new AppearanceService(userData, {
       appearanceConfigStore: configStore,
       appearanceFontStore: fontStore
     });

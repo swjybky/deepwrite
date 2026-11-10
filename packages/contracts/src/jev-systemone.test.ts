@@ -4,7 +4,9 @@ import {
   DRAW_JEV_SCORE_QUESTION_ID,
   buildDrawJevScoreInstructions,
   buildDrawJevScoreQuestion,
+  normalizeJevModelIdentity,
   parseJevSystemOneScoreAnswer,
+  resolveJevApiRoot,
   resolveJevSystemOneUrl
 } from "./jev-systemone";
 
@@ -19,6 +21,68 @@ describe("JEV SystemOne helpers", () => {
     expect(
       resolveJevSystemOneUrl("https://proxy.example.test/v1/systemone/")
     ).toBe("https://proxy.example.test/v1/systemone");
+    expect(
+      resolveJevSystemOneUrl("https://agg.example.test/v1/decisions")
+    ).toBe("https://agg.example.test/v1/decisions");
+  });
+
+  it("derives the versioned API root used for model listing", () => {
+    expect(resolveJevApiRoot("https://api.example.test")).toBe(
+      "https://api.example.test/v1"
+    );
+    expect(resolveJevApiRoot("https://api.example.test/v1/systemone/")).toBe(
+      "https://api.example.test/v1"
+    );
+    expect(resolveJevApiRoot("https://agg.example.test/v1/decisions")).toBe(
+      "https://agg.example.test/v1"
+    );
+    expect(resolveJevApiRoot("  ")).toBe("");
+  });
+
+  it.each([
+    "https://gateway.example.test/api",
+    "https://gateway.example.test/api/v1/",
+    "https://gateway.example.test/api/v1/systemone/"
+  ])("preserves the OpenRouter-style API prefix for %s", (baseUrl) => {
+    expect(resolveJevSystemOneUrl(baseUrl)).toBe(
+      "https://gateway.example.test/api/v1/systemone"
+    );
+    expect(resolveJevApiRoot(baseUrl)).toBe(
+      "https://gateway.example.test/api/v1"
+    );
+  });
+
+  it("pins text-generation fields and drops LLM-only overrides", () => {
+    const normalized = normalizeJevModelIdentity({
+      id: "model_jev",
+      api: "anthropic-messages",
+      reasoning: true,
+      defaultThinkingLevel: "high",
+      thinkingLevelOptions: ["high"],
+      temperatureOptions: [0.2, 0.5, 0.9] as [number, number, number],
+      toolSchemaProfile: "portable",
+      requestModelId: "route-x",
+      supportsDeveloperRole: true,
+      contextWindow: 128_000,
+      maxTokens: 8_000
+    });
+    expect(normalized).toMatchObject({
+      id: "model_jev",
+      modelKind: "jev",
+      api: "openai-completions",
+      reasoning: false,
+      defaultThinkingLevel: "off",
+      temperatureOptions: [0.1, 0.7, 1]
+    });
+    for (const key of [
+      "toolSchemaProfile",
+      "requestModelId",
+      "supportsDeveloperRole",
+      "contextWindow",
+      "maxTokens"
+    ]) {
+      expect(normalized).not.toHaveProperty(key);
+    }
   });
 
   it("parses a probability-weighted score within the criteria range", () => {

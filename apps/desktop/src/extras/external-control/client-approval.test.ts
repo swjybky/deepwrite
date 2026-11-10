@@ -49,6 +49,26 @@ describe("client approval", () => {
     expect(confirm).toHaveBeenCalledTimes(2);
   });
 
+  it("observes another instance's revocation and preserves concurrently approved clients", async () => {
+    confirm.mockResolvedValue(true);
+    const formal = approval();
+    const development = approval();
+    await Promise.all([
+      formal.authorize(CLIENT),
+      development.authorize({ name: "other-test-client" })
+    ]);
+    expect((await formal.list()).map((client) => client.name).sort()).toEqual([
+      "codex-mcp-client",
+      "other-test-client"
+    ]);
+    await development.revoke(CLIENT.name);
+    expect((await formal.list()).map((client) => client.name)).toEqual([
+      "other-test-client"
+    ]);
+    await formal.authorize(CLIENT);
+    expect(confirm).toHaveBeenCalledTimes(3);
+  });
+
   it("shows one dialog to clients connecting at the same time", async () => {
     let answer = (_allowed: boolean): void => undefined;
     confirm.mockReturnValue(

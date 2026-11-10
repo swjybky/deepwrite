@@ -20,35 +20,18 @@ export async function hydrateLibraryProposalDocument(
     (document) => document.id === payload.documentId
   );
   if (!initial || initial.catalogContentLoaded !== false) return;
-  const api = context.api();
-  if (!api) throw new Error(t("theLibraryFileServiceIsCurrentlyUnavailable"));
-  const loaded = await api.catalog.readDocument(
-    payload.operation === "edit-overview"
-      ? { projectId: payload.libraryId, target: "overview" }
-      : {
-          projectId: payload.libraryId,
-          target: "document",
-          documentId: payload.entryId
-        }
-  );
+  await context.catalog.ensureDocumentLoaded(initial);
   if (disposed()) return;
   const current = context.editor.documents.value.find(
     (document) => document.id === initial.id
   );
-  if (!current || current.catalogContentStamp !== initial.catalogContentStamp)
+  if (
+    !current ||
+    current.catalogContentLoaded === false ||
+    current.catalogContentStamp !== initial.catalogContentStamp
+  ) {
     throw new Error(
       t("theLibraryContentVersionChangedGenerateTheContentAgain")
     );
-  if (current.catalogContentLoaded !== false) return;
-  context.editor.documents.value = context.editor.documents.value.map(
-    (document) =>
-      document.id === current.id
-        ? {
-            ...document,
-            content: loaded.content,
-            catalogContentLoaded: true,
-            catalogProjectRevision: loaded.projectRevision
-          }
-        : document
-  );
+  }
 }

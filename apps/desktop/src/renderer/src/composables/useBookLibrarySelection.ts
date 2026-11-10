@@ -44,8 +44,12 @@ export function useBookLibrarySelection(props: BookLibrarySelectionProps) {
   });
   // Library type is retained in persisted manifests for backwards compatibility,
   // but short stories, scripts, and long-form books all bind from one shared pool.
-  const workspaceMaterials = computed(() => props.materials);
-  const workspaceSkills = computed(() => props.skills);
+  const workspaceMaterials = computed(() =>
+    props.materials.filter((library) => !library.isUnbound)
+  );
+  const workspaceSkills = computed(() =>
+    props.skills.filter((library) => !library.isUnbound)
+  );
   const materialById = computed(
     () =>
       new Map(

@@ -1,4 +1,4 @@
 export default {
-  discardTheseChanges: "Undo this edit",
+  discardTheseChanges: "Undo edit",
   discarding: "Undoing…"
 };

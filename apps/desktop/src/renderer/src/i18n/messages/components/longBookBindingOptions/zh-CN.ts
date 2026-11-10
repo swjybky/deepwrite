@@ -1,7 +1,7 @@
 export default {
   characterMaterialLibrary: "人设素材库",
   charactersAndRelationships: "人物与关系设定",
-  ideaMaterialLibrary: "梗素材库",
+  ideaMaterialLibrary: "梗与灵感素材库",
   coreIdeasAndHooks: "核心创意与钩子",
   plotMaterialLibrary: "剧情素材库",
   plotIntroductionAndDevelopment: "剧情、导语与细化",

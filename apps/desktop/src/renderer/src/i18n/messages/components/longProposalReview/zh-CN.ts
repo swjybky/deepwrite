@@ -66,7 +66,7 @@ export default {
   retryApplying: "重试应用",
   acceptAndApply: "接受并应用",
   novelProposalsAwaitingApproval: "长篇待审批提案",
-  goToTargetFile: "跳转到目标文件",
+  goToTargetFile: "跳转文件",
   valueLinesAddedValueLinesRemoved: "增加 {arg0} 行，删除 {arg1} 行",
   viewChanges: "查看差异",
   thisDiffIsLargeSoOnlySomeChangesAre:

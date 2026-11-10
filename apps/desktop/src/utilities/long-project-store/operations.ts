@@ -5,6 +5,7 @@ import {
   LongWorkspaceOperationBatchSchema,
   LongWorkspaceOperationError,
   applyLongWorkspaceOperations,
+  longWorkspaceOperationsRequireImpactConfirmation,
   previewLongWorkspaceOperations,
   type LongDocumentWriteProposal,
   type LongWorkspaceFileReference,
@@ -29,6 +30,7 @@ import {
   requireIndexedFileReference,
   updateChapterBodyStatus
 } from "./paths";
+import { readRestoreBaseline, saveRestorePoint } from "./restore-points";
 import type { LongProjectStoreContext } from "./store-context";
 import {
   MANIFEST_PATH,
@@ -173,6 +175,18 @@ export async function applyWorkspaceOperations(
         updatedAt: nextIndex.updatedAt
       }
     });
+    const restoreBaseline =
+      input.captureRestorePoint &&
+      longWorkspaceOperationsRequireImpactConfirmation(
+        batch.operations,
+        operationResult
+      )
+        ? await readRestoreBaseline(
+            loaded.projectDirectory,
+            loaded.index,
+            fileOperations
+          )
+        : undefined;
     await commitLongProjectTransaction({
       projectRoot: loaded.projectDirectory,
       operations: [
@@ -183,13 +197,24 @@ export async function applyWorkspaceOperations(
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });
     const next = await loadProject(ctx, loaded.projectDirectory);
+    // The batch is already saved; a failed snapshot only loses the undo.
+    const restorePoint = restoreBaseline
+      ? await saveRestorePoint(
+          loaded.projectDirectory,
+          next.index.bookId,
+          nextIndex.updatedAt,
+          restoreBaseline,
+          next.index
+        ).catch(() => undefined)
+      : undefined;
     return {
       book: next.book,
       summary: next.summary,
       operationResult: {
         ...operationResult,
         snapshot: next.index
-      }
+      },
+      ...(restorePoint ? { restorePoint } : {})
     };
   });
 }

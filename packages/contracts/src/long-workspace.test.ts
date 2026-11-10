@@ -3,6 +3,7 @@ import {
   BookSchema,
   CatalogProjectManifestSchema,
   DEFAULT_LONG_AGENT_PROFILES,
+  LONG_AGENT_SYSTEM_PROMPTS,
   DEFAULT_LONG_AGENTS_MD,
   LONG_AGENTS_MD_MAX_CHARACTERS,
   LONG_AGENTS_MD_PATH,
@@ -989,53 +990,18 @@ describe("independent long-form workspace contracts", () => {
     ]);
   });
 
-  it("provides the unified English eight-tool default prompt", () => {
+  it("defaults to the bilingual long-form role prompt", () => {
     const { systemPrompt } = DEFAULT_LONG_AGENT_PROFILES[0]!;
-    for (const tool of [
-      "list",
-      "read",
-      "create",
-      "edit",
-      "delete",
-      "query_linked_material_entries",
-      "load_skill",
-      "propose_continuity_commit"
-    ]) {
-      expect(systemPrompt).toContain(tool);
-    }
-    expect(systemPrompt).toContain("worlditem_");
-    expect(systemPrompt).toContain("character_overview");
-    expect(systemPrompt).toContain("storyplot_");
-    expect(systemPrompt).toContain("foreshadow_");
-    expect(systemPrompt).toContain(
-      "current_state or history read without chapter_id"
+    expect(systemPrompt).toBe(LONG_AGENT_SYSTEM_PROMPTS["zh-CN"]);
+    expect(LONG_AGENT_SYSTEM_PROMPTS["en-US"]).toMatch(
+      /^You are DeepWrite's long-form fiction agent/
     );
-    expect(systemPrompt).toContain("may be written at create time");
-    expect(systemPrompt).toContain(
-      "meta.category_id and a non-empty meta.title are both mandatory"
-    );
-    expect(systemPrompt).toContain("plot-point summary");
-    expect(systemPrompt).toContain(
-      "do not create a story plot to hold that summary"
-    );
-    expect(systemPrompt).toContain("meta.document=current_state or history");
-    expect(systemPrompt).not.toContain("continuity_character_current_state");
-    expect(systemPrompt).toContain(
-      "You are DeepWrite's local creative collaboration agent"
-    );
-    expect(systemPrompt).toContain("list requires both stage and scope_id");
-    expect(systemPrompt).toContain("Do not list leaf objects");
-    expect(systemPrompt).toContain("Continuity does not accept arc_");
-    expect(systemPrompt).toContain(
-      "An id returned by list is not automatically a valid next scope_id"
-    );
-    expect(systemPrompt).not.toContain(
-      "A single list call returns all entries for the requested stage without pagination."
-    );
+    // Addressing and tool rules are appended at run time and cannot be edited.
+    expect(systemPrompt).not.toContain("scope_id");
   });
 
   it("keeps retired long tools and storage details out of the default prompt", () => {
-    const { systemPrompt } = DEFAULT_LONG_AGENT_PROFILES[0]!;
+    const systemPrompt = Object.values(LONG_AGENT_SYSTEM_PROMPTS).join("\n");
     for (const retired of [
       "list_setting",
       "search_setting",
@@ -1065,8 +1031,6 @@ describe("independent long-form workspace contracts", () => {
       expect(systemPrompt).not.toContain(retired);
     }
     expect(systemPrompt).not.toContain("bookId");
-    expect(systemPrompt).toContain(
-      "Do not request, infer, or repeat implementation details such as file paths or file_id."
-    );
+    expect(systemPrompt).not.toContain("file_id");
   });
 });

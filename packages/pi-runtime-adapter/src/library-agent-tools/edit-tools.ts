@@ -74,7 +74,7 @@ export function buildEditTool(
   return defineTool({
     name: `edit_${domain}_entry`,
     label: `编辑${noun}条目`,
-    description: `编辑当前${noun}库中的一个条目。必须先 read/search；局部修改用 replace_fragments，追加用 append，明确整篇覆盖才用 replace。`,
+    description: `编辑目标${noun}库中的一个条目。必须先 read/search；局部修改用 replace_fragments，追加用 append，明确整篇覆盖才用 replace。`,
     parameters: Type.Object({
       entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
       name: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
@@ -220,9 +220,7 @@ export function buildEditOverviewTool(
     name: "edit_" + domain + "_library_overview",
     label: "编辑" + noun,
     description:
-      "编辑当前" +
-      noun +
-      "。局部修改用 replace_fragments，追加用 append，明确整篇覆盖才用 replace；只提交待审阅变更。",
+      "编辑目标" + noun + "。按 mode 指定的方式修改库介绍，只提交待审阅变更。",
     parameters: Type.Object({
       mode: StringEnum(["replace_fragments", "append", "replace"] as const),
       body: Type.Optional(

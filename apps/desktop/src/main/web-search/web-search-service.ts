@@ -1,5 +1,6 @@
 import {
   WEB_SEARCH_PROVIDERS,
+  webSearchProvider,
   WebSearchRuntimeConfigSchema,
   WebSearchSettingsInputSchema,
   WebSearchTestInputSchema,
@@ -129,7 +130,7 @@ export class WebSearchService {
 
   /**
    * Search configuration for one run, or undefined when the tool must not be
-   * mounted: switched off, no key, or a file or key that cannot be read. A
+   * mounted: switched off, missing configuration, or an unreadable file or key. A
    * broken configuration never stops a conversation.
    */
   async resolveRuntime(): Promise<WebSearchRuntimeConfig | undefined> {
@@ -138,15 +139,16 @@ export class WebSearchService {
       if (!settings.enabled) return undefined;
       const providerId = settings.activeProviderId;
       const encrypted = encryptedApiKeys[providerId];
-      if (!encrypted) return undefined;
-      const descriptor = WEB_SEARCH_PROVIDERS[providerId];
+      const descriptor = webSearchProvider(providerId);
+      if (!encrypted && descriptor.requiresApiKey !== false) return undefined;
       const profile = settings.profiles.find(
         (entry) => entry.providerId === providerId
       );
+      if (!(profile?.baseUrl ?? descriptor.defaultBaseUrl)) return undefined;
       return WebSearchRuntimeConfigSchema.parse({
         providerId,
-        baseUrl: descriptor.defaultBaseUrl,
-        apiKey: this.secrets.decrypt(encrypted),
+        baseUrl: profile?.baseUrl ?? descriptor.defaultBaseUrl,
+        apiKey: encrypted ? this.secrets.decrypt(encrypted) : "",
         maxResults: profile?.maxResults ?? descriptor.defaultMaxResults,
         perRunCallLimit: settings.perRunCallLimit
       });
@@ -164,11 +166,19 @@ export class WebSearchService {
       throw new SafeWebSearchError("联网搜索测试暂不可用。");
     const apiKey =
       input.apiKey?.trim() || (await this.savedKey(input.providerId));
-    if (!apiKey) throw new SafeWebSearchError("请先填写联网搜索 API Key。");
+    if (!apiKey && webSearchProvider(input.providerId).requiresApiKey !== false)
+      throw new SafeWebSearchError("请先填写联网搜索 API Key。");
+    const baseUrl =
+      input.baseUrl ??
+      (await this.store.read()).settings.profiles.find(
+        (profile) => profile.providerId === input.providerId
+      )?.baseUrl ??
+      WEB_SEARCH_PROVIDERS[input.providerId].defaultBaseUrl;
+    if (!baseUrl) throw new SafeWebSearchError("请先填写搜索服务接口地址。");
     const started = this.now();
     const result = await this.options.tester({
       providerId: input.providerId,
-      baseUrl: WEB_SEARCH_PROVIDERS[input.providerId].defaultBaseUrl,
+      baseUrl,
       apiKey,
       query: input.query ?? DEFAULT_TEST_QUERY,
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS)

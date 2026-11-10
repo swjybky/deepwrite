@@ -143,14 +143,8 @@ export function planSubagentTasks(
     if (!definition) {
       throw new Error(`未知或已停用的子智能体：${subagentId}`);
     }
-    const libraryManager = definition.toolSource === "library-management";
-    const libraryId =
-      typeof raw.library_id === "string" && raw.library_id.trim()
-        ? raw.library_id.trim()
-        : undefined;
-    if (!libraryManager && libraryId) {
+    if (raw.library_id !== undefined)
       throw new Error("普通团队成员不能指定资料库管理目标。");
-    }
     const rawTask = String(raw.task ?? "").trim();
     if (!rawTask) throw new Error("子智能体任务不能为空。");
     const { task, draw } = planDraw(
@@ -165,11 +159,7 @@ export function planSubagentTasks(
       key,
       definition,
       task,
-      ...(libraryId ? { libraryId } : {}),
       dependsOn: stringList(raw.depends_on, "depends_on", key),
-      ...(libraryManager || definition.toolSource === "team-management"
-        ? { exclusive: true }
-        : {}),
       ...(draw ? { draw } : {})
     };
   });

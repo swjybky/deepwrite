@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, vi } from "vitest";
 import type { ModelConfigInput } from "@deepwrite/contracts";
 
@@ -42,7 +42,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
           fail("sync");
           return sync();
         };
-      } else if (args[1] === "r") {
+      } else if (args[1] === "r" && basename(String(args[0])) === "config") {
         const sync = handle.sync.bind(handle);
         handle.sync = async () => {
           fail("directory-sync");

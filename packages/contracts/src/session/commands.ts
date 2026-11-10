@@ -6,6 +6,7 @@ import {
   subagentCustomModelIds
 } from "../agent-team";
 import { EnvelopeBaseSchema } from "../envelope";
+import { PromptLocaleSchema } from "../prompt-locale";
 import { LibraryAgentProfileSchema } from "../library-agent";
 import {
   LongAgentProfileSchema,
@@ -230,6 +231,8 @@ export const SessionUserInputResponseCommandEnvelopeSchema =
 export const AgentPromptCommandPayloadSchema =
   SessionPromptCommandPayloadSchema.extend({
     runtimeConfig: AgentProviderRuntimeConfigSchema.optional(),
+    /** Main-resolved language of the system prompt; absent means Chinese. */
+    promptLocale: PromptLocaleSchema.optional(),
     /**
      * Main-resolved web search settings, including the key. Present only when
      * search is on and configured; the Renderer never sends or sees it.

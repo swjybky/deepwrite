@@ -85,6 +85,44 @@ describe("appearance commands", () => {
     );
   });
 
+  it("captures native window size only on an explicit request", async () => {
+    const getBounds = vi.fn(() => ({ x: 20, y: 40, width: 1500, height: 950 }));
+    const save = vi.fn(async (settings) => ({ persisted: true, settings }));
+    const ctx = context({
+      getMainWindow: () => ({ getBounds }),
+      requireAppearanceService: () => ({ save })
+    });
+    const settings = createDefaultAppearanceSettings();
+    const captured = await handleAppearanceCommands(
+      ctx,
+      command("appearance.save", {
+        ...settings,
+        captureCurrentWindowSize: true
+      })
+    );
+    expect(captured).toMatchObject({
+      status: "accepted",
+      payload: { settings: { startupWindowSize: { width: 1500, height: 950 } } }
+    });
+    expect(save.mock.calls[0]![0]).not.toHaveProperty(
+      "captureCurrentWindowSize"
+    );
+    getBounds.mockClear();
+    await handleAppearanceCommands(
+      ctx,
+      command("appearance.save", {
+        ...settings,
+        startupWindowSize: { width: 1500, height: 950 }
+      })
+    );
+    expect(getBounds).not.toHaveBeenCalled();
+    await handleAppearanceCommands(
+      ctx,
+      command("appearance.save", { ...settings, startupWindowSize: null })
+    );
+    expect(save.mock.calls.at(-1)![0].startupWindowSize).toBeNull();
+  });
+
   it("returns a canceled result without asking the service to install", async () => {
     const installFonts = vi.fn();
     const showOpenDialog = vi.fn(async () => ({

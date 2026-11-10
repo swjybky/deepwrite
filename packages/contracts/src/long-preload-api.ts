@@ -40,6 +40,10 @@ import type {
   LongWriteChapterResult
 } from "./long-ledger";
 import type {
+  LongRestoreOperationsInput,
+  LongRestoreOperationsResult
+} from "./long-workspace-restore";
+import type {
   LongResolveConflictsInput,
   LongResolveConflictsResult
 } from "./long-project-recovery";
@@ -81,6 +85,9 @@ export interface LongPreloadApi {
   applyOperations(
     input: LongApplyOperationsInput
   ): Promise<LongApplyOperationsResult>;
+  restoreOperations(
+    input: LongRestoreOperationsInput
+  ): Promise<LongRestoreOperationsResult>;
   writeChapter(input: LongWriteChapterInput): Promise<LongWriteChapterResult>;
   commitChapter(
     input: LongCommitChapterInput

@@ -185,16 +185,73 @@ describe("long workspace proposal approval: structure and manual proposals", () 
     });
   });
 
-  it("never auto-approves a proposal that deletes entities", async () => {
+  it("saves an automatic deletion with a restore point instead of holding it", async () => {
     const test = harness(true, "auto-approve");
 
     await test.controller.handleEvent(deleteMutationEvent());
 
-    expect(test.applyOperations).not.toHaveBeenCalled();
+    expect(test.applyOperations).toHaveBeenCalledWith({
+      bookId: "longbook_test",
+      captureRestorePoint: true,
+      batch: expect.objectContaining({ expectedImpact: emptyConfirmation })
+    });
     expect(test.controller.itemsForBook("longbook_test")[0]).toMatchObject({
-      status: "ready",
-      approvalMode: "request-approval",
-      preview: { confirmation: emptyConfirmation }
+      status: "accepted",
+      approvalMode: "auto-approve"
+    });
+  });
+
+  it("re-previews and saves an automatic proposal whose impact changed", async () => {
+    const changed: LongWorkspaceImpactConfirmation = {
+      ...emptyConfirmation,
+      impact: {
+        ...emptyConfirmation.impact,
+        updatedEntityIds: ["world_related"]
+      }
+    };
+    const test = harness(true, "auto-approve");
+    test.previewOperations
+      .mockResolvedValueOnce(previewResult(emptyConfirmation))
+      .mockResolvedValueOnce(previewResult(changed));
+    test.applyOperations.mockRejectedValueOnce({
+      code: "long.operation.impact_mismatch",
+      message: "影响已变化"
+    });
+
+    await test.controller.handleEvent(mutationEvent());
+
+    expect(test.applyOperations).toHaveBeenCalledTimes(2);
+    expect(test.applyOperations).toHaveBeenLastCalledWith({
+      bookId: "longbook_test",
+      batch: expect.objectContaining({ expectedImpact: changed })
+    });
+    expect(test.controller.itemsForBook("longbook_test")[0]).toMatchObject({
+      status: "accepted",
+      approvalMode: "auto-approve"
+    });
+  });
+
+  it("reports a retryable failure when the impact keeps changing", async () => {
+    const test = harness(true, "auto-approve");
+    test.applyOperations.mockRejectedValue({
+      code: "long.operation.impact_mismatch",
+      message: "影响已变化"
+    });
+
+    await test.controller.handleEvent(mutationEvent());
+
+    expect(test.applyOperations).toHaveBeenCalledTimes(3);
+    expect(test.controller.itemsForBook("longbook_test")[0]).toMatchObject({
+      status: "error",
+      approvalMode: "auto-approve",
+      errorPhase: "apply",
+      errorRetryable: true
+    });
+
+    test.applyOperations.mockResolvedValue(undefined);
+    await test.controller.retryPreview("longbook_test", "event_mutation");
+    expect(test.controller.itemsForBook("longbook_test")[0]).toMatchObject({
+      status: "accepted"
     });
   });
 

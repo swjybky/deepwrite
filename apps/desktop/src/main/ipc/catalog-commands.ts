@@ -1,3 +1,9 @@
+import {
+  LibraryStructurePlanSchema,
+  LibraryStructureResultSchema
+} from "@deepwrite/contracts";
+import { CreateUnboundEntryResultSchema } from "@deepwrite/contracts";
+import { LibraryOrganizationSchema } from "@deepwrite/contracts";
 import { nativeText } from "../native-i18n";
 import {
   BookSchema,
@@ -246,6 +252,10 @@ export async function handleCatalogCommands(
   }
 
   if (
+    command.type === "catalog.previewLibraryStructure" ||
+    command.type === "catalog.applyLibraryStructure" ||
+    command.type === "catalog.createUnboundEntry" ||
+    command.type === "catalog.reorderLibrary" ||
     command.type === "catalog.index" ||
     command.type === "catalog.readDocument" ||
     command.type === "catalog.readWritingContext" ||
@@ -284,6 +294,18 @@ export async function handleCatalogCommands(
       }
       let payload: unknown;
       switch (command.type) {
+        case "catalog.previewLibraryStructure":
+          payload = LibraryStructurePlanSchema.parse(result.payload);
+          break;
+        case "catalog.applyLibraryStructure":
+          payload = LibraryStructureResultSchema.parse(result.payload);
+          break;
+        case "catalog.createUnboundEntry":
+          payload = CreateUnboundEntryResultSchema.parse(result.payload);
+          break;
+        case "catalog.reorderLibrary":
+          payload = LibraryOrganizationSchema.parse(result.payload);
+          break;
         case "catalog.index":
           payload = CatalogIndexSnapshotSchema.parse(result.payload);
           break;

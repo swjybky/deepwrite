@@ -40,6 +40,7 @@ export { resolveExternalControlPaths } from "./control-paths";
 const ACTIVITY_ENTRIES = 50;
 
 interface ExternalControlOptions {
+  configurationDirectory?: () => string;
   paths: ExternalControlPaths;
   app: Omit<ExternalControlAppState, "windowRequest">;
   sendWindowRequest(id: string, request: ExternalWindowRequest): void;
@@ -62,7 +63,12 @@ export function createExternalControl(options: ExternalControlOptions) {
   const inData = (...path: string[]) =>
     join(options.app.dataDirectory(), ...path);
   const approval = createClientApproval({
-    accessFile: () => inData("config", "external-control.json"),
+    accessFile: () =>
+      join(
+        options.configurationDirectory?.() ?? options.app.dataDirectory(),
+        "config",
+        "external-control.json"
+      ),
     confirm: options.confirmClient
   });
   const trash = createTrashStore({ directory: () => inData("external-trash") });

@@ -31,24 +31,16 @@ export const PURE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_FETCH_TOOL_NAME
 ]);
 
-/** Built-in managers own their tools and prompts, so they are never pure. */
+/** Resolve the member mode, including legacy definitions without a mode. */
 export function subagentAgentMode(
-  definition: Pick<RuntimeSubagentDefinition, "agentMode" | "toolSource">
+  definition: Pick<RuntimeSubagentDefinition, "agentMode">
 ): SubagentAgentMode {
-  if (
-    definition.toolSource === "library-management" ||
-    definition.toolSource === "team-management"
-  )
-    return "standard";
   return definition.agentMode ?? "standard";
 }
 
-/** Draw settings in effect; library managers and standard members never draw. */
+/** Draw settings in effect for this member. */
 export function subagentDrawSettings(
-  definition: Pick<
-    RuntimeSubagentDefinition,
-    "agentMode" | "toolSource" | "draw"
-  >
+  definition: Pick<RuntimeSubagentDefinition, "agentMode" | "draw">
 ): SubagentDrawSettings | undefined {
   return activeSubagentDraw({
     agentMode: subagentAgentMode(definition),

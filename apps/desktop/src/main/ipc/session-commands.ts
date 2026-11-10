@@ -20,6 +20,7 @@ import {
 import { resolveModelRunSettings } from "../model-run-settings";
 import { createUsageRunContext } from "../usage-observation";
 import { usageModuleForPrompt } from "../usage-module";
+import { nativeLocale } from "../native-i18n";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
 import { handleSessionRunControlCommands } from "./session-run-control-commands";
@@ -161,7 +162,6 @@ export async function handleSessionCommands(
       const libraryManagement = await prepareLibraryManagementRunContext(
         command.payload.workspaceContext,
         ctx.requireAgentTeamConfigStore(),
-        ctx.requireLibraryAgentConfigStore(),
         (query) => ctx.supervisor.requestCommand("core", query, 60_000)
       );
       const teamManagement = await prepareTeamManagementRunContext(
@@ -182,6 +182,7 @@ export async function handleSessionCommands(
           "agent.prompt",
           {
             ...promptPayload,
+            promptLocale: nativeLocale(),
             ...(libraryManagement ? { libraryManagement } : {}),
             ...(teamManagement ? { teamManagement } : {}),
             ...(materialWorkspaceContext
@@ -250,7 +251,16 @@ export async function handleSessionCommands(
             externalResourceIds: [
               ...(creativeWorkspace ? [creativeWorkspace.id] : []),
               ...(longWorkspace ? [longWorkspace.bookId] : []),
-              ...(libraryWorkspace ? [libraryWorkspace.libraryId] : []),
+              ...(libraryWorkspace
+                ? [
+                    `library-domain:${libraryWorkspace.domain}`,
+                    ...(
+                      libraryWorkspace.readableLibraries ?? [libraryWorkspace]
+                    )
+                      .filter((library) => !library.readOnly)
+                      .map((library) => library.libraryId)
+                  ]
+                : []),
               ...(libraryManagement?.libraries
                 .filter((library) => !library.readOnly)
                 .map((library) => library.libraryId) ?? [])
@@ -258,6 +268,9 @@ export async function handleSessionCommands(
             correlationId: command.context.correlationId,
             runtime: accepted.runtime,
             accepted: true,
+            ...(libraryWorkspace
+              ? { libraryAgentScope: { domain: libraryWorkspace.domain } }
+              : {}),
             promptRequestId: internalCommand.id,
             ...(teamManagement
               ? { teamManagementScope: teamManagement.scope }

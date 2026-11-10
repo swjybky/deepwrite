@@ -92,7 +92,7 @@ describe("resolveAgentActivityDescriptor", () => {
       targetResourceId: "character-node"
     });
     expect(
-      resolveAgentActivityDescriptor("library:skill:skill-library", sources)
+      resolveAgentActivityDescriptor("library:skill", sources)
     ).toMatchObject({
       agentLabel: "技能库管理智能体",
       contextLabel: "写作技能库 · 节奏控制",

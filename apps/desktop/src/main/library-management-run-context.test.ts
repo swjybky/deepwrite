@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_LIBRARY_AGENT_PROFILES,
   AgentTeamCatalogSnapshotSchema,
   DEFAULT_AGENT_TEAM_SETTINGS,
   createEnvelope,
@@ -29,7 +28,7 @@ describe("Main management run authority", () => {
           }
         ]
       });
-      catalog.builtinSubagents.material.enabled = false;
+      catalog.builtinSubagents.skill.enabled = true;
       const request = vi.fn(async (): Promise<CommandResult> => ({
         status: "accepted",
         requestId: "query",
@@ -46,12 +45,6 @@ describe("Main management run authority", () => {
       const result = await prepareLibraryManagementRunContext(
         workspace as Parameters<typeof prepareLibraryManagementRunContext>[0],
         { list: async () => catalog },
-        {
-          resolve: async (domain) =>
-            DEFAULT_LIBRARY_AGENT_PROFILES.find(
-              (profile) => profile.domain === domain
-            )!
-        },
         request
       );
       expect(result?.scope).toEqual({ bookId: "book", bookType });

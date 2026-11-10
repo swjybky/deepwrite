@@ -9,13 +9,14 @@ import type {
   SessionUserInputResponseAcceptedPayload,
   SessionUserInputResponsePayload
 } from "@deepwrite/contracts";
+import { isJevModel } from "@deepwrite/contracts";
 import { normalizeUsage } from "./event-mapping";
+import { testJevConnection } from "./jev-systemone-client";
 import { planExtrasRun, type ExtrasAgentRunInput } from "./extras/run-plan";
 import { DEEPWRITE_FAUX_RUNTIME } from "./faux-local";
 import { ConversationAgentCache } from "./kernel/run-agent";
 import { AgentRunKernel } from "./kernel/run-kernel";
 import { RunSteeringRegistry } from "./kernel/run-steering";
-import { buildDeepWriteSystemPrompt } from "./prompts";
 import {
   buildProviderRuntime,
   resolveProviderModelCapacity,
@@ -49,7 +50,7 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       ...(options.afterToolCall ? { afterToolCall: options.afterToolCall } : {})
     };
     this.workspacePlanOptions = {
-      basePrompt: options.systemPrompt ?? buildDeepWriteSystemPrompt(),
+      ...(options.systemPrompt ? { basePrompt: options.systemPrompt } : {}),
       toolExecutionHooks,
       ...(options.retryPolicy ? { retryPolicy: options.retryPolicy } : {}),
       ...(options.subagentTimeoutMs === undefined
@@ -108,6 +109,9 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
   async testConnection(
     config: AgentProviderRuntimeConfig
   ): Promise<ModelConnectionTestResult> {
+    // Jev is a judgment model with its own endpoint; a chat probe would only
+    // test an unrelated completions route.
+    if (isJevModel(config)) return testJevConnection(config);
     const configuredThinkingLevel = config.defaultThinkingLevel;
     const effectiveTemperature =
       configuredThinkingLevel === "off"

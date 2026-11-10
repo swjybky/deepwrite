@@ -25,7 +25,7 @@ export default {
   publishSkill: "Publish skill",
   publishSkillLibrary: "Publish skill library",
   publishSkillGroup: "Publish skill group",
-  valueValueValueSkills: "{arg0} · {arg1} · {arg2} skills",
+  valueValueValueSkills: "{arg0} · {arg2} skills",
   valueSkillLibrariesValueSkills: "{arg0} skill libraries · {arg1} skills",
   couldNotRestoreMarketplaceSession: "Could not restore marketplace session.",
   signedOutOfTheMarketplace: "Signed out of the marketplace",
@@ -196,7 +196,7 @@ export default {
   totalPerPageMessage: "Total: {arg0} · Per page: {arg1}",
   pageMessage: "Page {arg0} / {arg1}",
   vUpdatedMessage: "v{arg0} · {arg1} · Updated {arg2}",
-  skillsMessage: "{arg0} · {arg1} · Skills: {arg2}",
+  skillsMessage: "{arg0} · Skills: {arg2}",
   versionIsInstalledNewRemoteVersionsAreMessage:
     "Version {arg0} is installed. New remote versions are installed as separate copies.",
   skillsMessageDetail: "Skills: {arg0}",

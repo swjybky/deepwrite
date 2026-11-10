@@ -139,7 +139,8 @@ describe("buildLibraryPackageFiles", () => {
       `都市爽文人设/${LIBRARY_PACKAGE_MANIFEST_FILE}`
     ]);
     const readme = layout.files[0]!.content;
-    expect(readme).toContain("- 类型：人设素材库 · 短篇");
+    expect(readme).toContain("- 类型：人设素材库");
+    expect(readme).not.toContain("短篇");
     expect(readme).toContain("- 题材：都市 / 追妻");
     expect(readme).toContain("[霸总男主](<01 霸总男主.md>)");
     expect(layout.files[2]!.content).toBe("家道中落，\r\n仍有傲骨。");
@@ -183,7 +184,9 @@ describe("library package round trip", () => {
     };
     const { layout, tree } = asTree(source);
     expect(layout.skippedLibraryCount).toBe(1);
-    expect(layout.files[0]!.content).toContain("梗素材库（库文件夹不可用");
+    expect(layout.files[0]!.content).toContain(
+      "梗与灵感素材库（库文件夹不可用"
+    );
 
     const plan = recognizeLibraryPackage(tree, "skill");
     expect(plan.recognition).toBe("package");

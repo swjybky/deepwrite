@@ -68,6 +68,8 @@ export default {
     "旧会话导入未完成，原始记录已保留（{code}）。",
   conversationStorageFailed: "本地会话保存或读取失败（{code}）。",
   impactChanged: "关联关系或删除影响已变化，请核对最新影响后再次确认。",
+  restoreConflict: "这次修改之后相关内容又有变化，未撤销；请先撤销更晚的修改。",
+  restoreUnavailable: "这次修改的还原记录已不存在，无法撤销。",
   targetNotFound: "目标条目已不存在，请刷新后重试。",
   targetExists: "同名目标已存在，请检查后重试。",
   invalidReference: "引用的条目已变化或不再可用，请刷新后重试。",

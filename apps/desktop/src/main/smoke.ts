@@ -1,3 +1,4 @@
+import { runLibraryOrganizationSmoke } from "./smoke-library-organization";
 import type { ExternalControl } from "../extras/external-control";
 import { runExternalConcurrencySmoke } from "./smoke-external-concurrency";
 import type { BrowserWindow } from "electron";
@@ -70,10 +71,18 @@ export async function runApplicationSmoke(
     );
     return;
   }
+  if (process.env.DEEPWRITE_SMOKE_SUITE === "library-entries") {
+    const libraryOrganization = await runLibraryOrganizationSmoke(window, true);
+    console.log(
+      `DEEPWRITE_SMOKE_OK ${JSON.stringify({ health, libraryOrganization })}`
+    );
+    return;
+  }
   if (process.env.DEEPWRITE_SMOKE_SUITE === "library-groups") {
     const libraryGroups = await runLibraryGroupDeletionSmoke(window);
+    const libraryOrganization = await runLibraryOrganizationSmoke(window);
     console.log(
-      `DEEPWRITE_SMOKE_OK ${JSON.stringify({ health, libraryGroups })}`
+      `DEEPWRITE_SMOKE_OK ${JSON.stringify({ health, libraryGroups, libraryOrganization })}`
     );
     return;
   }

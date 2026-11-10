@@ -40,6 +40,7 @@ import { installationDirectory } from "./installation-directory-guard";
 
 interface DesktopServiceOptions {
   userDataPath: string;
+  configurationPath?: string;
   appVersion: string;
   command: (command: CommandEnvelope) => Promise<CommandResult>;
   busy: () => boolean;
@@ -51,28 +52,29 @@ interface DesktopServiceOptions {
 /** Construction has no network dependency; optional refreshes start separately. */
 export function createDesktopServices(options: DesktopServiceOptions) {
   const { userDataPath, command } = options;
-  const modelConfigStore = new ModelConfigStore(userDataPath, {
+  const configurationPath = options.configurationPath ?? userDataPath;
+  const modelConfigStore = new ModelConfigStore(configurationPath, {
     appVersion: options.appVersion,
     ...modelSmokeOptions()
   });
   const modelUsageStore = new ModelUsageStore(userDataPath);
   const workspaceDirectoryStore = new WorkspaceDirectoryStore(
-    userDataPath,
+    configurationPath,
     installationDirectory(process.execPath)
   );
   const workspaceDirectory = async () =>
     (await workspaceDirectoryStore.list()).path;
-  const imageService = new ImageService(
-    userDataPath,
-    process.env.DEEPWRITE_SMOKE === "1" ? imageSmokeOptions() : undefined
-  );
-  const webSearchService = new WebSearchService(userDataPath, {
+  const imageService = new ImageService(configurationPath, {
+    usageDataPath: userDataPath,
+    ...(process.env.DEEPWRITE_SMOKE === "1" ? imageSmokeOptions() : {})
+  });
+  const webSearchService = new WebSearchService(configurationPath, {
     secureStorage: safeStorage,
     keySources: modelConfigStore,
     tester: testWebSearch
   });
-  const agentTeamConfigStore = new AgentTeamConfigStore(userDataPath);
-  const marketplaceClient = new MarketplaceClient(userDataPath, {
+  const agentTeamConfigStore = new AgentTeamConfigStore(configurationPath);
+  const marketplaceClient = new MarketplaceClient(configurationPath, {
     loadCatalogSnapshot: async () => {
       const id = createId("cmd_marketplace_snapshot");
       const result = await command(
@@ -109,18 +111,18 @@ export function createDesktopServices(options: DesktopServiceOptions) {
       userDataPath,
       modelUsageStore
     ),
-    workspaceAgentConfigStore: new WorkspaceAgentConfigStore(userDataPath),
+    workspaceAgentConfigStore: new WorkspaceAgentConfigStore(configurationPath),
     agentTeamConfigStore,
-    libraryAgentConfigStore: new LibraryAgentConfigStore(userDataPath),
-    longAgentConfigStore: new LongAgentConfigStore(userDataPath),
-    extrasAgentService: createExtrasAgentService(userDataPath),
+    libraryAgentConfigStore: new LibraryAgentConfigStore(configurationPath),
+    longAgentConfigStore: new LongAgentConfigStore(configurationPath),
+    extrasAgentService: createExtrasAgentService(configurationPath),
     workspaceDirectoryStore,
-    appearanceService: new AppearanceService(userDataPath),
-    generalSettingsStore: new GeneralSettingsStore(userDataPath),
-    voiceService: new VoiceService(
-      userDataPath,
-      process.env.DEEPWRITE_SMOKE === "1" ? voiceSmokeOptions() : undefined
-    ),
+    appearanceService: new AppearanceService(configurationPath),
+    generalSettingsStore: new GeneralSettingsStore(configurationPath),
+    voiceService: new VoiceService(configurationPath, {
+      usageDataPath: userDataPath,
+      ...(process.env.DEEPWRITE_SMOKE === "1" ? voiceSmokeOptions() : {})
+    }),
     updateService: new UpdateService(options.installUpdate),
     appAlertStore: new AppAlertStore(userDataPath),
     cloudBackupService: createCloudBackupFeature(

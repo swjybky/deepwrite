@@ -39,6 +39,7 @@ export function useModelSettingsCoordinator(
 ) {
   const { settingsStore, notifications: uiMessage } = context;
   let modelUsageRequestSequence = 0;
+  let modelRefreshSequence = 0;
   let lastPublishedModelSettings: ModelSettings | null = null;
 
   function applyLoadedModelSettings(settings: ModelSettings): void {
@@ -57,9 +58,22 @@ export function useModelSettingsCoordinator(
       const settings = await settingsStore.ensureModelsLoaded(() =>
         api.models.list()
       );
-      applyLoadedModelSettings(settings);
+      // A newer refresh or save may have superseded this read.
+      if (settingsStore.modelSettings === settings) {
+        applyLoadedModelSettings(settings);
+      }
     } catch {
       // The store retains a retriable error for the active feature surface.
+    }
+  }
+
+  async function refreshModelSettings(): Promise<void> {
+    if (!context.api()) return;
+    const sequence = ++modelRefreshSequence;
+    settingsStore.invalidate("models");
+    await loadModelSettings();
+    if (sequence === modelRefreshSequence && settingsStore.modelError) {
+      uiMessage.error(settingsStore.modelError);
     }
   }
 
@@ -245,6 +259,7 @@ export function useModelSettingsCoordinator(
   return {
     ...siteOfficialModelSettings,
     loadModelSettings,
+    refreshModelSettings,
     loadAppAlerts,
     closeStartupAlert,
     loadModelUsage,

@@ -43,7 +43,16 @@ describe("DeepWrite Pi runtime adapter: agent-context-and-tools", () => {
         prompt,
         thinkingLevel: "off",
         libraryAgentProfile: profile,
-        workspaceContext: { libraryWorkspace }
+        workspaceContext: {
+          libraryWorkspace:
+            index === 0
+              ? libraryWorkspace
+              : {
+                  ...libraryWorkspace,
+                  libraryId: "other-library",
+                  title: "新焦点技能库"
+                }
+        }
       })) {
         // Consume both turns before inspecting the skill-library transcript.
       }
@@ -53,18 +62,22 @@ describe("DeepWrite Pi runtime adapter: agent-context-and-tools", () => {
       runtime as unknown as {
         conversationAgents: Map<
           string,
-          { state: { messages: Array<{ role?: string; content?: unknown }> } }
+          {
+            state: {
+              systemPrompt: string;
+              messages: Array<{ role?: string; content?: unknown }>;
+            };
+          }
         >;
       }
     ).conversationAgents;
-    const agent = cache.get(
-      "session_skill_library_history:library:skill:skill-library-history"
-    );
+    const agent = cache.get("session_skill_library_history:library:skill");
     const userMessages = agent?.state.messages.filter(
       (message) => message.role === "user"
     );
 
     expect(userMessages).toHaveLength(2);
+    expect(agent?.state.systemPrompt).toContain("【当前位置】《新焦点技能库》");
     expect(String(userMessages?.[0]?.content)).toContain(
       "【本次智能体会话固定上下文】"
     );

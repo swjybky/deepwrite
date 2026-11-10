@@ -68,6 +68,7 @@ export async function writeEntry(
   assertNoActiveRun(context, [input.libraryId]);
   const { libraryId, entryId, content, baseRevision } = input;
   const { domain } = await libraryOf(context, libraryId);
+  assertNoActiveRun(context, [`library-domain:${domain}`, libraryId]);
   const saved = await runCommand(
     context,
     "catalog.saveLibraryEntry",
@@ -133,6 +134,7 @@ export async function manageEntry(
   const run = async (): Promise<ExternalMutationResult> => {
     const library = await libraryOf(context, libraryId);
     const { domain } = library;
+    assertNoActiveRun(context, [`library-domain:${domain}`, libraryId]);
     if (action === "create") {
       const created = await runCommand(
         context,
@@ -220,6 +222,7 @@ async function createLibrary(
   input: ExternalManageLibraryInput
 ): Promise<ExternalMutationResult> {
   const domain = requireField(input.domain, "create", "domain");
+  assertNoActiveRun(context, [`library-domain:${domain}`]);
   const name = requireField(input.title, "create", "title");
   const kind = requireField(input.kind, "create", "kind");
   const created = await runCommand(
@@ -285,6 +288,7 @@ export async function manageLibrary(
   }
   const libraryId = requireField(input.libraryId, action, "libraryId");
   const { domain, value } = await libraryOf(context, libraryId);
+  assertNoActiveRun(context, [`library-domain:${domain}`, libraryId]);
   const run = async (): Promise<ExternalMutationResult> => {
     switch (action) {
       case "rename": {

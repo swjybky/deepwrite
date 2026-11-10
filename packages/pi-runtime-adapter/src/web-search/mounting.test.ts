@@ -429,8 +429,7 @@ describe("web_search in library management children", () => {
         ],
         managers: DEFAULT_LIBRARY_AGENT_PROFILES.map((profile) => ({
           domain: profile.domain,
-          description: "管理已确认的资料",
-          profile
+          description: "管理已确认的资料"
         }))
       },
       libraryManagementCommandExecutor: vi.fn(async () => ({
@@ -440,18 +439,18 @@ describe("web_search in library management children", () => {
       }))
     };
     const runtime = harness();
-    const spawn = buildRunTools(run, options(runtime)).find(
-      (tool) => tool.name === "spawn_subagent"
-    )!;
-    await spawn.execute("call", {
-      subagent_id: "builtin:material-manager",
-      library_id: "materials",
-      task: "按用户要求记录情节"
-    } as never);
-    const child = runtime.contexts[0]!;
-    expect(webOf(child.tools ?? [])).toEqual(WEB_PAIR);
-    const occurrences = child.systemPrompt!.split("【联网搜索】").length - 1;
-    expect(occurrences).toBe(1);
+    const tools = buildRunTools(run, options(runtime));
+    expect(webOf(tools)).toEqual(WEB_PAIR);
+    expect(
+      tools.some(
+        (tool) => tool.name === "manage_material_create_material_entry"
+      )
+    ).toBe(true);
+    expect(
+      tools.find((tool) => tool.name === "spawn_subagent")?.description ?? ""
+    ).not.toContain("builtin:material-manager");
+    const prompt = buildEffectiveSystemPrompt("base", run);
+    expect(prompt.split("【联网搜索】").length - 1).toBe(1);
   });
 });
 

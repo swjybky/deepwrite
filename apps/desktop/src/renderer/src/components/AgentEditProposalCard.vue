@@ -70,6 +70,15 @@ const longExpectedImpactSummary = computed(() =>
 const canLocate = computed(
   () => props.proposal.status === "accepted" && !props.remoteDevice
 );
+const showFooter = computed(() => {
+  const discardStatus = proposalDiscardState(props.proposal)?.status;
+  return (
+    props.variant !== "row" ||
+    props.proposal.status !== "accepted" ||
+    discardStatus === "conflict" ||
+    discardStatus === "error"
+  );
+});
 
 function review(decision: "accept" | "reject"): void {
   if (proposalReviewDisabled(props, decision)) return;
@@ -164,9 +173,32 @@ function discard(): void {
         <span class="is-deletion">−{{ proposal.deletions }}</span>
       </div>
     </header>
-    <p v-else-if="proposal.summary" class="edit-proposal-row-summary">
-      {{ proposal.summary }}
-    </p>
+    <div
+      v-else-if="proposal.summary || canLocate || showDiscardButton(props)"
+      class="edit-proposal-row-toolbar"
+    >
+      <p v-if="proposal.summary" class="edit-proposal-row-summary">
+        {{ proposal.summary }}
+      </p>
+      <div
+        v-if="canLocate || showDiscardButton(props)"
+        class="edit-proposal-actions"
+      >
+        <button
+          v-if="canLocate"
+          class="approval-target-button"
+          type="button"
+          @click.stop="locate"
+        >
+          {{ t("goToTargetFile") }}
+        </button>
+        <ApprovalDiscardButton
+          v-if="showDiscardButton(props)"
+          :discarding="proposalDiscardState(proposal)?.status === 'discarding'"
+          @discard="discard"
+        />
+      </div>
+    </div>
 
     <AgentEditProposalDiff :proposal="proposal" :inline="variant === 'row'" />
 
@@ -179,7 +211,7 @@ function discard(): void {
       <p>{{ longExpectedImpactSummary }}</p>
     </section>
 
-    <footer class="edit-proposal-footer">
+    <footer v-if="showFooter" class="edit-proposal-footer">
       <span class="edit-proposal-message">{{
         proposalStatusMessage(props)
       }}</span>
@@ -204,25 +236,6 @@ function discard(): void {
         >
           {{ proposalAcceptLabel(proposal) }}
         </button>
-      </div>
-      <!-- A summary row has no card header, so its settled actions sit here. -->
-      <div
-        v-else-if="variant === 'row' && (canLocate || showDiscardButton(props))"
-        class="edit-proposal-actions"
-      >
-        <button
-          v-if="canLocate"
-          class="approval-target-button"
-          type="button"
-          @click.stop="locate"
-        >
-          {{ t("goToTargetFile") }}
-        </button>
-        <ApprovalDiscardButton
-          v-if="showDiscardButton(props)"
-          :discarding="proposalDiscardState(proposal)?.status === 'discarding'"
-          @discard="discard"
-        />
       </div>
     </footer>
   </article>

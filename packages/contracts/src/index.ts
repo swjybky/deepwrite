@@ -22,6 +22,8 @@ export * from "./extras-agent";
 export * from "./external-control";
 export * from "./expert-draft";
 export * from "./general-settings";
+export * from "./prompt-locale";
+export * from "./agent-prompts";
 export * from "./more-features-settings";
 export * from "./storage-settings";
 export * from "./body-text-format";
@@ -41,6 +43,7 @@ export * from "./long-manuscript-export";
 export * from "./long-workspace";
 export * from "./long-workspace-api";
 export * from "./long-workspace-commands";
+export * from "./long-workspace-restore";
 export * from "./long-project-recovery";
 export * from "./long-worldbuilding-markdown";
 export * from "./long-workspace-operations";
@@ -102,3 +105,7 @@ export * from "./library-package";
 export * from "./image-models";
 export * from "./web-search";
 export * from "./https-base-url";
+
+export * from "./library-organization";
+
+export * from "./library-structure";

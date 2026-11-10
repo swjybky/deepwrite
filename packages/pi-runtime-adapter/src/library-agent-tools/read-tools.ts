@@ -42,8 +42,8 @@ export function buildListTool(
     name: `list_${domain}_entries`,
     label: `列出${noun}条目`,
     description: withPeers
-      ? `列出当前${noun}库及同分组其它成员库中的条目名称、栏目、来源库、entry_id 和字数；可用 library_id 只看某一个成员库。写入仍只针对当前库。`
-      : `列出当前${noun}库中的条目名称、栏目、entry_id 和字数；不会读取其它资料库。`,
+      ? `列出已提供的${noun}库中的条目名称、栏目、来源库、entry_id 和字数；可用 library_id 限定目标库。`
+      : `列出目标${noun}库中的条目名称、栏目、entry_id 和字数。`,
     parameters: Type.Object({
       stage_id: Type.Optional(StringEnum(stages)),
       ...(withPeers
@@ -99,8 +99,8 @@ export function buildReadTool(
     name: `read_${domain}_entry`,
     label: `读取${noun}条目`,
     description: withPeers
-      ? `按 entry_id 或精确标题读取当前${noun}库或同分组其它成员库中的一个条目全文；可用 Catalog 裸 entry_id，跨库时建议同时传 library_id；也兼容 list 返回的 libraryId/entryId。`
-      : `按 entry_id 或精确标题读取当前${noun}库中的一个条目全文；重名时必须补充栏目或 entry_id。`,
+      ? `按 entry_id 或精确标题读取已提供的${noun}库中的一个条目全文；可用 Catalog 裸 entry_id，跨库时建议同时传 library_id；也兼容 list 返回的 libraryId/entryId。`
+      : `按 entry_id 或精确标题读取目标${noun}库中的一个条目全文；重名时必须补充栏目或 entry_id。`,
     parameters: Type.Object({
       entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
       name: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
@@ -157,8 +157,8 @@ export function buildSearchTool(
     name: `search_${domain}_entries`,
     label: `搜索${noun}条目`,
     description: withPeers
-      ? `在当前${noun}库及同分组其它成员库的标题和正文中搜索文本，只返回命中位置与少量上下文；可用 library_id 限定范围。`
-      : `在当前${noun}库的标题和正文中搜索文本，只返回命中位置与少量上下文。`,
+      ? `在已提供的${noun}库的标题和正文中搜索文本，只返回命中位置与少量上下文；可用 library_id 限定范围。`
+      : `在目标${noun}库的标题和正文中搜索文本，只返回命中位置与少量上下文。`,
     parameters: Type.Object({
       query: Type.String({
         minLength: 1,

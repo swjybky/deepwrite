@@ -226,7 +226,9 @@ export {
   DRAW_JEV_SCORE_QUESTION_ID,
   buildDrawJevScoreInstructions,
   buildDrawJevScoreQuestion,
+  normalizeJevModelIdentity,
   parseJevSystemOneScoreAnswer,
+  resolveJevApiRoot,
   resolveJevSystemOneUrl
 } from "./jev-systemone";
 export {
@@ -496,7 +498,6 @@ export type * from "./builtin-subagents";
 export type * from "./library-management";
 export type * from "./library-management-scope";
 export {
-  BUILTIN_SUBAGENT_NAMES,
   BuiltinSubagentSettingsSchema,
   defaultBuiltinSubagentSettings
 } from "./builtin-subagents";
@@ -568,3 +569,7 @@ export * from "./web-search";
 export * from "./https-base-url";
 export { ChatAssistantProjectRefSchema } from "./chat-assistant-base";
 export { ExtrasAgentTaskSchema } from "./extras-agent/tasks";
+
+export * from "./library-organization";
+
+export * from "./library-structure";

@@ -1,6 +1,6 @@
 export default {
   characterMaterialLibrary: "人设素材库",
-  ideaMaterialLibrary: "梗素材库",
+  ideaMaterialLibrary: "梗与灵感素材库",
   plotMaterialLibrary: "剧情素材库",
   manuscriptMaterialLibrary: "正文素材库",
   otherMaterialLibrary: "其他素材库",

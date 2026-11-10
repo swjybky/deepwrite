@@ -4,6 +4,7 @@ import {
   AppearanceFontInstallResultSchema,
   AppearanceFontRemoveResultSchema,
   AppearanceSettingsSnapshotSchema,
+  AppearanceSettingsSchema,
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
@@ -62,8 +63,14 @@ export async function handleAppearanceCommands(
 
   if (command.type === "appearance.save") {
     try {
+      const settings = AppearanceSettingsSchema.parse(command.payload);
+      if (command.payload.captureCurrentWindowSize) {
+        const window = ctx.getMainWindow();
+        const { width, height } = window.getBounds();
+        settings.startupWindowSize = { width, height };
+      }
       const snapshot = AppearanceSettingsSnapshotSchema.parse(
-        await ctx.requireAppearanceService().save(command.payload)
+        await ctx.requireAppearanceService().save(settings)
       );
       ctx.syncNativeAppearanceChrome(snapshot.settings);
       return {

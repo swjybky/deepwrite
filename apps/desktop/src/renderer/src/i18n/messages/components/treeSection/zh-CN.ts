@@ -1,4 +1,5 @@
 export default {
+  newEntry: "新增条目",
   book: "书籍",
   skillLibrary: "技能库",
   materialLibrary: "素材库",

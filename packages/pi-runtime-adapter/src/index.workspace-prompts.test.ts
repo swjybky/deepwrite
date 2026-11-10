@@ -15,13 +15,24 @@ import {
   screenplayWorkspace
 } from "./index.test-support";
 import { runtimeConfig } from "./web-search/test-support";
+import { buildLongWorkspaceRules } from "./prompts-long-rules";
 import { writeApprovalBoundary } from "./write-approval";
 
+/** Ground rules → long role prompt → non-editable long rules → approval. */
 function withWriteApprovalBoundary(
   prompt: string,
   mode?: "auto-approve" | "request-approval"
 ): string {
-  return [prompt.trim(), "", writeApprovalBoundary(mode)].join("\n");
+  return [
+    "DeepWrite base",
+    "",
+    `【当前长篇智能体：${DEFAULT_LONG_AGENT_PROFILES[0]!.label}】`,
+    prompt.trim(),
+    "",
+    buildLongWorkspaceRules("zh-CN"),
+    "",
+    writeApprovalBoundary(mode)
+  ].join("\n");
 }
 
 describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
@@ -168,7 +179,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(enabledPrompt).not.toContain("DeepSeek 服务端");
   });
 
-  it("uses only the configured long-agent prompt and discards the base prompt", () => {
+  it("layers the ground rules, the configured long-agent prompt and the fixed long rules", () => {
     const profile = DEFAULT_LONG_AGENT_PROFILES.find(
       ({ id }) => id === "long"
     )!;
@@ -213,8 +224,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(prompt).toBe(
       withWriteApprovalBoundary(profile.systemPrompt, "auto-approve")
     );
-    expect(prompt).not.toContain("DeepWrite base");
-    expect(prompt).not.toContain("【当前长篇智能体");
+    expect(prompt.startsWith("DeepWrite base")).toBe(true);
     expect(prompt).not.toContain("【DeepWrite 长篇工具边界】");
   });
 
@@ -278,12 +288,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     });
 
     expect(prompt).toBe(withWriteApprovalBoundary(profile.systemPrompt));
-    expect(prompt).toContain("All five stages share the same tools");
+    expect(prompt).toContain("它们共用同一套工具与定位规则");
+    expect(prompt).toContain("固定上下文里已有世界观目录、人物目录和结构导航");
     expect(prompt).toContain(
-      "The fixed context already contains the worldbuilding directory, character directory, and long-form structure navigation."
-    );
-    expect(prompt).toContain(
-      "Do not request, infer, or repeat implementation details"
+      "不要询问、推断或复述文件路径、file_id 等实现细节"
     );
     expect(prompt).not.toContain("必须同时形成正文");
   });
@@ -331,9 +339,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     });
 
     expect(prompt).toContain("propose_continuity_commit");
-    expect(prompt).toContain(
-      "The foreshadowing overview is the design source."
-    );
+    expect(prompt).toContain("伏笔总览是设计来源");
   });
 
   it("keeps worldbuilding prompts on business ids and hides file controls", () => {
@@ -427,18 +433,18 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
 
     const systemPrompt = buildEffectiveSystemPrompt("DeepWrite base", input);
     expect(systemPrompt).toBe(withWriteApprovalBoundary(profile.systemPrompt));
-    expect(systemPrompt).toContain("All five stages share the same tools");
+    expect(systemPrompt).toContain("它们共用同一套工具与定位规则");
     expect(systemPrompt).toContain("list");
     expect(systemPrompt).toContain(
-      "Do not request, infer, or repeat implementation details"
+      "不要询问、推断或复述文件路径、file_id 等实现细节"
     );
     expect(systemPrompt).not.toContain("bookId");
     expect(systemPrompt).not.toContain(" / worldbuilding");
     expect(systemPrompt).toContain(
-      "The fixed context already contains the worldbuilding directory, character directory, and long-form structure navigation."
+      "固定上下文里已有世界观目录、人物目录和结构导航"
     );
     expect(systemPrompt).toContain(
-      "worldbuilding categories and character types"
+      "世界观分类、人物类型等容器的新建、删除、改名"
     );
 
     const userPrompt = buildRuntimeUserPrompt(input);
@@ -603,7 +609,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(systemPrompt).toContain("list");
     expect(systemPrompt).toContain("read");
     expect(systemPrompt).toContain(
-      "Do not request, infer, or repeat implementation details"
+      "不要询问、推断或复述文件路径、file_id 等实现细节"
     );
     expect(systemPrompt).toBe(withWriteApprovalBoundary(profile.systemPrompt));
     expect(systemPrompt).not.toContain("bookId");
@@ -960,10 +966,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(systemPrompt).toContain("book_line");
     expect(systemPrompt).toBe(withWriteApprovalBoundary(profile.systemPrompt));
     expect(systemPrompt).toContain(
-      "The fixed context already contains the worldbuilding directory, character directory, and long-form structure navigation."
+      "固定上下文里已有世界观目录、人物目录和结构导航"
     );
     expect(systemPrompt).toContain(
-      "Do not request, infer, or repeat implementation details"
+      "不要询问、推断或复述文件路径、file_id 等实现细节"
     );
     expect(userPrompt).toContain(
       "全书共 2 卷、3 个剧情点、1 张章卡、2 条故事情节、0 个故事事件、1 条伏笔线"

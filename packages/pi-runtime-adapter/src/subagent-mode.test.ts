@@ -19,7 +19,6 @@ import {
 import { shortProfile, shortWorkspace } from "./short-agent-tools.test-support";
 import {
   applySubagentAgentMode,
-  subagentAgentMode,
   subagentContextPolicyForMode,
   subagentModeLabel
 } from "./subagent-mode";
@@ -198,15 +197,6 @@ describe("subagent agent modes in a long workspace", () => {
 });
 
 describe("subagent mode helpers", () => {
-  it("never treats a library manager as pure", () => {
-    expect(
-      subagentAgentMode(
-        member("pure-bare", { toolSource: "library-management" })
-      )
-    ).toBe("standard");
-    expect(subagentAgentMode({})).toBe("standard");
-  });
-
   it("filters tools by mode with an allow list", () => {
     const names = [
       "read",

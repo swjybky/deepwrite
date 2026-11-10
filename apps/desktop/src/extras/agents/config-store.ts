@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "../../main/configuration-lock";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -363,11 +364,13 @@ export class ExtrasAgentConfigStore {
     operation: () => Promise<DiskSettings>
   ): Promise<ExtrasAgentSettings> {
     let saved: ExtrasAgentSettings | undefined;
-    const pending = this.writeChain.then(async () => {
-      const disk = await operation();
-      saved = this.publicSettings(agentId, disk);
-      await atomicWrite(this.path(agentId), disk);
-    });
+    const pending = this.writeChain.then(() =>
+      withConfigurationLock(this.path(agentId), async () => {
+        const disk = await operation();
+        saved = this.publicSettings(agentId, disk);
+        await atomicWrite(this.path(agentId), disk);
+      })
+    );
     this.writeChain = pending.then(
       () => undefined,
       () => undefined

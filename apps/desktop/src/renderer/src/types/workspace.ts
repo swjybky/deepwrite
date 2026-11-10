@@ -68,6 +68,7 @@ import type { LongWorkspaceSelection } from "./longWorkspace";
 export type ResourceDomain = "creation" | "skill" | "material";
 
 export type ResourceSectionAction =
+  | "create-entry"
   | "create"
   | "create-from-template"
   | "choose-open-book"
@@ -87,6 +88,10 @@ export interface ResourceSectionActionPayload {
 }
 
 export type CatalogResourceNodeAction =
+  | "organize-entries"
+  | "reorder-library"
+  | "library-move-up"
+  | "library-move-down"
   | "create-entry"
   | "import-external-skills"
   | "rename-library"
@@ -107,6 +112,10 @@ export type CatalogResourceNodeAction =
 export interface CatalogResourceNodeActionPayload {
   domain: "skill" | "material";
   action: CatalogResourceNodeAction;
+  anchorId?: string;
+  position?: "before" | "after";
+  orderGroupId?: string;
+  organizationOperation?: import("@deepwrite/contracts").LibraryStructureOperation;
   node: ResourceTreeNode;
 }
 
@@ -156,6 +165,8 @@ export type BookResourceDialogMode =
   | "bind-material";
 
 export interface ResourceTreeNode {
+  canMoveLibraryUp?: boolean;
+  canMoveLibraryDown?: boolean;
   id: string;
   label: string;
   icon?: IconName;

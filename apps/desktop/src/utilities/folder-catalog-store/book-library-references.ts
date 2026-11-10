@@ -9,9 +9,15 @@ export function assertBookLibraryReferences(
   snapshot: Pick<CatalogSnapshot, "materials" | "skills">
 ): void {
   const materials = new Map(
-    snapshot.materials.map((material) => [material.id, material])
+    snapshot.materials
+      .filter((item) => !item.isUnbound)
+      .map((material) => [material.id, material])
   );
-  const skills = new Map(snapshot.skills.map((skill) => [skill.id, skill]));
+  const skills = new Map(
+    snapshot.skills
+      .filter((item) => !item.isUnbound)
+      .map((skill) => [skill.id, skill])
+  );
   for (const [kind, materialIds] of Object.entries(
     book.linkedMaterialIdsByKind ?? {}
   )) {

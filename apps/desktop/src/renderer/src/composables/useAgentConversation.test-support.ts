@@ -548,6 +548,10 @@ function createDeferredApi(): {
       }
     },
     catalog: {
+      createUnboundEntry: vi.fn(),
+      reorderLibrary: vi.fn(),
+      previewLibraryStructure: vi.fn(),
+      applyLibraryStructure: vi.fn(),
       createBookFromTemplate: vi.fn(async () => null),
       loadDraftRecovery: vi.fn(async () => ({})),
       saveDraftRecovery: vi.fn(async () => undefined),

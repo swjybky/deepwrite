@@ -15,7 +15,7 @@ type Localized = Readonly<Record<LibraryPackageLocale, string>>;
 export const MATERIAL_STAGE_FOLDER_NAMES: Readonly<
   Record<MaterialStageId, Localized>
 > = {
-  gimmick: { "zh-CN": "梗", "en-US": "Story ideas" },
+  gimmick: { "zh-CN": "梗与灵感", "en-US": "Story ideas" },
   character: { "zh-CN": "人设", "en-US": "Character concepts" },
   pacing: { "zh-CN": "剧情设计", "en-US": "Plot design" },
   intro: { "zh-CN": "导语设计", "en-US": "Opening design" },
@@ -41,7 +41,7 @@ export const MATERIAL_KIND_NAMES: Readonly<
   Record<MaterialLibraryKind, Localized>
 > = {
   character: { "zh-CN": "人设素材库", "en-US": "Character material library" },
-  gimmick: { "zh-CN": "梗素材库", "en-US": "Story idea library" },
+  gimmick: { "zh-CN": "梗与灵感素材库", "en-US": "Story idea library" },
   plot: { "zh-CN": "剧情素材库", "en-US": "Plot material library" },
   draft: { "zh-CN": "正文素材库", "en-US": "Prose material library" },
   other: { "zh-CN": "其他素材库", "en-US": "Other material library" },
@@ -65,7 +65,7 @@ export const LIBRARY_TYPE_NAMES: Readonly<Record<LibraryType, Localized>> = {
 const MATERIAL_STAGE_ALIASES: Readonly<
   Partial<Record<MaterialStageId, readonly string[]>>
 > = {
-  gimmick: ["脑洞", "创意"],
+  gimmick: ["梗", "脑洞", "创意"],
   character: ["人物", "角色", "characters"],
   pacing: ["节奏", "plot"],
   intro: ["开篇", "导语", "opening"],

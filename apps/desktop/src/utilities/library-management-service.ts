@@ -1,6 +1,5 @@
 import {
   LibraryManagementQueryInputSchema,
-  LibraryManagementQueryResultSchema,
   LibraryAgentWorkspaceSnapshotSchema,
   createShortWorkspaceContentRevision,
   LIBRARY_AGENT_ENTRY_MAX_CHARACTERS,
@@ -91,6 +90,46 @@ export class LibraryManagementService {
     if (!input.libraryId) return { libraries };
     const source = sources.find((item) => item.library.id === input.libraryId);
     if (!source) throw new Error("目标资料库未绑定到当前作品或已不存在。");
+    return {
+      libraries,
+      workspace: await this.buildSnapshot(source, () =>
+        this.sources(input.scope)
+      )
+    };
+  }
+
+  private async domainSources(domain: LibraryAgentDomain) {
+    const index = await this.catalog.indexSnapshot();
+    return domain === "material"
+      ? index.materials.map((library) => ({
+          library,
+          domain,
+          kind: library.materialKind,
+          readOnly: false
+        }))
+      : index.skills.map((library) => ({
+          library,
+          domain,
+          kind: library.skillKind,
+          readOnly: library.isBuiltin
+        }));
+  }
+
+  async readLibraryAgentLibrary(input: {
+    domain: LibraryAgentDomain;
+    libraryId: string;
+  }) {
+    const source = (await this.domainSources(input.domain)).find(
+      (item) => item.library.id === input.libraryId
+    );
+    if (!source) throw new Error("库不存在或不属于本领域。");
+    return this.buildSnapshot(source, () => this.domainSources(input.domain));
+  }
+
+  private async buildSnapshot(
+    source: Awaited<ReturnType<LibraryManagementService["sources"]>>[number],
+    reload: () => ReturnType<LibraryManagementService["sources"]>
+  ) {
     const { library, domain, kind, readOnly } = source;
     let remaining = LIBRARY_AGENT_TOTAL_SNAPSHOT_MAX_CHARACTERS;
     const take = (content: string, limit: number) => {
@@ -138,7 +177,7 @@ export class LibraryManagementService {
       });
     }
     // The live registry and revision can change while the snapshot is being read.
-    const current = (await this.sources(input.scope)).find(
+    const current = (await reload()).find(
       (item) => item.domain === domain && item.library.id === library.id
     );
     if (
@@ -147,31 +186,28 @@ export class LibraryManagementService {
       current.readOnly !== readOnly
     )
       throw new Error("资料库绑定或版本已变化，请重新读取。");
-    return LibraryManagementQueryResultSchema.parse({
-      libraries,
-      workspace: LibraryAgentWorkspaceSnapshotSchema.parse({
-        domain,
-        libraryId: library.id,
-        title: library.title,
-        libraryType:
-          "materialType" in library ? library.materialType : library.skillType,
-        kind,
-        readOnly,
-        projectRevision: library.projectRevision,
-        overviewDocumentId: documentId("overview"),
-        overview: overview.content,
-        overviewRevision: createShortWorkspaceContentRevision(
-          overviewDocument.content
-        ),
-        ...(overview.truncated
-          ? {
-              overviewTruncated: true,
-              overviewOriginalLength: overview.originalLength
-            }
-          : {}),
-        entries,
-        omittedEntryCount: Math.max(0, library.entries.length - entries.length)
-      })
+    return LibraryAgentWorkspaceSnapshotSchema.parse({
+      domain,
+      libraryId: library.id,
+      title: library.title,
+      libraryType:
+        "materialType" in library ? library.materialType : library.skillType,
+      kind,
+      readOnly,
+      projectRevision: library.projectRevision,
+      overviewDocumentId: documentId("overview"),
+      overview: overview.content,
+      overviewRevision: createShortWorkspaceContentRevision(
+        overviewDocument.content
+      ),
+      ...(overview.truncated
+        ? {
+            overviewTruncated: true,
+            overviewOriginalLength: overview.originalLength
+          }
+        : {}),
+      entries,
+      omittedEntryCount: Math.max(0, library.entries.length - entries.length)
     });
   }
 }

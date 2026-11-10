@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "vite";
@@ -46,7 +46,9 @@ describe("language data assets", () => {
   });
 
   it("drops deleted message dependencies when a running dev server reloads", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "deepwrite-i18n-"));
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "deepwrite-i18n-"))
+    );
     let server;
     try {
       const entry = join(directory, "index.ts");
@@ -90,7 +92,9 @@ describe("language data assets", () => {
   });
 
   it("retries a catalog read after an incomplete file update", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "deepwrite-i18n-"));
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "deepwrite-i18n-"))
+    );
     try {
       const plugin = i18nResourcesPlugin(directory);
       const entry = join(directory, "index.ts");

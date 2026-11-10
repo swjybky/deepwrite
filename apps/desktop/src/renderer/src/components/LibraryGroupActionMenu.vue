@@ -40,7 +40,7 @@ const t = createScopedTranslator("components.treeNodeItem");
     <span>{{ t("export") }}</span>
   </button>
   <button
-    class="tree-node-action-menu-item is-danger"
+    class="tree-node-action-menu-item"
     type="button"
     role="menuitem"
     @click.stop="$emit('action', 'dissolve-group')"

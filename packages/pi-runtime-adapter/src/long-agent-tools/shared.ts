@@ -38,7 +38,9 @@ export function preflightLongMutationProposal(
       historical_continuity_readonly: "历史章节的连续性文件为只读",
       invalid_document_write: "文档写入目标无效",
       invalid_result: "操作后的结构不满足长篇约束",
-      document_changed: "文档在读取后已有改动"
+      document_changed: "文档在读取后已有改动",
+      restore_conflict: "撤销时相关内容已有改动",
+      restore_unavailable: "还原记录已不存在"
     };
     return textResult(
       [

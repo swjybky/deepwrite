@@ -1,4 +1,9 @@
 import {
+  CatalogPreviewLibraryStructureCommandEnvelopeSchema,
+  CatalogApplyLibraryStructureCommandEnvelopeSchema
+} from "./library-structure";
+import { CatalogCreateUnboundEntryCommandEnvelopeSchema } from "./library-organization";
+import {
   createBookCreationSchema,
   createBookCreationEnvelope,
   createBookAtPathSchema
@@ -6,6 +11,10 @@ import {
 
 import { LibraryManagementScopeSchema } from "./library-management-scope";
 import { z } from "zod";
+import {
+  LibraryOrganizationSchema,
+  CatalogReorderLibraryCommandEnvelopeSchema
+} from "./library-organization";
 import { EnvelopeBaseSchema } from "./envelope";
 import {
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
@@ -1022,6 +1031,7 @@ export const MaterialEntrySchema = z.object({
 export type MaterialEntry = z.infer<typeof MaterialEntrySchema>;
 
 export const MaterialLibrarySchema = z.object({
+  isUnbound: z.boolean().optional(),
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   materialType: LibraryTypeSchema,
@@ -1067,6 +1077,7 @@ export const SkillEntrySchema = z.object({
 export type SkillEntry = z.infer<typeof SkillEntrySchema>;
 
 export const SkillLibrarySchema = z.object({
+  isUnbound: z.boolean().optional(),
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   skillType: LibraryTypeSchema,
@@ -1678,6 +1689,7 @@ export const CatalogSnapshotSchema = z
     z.object({
       schemaVersion: z.literal(1),
       revision: z.number().int().nonnegative(),
+      libraryOrganization: LibraryOrganizationSchema.optional(),
       creativePlotStages: CreativePlotStagesSchema,
       books: z.array(BookSchema),
       materials: z.array(MaterialLibrarySchema),
@@ -1828,6 +1840,7 @@ const CatalogIndexSnapshotObjectSchema = z
   .object({
     schemaVersion: z.literal(1),
     revision: z.number().int().nonnegative(),
+    libraryOrganization: LibraryOrganizationSchema.optional(),
     creativePlotStages: CreativePlotStagesSchema,
     books: z.array(CatalogIndexBookSchema),
     materials: z.array(CatalogIndexMaterialLibrarySchema),
@@ -2832,6 +2845,10 @@ export const CatalogImportLibraryEntriesCommandEnvelopeSchema =
 // Schema construction has no registration side effects; Renderer does not need command envelopes.
 export const CatalogCommandEnvelopeSchema =
   /* @__PURE__ */ z.discriminatedUnion("type", [
+    CatalogPreviewLibraryStructureCommandEnvelopeSchema,
+    CatalogApplyLibraryStructureCommandEnvelopeSchema,
+    CatalogCreateUnboundEntryCommandEnvelopeSchema,
+    CatalogReorderLibraryCommandEnvelopeSchema,
     CatalogIndexCommandEnvelopeSchema,
     CatalogReadDocumentCommandEnvelopeSchema,
     CatalogReadWritingContextCommandEnvelopeSchema,

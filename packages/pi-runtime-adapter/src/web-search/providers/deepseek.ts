@@ -5,7 +5,7 @@ import {
   type WebSearchProviderClient
 } from "../types";
 import { deepSeekWebFetch } from "./deepseek-fetch";
-import { httpUrl, isRecord, postJson } from "./deepseek-http";
+import { httpUrl, isRecord, requestJson } from "./http";
 
 /** https://api-docs.deepseek.com/zh-cn/api/search */
 const SEARCH_PATH = "/v1/tools/search";
@@ -56,7 +56,7 @@ export const deepSeekWebSearchClient: WebSearchProviderClient = {
     if (!request.query.trim() || [...request.query].length > limit)
       throw new WebSearchProviderError("bad_request", false);
     const question = request.question?.trim().slice(0, limit);
-    const body = await postJson(
+    const body = await requestJson(
       SEARCH_PATH,
       {
         query: request.query,

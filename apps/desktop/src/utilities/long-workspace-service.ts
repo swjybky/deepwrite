@@ -5,6 +5,8 @@ import {
   listLongWorkspaceFiles,
   LongApplyOperationsInputSchema,
   LongApplyOperationsResultSchema,
+  LongRestoreOperationsInputSchema,
+  LongRestoreOperationsResultSchema,
   LongApplyLegacySyncAtPathInputSchema,
   LongApplyLegacySyncResultSchema,
   LongBookSummarySchema,
@@ -39,6 +41,8 @@ import {
   LongWriteAgentsMdResultSchema,
   type CreateLongBookInput,
   type LongApplyOperationsInput,
+  type LongRestoreOperationsInput,
+  type LongRestoreOperationsResult,
   type LongApplyOperationsResult,
   type LongApplyLegacySyncAtPathInput,
   type LongApplyLegacySyncResult,
@@ -584,7 +588,8 @@ export class LongWorkspaceService {
     const applied = await this.store.applyWorkspaceOperations(
       opened.projectDirectory,
       {
-        batch: parsed.batch
+        batch: parsed.batch,
+        ...(parsed.captureRestorePoint ? { captureRestorePoint: true } : {})
       }
     );
     await this.updateCatalogSummaryBestEffort(
@@ -595,7 +600,28 @@ export class LongWorkspaceService {
     return LongApplyOperationsResultSchema.parse({
       bookId: parsed.bookId,
       operationResult: applied.operationResult,
-      summary: applied.summary
+      summary: applied.summary,
+      ...(applied.restorePoint ? { restorePoint: applied.restorePoint } : {})
+    });
+  }
+
+  async restoreOperations(
+    input: LongRestoreOperationsInput
+  ): Promise<LongRestoreOperationsResult> {
+    const parsed = LongRestoreOperationsInputSchema.parse(input);
+    const opened = await this.openProject(parsed);
+    const restored = await this.store.restoreWorkspaceOperations(
+      opened.projectDirectory,
+      parsed.restorePointId
+    );
+    await this.updateCatalogSummaryBestEffort(
+      parsed.bookId,
+      restored.summary,
+      "apply-operations"
+    );
+    return LongRestoreOperationsResultSchema.parse({
+      bookId: parsed.bookId,
+      ...restored
     });
   }
 

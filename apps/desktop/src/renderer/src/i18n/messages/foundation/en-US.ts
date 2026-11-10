@@ -85,6 +85,9 @@ export default {
     "The local conversation could not be saved or read ({code}).",
   impactChanged:
     "Relationships or deletion impact have changed. Review the latest impact and confirm again.",
+  restoreConflict:
+    "Related content changed after this edit, so it was not undone. Undo later edits first.",
+  restoreUnavailable: "The restore record for this edit no longer exists.",
   targetNotFound: "The target item no longer exists. Refresh and try again.",
   targetExists: "The target already exists. Review it and try again.",
   invalidReference:

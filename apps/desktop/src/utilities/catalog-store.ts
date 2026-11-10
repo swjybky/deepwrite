@@ -75,7 +75,7 @@ const LEGACY_FILES = [
 ] as const;
 
 const MATERIAL_STAGE_LABELS: Record<MaterialStageId, string> = {
-  gimmick: "梗",
+  gimmick: "梗与灵感",
   character: "人设",
   pacing: "剧情设计",
   intro: "导语设计",

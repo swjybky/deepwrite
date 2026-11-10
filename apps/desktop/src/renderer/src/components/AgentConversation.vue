@@ -367,9 +367,7 @@ const {
           :long-workspace-index="longWorkspaceIndex"
           :pending-messages="followUps?.sentItems.value"
           :welcome-content="welcomeContent"
-          :show-welcome-details="
-            agentWorkspaceType !== 'short' && agentWorkspaceType !== 'long'
-          "
+          :show-welcome-details="!agentWorkspaceType"
           :handle-conversation-wheel="handleConversationWheel"
           :handle-conversation-scroll="handleConversationScroll"
           :set-scroller="setConversationScroller"

@@ -2,12 +2,12 @@ export default {
   skillLibrary: "Skill library",
   skillLibraryAgent: "Skill library agent",
   configureTheSkillLibraryAgentSSystemPromptAnd:
-    "Configure the skill library agent's system prompt and the method skills it can load, including names, descriptions, and content.",
+    "Configure the agent for all skill libraries: its system prompt and the method skills it can load, including names, descriptions, and content.",
   saveSkillLibrarySettings: "Save skill library settings",
   materialLibrary: "Material library",
   materialLibraryAgent: "Material library agent",
   configureTheMaterialLibraryAgentSSystemPromptAnd:
-    "Configure the material library agent's system prompt and the method skills it can load, including names, descriptions, and content.",
+    "Configure the agent for all material libraries: its system prompt and the method skills it can load, including names, descriptions, and content.",
   saveMaterialLibrarySettings: "Save material library settings",
   systemPrompt: "System prompt",
   roleAndWorkflow: "Role and workflow",

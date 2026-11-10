@@ -108,10 +108,11 @@ describe("VoiceService", () => {
         totalTokens: 14
       });
       await expect(service.getUsage()).resolves.toEqual([result.usage]);
-      expect((await readdir(join(root, "config"))).sort()).toEqual([
-        "voice-usage.json",
-        "voice.json"
-      ]);
+      expect(
+        (await readdir(join(root, "config")))
+          .filter((name) => name !== ".locks")
+          .sort()
+      ).toEqual(["voice-usage.json", "voice.json"]);
     }
   );
 

@@ -87,37 +87,41 @@ async function readBoundedJson(
   }
 }
 
-export interface PostJsonOptions {
+export interface JsonRequestOptions {
   /** Largest response body read before the reply is given up on. */
   limitBytes: number;
+  headers?: Record<string, string>;
+  method?: "POST" | "GET";
+  query?: Record<string, string>;
   /** Maps a status this endpoint treats specially; undefined falls back to `failureFor`. */
   statusFailure?: (response: Response) => WebSearchProviderError | undefined;
 }
 
 /**
- * One authenticated JSON POST to the service. Transport failures become a
+ * One authenticated JSON request to the service. Transport failures become a
  * retryable `unavailable`; aborts and timeouts reach the session unchanged.
  */
-export async function postJson(
+export async function requestJson(
   path: string,
   body: unknown,
   context: WebSearchProviderContext,
-  options: PostJsonOptions
+  options: JsonRequestOptions
 ): Promise<unknown> {
+  const url = new URL(`${context.baseUrl.replace(/\/+$/u, "")}${path}`);
+  for (const [key, value] of Object.entries(options.query ?? {}))
+    url.searchParams.set(key, value);
   let response: Response;
   try {
-    response = await context.fetch(
-      `${context.baseUrl.replace(/\/+$/u, "")}${path}`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${context.apiKey}`,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(body),
-        signal: context.signal
-      }
-    );
+    response = await context.fetch(url.href, {
+      method: options.method ?? "POST",
+      redirect: "error",
+      headers: {
+        ...(options.headers ?? { authorization: `Bearer ${context.apiKey}` }),
+        "content-type": "application/json"
+      },
+      ...(options.method === "GET" ? {} : { body: JSON.stringify(body) }),
+      signal: context.signal
+    });
   } catch (error) {
     if (isAbortLike(error)) throw error;
     throw new WebSearchProviderError("unavailable", true);

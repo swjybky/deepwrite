@@ -1,4 +1,16 @@
 import type {
+  LibraryStructureRequest,
+  LibraryStructurePlan
+} from "./library-structure";
+import type {
+  CreateUnboundEntryInput,
+  CreateUnboundEntryResult
+} from "./library-organization";
+import type {
+  ReorderLibraryInput,
+  LibraryOrganization
+} from "./library-organization";
+import type {
   BookTemplatesApi,
   CreateBookFromTemplate
 } from "./book-templates";
@@ -308,6 +320,16 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     writeWritingContext(
       input: WriteWritingContextInput
     ): Promise<WriteWritingContextResult>;
+    previewLibraryStructure(
+      input: LibraryStructureRequest
+    ): Promise<LibraryStructurePlan>;
+    applyLibraryStructure(
+      input: LibraryStructurePlan
+    ): Promise<{ requestId: string; applied: true }>;
+    createUnboundEntry(
+      input: CreateUnboundEntryInput
+    ): Promise<CreateUnboundEntryResult>;
+    reorderLibrary(input: ReorderLibraryInput): Promise<LibraryOrganization>;
     snapshot(): Promise<CatalogSnapshot>;
     loadDraftRecovery(): Promise<CatalogDraftRecovery>;
     saveDraftRecovery(drafts: CatalogDraftRecovery): Promise<void>;
@@ -466,7 +488,10 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
   storageSettings?: StorageSettingsApi;
   appearance: {
     list(): Promise<AppearanceSettingsSnapshot>;
-    save(settings: AppearanceSettings): Promise<AppearanceSettingsSnapshot>;
+    save(
+      settings: AppearanceSettings,
+      options?: { captureCurrentWindowSize?: boolean }
+    ): Promise<AppearanceSettingsSnapshot>;
     fonts: {
       list(): Promise<AppearanceFontCatalogSnapshot>;
       install(): Promise<AppearanceFontInstallResult>;

@@ -1,5 +1,5 @@
 import { installWindowFrame, usesCustomWindowFrame } from "./window-frame";
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import type { AppearanceSettings } from "@deepwrite/contracts";
 import {
@@ -9,6 +9,7 @@ import {
 import { loadWindowRenderer } from "./window-renderer";
 import { installTextContextMenu } from "./text-context-menu";
 import { guardWindowStartup } from "./window-startup";
+import { resolveStartupWindowSize } from "./startup-window-size";
 import type { StartupLog } from "./startup-log";
 
 function isSafeExternalUrl(rawUrl: string): boolean {
@@ -35,11 +36,11 @@ export function createDesktopWindow(
 ): BrowserWindow {
   const isDarwin = process.platform === "darwin";
   const window = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    ...resolveStartupWindowSize(
+      appearance.startupWindowSize,
+      screen.getPrimaryDisplay().workAreaSize
+    ),
     center: true,
-    minWidth: 1120,
-    minHeight: 700,
     show: false,
     ...(usesCustomWindowFrame() ? { frame: false } : {}),
     backgroundColor: resolveNativeBackgroundColor(appearance),

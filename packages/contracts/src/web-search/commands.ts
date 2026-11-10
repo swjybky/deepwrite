@@ -3,6 +3,7 @@ import { EnvelopeBaseSchema } from "../envelope";
 import { WebSearchProviderIdSchema } from "./providers";
 import {
   WEB_SEARCH_API_KEY_MAX_LENGTH,
+  WebSearchBaseUrlSchema,
   WebSearchSettingsInputSchema
 } from "./settings";
 
@@ -11,6 +12,7 @@ const ModelIdSchema = z.string().trim().min(1).max(120);
 export const WebSearchTestInputSchema = z
   .object({
     providerId: WebSearchProviderIdSchema,
+    baseUrl: WebSearchBaseUrlSchema.optional(),
     /** A key typed but not yet saved; otherwise the saved key is used. */
     apiKey: z.string().trim().max(WEB_SEARCH_API_KEY_MAX_LENGTH).optional(),
     query: z.string().trim().min(1).max(128).optional()

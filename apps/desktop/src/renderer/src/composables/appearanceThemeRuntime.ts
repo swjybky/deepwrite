@@ -43,6 +43,15 @@ export const themePresets: ThemePreset[] = [
     },
     light: { accent: "#257F8B", background: "#F4FAFA", foreground: "#193135" },
     dark: { accent: "#5CC3CF", background: "#102124", foreground: "#E5F3F4" }
+  },
+  {
+    id: "eye-care",
+    get label() {
+      return t("eyeCare");
+    },
+    // 豆沙绿底配低饱和墨绿字；深色版避开纯黑纯白，降低长时间阅读的刺眼感。
+    light: { accent: "#2E7048", background: "#CCE8CF", foreground: "#233428" },
+    dark: { accent: "#6FBF88", background: "#1B2620", foreground: "#D5E3D7" }
   }
 ];
 

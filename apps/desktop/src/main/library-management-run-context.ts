@@ -10,12 +10,10 @@ import {
   type LibraryManagementRuntimeContext
 } from "@deepwrite/contracts";
 import type { AgentTeamConfigStore } from "./agent-team-config-store";
-import type { LibraryAgentConfigStore } from "./library-agent-config-store";
 
 export async function prepareLibraryManagementRunContext(
   workspace: WorkspaceRuntimeContext | undefined,
   teams: Pick<AgentTeamConfigStore, "list">,
-  profiles: Pick<LibraryAgentConfigStore, "resolve">,
   request: (command: CommandEnvelope) => Promise<CommandResult>
 ): Promise<LibraryManagementRuntimeContext | undefined> {
   const scope = workspace?.longWorkspace
@@ -32,8 +30,7 @@ export async function prepareLibraryManagementRunContext(
     if (settings[domain].enabled)
       managers.push({
         domain,
-        description: settings[domain].description,
-        profile: await profiles.resolve(domain)
+        description: settings[domain].description
       });
   }
   if (!managers.length) return undefined;

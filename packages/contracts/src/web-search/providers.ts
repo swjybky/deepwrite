@@ -7,7 +7,19 @@ import { isDeepWriteSiteOfficialModel } from "../model-configuration";
  * descriptor here, a profile member in `settings.ts` and a client in the Pi
  * adapter; `satisfies Record<…>` keeps each table complete.
  */
-export const WEB_SEARCH_PROVIDER_IDS = ["deepseek"] as const;
+export const WEB_SEARCH_PROVIDER_IDS = [
+  "deepseek",
+  "tavily",
+  "exa",
+  "brave",
+  "serper",
+  "serpapi",
+  "searchapi",
+  "bocha",
+  "zhipu",
+  "search1api",
+  "searxng"
+] as const;
 export const WebSearchProviderIdSchema = z.enum(WEB_SEARCH_PROVIDER_IDS);
 export type WebSearchProviderId = z.infer<typeof WebSearchProviderIdSchema>;
 
@@ -23,7 +35,7 @@ export interface WebSearchKeyImportRule {
 
 export interface WebSearchProviderDescriptor {
   id: WebSearchProviderId;
-  /** The only address a provider's key is ever sent to. */
+  /** Default service address; a saved profile may select a compatible endpoint. */
   defaultBaseUrl: string;
   /** Most results one call may ask for, whatever the service itself allows. */
   maxResultsCap: number;
@@ -34,6 +46,8 @@ export interface WebSearchProviderDescriptor {
   /** Longest address `web_fetch` sends; only meaningful with `supportsFetch`. */
   fetchUrlMaxChars: number;
   keyImport?: WebSearchKeyImportRule;
+  /** Self-hosted services may work without an API key. Defaults to true. */
+  requiresApiKey?: boolean;
 }
 
 export const WEB_SEARCH_PROVIDERS = {
@@ -49,6 +63,97 @@ export const WEB_SEARCH_PROVIDERS = {
       modelProviders: ["deepseek"],
       baseUrlHosts: ["api.deepseek.com"]
     }
+  },
+  tavily: {
+    id: "tavily",
+    defaultBaseUrl: "https://api.tavily.com",
+    maxResultsCap: 20,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  exa: {
+    id: "exa",
+    defaultBaseUrl: "https://api.exa.ai",
+    maxResultsCap: 50,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  brave: {
+    id: "brave",
+    defaultBaseUrl: "https://api.search.brave.com",
+    maxResultsCap: 20,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  serper: {
+    id: "serper",
+    defaultBaseUrl: "https://google.serper.dev",
+    maxResultsCap: 10,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  serpapi: {
+    id: "serpapi",
+    defaultBaseUrl: "https://serpapi.com",
+    maxResultsCap: 10,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  searchapi: {
+    id: "searchapi",
+    defaultBaseUrl: "https://www.searchapi.io",
+    maxResultsCap: 10,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  bocha: {
+    id: "bocha",
+    defaultBaseUrl: "https://api.bocha.cn",
+    maxResultsCap: 50,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  zhipu: {
+    id: "zhipu",
+    defaultBaseUrl: "https://open.bigmodel.cn",
+    maxResultsCap: 50,
+    defaultMaxResults: 8,
+    queryMaxChars: 70,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  search1api: {
+    id: "search1api",
+    defaultBaseUrl: "https://api.search1api.com",
+    maxResultsCap: 50,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
+  },
+  searxng: {
+    id: "searxng",
+    defaultBaseUrl: "",
+    maxResultsCap: 50,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    requiresApiKey: false,
+    supportsFetch: false,
+    fetchUrlMaxChars: 0
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderDescriptor>;
 

@@ -109,6 +109,7 @@ export default {
   appearanceThemeRuntime: {
     warmPaper: "Warm paper",
     seaMist: "Sea mist",
+    eyeCare: "Eye care",
     invalidThemeFileFormat: "Invalid theme file format"
   },
   storageSettings: {
@@ -209,7 +210,7 @@ export default {
     enterACallingDescriptionOfUpToCharacters:
       "Enter a calling description of up to 1,000 characters.",
     builtInManagementSubagentSettingsSaved:
-      "Built-in management subagent settings saved",
+      "Built-in management tool settings saved",
     failedToSavePleaseTryAgain: "Failed to save. Please try again."
   },
   remoteModelListing: {

@@ -147,6 +147,17 @@ async function handleCatalogCommand(
       );
     }
 
+    if (command.type === "catalog.readLibraryAgentLibrary") {
+      const service = new LibraryManagementService(
+        await requireCatalogStore(),
+        longWorkspaceService
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await service.readLibraryAgentLibrary(command.payload)
+      };
+    }
     if (command.type === "catalog.queryLibraryManagement") {
       const service = new LibraryManagementService(
         await requireCatalogStore(),
@@ -216,6 +227,34 @@ async function handleCatalogCommand(
         payload: WriteWritingContextResultSchema.parse(
           await catalogStore.writeWritingContext(command.payload)
         )
+      };
+    }
+    if (command.type === "catalog.previewLibraryStructure") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.previewLibraryStructure(command.payload)
+      };
+    }
+    if (command.type === "catalog.applyLibraryStructure") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.applyLibraryStructure(command.payload)
+      };
+    }
+    if (command.type === "catalog.createUnboundEntry") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.createUnboundEntry(command.payload)
+      };
+    }
+    if (command.type === "catalog.reorderLibrary") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.reorderLibrary(command.payload)
       };
     }
     if (command.type === "catalog.snapshot") {

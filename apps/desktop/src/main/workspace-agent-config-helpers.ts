@@ -19,6 +19,7 @@ import {
   type ShortWorkspaceAgentSettings,
   type ShortWorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
+import { localizeAgentSystemPrompt } from "./builtin-agent-prompts";
 
 export function cloneReadAccess(
   value: ShortAgentReadAccess
@@ -127,10 +128,13 @@ export function toPublicShortWorkspaceAgentSettings(
         ...builtin,
         ...(override
           ? {
-              systemPrompt: override.systemPrompt,
               welcomeShortcuts: cloneWelcomeShortcuts(override.welcomeShortcuts)
             }
           : {}),
+        systemPrompt: localizeAgentSystemPrompt(
+          "short",
+          override?.systemPrompt
+        ),
         readAccess: cloneReadAccess(override?.readAccess ?? builtin.readAccess)
       };
     })
@@ -150,12 +154,15 @@ export function toPublicScriptWorkspaceAgentSettings(
         ...builtin,
         ...(override
           ? {
-              systemPrompt: override.systemPrompt,
               welcomeShortcuts: cloneScriptWelcomeShortcuts(
                 override.welcomeShortcuts
               )
             }
           : {}),
+        systemPrompt: localizeAgentSystemPrompt(
+          "script",
+          override?.systemPrompt
+        ),
         readAccess: cloneScriptReadAccess(
           override?.readAccess ?? builtin.readAccess
         )

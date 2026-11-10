@@ -20,18 +20,20 @@ export default {
       "I am your screenplay agent. I help with characters, plot, and scripts using the context of your current stage.",
     startByCreatingASkill: "Start by creating a skill",
     iManageYourSkillLibraryAndHelpCreateAnd:
-      "I manage your skill library and help create and organize reusable writing methods, checklists, and workflows.",
+      "I manage all your skill libraries and help create and organize reusable writing methods, checklists, and workflows.",
     initializeTheLibraryIntroduction: "Initialize the library introduction",
     createASkill: "Create a skill",
     organizeASkill: "Organize a skill",
     startByCreatingAMaterial: "Start by creating a material",
     iManageYourMaterialLibraryAndHelpCreateAnd:
-      "I manage your material library and help create and organize reusable materials for short stories, screenplays, and novels.",
+      "I manage all your material libraries and help create and organize reusable materials for short stories, screenplays, and novels.",
     createAMaterial: "Create a material",
     organizeAMaterial: "Organize a material",
     startWith: "Start with {replace}"
   },
   catalogWorkspace: {
+    unbound: "Unbound",
+    mixed: "Mixed",
     characterMaterialLibrary: "Character material library",
     storyIdeaLibrary: "Story idea library",
     plotMaterialLibrary: "Plot material library",

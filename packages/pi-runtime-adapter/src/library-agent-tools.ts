@@ -141,6 +141,7 @@ export function isLibraryAgentToolDetails(
   const kind = (value as { kind?: unknown }).kind;
   return (
     kind === "none" ||
+    kind === "library-structure-mutation" ||
     kind === "library-entry-mutation" ||
     kind === "library-overview-mutation"
   );

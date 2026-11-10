@@ -1,4 +1,5 @@
 export default {
+  newEntry: "New entry",
   book: "Book",
   skillLibrary: "Skill library",
   materialLibrary: "Material library",

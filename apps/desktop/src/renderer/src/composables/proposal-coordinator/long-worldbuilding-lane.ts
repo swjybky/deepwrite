@@ -1,3 +1,4 @@
+import { longRestorePatch } from "./long-restore";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import { nextTick, type Ref } from "vue";
@@ -200,8 +201,6 @@ export function createLongWorldbuildingProposalLane(
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
-          batch,
-          confirmation: expectedImpact,
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -222,6 +221,7 @@ export function createLongWorldbuildingProposalLane(
       }
       const result = await api.applyOperations({
         bookId: target.bookId,
+        captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
           ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
@@ -233,6 +233,7 @@ export function createLongWorldbuildingProposalLane(
         status: "accepted",
         proposedText: undefined,
         ...resolvedStaleBase(proposal, "overwrote"),
+        ...longRestorePatch(result),
         statusMessage:
           target.file.operation === "create"
             ? automatic

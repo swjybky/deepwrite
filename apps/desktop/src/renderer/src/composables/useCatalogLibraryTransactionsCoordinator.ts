@@ -1,3 +1,5 @@
+import { organizeCatalogEntries } from "./organizeCatalogEntries";
+import { reorderCatalogLibrary } from "./reorderCatalogLibrary";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import {
@@ -49,6 +51,7 @@ export interface LibraryProjectDialogState {
 }
 
 export type CreateLibraryEntryDraft =
+  | import("@deepwrite/contracts").UnboundEntryDraft
   | Omit<Extract<CreateLibraryEntryInput, { domain: "material" }>, "content">
   | Omit<Extract<CreateLibraryEntryInput, { domain: "skill" }>, "content">;
 
@@ -177,6 +180,24 @@ export function useCatalogLibraryTransactionsCoordinator(
     return groups?.find((group) => group.id === state.groupId) ?? null;
   });
 
+  function openLibraryCreation(
+    domain: "material" | "skill",
+    entry: boolean
+  ): void {
+    if (!context.api()) {
+      uiMessage.warning(
+        createScopedTranslator("components.workspaceShell")(
+          "browserPreviewsCannotCreateLocalLibrariesUseTheDesktop"
+        )
+      );
+      return;
+    }
+    libraryProjectDialog.value = {
+      domain,
+      operation: entry ? "create-entry" : "create-library"
+    };
+  }
+
   async function createCatalogLibrary(
     payload: CreateLibraryInput
   ): Promise<void> {
@@ -304,6 +325,19 @@ export function useCatalogLibraryTransactionsCoordinator(
     if (!api || catalogMutationPending.value) return;
     catalogMutationPending.value = true;
     try {
+      if ("unbound" in payload) {
+        const { unbound: _unbound, ...input } = payload;
+        const result = await api.createUnboundEntry({ ...input, content: "" });
+        await context.refreshCatalog();
+        libraryProjectDialog.value = null;
+        const target = documents.value.find(
+          (document) =>
+            document.libraryId === result.libraryId &&
+            document.catalogEntryId === result.entryId
+        );
+        if (target) context.selectDocument(target.id, true);
+        return;
+      }
       const baseProjectRevision = context.findLibrary(
         payload.domain,
         payload.libraryId
@@ -769,17 +803,6 @@ export function useCatalogLibraryTransactionsCoordinator(
       );
       return;
     }
-    if (
-      payload.node.workspaceType &&
-      clipboard.workspaceType !== payload.node.workspaceType
-    ) {
-      uiMessage.warning(
-        t(
-          "catalogLibraryTransactionsCoordinator.entriesCannotBePastedAcrossLibrariesOfDifferentProject"
-        )
-      );
-      return;
-    }
     if (payload.node.readOnly || payload.node.unavailable) {
       uiMessage.warning(
         t(
@@ -963,6 +986,18 @@ export function useCatalogLibraryTransactionsCoordinator(
   function handleResourceNodeAction(
     payload: CatalogResourceNodeActionPayload
   ): void {
+    if (payload.action === "organize-entries") {
+      void organizeCatalogEntries(context, payload);
+      return;
+    }
+    if (
+      ["reorder-library", "library-move-up", "library-move-down"].includes(
+        payload.action
+      )
+    ) {
+      void reorderCatalogLibrary(context, payload);
+      return;
+    }
     if (libraryRemoval.handleRemovalAction(payload)) return;
     if (
       payload.action === "export-library" ||
@@ -1093,6 +1128,7 @@ export function useCatalogLibraryTransactionsCoordinator(
   }
 
   return {
+    openLibraryCreation,
     libraryProjectDialog,
     externalLibraryImport,
     libraryPackage,

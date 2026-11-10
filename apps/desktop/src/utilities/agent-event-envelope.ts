@@ -294,6 +294,13 @@ export function toEventEnvelope(
   )
     return longProposalEventEnvelope(event, correlationId);
 
+  if (event.type === "library.structure_proposal") {
+    return createEnvelope(
+      "library.structure_proposal",
+      { sessionId: event.sessionId, runId: event.runId, ...event.payload },
+      { id: createId("evt"), context }
+    );
+  }
   if (event.type === "library.editor_mutation") {
     return createEnvelope(
       "library.editor_mutation",

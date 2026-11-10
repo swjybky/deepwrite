@@ -17,7 +17,7 @@ export const LONG_MATERIAL_GUIDE_TEXT_MAX_CHARACTERS = 20_000;
 export const LONG_MATERIAL_KINDS = MATERIAL_KINDS;
 export const LONG_MATERIAL_LIBRARY_NAMES: Record<MaterialKind, string> = {
   character: "人设",
-  gimmick: "梗",
+  gimmick: "梗与灵感",
   plot: "剧情",
   draft: "正文",
   other: "其他"

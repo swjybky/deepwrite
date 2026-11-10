@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BUILT_IN_REASONING_LEVELS } from "./model-configuration";
 
 /** Stable Chinese rubric for draw-candidate quality (low → high). Score ∈ [0, length-1]. */
 export const DRAW_JEV_SCORE_CRITERIA = [
@@ -75,18 +76,88 @@ export const JevSystemOneResponseSchema = z
 export type JevSystemOneResponse = z.infer<typeof JevSystemOneResponseSchema>;
 
 /**
- * Builds the SystemOne URL from a model baseUrl.
- * Accepts roots, `/v1`, or a base already pointing at `/v1/systemone`.
+ * Jev (TypeSafe System One) request limits from the official docs: 64k tokens
+ * per request (state + all questions) and 32k per question (state + one
+ * question). Jev has no temperature, reasoning, max-output or tool params.
+ */
+export const JEV_REQUEST_TOKEN_LIMIT = 64_000;
+export const JEV_QUESTION_TOKEN_LIMIT = 32_000;
+/**
+ * Character budget for one scoring `state`. Chinese prose can approach one
+ * token per character, so keep clear headroom under the 32k question limit
+ * for the instructions and criteria.
+ */
+export const JEV_STATE_CHAR_BUDGET = 24_000;
+/** Upper bound for the original task inside a scoring state. */
+export const JEV_STATE_TASK_CHAR_BUDGET = 6_000;
+
+const JEV_ENDPOINT_SUFFIX = /\/(?:systemone|decisions)$/iu;
+const JEV_VERSION_SEGMENT = /\/v\d+$/iu;
+
+/**
+ * Builds the scoring URL from a model baseUrl. Accepts roots, `/v1`, or a URL
+ * that already ends with `/systemone` (TypeSafe, OpenRouter, DigitalOcean, Abacus) or
+ * `/decisions` (AIMLAPI); full endpoint URLs are kept as entered.
  */
 export function resolveJevSystemOneUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/u, "");
   if (!trimmed) {
     throw new Error("JEV 模型未配置 API 地址。");
   }
-  if (/\/v1\/systemone$/iu.test(trimmed)) return trimmed;
-  if (/\/systemone$/iu.test(trimmed)) return trimmed;
-  if (/\/v1$/iu.test(trimmed)) return `${trimmed}/systemone`;
+  if (JEV_ENDPOINT_SUFFIX.test(trimmed)) return trimmed;
+  if (JEV_VERSION_SEGMENT.test(trimmed)) return `${trimmed}/systemone`;
   return `${trimmed}/v1/systemone`;
+}
+
+/**
+ * Returns the versioned API root (for `GET {root}/models`) of a Jev baseUrl,
+ * stripping a trailing `/systemone` or `/decisions` endpoint.
+ */
+export function resolveJevApiRoot(baseUrl: string): string {
+  const trimmed = baseUrl
+    .trim()
+    .replace(/\/+$/u, "")
+    .replace(JEV_ENDPOINT_SUFFIX, "");
+  if (!trimmed) return "";
+  return JEV_VERSION_SEGMENT.test(trimmed) ? trimmed : `${trimmed}/v1`;
+}
+
+/**
+ * Jev models reuse the shared model identity schema, whose text-generation
+ * fields mean nothing to a judgment model. Pin them to inert values and drop
+ * the optional LLM-only overrides so stored JEV configs stay minimal.
+ */
+export function normalizeJevModelIdentity<
+  T extends {
+    api: string;
+    reasoning: boolean;
+    defaultThinkingLevel: string;
+    thinkingLevelOptions: string[];
+    temperatureOptions: [number, number, number];
+    toolSchemaProfile?: unknown;
+    requestModelId?: unknown;
+    supportsDeveloperRole?: unknown;
+    contextWindow?: unknown;
+    maxTokens?: unknown;
+  }
+>(model: T): T {
+  const {
+    toolSchemaProfile: _toolSchemaProfile,
+    requestModelId: _requestModelId,
+    supportsDeveloperRole: _supportsDeveloperRole,
+    contextWindow: _contextWindow,
+    maxTokens: _maxTokens,
+    ...rest
+  } = model;
+  return {
+    ...rest,
+    modelKind: "jev",
+    api: "openai-completions",
+    reasoning: false,
+    defaultThinkingLevel: "off",
+    thinkingLevelOptions: [...BUILT_IN_REASONING_LEVELS],
+    temperatureOptions: [0.1, 0.7, 1]
+  } as unknown as T;
 }
 
 export function parseJevSystemOneScoreAnswer(

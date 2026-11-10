@@ -263,6 +263,13 @@ export const AppearanceThemeConfigSchema = z.object({
 export type AppearanceThemeConfig = z.infer<typeof AppearanceThemeConfigSchema>;
 
 export const AppearanceSettingsSchema = z.object({
+  startupWindowSize: z
+    .object({
+      width: z.number().int().positive().max(32768),
+      height: z.number().int().positive().max(32768)
+    })
+    .nullable()
+    .optional(),
   mode: AppearanceModeSchema,
   light: AppearanceThemeConfigSchema,
   dark: AppearanceThemeConfigSchema,
@@ -327,7 +334,9 @@ export const AppearanceListCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const AppearanceSaveCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("appearance.save"),
-  payload: AppearanceSettingsSchema
+  payload: AppearanceSettingsSchema.extend({
+    captureCurrentWindowSize: z.boolean().optional()
+  })
 });
 
 export const AppearanceFontsListCommandEnvelopeSchema =

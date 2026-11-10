@@ -217,3 +217,61 @@ describe("webSearch commands", () => {
     ).toBe(false);
   });
 });
+
+describe("custom search endpoint validation", () => {
+  it.each([
+    "http://example.test",
+    "https://user:password@example.test",
+    "https://example.test?key=invalid",
+    "file:///tmp/search"
+  ])("rejects %s", async (baseUrl) => {
+    const { WebSearchProfileInputSchema } = await import("./settings");
+    expect(
+      WebSearchProfileInputSchema.safeParse({
+        providerId: "tavily",
+        maxResults: 5,
+        baseUrl
+      }).success
+    ).toBe(false);
+  });
+});
+
+it("requires an endpoint for keyless search and still requires keys for paid providers", () => {
+  const settings = (baseUrl?: string, hasApiKey = false) => ({
+    enabled: true,
+    activeProviderId: "searxng" as const,
+    profiles: [
+      { providerId: "searxng" as const, maxResults: 8, hasApiKey, baseUrl }
+    ]
+  });
+  expect(isWebSearchUsable(settings())).toBe(false);
+  expect(isWebSearchUsable(settings(undefined, true))).toBe(false);
+  expect(isWebSearchUsable(settings("http://localhost:8888"))).toBe(true);
+  expect(
+    isWebSearchUsable({ ...settings("https://example.test"), enabled: false })
+  ).toBe(false);
+});
+
+it("accepts loopback endpoints and allows empty runtime keys only for keyless providers", async () => {
+  const { WebSearchBaseUrlSchema, WebSearchRuntimeConfigSchema } =
+    await import("./settings");
+  for (const endpoint of [
+    "http://localhost:8888",
+    "http://127.0.0.1:8888",
+    "http://[::1]:8888",
+    "https://example.test/search-api"
+  ])
+    expect(WebSearchBaseUrlSchema.safeParse(endpoint).success).toBe(true);
+  const config = {
+    providerId: "searxng",
+    baseUrl: "http://localhost:8888",
+    apiKey: "",
+    maxResults: 8,
+    perRunCallLimit: 20
+  };
+  expect(WebSearchRuntimeConfigSchema.safeParse(config).success).toBe(true);
+  expect(
+    WebSearchRuntimeConfigSchema.safeParse({ ...config, providerId: "serper" })
+      .success
+  ).toBe(false);
+});

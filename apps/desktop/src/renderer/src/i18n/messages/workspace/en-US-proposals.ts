@@ -97,8 +97,8 @@ export default {
     refreshTheNovelWorkspaceManually: "Refresh the novel workspace manually.",
     thePreSaveCheckForAutomaticNovelFileSaving:
       "The pre-save check for automatic novel file saving failed.",
-    thisProposalDeletesItemsOrUnlinksRelatedRecordsReview:
-      "This proposal deletes items or unlinks related records. Review it and confirm manually.",
+    impactKeptChangingDuringAutomaticSave:
+      "Related impacts kept changing during the automatic save. Saving stopped; retry it.",
     thePreSaveCheckForAutomaticNovelProposalSaving:
       "The pre-save check for automatic novel proposal saving failed.",
     cannotGenerateAUniqueEventIdForTheManual:

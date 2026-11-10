@@ -37,3 +37,25 @@ describe("conversation agent rebuild", () => {
     expect(agents.has("running")).toBe(true);
   });
 });
+
+it("reuses the domain conversation after changing library focus", async () => {
+  const { conversationAgentKey } = await import("./conversation-agent-rebuild");
+  const { materialWorkspace, profile } =
+    await import("./library-agent-tools/test-fixtures");
+  const input = {
+    runId: "run",
+    sessionId: "session",
+    prompt: "manage",
+    libraryAgentProfile: profile("material"),
+    workspaceContext: { libraryWorkspace: materialWorkspace() }
+  };
+  const first = conversationAgentKey(input);
+  const second = conversationAgentKey({
+    ...input,
+    workspaceContext: {
+      libraryWorkspace: materialWorkspace({ libraryId: "another" })
+    }
+  });
+  expect(first).toBe("session:library:material");
+  expect(second).toBe(first);
+});

@@ -68,7 +68,7 @@ export default {
   retryApplying: "Retry applying",
   acceptAndApply: "Accept and apply",
   novelProposalsAwaitingApproval: "Novel proposals awaiting approval",
-  goToTargetFile: "Go to target file",
+  goToTargetFile: "Go to file",
   valueLinesAddedValueLinesRemoved: "{arg0} lines added, {arg1} lines removed",
   viewChanges: "View changes",
   thisDiffIsLargeSoOnlySomeChangesAre:

@@ -84,6 +84,7 @@ export interface RegistryProject {
 
 export interface FolderCatalogRegistry {
   schemaVersion: 1;
+  libraryOrganization?: import("@deepwrite/contracts").LibraryOrganization;
   revision: number;
   updatedAt: string;
   legacyImport?: CatalogLegacyImport;

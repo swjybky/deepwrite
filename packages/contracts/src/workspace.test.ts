@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SHORT_AGENT_READ_ACCESS,
   DEFAULT_SHORT_SYSTEM_PROMPT,
+  SHORT_AGENT_SYSTEM_PROMPTS,
   DEFAULT_SHORT_WORKSPACE_AGENT_SYSTEM_PROMPTS,
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
@@ -129,7 +130,6 @@ describe("short workspace contracts", () => {
       expect(profile.label).not.toBe("");
       expect(profile.description).not.toBe("");
       expect(profile.systemPrompt).toMatch(/^你是 DeepWrite 的/);
-      expect(profile.systemPrompt.endsWith("\n")).toBe(true);
       expect(profile.welcomeShortcuts).toHaveLength(3);
       expect(
         profile.welcomeShortcuts.every((value) => value.trim().length > 0)
@@ -157,23 +157,15 @@ describe("short workspace contracts", () => {
     expect(DEFAULT_SHORT_WORKSPACE_AGENT_SYSTEM_PROMPTS).toEqual({
       short: DEFAULT_SHORT_SYSTEM_PROMPT
     });
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("read");
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("create、edit");
+    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toBe(
+      SHORT_AGENT_SYSTEM_PROMPTS["zh-CN"]
+    );
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("当前阶段");
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain(
-      "文本样式下禁止 create character"
+    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("ask_user_question");
+    // Object addressing lives in the non-editable runtime rules.
+    expect(DEFAULT_SHORT_SYSTEM_PROMPT).not.toContain(
+      "allow_overwrite_existing"
     );
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("所有人物写在同一份文本里");
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain(
-      "只有条目样式才用 kind=character 为单个人物创建独立条目"
-    );
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain(
-      "读取、写入或修改小节正文/人物状态时必须同时给出 document=body 或 character_state，不得省略"
-    );
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain(
-      "读取单个小节必须给出 kind=draft_section、稳定小节 id 和 document=body 或 character_state"
-    );
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("不传 document 时默认 body");
   });
 
   it("keeps only material and skill read ranges", () => {

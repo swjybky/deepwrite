@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -14,6 +15,7 @@ import {
   type LongAgentSettingsInput,
   type LongAgentSettingsInputAgent
 } from "@deepwrite/contracts";
+import { localizeAgentSystemPrompt } from "./builtin-agent-prompts";
 import { mergeSettingsById } from "./merge-agent-settings";
 
 /**
@@ -183,26 +185,28 @@ export class LongAgentConfigStore {
     const input = LongAgentSettingsInputSchema.parse(rawInput);
     const baseline = input.baseAgents;
     let saved: LongAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      const normalized: LongAgentSettingsInput = {
-        workspaceType: "long",
-        agents: input.agents.map(cloneInputAgent)
-      };
-      const current = baseline ? await this.readInput() : normalized;
-      const next = baseline
-        ? {
-            workspaceType: "long" as const,
-            agents: mergeSettingsById(
-              current.agents,
-              normalized.agents,
-              baseline,
-              (agent) => agent.id
-            )
-          }
-        : normalized;
-      await this.writeInput(next);
-      saved = this.toPublicSettings(next);
-    });
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        const normalized: LongAgentSettingsInput = {
+          workspaceType: "long",
+          agents: input.agents.map(cloneInputAgent)
+        };
+        const current = baseline ? await this.readInput() : normalized;
+        const next = baseline
+          ? {
+              workspaceType: "long" as const,
+              agents: mergeSettingsById(
+                current.agents,
+                normalized.agents,
+                baseline,
+                (agent) => agent.id
+              )
+            }
+          : normalized;
+        await this.writeInput(next);
+        saved = this.toPublicSettings(next);
+      })
+    );
     this.trackWrite(operation);
     await operation;
     return saved!;
@@ -213,30 +217,32 @@ export class LongAgentConfigStore {
       ? LongAgentIdSchema.parse(rawAgentId)
       : undefined;
     let saved: LongAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      const next = agentId ? await this.readInput() : defaultsAsInput();
-      if (agentId) {
-        const builtin = getDefaultLongAgentProfile(agentId);
-        const replacement: LongAgentSettingsInputAgent = {
-          id: builtin.id,
-          systemPrompt: builtin.systemPrompt,
-          welcomeShortcuts: [
-            builtin.welcomeShortcuts[0],
-            builtin.welcomeShortcuts[1],
-            builtin.welcomeShortcuts[2]
-          ],
-          readAccess: cloneReadAccess(builtin.readAccess)
-        };
-        const index = next.agents.findIndex((agent) => agent.id === agentId);
-        if (index < 0) {
-          throw new Error(`长篇智能体配置缺少角色：${agentId}`);
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        const next = agentId ? await this.readInput() : defaultsAsInput();
+        if (agentId) {
+          const builtin = getDefaultLongAgentProfile(agentId);
+          const replacement: LongAgentSettingsInputAgent = {
+            id: builtin.id,
+            systemPrompt: builtin.systemPrompt,
+            welcomeShortcuts: [
+              builtin.welcomeShortcuts[0],
+              builtin.welcomeShortcuts[1],
+              builtin.welcomeShortcuts[2]
+            ],
+            readAccess: cloneReadAccess(builtin.readAccess)
+          };
+          const index = next.agents.findIndex((agent) => agent.id === agentId);
+          if (index < 0) {
+            throw new Error(`长篇智能体配置缺少角色：${agentId}`);
+          }
+          next.agents[index] = replacement;
         }
-        next.agents[index] = replacement;
-      }
-      const validated = LongAgentSettingsInputSchema.parse(next);
-      await this.writeInput(validated);
-      saved = this.toPublicSettings(validated);
-    });
+        const validated = LongAgentSettingsInputSchema.parse(next);
+        await this.writeInput(validated);
+        saved = this.toPublicSettings(validated);
+      })
+    );
     this.trackWrite(operation);
     await operation;
     return saved!;
@@ -278,10 +284,18 @@ export class LongAgentConfigStore {
       agents: LONG_AGENT_IDS.map((id) => {
         const builtin = getDefaultLongAgentProfile(id);
         const override = byId.get(id);
-        if (!override) return builtin;
+        if (!override) {
+          return {
+            ...builtin,
+            systemPrompt: localizeAgentSystemPrompt("long", undefined)
+          };
+        }
         return {
           ...builtin,
-          systemPrompt: override.systemPrompt,
+          systemPrompt: localizeAgentSystemPrompt(
+            "long",
+            override.systemPrompt
+          ),
           welcomeShortcuts: [
             override.welcomeShortcuts[0],
             override.welcomeShortcuts[1],

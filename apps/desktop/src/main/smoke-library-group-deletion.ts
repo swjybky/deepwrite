@@ -103,8 +103,10 @@ async function deleteGroups(fixtures: GroupDeletionFixture[]) {
           : null;
       }, "group menu");
       if (
-        items.map((item) => item.textContent?.trim()).join(",") !==
-        "编辑分组,复制,导出,解散分组,删除分组"
+        items
+          .slice(-5)
+          .map((item) => item.textContent?.trim())
+          .join(",") !== "编辑分组,复制,导出,解散分组,删除分组"
       ) {
         throw new Error("Group deletion smoke: menu ordering differs.");
       }

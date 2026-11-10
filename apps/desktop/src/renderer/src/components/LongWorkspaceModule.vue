@@ -105,6 +105,7 @@ const emit = defineEmits<{
   ];
   locateEditProposal: [payload: { runId: string; proposalId: string }];
   approveLongProposal: [eventId: string];
+  discardEditProposal: [payload: { runId: string; proposalId: string }];
   rejectLongProposal: [eventId: string];
   retryLongProposalPreview: [eventId: string];
   locateLongProposal: [eventId: string];
@@ -384,6 +385,7 @@ function forwardPreviewMutation(
         @review-edit="emit('reviewEdit', $event)"
         @locate-edit-proposal="emit('locateEditProposal', $event)"
         @approve-long-proposal="emit('approveLongProposal', $event)"
+        @discard-edit-proposal="emit('discardEditProposal', $event)"
         @reject-long-proposal="emit('rejectLongProposal', $event)"
         @retry-long-proposal-preview="emit('retryLongProposalPreview', $event)"
         @locate-long-proposal="emit('locateLongProposal', $event)"

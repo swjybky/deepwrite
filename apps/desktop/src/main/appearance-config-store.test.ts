@@ -87,6 +87,29 @@ describe("AppearanceConfigStore", () => {
     });
   });
 
+  it("keeps the selected startup size across restarts and can restore defaults", async () => {
+    const root = await mkdtemp(join(tmpdir(), "deepwrite-window-size-"));
+    temporaryRoots.push(root);
+    const store = new AppearanceConfigStore(root);
+    const settings = {
+      ...createDefaultAppearanceSettings(),
+      startupWindowSize: { width: 1500, height: 950 }
+    };
+    await store.save(settings);
+    const reopened = new AppearanceConfigStore(root);
+    expect((await reopened.list()).settings.startupWindowSize).toEqual(
+      settings.startupWindowSize
+    );
+    await reopened.save({ ...settings, mode: "dark" });
+    expect(
+      (await new AppearanceConfigStore(root).list()).settings.startupWindowSize
+    ).toEqual(settings.startupWindowSize);
+    await reopened.save({ ...settings, startupWindowSize: null });
+    expect(
+      (await new AppearanceConfigStore(root).list()).settings.startupWindowSize
+    ).toBeNull();
+  });
+
   it("treats malformed files as missing and keeps defaults", async () => {
     const root = await mkdtemp(join(tmpdir(), "deepwrite-appearance-bad-"));
     temporaryRoots.push(root);

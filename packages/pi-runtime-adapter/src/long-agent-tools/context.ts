@@ -38,10 +38,7 @@ export function longProposalResultSummary(
   return input.writeApprovalMode === "auto-approve"
     ? pendingSummary
         .replace(/等待客户端审阅。$/u, AUTO_APPROVE_PROPOSAL_SUBMITTED)
-        .replace(
-          /等待客户端确认关联影响。$/u,
-          `${AUTO_APPROVE_PROPOSAL_SUBMITTED}若存在关联影响，客户端会转给用户确认。`
-        )
+        .replace(/等待客户端确认关联影响。$/u, AUTO_APPROVE_PROPOSAL_SUBMITTED)
     : pendingSummary;
 }
 

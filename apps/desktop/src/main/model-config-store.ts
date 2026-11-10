@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import { withConfigurationLock } from "./configuration-lock";
 import {
   ModelConfigInputSchema,
   ModelSettingsInputSchema,
@@ -65,10 +67,12 @@ function publicSettings(state: ModelConfigSnapshot): ModelSettings {
 
 export class ModelConfigStore {
   private readonly persistence: ModelConfigPersistence;
+  private readonly settingsPath: string;
   private readonly freeModelCatalog: FreeModelCatalogReader;
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(userDataPath: string, options: ModelConfigStoreOptions = {}) {
+    this.settingsPath = join(userDataPath, "config", "models.json");
     this.persistence = new ModelConfigPersistence(userDataPath);
     this.freeModelCatalog =
       options.freeModelCatalog ??
@@ -185,21 +189,23 @@ export class ModelConfigStore {
         options.refreshFree && this.freeModelCatalog.refreshCatalog
           ? await this.freeModelCatalog.refreshCatalog()
           : await this.freeModelCatalog.getCatalog();
-      const stored = await this.persistence.read();
-      const prepared: ModelConfigSnapshot = {
-        ...stored,
-        freeCatalog,
-        secrets: withDeepWriteFreeApiKeys(freeCatalog, stored.secrets)
-      };
-      const requested = mutate ? mutate(prepared) : prepared;
-      const [settings, secrets] = synchronizeState(
-        requested.settings,
-        requested.secrets,
-        freeCatalog
-      );
-      // Every mutation and catalog refresh uses the same atomic commit.
-      await this.persistence.write({ settings, secrets });
-      return { settings, secrets, freeCatalog };
+      return withConfigurationLock(this.settingsPath, async () => {
+        const stored = await this.persistence.read();
+        const prepared: ModelConfigSnapshot = {
+          ...stored,
+          freeCatalog,
+          secrets: withDeepWriteFreeApiKeys(freeCatalog, stored.secrets)
+        };
+        const requested = mutate ? mutate(prepared) : prepared;
+        const [settings, secrets] = synchronizeState(
+          requested.settings,
+          requested.secrets,
+          freeCatalog
+        );
+        // Every mutation and catalog refresh uses the same atomic commit.
+        await this.persistence.write({ settings, secrets });
+        return { settings, secrets, freeCatalog };
+      });
     });
     // Failed operations must not poison later saves, and may not publish state.
     this.writeChain = operation.then(

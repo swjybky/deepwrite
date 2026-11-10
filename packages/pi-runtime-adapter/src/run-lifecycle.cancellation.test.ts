@@ -151,10 +151,10 @@ describe("parent cancellation reaches the actual child", () => {
           description: "管理",
           systemPrompt: "整理",
           enabled: true,
-          modelMode: "inherit",
-          toolSource: "library-management"
+          modelMode: "inherit"
         }
       ],
+      workspaceAccess: "none",
       prepareChild: () => {
         started();
         return new Promise(() => {});

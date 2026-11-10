@@ -230,3 +230,105 @@ describe("Main internal command authorizer", () => {
     });
   });
 });
+
+describe("domain library agent read authorization", () => {
+  const command = CommandEnvelopeSchema.parse(
+    createEnvelope(
+      "catalog.readLibraryAgentLibrary",
+      {
+        domain: "material",
+        libraryId: "other-library"
+      },
+      { id: "domain-query", context: { sessionId: SESSION_ID, runId: RUN_ID } }
+    )
+  );
+  it("accepts only the accepted matching domain, session and parent prompt", () => {
+    const runs = acceptedRun({ libraryAgentScope: { domain: "material" } });
+    expect(
+      authorizeMainInternalCommand(authorizationContext(command), runs)
+    ).toBe(true);
+    for (const overrides of [
+      { accepted: false },
+      { libraryAgentScope: { domain: "skill" as const } },
+      { sessionId: "other" },
+      {}
+    ]) {
+      expect(
+        authorizeMainInternalCommand(
+          authorizationContext(command),
+          acceptedRun(overrides)
+        )
+      ).toMatchObject({ authorized: false });
+    }
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(command, { parentRequestId: "other" }),
+        runs
+      )
+    ).toMatchObject({ authorized: false });
+  });
+});
+
+describe("library structure preview authorization", () => {
+  const preview = () =>
+    CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "catalog.previewLibraryStructure",
+        {
+          domain: "material",
+          requestId: "organize",
+          operations: [
+            { action: "rename-library", id: "library", title: "新名称" }
+          ]
+        },
+        {
+          id: "preview-test",
+          context: { runId: RUN_ID, sessionId: SESSION_ID }
+        }
+      )
+    );
+  it("permits previews only for the accepted domain and prompt", () => {
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(preview()),
+        acceptedRun({ libraryAgentScope: { domain: "material" } })
+      )
+    ).toBe(true);
+    for (const runs of [
+      acceptedRun(),
+      acceptedRun({ libraryAgentScope: { domain: "skill" } }),
+      acceptedRun({
+        libraryAgentScope: { domain: "material" },
+        accepted: false
+      })
+    ]) {
+      expect(
+        authorizeMainInternalCommand(authorizationContext(preview()), runs)
+      ).toMatchObject({ authorized: false });
+    }
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(preview(), { parentRequestId: "other" }),
+        acceptedRun({ libraryAgentScope: { domain: "material" } })
+      )
+    ).toMatchObject({ authorized: false });
+  });
+  it("never permits the agent bridge to apply a plan", () => {
+    const command = preview();
+    const apply = CommandEnvelopeSchema.parse({
+      ...command,
+      type: "catalog.applyLibraryStructure",
+      payload: {
+        ...command.payload,
+        baseVersion: "a".repeat(64),
+        summary: "改名"
+      }
+    });
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(apply),
+        acceptedRun({ libraryAgentScope: { domain: "material" } })
+      )
+    ).toMatchObject({ authorized: false });
+  });
+});

@@ -92,13 +92,6 @@ function spawnParameters(definitions: readonly RuntimeSubagentDefinition[]) {
         depends_on: Type.Optional(
           Type.Array(taskKey, { description: "必须先完成的任务 key。" })
         ),
-        library_id: Type.Optional(
-          Type.String({
-            minLength: 1,
-            maxLength: 512,
-            description: "管理子智能体的目标绑定库 id；普通团队成员不填写。"
-          })
-        ),
         ...drawVariants
       }),
       // The count limit is checked at execution (planSubagentTasks): a schema
@@ -139,9 +132,10 @@ function spawnDescription(
     "用户消息里写作 #成员名 的是点名：对应工作必须交给该成员，不要自己做或改派他人。",
     "可用子智能体：",
     ...definitions.map((definition) => {
-      const label = subagentModeLabel(subagentAgentMode(definition));
       const draw = subagentDrawSettings(definition);
-      return `- ${definition.name} (${definition.id})${label ?? ""}${draw ? subagentDrawLabel(draw) : ""}：${definition.description}`;
+      const drawLabel = draw ? subagentDrawLabel(draw) : "";
+      const label = subagentModeLabel(subagentAgentMode(definition));
+      return `- ${definition.name} (${definition.id})${label ?? ""}${drawLabel}：${definition.description}`;
     })
   ].join("\n");
 }

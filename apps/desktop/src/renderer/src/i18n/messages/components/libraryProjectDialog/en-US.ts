@@ -1,7 +1,14 @@
 export default {
+  organizeEntries: "Organize entries",
+  chooseDestination: "Choose destination",
+
+  unboundDestination: "Unbound",
+  destinationLibrary: "Library",
+
   material: "Material",
   skill: "Skill",
   newValueLibrary: "New {arg0} library",
+  newEntry: "New entry",
   newEntryInValue: "New entry in “{arg0}”",
   library: "Library",
   renameValueLibrary: "Rename {arg0} library",
@@ -43,17 +50,17 @@ export default {
   theFolderContainsDeepwriteJsonWithEntriesInEntries:
     "The folder contains deepwrite.json, with entries in entries/*.md. Manage them directly using Finder, Git, or a text editor.",
   newEntriesAreImmediatelyCreatedAsMarkdownFilesIn:
-    "New entries are immediately created as Markdown files in the entries folder. Continue writing in the editor or external tools.",
+    "Continue editing after creation. Entries can be used across all works.",
   theNewNameIsSavedImmediatelyToTheLocal:
     "The new name is saved immediately to the local library project.",
   valueLibraryName: "{arg0} library name",
   entryName: "Entry name",
   contentStage: "Content stage",
   thisDeletesTheCorrespondingMarkdownFile:
-    "This deletes the corresponding Markdown file",
+    "Delete this entry and its Markdown file",
   willBeDeletedFrom: "” will be deleted from “",
   andFromDiskIncludingUnsavedChangesReopeningTheLibrary:
-    "” and from disk, including unsaved changes. Reopening the library cannot restore it.",
+    "” and from disk, including unsaved changes. This cannot be undone.",
   cancel: "Cancel",
   processing: "Processing…",
   createValueLibrary: "Create {arg0} library",
@@ -64,5 +71,5 @@ export default {
   libraryNameMessage: "{arg0} library name",
   libraryCategoryMessage: "{arg0} library category",
   willBeDeletedFromAndFromDiskMessage:
-    "“{arg0}” will be deleted from “{arg1}” and from disk, including unsaved changes. Reopening the library cannot restore it."
+    "“{arg0}” will be deleted from “{arg1}” and from disk, including unsaved changes. This cannot be undone."
 };

@@ -268,7 +268,10 @@ export type LibraryAgentEntrySnapshot =
 export const LibraryAgentReadableLibrarySchema = z.object({
   libraryId: z.string().trim().min(1).max(512),
   title: z.string().trim().min(1).max(256),
-  kind: z.string().trim().min(1).max(64)
+  kind: z.string().trim().min(1).max(64),
+  readOnly: z.boolean().default(false),
+  entryCount: z.number().int().nonnegative().default(0),
+  groupTitle: z.string().trim().min(1).max(256).optional()
 });
 export type LibraryAgentReadableLibrary = z.infer<
   typeof LibraryAgentReadableLibrarySchema
@@ -295,14 +298,25 @@ const LibraryAgentWorkspaceBaseSchema = z.object({
   /** Present when the current library belongs to a material/skill group. */
   groupId: z.string().trim().min(1).max(512).optional(),
   groupTitle: z.string().trim().min(1).max(256).optional(),
+  libraryGroups: z
+    .array(
+      z
+        .object({
+          id: z.string().min(1),
+          title: z.string().min(1),
+          members: z.record(z.string(), z.string())
+        })
+        .strict()
+    )
+    .max(512)
+    .optional(),
   /**
-   * Libraries readable in this turn: the current library plus peer members of the
-   * same group. Writes still target libraryId only.
+   * All libraries in this domain. Current library is the default focus.
    */
   readableLibraries: z
     .array(LibraryAgentReadableLibrarySchema)
     .min(1)
-    .max(8)
+    .max(512)
     .optional()
 });
 
@@ -397,18 +411,24 @@ export const LibraryAgentWorkspaceSnapshotSchema = z
     }
     value.entries.forEach((entry, index) => {
       const sourceLibraryId = entry.sourceLibraryId ?? value.libraryId;
+      const ownerReadOnly =
+        sourceLibraryId === value.libraryId
+          ? value.readOnly
+          : value.readableLibraries?.find(
+              (library) => library.libraryId === sourceLibraryId
+            )?.readOnly;
+      if (ownerReadOnly !== undefined && entry.readOnly !== ownerReadOnly) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index, "readOnly"],
+          message: "Entry readOnly must match its owning library."
+        });
+      }
       if (!readableIds.has(sourceLibraryId)) {
         context.addIssue({
           code: "custom",
           path: ["entries", index, "sourceLibraryId"],
           message: "Entry sourceLibraryId must be listed in readableLibraries."
-        });
-      }
-      if (sourceLibraryId !== value.libraryId && entry.readOnly !== true) {
-        context.addIssue({
-          code: "custom",
-          path: ["entries", index, "readOnly"],
-          message: "Peer group library entries must be read-only."
         });
       }
     });
@@ -457,3 +477,14 @@ export type LibraryAgentsSaveCommandEnvelope = z.infer<
 export type LibraryAgentsResetCommandEnvelope = z.infer<
   typeof LibraryAgentsResetCommandEnvelopeSchema
 >;
+
+export const CatalogReadLibraryAgentLibraryCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.readLibraryAgentLibrary"),
+    payload: z
+      .object({
+        domain: LibraryAgentDomainSchema,
+        libraryId: z.string().trim().min(1).max(512)
+      })
+      .strict()
+  });

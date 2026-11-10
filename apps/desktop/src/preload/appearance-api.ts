@@ -4,6 +4,7 @@ import {
   AppearanceFontInstallResultSchema,
   AppearanceFontRemoveResultSchema,
   AppearanceSettingsSchema,
+  AppearanceSaveCommandEnvelopeSchema,
   AppearanceSettingsSnapshotSchema,
   createEnvelope,
   type AppearanceCustomFontId,
@@ -26,13 +27,23 @@ export async function listAppearance(): Promise<AppearanceSettingsSnapshot> {
 }
 
 export async function saveAppearance(
-  rawSettings: AppearanceSettings
+  rawSettings: AppearanceSettings,
+  options?: { captureCurrentWindowSize?: boolean }
 ): Promise<AppearanceSettingsSnapshot> {
   const settings = AppearanceSettingsSchema.parse(rawSettings);
   const id = browserId("cmd_appearance_save");
   return AppearanceSettingsSnapshotSchema.parse(
     await invokeCommand<AppearanceSettingsSnapshot>(
-      createEnvelope("appearance.save", settings, { id, correlationId: id })
+      AppearanceSaveCommandEnvelopeSchema.parse(
+        createEnvelope(
+          "appearance.save",
+          {
+            ...settings,
+            captureCurrentWindowSize: options?.captureCurrentWindowSize
+          },
+          { id, correlationId: id }
+        )
+      )
     )
   );
 }

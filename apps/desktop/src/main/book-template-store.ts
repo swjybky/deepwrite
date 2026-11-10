@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -30,19 +31,21 @@ export class BookTemplateStore {
     return this.read();
   }
   private mutate<T>(operation: (templates: BookTemplate[]) => T): Promise<T> {
-    const task = this.writes.then(async () => {
-      const templates = await this.read();
-      const result = operation(templates);
-      await mkdir(dirname(this.path), { recursive: true });
-      const temp = `${this.path}.${randomUUID()}.tmp`;
-      await writeFile(
-        temp,
-        JSON.stringify({ version: 1, templates }, null, 2),
-        { encoding: "utf8", mode: 0o600 }
-      );
-      await rename(temp, this.path);
-      return result;
-    });
+    const task = this.writes.then(() =>
+      withConfigurationLock(this.path, async () => {
+        const templates = await this.read();
+        const result = operation(templates);
+        await mkdir(dirname(this.path), { recursive: true });
+        const temp = `${this.path}.${randomUUID()}.tmp`;
+        await writeFile(
+          temp,
+          JSON.stringify({ version: 1, templates }, null, 2),
+          { encoding: "utf8", mode: 0o600 }
+        );
+        await rename(temp, this.path);
+        return result;
+      })
+    );
     this.writes = task.catch(() => undefined);
     return task;
   }

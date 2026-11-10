@@ -36,9 +36,36 @@ export interface LegacyAgentTeamPaths {
   long: string;
 }
 
+/** Ignore retired preset members at the disk boundary, before strict validation. */
+function withoutRetiredMembers(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const value = { ...(raw as Record<string, unknown>) };
+  if (Array.isArray(value.subagents)) {
+    value.subagents = value.subagents.filter(
+      (member: unknown) =>
+        !member ||
+        typeof member !== "object" ||
+        !("kind" in member) ||
+        member.kind !== "tavern-preset"
+    );
+  }
+  if (Array.isArray(value.teams)) {
+    value.teams = value.teams.map(withoutRetiredMembers);
+  }
+  for (const key of [
+    "settings",
+    "shortSettings",
+    "scriptSettings",
+    "longSettings"
+  ]) {
+    if (key in value) value[key] = withoutRetiredMembers(value[key]);
+  }
+  return value;
+}
+
 export async function readAgentTeamJson(path: string): Promise<unknown> {
   try {
-    return JSON.parse(await readFile(path, "utf8")) as unknown;
+    return withoutRetiredMembers(JSON.parse(await readFile(path, "utf8")));
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;

@@ -20,6 +20,7 @@ export function textEditDiscardSnapshot(
 
 function isAgentCreationProposal(proposal: AgentEditProposal): boolean {
   return Boolean(
+    Boolean(proposal.libraryStructureTarget) ||
     proposal.libraryTarget?.operation === "create" ||
     proposal.draftSectionCreationTarget ||
     proposal.characterStructureTarget?.mutation.type === "createItem" ||
@@ -38,7 +39,11 @@ export function agentProposalSupportsDiscard(
     proposal.longPlotDesignTarget ||
     proposal.longDraftTarget
   ) {
-    return false;
+    return (
+      proposal.status === "accepted" &&
+      proposal.discardState?.status !== "discarded" &&
+      Boolean(proposal.discardSnapshot?.longRestorePointId)
+    );
   }
   if (
     proposal.status !== "accepted" ||

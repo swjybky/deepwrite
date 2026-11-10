@@ -73,6 +73,9 @@ export function useWebSearchSettingsPersistence(context: PersistenceContext) {
                   {
                     providerId: submitted.activeProviderId,
                     maxResults: submitted.maxResults,
+                    ...(submitted.baseUrl?.trim()
+                      ? { baseUrl: submitted.baseUrl.trim() }
+                      : {}),
                     ...(apiKey
                       ? { apiKey }
                       : submitted.clearKey

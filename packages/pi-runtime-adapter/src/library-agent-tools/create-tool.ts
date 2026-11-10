@@ -33,7 +33,7 @@ export function buildCreateTool(
   return defineTool({
     name: `create_${domain}_entry`,
     label: `创建${noun}条目`,
-    description: `在当前${noun}库的允许栏目中创建一个条目。name 和 description 写入 Markdown 顶部 --- 说明头部，缺失则补充，已存在则覆盖，不新增 JSON 清单字段；body 保留正式正文与其他头部字段。只提交变更，保存状态以客户端为准；同分组其它库只读。`,
+    description: `在目标${noun}库的允许栏目中创建一个条目。name 和 description 写入 Markdown 顶部 --- 说明头部，缺失则补充，已存在则覆盖，不新增 JSON 清单字段；body 保留正式正文与其他头部字段。只提交变更，保存状态以客户端为准。`,
     parameters: Type.Object({
       stage_id: StringEnum(stages),
       title: Type.String({

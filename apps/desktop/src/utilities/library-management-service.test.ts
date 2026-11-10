@@ -143,3 +143,21 @@ describe("Core library management scope", () => {
     ).toHaveLength(2);
   });
 });
+
+it("loads a domain library without a work binding and rejects wrong-domain ids", async () => {
+  const { store, service } = await fixture();
+  const index = await store.indexSnapshot();
+  vi.spyOn(store, "indexSnapshot").mockResolvedValue({ ...index, books: [] });
+  expect(
+    await service.readLibraryAgentLibrary({
+      domain: "material",
+      libraryId: "material-existing"
+    })
+  ).toMatchObject({ domain: "material", libraryId: "material-existing" });
+  await expect(
+    service.readLibraryAgentLibrary({
+      domain: "skill",
+      libraryId: "material-existing"
+    })
+  ).rejects.toThrow("不属于本领域");
+});

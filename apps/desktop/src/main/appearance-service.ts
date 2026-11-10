@@ -12,6 +12,7 @@ import {
   type AppearanceSettingsSnapshot
 } from "@deepwrite/contracts";
 import { AppearanceConfigStore } from "./appearance-config-store";
+import { withConfigurationLock } from "./configuration-lock";
 import {
   AppearanceFontStore,
   type ResolvedAppearanceFontAsset
@@ -110,7 +111,9 @@ export class AppearanceService {
   }
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.operationChain.then(operation);
+    const result = this.operationChain.then(() =>
+      withConfigurationLock(this.configStore.settingsPath, operation)
+    );
     this.operationChain = result.then(
       () => undefined,
       () => undefined

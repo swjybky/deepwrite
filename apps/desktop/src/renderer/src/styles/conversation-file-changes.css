@@ -224,13 +224,26 @@
   background: transparent;
 }
 
-.file-change-row-body .edit-proposal-row-summary {
+.edit-proposal-row-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 9px 14px;
+}
+
+.edit-proposal-row-toolbar .edit-proposal-row-summary {
+  flex: 1 1 180px;
+  min-width: 0;
   margin: 0;
-  padding: 9px 14px 9px 61px;
   color: var(--text-secondary);
   font-size: 0.821429rem;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.edit-proposal-row-toolbar .edit-proposal-actions {
+  flex-wrap: wrap;
 }
 
 .file-change-row-body .edit-proposal-diff.is-inline {

@@ -87,6 +87,8 @@ export interface AgentEditProposal {
     beforeTitle?: string;
     beforeDescription?: string;
     appliedProjectRevision?: number;
+    /** Long-form: Core restore point kept for an accepted destructive batch. */
+    longRestorePointId?: string;
   };
   /**
    * The target changed after the agent based this edit on it (usually the
@@ -108,6 +110,7 @@ export interface AgentEditProposal {
     message: string;
     updatedAt: string;
   };
+  libraryStructureTarget?: import("@deepwrite/contracts").LibraryStructurePlan;
   libraryTarget?: {
     managementScope?: LibraryManagementScope;
     libraryTitle?: string;

@@ -35,6 +35,7 @@ export { parseAppearanceThemeFile as parseThemeFile } from "./appearanceThemeRun
 export type { ThemePreset };
 
 interface AppearanceState {
+  startupWindowSize?: AppearanceSettings["startupWindowSize"];
   mode: AppearanceMode;
   systemScheme: ColorScheme;
   light: ThemeConfig;
@@ -50,6 +51,7 @@ let editorFontSelectionIntent = 0;
 
 function captureSettings(): AppearanceSettings {
   return AppearanceSettingsSchema.parse({
+    startupWindowSize: state.startupWindowSize,
     mode: state.mode,
     light: state.light,
     dark: state.dark,
@@ -62,6 +64,7 @@ function applySettings(settings: AppearanceSettings): void {
   uiFontSelectionIntent += 1;
   editorFontSelectionIntent += 1;
   suppressPersist = true;
+  state.startupWindowSize = settings.startupWindowSize;
   state.mode = settings.mode;
   state.uiFontFamily = settings.uiFontFamily;
   state.editorFontFamily = settings.editorFontFamily;
@@ -86,6 +89,7 @@ function readLegacyStoredState(systemScheme: ColorScheme): AppearanceState {
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
     const settings = AppearanceSettingsSchema.safeParse({
+      startupWindowSize: parsed.startupWindowSize,
       mode: parsed.mode,
       light: parsed.light,
       dark: parsed.dark,
@@ -94,6 +98,7 @@ function readLegacyStoredState(systemScheme: ColorScheme): AppearanceState {
     });
     if (settings.success) {
       return {
+        startupWindowSize: settings.data.startupWindowSize,
         mode: settings.data.mode,
         systemScheme,
         light: settings.data.light,
@@ -139,6 +144,7 @@ function persistToLegacyStorage(): void {
     window.localStorage.setItem(
       LEGACY_STORAGE_KEY,
       JSON.stringify({
+        startupWindowSize: state.startupWindowSize,
         mode: state.mode,
         light: state.light,
         dark: state.dark,
@@ -395,6 +401,18 @@ export function resetTheme(scheme: ColorScheme): void {
   Object.assign(state[scheme], defaultAppearanceTheme(scheme));
 }
 
+async function saveStartupWindowSize(capture: boolean): Promise<void> {
+  await flush();
+  const api = window.deepwrite?.appearance;
+  if (!api) throw new Error("Desktop appearance API unavailable");
+  const settings = captureSettings();
+  if (!capture) settings.startupWindowSize = null;
+  const snapshot = await api.save(settings, {
+    captureCurrentWindowSize: capture
+  });
+  state.startupWindowSize = snapshot.settings.startupWindowSize;
+}
+
 export function useAppearance() {
   initialize();
   return {
@@ -410,6 +428,7 @@ export function useAppearance() {
     importTheme,
     resetTheme,
     flush,
+    saveStartupWindowSize,
     whenReady: () => hydratePromise ?? Promise.resolve()
   };
 }

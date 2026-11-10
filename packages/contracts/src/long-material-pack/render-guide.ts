@@ -22,7 +22,7 @@ export interface LongMaterialIndexEntry {
 const SECTION_ORDER: { kind: MaterialKind; label: string }[] = [
   { kind: "plot", label: "剧情" },
   { kind: "character", label: "人设" },
-  { kind: "gimmick", label: "梗" },
+  { kind: "gimmick", label: "梗与灵感" },
   { kind: "draft", label: "正文" },
   { kind: "other", label: "世界观" }
 ];

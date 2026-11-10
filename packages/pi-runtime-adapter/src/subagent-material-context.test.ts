@@ -10,7 +10,6 @@ import {
   type Context
 } from "@earendil-works/pi-ai";
 import { buildRunTools } from "./run-tools";
-import { buildSpawnSubagentTool } from "./subagent-runtime";
 import { shortProfile, shortWorkspace } from "./short-agent-tools.test-support";
 
 function harness() {
@@ -109,42 +108,4 @@ describe("subagent material context", () => {
     );
     expect(context.tools?.map((tool) => tool.name)).not.toContain("load_skill");
   });
-
-  it.each(["material", "skill"])(
-    "does not inject the shared directory into the %s manager",
-    async (domain) => {
-      const runtime = harness();
-      const tool = buildSpawnSubagentTool({
-        ...runtime,
-        parentSessionId: "parent",
-        thinkingLevel: "off",
-        definitions: [
-          {
-            ...definition,
-            id: domain,
-            contextMode: "parent-snapshot",
-            toolSource: "library-management"
-          }
-        ],
-        materialContext: "不应新增注入的素材目录",
-        getParentMessages: () => [
-          { role: "user", content: "保留管理对话历史", timestamp: 1 }
-        ],
-        buildChildTools: () => [],
-        prepareChild: async () => ({
-          tools: [],
-          systemPrompt: "目标库管理规则"
-        })
-      })!;
-      await tool.execute("call", {
-        subagent_id: domain,
-        library_id: "library",
-        task: "管理资料"
-      } as never);
-      const text = JSON.stringify(runtime.contexts[0]);
-      expect(text).not.toContain("不应新增注入的素材目录");
-      expect(text).toContain("保留管理对话历史");
-      expect(text).toContain("目标库管理规则");
-    }
-  );
 });

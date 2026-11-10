@@ -1,9 +1,8 @@
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
-import { ref } from "vue";
-import {
-  BuiltinSubagentSettingsSchema,
-  type BuiltinSubagentSettings
+import type {
+  AgentTeamCatalogSnapshot,
+  BuiltinSubagentSettings
 } from "@deepwrite/contracts/renderer";
 import { useSettingsStore } from "../stores/settingsStore";
 import { uiMessage } from "../ui-feedback";
@@ -11,32 +10,45 @@ import { uiMessage } from "../ui-feedback";
 const t = createScopedTranslator("workspace.builtinSubagentSettings");
 
 export function useBuiltinSubagentSettings() {
-  const saving = ref(false);
   const settings = useSettingsStore();
-  async function save(input: BuiltinSubagentSettings): Promise<boolean> {
+  let enabledRevision = 0;
+
+  function applyBuiltins(snapshot: AgentTeamCatalogSnapshot): void {
+    settings.markLoaded("agentTeams", {
+      ...(settings.agentTeamCatalog ?? snapshot),
+      builtinSubagents: snapshot.builtinSubagents
+    });
+  }
+
+  async function setEnabled(
+    domain: keyof BuiltinSubagentSettings,
+    enabled: boolean
+  ): Promise<void> {
     const api = window.deepwrite;
-    if (!api || saving.value || settings.agentTeamSaving) return false;
-    const parsed = BuiltinSubagentSettingsSchema.safeParse(input);
-    if (!parsed.success) {
-      uiMessage.warning(t("enterACallingDescriptionOfUpToCharacters"));
-      return false;
-    }
-    saving.value = true;
-    settings.agentTeamSaving = true;
+    const catalog = settings.agentTeamCatalog;
+    if (!api || !catalog || settings.agentTeamSaving) return;
+    const revision = ++enabledRevision;
+    const input = {
+      ...catalog.builtinSubagents,
+      [domain]: { ...catalog.builtinSubagents[domain], enabled }
+    };
+    applyBuiltins({ ...catalog, builtinSubagents: input });
     try {
-      settings.markLoaded(
-        "agentTeams",
-        await api.agentTeams.saveBuiltins(parsed.data)
-      );
-      uiMessage.success(t("builtInManagementSubagentSettingsSaved"));
-      return true;
+      const snapshot = await api.agentTeams.saveBuiltins(input);
+      if (revision === enabledRevision) {
+        applyBuiltins(snapshot);
+        uiMessage.success(t("builtInManagementSubagentSettingsSaved"));
+      }
     } catch (error) {
       uiMessage.error(formatError(error, t("failedToSavePleaseTryAgain")));
-      return false;
-    } finally {
-      saving.value = false;
-      settings.agentTeamSaving = false;
+      if (revision !== enabledRevision) return;
+      try {
+        const snapshot = await api.agentTeams.list();
+        if (revision === enabledRevision) applyBuiltins(snapshot);
+      } catch {
+        if (revision === enabledRevision) applyBuiltins(catalog);
+      }
     }
   }
-  return { saving, save };
+  return { setEnabled };
 }

@@ -1,3 +1,4 @@
+import { orderLibraryNodes } from "./libraryOrganizationProjection";
 import { plotStageLabel } from "../i18n/plotStageLabels";
 import { createScopedTranslator } from "../i18n";
 import { MATERIAL_STAGE_KINDS } from "@deepwrite/contracts/renderer";
@@ -104,14 +105,6 @@ export const SKILL_STAGE_LABELS: Record<SkillStageId, string> = {
     return t("catalogWorkspace.sectionWritingSkills");
   }
 };
-
-const MATERIAL_TREE_KIND_ORDER: readonly MaterialKind[] = [
-  "character",
-  "plot",
-  "gimmick",
-  "draft",
-  "other"
-];
 
 const MATERIAL_TREE_KIND_LABELS: Record<MaterialKind, string> = {
   get character() {
@@ -1058,25 +1051,6 @@ function createMaterialDocuments(
   ];
 }
 
-function createMaterialKindNode(
-  kind: MaterialKind,
-  libraries: readonly MaterialLibrary[]
-): ResourceTreeNode {
-  return {
-    id: catalogNodeId("material-kind", kind),
-    get label() {
-      return MATERIAL_TREE_KIND_LABELS[kind];
-    },
-    icon: "archive",
-    get badge() {
-      return String(libraries.length);
-    },
-    catalogNodeType: "category",
-    materialKind: kind,
-    children: libraries.map(createMaterialLibraryNode)
-  };
-}
-
 function missingLibraryNode(
   domain: "material" | "skill",
   libraryId: string
@@ -1305,17 +1279,18 @@ export function projectCatalogWorkspace(
       )
     )
   );
-  const materialKindNodes = MATERIAL_TREE_KIND_ORDER.flatMap<ResourceTreeNode>(
-    (kind) => {
-      const libraries = snapshot.materials.filter(
-        (library) =>
-          !groupedMaterialLibraryIds.has(library.id) &&
-          (library.materialKind === kind ||
-            (kind === "other" && library.materialKind === "mixed"))
-      );
-      return libraries.length ? [createMaterialKindNode(kind, libraries)] : [];
-    }
-  );
+  const materialKindNodes = snapshot.materials
+    .filter(
+      (library) =>
+        !library.isUnbound && !groupedMaterialLibraryIds.has(library.id)
+    )
+    .map((library) => ({
+      ...createMaterialLibraryNode(library),
+      categoryTag:
+        library.materialKind === "mixed"
+          ? t("catalogWorkspace.mixed")
+          : MATERIAL_TREE_KIND_LABELS[library.materialKind]
+    }));
   const skillGroupNodes = createSkillGroupNodes(snapshot);
   const groupedSkillLibraryIds = new Set(
     snapshot.skillGroups.flatMap((group) =>
@@ -1389,30 +1364,32 @@ export function projectCatalogWorkspace(
       catalogNodeType: "library",
       libraryId: diagnostic.projectId
     }));
-  const skillKindNodes = SKILL_KINDS.flatMap<ResourceTreeNode>((kind) => {
-    const libraries = snapshot.skills.filter(
-      (library) =>
-        library.skillKind === kind && !groupedSkillLibraryIds.has(library.id)
-    );
-    return libraries.length
-      ? [
-          {
-            id: catalogNodeId("skill-kind", kind),
-            get label() {
-              return SKILL_KIND_LABELS[kind];
-            },
-            icon: "library",
-            get badge() {
-              return String(libraries.length);
-            },
-            catalogNodeType: "category",
-            skillKind: kind,
-            children: libraries.map(createSkillLibraryNode)
-          }
-        ]
-      : [];
-  });
+  const skillKindNodes = snapshot.skills
+    .filter(
+      (library) => !library.isUnbound && !groupedSkillLibraryIds.has(library.id)
+    )
+    .map((library) => ({
+      ...createSkillLibraryNode(library),
+      categoryTag: SKILL_KIND_TAG_LABELS[library.skillKind]
+    }));
 
+  const unboundNodes = (domain: "material" | "skill"): ResourceTreeNode[] => {
+    return (
+      domain === "material"
+        ? snapshot.materials
+            .filter((library) => library.isUnbound)
+            .flatMap(
+              (library) => createMaterialLibraryNode(library).children ?? []
+            )
+        : snapshot.skills
+            .filter((library) => library.isUnbound)
+            .flatMap(
+              (library) => createSkillLibraryNode(library).children ?? []
+            )
+    )
+      .filter((node) => node.catalogEntryId)
+      .map((node) => ({ ...node, categoryTag: t("catalogWorkspace.unbound") }));
+  };
   const resourceSections: ResourceTreeSection[] = [
     {
       id: "creation",
@@ -1431,7 +1408,15 @@ export function projectCatalogWorkspace(
         return t("catalogWorkspace.skillLibrary");
       },
       icon: "library",
-      nodes: [...diagnosticSkillNodes, ...skillGroupNodes, ...skillKindNodes]
+      nodes: [
+        ...diagnosticSkillNodes,
+        ...orderLibraryNodes(
+          [...skillGroupNodes, ...skillKindNodes],
+          "skill",
+          snapshot.libraryOrganization
+        ),
+        ...unboundNodes("skill")
+      ]
     },
     {
       id: "material",
@@ -1441,8 +1426,12 @@ export function projectCatalogWorkspace(
       icon: "archive",
       nodes: [
         ...diagnosticMaterialNodes,
-        ...materialGroupNodes,
-        ...materialKindNodes
+        ...orderLibraryNodes(
+          [...materialGroupNodes, ...materialKindNodes],
+          "material",
+          snapshot.libraryOrganization
+        ),
+        ...unboundNodes("material")
       ]
     }
   ];

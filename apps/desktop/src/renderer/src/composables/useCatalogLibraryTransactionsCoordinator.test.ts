@@ -142,7 +142,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
     expect(harness.coordinator.pendingLibraryEntryMove.value).toBeNull();
   });
 
-  it("copies dirty content and coerces an incompatible material stage when pasting", async () => {
+  it("pastes dirty content across legacy writing types and converts the material stage", async () => {
     const source = materialLibrary("source", "character", [
       {
         id: "entry-a",
@@ -153,7 +153,10 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
         updatedAt: NOW
       }
     ]);
-    const target = materialLibrary("target", "plot", [], 3);
+    const target = {
+      ...materialLibrary("target", "plot", [], 3),
+      materialType: "long" as const
+    };
     const document = workspaceDocument(
       "document-a",
       "material",
@@ -182,6 +185,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
       label: "人物"
     });
     const targetNode = libraryNode(target.id, "material", {
+      workspaceType: "long",
       materialKind: "plot"
     });
 

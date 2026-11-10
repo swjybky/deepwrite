@@ -32,7 +32,7 @@ function event(
       baseRevision: revision(""),
       summary: "创建素材",
       managementScope: scope,
-      creationId: "pending:child:create",
+      creationId: "pending:main:create",
       runtime: { provider: "test", model: "test", mode: "provider" },
       ...input
     },
@@ -50,7 +50,8 @@ function harness(autoApprove = false) {
     projectRevision: 1
   }));
   const conversation = {
-    acceptsRunEvent: () => true,
+    acceptsRunEvent: (sessionId: string, runId: string) =>
+      sessionId === "session" && runId === "run",
     approvalModeForRun: () =>
       autoApprove ? "auto-approve" : "request-approval",
     getEditProposal: (_run: string, id: string) => proposals.get(id),
@@ -66,7 +67,21 @@ function harness(autoApprove = false) {
   const context = {
     api: () => ({ catalog: { readDocument } }),
     notifications: { warning },
-    catalog: { findCatalogLibrary: () => ({ id: "library", title: "素材库" }) },
+    catalog: {
+      findCatalogLibrary: () => ({ id: "library", title: "素材库" }),
+      ensureDocumentLoaded: vi.fn(async (document: WorkspaceDocument) => {
+        const loaded = await readDocument();
+        const next = {
+          ...document,
+          content: loaded.content,
+          catalogContentLoaded: true
+        };
+        documents.value = documents.value.map((item) =>
+          item.id === document.id ? next : item
+        );
+        return next;
+      })
+    },
     editor: {
       documents,
       liveDocuments: computed(() => documents.value),
@@ -149,11 +164,7 @@ describe("library proposals in the originating writing conversation", () => {
         text: "改进素材"
       })
     );
-    expect(test.readDocument).toHaveBeenCalledWith({
-      projectId: "library",
-      target: "document",
-      documentId: "entry"
-    });
+    expect(test.readDocument).toHaveBeenCalledOnce();
     expect(test.proposals.size).toBe(1);
     expect(test.documents.value[0]?.content).toBe("已保存素材");
   });

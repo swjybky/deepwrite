@@ -98,6 +98,7 @@ export default {
   appearanceThemeRuntime: {
     warmPaper: "暖纸",
     seaMist: "海雾",
+    eyeCare: "护眼",
     invalidThemeFileFormat: "主题文件格式无效"
   },
   storageSettings: {
@@ -186,7 +187,7 @@ export default {
   builtinSubagentSettings: {
     enterACallingDescriptionOfUpToCharacters:
       "请输入调用描述，长度不超过 1,000 字。",
-    builtInManagementSubagentSettingsSaved: "已保存内置管理子智能体设置",
+    builtInManagementSubagentSettingsSaved: "已保存内置管理工具设置",
     failedToSavePleaseTryAgain: "保存失败，请重试。"
   },
   remoteModelListing: {

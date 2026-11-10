@@ -1,3 +1,32 @@
+import { resolveLibraryEntryLocation } from "@deepwrite/contracts";
+import { planLibraryStructure } from "./folder-catalog-store/structure-plan";
+import {
+  commitStructureTransaction,
+  recoverStructureTransaction
+} from "./folder-catalog-store/structure-transaction";
+import { projectTransactionContentSha256 as structureSha } from "./project-transaction";
+import {
+  LibraryStructurePlanSchema,
+  type LibraryStructureRequest,
+  type LibraryStructurePlan
+} from "@deepwrite/contracts";
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  CreateUnboundEntryInputSchema,
+  MaterialStageIdSchema,
+  SkillStageIdSchema,
+  type CreateUnboundEntryInput,
+  type CreateUnboundEntryResult
+} from "@deepwrite/contracts";
+import {
+  LibraryOrganizationSchema,
+  emptyLibraryOrganization,
+  ReorderLibraryInputSchema,
+  reconcileLibraryOrder,
+  reorderLibraryIds,
+  type ReorderLibraryInput,
+  type LibraryOrganization
+} from "@deepwrite/contracts";
 import {
   writeManagedMaterialEntry,
   type ManagedMaterialEntryInput
@@ -28,7 +57,7 @@ import {
   persistCreativePlotStageDefinitions
 } from "./folder-catalog-store/plot-stage-definitions";
 import { createCatalogId, randomHex8 } from "@deepwrite/shared";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   lstat,
   mkdir,
@@ -272,6 +301,7 @@ export type FolderCatalogLibraryDomain = "material" | "skill";
 export type CreateFolderLibraryInput = CreateLibraryInput & {
   id?: string;
   parentDirectory?: string | undefined;
+  unbound?: boolean;
 };
 
 export type CreateFolderLibraryGroupInput = CreateLibraryGroupInput & {
@@ -403,6 +433,7 @@ export class FolderCatalogStore {
   private readonly maxProjectContentBytes: number;
   private readonly maxSnapshotContentBytes: number;
   private readonly maxDraftRecoveryBytes: number;
+  private readonly mutationScope = new AsyncLocalStorage<boolean>();
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(options: FolderCatalogStoreOptions) {
@@ -525,6 +556,196 @@ export class FolderCatalogStore {
     });
   }
 
+  async previewLibraryStructure(
+    input: LibraryStructureRequest
+  ): Promise<LibraryStructurePlan> {
+    return this.readAfterWrites(
+      async () =>
+        (
+          await planLibraryStructure(input, {
+            registry: await this.ensureRegistry(),
+            registryPath: this.registryPath,
+            defaultProjectParents: this.defaultProjectParents,
+            maxManifestBytes: this.maxManifestBytes,
+            maxMarkdownBytes: this.maxMarkdownBytes,
+            now: this.now()
+          })
+        ).plan
+    );
+  }
+
+  async applyLibraryStructure(
+    raw: LibraryStructurePlan
+  ): Promise<{ requestId: string; applied: true }> {
+    const input = LibraryStructurePlanSchema.parse(raw);
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const receiptPath = `library-structure-receipts/${structureSha(input.requestId)}.json`;
+      const receipt = await readOptionalUtf8File(
+        join(dirname(this.registryPath), receiptPath),
+        1024 * 1024,
+        "organization receipt"
+      );
+      const identity = structureSha(JSON.stringify(input));
+      if (receipt) {
+        if (JSON.parse(receipt).identity !== identity)
+          throw new Error("整理请求标识已用于不同的操作。");
+        return { requestId: input.requestId, applied: true };
+      }
+      const { plan, roots } = await planLibraryStructure(
+        {
+          domain: input.domain,
+          requestId: input.requestId,
+          operations: input.operations
+        },
+        {
+          registry,
+          registryPath: this.registryPath,
+          defaultProjectParents: this.defaultProjectParents,
+          maxManifestBytes: this.maxManifestBytes,
+          maxMarkdownBytes: this.maxMarkdownBytes,
+          now: this.now()
+        }
+      );
+      if (
+        plan.baseVersion !== input.baseVersion ||
+        plan.summary !== input.summary
+      )
+        throw new Error("资料库已更新，请重新生成整理提案。");
+      roots.at(-1)!.files.push({
+        action: "write",
+        path: receiptPath,
+        content: JSON.stringify({ identity }),
+        expectedSha256: null
+      });
+      await commitStructureTransaction(dirname(this.registryPath), roots);
+      const next = await this.ensureRegistry();
+      await this.writeRegistry(next);
+      return { requestId: input.requestId, applied: true };
+    });
+  }
+
+  async createUnboundEntry(
+    rawInput: CreateUnboundEntryInput
+  ): Promise<CreateUnboundEntryResult> {
+    const input = CreateUnboundEntryInputSchema.parse(rawInput);
+    const stageId =
+      input.domain === "material"
+        ? MaterialStageIdSchema.parse(input.stageId)
+        : SkillStageIdSchema.parse(input.stageId);
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const snapshot = await this.aggregateIndexSnapshot(registry);
+      const ids = new Set(
+        registry.libraryOrganization?.unboundLibraryIds ?? []
+      );
+      const existing =
+        input.domain === "material"
+          ? snapshot.materials.find((library) => ids.has(library.id))
+          : snapshot.skills.find(
+              (library) =>
+                ids.has(library.id) &&
+                library.skillKind === (input.skillKind ?? "general")
+            );
+      const library =
+        existing ??
+        (
+          await this.createLibrary(
+            input.domain === "material"
+              ? {
+                  domain: "material",
+                  name: "未绑定素材",
+                  materialKind: "other",
+                  libraryType: input.libraryType ?? "short",
+                  unbound: true
+                }
+              : {
+                  domain: "skill",
+                  name: "未绑定技能",
+                  skillKind: input.skillKind ?? "general",
+                  libraryType: input.libraryType ?? "short",
+                  unbound: true
+                }
+          )
+        ).resource;
+      const entry =
+        input.domain === "material"
+          ? await this.createLibraryEntry({
+              domain: "material",
+              libraryId: library.id,
+              title: input.title,
+              content: input.content,
+              stageId: MaterialStageIdSchema.parse(stageId),
+              baseProjectRevision: library.projectRevision
+            })
+          : await this.createLibraryEntry({
+              domain: "skill",
+              libraryId: library.id,
+              title: input.title,
+              content: input.content,
+              stageId: SkillStageIdSchema.parse(stageId),
+              baseProjectRevision: library.projectRevision
+            });
+      return { libraryId: library.id, entryId: entry.id };
+    });
+  }
+
+  async reorderLibrary(
+    rawInput: ReorderLibraryInput
+  ): Promise<LibraryOrganization> {
+    const input = ReorderLibraryInputSchema.parse(rawInput);
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const organization =
+        registry.libraryOrganization ?? emptyLibraryOrganization();
+      assertBaseRevision(input.baseRevision, organization.revision);
+      const snapshot = await this.aggregateIndexSnapshot(registry);
+      const groups =
+        input.domain === "material"
+          ? snapshot.materialGroups
+          : snapshot.skillGroups;
+      const libraries =
+        input.domain === "material" ? snapshot.materials : snapshot.skills;
+      const group = input.groupId
+        ? groups.find(({ id }) => id === input.groupId)
+        : undefined;
+      if (input.groupId && !group) throw new Error("分组不存在。");
+      const grouped = new Set(
+        groups.flatMap((item) => Object.values(item.members))
+      );
+      const available = group
+        ? Object.values(group.members).filter((id): id is string => !!id)
+        : [
+            ...groups.map(({ id }) => id),
+            ...libraries
+              .filter(
+                ({ id }) =>
+                  !grouped.has(id) &&
+                  !organization.unboundLibraryIds.includes(id)
+              )
+              .map(({ id }) => id)
+          ];
+      const order = reconcileLibraryOrder(
+        available,
+        input.groupId
+          ? (organization.groups[input.groupId] ?? [])
+          : organization[input.domain]
+      );
+      const next = structuredClone(organization);
+      const reordered = reorderLibraryIds(order, input);
+      if (input.groupId) next.groups[input.groupId] = reordered;
+      else next[input.domain] = reordered;
+      next.revision += 1;
+      await this.writeRegistry({
+        ...registry,
+        revision: registry.revision + 1,
+        updatedAt: this.now(),
+        libraryOrganization: next
+      });
+      return next;
+    });
+  }
+
   async snapshot(): Promise<CatalogSnapshot> {
     return await this.readAfterWrites(async () => {
       const registry = await this.ensureRegistry();
@@ -552,6 +773,15 @@ export class FolderCatalogStore {
     const input = CatalogReadDocumentInputSchema.parse(rawInput);
     return await this.readAfterWrites(async () => {
       const registry = await this.ensureRegistry();
+      if (input.target === "document") {
+        const location = resolveLibraryEntryLocation(
+          registry.libraryOrganization,
+          input.projectId,
+          input.documentId
+        );
+        input.projectId = location.libraryId;
+        input.documentId = location.entryId;
+      }
       const registration = findRegistrationByProjectId(
         registry,
         input.projectId
@@ -872,7 +1102,7 @@ export class FolderCatalogStore {
               id: rawInput.id ?? createCatalogId("material"),
               title: input.name,
               materialType: input.libraryType ?? "short",
-              materialKind: input.materialKind,
+              materialKind: rawInput.unbound ? "mixed" : input.materialKind,
               parentGenre: "",
               subGenre: "",
               overview: "",
@@ -899,6 +1129,11 @@ export class FolderCatalogStore {
       );
       try {
         const registry = await this.ensureRegistry();
+        if (rawInput.unbound) {
+          registry.libraryOrganization ??= emptyLibraryOrganization();
+          registry.libraryOrganization.unboundLibraryIds.push(resource.id);
+          registry.libraryOrganization.revision += 1;
+        }
         await this.registerProject(registry, {
           id: resource.id,
           domain: projectDomain,
@@ -922,6 +1157,12 @@ export class FolderCatalogStore {
     const input = UpdateLibraryInputSchema.parse(rawInput);
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
+      if (
+        registry.libraryOrganization?.unboundLibraryIds.includes(
+          input.libraryId
+        )
+      )
+        throw new Error("未绑定收纳区不能作为正式库修改或移除。");
       const projectDirectory = await secureProjectRoot(
         findRegistration(
           registry,
@@ -995,6 +1236,7 @@ export class FolderCatalogStore {
         for (const [kind, libraryId] of Object.entries(input.members)) {
           if (!libraryId) continue;
           const library = libraries.get(libraryId);
+          if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建素材分组引用了不存在的素材库：${libraryId}`);
           }
@@ -1018,6 +1260,7 @@ export class FolderCatalogStore {
         for (const [kind, libraryId] of Object.entries(input.members)) {
           if (!libraryId) continue;
           const library = libraries.get(libraryId);
+          if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建技能分组引用了不存在的技能库：${libraryId}`);
           }
@@ -2194,6 +2437,7 @@ export class FolderCatalogStore {
         for (const [kind, libraryId] of Object.entries(input.members)) {
           if (!libraryId) continue;
           const library = libraries.get(libraryId);
+          if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`素材分组引用了不存在的素材库：${libraryId}`);
           }
@@ -2217,6 +2461,7 @@ export class FolderCatalogStore {
         for (const [kind, libraryId] of Object.entries(input.members)) {
           if (!libraryId) continue;
           const library = libraries.get(libraryId);
+          if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`技能分组引用了不存在的技能库：${libraryId}`);
           }
@@ -3421,39 +3666,30 @@ export class FolderCatalogStore {
         );
 
       const sourceEntry = sourceManifest.entries[entryIndex]!;
-      const now = this.now();
       if (input.sourceLibraryId === input.targetLibraryId) {
         const remaining = sourceManifest.entries.filter(
           ({ id }) => id !== input.entryId
         );
-        const beforeIndex = input.beforeEntryId
-          ? remaining.findIndex(({ id }) => id === input.beforeEntryId)
-          : -1;
-        remaining.splice(
-          beforeIndex < 0 ? remaining.length : beforeIndex,
-          0,
-          sourceEntry
+        const before = remaining.find(
+          (entry) => entry.id === input.beforeEntryId
         );
-        const next =
-          sourceManifest.kind === "deepwrite.material-library"
-            ? MaterialLibraryProjectManifestSchema.parse({
-                ...sourceManifest,
-                revision: sourceManifest.revision + 1,
-                updatedAt: now,
-                entries: remaining
-              })
-            : SkillLibraryProjectManifestSchema.parse({
-                ...sourceManifest,
-                revision: sourceManifest.revision + 1,
-                updatedAt: now,
-                entries: remaining
-              });
-        await atomicWriteJson(
-          join(sourceDirectory, MANIFEST_FILE),
-          next,
-          this.maxManifestBytes
-        );
-        await this.bumpRegistry(registry, now);
+        const anchor = before ?? remaining.at(-1);
+        if (anchor) {
+          const plan = await this.previewLibraryStructure({
+            domain: input.domain,
+            requestId: randomUUID(),
+            operations: [
+              {
+                action: "reorder-entry",
+                libraryId: input.sourceLibraryId,
+                id: input.entryId,
+                anchorId: anchor.id,
+                position: before ? "before" : "after"
+              }
+            ]
+          });
+          await this.applyLibraryStructure(plan);
+        }
         return {
           domain: input.domain,
           sourceLibraryId: input.sourceLibraryId,
@@ -3486,16 +3722,6 @@ export class FolderCatalogStore {
         targetManifest.isBuiltin
       ) {
         throw new Error("内置技能库为只读内容，不能移入条目。");
-      }
-      if (
-        (sourceManifest.kind === "deepwrite.material-library" &&
-          targetManifest.kind === "deepwrite.material-library" &&
-          sourceManifest.materialType !== targetManifest.materialType) ||
-        (sourceManifest.kind === "deepwrite.skill-library" &&
-          targetManifest.kind === "deepwrite.skill-library" &&
-          sourceManifest.skillType !== targetManifest.skillType)
-      ) {
-        throw new Error("不同创作类型的资料库条目不能直接移动。");
       }
       let targetStageId: MaterialStageId | undefined;
       if (
@@ -3534,92 +3760,23 @@ export class FolderCatalogStore {
       if (targetManifest.entries.some(({ id }) => id === sourceEntry.id)) {
         throw new Error("目标资料库已存在同 ID 条目，无法移动。");
       }
-      const sourceContent = await readProjectMarkdown(
-        sourceDirectory,
-        sourceEntry.path,
-        this.maxMarkdownBytes
-      );
-      const targetPath = await uniqueRelativeMarkdownPath(
-        targetDirectory,
-        "entries",
-        sourceEntry.id,
-        new Set(
-          targetManifest.entries.map((entry) =>
-            portableContentPathKey(entry.path)
-          )
-        )
-      );
-      const targetFile = await secureWritableProjectPath(
-        targetDirectory,
-        targetPath
-      );
-      const movedEntry = {
-        ...sourceEntry,
-        path: targetPath,
-        updatedAt: now,
-        ...(targetStageId === undefined ? {} : { stageId: targetStageId })
-      };
-      const targetEntries = [...targetManifest.entries];
-      const beforeIndex = input.beforeEntryId
-        ? targetEntries.findIndex(({ id }) => id === input.beforeEntryId)
-        : -1;
-      targetEntries.splice(
-        beforeIndex < 0 ? targetEntries.length : beforeIndex,
-        0,
-        movedEntry
-      );
-      const nextTarget =
-        targetManifest.kind === "deepwrite.material-library"
-          ? MaterialLibraryProjectManifestSchema.parse({
-              ...targetManifest,
-              revision: targetManifest.revision + 1,
-              updatedAt: now,
-              entries: targetEntries
-            })
-          : SkillLibraryProjectManifestSchema.parse({
-              ...targetManifest,
-              revision: targetManifest.revision + 1,
-              updatedAt: now,
-              entries: targetEntries
-            });
-      const nextSourceEntries = sourceManifest.entries.filter(
-        ({ id }) => id !== input.entryId
-      );
-      const nextSource =
-        sourceManifest.kind === "deepwrite.material-library"
-          ? MaterialLibraryProjectManifestSchema.parse({
-              ...sourceManifest,
-              revision: sourceManifest.revision + 1,
-              updatedAt: now,
-              entries: nextSourceEntries
-            })
-          : SkillLibraryProjectManifestSchema.parse({
-              ...sourceManifest,
-              revision: sourceManifest.revision + 1,
-              updatedAt: now,
-              entries: nextSourceEntries
-            });
-      await commitProjectMarkdownUpdate(
-        targetFile,
-        sourceContent,
-        undefined,
-        join(targetDirectory, MANIFEST_FILE),
-        nextTarget,
-        this.maxMarkdownBytes,
-        this.maxManifestBytes
-      );
-      await atomicWriteJson(
-        join(sourceDirectory, MANIFEST_FILE),
-        nextSource,
-        this.maxManifestBytes
-      );
-      const sourceFile = await secureExistingProjectPath(
-        sourceDirectory,
-        sourceEntry.path,
-        true
-      );
-      await unlinkOptional(sourceFile);
-      await this.bumpRegistry(registry, now);
+      const plan = await this.previewLibraryStructure({
+        domain: input.domain,
+        requestId: randomUUID(),
+        operations: [
+          {
+            action: "move-entries",
+            libraryId: input.sourceLibraryId,
+            entryIds: [input.entryId],
+            target: { kind: "library", libraryId: input.targetLibraryId },
+            ...(targetStageId ? { targetStageId } : {}),
+            ...(input.beforeEntryId
+              ? { beforeEntryId: input.beforeEntryId }
+              : {})
+          }
+        ]
+      });
+      await this.applyLibraryStructure(plan);
       return {
         domain: input.domain,
         sourceLibraryId: input.sourceLibraryId,
@@ -3635,91 +3792,49 @@ export class FolderCatalogStore {
     const domain = parseLibraryDomain(rawInput.domain);
     const libraryId = parseId(rawInput.libraryId);
     const entryId = parseId(rawInput.entryId);
-    if (rawInput.baseProjectRevision !== undefined) {
-      assertProjectRevision(rawInput.baseProjectRevision);
-    }
-    return await this.mutate(async () => {
+    return this.mutate(async () => {
       const registry = await this.ensureRegistry();
-      const projectDomain = libraryProjectDomain(domain);
-      const registration = findRegistration(registry, libraryId, projectDomain);
-      const projectDirectory = await secureProjectRoot(
-        registration.projectDirectory
+      const registration = findRegistration(
+        registry,
+        libraryId,
+        libraryProjectDomain(domain)
       );
+      const directory = await secureProjectRoot(registration.projectDirectory);
       const manifest = await this.readManifest(
-        projectDirectory,
+        directory,
         domain === "material"
           ? "deepwrite.material-library"
           : "deepwrite.skill-library",
         libraryId
       );
-      if (!rawInput.force) {
+      if (!rawInput.force)
         assertBaseRevision(rawInput.baseProjectRevision, manifest.revision);
-      }
-      const entryIndex = manifest.entries.findIndex(({ id }) => id === entryId);
-      if (entryIndex < 0) {
-        return { libraryId, entryId, deleted: false };
-      }
-      const existing = manifest.entries[entryIndex]!;
-      const target = await secureExistingProjectPath(
-        projectDirectory,
-        existing.path,
-        true
+      if (manifest.kind === "deepwrite.skill-library" && manifest.isBuiltin)
+        throw new Error("内置技能库条目不能删除。");
+      const entry = manifest.entries.find((item) => item.id === entryId);
+      if (!entry) return { libraryId, entryId, deleted: false };
+      const content = await readProjectMarkdown(
+        directory,
+        entry.path,
+        this.maxMarkdownBytes
       );
-      const entries = manifest.entries.filter(({ id }) => id !== entryId);
-      const now = this.now();
-      const next =
-        manifest.kind === "deepwrite.material-library"
-          ? FolderMaterialProjectManifestSchema.parse({
-              ...manifest,
-              revision: manifest.revision + 1,
-              updatedAt: now,
-              entries
-            })
-          : FolderSkillProjectManifestSchema.parse({
-              ...manifest,
-              revision: manifest.revision + 1,
-              updatedAt: now,
-              entries
-            });
-      assertJsonByteLength(next, this.maxManifestBytes);
-      const stagedDeletion = join(
-        dirname(target),
-        `.deepwrite-delete-${randomHex8()}.tmp`
-      );
-      await rename(target, stagedDeletion);
-      try {
-        if (!rawInput.force && rawInput.baseRevision !== undefined) {
-          const stagedContent = await readRequiredUtf8File(
-            stagedDeletion,
-            this.maxMarkdownBytes,
-            "Markdown content"
-          );
-          const actualRevision =
-            createShortWorkspaceContentRevision(stagedContent);
-          if (rawInput.baseRevision !== actualRevision) {
-            throw new FolderCatalogConflictError(
-              rawInput.baseRevision,
-              actualRevision
-            );
-          }
-        }
-        await atomicWriteJson(
-          join(projectDirectory, MANIFEST_FILE),
-          next,
-          this.maxManifestBytes
+      if (
+        !rawInput.force &&
+        rawInput.baseRevision !== undefined &&
+        rawInput.baseRevision !== createShortWorkspaceContentRevision(content)
+      )
+        throw new FolderCatalogConflictError(
+          rawInput.baseRevision,
+          createShortWorkspaceContentRevision(content)
         );
-      } catch (error: unknown) {
-        await rename(stagedDeletion, target);
-        throw error;
-      }
-      await this.bumpRegistry(registry, now);
-      try {
-        await unlinkOptional(stagedDeletion);
-      } catch {
-        // The manifest no longer references this hidden backup, so deletion is
-        // already logically committed. A cleanup failure must not be reported
-        // as if the user's entry were still present.
-      }
+      const plan = await this.previewLibraryStructure({
+        domain,
+        requestId: createCatalogId("remove-entry"),
+        operations: [
+          { action: "delete-entries", libraryId, entryIds: [entryId] }
+        ]
+      });
+      await this.applyLibraryStructure(plan);
       return { libraryId, entryId, deleted: true };
     });
   }
@@ -3732,6 +3847,8 @@ export class FolderCatalogStore {
     const registryDomain = registryDomainForUnregister(domain);
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
+      if (registry.libraryOrganization?.unboundLibraryIds.includes(projectId))
+        throw new Error("未绑定收纳区不能作为正式库修改或移除。");
       const projects = registry.projects.filter(
         (project) =>
           !(project.id === projectId && project.domain === registryDomain)
@@ -3755,6 +3872,12 @@ export class FolderCatalogStore {
   ): Promise<DeleteFolderCatalogProjectResult> {
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
+      if (
+        registry.libraryOrganization?.unboundLibraryIds.includes(
+          rawInput.projectId
+        )
+      )
+        throw new Error("未绑定收纳区不能删除。");
       return await deleteRegisteredProject(registry, rawInput, {
         now: this.now,
         readProject: (directory, domain, id) =>
@@ -4290,6 +4413,7 @@ export class FolderCatalogStore {
   }
 
   private async ensureRegistry(): Promise<FolderCatalogRegistry> {
+    await recoverStructureTransaction(dirname(this.registryPath));
     const existing = await this.readRegistryOptional();
     if (existing) {
       return existing;
@@ -4396,6 +4520,8 @@ export class FolderCatalogStore {
     snapshot: CatalogSnapshot
   ): Promise<WriteMissingSnapshotProjectsResult> {
     const next = structuredClone(registry);
+    if (!next.libraryOrganization && snapshot.libraryOrganization)
+      next.libraryOrganization = structuredClone(snapshot.libraryOrganization);
     const createdProjectDirectories: string[] = [];
     const knownProjects = new Set(
       next.projects.map(({ id, domain }) => registryProjectKey(domain, id))
@@ -4891,11 +5017,22 @@ export class FolderCatalogStore {
     return CatalogSnapshotSchema.parse({
       schemaVersion: 1,
       revision: registry.revision,
+      libraryOrganization: registry.libraryOrganization,
       creativePlotStages,
       books,
-      materials,
+      materials: materials.map((library) => ({
+        ...library,
+        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+          ? { isUnbound: true }
+          : {})
+      })),
       materialGroups,
-      skills,
+      skills: skills.map((library) => ({
+        ...library,
+        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+          ? { isUnbound: true }
+          : {})
+      })),
       skillGroups,
       updatedAt: registry.updatedAt,
       ...(registry.legacyImport === undefined
@@ -4986,11 +5123,22 @@ export class FolderCatalogStore {
     return CatalogIndexSnapshotSchema.parse({
       schemaVersion: 1,
       revision: registry.revision,
+      libraryOrganization: registry.libraryOrganization,
       creativePlotStages,
       books,
-      materials,
+      materials: materials.map((library) => ({
+        ...library,
+        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+          ? { isUnbound: true }
+          : {})
+      })),
       materialGroups,
-      skills,
+      skills: skills.map((library) => ({
+        ...library,
+        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+          ? { isUnbound: true }
+          : {})
+      })),
       skillGroups,
       updatedAt: registry.updatedAt,
       ...(registry.legacyImport === undefined
@@ -5003,15 +5151,18 @@ export class FolderCatalogStore {
   private async mutate<Result>(
     operation: () => Promise<Result>
   ): Promise<Result> {
+    if (this.mutationScope.getStore()) return operation();
     let result: Result | undefined;
     let failure: unknown;
-    const pending = this.writeChain.then(async () => {
-      try {
-        result = await operation();
-      } catch (error: unknown) {
-        failure = error;
-      }
-    });
+    const pending = this.writeChain.then(() =>
+      this.mutationScope.run(true, async () => {
+        try {
+          result = await operation();
+        } catch (error: unknown) {
+          failure = error;
+        }
+      })
+    );
     this.writeChain = pending.then(
       () => undefined,
       () => undefined
@@ -5402,6 +5553,13 @@ function parseRegistry(value: unknown): FolderCatalogRegistry {
     schemaVersion: 1,
     revision,
     updatedAt,
+    ...(value.libraryOrganization === undefined
+      ? {}
+      : {
+          libraryOrganization: LibraryOrganizationSchema.parse(
+            value.libraryOrganization
+          )
+        }),
     sourceCatalogMigrated: value.sourceCatalogMigrated,
     creativePlotStages,
     projects,

@@ -6,7 +6,9 @@ import {
   DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SCRIPT_WORKSPACE_AGENT_SETTINGS,
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
+  SCRIPT_AGENT_SYSTEM_PROMPTS,
   SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS,
+  scriptScreenplayFormatRequirements,
   SCRIPT_WORKSPACE_AGENT_IDS,
   SCRIPT_WORKSPACE_STAGE_IDS,
   SCRIPT_WORKSPACE_TEXT_STAGE_IDS,
@@ -135,24 +137,17 @@ describe("script workspace contracts", () => {
 
     const profile = DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES[0]!;
     expect(profile.id).toBe("script");
-    for (const toolName of ["read", "create", "edit"]) {
-      expect(profile.systemPrompt).toContain(toolName);
+    expect(profile.systemPrompt).toBe(SCRIPT_AGENT_SYSTEM_PROMPTS["zh-CN"]);
+    expect(profile.systemPrompt).toContain("不要把它们当成不同智能体的职责");
+    expect(profile.systemPrompt).toContain("剧本格式要求");
+
+    const english = scriptScreenplayFormatRequirements("en-US");
+    for (const marker of ["INT./EXT.", "△", "OS", "VO", "Markdown tables"]) {
+      expect(english).toContain(marker);
     }
-    expect(profile.systemPrompt).toContain(
-      "不得把人物、剧情或正文当成不同智能体"
+    expect(scriptScreenplayFormatRequirements("zh-CN")).toBe(
+      SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS
     );
-    expect(profile.systemPrompt).toContain("文本样式下禁止 create character");
-    expect(profile.systemPrompt).toContain("所有人物写在同一份文本里");
-    expect(profile.systemPrompt).toContain(
-      "只有条目样式才用 kind=character 为单个人物创建独立条目"
-    );
-    expect(profile.systemPrompt).toContain(
-      "读取、写入或修改剧集正文/人物状态时必须同时给出 document=body 或 character_state，不得省略"
-    );
-    expect(profile.systemPrompt).toContain(
-      "读取单个剧集或段落必须给出 kind=draft_section、稳定小节 id 和 document=body 或 character_state"
-    );
-    expect(profile.systemPrompt).toContain("不传 document 时默认 body");
   });
 
   it("validates script snapshots, profiles, and discriminated settings", () => {

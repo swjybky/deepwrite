@@ -12,6 +12,8 @@ import {
   LongReadAgentsMdResultSchema,
   LongReadDocumentInputSchema,
   LongReadDocumentResultSchema,
+  LongRestoreOperationsInputSchema,
+  LongRestoreOperationsResultSchema,
   LongSearchInputSchema,
   LongSearchResultSchema,
   LongWorkspaceIndexResultSchema,
@@ -24,6 +26,8 @@ import {
   createEnvelope,
   type LongApplyOperationsInput,
   type LongApplyOperationsResult,
+  type LongRestoreOperationsInput,
+  type LongRestoreOperationsResult,
   type LongCommitChapterInput,
   type LongCommitChapterResult,
   type LongDeleteLedgerCommitInput,
@@ -152,6 +156,22 @@ export async function applyLongOperations(
   return LongApplyOperationsResultSchema.parse(
     await invokeCommand<LongApplyOperationsResult>(
       createEnvelope("long.applyOperations", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+export async function restoreLongOperations(
+  rawInput: LongRestoreOperationsInput
+): Promise<LongRestoreOperationsResult> {
+  const input = LongRestoreOperationsInputSchema.parse(rawInput);
+  const id = browserId("cmd_long_restore_operations");
+  return LongRestoreOperationsResultSchema.parse(
+    await invokeCommand<LongRestoreOperationsResult>(
+      createEnvelope("long.restoreOperations", input, {
         id,
         correlationId: id,
         context: { resourceId: input.bookId }

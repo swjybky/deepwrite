@@ -18,7 +18,10 @@ export function parseStoredDiscardSnapshot(
       typeof value.beforeDescription !== "string") ||
     (value.appliedProjectRevision !== undefined &&
       (!Number.isInteger(value.appliedProjectRevision) ||
-        Number(value.appliedProjectRevision) < 0))
+        Number(value.appliedProjectRevision) < 0)) ||
+    (value.longRestorePointId !== undefined &&
+      (typeof value.longRestorePointId !== "string" ||
+        !/^restore_[0-9a-z]{8,64}$/u.test(value.longRestorePointId)))
   ) {
     return undefined;
   }
@@ -34,6 +37,9 @@ export function parseStoredDiscardSnapshot(
       : {}),
     ...(typeof value.appliedProjectRevision === "number"
       ? { appliedProjectRevision: value.appliedProjectRevision }
+      : {}),
+    ...(typeof value.longRestorePointId === "string"
+      ? { longRestorePointId: value.longRestorePointId }
       : {})
   };
 }

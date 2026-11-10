@@ -20,6 +20,7 @@ const externalConcurrencyOnly = process.argv.includes(
 const conversationOnly = process.argv.includes("--conversation-only");
 const decompositionOnly = process.argv.includes("--decomposition-only");
 const bookIdentityOnly = process.argv.includes("--book-identity-only");
+const libraryEntriesOnly = process.argv.includes("--library-entries-only");
 const libraryGroupsOnly = process.argv.includes("--library-groups-only");
 const shortBookSourcesOnly = process.argv.includes("--short-book-sources-only");
 const decompositionRealModel = process.argv.includes(
@@ -85,19 +86,21 @@ const child = spawn(command, args, {
         ? "preset-protection"
         : shortBookSourcesOnly
           ? "short-book-sources"
-          : libraryGroupsOnly
-            ? "library-groups"
-            : bookIdentityOnly
-              ? "book-identity"
-              : decompositionRealModel
-                ? "decomposition-real-model"
-                : decompositionOnly
-                  ? "decomposition"
-                  : conversationOnly
-                    ? "conversation"
-                    : i18nOnly
-                      ? "i18n"
-                      : "all",
+          : libraryEntriesOnly
+            ? "library-entries"
+            : libraryGroupsOnly
+              ? "library-groups"
+              : bookIdentityOnly
+                ? "book-identity"
+                : decompositionRealModel
+                  ? "decomposition-real-model"
+                  : decompositionOnly
+                    ? "decomposition"
+                    : conversationOnly
+                      ? "conversation"
+                      : i18nOnly
+                        ? "i18n"
+                        : "all",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
   },
   stdio: ["ignore", "pipe", "pipe"]
@@ -208,13 +211,36 @@ child.on("close", async (code) => {
     );
     return;
   }
+  if (libraryEntriesOnly) {
+    if (
+      summary.libraryOrganization?.domains !== 2 ||
+      !summary.libraryOrganization.newEntry ||
+      !summary.libraryOrganization.crossType ||
+      !summary.libraryOrganization.dialogLayout
+    ) {
+      console.error(
+        "Electron library entry smoke returned an invalid summary."
+      );
+      process.exit(1);
+    }
+    console.log(
+      "Electron library entry smoke passed: both domains, shared legacy libraries, entry creation, and dialog layout at 10, 14 and 24 px."
+    );
+    return;
+  }
   if (libraryGroupsOnly) {
     if (
       summary.libraryGroups?.status !== "ok" ||
       summary.libraryGroups.groups !== 2 ||
       !summary.libraryGroups.menuOrder ||
       !summary.libraryGroups.canceled ||
-      !summary.libraryGroups.membersDeleted
+      !summary.libraryGroups.membersDeleted ||
+      summary.libraryOrganization?.domains !== 2 ||
+      !summary.libraryOrganization.unbound ||
+      !summary.libraryOrganization.newEntry ||
+      !summary.libraryOrganization.longPressOrder ||
+      !summary.libraryOrganization.idempotentBatch ||
+      !summary.libraryOrganization.entryDeletion
     ) {
       console.error(
         "Electron library group deletion smoke returned an invalid summary."
@@ -222,7 +248,7 @@ child.on("close", async (code) => {
       process.exit(1);
     }
     console.log(
-      "Electron library group deletion smoke passed: both menus, cancellation, and group plus member deletion through Renderer, Preload, Main and Core."
+      "Electron library organization smoke passed: both domains, long-press ordering, unbound entries, idempotent batches, entry deletion, and group deletion through Renderer, Preload, Main and Core."
     );
     return;
   }

@@ -12,6 +12,7 @@ import { VoicePersistence, type VoiceSecureStorage } from "./voice-persistence";
 import { recognizeVoice, type VoiceFetcher } from "./voice-provider";
 
 export interface VoiceServiceOptions {
+  usageDataPath?: string;
   secureStorage?: VoiceSecureStorage;
   fetcher?: VoiceFetcher;
   now?: () => number;
@@ -50,7 +51,8 @@ export class VoiceService {
   constructor(userDataPath: string, options: VoiceServiceOptions = {}) {
     this.persistence = new VoicePersistence(
       userDataPath,
-      options.secureStorage ?? safeStorage
+      options.secureStorage ?? safeStorage,
+      options.usageDataPath
     );
     this.fetcher = options.fetcher ?? electronRemoteFetch;
     this.now = options.now ?? Date.now;

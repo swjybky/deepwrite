@@ -87,6 +87,7 @@ export type LibraryProjectOperation =
   | "rename-entry"
   | "remove-entry";
 export type CreateLibraryEntryDraft =
+  | import("@deepwrite/contracts").UnboundEntryDraft
   | Omit<Extract<CreateLibraryEntryInput, { domain: "material" }>, "content">
   | Omit<Extract<CreateLibraryEntryInput, { domain: "skill" }>, "content">;
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useLibraryOrderDrag } from "../composables/useLibraryOrderDrag";
 import { createScopedTranslator } from "../i18n";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import type {
@@ -61,6 +62,11 @@ const emit = defineEmits<{
   ];
 }>();
 
+const libraryOrderDrag = useLibraryOrderDrag(
+  () => props.section,
+  (payload) => emit("resourceNodeAction", payload)
+);
+
 const { open } = useTreeNodeDisclosure(
   () => ({
     id: props.section.id,
@@ -100,6 +106,15 @@ const actionItems = computed<
         ? t("skillLibrary")
         : t("materialLibrary");
   return [
+    ...(props.section.id === "creation"
+      ? []
+      : [
+          {
+            id: "create-entry" as const,
+            label: t("newEntry"),
+            icon: "plus" as const
+          }
+        ]),
     {
       id: "create",
       label:
@@ -202,7 +217,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="resource-section" :class="{ 'is-collapsed': collapsed }">
+  <section
+    class="resource-section"
+    :class="{ 'is-collapsed': collapsed }"
+    @pointerdown="libraryOrderDrag.start"
+    @click.capture="libraryOrderDrag.click"
+  >
     <div class="resource-section-heading">
       <button
         class="section-toggle"
@@ -313,3 +333,33 @@ onBeforeUnmount(() => {
     </ul>
   </section>
 </template>
+
+<style scoped>
+:deep(.library-order-source) {
+  opacity: 0.32;
+  background: var(--surface-muted);
+  outline: 1px dashed var(--theme-line);
+  outline-offset: -1px;
+}
+:global(.tree-row.library-order-ghost) {
+  z-index: 10000;
+  pointer-events: none;
+  margin: 0;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow:
+    0 0 0 1px var(--theme-line),
+    0 8px 24px color-mix(in srgb, var(--theme-foreground) 18%, transparent);
+}
+:global(html.library-order-dragging),
+:global(html.library-order-dragging *) {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+:deep(.library-order-before) {
+  box-shadow: 0 -2px 0 var(--accent);
+}
+:deep(.library-order-after) {
+  box-shadow: 0 2px 0 var(--accent);
+}
+</style>

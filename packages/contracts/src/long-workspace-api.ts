@@ -28,6 +28,7 @@ import {
   LONG_DOCUMENT_PAGE_MAX_CHARACTERS
 } from "./long-workspace-limits";
 import { LongBookGenreSchema } from "./long-book-genres";
+import { LongRestorePointSchema } from "./long-workspace-restore";
 export * from "./long-workspace-limits";
 export * from "./long-book-genres";
 export * from "./long-workspace-runtime/worldbuilding";
@@ -749,7 +750,9 @@ export type LongPreviewOperationsResult = z.infer<
 export const LongApplyOperationsInputSchema = z
   .object({
     bookId: LongBookIdSchema,
-    batch: LongWorkspaceOperationBatchSchema
+    batch: LongWorkspaceOperationBatchSchema,
+    /** Keep an undo snapshot when the batch deletes or rewrites records. */
+    captureRestorePoint: z.boolean().optional()
   })
   .strict();
 export type LongApplyOperationsInput = z.infer<
@@ -760,7 +763,8 @@ export const LongApplyOperationsResultSchema = z
   .object({
     bookId: LongBookIdSchema,
     operationResult: LongWorkspaceOperationResultSchema,
-    summary: LongBookSummarySchema
+    summary: LongBookSummarySchema,
+    restorePoint: LongRestorePointSchema.optional()
   })
   .strict();
 export type LongApplyOperationsResult = z.infer<

@@ -4,6 +4,8 @@ import { useAppearance } from "../composables/useAppearance";
 import AppearanceFontSettings from "./AppearanceFontSettings.vue";
 import AppearanceThemeSettings from "./AppearanceThemeSettings.vue";
 
+import StartupWindowSettings from "./StartupWindowSettings.vue";
+
 const appearance = useAppearance();
 const ready = ref(false);
 
@@ -23,6 +25,7 @@ onMounted(() => {
     >
       <AppearanceThemeSettings />
       <AppearanceFontSettings />
+      <StartupWindowSettings />
     </fieldset>
   </section>
 </template>

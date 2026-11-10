@@ -164,9 +164,7 @@ describe("useProposalCoordinator extraction boundary", () => {
     expect(source).toContain("async function acceptLongDraftProposal(");
     expect(longImpactApprovalSource).toContain("await api.previewOperations(");
     expect(source).toContain("await api.applyOperations(");
-    expect(longImpactApprovalSource).toContain(
-      "longWorkspaceOperationsRequireImpactConfirmation"
-    );
+    expect(source).toContain("captureRestorePoint: true");
     expect(longImpactApprovalSource).toContain("input.removeQueued(");
     expect(source).toContain("removeQueued: removeQueuedAgentEdit");
     expect(source).toContain("async function acceptLibraryCreationProposal(");

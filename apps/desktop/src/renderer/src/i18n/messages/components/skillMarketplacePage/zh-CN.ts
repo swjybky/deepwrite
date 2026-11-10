@@ -25,7 +25,7 @@ export default {
   publishSkill: "发布单技能",
   publishSkillLibrary: "发布技能库",
   publishSkillGroup: "发布技能组",
-  valueValueValueSkills: "{arg0} · {arg1} · {arg2} 条技能",
+  valueValueValueSkills: "{arg0} · {arg2} 条技能",
   valueSkillLibrariesValueSkills: "{arg0} 个技能库 · {arg1} 条技能",
   couldNotRestoreMarketplaceSession: "技能广场会话恢复失败。",
   signedOutOfTheMarketplace: "已退出技能广场",
@@ -187,7 +187,7 @@ export default {
   totalPerPageMessage: "共 {arg0} 条 · 每页 {arg1} 条",
   pageMessage: "第 {arg0} / {arg1} 页",
   vUpdatedMessage: "v{arg0} · {arg1} · 更新于 {arg2}",
-  skillsMessage: "{arg0} · {arg1} · {arg2} 条技能",
+  skillsMessage: "{arg0} · {arg2} 条技能",
   versionIsInstalledNewRemoteVersionsAreMessage:
     "当前 v{arg0} 已安装。远程更新后的新版本会作为独立副本安装。",
   skillsMessageDetail: "{arg0} 条技能",

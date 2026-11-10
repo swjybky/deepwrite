@@ -179,7 +179,11 @@ function createAutomaticLongDeleteFixture() {
       ({
         bookId,
         summary: { id: bookId },
-        operationResult: {}
+        operationResult: {},
+        restorePoint: {
+          id: "restore_abc12345",
+          createdAt: "2026-11-07T00:00:00.000Z"
+        }
       }) as never
   );
   let proposal: AgentEditProposal = {
@@ -359,35 +363,24 @@ describe("useProposalCoordinator lifecycle", () => {
     expect(fixture.coordinator.hasQueuedAgentEdits()).toBe(false);
   });
 
-  it("removes an automatic destructive reservation until the user confirms", async () => {
+  it("saves an automatic deletion directly and keeps its restore point", async () => {
     const fixture = createAutomaticLongDeleteFixture();
     try {
       fixture.coordinator.resumeRecoveredAutomaticAgentEdits();
       await fixture.coordinator.drain();
 
+      // Holding it for the user would stall every later edit in the lane.
       expect(fixture.previewOperations).toHaveBeenCalledTimes(1);
-      expect(fixture.applyOperations).not.toHaveBeenCalled();
+      expect(fixture.applyOperations).toHaveBeenCalledTimes(1);
+      expect(fixture.applyOperations).toHaveBeenCalledWith(
+        expect.objectContaining({ captureRestorePoint: true })
+      );
       expect(fixture.coordinator.hasQueuedAgentEdits()).toBe(false);
       expect(fixture.proposal()).toMatchObject({
-        status: "pending",
-        approvalMode: "request-approval",
-        longPlotDesignTarget: { expectedImpact: expect.any(Object) }
+        status: "accepted",
+        approvalMode: "auto-approve",
+        discardSnapshot: { longRestorePointId: "restore_abc12345" }
       });
-
-      fixture.coordinator.resumeRecoveredAutomaticAgentEdits();
-      fixture.coordinator.scheduleQueuedAgentEdits(() => true);
-      await fixture.coordinator.drain();
-      expect(fixture.applyOperations).not.toHaveBeenCalled();
-
-      await fixture.coordinator.reviewLongAgentEdit({
-        runId: "run-long-delete",
-        proposalId: "proposal-long-delete",
-        decision: "accept"
-      });
-      await fixture.coordinator.drain();
-
-      expect(fixture.applyOperations).toHaveBeenCalledTimes(1);
-      expect(fixture.proposal().status).toBe("accepted");
     } finally {
       await fixture.coordinator.dispose();
       vi.unstubAllGlobals();

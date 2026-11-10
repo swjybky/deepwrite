@@ -6,10 +6,10 @@ const source = selectionSource + dialogSource;
 describe("CreateBookDialog shared libraries", () => {
   it("offers one material and skill pool to short, script, and long books", () => {
     expect(source).toContain(
-      "const workspaceMaterials = computed(() => props.materials)"
+      "props.materials.filter((library) => !library.isUnbound)"
     );
     expect(source).toContain(
-      "const workspaceSkills = computed(() => props.skills)"
+      "props.skills.filter((library) => !library.isUnbound)"
     );
     expect(source).not.toContain(
       "material.materialType === workspaceType.value"

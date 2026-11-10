@@ -138,9 +138,11 @@ describe("agent team JSON files", () => {
     const manifest = JSON.parse(
       createAgentTeamPackageJson(shortTeam()).toString("utf8")
     );
-    expect(() =>
-      readAgentTeamPackageJson(json({ ...manifest, version: 99 }))
-    ).toThrow("version");
+    for (const version of [2, 99]) {
+      expect(() =>
+        readAgentTeamPackageJson(json({ ...manifest, version }))
+      ).toThrow("version");
+    }
     expect(() =>
       readAgentTeamPackageJson(json({ ...manifest, format: "unknown-format" }))
     ).toThrow("format");

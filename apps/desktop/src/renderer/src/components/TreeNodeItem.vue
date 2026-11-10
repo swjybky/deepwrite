@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LibraryEntryOrganizationMenu from "./LibraryEntryOrganizationMenu.vue";
 import { createScopedTranslator } from "../i18n";
 import {
   computed,
@@ -89,6 +90,7 @@ const { open } = useTreeNodeDisclosure(
 const ACTION_MENU_GAP = 3;
 const ACTION_MENU_EDGE_GAP = 8;
 const actionMenuOpen = ref(false);
+const organizationDialogOpen = ref(false);
 const actionArea = ref<HTMLElement | null>(null);
 const actionMenu = ref<HTMLElement | null>(null);
 const actionMenuOpensUpward = ref(false);
@@ -481,9 +483,10 @@ onMounted(() => {
   }
   unregisterTreeNodeActionListeners = registerTreeNodeActionListeners({
     containsTarget: (target) =>
+      organizationDialogOpen.value ||
       Boolean(actionArea.value?.contains(target as Node)),
     close: () => {
-      actionMenuOpen.value = false;
+      if (!organizationDialogOpen.value) actionMenuOpen.value = false;
     },
     updatePlacement: updateActionMenuPlacement
   });
@@ -994,6 +997,21 @@ onBeforeUnmount(() => {
           >
             <AppIcon name="edit" :size="16" /><span>{{ t("rename") }}</span>
           </button>
+          <LibraryEntryOrganizationMenu
+            @open-change="organizationDialogOpen = $event"
+            v-if="!node.readOnly && node.libraryId && node.catalogEntryId"
+            :domain="libraryDomain"
+            :library-id="node.libraryId"
+            :entry-id="node.catalogEntryId"
+            @organize="
+              emit('resourceNodeAction', {
+                domain: libraryDomain,
+                action: 'organize-entries',
+                node,
+                organizationOperation: $event
+              })
+            "
+          />
           <button
             class="tree-node-action-menu-item"
             type="button"

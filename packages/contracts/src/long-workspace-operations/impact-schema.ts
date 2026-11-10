@@ -335,7 +335,9 @@ export const LONG_WORKSPACE_OPERATION_ERROR_CODES = [
   "historical_continuity_readonly",
   "invalid_document_write",
   "invalid_result",
-  "document_changed"
+  "document_changed",
+  "restore_conflict",
+  "restore_unavailable"
 ] as const;
 export const LongWorkspaceOperationErrorCodeSchema = z.enum(
   LONG_WORKSPACE_OPERATION_ERROR_CODES

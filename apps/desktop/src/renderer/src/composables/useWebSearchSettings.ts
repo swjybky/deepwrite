@@ -32,6 +32,7 @@ export function useWebSearchSettings() {
   const draft = reactive<WebSearchDraft>({
     activeProviderId: "deepseek",
     maxResults: 8,
+    baseUrl: "",
     perRunCallLimit: 20,
     apiKey: "",
     clearKey: false
@@ -57,6 +58,7 @@ export function useWebSearchSettings() {
   const canImport = computed(() => Boolean(descriptor.value.keyImport));
   const hasUsableKey = computed(
     () =>
+      descriptor.value.requiresApiKey === false ||
       draft.apiKey.trim() !== "" ||
       (Boolean(profile.value?.hasApiKey) && !draft.clearKey)
   );
@@ -66,6 +68,7 @@ export function useWebSearchSettings() {
     return (
       draft.apiKey.trim() !== "" ||
       draft.clearKey ||
+      (draft.baseUrl?.trim() || undefined) !== profile.value?.baseUrl ||
       draft.activeProviderId !== saved.activeProviderId ||
       draft.perRunCallLimit !== saved.perRunCallLimit ||
       draft.maxResults !== profile.value?.maxResults
@@ -112,7 +115,9 @@ export function useWebSearchSettings() {
   const statusText = computed(() => {
     const saved = settings.value;
     if (!saved) return "";
-    if (!profile.value?.hasApiKey)
+    if (!descriptor.value.defaultBaseUrl && !draft.baseUrl?.trim())
+      return t("statusNeedsEndpoint");
+    if (descriptor.value.requiresApiKey !== false && !profile.value?.hasApiKey)
       return keyImport.importHint.value
         ? t("statusNoKeyImportable", { provider: provider.value })
         : t("statusNoKey");
@@ -122,7 +127,12 @@ export function useWebSearchSettings() {
   });
   const keySourceText = computed(() => {
     const source = profile.value?.keySource;
-    if (!profile.value?.hasApiKey) return t("keyNotSaved");
+    if (!profile.value?.hasApiKey)
+      return t(
+        descriptor.value.requiresApiKey === false
+          ? "optionalKey"
+          : "keyNotSaved"
+      );
     if (!source || source.kind === "manual") return t("keySourceManual");
     return t("keySourceModel", {
       model: source.modelLabel,
@@ -147,6 +157,10 @@ export function useWebSearchSettings() {
     draft.activeProviderId = snapshot.activeProviderId;
     draft.perRunCallLimit = snapshot.perRunCallLimit;
     draft.maxResults = maxResultsOf(snapshot, snapshot.activeProviderId);
+    draft.baseUrl =
+      snapshot.profiles.find(
+        (entry) => entry.providerId === snapshot.activeProviderId
+      )?.baseUrl ?? "";
     resetKeyDraft();
   }
 
@@ -170,6 +184,9 @@ export function useWebSearchSettings() {
   async function selectProvider(id: WebSearchProviderId): Promise<void> {
     if (id === draft.activeProviderId) return;
     draft.activeProviderId = id;
+    draft.baseUrl =
+      settings.value?.profiles.find((entry) => entry.providerId === id)
+        ?.baseUrl ?? "";
     draft.maxResults = settings.value
       ? maxResultsOf(settings.value, id)
       : webSearchProvider(id).defaultMaxResults;
@@ -179,6 +196,10 @@ export function useWebSearchSettings() {
 
   async function test(): Promise<void> {
     if (testing.value) return;
+    if (!(draft.baseUrl?.trim() || descriptor.value.defaultBaseUrl)) {
+      uiMessage.warning(t("statusNeedsEndpoint"));
+      return;
+    }
     if (!hasUsableKey.value) {
       uiMessage.warning(t("testNeedsKey"));
       return;
@@ -188,6 +209,7 @@ export function useWebSearchSettings() {
       const apiKey = draft.apiKey.trim();
       const result = await webSearchApi().test({
         providerId: draft.activeProviderId,
+        baseUrl: draft.baseUrl?.trim() || descriptor.value.defaultBaseUrl,
         ...(apiKey ? { apiKey } : {})
       });
       uiMessage.success(

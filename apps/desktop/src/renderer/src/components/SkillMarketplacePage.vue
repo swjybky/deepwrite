@@ -86,17 +86,6 @@ const KIND_LABELS: Record<MarketplaceSkillKind, string> = {
     return t("other");
   }
 };
-const LIBRARY_TYPE_LABELS: Record<MarketplaceLibraryType, string> = {
-  get short() {
-    return t("shortStory");
-  },
-  get long() {
-    return t("novel");
-  },
-  get script() {
-    return t("screenplay");
-  }
-};
 const STATUS_LABELS: Record<string, string> = {
   get draft() {
     return t("draft");
@@ -159,22 +148,6 @@ const kindOptions: PopupSelectOption[] = [
       }
     })
   )
-];
-const libraryTypeOptions: PopupSelectOption[] = [
-  {
-    value: "",
-    get label() {
-      return t("allWritingTypes");
-    }
-  },
-  ...(
-    Object.keys(LIBRARY_TYPE_LABELS) as Array<keyof typeof LIBRARY_TYPE_LABELS>
-  ).map((value) => ({
-    value,
-    get label() {
-      return LIBRARY_TYPE_LABELS[value];
-    }
-  }))
 ];
 const sortOptions: PopupSelectOption[] = [
   {
@@ -239,7 +212,6 @@ const mineTotalPages = ref(0);
 const query = ref("");
 const contentType = ref<PopupSelectValue>("");
 const kind = ref<PopupSelectValue>("");
-const libraryType = ref<PopupSelectValue>("");
 const sort = ref<PopupSelectValue>("latest");
 const detail = ref<MarketplaceContentDetail | null>(null);
 const detailSummary = ref<MarketplaceContentSummary | null>(null);
@@ -249,9 +221,6 @@ const detailSkillSections = ref<DetailSkillSection[]>([]);
 const selectedDetailSectionId = ref("");
 const selectedDetailSkillId = ref("");
 const installPreview = ref<MarketplaceInstallPreview | null>(null);
-const installTypeSelections = ref<
-  Partial<Record<MarketplaceSkillKind, MarketplaceLibraryType>>
->({});
 const installTargetLibraryId = ref("");
 const installPending = ref(false);
 const deleteTarget = ref<MarketplaceContentSummary | null>(null);
@@ -304,7 +273,6 @@ const installTargetLibraryOptions = computed<PopupSelectOption[]>(() => {
       label: library.title,
       description: t("valueValueValueSkills", {
         arg0: KIND_LABELS[library.skillKind],
-        arg1: LIBRARY_TYPE_LABELS[library.skillType],
         arg2: library.entries.length
       })
     }));
@@ -317,7 +285,7 @@ const localSkillEntryOptions = computed<PopupSelectOption[]>(() =>
       library.entries.map((entry) => ({
         value: `${library.id}\u0000${entry.id}`,
         label: entry.title,
-        description: `${library.title} · ${KIND_LABELS[library.skillKind]} · ${LIBRARY_TYPE_LABELS[library.skillType]}`
+        description: `${library.title} · ${KIND_LABELS[library.skillKind]}`
       }))
     )
 );
@@ -330,7 +298,6 @@ const localSkillLibraryOptions = computed<PopupSelectOption[]>(() =>
       label: library.title,
       description: t("valueValueValueSkills", {
         arg0: KIND_LABELS[library.skillKind],
-        arg1: LIBRARY_TYPE_LABELS[library.skillType],
         arg2: library.entries.length
       })
     }))
@@ -489,9 +456,6 @@ function listFilter(page = browsePage.value): MarketplaceListFilter {
       ? { contentType: contentType.value as MarketplaceContentType }
       : {}),
     ...(kind.value ? { kind: kind.value as MarketplaceSkillKind } : {}),
-    ...(libraryType.value
-      ? { libraryType: libraryType.value as MarketplaceLibraryType }
-      : {}),
     sort: sort.value as MarketplaceListFilter["sort"],
     page,
     pageSize: PAGE_SIZE
@@ -739,23 +703,11 @@ async function prepareInstall(item: MarketplaceContentSummary): Promise<void> {
     });
     installPreview.value = preview;
     installTargetLibraryId.value = "";
-    installTypeSelections.value = Object.fromEntries(
-      preview.buckets.map((bucket) => [bucket.kind, bucket.libraryType])
-    );
   } catch (error: unknown) {
     uiMessage.error(errorMessage(error, t("couldNotLoadInstallationPreview")));
   } finally {
     installPending.value = false;
   }
-}
-
-function installTypeOptions(
-  bucket: MarketplaceInstallPreview["buckets"][number]
-): PopupSelectOption[] {
-  return bucket.availableLibraryTypes.map((value) => ({
-    value,
-    label: LIBRARY_TYPE_LABELS[value]
-  }));
 }
 
 async function confirmInstall(): Promise<void> {
@@ -782,7 +734,13 @@ async function confirmInstall(): Promise<void> {
         ? { targetLibraryId: installTargetLibraryId.value }
         : {}),
       libraryTypesByKind: {
-        ...installTypeSelections.value,
+        // Keep the remote metadata so exported content remains readable by older clients.
+        ...Object.fromEntries(
+          installPreview.value.buckets.map((bucket) => [
+            bucket.kind,
+            bucket.libraryType
+          ])
+        ),
         ...(targetLibrary
           ? { [targetLibrary.skillKind]: targetLibrary.skillType }
           : {})
@@ -1338,12 +1296,6 @@ onMounted(() => {
             variant="compact"
           />
           <PopupSelect
-            v-model="libraryType"
-            :options="libraryTypeOptions"
-            :accessible-label="t('writingType')"
-            variant="compact"
-          />
-          <PopupSelect
             v-model="sort"
             :options="sortOptions"
             :accessible-label="t('sortBy')"
@@ -1714,7 +1666,6 @@ onMounted(() => {
           <template v-if="publishType === 'skill'">
             <div class="publish-metadata">
               <span>{{ KIND_LABELS[publishKind] }}</span>
-              <span>{{ LIBRARY_TYPE_LABELS[publishLibraryType] }}</span>
               <span>{{ publishStageId }}</span>
             </div>
             <label class="full-field">
@@ -1763,7 +1714,6 @@ onMounted(() => {
                 <small>{{
                   t("skillsMessage", {
                     arg0: KIND_LABELS[library.kind] ?? "",
-                    arg1: LIBRARY_TYPE_LABELS[library.libraryType] ?? "",
                     arg2: library.entries.length ?? ""
                   })
                 }}</small>
@@ -1999,30 +1949,6 @@ onMounted(() => {
                   })
                 }}</span>
               </div>
-              <label
-                v-if="
-                  installPreview.ref.contentType !== 'skill' &&
-                  bucket.availableLibraryTypes.length > 1
-                "
-              >
-                <span>{{ t("localTargetType") }}</span>
-                <PopupSelect
-                  :model-value="
-                    installTypeSelections[bucket.kind] ?? bucket.libraryType
-                  "
-                  :options="installTypeOptions(bucket)"
-                  :accessible-label="
-                    t('valueLocalTargetType', {
-                      arg0: KIND_LABELS[bucket.kind]
-                    })
-                  "
-                  :menu-z-index="2200"
-                  @update:model-value="
-                    installTypeSelections[bucket.kind] =
-                      $event as MarketplaceLibraryType
-                  "
-                />
-              </label>
               <ol>
                 <li
                   v-for="entry in bucket.entries"
@@ -2235,7 +2161,7 @@ textarea:focus {
 .marketplace-filters {
   display: grid;
   grid-template-columns:
-    minmax(210px, 1fr) repeat(4, minmax(125px, auto))
+    minmax(210px, 1fr) repeat(3, minmax(125px, auto))
     auto auto;
   gap: 9px;
   margin-bottom: 18px;

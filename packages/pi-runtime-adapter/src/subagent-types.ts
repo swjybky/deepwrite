@@ -32,10 +32,9 @@ export type RuntimeSubagentDefinition = Omit<
   "id" | "agentMode"
 > & {
   id: string;
-  /** Absent means `standard`; built-in managers are always `standard`. */
+  /** Absent means `standard`. */
   agentMode?: SubagentAgentMode;
   contextMode?: "isolated" | "parent-snapshot";
-  toolSource?: "writing" | "library-management" | "team-management";
 };
 export interface AgentToolExecutionHooks {
   beforeToolCall?: (

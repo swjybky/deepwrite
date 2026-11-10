@@ -34,6 +34,7 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "catalog.createLibraryGroupAtPath",
   "catalog.openProjectAtPath",
   "catalog.readLibraryPackageSource",
+  "catalog.readLibraryAgentLibrary",
   "catalog.previewLibraryPackageAtPath",
   "catalog.importLibraryPackageAtPath",
   "catalog.installMarketplaceSkillContent"

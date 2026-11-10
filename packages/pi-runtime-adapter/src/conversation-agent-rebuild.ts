@@ -14,7 +14,7 @@ export function conversationAgentKey(input: AgentRunInput): string {
     subagentAuthoring
       ? `subagent-authoring:${subagentAuthoring.parentAgentId}`
       : input.libraryAgentProfile && libraryWorkspace
-        ? `library:${input.libraryAgentProfile.domain}:${libraryWorkspace.libraryId}`
+        ? `library:${input.libraryAgentProfile.domain}`
         : input.scriptAgentProfile
           ? `script:${input.scriptAgentProfile.id}`
           : input.longAgentProfile && longWorkspace

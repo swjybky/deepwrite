@@ -305,7 +305,7 @@ describe("SettingsPage", () => {
     expect(featureModulesSource).toContain(
       "@load-models=\"emit('loadModels')\""
     );
-    expect(appSource).toContain('@load-models="loadModelSettings"');
+    expect(appSource).toContain('@load-models="refreshModelSettings"');
     expect(appSource).toContain('@save-models="saveModelSettings"');
     expect(appSource).toContain('@test-model="testModel"');
     expect(appSource).toContain('@refresh-free-models="refreshFreeModels"');

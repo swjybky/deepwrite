@@ -19,6 +19,8 @@ const errorKeys: Readonly<Record<string, TranslationKey>> = {
   "long.operation.document_changed": "foundation.catalogConflict",
   "long.operation.invalid_document_write": "foundation.invalidDocumentWrite",
   "long.operation.invalid_result": "foundation.invalidOperationResult",
+  "long.operation.restore_conflict": "foundation.restoreConflict",
+  "long.operation.restore_unavailable": "foundation.restoreUnavailable",
   "long.ledger.audit_failed": "foundation.ledgerAuditFailed"
 };
 

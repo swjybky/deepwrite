@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { inspectTranscript } from "./transcript.test-support";
 import {
   Agent,
   type AgentMessage,
@@ -11,26 +10,19 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
   type Api,
-  type Model,
-  type Context
+  type Model
 } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import {
-  DEFAULT_LIBRARY_AGENT_PROFILES,
   createShortWorkspaceContentRevision,
   type LibraryAgentWorkspaceSnapshot
 } from "@deepwrite/contracts";
-import {
-  buildSpawnSubagentTool,
-  isSubagentToolProgressDetails
-} from "./subagent-runtime";
 import { snapshotSubagentHistory } from "./subagent-history";
 import {
   createLibraryManagementRuntime,
   libraryManagementParentPrompt
 } from "./library-management-runtime";
 import { buildAskUserQuestionTool } from "./ask-user-question-tool";
-import { toSubagentRuntimeEvents } from "./subagent-events";
 import type { AgentRunInput } from "./runtime-types";
 import { reconcileLibraryToolState } from "./library-management-state";
 
@@ -68,10 +60,7 @@ function input(): AgentRunInput {
       managers: [
         {
           domain: "skill",
-          description: "优化技能",
-          profile: DEFAULT_LIBRARY_AGENT_PROFILES.find(
-            (profile) => profile.domain === "skill"
-          )!
+          description: "优化技能"
         }
       ],
       libraries: [
@@ -145,155 +134,58 @@ describe("built-in management subagents", () => {
     expect(history[1]).toMatchObject({ content: "保存上面的素材" });
   });
 
-  it("uses manager tools, inherits parent history, and forwards library proposals", async () => {
+  it("loads bound libraries lazily and emits proposals directly", async () => {
     const run = input();
-    const management = createLibraryManagementRuntime(run);
-    const prepared = await management.prepareChild(
-      management.definitions[0]!,
-      "skills"
+    const tools = createLibraryManagementRuntime(run).tools;
+    expect(tools.some((tool) => tool.name === "load_skill")).toBe(false);
+    expect(run.libraryManagementCommandExecutor).not.toHaveBeenCalled();
+    const read = tools.find(
+      (tool) => tool.name === "manage_skill_read_skill_entry"
+    )!;
+    const edit = tools.find(
+      (tool) => tool.name === "manage_skill_edit_skill_entry"
+    )!;
+    const call = (params: Record<string, unknown>) =>
+      read.execute("read", params);
+    expect(JSON.stringify(await call({ entry_id: "skill-1" }))).toContain(
+      "library_id"
     );
-    const names = prepared.tools.map((tool) => tool.name);
-    expect(names).toContain("load_skill");
-    expect(names).toContain("edit_skill_entry");
-    expect(names).not.toContain("write");
-    expect(names).not.toContain("ask_user_question");
-    const runtime = provider();
-    const seen: Context[] = [];
-    runtime.faux.setResponses([
-      fauxAssistantMessage(
-        fauxToolCall(
-          "read_skill_entry",
-          { entry_id: "skill-1" },
-          { id: "read" }
-        ),
-        { stopReason: "toolUse" }
-      ),
-      fauxAssistantMessage(
-        fauxToolCall(
-          "edit_skill_entry",
-          { entry_id: "skill-1", mode: "append", body: "新增方法" },
-          { id: "edit" }
-        ),
-        { stopReason: "toolUse" }
-      ),
-      fauxAssistantMessage("已提交技能优化提案，等待审阅。")
-    ]);
-    const parentMessages: AgentMessage[] = [
-      { role: "user", content: "请将前面的规则优化成技能", timestamp: 1 }
-    ];
-    const tool = buildSpawnSubagentTool({
-      parentSessionId: run.sessionId,
-      parentRuntime: { provider: "test", model: "test", mode: "provider" },
-      model: runtime.model,
-      thinkingLevel: "off",
-      streamFn: (model, ctx, opts) => {
-        seen.push(inspectTranscript(ctx));
-        return runtime.stream(model, ctx, opts);
-      },
-      definitions: management.definitions,
-      prepareChild: management.prepareChild,
-      getParentMessages: () => parentMessages,
-      buildChildTools: () => {
-        throw new Error("must not inherit tools");
-      }
-    })!;
-    const events: ReturnType<typeof toSubagentRuntimeEvents> = [];
-    await tool.execute(
-      "spawn",
-      {
-        subagent_id: "builtin:skill-manager",
-        task: "优化技能",
-        library_id: "skills"
-      },
-      undefined,
-      (update) => {
-        if (isSubagentToolProgressDetails(update.details))
-          events.push(
-            ...toSubagentRuntimeEvents(
-              update.details.progress,
-              run,
-              { provider: "test", model: "test", mode: "provider" },
-              "message"
-            )
-          );
-      }
-    );
-    expect(JSON.stringify(seen[0]?.messages)).toContain(
-      "请将前面的规则优化成技能"
-    );
-    expect(seen[0]?.tools?.map((tool) => tool.name)).toContain("load_skill");
     expect(
-      events.some(
-        (event) =>
-          event.type === "subagent.completed" &&
-          event.payload.status === "completed"
-      )
-    ).toBe(true);
-    expect(
-      events.some((event) => event.type === "library.editor_mutation")
-    ).toBe(true);
-    // A mutation result is projected with the originating work's binding scope.
-    const projected = toSubagentRuntimeEvents(
-      {
-        type: "child_tool_details",
-        parentToolCallId: "spawn",
-        subagentId: "builtin:skill-manager",
-        subagentRunId: "child",
-        name: "技能管理子智能体",
-        toolCallId: "child:edit",
-        toolName: "edit_skill_entry",
-        isError: false,
-        result: {
-          content: [],
-          details: {
-            kind: "library-entry-mutation",
-            operation: "edit",
-            domain: "skill",
-            libraryId: "skills",
-            entryId: "skill-1",
-            documentId: "doc-1",
-            stageId: "outline",
-            title: "技能一",
-            text: "新内容",
-            baseRevision: revision("旧内容"),
-            summary: "优化"
-          }
-        }
-      },
-      run,
-      { provider: "test", model: "test", mode: "provider" },
-      "message"
-    );
-    expect(projected[0]).toMatchObject({
-      type: "library.editor_mutation",
-      payload: {
-        managementScope: { bookId: "book", bookType: "short" },
-        toolCallId: "child:edit"
-      }
+      JSON.stringify(await call({ library_id: "unbound", entry_id: "skill-1" }))
+    ).toContain("库不存在");
+    await call({ library_id: "skills", entry_id: "skill-1" });
+    const result = await edit.execute("edit", {
+      library_id: "skills",
+      entry_id: "skill-1",
+      mode: "replace",
+      allow_overwrite_existing: true,
+      body: "新内容",
+      summary: "优化"
     });
-    expect(parentMessages).toHaveLength(1);
+    expect(result.details).toMatchObject({
+      kind: "library-entry-mutation",
+      libraryId: "skills",
+      baseProjectRevision: 1
+    });
+    expect(run.libraryManagementCommandExecutor).toHaveBeenCalledOnce();
+    expect(libraryManagementParentPrompt(run)).not.toContain("spawn_subagent");
   });
 
-  it("rejects missing, unbound, and newly read-only targets", async () => {
+  it("allows reading built-in libraries but refuses writes", async () => {
     const run = input();
-    const management = createLibraryManagementRuntime(run);
-    const definition = management.definitions[0]!;
-    await expect(
-      management.prepareChild(definition, undefined)
-    ).rejects.toThrow("library_id");
-    await expect(
-      management.prepareChild(definition, "unbound")
-    ).rejects.toThrow("可写范围");
-    vi.mocked(run.libraryManagementCommandExecutor!).mockResolvedValue({
-      status: "accepted",
-      requestId: "query",
-      payload: { libraries: [], workspace: { ...workspace, readOnly: true } }
-    });
-    await expect(management.prepareChild(definition, "skills")).rejects.toThrow(
-      "不可写"
-    );
-    expect(libraryManagementParentPrompt(run)).toContain("历史中已完成");
-    expect(libraryManagementParentPrompt(run)).toContain("ask_user_question");
+    run.libraryManagement!.libraries[0]!.readOnly = true;
+    const tools = createLibraryManagementRuntime(run).tools;
+    const result = await tools
+      .find((tool) => tool.name === "manage_skill_create_skill_entry")!
+      .execute("create", {
+        library_id: "skills",
+        stage_id: "outline",
+        title: "技能",
+        body: "内容",
+        summary: "创建"
+      });
+    expect(JSON.stringify(result)).toContain("只读");
+    expect(result.details).not.toHaveProperty("libraryId");
   });
 
   it("keeps pending edits across delegation with fresh read evidence and rejects external conflicts", () => {

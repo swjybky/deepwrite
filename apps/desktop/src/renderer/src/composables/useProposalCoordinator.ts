@@ -1,3 +1,8 @@
+import {
+  stageLibraryStructureProposal as stageLibraryStructure,
+  acceptLibraryStructureProposal
+} from "./proposal-coordinator/library-structure";
+import { longRestorePatch } from "./proposal-coordinator/long-restore";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { createLongWorldbuildingProposalLane } from "./proposal-coordinator/long-worldbuilding-lane";
@@ -3298,8 +3303,6 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
-          batch,
-          confirmation: expectedImpact,
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -3320,6 +3323,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
       const result = await api.applyOperations({
         bookId: target.bookId,
+        captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
           ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
@@ -3332,6 +3336,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         status: "accepted",
         proposedText: undefined,
         ...resolvedStaleBase(proposal, "overwrote"),
+        ...longRestorePatch(result),
         statusMessage: refreshed
           ? t("proposalCoordinator.savedPlotDesign", {
               value: automatic
@@ -3570,8 +3575,6 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
-          batch,
-          confirmation: expectedImpact,
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -3592,6 +3595,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
       const result = await api.applyOperations({
         bookId: target.bookId,
+        captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
           ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
@@ -3604,6 +3608,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         status: "accepted",
         proposedText: undefined,
         ...resolvedStaleBase(proposal, "overwrote"),
+        ...longRestorePatch(result),
         statusMessage: isCreation
           ? automatic
             ? t(
@@ -3782,8 +3787,6 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
-          batch,
-          confirmation: expectedImpact,
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -3804,6 +3807,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
       const result = await api.applyOperations({
         bookId: target.bookId,
+        captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
           ...withConfirmedDocumentHashes(batch, proposal),
           expectedImpact
@@ -3816,6 +3820,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         status: "accepted",
         proposedText: undefined,
         ...resolvedStaleBase(proposal, "overwrote"),
+        ...longRestorePatch(result),
         statusMessage: refreshed
           ? t("proposalCoordinator.savedChapterProseToLocalMarkdown", {
               value: automatic
@@ -4043,6 +4048,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
     }
 
+    if (proposal.libraryStructureTarget) {
+      await acceptLibraryStructureProposal(context, conversation, proposal);
+      return;
+    }
     if (proposal.libraryTarget?.operation === "create") {
       await acceptLibraryCreationProposal(
         conversation,
@@ -4877,6 +4886,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     stageAgentEditProposal: (
       ...args: Parameters<typeof stageAgentEditProposal>
     ) => invokeWhileActive(() => stageAgentEditProposal(...args)),
+    stageLibraryStructureProposal: (
+      event: import("@deepwrite/contracts").LibraryStructureProposalEventEnvelope
+    ) => {
+      if (!proposalQueue.isDisposed()) stageLibraryStructure(context, event);
+    },
     stageLibraryEditProposal: (
       ...args: Parameters<typeof stageLibraryEditProposal>
     ) => {

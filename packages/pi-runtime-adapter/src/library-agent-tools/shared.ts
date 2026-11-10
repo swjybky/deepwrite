@@ -12,7 +12,7 @@ import { piStrictToolSampling } from "../pi-tool-schema";
 import { LIBRARY_AGENT_ENTRY_MAX_CHARACTERS } from "@deepwrite/contracts";
 
 export const MATERIAL_STAGE_LABELS: Record<string, string> = {
-  gimmick: "梗",
+  gimmick: "梗与灵感",
   character: "人设",
   pacing: "剧情设计",
   intro: "导语设计",

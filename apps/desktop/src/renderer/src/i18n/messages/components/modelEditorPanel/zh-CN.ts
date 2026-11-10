@@ -1,8 +1,6 @@
 export default {
   editModel: "编辑大模型",
-  editJevModel: "编辑 JEV 模型",
   addModel: "添加大模型",
-  addJevModel: "添加 JEV 模型",
   cancel: "取消",
   name: "名称",
   forExampleDeepSeekWritingLeaveBlankToUseThe:

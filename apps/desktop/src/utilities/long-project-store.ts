@@ -26,6 +26,7 @@ import {
   applyWorkspaceOperations,
   previewWorkspaceOperations
 } from "./long-project-store/operations";
+import { restoreWorkspaceOperations } from "./long-project-store/restore-operations";
 import { search } from "./long-project-store/search-api";
 import { createLongProjectStoreContext } from "./long-project-store/store-context";
 import type {
@@ -186,6 +187,17 @@ export class LongProjectStore {
       this.context,
       projectDirectory,
       input
+    );
+  }
+
+  async restoreWorkspaceOperations(
+    projectDirectory: string,
+    restorePointId: string
+  ) {
+    return await restoreWorkspaceOperations(
+      this.context,
+      projectDirectory,
+      restorePointId
     );
   }
 

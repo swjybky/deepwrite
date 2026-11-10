@@ -1,3 +1,4 @@
+import type { LibraryAgentCommandExecutor } from "./library-agent-tools/domain-tools";
 import type {
   TeamManagementRuntimeContext,
   AgentTeamPromptReview,
@@ -18,6 +19,7 @@ import type {
   SubagentDrawUpdatedPayload,
   SubagentPlannedTask,
   AgentWriteApprovalMode,
+  PromptLocale,
   ProposalSettlements,
   ContextCompactionRequest,
   ContextCompactionRunSettings,
@@ -61,6 +63,8 @@ export interface AgentRunInput {
   /** The user's switch for this run: whether the main agent itself may search. */
   webSearchEnabled?: boolean;
   writeApprovalMode?: AgentWriteApprovalMode;
+  /** Main-resolved system prompt language; absent means Chinese. */
+  promptLocale?: PromptLocale;
   /** Outcomes of earlier proposals, rendered into this turn's user message. */
   proposalSettlements?: ProposalSettlements;
   autoApproveCrossStageOperations?: boolean;
@@ -75,6 +79,7 @@ export interface AgentRunInput {
   /** The enabled team runs independent delegated tasks concurrently. */
   parallelSubagents?: boolean;
   libraryAgentProfile?: LibraryAgentProfile;
+  libraryAgentCommandExecutor?: LibraryAgentCommandExecutor;
   libraryManagement?: LibraryManagementRuntimeContext;
   libraryManagementCommandExecutor?: LibraryManagementCommandExecutor;
   teamManagement?: TeamManagementRuntimeContext;
@@ -495,6 +500,16 @@ export type AgentRuntimeEvent =
         agentId: import("@deepwrite/contracts").LongAgentId;
         input: import("@deepwrite/contracts").LongCommitChapterInput;
         summary: string;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "library.structure_proposal";
+      runId: string;
+      sessionId: string;
+      payload: {
+        toolCallId: string;
+        plan: import("@deepwrite/contracts").LibraryStructurePlan;
         runtime: AgentRuntimeRef;
       };
     }

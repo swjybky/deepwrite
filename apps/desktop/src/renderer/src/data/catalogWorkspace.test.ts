@@ -942,7 +942,7 @@ describe("catalog workspace projection", () => {
 
     expect(skillSection.nodes.map((node) => node.label)).toEqual([
       "短篇技能套装",
-      "剧情设计技能库"
+      "剧情设计方法"
     ]);
     expect(nodes.some((node) => node.label === "技能库分组")).toBe(false);
     expect(
@@ -996,7 +996,11 @@ describe("catalog workspace projection", () => {
       (node) => node.id === "skill-general"
     );
     expect(generalKind).toBeUndefined();
-    expect(plotKind?.children?.map((node) => node.id)).toEqual(["skill-plot"]);
+    expect(plotKind).toMatchObject({
+      id: "skill-plot",
+      catalogNodeType: "library",
+      categoryTag: "剧情"
+    });
     expect(nodes.filter((node) => node.id === "skill-general")).toHaveLength(1);
     expect(generalLibrary?.categoryTag).toBe("通用");
     expect(generalLibrary?.badge).toBeUndefined();
@@ -1056,4 +1060,31 @@ describe("catalog workspace projection", () => {
     const ids = projection.workspaceDocuments.map((document) => document.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+});
+
+it("projects ungrouped libraries at the root in catalog order with kind tags", () => {
+  const snapshot = fixture();
+  snapshot.materialGroups = [];
+  snapshot.skillGroups = [];
+  const projection = projectCatalogWorkspace(snapshot);
+  const materials = projection.resourceSections.find(
+    (section) => section.id === "material"
+  )!.nodes;
+  const skills = projection.resourceSections.find(
+    (section) => section.id === "skill"
+  )!.nodes;
+  expect(materials.map((node) => node.id)).toEqual(
+    snapshot.materials.map((library) => library.id)
+  );
+  expect(skills.map((node) => node.id)).toEqual(
+    snapshot.skills.map((library) => library.id)
+  );
+  expect(
+    [...materials, ...skills].every(
+      (node) => node.catalogNodeType === "library" && Boolean(node.categoryTag)
+    )
+  ).toBe(true);
+  expect(
+    materials.find((node) => node.materialKind === "mixed")?.categoryTag
+  ).toBe("综合");
 });

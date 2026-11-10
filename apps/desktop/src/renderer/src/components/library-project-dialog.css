@@ -1,0 +1,47 @@
+.library-project-dialog {
+  width: min(520px, calc(100vw - 48px));
+}
+
+.library-project-dialog header > div {
+  min-width: 0;
+}
+
+.library-project-dialog h2 {
+  overflow-wrap: anywhere;
+}
+
+.library-project-dialog .catalog-resource-form {
+  gap: 20px;
+}
+
+.library-project-dialog .dialog-description,
+.library-project-dialog .book-resource-help {
+  margin: 0;
+}
+
+.library-project-dialog .book-resource-name-field {
+  min-width: 0;
+  gap: 8px;
+}
+
+.library-project-dialog .book-resource-name-field input {
+  height: auto;
+  min-height: 40px;
+  padding: 9px 12px;
+  font: inherit;
+  font-weight: 450;
+}
+
+.library-project-dialog .catalog-resource-stage-field {
+  margin-top: 0;
+}
+
+.library-project-dialog .dialog-actions {
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.library-project-dialog .dialog-primary-button:not(.is-danger) {
+  background: #292c30;
+  color: #ffffff;
+}

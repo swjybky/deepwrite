@@ -39,7 +39,7 @@ describe("SkillMarketplacePage", () => {
   it("supports all browse filters, details, optimistic likes and safe Markdown", () => {
     expect(source).toContain("contentTypeOptions");
     expect(source).toContain("kindOptions");
-    expect(source).toContain("libraryTypeOptions");
+    expect(source).not.toContain("libraryTypeOptions");
     expect(source).toContain("sortOptions");
     expect(source).toContain("applyLikeLocally");
     expect(source).toContain("likeFailedThePreviousStateWasRestored");
@@ -120,15 +120,16 @@ describe("SkillMarketplacePage", () => {
       "entries: publishEntries.value.map(({ stageId, title: entryTitle, content })"
     );
     expect(source).toContain("libraries: publishGroupLibraries.value.map");
-    expect(source).toContain("...installTypeSelections.value");
+    expect(source).toContain("...Object.fromEntries(");
     expect(source).not.toMatch(/entries:\s*publishEntries\.value\s*[,}]/u);
     expect(source).not.toMatch(/items:\s*publishGroupItems\.value\s*[,}]/u);
   });
 
-  it("previews grouped installation and uses PopupSelect for mixed local types", () => {
+  it("previews grouped installation without a writing-type selection", () => {
     expect(source).toContain("marketplace.previewInstall");
     expect(source).toContain("marketplace.install");
-    expect(source).toContain("installTypeSelections");
+    expect(source).not.toContain("installTypeSelections");
+    expect(source).not.toContain("installTypeOptions");
     expect(source).toContain("<PopupSelect");
     expect(source).toContain("{{ installPreview.orderNotice }}");
     expect(source).toContain("installTargetLibraryOptions");

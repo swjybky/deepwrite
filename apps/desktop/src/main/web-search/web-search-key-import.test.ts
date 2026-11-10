@@ -108,8 +108,8 @@ describe("web search key import", () => {
       enabled: true,
       activeProviderId: "deepseek",
       perRunCallLimit: 7,
-      profiles: [
-        {
+      profiles: expect.arrayContaining([
+        expect.objectContaining({
           providerId: "deepseek",
           maxResults: 4,
           hasApiKey: true,
@@ -119,8 +119,8 @@ describe("web search key import", () => {
             modelLabel: "模型 m_chat",
             importedAt: new Date(FIXED_NOW).toISOString()
           }
-        }
-      ]
+        })
+      ])
     });
     expect(JSON.stringify(imported)).not.toContain(SEARCH_KEY);
 

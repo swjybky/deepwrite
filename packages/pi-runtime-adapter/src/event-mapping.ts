@@ -348,6 +348,16 @@ export function toRuntimeEvents(
       }
     } else if (
       isLibraryAgentToolDetails(details) &&
+      details.kind === "library-structure-mutation"
+    ) {
+      events.push({
+        type: "library.structure_proposal",
+        runId: input.runId,
+        sessionId: input.sessionId,
+        payload: { toolCallId: event.toolCallId, plan: details.plan, runtime }
+      });
+    } else if (
+      isLibraryAgentToolDetails(details) &&
       (details.kind === "library-entry-mutation" ||
         details.kind === "library-overview-mutation")
     ) {
@@ -370,6 +380,9 @@ export function toRuntimeEvents(
                   ? {}
                   : { baseProjectRevision: details.baseProjectRevision }),
                 summary: details.summary,
+                ...(input.libraryManagement
+                  ? { managementScope: input.libraryManagement.scope }
+                  : {}),
                 runtime
               }
             : details.operation === "create"
@@ -389,6 +402,9 @@ export function toRuntimeEvents(
                     ? {}
                     : { baseProjectRevision: details.baseProjectRevision }),
                   summary: details.summary,
+                  ...(input.libraryManagement
+                    ? { managementScope: input.libraryManagement.scope }
+                    : {}),
                   runtime
                 }
               : {
@@ -406,6 +422,9 @@ export function toRuntimeEvents(
                     ? {}
                     : { baseProjectRevision: details.baseProjectRevision }),
                   summary: details.summary,
+                  ...(input.libraryManagement
+                    ? { managementScope: input.libraryManagement.scope }
+                    : {}),
                   runtime
                 }
       });

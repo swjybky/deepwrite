@@ -17,6 +17,7 @@ import {
 import AppIcon from "./AppIcon.vue";
 import ModelAdvancedConfigDialog from "./ModelAdvancedConfigDialog.vue";
 import ModelAnnouncementNotice from "./ModelAnnouncementNotice.vue";
+import JevModelEditorPanel from "./JevModelEditorPanel.vue";
 import ModelEditorPanel from "./ModelEditorPanel.vue";
 import { MODEL_PROVIDER_OPTIONS } from "./modelProviderPresets";
 import { thinkingLabel } from "./modelSettingsDraft";
@@ -114,7 +115,7 @@ const knownUserProviders = computed(() =>
           @open-official-models="emit('openOfficialModels')"
         />
 
-        <div v-if="modelLoading" class="dialog-note">
+        <div v-if="modelLoading && !modelSettings" class="dialog-note">
           {{ t("readingModelSettings") }}
         </div>
         <template v-else>
@@ -196,8 +197,22 @@ const knownUserProviders = computed(() =>
               class="model-provider-content"
             >
               <template v-for="row in group.rows" :key="row.key">
+                <JevModelEditorPanel
+                  v-if="
+                    row.type === 'editor' &&
+                    modelEditor &&
+                    isJevModel(modelEditor)
+                  "
+                  :model="modelEditor"
+                  :editing="Boolean(modelEditor.originalId)"
+                  :saving="modelSaving"
+                  :testing-model-id="testingModelId"
+                  @cancel="modelEditor = null"
+                  @save="saveModelEditor"
+                  @test="emit('testModel', $event)"
+                />
                 <ModelEditorPanel
-                  v-if="row.type === 'editor' && modelEditor"
+                  v-else-if="row.type === 'editor' && modelEditor"
                   :model="modelEditor"
                   :editing="Boolean(modelEditor.originalId)"
                   :saving="modelSaving"
@@ -230,21 +245,26 @@ const knownUserProviders = computed(() =>
                             ? t("deepWriteFreeModels")
                             : row.model.provider
                       }}
-                      · {{ row.model.modelId }} · {{ row.model.api }}
+                      · {{ row.model.modelId }}
+                      <template v-if="!isJevModel(row.model)"
+                        >· {{ row.model.api }}</template
+                      >
                     </small>
                     <small>
-                      {{
-                        row.model.reasoning
-                          ? t("reasoningValue", {
-                              arg0: thinkingLabel(
-                                row.model.defaultThinkingLevel
-                              )
-                            })
-                          : t("temperatureValue", {
-                              arg0: row.model.temperatureOptions.join(" / ")
-                            })
-                      }}
-                      ·
+                      <template v-if="!isJevModel(row.model)"
+                        >{{
+                          row.model.reasoning
+                            ? t("reasoningValue", {
+                                arg0: thinkingLabel(
+                                  row.model.defaultThinkingLevel
+                                )
+                              })
+                            : t("temperatureValue", {
+                                arg0: row.model.temperatureOptions.join(" / ")
+                              })
+                        }}
+                        ·
+                      </template>
                       {{
                         row.model.hasApiKey || row.model.apiKey
                           ? t("keyConfigured")
@@ -308,7 +328,7 @@ const knownUserProviders = computed(() =>
                       }}
                     </button>
                     <button
-                      v-if="!row.model.managedBy"
+                      v-if="!row.model.managedBy && !isJevModel(row.model)"
                       type="button"
                       :disabled="modelSaving || Boolean(modelEditor)"
                       :title="t('configureContextLengthAndMaximumOutputLength')"
@@ -331,8 +351,21 @@ const knownUserProviders = computed(() =>
             </div>
           </section>
 
+          <JevModelEditorPanel
+            v-if="
+              modelEditor && !modelEditor.originalId && isJevModel(modelEditor)
+            "
+            :key="modelEditor.id"
+            :model="modelEditor"
+            :editing="false"
+            :saving="modelSaving"
+            :testing-model-id="testingModelId"
+            @cancel="modelEditor = null"
+            @save="saveModelEditor"
+            @test="emit('testModel', $event)"
+          />
           <ModelEditorPanel
-            v-if="modelEditor && !modelEditor.originalId"
+            v-else-if="modelEditor && !modelEditor.originalId"
             :key="modelEditor.id"
             :model="modelEditor"
             :editing="false"

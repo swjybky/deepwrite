@@ -8,6 +8,7 @@ import {
   harness,
   it,
   ledgerEvent,
+  vi,
   worldbuildingFileEvent
 } from "./useLongWorkspaceProposals.test-support";
 
@@ -72,6 +73,39 @@ describe("long workspace proposal approval: file and continuity proposals", () =
         })
       ])
     );
+  });
+
+  it("drains an automatic continuity lane when the first impact changes", async () => {
+    const test = harness(true, "auto-approve");
+    const first = continuityWriteEvent();
+    const second = {
+      ...first,
+      id: "event_continuity_second",
+      timestamp: new Date(Date.parse(first.timestamp) + 1).toISOString(),
+      payload: { ...first.payload, toolCallId: "tool_continuity_second" }
+    } as typeof first;
+    test.applyOperations.mockRejectedValueOnce({
+      code: "long.operation.impact_mismatch",
+      message: "影响已变化"
+    });
+
+    await Promise.all([
+      test.controller.handleEvent(first),
+      test.controller.handleEvent(second),
+      test.controller.handleEvent(ledgerEvent())
+    ]);
+    await vi.waitFor(() => expect(test.commitChapter).toHaveBeenCalledTimes(1));
+
+    expect(test.applyOperations).toHaveBeenCalledTimes(3);
+    expect(
+      test.controller
+        .itemsForBook("longbook_test")
+        .map(({ status, approvalMode }) => ({ status, approvalMode }))
+    ).toEqual([
+      { status: "accepted", approvalMode: "auto-approve" },
+      { status: "accepted", approvalMode: "auto-approve" },
+      { status: "accepted", approvalMode: "auto-approve" }
+    ]);
   });
 
   it("keeps chapter body proposals out of the legacy structure queue", async () => {

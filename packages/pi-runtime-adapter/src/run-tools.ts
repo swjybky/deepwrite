@@ -9,7 +9,7 @@ import type { PortableToolSchemaProfile } from "./portable-tool-schema";
 import { createLibraryManagementRuntime } from "./library-management-runtime";
 import { createTeamManagementRuntime } from "./team-management-runtime";
 import { createMaterialQueryRunner } from "./material-query-runtime";
-import { buildLibraryAgentTools } from "./library-agent-tools";
+import { buildDomainLibraryAgentTools } from "./library-agent-tools/domain-tools";
 import {
   buildLongWorkspaceTools,
   createLongWorkspaceToolSharedState
@@ -24,11 +24,10 @@ import { buildSubagentAuthoringTools } from "./subagent-authoring-tools";
 import { buildSubagentMaterialContext } from "./prompts-material";
 import { buildSpawnSubagentTool } from "./subagent-runtime";
 import { workspaceContextPolicy } from "./workspace-context-policy";
-import { writeApprovalBoundary } from "./write-approval";
+import { longSubagentRequirements } from "./long-subagent-requirements";
 import { writingSubagentContext } from "./writing-subagent-context";
 import { buildProviderRuntime, toPiThinkingLevel } from "./provider-runtime";
 import { mainWebSearchSession, withWebSearchTool } from "./web-search/mount";
-import { webToolNamesFor } from "./web-search/prompt";
 import {
   createWebSearchSession,
   type WebSearchSession
@@ -172,10 +171,7 @@ export function buildRunTools(
       buildLongToolSet(includeAskUserQuestion, onContextCompacted),
       search
     );
-  const management = createLibraryManagementRuntime(
-    input,
-    mainWebSearch ? { webSearch: mainWebSearch } : {}
-  );
+  const management = createLibraryManagementRuntime(input);
   const teamManagement = createTeamManagementRuntime(input, requestUserInput);
   let tools: AgentTool[] = subagentAuthoring
     ? withWebSearchTool(
@@ -184,12 +180,15 @@ export function buildRunTools(
       )
     : libraryWorkspace && input.libraryAgentProfile
       ? withWebSearchTool(
-          buildLibraryAgentTools({
-            workspace: libraryWorkspace,
-            profile: input.libraryAgentProfile,
-            writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-            attachedSkills: input.workspaceContext?.attachedSkills
-          }),
+          buildDomainLibraryAgentTools(
+            {
+              workspace: libraryWorkspace,
+              profile: input.libraryAgentProfile,
+              writeApprovalMode: input.writeApprovalMode ?? "request-approval",
+              attachedSkills: input.workspaceContext?.attachedSkills
+            },
+            input
+          ),
           mainWebSearch
         )
       : longWorkspace && input.longAgentProfile
@@ -204,6 +203,7 @@ export function buildRunTools(
       (longWorkspace && input.longAgentProfile)) &&
     !subagentAuthoring
   ) {
+    tools = [...tools, ...management.tools, ...teamManagement.tools];
     const parentPolicy = workspaceContextPolicy(input);
     const childContextPolicy = parentPolicy && {
       settings: parentPolicy.settings,
@@ -221,15 +221,7 @@ export function buildRunTools(
       thinkingLevel: effectiveThinkingLevel,
       streamFn: spawnStreamFn,
       requestUserInput,
-      definitions: [
-        ...(input.subagentDefinitions ?? []),
-        ...management.definitions,
-        ...teamManagement.definitions
-      ],
-      prepareChild: (definition, libraryId, signal) =>
-        definition.toolSource === "team-management"
-          ? teamManagement.prepareChild(definition)
-          : management.prepareChild(definition, libraryId, signal),
+      definitions: input.subagentDefinitions ?? [],
       getParentMessages: options.getParentMessages,
       ...(childContextPolicy ? { contextPolicy: childContextPolicy } : {}),
       materialContext: buildSubagentMaterialContext(input),
@@ -263,17 +255,7 @@ export function buildRunTools(
       ...(scriptWorkspace || shortWorkspace
         ? writingSubagentContext(input, writingToolSharedState)
         : longWorkspace
-          ? {
-              systemPromptRequirements: [
-                "这是长篇主智能体委派的单层子任务。只能使用继承的长篇查询/提案工具和当前 bookId。交回结果时列出已提交的修改。",
-                writeApprovalBoundary(input.writeApprovalMode)
-              ].join("\n"),
-              pureReadSystemPromptRequirements: `这是长篇主智能体委派的单层只读子任务。只能使用 read、list 读取当前 bookId 的作品，以及 query_linked_material_entries 读取素材${
-                input.webSearch
-                  ? `；工具清单列有 web_search 时，也可用 ${webToolNamesFor(input.webSearch.providerId)} 查证公开资料`
-                  : ""
-              }；没有任何写入工具，不能修改作品，也不得声称已修改或已提交连续性账本。`
-            }
+          ? longSubagentRequirements(input)
           : {}),
       toolExecutionHooks: options.toolExecutionHooks,
       ...(options.retryPolicy ? { retryPolicy: options.retryPolicy } : {}),

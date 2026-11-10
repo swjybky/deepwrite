@@ -32,6 +32,7 @@ import { generateDashscopeImages } from "./providers/dashscope-async";
 import { generateMiniMaxImages } from "./providers/minimax-images";
 
 export interface ImageServiceOptions {
+  usageDataPath?: string;
   secureStorage?: VoiceSecureStorage;
   fetcher?: ImageFetcher;
   decoder?: ImageDecoder;
@@ -65,7 +66,8 @@ export class ImageService {
   ) {
     this.persistence = new ImagePersistence(
       userDataPath,
-      options.secureStorage ?? safeStorage
+      options.secureStorage ?? safeStorage,
+      options.usageDataPath
     );
   }
 

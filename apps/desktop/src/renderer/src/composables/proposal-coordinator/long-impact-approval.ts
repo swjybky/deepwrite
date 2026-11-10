@@ -4,7 +4,6 @@ import type {
   LongWorkspaceImpactConfirmation,
   LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
-import { longWorkspaceOperationsRequireImpactConfirmation } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
 import type { LongWorkspaceRendererApi } from "../../types/longWorkspace";
 import type { AgentConversationController } from "../useAgentConversation";
@@ -27,8 +26,6 @@ interface ManualReviewInput {
 interface HoldForManualReviewInput extends ManualReviewInput {
   automatic: boolean;
   hadExpectedImpact: boolean;
-  batch: LongWorkspaceOperationBatch;
-  confirmation: LongWorkspaceImpactConfirmation;
 }
 
 export function moveLongProposalToManualReview(input: ManualReviewInput): void {
@@ -43,21 +40,16 @@ export function moveLongProposalToManualReview(input: ManualReviewInput): void {
 }
 
 /**
- * A newly previewed manual proposal and every destructive automatic proposal
- * must leave the queue. The next apply can only come from a fresh user approval
- * reservation, so system queue drains cannot silently reuse it.
+ * A manual proposal shows its impact once before the user confirms it. An
+ * automatic proposal is saved directly, deletions included: the user already
+ * chose automatic saving, and destructive batches keep a restore point so the
+ * card can undo them. Holding them here would stall every later edit queued
+ * behind them in the same lane.
  */
 export function holdLongProposalForManualReview(
   input: HoldForManualReviewInput
 ): boolean {
-  const shouldHold =
-    (!input.hadExpectedImpact && !input.automatic) ||
-    (input.automatic &&
-      longWorkspaceOperationsRequireImpactConfirmation(
-        input.batch.operations,
-        input.confirmation
-      ));
-  if (!shouldHold) return false;
+  if (input.hadExpectedImpact || input.automatic) return false;
   moveLongProposalToManualReview(input);
   return true;
 }

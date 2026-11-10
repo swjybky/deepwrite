@@ -49,7 +49,7 @@ describe("long book → material pack (Core)", { timeout: 60_000 }, () => {
         "《铜铃记》人设",
         "《铜铃记》其他",
         "《铜铃记》剧情",
-        "《铜铃记》梗",
+        "《铜铃记》梗与灵感",
         "《铜铃记》正文"
       ].sort()
     );
@@ -239,7 +239,7 @@ describe("long book → material pack (Core)", { timeout: 60_000 }, () => {
       "《铜铃记》人设 · 人物总览与关系网",
       "《铜铃记》其他 · 世界观总览",
       "《铜铃记》正文 · 文风画像",
-      "《铜铃记》梗 · 核心梗、金手指与卖点"
+      "《铜铃记》梗与灵感 · 核心梗、金手指与卖点"
     ])
       expect(titles).toContain(title);
     expect(

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { withConfigurationLock } from "../configuration-lock";
 import {
   createDefaultVoiceSettings,
   VoiceSettingsSchema,
@@ -66,10 +67,11 @@ export class VoicePersistence {
 
   constructor(
     userDataPath: string,
-    private readonly storage: VoiceSecureStorage
+    private readonly storage: VoiceSecureStorage,
+    usageDataPath = userDataPath
   ) {
     this.settingsPath = join(userDataPath, "config", "voice.json");
-    this.usagePath = join(userDataPath, "config", "voice-usage.json");
+    this.usagePath = join(usageDataPath, "config", "voice-usage.json");
   }
 
   private async readSettings() {
@@ -207,7 +209,9 @@ export class VoicePersistence {
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.writeChain.then(operation);
+    const result = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, operation)
+    );
     this.writeChain = result.then(
       () => undefined,
       () => undefined

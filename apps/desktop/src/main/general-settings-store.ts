@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -59,7 +60,9 @@ export class GeneralSettingsStore {
   }
 
   async list(): Promise<GeneralSettingsSnapshot> {
-    const operation = this.writeChain.then(() => this.readSettings());
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, () => this.readSettings())
+    );
     this.writeChain = operation.then(
       () => undefined,
       () => undefined
@@ -138,17 +141,19 @@ export class GeneralSettingsStore {
   async save(rawInput: GeneralSettings): Promise<GeneralSettingsSnapshot> {
     const settings = GeneralSettingsSchema.parse(rawInput);
     let saved: GeneralSettingsSnapshot | undefined;
-    const operation = this.writeChain.then(async () => {
-      const disk: DiskGeneralSettings = {
-        version: 2,
-        ...settings
-      };
-      await atomicWriteJson(this.settingsPath, disk);
-      saved = GeneralSettingsSnapshotSchema.parse({
-        persisted: true,
-        settings
-      });
-    });
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        const disk: DiskGeneralSettings = {
+          version: 2,
+          ...settings
+        };
+        await atomicWriteJson(this.settingsPath, disk);
+        saved = GeneralSettingsSnapshotSchema.parse({
+          persisted: true,
+          settings
+        });
+      })
+    );
     this.writeChain = operation.then(
       () => undefined,
       () => undefined

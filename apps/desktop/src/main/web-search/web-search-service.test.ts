@@ -1,7 +1,10 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { WEB_SEARCH_PROVIDERS } from "@deepwrite/contracts";
+import {
+  WEB_SEARCH_PROVIDERS,
+  WEB_SEARCH_PROVIDER_IDS
+} from "@deepwrite/contracts";
 import {
   FIXED_NOW,
   SEARCH_KEY,
@@ -19,7 +22,11 @@ describe("WebSearchService settings", () => {
       enabled: true,
       activeProviderId: "deepseek",
       perRunCallLimit: 20,
-      profiles: [{ providerId: "deepseek", maxResults: 8, hasApiKey: false }]
+      profiles: WEB_SEARCH_PROVIDER_IDS.map((providerId) => ({
+        providerId,
+        maxResults: 8,
+        hasApiKey: false
+      }))
     });
     expect(await service.resolveRuntime()).toBeUndefined();
   });
@@ -141,7 +148,9 @@ describe("WebSearchService settings", () => {
     expect(await service.getSettings()).toMatchObject({
       enabled: false,
       perRunCallLimit: 33,
-      profiles: [{ maxResults: 9, hasApiKey: true }]
+      profiles: expect.arrayContaining([
+        expect.objectContaining({ maxResults: 9, hasApiKey: true })
+      ])
     });
   });
 });
@@ -238,4 +247,91 @@ describe("WebSearchService test search", () => {
       service.test({ providerId: "deepseek", apiKey: SEARCH_KEY })
     ).rejects.toThrow("联网搜索测试暂不可用");
   });
+});
+
+describe("search provider profiles", () => {
+  it("keeps independent encrypted keys and endpoints across switching and restarting", async () => {
+    const tester = vi.fn(async () => ({ resultCount: 0, samples: [] }));
+    const { service, create, root } = await setup({ tester });
+    for (const providerId of WEB_SEARCH_PROVIDER_IDS) {
+      await service.saveSettings(
+        settingsInput({
+          activeProviderId: providerId,
+          profiles: [
+            {
+              providerId,
+              maxResults: 4,
+              apiKey: `invalid-${providerId}-key`,
+              baseUrl: `https://${providerId}.example.test/gateway`
+            }
+          ]
+        })
+      );
+    }
+    const reopened = create();
+    for (const providerId of WEB_SEARCH_PROVIDER_IDS) {
+      await reopened.saveSettings(
+        settingsInput({ activeProviderId: providerId, profiles: [] })
+      );
+      expect(await reopened.resolveRuntime()).toMatchObject({
+        providerId,
+        apiKey: `invalid-${providerId}-key`,
+        baseUrl: `https://${providerId}.example.test/gateway`,
+        maxResults: 4
+      });
+      await service.test({ providerId });
+      expect(tester).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerId,
+          baseUrl: `https://${providerId}.example.test/gateway`
+        })
+      );
+    }
+    await service.test({
+      providerId: "tavily",
+      baseUrl: "https://typed.example.test"
+    });
+    expect(tester).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseUrl: "https://typed.example.test" })
+    );
+    const file = await readFile(join(root, CONFIG), "utf8");
+    for (const id of WEB_SEARCH_PROVIDER_IDS)
+      expect(file).not.toContain(`invalid-${id}-key`);
+  });
+});
+
+it("enables a keyless SearXNG instance after an endpoint is configured and survives reopening", async () => {
+  const tester = vi.fn(async () => ({ resultCount: 0, samples: [] }));
+  const { service, create } = await setup({ tester });
+  await service.saveSettings(
+    settingsInput({ activeProviderId: "searxng", profiles: [] })
+  );
+  expect(await service.resolveRuntime()).toBeUndefined();
+  await expect(service.test({ providerId: "searxng" })).rejects.toThrow(
+    "接口地址"
+  );
+  await service.saveSettings(
+    settingsInput({
+      activeProviderId: "searxng",
+      profiles: [
+        {
+          providerId: "searxng",
+          maxResults: 8,
+          baseUrl: "http://127.0.0.1:8888"
+        }
+      ]
+    })
+  );
+  const reopened = create();
+  expect(await reopened.resolveRuntime()).toMatchObject({
+    providerId: "searxng",
+    baseUrl: "http://127.0.0.1:8888",
+    apiKey: ""
+  });
+  await reopened.test({ providerId: "searxng" });
+  expect(tester).toHaveBeenLastCalledWith(
+    expect.objectContaining({ baseUrl: "http://127.0.0.1:8888", apiKey: "" })
+  );
+  await reopened.setEnabled(false);
+  expect(await reopened.resolveRuntime()).toBeUndefined();
 });

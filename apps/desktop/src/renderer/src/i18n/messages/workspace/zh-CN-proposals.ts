@@ -92,8 +92,8 @@ export default {
     refreshTheNovelWorkspaceManually: "请手动刷新长篇工作区。",
     thePreSaveCheckForAutomaticNovelFileSaving:
       "长篇文件实时自动保存前检查失败。",
-    thisProposalDeletesItemsOrUnlinksRelatedRecordsReview:
-      "该提案包含删除或解除关联影响，请核对后手动确认。",
+    impactKeptChangingDuringAutomaticSave:
+      "关联影响在自动保存期间反复变化，已停止保存，请重试。",
     thePreSaveCheckForAutomaticNovelProposalSaving:
       "长篇提案实时自动保存前检查失败。",
     cannotGenerateAUniqueEventIdForTheManual:

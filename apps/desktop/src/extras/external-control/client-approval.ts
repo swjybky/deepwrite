@@ -5,6 +5,7 @@ import {
 } from "@deepwrite/contracts/external-control";
 import { readPrivateJson, writePrivateJson } from "./control-state-file";
 import { ExternalControlError } from "./errors";
+import { withConfigurationLock } from "../../main/configuration-lock";
 
 /** Answers before the bridge's call timeout; the dialog stays open. */
 const APPROVAL_WAIT_MS = 40_000;
@@ -22,23 +23,25 @@ export function createClientApproval(options: ClientApprovalOptions) {
   const pending = new Map<string, Promise<boolean>>();
   // Until the switch is cycled, so a refused agent cannot keep raising dialogs.
   const refused = new Set<string>();
-  let access: ExternalControlAccessFile | undefined;
-
   async function load(): Promise<ExternalControlAccessFile> {
-    access ??= (await readPrivateJson(
-      options.accessFile(),
-      ExternalControlAccessFileSchema
-    )) ?? { version: 1, clients: [] };
-    return access;
+    return (
+      (await readPrivateJson(
+        options.accessFile(),
+        ExternalControlAccessFileSchema
+      )) ?? { version: 1, clients: [] }
+    );
   }
 
   async function remember(name: string): Promise<void> {
-    const current = await load();
-    access = {
-      ...current,
-      clients: [...current.clients, { name, approvedAt: now() }]
-    };
-    await writePrivateJson(options.accessFile(), access);
+    await withConfigurationLock(options.accessFile(), async () => {
+      const current = await load();
+      if (current.clients.some((client) => client.name === name)) return;
+      const access = {
+        ...current,
+        clients: [...current.clients, { name, approvedAt: now() }]
+      };
+      await writePrivateJson(options.accessFile(), access);
+    });
   }
 
   function ask(client: ExternalControlClient): Promise<boolean> {
@@ -62,12 +65,14 @@ export function createClientApproval(options: ClientApprovalOptions) {
     },
     /** The agent is asked about again the next time it connects. */
     async revoke(name: string): Promise<void> {
-      const current = await load();
-      access = {
-        ...current,
-        clients: current.clients.filter((client) => client.name !== name)
-      };
-      await writePrivateJson(options.accessFile(), access);
+      await withConfigurationLock(options.accessFile(), async () => {
+        const current = await load();
+        const access = {
+          ...current,
+          clients: current.clients.filter((client) => client.name !== name)
+        };
+        await writePrivateJson(options.accessFile(), access);
+      });
     },
     async authorize(client: ExternalControlClient): Promise<void> {
       const { clients } = await load();

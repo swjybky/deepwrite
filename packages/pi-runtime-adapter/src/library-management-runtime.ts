@@ -1,29 +1,17 @@
-import { WORKSPACE_TOOL_COMPACTORS } from "./workspace-context-policy";
-import { rehydrateWorkspaceContext } from "./workspace-context-recovery";
-import type { ContextPolicy } from "./kernel/context";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
-  BUILTIN_SUBAGENT_IDS,
-  BUILTIN_SUBAGENT_NAMES,
   LIBRARY_MANAGEMENT_INVOCATION_POLICY,
+  MATERIAL_METADATA_AUTHORING_GUIDANCE,
+  DEFAULT_LIBRARY_AGENT_PROFILES,
+  LibraryAgentWorkspaceSnapshotSchema,
+  createShortWorkspaceContentRevision,
   CommandEnvelopeSchema,
   LibraryManagementQueryResultSchema,
   createEnvelope,
   type CommandEnvelope,
-  type CommandResult,
-  type LibraryAgentWorkspaceSnapshot
+  type CommandResult
 } from "@deepwrite/contracts";
-import { buildLibraryAgentTools } from "./library-agent-tools";
-import { reconcileLibraryToolState } from "./library-management-state";
-import {
-  buildEffectiveSystemPrompt,
-  buildDeepWriteSystemPrompt
-} from "./prompts-system";
+import { buildIndexedLibraryTools } from "./library-agent-tools/domain-tools";
 import type { AgentRunInput } from "./runtime-types";
-import type { RuntimeSubagentDefinition } from "./subagent-types";
-import { withWebSearchTool } from "./web-search/mount";
-import type { WebSearchSession } from "./web-search/session";
-import type { LibraryAgentToolSharedState } from "./library-agent-tools/types";
 
 export type LibraryManagementCommandExecutor = (
   command: Extract<CommandEnvelope, { type: "catalog.queryLibraryManagement" }>,
@@ -32,149 +20,111 @@ export type LibraryManagementCommandExecutor = (
 
 export function libraryManagementParentPrompt(input: AgentRunInput): string {
   const context = input.libraryManagement;
-  if (!context) return "";
+  if (!context?.managers.length) return "";
   return [
-    "【内置资料库管理子智能体】",
+    "【内置资料库管理工具】",
     LIBRARY_MANAGEMENT_INVOCATION_POLICY,
-    "管理范围是整本作品绑定的资料库；一次调用只管理一个目标库，使用 library_id 指定。编辑用条目所属库；只有一个可写候选的新建任务可直接使用，否则必须先确定目标库。管理子智能体返回的待澄清事项应由你使用 ask_user_question 询问后再委派。",
-    "已绑定的候选库（只读库不能写入，未绑定的库不可管理）：",
-    ...context.libraries.map(
-      (library) =>
-        `- ${library.domain} / ${library.libraryId}：${library.title}${library.readOnly ? "（只读）" : ""}`
+    ...context.managers.map(
+      (manager) =>
+        `${manager.domain} 管理工具：${manager.description} 工具名前缀 manage_${manager.domain}_；必须用 library_id 指定目标库。`
     ),
+    "管理范围是整本作品绑定的资料库；目标不明确时先用 ask_user_question 询问。只读库不能写入，未绑定的库不可管理。",
+    ...(context.managers.some((manager) => manager.domain === "material")
+      ? [MATERIAL_METADATA_AUTHORING_GUIDANCE]
+      : []),
+    "已绑定的候选库：",
+    ...context.libraries
+      .filter((library) =>
+        context.managers.some((manager) => manager.domain === library.domain)
+      )
+      .map(
+        (library) =>
+          `- ${library.domain} / ${library.libraryId}：${library.title}${library.readOnly ? "（只读）" : ""}`
+      ),
     ...(context.libraries.length
       ? []
       : ["当前没有已绑定的资料库，请告知用户先绑定目标库。"])
   ].join("\n");
 }
 
-export function createLibraryManagementRuntime(
-  input: AgentRunInput,
-  options: { webSearch?: WebSearchSession } = {}
-) {
+export function createLibraryManagementRuntime(input: AgentRunInput) {
   const context = input.libraryManagement;
-  const states = new Map<
-    string,
-    {
-      workspace: LibraryAgentWorkspaceSnapshot;
-      state: LibraryAgentToolSharedState;
-    }
-  >();
-  const definitions: RuntimeSubagentDefinition[] = (
-    context?.managers ?? []
-  ).map((manager) => ({
-    id: BUILTIN_SUBAGENT_IDS[manager.domain],
-    name: BUILTIN_SUBAGENT_NAMES[manager.domain],
-    description: manager.description,
-    systemPrompt: manager.profile.systemPrompt,
-    enabled: true,
-    modelMode: "inherit",
-    contextMode: "parent-snapshot",
-    toolSource: "library-management"
-  }));
-  const prepareChild = async (
-    definition: RuntimeSubagentDefinition,
-    libraryId: string | undefined,
-    signal?: AbortSignal
-  ) => {
-    const manager = context?.managers.find(
-      (item) => BUILTIN_SUBAGENT_IDS[item.domain] === definition.id
+  const tools = (context?.managers ?? []).flatMap((manager) => {
+    const index = context!.libraries.filter(
+      (library) => library.domain === manager.domain
     );
-    if (!context || !manager || !input.libraryManagementCommandExecutor)
-      throw new Error("资料库管理子智能体未启用或运行通道不可用。");
-    if (!libraryId)
-      throw new Error(
-        "请先确定目标资料库并传入 library_id；不明确时由主智能体询问用户。"
-      );
-    if (
-      !context.libraries.some(
-        (item) =>
-          item.domain === manager.domain &&
-          item.libraryId === libraryId &&
-          !item.readOnly
-      )
-    )
-      throw new Error("目标资料库不在本轮绑定的可写范围内。");
-    const command = CommandEnvelopeSchema.parse(
-      createEnvelope(
-        "catalog.queryLibraryManagement",
-        { scope: context.scope, domain: manager.domain, libraryId },
-        {
-          id: `library-management:${input.runId}:${libraryId}`,
-          context: {
-            sessionId: input.sessionId,
-            runId: input.runId,
-            resourceId: context.scope.bookId
-          }
-        }
-      )
-    ) as Extract<CommandEnvelope, { type: "catalog.queryLibraryManagement" }>;
-    const result = await input.libraryManagementCommandExecutor(
-      command,
-      signal
-    );
-    if (result.status !== "accepted") throw new Error(result.error.message);
-    const workspace = LibraryManagementQueryResultSchema.parse(
-      result.payload
-    ).workspace;
-    if (
-      !workspace ||
-      workspace.domain !== manager.domain ||
-      workspace.libraryId !== libraryId ||
-      workspace.readOnly
-    )
-      throw new Error("目标资料库已不可写。");
-    const attachedSkills = manager.profile.readAccess.skills.map((skill) => ({
-      id: skill.id,
-      title: skill.name,
-      content: skill.content,
-      kind: "general" as const,
-      source: "attached-skill" as const
-    }));
-    const prior = states.get(libraryId);
-    const state = reconcileLibraryToolState(workspace, prior);
-    states.set(libraryId, { workspace, state });
-    // Managers search under the run's shared budget, or not at all.
-    const { webSearch: _runSearch, ...inputWithoutSearch } = input;
-    const promptInput = options.webSearch ? input : inputWithoutSearch;
-    const tools: AgentTool[] = withWebSearchTool(
-      buildLibraryAgentTools({
+    // A manifest snapshot only; the selected library is always fetched through the authorized bridge.
+    const workspace = LibraryAgentWorkspaceSnapshotSchema.parse({
+      domain: manager.domain,
+      libraryId: index[0]?.libraryId ?? "unbound",
+      title: index[0]?.title ?? "未绑定",
+      kind: manager.domain === "skill" ? "general" : "mixed",
+      readOnly: false,
+      libraryType: context!.scope.bookType,
+      overviewDocumentId: "manifest-overview",
+      overviewRevision: createShortWorkspaceContentRevision(""),
+      overview: "",
+      entries: []
+    });
+    const profile = DEFAULT_LIBRARY_AGENT_PROFILES.find(
+      (profile) => profile.domain === manager.domain
+    )!;
+    return buildIndexedLibraryTools(
+      {
         workspace,
-        profile: manager.profile,
-        attachedSkills,
-        sharedState: state,
+        profile,
         writeApprovalMode: input.writeApprovalMode ?? "request-approval"
-      }),
-      options.webSearch
-    );
-    const systemPrompt = [
-      buildEffectiveSystemPrompt(buildDeepWriteSystemPrompt(), {
-        ...promptInput,
-        libraryAgentProfile: manager.profile,
-        workspaceContext: { libraryWorkspace: workspace, attachedSkills }
-      }),
-      LIBRARY_MANAGEMENT_INVOCATION_POLICY,
-      "你是受委派的管理子智能体，当前目标库已经由主智能体确定。只能管理上述目标库。若仍缺少影响正确执行的关键信息，返回待澄清事项，由主智能体询问用户；不要猜测或越权写入。",
-      `当前目标库：${workspace.title} / ${workspace.libraryId}；库介绍：${workspace.overview}`
-    ].join("\n\n");
-    const contextPolicy: ContextPolicy | undefined =
-      input.contextCompactionSettings && {
-        settings: input.contextCompactionSettings,
-        task: manager.domain === "skill" ? "library-skill" : "library-material",
-        toolCompactors: WORKSPACE_TOOL_COMPACTORS,
-        rehydrate: (refs, budget) =>
-          rehydrateWorkspaceContext(
-            {
-              ...input,
-              libraryAgentProfile: manager.profile,
-              workspaceContext: { libraryWorkspace: workspace, attachedSkills }
-            },
-            manager.domain === "skill" ? "library-skill" : "library-material",
-            refs,
-            budget
-          )
-      };
-    return { tools, systemPrompt, ...(contextPolicy ? { contextPolicy } : {}) };
-  };
-  return { definitions, prepareChild };
+      },
+      {
+        index,
+        preload: false,
+        requireLibraryId: true,
+        load: async (libraryId, signal) => {
+          if (!input.libraryManagementCommandExecutor)
+            throw new Error("资料库管理通道不可用。");
+          const command = CommandEnvelopeSchema.parse(
+            createEnvelope(
+              "catalog.queryLibraryManagement",
+              { scope: context!.scope, domain: manager.domain, libraryId },
+              {
+                id: `library-management:${input.runId}:${libraryId}`,
+                context: {
+                  sessionId: input.sessionId,
+                  runId: input.runId,
+                  resourceId: context!.scope.bookId
+                }
+              }
+            )
+          ) as Parameters<LibraryManagementCommandExecutor>[0];
+          const result = await input.libraryManagementCommandExecutor(
+            command,
+            signal
+          );
+          if (result.status !== "accepted")
+            throw new Error(result.error.message);
+          const snapshot = LibraryManagementQueryResultSchema.parse(
+            result.payload
+          ).workspace;
+          if (!snapshot) throw new Error("目标资料库不可用。");
+          const candidate = index.find(
+            (library) => library.libraryId === libraryId
+          )!;
+          return {
+            ...snapshot,
+            readOnly: candidate.readOnly || snapshot.readOnly
+          };
+        }
+      }
+    )
+      .filter((tool) => tool.name !== "load_skill")
+      .map((tool) => ({
+        ...tool,
+        name: `manage_${manager.domain}_${tool.name}`,
+        description: tool.description.replace(
+          /\b(?:list|read|search|create|edit)_(?:material|skill)_(?:entries|entry|library_overview)\b/g,
+          (name) => `manage_${manager.domain}_${name}`
+        )
+      }));
+  });
+  return { tools };
 }

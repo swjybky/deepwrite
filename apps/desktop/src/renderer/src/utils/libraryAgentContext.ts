@@ -106,64 +106,34 @@ function resolveReadableLibraries(
   groupTitle?: string;
   readableLibraries: LibraryAgentReadableLibrary[];
 } {
-  const currentKind =
-    domain === "material"
-      ? (current as MaterialLibrary).materialKind
-      : (current as SkillLibrary).skillKind;
   const owningGroup = findOwningGroup(snapshot, domain, current.id);
-  if (!owningGroup) {
-    const readableLibraries = [
-      {
-        libraryId: current.id,
-        title: current.title,
-        kind: currentKind
-      }
-    ];
-    return {
-      sources: [{ library: current, kind: currentKind, isCurrent: true }],
-      readableLibraries
-    };
-  }
-
   const libraries =
     domain === "material" ? snapshot.materials : snapshot.skills;
-  const sources: ResolvedLibrarySource[] = [];
-  const readableLibraries: LibraryAgentReadableLibrary[] = [];
-  for (const memberId of owningGroup.memberIds) {
-    const library =
-      memberId === current.id
-        ? current
-        : libraries.find((candidate) => candidate.id === memberId);
-    if (!library) continue;
-    const kind =
-      domain === "material"
-        ? (library as MaterialLibrary).materialKind
-        : (library as SkillLibrary).skillKind;
-    sources.push({
-      library,
-      kind,
-      isCurrent: library.id === current.id
-    });
-    readableLibraries.push({
+  const ordered = [
+    current,
+    ...libraries.filter((library) => library.id !== current.id)
+  ];
+  const sources = ordered.map((library) => ({
+    library,
+    isCurrent: library.id === current.id,
+    kind: "materialKind" in library ? library.materialKind : library.skillKind
+  }));
+  return {
+    sources: sources.filter(
+      (source) =>
+        source.isCurrent || owningGroup?.memberIds.includes(source.library.id)
+    ),
+    ...(owningGroup
+      ? { groupId: owningGroup.groupId, groupTitle: owningGroup.groupTitle }
+      : {}),
+    readableLibraries: sources.map(({ library, kind }) => ({
       libraryId: library.id,
       title: library.title,
-      kind
-    });
-  }
-
-  // Keep the current library first for prioritization and prompts.
-  sources.sort(
-    (left, right) => Number(right.isCurrent) - Number(left.isCurrent)
-  );
-  readableLibraries.sort((left, right) =>
-    left.libraryId === current.id ? -1 : right.libraryId === current.id ? 1 : 0
-  );
-
-  return {
-    sources,
-    groupId: owningGroup.groupId,
-    groupTitle: owningGroup.groupTitle,
-    readableLibraries
+      kind,
+      readOnly: "isBuiltin" in library && library.isBuiltin,
+      entryCount: library.entries.length,
+      groupTitle: findOwningGroup(snapshot, domain, library.id)?.groupTitle
+    }))
   };
 }
 
@@ -198,7 +168,7 @@ function resolveEntryContent(input: {
     documentId: entryDocumentId(input.domain, input.libraryId, input.entryId),
     title: input.entryTitle,
     content: input.entryBody,
-    readOnly: true
+    readOnly: false
   };
 }
 
@@ -250,7 +220,12 @@ export function buildLibraryAgentWorkspaceContext(
 
   for (const source of sources) {
     totalCatalogEntries += source.library.entries.length;
-    for (const entry of source.library.entries) {
+    const prioritizedEntries = [...source.library.entries].sort(
+      (left, right) =>
+        Number(source.isCurrent && right.id === activeEntryId) -
+        Number(source.isCurrent && left.id === activeEntryId)
+    );
+    for (const entry of prioritizedEntries) {
       if (entries.length >= LIBRARY_AGENT_MAX_ENTRIES) break;
       // Always reserve room for the active entry from the current library.
       if (
@@ -311,10 +286,9 @@ export function buildLibraryAgentWorkspaceContext(
         stageId: entry.stageId,
         title: resolved.title,
         content: textSnapshot.content,
-        revision: createShortWorkspaceContentRevision(textSnapshot.content),
+        revision: createShortWorkspaceContentRevision(resolved.content),
         readOnly:
-          !source.isCurrent ||
-          Boolean(skillLibrary?.isBuiltin) ||
+          ("isBuiltin" in source.library && source.library.isBuiltin) ||
           resolved.readOnly,
         ...peerMeta,
         ...(textSnapshot.truncated
@@ -352,7 +326,7 @@ export function buildLibraryAgentWorkspaceContext(
       stageId: activeEntry.stageId,
       title: liveActive.title,
       content: textSnapshot.content,
-      revision: createShortWorkspaceContentRevision(textSnapshot.content),
+      revision: createShortWorkspaceContentRevision(liveActive.content),
       readOnly:
         Boolean(skillLibrary?.isBuiltin) || Boolean(liveActive.readOnly),
       ...(textSnapshot.truncated
@@ -370,14 +344,22 @@ export function buildLibraryAgentWorkspaceContext(
 
   const omittedEntryCount = Math.max(0, totalCatalogEntries - entries.length);
   const common = {
+    libraryGroups: (domain === "material"
+      ? snapshot.materialGroups
+      : snapshot.skillGroups
+    ).map((group) => ({
+      id: group.id,
+      title: group.title,
+      members: Object.fromEntries(
+        Object.entries(group.members).filter((entry) => entry[1] !== undefined)
+      ) as Record<string, string>
+    })),
     libraryId: library.id,
     title: library.title,
     overviewDocumentId:
       liveOverview?.id ?? overviewDocumentId(domain, library.id),
     overview: overviewSnapshot.content,
-    overviewRevision: createShortWorkspaceContentRevision(
-      overviewSnapshot.content
-    ),
+    overviewRevision: createShortWorkspaceContentRevision(overviewContent),
     ...(overviewSnapshot.truncated
       ? {
           overviewTruncated: true as const,
@@ -391,7 +373,7 @@ export function buildLibraryAgentWorkspaceContext(
       : { projectRevision: library.projectRevision }),
     ...(omittedEntryCount > 0 ? { omittedEntryCount } : {}),
     ...(groupId && groupTitle ? { groupId, groupTitle } : {}),
-    ...(readableLibraries.length > 1 ? { readableLibraries } : {})
+    readableLibraries
   };
 
   return materialLibrary
@@ -410,10 +392,7 @@ export function buildLibraryAgentWorkspaceContext(
         domain: "skill",
         libraryType: skillLibrary!.skillType,
         kind: skillLibrary!.skillKind,
-        entries: entries.map((entry) => ({
-          ...entry,
-          readOnly: skillLibrary!.isBuiltin || entry.readOnly
-        })) as Extract<
+        entries: entries as Extract<
           LibraryAgentWorkspaceSnapshot,
           { domain: "skill" }
         >["entries"]

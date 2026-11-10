@@ -22,7 +22,7 @@ const kindNames = {
   plot: "剧情",
   draft: "正文",
   other: "其他",
-  gimmick: "梗"
+  gimmick: "梗与灵感"
 };
 export function planDecompositionTarget(
   job: LongBookDecompositionJob,
@@ -198,12 +198,8 @@ export async function prepareDecompositionTarget(
       const selected = group?.members[kind];
       if (selected) {
         const library = snapshot.materials.find(({ id }) => id === selected);
-        if (
-          !library ||
-          library.materialType !== "long" ||
-          library.materialKind !== kind
-        )
-          throw new Error(`分组中的${kindNames[kind]}库必须是兼容的长篇库。`);
+        if (!library || library.materialKind !== kind)
+          throw new Error(`分组中的${kindNames[kind]}库的素材分类不兼容。`);
         prep.libraryIds[kind] = selected;
         await state.savePreparation(job.id, prep);
       } else if (

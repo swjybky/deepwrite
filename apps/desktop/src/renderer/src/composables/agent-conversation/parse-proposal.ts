@@ -1,3 +1,4 @@
+import { LibraryStructurePlanSchema } from "@deepwrite/contracts/renderer";
 import type {
   AgentApprovalMode,
   AgentEditProposal,
@@ -88,6 +89,14 @@ export function parseStoredEditProposal(
   ) {
     return undefined;
   }
+  const parsedStructure = LibraryStructurePlanSchema.safeParse(
+    value.libraryStructureTarget
+  );
+  const libraryStructureTarget = parsedStructure.success
+    ? parsedStructure.data
+    : undefined;
+  if (value.libraryStructureTarget !== undefined && !libraryStructureTarget)
+    return undefined;
   const libraryTarget = parseStoredLibraryTarget(value.libraryTarget);
   const longWorldbuildingTarget = parseStoredLongWorldbuildingTarget(
     value.longWorldbuildingTarget
@@ -106,7 +115,9 @@ export function parseStoredEditProposal(
     longDraftTarget
   );
   if (
-    (value.stageId === "library" && !libraryTarget) ||
+    (value.stageId === "library" &&
+      !libraryTarget &&
+      !libraryStructureTarget) ||
     (value.stageId !== "library" && value.libraryTarget !== undefined) ||
     (value.stageId === "long-worldbuilding" && !longWorldbuildingTarget) ||
     (value.stageId !== "long-worldbuilding" &&
@@ -229,9 +240,16 @@ export function parseStoredEditProposal(
     ...(statusMessage === undefined ? {} : { statusMessage }),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
-    ...(!isLongFormProposal && discardSnapshot ? { discardSnapshot } : {}),
-    ...(!isLongFormProposal && discardState ? { discardState } : {}),
+    ...(discardSnapshot &&
+    (!isLongFormProposal || discardSnapshot.longRestorePointId)
+      ? { discardSnapshot }
+      : {}),
+    ...(discardState &&
+    (!isLongFormProposal || discardSnapshot?.longRestorePointId)
+      ? { discardState }
+      : {}),
     ...(staleBase ? { staleBase } : {}),
+    ...(libraryStructureTarget ? { libraryStructureTarget } : {}),
     ...(libraryTarget ? { libraryTarget } : {}),
     ...(longWorldbuildingTarget ? { longWorldbuildingTarget } : {}),
     ...(longCharacterTarget ? { longCharacterTarget } : {}),

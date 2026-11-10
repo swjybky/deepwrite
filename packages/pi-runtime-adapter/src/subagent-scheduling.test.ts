@@ -32,8 +32,7 @@ const libraryManager: RuntimeSubagentDefinition = {
   ...writer,
   id: "material_manager",
   name: "素材管理",
-  description: "管理素材库。",
-  toolSource: "library-management"
+  description: "管理素材库。"
 };
 const definitions = [writer, reviewer, libraryManager];
 
@@ -116,12 +115,7 @@ describe("subagent task plan", () => {
     ]);
   });
 
-  it("marks library managers exclusive and keeps their own target rules", () => {
-    const [manager] = planSubagentTasks(
-      [{ subagent_id: "material_manager", task: "整理", library_id: "lib-1" }],
-      definitions
-    );
-    expect(manager).toMatchObject({ libraryId: "lib-1", exclusive: true });
+  it("rejects library targets on team members", () => {
     expect(() =>
       planSubagentTasks(
         [{ subagent_id: "chapter_writer", task: "写", library_id: "lib-1" }],

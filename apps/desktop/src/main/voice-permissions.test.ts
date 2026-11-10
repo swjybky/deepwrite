@@ -1,9 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BrowserWindow } from "electron";
-vi.mock("electron", () => ({ systemPreferences: {} }));
+const { hasSwitch, getMediaAccessStatus } = vi.hoisted(() => ({
+  hasSwitch: vi.fn(),
+  getMediaAccessStatus: vi.fn(() => "denied")
+}));
+vi.mock("electron", () => ({
+  app: { commandLine: { hasSwitch } },
+  systemPreferences: { getMediaAccessStatus }
+}));
 import {
   installVoicePermissions,
-  isTrustedVoiceFrame
+  isTrustedVoiceFrame,
+  requestVoiceMicrophoneAccess
 } from "./voice-permissions";
 
 describe("microphone permission boundary", () => {
@@ -61,4 +69,24 @@ describe("microphone permission boundary", () => {
     });
     expect(grant).toHaveBeenLastCalledWith(false);
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+
+it("uses synthetic audio only when smoke mode and the fake device switch agree", async () => {
+  vi.stubGlobal("process", { ...process, platform: "darwin" });
+  vi.stubEnv("DEEPWRITE_SMOKE", "1");
+  hasSwitch.mockReturnValue(true);
+  await expect(requestVoiceMicrophoneAccess()).resolves.toBe(true);
+  expect(getMediaAccessStatus).not.toHaveBeenCalled();
+  expect(hasSwitch).toHaveBeenCalledWith("use-fake-device-for-media-stream");
+  hasSwitch.mockReturnValue(false);
+  await expect(requestVoiceMicrophoneAccess()).resolves.toBe(false);
+  vi.stubEnv("DEEPWRITE_SMOKE", "0");
+  hasSwitch.mockReturnValue(true);
+  await expect(requestVoiceMicrophoneAccess()).resolves.toBe(false);
 });

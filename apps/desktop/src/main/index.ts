@@ -1,3 +1,9 @@
+import {
+  LibraryOrganizationSchema,
+  CreateUnboundEntryResultSchema,
+  LibraryStructurePlanSchema,
+  LibraryStructureResultSchema
+} from "@deepwrite/contracts";
 import { nativeMessages, nativeText, setNativeLanguage } from "./native-i18n";
 import { handleSessionCommands } from "./ipc/session-commands";
 import { handleBookTemplateCommands } from "./ipc/book-template-commands";
@@ -10,6 +16,12 @@ import {
   refreshDesktopServices
 } from "./desktop-services";
 import { createDesktopStartup } from "./desktop-startup";
+import { applyDevelopmentProfile } from "./development-profile";
+import {
+  resolveConfigurationProfile,
+  prepareConfigurationEncryption
+} from "./configuration-profile";
+import { BookTemplateStore } from "./book-template-store";
 import { configureLinuxSecretStorage } from "./linux-secret-storage";
 import {
   acquireStorageInstanceLock,
@@ -100,6 +112,7 @@ import {
   UPDATE_STATE_EVENT_CHANNEL,
   LibraryAgentSettingsSchema,
   LongApplyOperationsResultSchema,
+  LongRestoreOperationsResultSchema,
   LongApplyLegacySyncResultSchema,
   LongAgentSettingsSchema,
   LongCommitChapterResultSchema,
@@ -228,13 +241,20 @@ import { registerFeedbackIpc, type FeedbackClient } from "../extras/feedback";
 
 registerAppearanceFontScheme();
 registerCoverScheme();
+const sharedConfigurationDefault = applyDevelopmentProfile(app);
 const hasSingleInstanceLock = acquireStorageInstanceLock(app);
 // A second instance must not write diagnostics into a profile being migrated.
 if (!hasSingleInstanceLock) app.exit(0);
 let storageBootstrap: ReturnType<typeof initializeStorageLocation> | undefined;
+let configurationPath = app.getPath("userData");
 if (hasSingleInstanceLock) {
   try {
     storageBootstrap = initializeStorageLocation(app);
+    configurationPath = resolveConfigurationProfile(
+      sharedConfigurationDefault,
+      app.getPath("userData")
+    );
+    prepareConfigurationEncryption(configurationPath, app.getPath("userData"));
   } catch (error) {
     dialog.showErrorBox(
       nativeText("storageReadFailure"),
@@ -279,6 +299,7 @@ type CommandRoute = (
 ) => Promise<CommandResult>;
 let commandRoute: CommandRoute | undefined;
 const externalControl = createExternalControl({
+  configurationDirectory: () => configurationPath,
   paths: resolveExternalControlPaths({
     homeDirectory: app.getPath("home"),
     packaged: app.isPackaged
@@ -333,6 +354,7 @@ let utilitiesStarted = false;
 let nativeAppearanceListenerBound = false;
 let workspaceAgentConfigStore: WorkspaceAgentConfigStore | undefined;
 let workspaceDirectoryStore: WorkspaceDirectoryStore | undefined;
+let bookTemplateStore: BookTemplateStore | undefined;
 let storageSettingsService: StorageSettingsService | undefined;
 let quitting = false;
 let shutdownComplete = false;
@@ -1303,6 +1325,7 @@ function registerIpc(): void {
         command.type === "catalog.createLibraryAtPath" ||
         command.type === "catalog.createLibraryGroupAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
+        command.type === "catalog.readLibraryAgentLibrary" ||
         command.type === "catalog.readLibraryPackageSource" ||
         command.type === "catalog.previewLibraryPackageAtPath" ||
         command.type === "catalog.importLibraryPackageAtPath" ||
@@ -1933,7 +1956,8 @@ function registerIpc(): void {
       };
       const templateResult = await handleBookTemplateCommands(
         catalogProjectContext,
-        command
+        command,
+        () => (bookTemplateStore ??= new BookTemplateStore(configurationPath))
       );
       if (templateResult) return templateResult;
       const catalogProjectResult = await handleCatalogProjectCommands(
@@ -1956,6 +1980,7 @@ function registerIpc(): void {
         command.type === "long.writeAgentsMd" ||
         command.type === "long.previewOperations" ||
         command.type === "long.applyOperations" ||
+        command.type === "long.restoreOperations" ||
         command.type === "long.writeChapter" ||
         command.type === "long.commitChapter" ||
         command.type === "long.deleteLedgerCommit" ||
@@ -1999,6 +2024,9 @@ function registerIpc(): void {
               break;
             case "long.applyOperations":
               payload = LongApplyOperationsResultSchema.parse(result.payload);
+              break;
+            case "long.restoreOperations":
+              payload = LongRestoreOperationsResultSchema.parse(result.payload);
               break;
             case "long.writeChapter":
               payload = LongWriteChapterResultSchema.parse(result.payload);
@@ -2141,6 +2169,10 @@ function registerIpc(): void {
       if (conversationExportResult) return conversationExportResult;
 
       if (
+        command.type === "catalog.reorderLibrary" ||
+        command.type === "catalog.createUnboundEntry" ||
+        command.type === "catalog.previewLibraryStructure" ||
+        command.type === "catalog.applyLibraryStructure" ||
         command.type === "catalog.index" ||
         command.type === "catalog.readDocument" ||
         command.type === "catalog.readWritingContext" ||
@@ -2179,6 +2211,18 @@ function registerIpc(): void {
           }
           let payload: unknown;
           switch (command.type) {
+            case "catalog.reorderLibrary":
+              payload = LibraryOrganizationSchema.parse(result.payload);
+              break;
+            case "catalog.createUnboundEntry":
+              payload = CreateUnboundEntryResultSchema.parse(result.payload);
+              break;
+            case "catalog.previewLibraryStructure":
+              payload = LibraryStructurePlanSchema.parse(result.payload);
+              break;
+            case "catalog.applyLibraryStructure":
+              payload = LibraryStructureResultSchema.parse(result.payload);
+              break;
             case "catalog.index":
               payload = CatalogIndexSnapshotSchema.parse(result.payload);
               break;
@@ -2631,6 +2675,7 @@ if (!hasSingleInstanceLock) {
     const services = await desktopStartup.step("services", () =>
       createDesktopServices({
         userDataPath,
+        configurationPath,
         appVersion: app.getVersion(),
         command: (command) => supervisor.requestCommand("core", command, 0),
         busy: () => activeRuns.size > 0,

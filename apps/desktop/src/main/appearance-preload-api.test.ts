@@ -40,6 +40,27 @@ describe("appearance preload API", () => {
     );
   });
 
+  it("passes an explicit native size capture request through the validated envelope", async () => {
+    const settings = createDefaultAppearanceSettings();
+    mockedInvokeCommand.mockResolvedValue({
+      persisted: true,
+      settings: { ...settings, startupWindowSize: { width: 1500, height: 950 } }
+    });
+    const saved = await saveAppearance(settings, {
+      captureCurrentWindowSize: true
+    });
+    expect(mockedInvokeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "appearance.save",
+        payload: expect.objectContaining({ captureCurrentWindowSize: true })
+      })
+    );
+    expect(saved.settings.startupWindowSize).toEqual({
+      width: 1500,
+      height: 950
+    });
+  });
+
   it("exposes the complete custom-font API with validated results", async () => {
     mockedInvokeCommand
       .mockResolvedValueOnce({ fonts: [] })

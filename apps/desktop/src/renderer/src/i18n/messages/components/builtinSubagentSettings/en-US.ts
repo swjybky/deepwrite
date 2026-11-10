@@ -1,18 +1,11 @@
 export default {
-  skillManager: "Skill management subagent",
-  materialManager: "Material management subagent",
-  teamManager: "Agent team manager",
-  builtInManagementSubagents: "Built-in management subagents",
+  skillManager: "Skill management tools",
+  materialManager: "Material management tools",
+  teamManager: "Team prompt management tools",
+  builtInManagementSubagents: "Built-in management tools",
   sharedByStandardAndTeamModesCalledOnlyWhen:
     "Shared by standard and team modes. Manages linked library content or effective team prompts at your request. Works without team links use the enabled team for their writing type. Prompt changes require review before saving.",
   enabled: "Enabled",
   disabled: "Disabled",
-  editValue: "Edit {arg0}",
-  editing: "Editing",
-  edit: "Edit",
-  enableThisSubagent: "Enable this subagent",
-  invocationDescription: "Invocation description",
-  cancel: "Cancel",
-  saving: "Saving…",
-  save: "Save"
+  enabledStatus: "{arg0} enabled status"
 };

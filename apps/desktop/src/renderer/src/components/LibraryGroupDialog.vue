@@ -120,6 +120,7 @@ const rows = computed(() =>
           ...props.materials
             .filter(
               (library) =>
+                !library.isUnbound &&
                 (library.materialKind === kind ||
                   library.materialKind === "mixed") &&
                 !unavailableLibraryIds.value.has(library.id) &&
@@ -143,6 +144,7 @@ const rows = computed(() =>
           ...props.skills
             .filter(
               (library) =>
+                !library.isUnbound &&
                 library.skillKind === kind &&
                 !unavailableLibraryIds.value.has(library.id) &&
                 !selectedInAnotherRow(kind, library.id)

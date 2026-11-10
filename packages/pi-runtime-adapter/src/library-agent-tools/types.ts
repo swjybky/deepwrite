@@ -11,6 +11,10 @@ export type LibraryDomain = LibraryAgentDomain;
 export type LibraryAgentToolDetails =
   | { kind: "none" }
   | {
+      kind: "library-structure-mutation";
+      plan: import("@deepwrite/contracts").LibraryStructurePlan;
+    }
+  | {
       kind: "library-overview-mutation";
       operation: "edit-overview";
       domain: LibraryDomain;

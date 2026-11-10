@@ -1,44 +1,51 @@
+import { createPinia } from "pinia";
+import { createSSRApp } from "vue";
+import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
-import source from "./LibraryProjectDialog.vue?raw";
+import LibraryProjectDialog from "./LibraryProjectDialog.vue";
 
-describe("LibraryProjectDialog create-library form", () => {
-  it("submits the material or skill classification into the shared library pool", () => {
-    expect(source).toContain("materialKind: libraryKind.value");
-    expect(source).toContain("skillKind: libraryKind.value");
-    expect(source).not.toContain("libraryType: libraryType.value");
-    expect(source).not.toContain("适用创作类型");
-    expect(source).toContain(
-      "thisLibraryIsSharedAcrossShortStoriesScreenplaysAnd"
-    );
-    expect(source).toContain("generalSkillLibrary");
-    expect(source).not.toContain('{ value: "mixed", label: "综合素材库" }');
-  });
+describe("LibraryProjectDialog", () => {
+  it.each(["material", "skill"] as const)(
+    "creates %s entries without asking for a writing type",
+    async (domain) => {
+      const context: { teleports?: Record<string, string> } = {};
+      const app = createSSRApp(LibraryProjectDialog, {
+        open: true,
+        operation: "create-entry",
+        domain
+      });
+      app.use(createPinia());
+      await renderToString(app, context);
+      const html = context.teleports?.body ?? "";
+      expect(html).toContain("新建条目");
+      expect(html).toContain("条目名称");
+      expect(html).toContain("所属库");
+      expect(html).toContain("暂不放入库");
+      expect(html).not.toMatch(/创作类型|短篇|剧本|长篇/);
+      expect(html).toContain(domain === "material" ? "内容阶段" : "技能库分类");
+      expect(html.match(/role="combobox"/g)).toHaveLength(2);
+    }
+  );
 
-  it("uses the configured workspace directory without offering another location step", () => {
-    expect(source).toContain(
-      "newLibrariesAreSavedAutomaticallyInTheCurrentWorkspace"
-    );
-    expect(source).not.toContain("下一步会选择保存位置");
-    expect(source).not.toContain("选择位置并创建");
-  });
-});
-
-describe("LibraryProjectDialog create-entry form", () => {
-  it("only asks for a name when creating skill entries", () => {
-    expect(source).toContain('domain: "skill"');
-    expect(source).toContain("title: normalizedTitle");
-    expect(source).toContain(
-      '() => props.operation === "create-entry" && props.domain === "material"'
-    );
-    expect(source).toContain('v-if="showEntryStageField"');
-    expect(source).not.toContain("stageId: stageId.value as SkillStageId");
-    expect(source).not.toContain(
-      '{ value: "character_design", label: "人物设计" }'
-    );
-  });
-
-  it("keeps all material stages available because libraries are shared", () => {
-    expect(source).not.toContain("effectiveLibraryType");
-    expect(source).toContain("introductionDesign");
-  });
+  it.each(["material", "skill"] as const)(
+    "creates a shared %s library with its content category",
+    async (domain) => {
+      const context: { teleports?: Record<string, string> } = {};
+      const app = createSSRApp(LibraryProjectDialog, {
+        open: true,
+        operation: "create-library",
+        domain
+      });
+      app.use(createPinia());
+      await renderToString(app, context);
+      const html = context.teleports?.body ?? "";
+      expect(html).toContain("无需再次选择目录");
+      expect(html).toContain("可在任意作品中绑定");
+      expect(html).toContain(
+        domain === "material" ? "素材库分类" : "技能库分类"
+      );
+      expect(html).not.toContain("适用创作类型");
+      expect(html.match(/role="combobox"/g)).toHaveLength(1);
+    }
+  );
 });

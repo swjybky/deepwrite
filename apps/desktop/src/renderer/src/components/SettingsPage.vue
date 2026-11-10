@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, ref } from "vue";
 import {
   type AppLanguage,
   type ContextCompactionSettings,
@@ -138,6 +138,10 @@ const emit = defineEmits<{
 }>();
 const activeCategory = ref(props.initialCategory ?? "general");
 const searchQuery = ref("");
+
+onMounted(() => {
+  if (activeCategory.value === "custom-models") emit("loadModels");
+});
 
 const visibleSections = computed(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase();

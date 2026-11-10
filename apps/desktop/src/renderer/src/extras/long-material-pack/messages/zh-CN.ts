@@ -55,7 +55,7 @@ export default {
   noPacks: "暂无转换记录",
   packOption: "{group} · {date}",
   targetHelp:
-    "将新建五个库：人设 · 梗 · 剧情 · 正文 · 其他（存放世界观），类型为长篇；来源长篇只读不改。",
+    "将新建五个库：人设 · 梗与灵感 · 剧情 · 正文 · 其他（存放世界观），类型为长篇；来源长篇只读不改。",
   updateHelp: "原地更新这次转换写入的条目；你改过的条目默认保留。",
   guideTitle: "仿写增强（可选）",
   guideDescription:
@@ -131,7 +131,8 @@ export default {
   bindToBook: "关联到作品…",
   bindTarget: "选择作品",
   bindConfirm: "关联",
-  bindHint: "会把该作品的人设、梗、剧情、正文、其他五类素材关联替换为本分组。",
+  bindHint:
+    "会把该作品的人设、梗与灵感、剧情、正文、其他五类素材关联替换为本分组。",
   bound: "已关联到《{title}》。",
   createImitation: "以此新建仿写长篇",
   imitationTitle: "《{title}》仿写",

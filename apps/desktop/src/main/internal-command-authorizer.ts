@@ -20,6 +20,8 @@ export const AGENT_CORE_QUERY_COMMANDS = [
   ...AGENT_CORE_LONG_QUERY_COMMANDS,
   "catalog.queryMaterials",
   "catalog.queryLibraryManagement",
+  "catalog.previewLibraryStructure",
+  "catalog.readLibraryAgentLibrary",
   "agentTeams.listActivePrompts",
   "agentTeams.readActivePrompt",
   "agentTeams.applyActivePrompt",
@@ -45,6 +47,7 @@ export interface MainInternalCommandActiveRun {
   bookIdentity?: BookIdentityRunRegistration;
   materialScope?: MaterialReadScope;
   libraryManagementScope?: LibraryManagementScope;
+  libraryAgentScope?: { domain: "material" | "skill" };
   teamManagementScope?: LibraryManagementScope;
   decompositionJobId?: string;
   decompositionOutputVersion?: number;
@@ -181,6 +184,29 @@ export function authorizeMainInternalCommand(
         "main.decomposition_topic_out_of_scope",
         "专题登记不能跨工作包或阶段。"
       );
+    return true;
+  }
+  if (
+    message.command.type === "catalog.readLibraryAgentLibrary" ||
+    message.command.type === "catalog.previewLibraryStructure"
+  ) {
+    const command = message.command;
+    const run = command.context.runId
+      ? activeRuns.get(command.context.runId)
+      : undefined;
+    if (
+      !run?.accepted ||
+      !run.libraryAgentScope ||
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId ||
+      command.context.sessionId !== run.sessionId ||
+      command.payload.domain !== run.libraryAgentScope.domain
+    ) {
+      return denied(
+        "main.library_agent_not_authorized",
+        "Library queries require the accepted domain, session and prompt."
+      );
+    }
     return true;
   }
   if (message.command.type === "catalog.queryLibraryManagement") {

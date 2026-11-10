@@ -16,7 +16,7 @@ import {
   createTeamManagementRuntime,
   teamManagementParentPrompt
 } from "./team-management-runtime";
-import { buildSpawnSubagentTool } from "./subagent-runtime";
+import { Agent } from "@earendil-works/pi-agent-core";
 import { buildRunTools } from "./run-tools";
 import { shortProfile, shortWorkspace } from "./short-agent-tools.test-support";
 import type { AgentRunInput, AgentUserInputRequester } from "./runtime-types";
@@ -107,7 +107,7 @@ function provider() {
 describe("team management subagent", () => {
   it("uses only team tools and demands a fresh read before proposing", async () => {
     const f = fixture();
-    const child = await f.runtime.prepareChild(f.runtime.definitions[0]!);
+    const child = f.runtime;
     expect(child.tools.map((tool) => tool.name)).toEqual([
       "list_active_agent_teams",
       "read_agent_team_prompt",
@@ -134,7 +134,7 @@ describe("team management subagent", () => {
     "waits for explicit %s review even with automatic approval enabled",
     async (answer) => {
       const f = fixture(answer);
-      const child = await f.runtime.prepareChild(f.runtime.definitions[0]!);
+      const child = f.runtime;
       await child.tools[1]!.execute("read", target);
       let resolve:
         | ((value: Awaited<ReturnType<AgentUserInputRequester>>) => void)
@@ -189,7 +189,7 @@ describe("team management subagent", () => {
 
   it("invalidates stale read evidence when saving fails and stops on cancellation", async () => {
     const f = fixture();
-    const child = await f.runtime.prepareChild(f.runtime.definitions[0]!);
+    const child = f.runtime;
     await child.tools[1]!.execute("read", target);
     f.executor.mockResolvedValueOnce({
       status: "rejected",
@@ -211,7 +211,7 @@ describe("team management subagent", () => {
   });
 
   it.each([false, true])(
-    "mounts in standard/team mode (%s) and delegates without inheriting workspace tools",
+    "mounts in standard/team mode (%s) and runs directly on the main agent",
     async (teamMode) => {
       const f = fixture();
       const p = provider();
@@ -238,10 +238,12 @@ describe("team management subagent", () => {
         getParentMessages: () => [],
         portableToolSchemaProfile: "writing-workspace"
       });
-      expect(tools.some((tool) => tool.name === "spawn_subagent")).toBe(true);
+      expect(tools.some((tool) => tool.name === "spawn_subagent")).toBe(
+        teamMode
+      );
       expect(
         tools.some((tool) => tool.name === "propose_agent_team_prompt")
-      ).toBe(false);
+      ).toBe(true);
       p.faux.setResponses([
         fauxAssistantMessage(fauxToolCall("list_active_agent_teams", {}), {
           stopReason: "toolUse"
@@ -259,26 +261,16 @@ describe("team management subagent", () => {
         ),
         fauxAssistantMessage("提示词已按审阅结果保存。")
       ]);
-      const buildChildTools = vi.fn(() => {
-        throw new Error("不应继承作品写入工具");
+      const agent = new Agent({
+        initialState: {
+          model: p.model,
+          tools,
+          thinkingLevel: "off",
+          systemPrompt: teamManagementParentPrompt(f.input)
+        },
+        streamFn: p.streamFn
       });
-      const spawn = buildSpawnSubagentTool({
-        parentSessionId: "session",
-        ...p,
-        thinkingLevel: "off",
-        definitions: f.runtime.definitions,
-        prepareChild: f.runtime.prepareChild,
-        buildChildTools,
-        parentRuntime: { provider: "test", model: "test", mode: "provider" },
-        getParentMessages: () => [
-          { role: "user", content: "请优化团队提示词", timestamp: 1 }
-        ]
-      })!;
-      await spawn.execute("spawn", {
-        subagent_id: "builtin:team-manager",
-        task: "优化当前生效团队成员提示词"
-      });
-      expect(buildChildTools).not.toHaveBeenCalled();
+      await agent.prompt("优化当前生效团队成员提示词");
       expect(f.request).toHaveBeenCalledOnce();
       expect(f.executor.mock.calls.map(([command]) => command.type)).toEqual([
         "agentTeams.listActivePrompts",
@@ -289,7 +281,7 @@ describe("team management subagent", () => {
       const disabledInput = { ...f.input };
       delete disabledInput.teamManagement;
       expect(
-        createTeamManagementRuntime(disabledInput, f.request).definitions
+        createTeamManagementRuntime(disabledInput, f.request).tools
       ).toEqual([]);
     }
   );

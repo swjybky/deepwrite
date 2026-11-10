@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -14,6 +15,7 @@ import {
   type LibraryAgentSettingsInput,
   type LibraryAgentSkill
 } from "@deepwrite/contracts";
+import { localizeAgentSystemPrompt } from "./builtin-agent-prompts";
 import { mergeSettingsById } from "./merge-agent-settings";
 
 interface DiskLibraryAgentSettings {
@@ -188,28 +190,30 @@ export class LibraryAgentConfigStore {
     const input = LibraryAgentSettingsInputSchema.parse(rawInput);
     const baseline = input.baseAgents;
     let saved: LibraryAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      const normalized: LibraryAgentSettingsInput = {
-        agents: input.agents.map((agent) => ({
-          domain: agent.domain,
-          systemPrompt: agent.systemPrompt,
-          readAccess: cloneReadAccess(agent.readAccess)
-        }))
-      };
-      const current = baseline ? await this.readInput() : normalized;
-      const next = baseline
-        ? {
-            agents: mergeSettingsById(
-              current.agents,
-              normalized.agents,
-              baseline,
-              (agent) => agent.domain
-            )
-          }
-        : normalized;
-      await this.writeInput(next);
-      saved = this.toPublicSettings(next);
-    });
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        const normalized: LibraryAgentSettingsInput = {
+          agents: input.agents.map((agent) => ({
+            domain: agent.domain,
+            systemPrompt: agent.systemPrompt,
+            readAccess: cloneReadAccess(agent.readAccess)
+          }))
+        };
+        const current = baseline ? await this.readInput() : normalized;
+        const next = baseline
+          ? {
+              agents: mergeSettingsById(
+                current.agents,
+                normalized.agents,
+                baseline,
+                (agent) => agent.domain
+              )
+            }
+          : normalized;
+        await this.writeInput(next);
+        saved = this.toPublicSettings(next);
+      })
+    );
     this.trackWrite(operation);
     await operation;
     return saved!;
@@ -220,28 +224,30 @@ export class LibraryAgentConfigStore {
       ? LibraryAgentDomainSchema.parse(rawDomain)
       : undefined;
     let saved: LibraryAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      const next = domain ? await this.readInput() : defaultsAsInput();
-      if (domain) {
-        const builtin = defaultProfile(domain);
-        const replacement = {
-          domain: builtin.domain,
-          systemPrompt: builtin.systemPrompt,
-          readAccess: cloneReadAccess(builtin.readAccess)
-        };
-        const index = next.agents.findIndex(
-          (candidate) => candidate.domain === domain
-        );
-        if (index >= 0) {
-          next.agents[index] = replacement;
-        } else {
-          next.agents.push(replacement);
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        const next = domain ? await this.readInput() : defaultsAsInput();
+        if (domain) {
+          const builtin = defaultProfile(domain);
+          const replacement = {
+            domain: builtin.domain,
+            systemPrompt: builtin.systemPrompt,
+            readAccess: cloneReadAccess(builtin.readAccess)
+          };
+          const index = next.agents.findIndex(
+            (candidate) => candidate.domain === domain
+          );
+          if (index >= 0) {
+            next.agents[index] = replacement;
+          } else {
+            next.agents.push(replacement);
+          }
         }
-      }
-      const validated = LibraryAgentSettingsInputSchema.parse(next);
-      await this.writeInput(validated);
-      saved = this.toPublicSettings(validated);
-    });
+        const validated = LibraryAgentSettingsInputSchema.parse(next);
+        await this.writeInput(validated);
+        saved = this.toPublicSettings(validated);
+      })
+    );
     this.trackWrite(operation);
     await operation;
     return saved!;
@@ -289,16 +295,18 @@ export class LibraryAgentConfigStore {
       agents: LIBRARY_AGENT_DOMAINS.map((domain) => {
         const builtin = defaultProfile(domain);
         const override = byDomain.get(domain);
-        if (!override) return builtin;
-        const customizedPrompt =
-          override.systemPrompt !== builtin.systemPrompt.trim();
+        const systemPrompt = localizeAgentSystemPrompt(
+          domain,
+          override?.systemPrompt
+        );
+        if (!override) return { ...builtin, systemPrompt };
         const customizedAccess = !sameSkillAccess(
           override.readAccess,
           builtin.readAccess
         );
         return {
           ...builtin,
-          ...(customizedPrompt ? { systemPrompt: override.systemPrompt } : {}),
+          systemPrompt,
           ...(customizedAccess
             ? { readAccess: cloneReadAccess(override.readAccess) }
             : {})

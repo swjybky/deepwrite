@@ -93,7 +93,7 @@ export async function prepareLongMaterialTarget(
       ({ id }) => id === libraryIds[kind]
     );
     if (library) {
-      if (library.materialType !== "long" || library.materialKind !== kind)
+      if (library.materialKind !== kind)
         throw new Error(
           `分组中的${LONG_MATERIAL_LIBRARY_NAMES[kind]}库类型已变化，请另建新分组。`
         );

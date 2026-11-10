@@ -53,7 +53,7 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(scriptSystemPrompt).toContain("叙事视角（narrative_perspective）");
     expect(scriptSystemPrompt).toContain("阶段边界与交付标准：确定叙事人称");
     expect(scriptSystemPrompt).toContain(
-      "delete（kind=draft_section）会删除整个剧集"
+      "delete（kind=draft_section）删除整个剧集"
     );
     expect(scriptSystemPrompt).toContain("正文至少保留一个剧集");
 
@@ -219,14 +219,14 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     });
 
     expect(draftPrompt).toContain("【当前阶段：正文】");
-    expect(draftPrompt).toContain("document=body 与 document=character_state");
-    expect(draftPrompt).toContain("必须指定 document");
-    expect(draftPrompt).toContain("不传 document 时默认 body");
     expect(draftPrompt).toContain(
-      "kind=draft_section 必须同时给出 document=body 或 character_state"
+      "document=body（小说正文）和 document=character_state（人物状态）"
     );
+    expect(draftPrompt).toContain("读写其中任何一份都必须指定 document");
+    expect(draftPrompt).toContain("不传 document 时默认 body");
+    expect(draftPrompt).toContain("kind=draft_section 加小节 id");
     expect(draftPrompt).toContain("read、create、edit、delete");
-    expect(draftPrompt).toContain("delete（kind=draft_section）会删除整个小节");
+    expect(draftPrompt).toContain("delete（kind=draft_section）删除整个小节");
 
     const characterPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_character_context",
@@ -256,14 +256,12 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
       "当前目标：林默（kind=character，id=character-linmo）"
     );
     expect(characterPrompt).toContain(
-      "用 create（kind=character）为每个人物创建独立条目"
+      "新建人物用 create（kind=character）逐个创建"
     );
     expect(characterPrompt).toContain(
-      "用 delete（kind=character）删除指定人物条目及其文件"
+      "delete（kind=character）会删除该人物卡及其文件"
     );
-    expect(draftPrompt).toContain(
-      "当前人物结构是条目样式：创建人物时用 create（kind=character）"
-    );
+    expect(draftPrompt).toContain("人物（条目样式）");
 
     const textCharacterPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_character_text_context",
@@ -280,14 +278,12 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
       }
     });
     expect(textCharacterPrompt).toContain("人物结构：文本样式");
-    expect(textCharacterPrompt).toContain("创建人物就是把全部人设写入这份文本");
+    expect(textCharacterPrompt).toContain("都用 edit 写入这份总稿");
     expect(textCharacterPrompt).toContain("不要 create character");
     expect(textCharacterPrompt).toContain(
-      "delete 只会清空总稿内容并保留人物结构"
+      "delete（kind=character_overview）只清空总稿内容，保留人物结构"
     );
-    expect(textCharacterPrompt).toContain(
-      "当前人物结构是文本样式：创建人物时不要用 create"
-    );
+    expect(textCharacterPrompt).not.toContain("人物（条目样式）");
 
     const plotPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_plot_context",
@@ -305,9 +301,7 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(plotPrompt).toContain("【当前阶段：剧情】");
     expect(plotPrompt).toContain("剧情设计 (plot_design)");
     expect(plotPrompt).toContain("阶段边界与交付标准");
-    expect(plotPrompt).toContain(
-      "delete（kind=plot_stage）只会清空指定阶段正文"
-    );
+    expect(plotPrompt).toContain("delete（kind=plot_stage）只清空该阶段正文");
 
     const autoApprovedPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_plot_auto_approved_context",
@@ -326,7 +320,7 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(autoApprovedPrompt).toContain(
       "跨阶段操作已由用户在常规设置中授权自动允许，不会逐笔询问"
     );
-    expect(autoApprovedPrompt).toContain("变更提案仍按当前写入审批方式处理");
+    expect(autoApprovedPrompt).toContain("修改提案仍按下面的写入审批方式处理");
     expect(autoApprovedPrompt).not.toContain(
       "每笔跨阶段变更都会单独请求用户确认"
     );

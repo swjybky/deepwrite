@@ -117,7 +117,9 @@ describe("buildLibraryAgentWorkspaceContext", () => {
       overviewRevision: createShortWorkspaceContentRevision("实时库介绍草稿"),
       entries: [{ id: "entry-1", title: "甲（草稿）", content: "实时草稿" }]
     });
-    expect(result?.readableLibraries).toBeUndefined();
+    expect(result?.readableLibraries).toMatchObject([
+      { libraryId: "material-1", readOnly: false, entryCount: 1 }
+    ]);
     expect(JSON.stringify(result)).not.toContain("列大纲");
   });
 
@@ -154,7 +156,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
     ).toBeUndefined();
   });
 
-  it("includes sibling libraries from the same material group as read-only peers", () => {
+  it("includes sibling libraries from the same material group as writable peers", () => {
     const catalog = snapshot();
     catalog.materials.push({
       id: "material-plot",
@@ -210,7 +212,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
           id: "material-plot/plot-entry-1",
           title: "节奏钩子",
           content: "同分组剧情素材正文",
-          readOnly: true,
+          readOnly: false,
           sourceLibraryId: "material-plot",
           sourceLibraryTitle: "剧情素材"
         })
@@ -242,7 +244,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
     });
   });
 
-  it("includes sibling skill libraries from the same skill group as read-only peers", () => {
+  it("includes sibling skill libraries from the same skill group as writable peers", () => {
     const catalog = snapshot();
     catalog.skills.push({
       id: "skill-style",
@@ -296,7 +298,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
           id: "skill-style/style-entry-1",
           title: "去 AI 味",
           content: "同分组文风技能正文",
-          readOnly: true,
+          readOnly: false,
           sourceLibraryId: "skill-style",
           sourceLibraryTitle: "文风技能"
         })
@@ -404,4 +406,23 @@ describe("buildLibraryEntryComposerReferences", () => {
 
     expect(buildLibraryEntryComposerReferences(context)).toEqual([]);
   });
+});
+
+it("indexes ungrouped libraries without preloading their entries", () => {
+  const catalog = snapshot();
+  catalog.materials.push({
+    ...catalog.materials[0]!,
+    id: "unrelated",
+    title: "Other library"
+  });
+  const active = document();
+  const result = buildLibraryAgentWorkspaceContext(catalog, active, [active]);
+  expect(
+    result?.readableLibraries?.map((library) => library.libraryId)
+  ).toEqual(["material-1", "unrelated"]);
+  expect(result?.readableLibraries?.[1]).toMatchObject({
+    readOnly: false,
+    entryCount: 1
+  });
+  expect(result?.entries).toHaveLength(1);
 });

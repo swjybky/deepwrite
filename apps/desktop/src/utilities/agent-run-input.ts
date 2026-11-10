@@ -1,6 +1,7 @@
 import type {
   AgentPromptCommandPayload,
-  CommandResult
+  CommandResult,
+  CommandEnvelope
 } from "@deepwrite/contracts";
 import type {
   AgentRunInput,
@@ -22,6 +23,14 @@ export function createCoreCommandExecutor(
   context: UtilityCommandHandlerContext
 ): (
   command:
+    | Extract<
+        CommandEnvelope,
+        {
+          type:
+            | "catalog.readLibraryAgentLibrary"
+            | "catalog.previewLibraryStructure";
+        }
+      >
     | Parameters<LongCommandExecutor>[0]
     | Parameters<MaterialCommandExecutor>[0]
     | Parameters<LibraryManagementCommandExecutor>[0]
@@ -86,6 +95,7 @@ export function createAgentRunInput(
     ...(payload.attachments?.length
       ? { attachments: payload.attachments }
       : {}),
+    ...(payload.promptLocale ? { promptLocale: payload.promptLocale } : {}),
     ...(payload.writeApprovalMode
       ? { writeApprovalMode: payload.writeApprovalMode }
       : {}),
@@ -138,7 +148,14 @@ export function createAgentRunInput(
         }
       : {}),
     ...(payload.libraryAgentProfile
-      ? { libraryAgentProfile: payload.libraryAgentProfile }
+      ? {
+          libraryAgentProfile: payload.libraryAgentProfile,
+          ...(context
+            ? {
+                libraryAgentCommandExecutor: createCoreCommandExecutor(context)
+              }
+            : {})
+        }
       : {}),
     ...(payload.workspaceContext
       ? { workspaceContext: payload.workspaceContext }

@@ -26,6 +26,7 @@ import {
   type DraftModel,
   type ModelConfigRow
 } from "../components/modelSettingsDraft";
+import { createJevDraftModel } from "../components/jevProviderPresets";
 import type { ModelEditorSavePayload } from "./useModelEditor";
 
 const t = createScopedTranslator("workspace");
@@ -98,6 +99,8 @@ export function useModelSettingsDraft(
     maxTokens: number;
   }): void {
     const apply = (model: DraftModel): DraftModel => {
+      // Jev has a fixed judgment window; capacity overrides do not apply.
+      if (isJevModel(model)) return model;
       if (model.managedBy || model.id !== capacity.modelId) return model;
       if (model.contextWindow !== undefined && model.maxTokens !== undefined) {
         return model;
@@ -145,22 +148,25 @@ export function useModelSettingsDraft(
 
   function createModel(modelKind: ModelKind = "llm"): void {
     if (props.modelSaving) return;
-    modelEditor.value = {
-      id: createId("model"),
-      label: "",
-      provider: "deepseek",
-      modelId: "",
-      api: "openai-completions",
-      baseUrl: "https://api.deepseek.com/v1",
-      reasoning: true,
-      defaultThinkingLevel: "medium",
-      thinkingLevelOptions: [...BUILT_IN_REASONING_LEVELS],
-      temperatureOptions: [0.1, 0.7, 1],
-      hasApiKey: false,
-      apiKey: "",
-      customThinkingLevel: "",
-      ...(modelKind === "jev" ? { modelKind: "jev" as const } : {})
-    };
+    const id = createId("model");
+    modelEditor.value =
+      modelKind === "jev"
+        ? createJevDraftModel(id)
+        : {
+            id,
+            label: "",
+            provider: "deepseek",
+            modelId: "",
+            api: "openai-completions",
+            baseUrl: "https://api.deepseek.com/v1",
+            reasoning: true,
+            defaultThinkingLevel: "medium",
+            thinkingLevelOptions: [...BUILT_IN_REASONING_LEVELS],
+            temperatureOptions: [0.1, 0.7, 1],
+            hasApiKey: false,
+            apiKey: "",
+            customThinkingLevel: ""
+          };
     actions.editorOpened();
   }
 

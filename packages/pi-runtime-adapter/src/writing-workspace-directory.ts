@@ -1,3 +1,4 @@
+import type { PromptLocale } from "@deepwrite/contracts";
 import type {
   ShortWorkspaceToolSharedState,
   WritingWorkspaceSnapshot
@@ -34,20 +35,60 @@ export function currentWritingWorkspaceNavigation<
 }
 
 function renderCreativePlotStructure(
-  workspace: WritingWorkspaceSnapshot
+  workspace: WritingWorkspaceSnapshot,
+  english: boolean
 ): string {
   return workspace.plotStages
-    .map(
-      (stage, index) =>
-        `${index + 1}. ${stage.title}（${stage.id}）\n   阶段边界与交付标准：${stage.description}`
+    .map((stage, index) =>
+      english
+        ? `${index + 1}. ${stage.title} (${stage.id})\n   Scope and delivery standard: ${stage.description}`
+        : `${index + 1}. ${stage.title}（${stage.id}）\n   阶段边界与交付标准：${stage.description}`
     )
     .join("\n");
 }
 
+function renderEnglishDirectory(workspace: WritingWorkspaceSnapshot): string {
+  const structure = workspace.characterStructure;
+  return [
+    "[Work object directory]",
+    "Read objects by the stable ids in this directory; never use a name or title as an id. The directory includes objects created this turn, which does not mean their proposals are saved. After creating, renaming or deleting, call read (kind=workspace, id=workspace) to get the latest directory.",
+    "Character overview: kind=character_overview, id=character_design",
+    ...(structure.format === "list"
+      ? [
+          "Individual character cards use kind=character with ids from the character index.",
+          `Character index: ${
+            structure.items.length
+              ? structure.items
+                  .map((item) => `${item.title} (${item.id})`)
+                  .join(", ")
+              : "none"
+          }`
+        ]
+      : [
+          "Characters use the text layout: every character lives in the character overview (kind=character_overview, id=character_design)."
+        ]),
+    "",
+    "[Plot structure (listed in working order)]",
+    "Plot stages use kind=plot_stage with the ids below.",
+    renderCreativePlotStructure(workspace, true),
+    "",
+    "Manuscript directory: kind=draft, id=draft",
+    "Each section uses kind=draft_section with its id; pass document=body for the prose and document=character_state for the character state.",
+    ...(workspace.expertDraft.sections.length
+      ? workspace.expertDraft.sections.map(
+          (section, index) =>
+            `${index + 1}. ${section.title} (${section.id}); length target: ${section.wordCountRequirement || "not set"}`
+        )
+      : ["none"])
+  ].join("\n");
+}
+
 /** Metadata only: discovering an id never grants full-read edit evidence. */
 export function renderWritingWorkspaceDirectory(
-  workspace: WritingWorkspaceSnapshot
+  workspace: WritingWorkspaceSnapshot,
+  locale?: PromptLocale
 ): string {
+  if (locale === "en-US") return renderEnglishDirectory(workspace);
   const structure = workspace.characterStructure;
   return [
     "【当前作品对象目录】",
@@ -68,7 +109,7 @@ export function renderWritingWorkspaceDirectory(
     "",
     "【当前剧情结构配置（顺序即执行顺序）】",
     "剧情结构使用 kind=plot_stage 与对应 id。",
-    renderCreativePlotStructure(workspace),
+    renderCreativePlotStructure(workspace, false),
     "",
     "正文目录：kind=draft，id=draft",
     "各小节使用 kind=draft_section 与对应 id；读取正文指定 document=body，读取人物状态指定 document=character_state。",

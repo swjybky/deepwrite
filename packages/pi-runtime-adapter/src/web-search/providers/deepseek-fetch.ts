@@ -1,6 +1,6 @@
 import { WEB_SEARCH_PROVIDERS } from "@deepwrite/contracts";
 import { WebSearchProviderError, type WebFetchCapability } from "../types";
-import { failureFor, isRecord, postJson } from "./deepseek-http";
+import { failureFor, isRecord, requestJson } from "./http";
 
 /** https://api-docs.deepseek.com/zh-cn/api/fetch */
 const FETCH_PATH = "/v1/tools/fetch";
@@ -23,7 +23,7 @@ export const deepSeekWebFetch: WebFetchCapability = {
   async page(request, context) {
     if (request.url.length > WEB_SEARCH_PROVIDERS.deepseek.fetchUrlMaxChars)
       throw new WebSearchProviderError("bad_request", false);
-    const body = await postJson(FETCH_PATH, { url: request.url }, context, {
+    const body = await requestJson(FETCH_PATH, { url: request.url }, context, {
       limitBytes: RESPONSE_LIMIT_BYTES,
       statusFailure: fetchFailure
     });

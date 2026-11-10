@@ -26,7 +26,8 @@ import type { AgentToolExecutionHooks } from "./subagent-runtime";
 import { workspaceContextPolicy } from "./workspace-context-policy";
 
 export interface WorkspaceRunPlanOptions {
-  basePrompt: string;
+  /** Overrides the localized ground rules; normally omitted. */
+  basePrompt?: string;
   toolExecutionHooks: AgentToolExecutionHooks;
   retryPolicy?: AgentTurnRetryPolicyOptions;
   subagentTimeoutMs?: number;
@@ -89,7 +90,7 @@ export function planWorkspaceRun(
           libraryManagementParentPrompt(input),
           teamManagementParentPrompt(input),
           input.longAgentProfile && input.workspaceContext?.longWorkspace
-            ? buildLongRuntimeToolBoundary(tools)
+            ? buildLongRuntimeToolBoundary(tools, input.promptLocale)
             : ""
         ]
           .filter(Boolean)

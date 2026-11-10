@@ -78,7 +78,10 @@ export function isLongProposal(proposal: AgentEditProposal): boolean {
 export function proposalDiscardState(
   proposal: AgentEditProposal
 ): AgentEditProposal["discardState"] | undefined {
-  return isLongProposal(proposal) ? undefined : proposal.discardState;
+  return isLongProposal(proposal) &&
+    !proposal.discardSnapshot?.longRestorePointId
+    ? undefined
+    : proposal.discardState;
 }
 
 export function proposalStatusLabel(view: AgentEditProposalView): string {
@@ -192,6 +195,8 @@ export function proposalReviewDisabled(
 }
 
 function pendingTargetMessage(proposal: AgentEditProposal): string | undefined {
+  if (proposal.libraryStructureTarget)
+    return t("acceptToApplyLibraryOrganization");
   if (proposal.libraryTarget) {
     return proposal.libraryTarget.operation === "create"
       ? t("acceptToCreateTheLibraryEntryAndSaveIt")

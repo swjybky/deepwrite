@@ -1,16 +1,16 @@
 import {
-  DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
   DRAW_JEV_SCORE_CRITERIA,
   DRAW_JEV_SCORE_QUESTION_ID,
   buildDrawJevScoreInstructions,
   buildDrawJevScoreQuestion,
+  JEV_STATE_CHAR_BUDGET,
+  JEV_STATE_TASK_CHAR_BUDGET,
   resolveDrawEvaluationMethod,
   type AgentProviderRuntimeConfig
 } from "@deepwrite/contracts";
 import { scoreWithJevSystemOne } from "./jev-systemone-client";
 import {
   DRAW_EVALUATOR_NAME,
-  drawCandidateCharBudget,
   type DrawCandidate,
   type DrawEvaluation,
   type DrawEvaluatorContext
@@ -114,21 +114,29 @@ function resolveJevRuntimeConfig(
   return config;
 }
 
-function candidateState(
-  task: string,
-  candidate: DrawCandidate,
-  perCandidateChars: number
-): string {
-  const truncated = candidate.summary.length > perCandidateChars;
-  const body = truncated
-    ? `${candidate.summary.slice(0, perCandidateChars)}…`
-    : candidate.summary;
+function clip(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+/**
+ * Builds one scoring state that stays under Jev's per-question limit
+ * (state + question ≤ 32k tokens). The task is capped first so a long brief
+ * cannot crowd out the candidate being judged.
+ */
+export function candidateState(task: string, candidate: DrawCandidate): string {
+  const taskText = clip(task, JEV_STATE_TASK_CHAR_BUDGET);
+  const header = `【候选 ${candidate.number}${candidate.variant ? `｜侧重：${candidate.variant}` : ""}】`;
+  const budget = Math.max(
+    1,
+    JEV_STATE_CHAR_BUDGET - taskText.length - header.length - 64
+  );
+  const truncated = candidate.summary.length > budget;
   return [
     "【原任务】",
-    task,
+    taskText,
     "",
-    `【候选 ${candidate.number}${candidate.variant ? `｜侧重：${candidate.variant}` : ""}】${truncated ? `（已截断，原文共 ${candidate.summary.length} 字）` : ""}`,
-    body
+    `${header}${truncated ? `（已截断，原文共 ${candidate.summary.length} 字）` : ""}`,
+    clip(candidate.summary, budget)
   ].join("\n");
 }
 
@@ -194,15 +202,6 @@ export async function runDrawJevEvaluator(
     return { status: "failed", reason };
   }
 
-  const perCandidateChars = drawCandidateCharBudget(
-    {
-      contextWindow:
-        config.contextWindow ??
-        input.model.contextWindow ??
-        DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW
-    },
-    candidates.length
-  );
   const instructions = buildDrawJevScoreInstructions(evaluator.prompt);
   const question = buildDrawJevScoreQuestion(instructions);
   const scores: DrawJevCandidateScore[] = [];
@@ -231,7 +230,7 @@ export async function runDrawJevEvaluator(
         ...(signal ? { signal } : {}),
         request: {
           model: config.modelId,
-          state: candidateState(request.task, candidate, perCandidateChars),
+          state: candidateState(request.task, candidate),
           questions: {
             [DRAW_JEV_SCORE_QUESTION_ID]: question
           }

@@ -53,6 +53,9 @@ export function createUnusedLongApi(): DeepWriteApi["long"] {
     applyOperations: vi.fn(async () => {
       throw new Error("Long workspace is not used by conversation tests.");
     }),
+    restoreOperations: vi.fn(async () => {
+      throw new Error("Long workspace is not used by conversation tests.");
+    }),
     writeChapter: vi.fn(async () => {
       throw new Error("Long workspace is not used by conversation tests.");
     }),

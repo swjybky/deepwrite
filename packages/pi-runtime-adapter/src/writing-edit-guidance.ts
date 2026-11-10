@@ -1,6 +1,9 @@
 export const WRITING_DRAFT_SECTION_RENAME_GUIDANCE =
   '只改小节或剧集名称时，使用 edit({"kind":"draft_section","id":"<稳定小节 id>","meta":{"title":"新标题"}})。id 必须来自作品目录或工具返回值；无需 document，也不要传 content 或 replacements。';
 
+export const WRITING_DRAFT_SECTION_RENAME_GUIDANCE_EN =
+  'To rename a section or episode only, call edit({"kind":"draft_section","id":"<stable section id>","meta":{"title":"New title"}}). The id must come from the work directory or a tool result; no document is needed, and do not pass content or replacements.';
+
 export const WRITING_EDIT_CONTENT_GUIDANCE =
   "按修改范围选择参数：空白目标直接用 content 写入；用户明确要求对目标全文进行“内容重制”“整篇重写”或“重新生成”时，先用 read 完整读取目标，再在同一次 edit 调用中传入 content=重制后的完整正文、allow_overwrite_existing=true；建议提供 summary，省略时系统生成改动说明。content 会替换目标全文，不能只传改动段落；content 传入空字符串表示清空目标正文，保留对象，清空非空正文同样需要完整读取和覆盖开关。局部润色、修订或部分段落重写使用 replacements，original_text 必须是完整读取后唯一匹配的原文，new_text 是该片段的新文本。";
 

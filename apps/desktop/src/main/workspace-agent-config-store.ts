@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import { join } from "node:path";
 import {
   ScriptWorkspaceAgentSettingsInputSchema,
@@ -85,12 +86,14 @@ export class WorkspaceAgentConfigStore {
     workspaceType: WorkspaceType = "short"
   ): Promise<WorkspaceAgentSettings> {
     await this.writeChain;
-    if (workspaceType === "script") {
-      const input = await this.readScriptInput();
-      return toPublicScriptWorkspaceAgentSettings(input);
-    }
-    const input = await this.readInput();
-    return toPublicShortWorkspaceAgentSettings(input);
+    return withConfigurationLock(this.shortSettingsPath, async () => {
+      if (workspaceType === "script") {
+        const input = await this.readScriptInput();
+        return toPublicScriptWorkspaceAgentSettings(input);
+      }
+      const input = await this.readInput();
+      return toPublicShortWorkspaceAgentSettings(input);
+    });
   }
 
   async save(
@@ -107,23 +110,56 @@ export class WorkspaceAgentConfigStore {
   ): Promise<WorkspaceAgentSettings> {
     const input = WorkspaceAgentSettingsInputSchema.parse(rawInput);
     let saved: WorkspaceAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      if (input.workspaceType === "script") {
-        const baseline = input.baseAgents;
-        const normalized: ScriptWorkspaceAgentSettingsInput = {
-          workspaceType: "script",
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.shortSettingsPath, async () => {
+        if (input.workspaceType === "script") {
+          const baseline = input.baseAgents;
+          const normalized: ScriptWorkspaceAgentSettingsInput = {
+            workspaceType: "script",
+            agents: input.agents.map((agent) => ({
+              ...agent,
+              welcomeShortcuts: cloneScriptWelcomeShortcuts(
+                agent.welcomeShortcuts
+              ),
+              readAccess: cloneScriptReadAccess(agent.readAccess)
+            }))
+          };
+          const current = baseline ? await this.readScriptInput() : normalized;
+          const next = baseline
+            ? {
+                workspaceType: "script" as const,
+                agents: mergeSettingsById(
+                  current.agents,
+                  normalized.agents,
+                  baseline,
+                  (agent) => agent.id
+                )
+              }
+            : normalized;
+          await this.writeScriptInput(next);
+          saved = toPublicScriptWorkspaceAgentSettings(next);
+          return;
+        }
+        const normalized: ShortWorkspaceAgentSettingsInput = {
+          workspaceType: "short",
+          defaultPlotStageIds: [...input.defaultPlotStageIds],
           agents: input.agents.map((agent) => ({
             ...agent,
-            welcomeShortcuts: cloneScriptWelcomeShortcuts(
-              agent.welcomeShortcuts
-            ),
-            readAccess: cloneScriptReadAccess(agent.readAccess)
+            welcomeShortcuts: cloneWelcomeShortcuts(agent.welcomeShortcuts),
+            readAccess: cloneReadAccess(agent.readAccess)
           }))
         };
-        const current = baseline ? await this.readScriptInput() : normalized;
+        const baseline = input.baseAgents;
+        const current = baseline ? await this.readInput() : normalized;
         const next = baseline
           ? {
-              workspaceType: "script" as const,
+              workspaceType: "short" as const,
+              defaultPlotStageIds: sameSettingsValue(
+                normalized.defaultPlotStageIds,
+                input.baseDefaultPlotStageIds
+              )
+                ? current.defaultPlotStageIds
+                : normalized.defaultPlotStageIds,
               agents: mergeSettingsById(
                 current.agents,
                 normalized.agents,
@@ -132,41 +168,10 @@ export class WorkspaceAgentConfigStore {
               )
             }
           : normalized;
-        await this.writeScriptInput(next);
-        saved = toPublicScriptWorkspaceAgentSettings(next);
-        return;
-      }
-      const normalized: ShortWorkspaceAgentSettingsInput = {
-        workspaceType: "short",
-        defaultPlotStageIds: [...input.defaultPlotStageIds],
-        agents: input.agents.map((agent) => ({
-          ...agent,
-          welcomeShortcuts: cloneWelcomeShortcuts(agent.welcomeShortcuts),
-          readAccess: cloneReadAccess(agent.readAccess)
-        }))
-      };
-      const baseline = input.baseAgents;
-      const current = baseline ? await this.readInput() : normalized;
-      const next = baseline
-        ? {
-            workspaceType: "short" as const,
-            defaultPlotStageIds: sameSettingsValue(
-              normalized.defaultPlotStageIds,
-              input.baseDefaultPlotStageIds
-            )
-              ? current.defaultPlotStageIds
-              : normalized.defaultPlotStageIds,
-            agents: mergeSettingsById(
-              current.agents,
-              normalized.agents,
-              baseline,
-              (agent) => agent.id
-            )
-          }
-        : normalized;
-      await this.writeInput(next);
-      saved = toPublicShortWorkspaceAgentSettings(next);
-    });
+        await this.writeInput(next);
+        saved = toPublicShortWorkspaceAgentSettings(next);
+      })
+    );
     this.writeChain = operation.then(
       () => undefined,
       () => undefined
@@ -202,24 +207,49 @@ export class WorkspaceAgentConfigStore {
         ? rawAgentId
         : workspaceTypeOrAgentId;
     let saved: WorkspaceAgentSettings | undefined;
-    const operation = this.writeChain.then(async () => {
-      if (workspaceType === "script") {
-        const scriptAgentId = agentId as ScriptWorkspaceAgentId | undefined;
-        const next = scriptAgentId
-          ? await this.readScriptInput()
-          : scriptDefaultsAsInput();
-        if (scriptAgentId) {
-          const builtin = defaultScriptProfile(scriptAgentId);
+    const operation = this.writeChain.then(() =>
+      withConfigurationLock(this.shortSettingsPath, async () => {
+        if (workspaceType === "script") {
+          const scriptAgentId = agentId as ScriptWorkspaceAgentId | undefined;
+          const next = scriptAgentId
+            ? await this.readScriptInput()
+            : scriptDefaultsAsInput();
+          if (scriptAgentId) {
+            const builtin = defaultScriptProfile(scriptAgentId);
+            const index = next.agents.findIndex(
+              (agent) => agent.id === scriptAgentId
+            );
+            const replacement = {
+              id: builtin.id,
+              systemPrompt: builtin.systemPrompt,
+              welcomeShortcuts: cloneScriptWelcomeShortcuts(
+                builtin.welcomeShortcuts
+              ),
+              readAccess: cloneScriptReadAccess(builtin.readAccess)
+            };
+            if (index >= 0) {
+              next.agents[index] = replacement;
+            } else {
+              next.agents.push(replacement);
+            }
+          }
+          const validated = ScriptWorkspaceAgentSettingsInputSchema.parse(next);
+          await this.writeScriptInput(validated);
+          saved = toPublicScriptWorkspaceAgentSettings(validated);
+          return;
+        }
+        const shortAgentId = agentId as ShortWorkspaceAgentId | undefined;
+        const next = shortAgentId ? await this.readInput() : defaultsAsInput();
+        if (shortAgentId) {
+          const builtin = defaultProfile(shortAgentId);
           const index = next.agents.findIndex(
-            (agent) => agent.id === scriptAgentId
+            (agent) => agent.id === shortAgentId
           );
           const replacement = {
             id: builtin.id,
             systemPrompt: builtin.systemPrompt,
-            welcomeShortcuts: cloneScriptWelcomeShortcuts(
-              builtin.welcomeShortcuts
-            ),
-            readAccess: cloneScriptReadAccess(builtin.readAccess)
+            welcomeShortcuts: cloneWelcomeShortcuts(builtin.welcomeShortcuts),
+            readAccess: cloneReadAccess(builtin.readAccess)
           };
           if (index >= 0) {
             next.agents[index] = replacement;
@@ -227,34 +257,11 @@ export class WorkspaceAgentConfigStore {
             next.agents.push(replacement);
           }
         }
-        const validated = ScriptWorkspaceAgentSettingsInputSchema.parse(next);
-        await this.writeScriptInput(validated);
-        saved = toPublicScriptWorkspaceAgentSettings(validated);
-        return;
-      }
-      const shortAgentId = agentId as ShortWorkspaceAgentId | undefined;
-      const next = shortAgentId ? await this.readInput() : defaultsAsInput();
-      if (shortAgentId) {
-        const builtin = defaultProfile(shortAgentId);
-        const index = next.agents.findIndex(
-          (agent) => agent.id === shortAgentId
-        );
-        const replacement = {
-          id: builtin.id,
-          systemPrompt: builtin.systemPrompt,
-          welcomeShortcuts: cloneWelcomeShortcuts(builtin.welcomeShortcuts),
-          readAccess: cloneReadAccess(builtin.readAccess)
-        };
-        if (index >= 0) {
-          next.agents[index] = replacement;
-        } else {
-          next.agents.push(replacement);
-        }
-      }
-      const validated = ShortWorkspaceAgentSettingsInputSchema.parse(next);
-      await this.writeInput(validated);
-      saved = toPublicShortWorkspaceAgentSettings(validated);
-    });
+        const validated = ShortWorkspaceAgentSettingsInputSchema.parse(next);
+        await this.writeInput(validated);
+        saved = toPublicShortWorkspaceAgentSettings(validated);
+      })
+    );
     this.writeChain = operation.then(
       () => undefined,
       () => undefined

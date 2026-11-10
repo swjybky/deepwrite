@@ -1,7 +1,14 @@
 export default {
+  organizeEntries: "整理条目",
+  chooseDestination: "选择目标位置",
+
+  unboundDestination: "暂不放入库",
+  destinationLibrary: "所属库",
+
   material: "素材",
   skill: "技能",
   newValueLibrary: "新建{arg0}库",
+  newEntry: "新建条目",
   newEntryInValue: "在“{arg0}”中新建条目",
   library: "资料库",
   renameValueLibrary: "修改{arg0}库名称",
@@ -9,7 +16,7 @@ export default {
   deleteValue: "删除“{arg0}”",
   entry: "条目",
   characterMaterialLibrary: "人设素材库",
-  ideaMaterialLibrary: "梗素材库",
+  ideaMaterialLibrary: "梗与灵感素材库",
   plotMaterialLibrary: "剧情素材库",
   manuscriptMaterialLibrary: "正文素材库",
   otherMaterialLibrary: "其他素材库",
@@ -17,7 +24,7 @@ export default {
   plotDesignSkillLibrary: "剧情设计技能库",
   writingStyleSkillLibrary: "文风写作技能库",
   otherSkillLibrary: "其他技能库",
-  idea: "梗",
+  idea: "梗与灵感",
   characterConcept: "人设",
   plotDesign: "剧情设计",
   introductionDesign: "导语设计",
@@ -43,15 +50,15 @@ export default {
   theFolderContainsDeepwriteJsonWithEntriesInEntries:
     "文件夹中会保存 deepwrite.json，正文条目位于 entries/*.md；可由 Finder、Git 或文本编辑器直接管理。",
   newEntriesAreImmediatelyCreatedAsMarkdownFilesIn:
-    "新条目会立即创建为 entries 目录中的 Markdown 文件，之后可在编辑器或外部工具中继续编写。",
+    "创建后可继续编辑，条目可供所有作品使用。",
   theNewNameIsSavedImmediatelyToTheLocal: "新名称会立即保存到本地资料库项目。",
   valueLibraryName: "{arg0}库名称",
   entryName: "条目名称",
   contentStage: "内容阶段",
-  thisDeletesTheCorrespondingMarkdownFile: "这会删除对应的 Markdown 文件",
+  thisDeletesTheCorrespondingMarkdownFile: "删除条目及其正文文件",
   willBeDeletedFrom: "”将从“",
   andFromDiskIncludingUnsavedChangesReopeningTheLibrary:
-    "”及磁盘中删除，未保存修改也会丢失；此操作不能通过重新打开资料库恢复。",
+    "”及磁盘中删除，包括未保存的修改，无法恢复。",
   cancel: "取消",
   processing: "处理中…",
   createValueLibrary: "创建{arg0}库",
@@ -62,5 +69,5 @@ export default {
   libraryNameMessage: "{arg0}库名称",
   libraryCategoryMessage: "{arg0}库分类",
   willBeDeletedFromAndFromDiskMessage:
-    "“{arg0}”将从“{arg1}”及磁盘中删除，未保存修改也会丢失；此操作不能通过重新打开资料库恢复。"
+    "“{arg0}”将从“{arg1}”及磁盘中删除，包括未保存的修改，无法恢复。"
 };

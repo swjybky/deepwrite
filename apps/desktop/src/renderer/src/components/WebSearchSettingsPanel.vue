@@ -23,7 +23,9 @@ const providerOptions = computed(() =>
 const keyPlaceholder = computed(() =>
   c.profile.value?.hasApiKey && !draft.clearKey
     ? t("keyPlaceholderSaved")
-    : t("keyPlaceholderEmpty")
+    : c.descriptor.value.requiresApiKey === false
+      ? t("optionalKey")
+      : t("keyPlaceholderEmpty")
 );
 const keyNote = computed(() =>
   draft.clearKey ? t("keyNotSaved") : c.keySourceText.value
@@ -73,6 +75,29 @@ onMounted(() => void c.load());
           "
         />
       </div>
+
+      <label class="settings-item web-search-key-row" for="web-search-base-url">
+        <span class="settings-item-text">
+          <strong>{{ t("baseUrl") }}</strong>
+          <small>{{
+            t(
+              c.descriptor.value.requiresApiKey === false
+                ? "selfHostedHint"
+                : "baseUrlHint"
+            )
+          }}</small>
+        </span>
+        <input
+          id="web-search-base-url"
+          v-model="draft.baseUrl"
+          class="voice-input web-search-key-input"
+          type="url"
+          :placeholder="c.descriptor.value.defaultBaseUrl"
+          :disabled="!loaded"
+          @change="c.save()"
+          @keydown.enter="c.save()"
+        />
+      </label>
 
       <div class="settings-item web-search-key-row">
         <div class="web-search-key-heading">

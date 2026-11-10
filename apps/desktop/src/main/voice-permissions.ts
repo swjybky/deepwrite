@@ -1,4 +1,4 @@
-import { systemPreferences, type BrowserWindow } from "electron";
+import { app, systemPreferences, type BrowserWindow } from "electron";
 
 /** Only the local application's top-level frame may request audio capture. */
 export function isTrustedVoiceFrame(
@@ -56,6 +56,12 @@ export function installVoicePermissions(window: BrowserWindow): void {
 }
 
 export async function requestVoiceMicrophoneAccess(): Promise<boolean> {
+  // Smoke capture uses Chromium's synthetic device and must not request host audio.
+  if (
+    process.env.DEEPWRITE_SMOKE === "1" &&
+    app.commandLine.hasSwitch("use-fake-device-for-media-stream")
+  )
+    return true;
   if (process.platform !== "darwin") return true;
   const state = systemPreferences.getMediaAccessStatus("microphone");
   if (state === "granted") return true;

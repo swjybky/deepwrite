@@ -1,4 +1,6 @@
 export default {
+  acceptToApplyLibraryOrganization:
+    "Accept to apply the organization plan above. Removed libraries keep their files; deleted entries can be restored.",
   awaitingReview: "Awaiting review",
   applying: "Applying",
   accepted: "Accepted",
@@ -62,7 +64,7 @@ export default {
     "Accept to validate structural impact and save the plot design.",
   acceptToSaveTheCurrentChapterManuscriptToIts:
     "Accept to save the current chapter manuscript to its own Markdown file.",
-  goToTargetFile: "Go to target file",
+  goToTargetFile: "Go to file",
   skillLibrary: "Skill library",
   materialLibrary: "Material library",
   valueLinesAddedValueLinesRemoved:

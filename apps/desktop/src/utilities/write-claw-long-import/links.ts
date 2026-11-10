@@ -69,7 +69,7 @@ export function normalizeLegacyMaterialLinks(
   const source = record(book?.linked_material_ids_by_kind);
   const result: LinkedMaterialIdsByKind = {
     character: legacyLinkIds(source.character, warnings, "人设素材库绑定"),
-    gimmick: legacyLinkIds(source.gimmick, warnings, "梗素材库绑定"),
+    gimmick: legacyLinkIds(source.gimmick, warnings, "梗与灵感素材库绑定"),
     plot: legacyLinkIds(source.plot, warnings, "剧情素材库绑定"),
     draft: legacyLinkIds(source.draft, warnings, "正文素材库绑定"),
     other: legacyLinkIds(source.other, warnings, "其他素材库绑定")

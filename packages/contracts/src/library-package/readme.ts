@@ -1,5 +1,4 @@
 import {
-  LIBRARY_TYPE_NAMES,
   MATERIAL_KIND_NAMES,
   SKILL_KIND_NAMES,
   type LibraryPackageLocale
@@ -114,8 +113,6 @@ export function renderLibraryReadme(
 ): string {
   const text = TEXT[context.locale];
   const format = (value: number) => value.toLocaleString(context.locale);
-  const libraryType =
-    "materialType" in library ? library.materialType : library.skillType;
   const genres =
     "parentGenre" in library
       ? [library.parentGenre, library.subGenre].filter((genre) => genre.trim())
@@ -123,7 +120,7 @@ export function renderLibraryReadme(
   const lines = [
     `# ${library.title}`,
     "",
-    `- ${text.type}：${libraryKindName(library, context.locale)} · ${LIBRARY_TYPE_NAMES[libraryType][context.locale]}`,
+    `- ${text.type}：${libraryKindName(library, context.locale)}`,
     ...(genres.length ? [`- ${text.genre}：${genres.join(" / ")}`] : []),
     `- ${text.entries}：${text.count(format(entries.length))}`,
     exportedLine(context),

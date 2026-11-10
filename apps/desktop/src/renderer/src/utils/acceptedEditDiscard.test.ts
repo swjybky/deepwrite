@@ -120,19 +120,35 @@ describe("accepted edit discard eligibility", () => {
     ).toBe(false);
   });
 
-  it("never enables discard for any accepted long-form proposal", () => {
+  it("enables discard for a long-form proposal only with a restore point", () => {
+    const longProposal = {
+      ...acceptedTextProposal(),
+      stageId: "long-plot-design" as const,
+      workspaceId: "long:book-1",
+      longPlotDesignTarget: {
+        bookId: "book-1",
+        batch: {
+          updatedAt: "2026-08-25T00:00:00.000Z",
+          operations: [
+            { type: "worldbuilding.delete" as const, id: "world_rules" }
+          ],
+          documentWrites: []
+        }
+      }
+    };
+    expect(agentProposalSupportsDiscard(longProposal)).toBe(false);
+    const restorable = {
+      ...longProposal,
+      discardSnapshot: { longRestorePointId: "restore_abc12345" }
+    };
+    expect(agentProposalSupportsDiscard(restorable)).toBe(true);
     expect(
       agentProposalSupportsDiscard({
-        ...acceptedTextProposal(),
-        stageId: "long-plot-design",
-        workspaceId: "long:book-1",
-        longPlotDesignTarget: {
-          bookId: "book-1",
-          batch: {
-            updatedAt: "2026-08-25T00:00:00.000Z",
-            operations: [{ type: "worldbuilding.delete", id: "world_rules" }],
-            documentWrites: []
-          }
+        ...restorable,
+        discardState: {
+          status: "discarded",
+          message: "已撤销",
+          updatedAt: "2026-08-25T00:00:02.000Z"
         }
       })
     ).toBe(false);

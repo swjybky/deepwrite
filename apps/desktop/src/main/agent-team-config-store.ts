@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "./configuration-lock";
 import {
   BuiltinSubagentSettingsSchema,
   type BuiltinSubagentSettings
@@ -141,9 +142,11 @@ export class AgentTeamConfigStore {
     operation: () => Promise<Result>
   ): Promise<Result> {
     let result: Result | undefined;
-    const pending = this.writeChain.then(async () => {
-      result = await operation();
-    });
+    const pending = this.writeChain.then(() =>
+      withConfigurationLock(this.settingsPath, async () => {
+        result = await operation();
+      })
+    );
     this.writeChain = pending.then(
       () => undefined,
       () => undefined

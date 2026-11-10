@@ -390,9 +390,17 @@ describe("library agent tools", () => {
         {
           libraryId: "material-library-1",
           title: "雾港素材",
-          kind: "character"
+          kind: "character",
+          readOnly: false,
+          entryCount: 1
         },
-        { libraryId: "material-plot", title: "剧情素材", kind: "plot" }
+        {
+          libraryId: "material-plot",
+          title: "剧情素材",
+          kind: "plot",
+          readOnly: true,
+          entryCount: 1
+        }
       ],
       entries: [
         {
@@ -491,10 +499,24 @@ describe("library agent tools", () => {
         {
           libraryId: "material-library-1",
           title: "雾港素材",
-          kind: "character"
+          kind: "character",
+          readOnly: false,
+          entryCount: 1
         },
-        { libraryId: "material-plot", title: "剧情素材", kind: "plot" },
-        { libraryId: "material-gimmick", title: "梗素材", kind: "gimmick" }
+        {
+          libraryId: "material-plot",
+          title: "剧情素材",
+          kind: "plot",
+          readOnly: true,
+          entryCount: 1
+        },
+        {
+          libraryId: "material-gimmick",
+          title: "梗素材",
+          kind: "gimmick",
+          readOnly: true,
+          entryCount: 1
+        }
       ],
       entries: [
         {

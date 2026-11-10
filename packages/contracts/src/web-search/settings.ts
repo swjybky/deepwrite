@@ -3,6 +3,7 @@ import {
   DEFAULT_WEB_SEARCH_PROVIDER_ID,
   WEB_SEARCH_PROVIDERS,
   WEB_SEARCH_PROVIDER_IDS,
+  webSearchProvider,
   WebSearchProviderIdSchema
 } from "./providers";
 
@@ -28,14 +29,40 @@ export const WebSearchKeySourceSchema = z.discriminatedUnion("kind", [
 export type WebSearchKeySource = z.infer<typeof WebSearchKeySourceSchema>;
 
 /** Tunable, non-secret parameters of each provider. */
-const DeepSeekParamsShape = {
-  providerId: z.literal("deepseek"),
-  maxResults: z
-    .number()
-    .int()
-    .min(1)
-    .max(WEB_SEARCH_PROVIDERS.deepseek.maxResultsCap)
-};
+export const WebSearchBaseUrlSchema = z
+  .string()
+  .trim()
+  .max(2_000)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === "https:" ||
+          (url.protocol === "http:" &&
+            ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash
+      );
+    } catch {
+      return false;
+    }
+  }, "接口地址需为 HTTPS 地址（本机可用 HTTP），不能包含账号、查询参数或片段。");
+
+function paramsShape<Id extends (typeof WEB_SEARCH_PROVIDER_IDS)[number]>(
+  id: Id
+) {
+  return {
+    providerId: z.literal(id),
+    baseUrl: WebSearchBaseUrlSchema.optional(),
+    maxResults: z
+      .number()
+      .int()
+      .min(1)
+      .max(WEB_SEARCH_PROVIDERS[id].maxResultsCap)
+  };
+}
 
 /**
  * Profiles that cross the process boundary are strict, so a response or input
@@ -45,7 +72,17 @@ const DeepSeekParamsShape = {
  */
 function profileSchema<Extra extends z.ZodRawShape>(extra: Extra) {
   return z.discriminatedUnion("providerId", [
-    z.strictObject({ ...DeepSeekParamsShape, ...extra })
+    z.strictObject({ ...paramsShape("deepseek"), ...extra }),
+    z.strictObject({ ...paramsShape("tavily"), ...extra }),
+    z.strictObject({ ...paramsShape("exa"), ...extra }),
+    z.strictObject({ ...paramsShape("brave"), ...extra }),
+    z.strictObject({ ...paramsShape("serper"), ...extra }),
+    z.strictObject({ ...paramsShape("serpapi"), ...extra }),
+    z.strictObject({ ...paramsShape("searchapi"), ...extra }),
+    z.strictObject({ ...paramsShape("bocha"), ...extra }),
+    z.strictObject({ ...paramsShape("zhipu"), ...extra }),
+    z.strictObject({ ...paramsShape("search1api"), ...extra }),
+    z.strictObject({ ...paramsShape("searxng"), ...extra })
   ]);
 }
 
@@ -60,7 +97,47 @@ export type WebSearchProfileParams = z.infer<
  */
 export const WebSearchStoredProfileSchema = z.discriminatedUnion("providerId", [
   z.object({
-    ...DeepSeekParamsShape,
+    ...paramsShape("deepseek"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("tavily"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("exa"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("brave"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("serper"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("serpapi"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("searchapi"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("bocha"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("zhipu"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("search1api"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("searxng"),
     keySource: WebSearchKeySourceSchema.optional()
   })
 ]);
@@ -125,8 +202,8 @@ export const WebSearchSettingsSchema = z
 export type WebSearchSettings = z.infer<typeof WebSearchSettingsSchema>;
 
 /**
- * Whether a run can be given search: it is on and the active provider has a
- * key. Main resolves the same condition, so a session switch is only offered
+ * Whether a run can be given search: it is on and the active provider has an
+ * endpoint and any required key. Main resolves the same condition, so a session switch is only offered
  * while it could take effect.
  */
 export function isWebSearchUsable(
@@ -136,7 +213,13 @@ export function isWebSearchUsable(
     settings.enabled &&
     settings.profiles.some(
       (profile) =>
-        profile.providerId === settings.activeProviderId && profile.hasApiKey
+        profile.providerId === settings.activeProviderId &&
+        Boolean(
+          profile.baseUrl ||
+          webSearchProvider(profile.providerId).defaultBaseUrl
+        ) &&
+        (profile.hasApiKey ||
+          webSearchProvider(profile.providerId).requiresApiKey === false)
     )
   );
 }
@@ -168,13 +251,20 @@ export const DEFAULT_WEB_SEARCH_STORED_SETTINGS: WebSearchStoredSettings = {
  * What Main hands the Agent Utility for one run. Runtime only: it carries the
  * key, so it is never saved and never sent to the Renderer.
  */
-export const WebSearchRuntimeConfigSchema = z.object({
-  providerId: WebSearchProviderIdSchema,
-  baseUrl: z.url().max(2_000),
-  apiKey: z.string().min(1).max(WEB_SEARCH_API_KEY_MAX_LENGTH),
-  maxResults: z.number().int().min(1).max(WEB_SEARCH_RUNTIME_MAX_RESULTS),
-  perRunCallLimit: PerRunCallLimitSchema
-});
+export const WebSearchRuntimeConfigSchema = z
+  .object({
+    providerId: WebSearchProviderIdSchema,
+    baseUrl: z.url().max(2_000),
+    apiKey: z.string().max(WEB_SEARCH_API_KEY_MAX_LENGTH),
+    maxResults: z.number().int().min(1).max(WEB_SEARCH_RUNTIME_MAX_RESULTS),
+    perRunCallLimit: PerRunCallLimitSchema
+  })
+  .refine(
+    (config) =>
+      config.apiKey.length > 0 ||
+      webSearchProvider(config.providerId).requiresApiKey === false,
+    { path: ["apiKey"], message: "搜索服务需要 API Key。" }
+  );
 export type WebSearchRuntimeConfig = z.infer<
   typeof WebSearchRuntimeConfigSchema
 >;

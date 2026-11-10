@@ -446,16 +446,6 @@ export async function moveLibraryEntry(
     ) {
       throw new Error("内置技能库为只读内容，不能移入条目。");
     }
-    if (
-      (sourceManifest.kind === "deepwrite.material-library" &&
-        targetManifest.kind === "deepwrite.material-library" &&
-        sourceManifest.materialType !== targetManifest.materialType) ||
-      (sourceManifest.kind === "deepwrite.skill-library" &&
-        targetManifest.kind === "deepwrite.skill-library" &&
-        sourceManifest.skillType !== targetManifest.skillType)
-    ) {
-      throw new Error("不同创作类型的资料库条目不能直接移动。");
-    }
     let targetStageId: MaterialStageId | undefined;
     if (
       sourceManifest.kind === "deepwrite.material-library" &&

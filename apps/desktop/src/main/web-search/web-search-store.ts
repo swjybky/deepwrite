@@ -1,3 +1,4 @@
+import { withConfigurationLock } from "../configuration-lock";
 import { join } from "node:path";
 import {
   DEFAULT_WEB_SEARCH_STORED_SETTINGS,
@@ -134,14 +135,16 @@ export class WebSearchStore {
   update(
     mutate: (state: StoredWebSearch) => StoredWebSearch
   ): Promise<StoredWebSearch> {
-    const result = this.chain.then(async () => {
-      const next = parseState({
-        version: 1,
-        ...mutate(await this.load())
-      });
-      await writeWebSearchJson(this.path, { version: 1, ...next });
-      return next;
-    });
+    const result = this.chain.then(() =>
+      withConfigurationLock(this.path, async () => {
+        const next = parseState({
+          version: 1,
+          ...mutate(await this.load())
+        });
+        await writeWebSearchJson(this.path, { version: 1, ...next });
+        return next;
+      })
+    );
     this.chain = result.then(
       () => undefined,
       () => undefined

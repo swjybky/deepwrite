@@ -10,6 +10,7 @@ import {
   shortWorkspace
 } from "../../../../../packages/pi-runtime-adapter/src/short-agent-tools.test-support";
 import type { IpcCommandContext } from "./command-types";
+import { setNativeLanguage } from "../native-i18n";
 import { handleSessionCommands } from "./session-commands";
 
 describe("session user-input commands", () => {
@@ -280,6 +281,23 @@ function teamFixture(
 }
 
 describe("session prompt web search", () => {
+  it("tells the Agent which language the system prompt should use", async () => {
+    try {
+      for (const [language, system, expected] of [
+        ["en-US", "zh-CN", "en-US"],
+        ["auto", "zh-Hans-CN", "zh-CN"],
+        ["auto", "en-GB", "en-US"]
+      ] as const) {
+        setNativeLanguage(language, system);
+        const { ctx, prompt, internalPayload } = promptFixture(undefined);
+        await handleSessionCommands(ctx, prompt());
+        expect(internalPayload().promptLocale).toBe(expected);
+      }
+    } finally {
+      setNativeLanguage("zh-CN", "zh-CN");
+    }
+  });
+
   it("hands the settings Main resolved to the Agent when the user switched search on", async () => {
     const { ctx, prompt, internalPayload } = promptFixture(
       async () => searchSettings
@@ -354,5 +372,53 @@ describe("session prompt web search", () => {
     expect(JSON.stringify(internalPayload())).not.toContain(
       "invalid-forged-key"
     );
+  });
+});
+
+it("reserves all writable domain libraries for a library-agent run", async () => {
+  const { materialWorkspace, profile } =
+    await import("../../../../../packages/pi-runtime-adapter/src/library-agent-tools/test-fixtures");
+  const { ctx, prompt } = promptFixture(undefined, {
+    requireLibraryAgentConfigStore: () => ({
+      resolve: async () => profile("material")
+    })
+  });
+  const workspace = materialWorkspace({
+    readableLibraries: [
+      {
+        libraryId: "material-library-1",
+        title: "Focus",
+        kind: "plot",
+        readOnly: false,
+        entryCount: 2
+      },
+      {
+        libraryId: "other",
+        title: "Other",
+        kind: "mixed",
+        readOnly: false,
+        entryCount: 0
+      },
+      {
+        libraryId: "readonly",
+        title: "Read only",
+        kind: "other",
+        readOnly: true,
+        entryCount: 0
+      }
+    ]
+  });
+  const result = await handleSessionCommands(
+    ctx,
+    prompt({ workspaceContext: { libraryWorkspace: workspace } })
+  );
+  expect(result?.status).toBe("accepted");
+  expect([...ctx.activeRuns.values()][0]).toMatchObject({
+    libraryAgentScope: { domain: "material" },
+    externalResourceIds: [
+      "library-domain:material",
+      "material-library-1",
+      "other"
+    ]
   });
 });

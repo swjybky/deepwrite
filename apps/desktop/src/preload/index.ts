@@ -1,3 +1,9 @@
+import {
+  reorderLibrary,
+  createUnboundEntry,
+  previewLibraryStructure,
+  applyLibraryStructure
+} from "./library-organization-api";
 import { bookTemplates, createBookFromTemplate } from "./book-templates-api";
 import { externalControl } from "./external-control-api";
 import { desktopEvents } from "./desktop-events-api";
@@ -1046,6 +1052,10 @@ const api: DeepWriteApi = {
   cloudBackup,
   bookTemplates,
   catalog: {
+    previewLibraryStructure,
+    applyLibraryStructure,
+    createUnboundEntry,
+    reorderLibrary,
     createBookFromTemplate,
     index: getCatalogIndex,
     readDocument: readCatalogDocument,

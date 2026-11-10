@@ -1,5 +1,6 @@
 import {
   LongApplyOperationsResultSchema,
+  LongRestoreOperationsResultSchema,
   LongApplyLegacySyncResultSchema,
   LongCommitChapterResultSchema,
   LongDeleteLedgerCommitResultSchema,
@@ -225,6 +226,15 @@ export async function handleLongCoreCommand(
       requestId: command.id,
       payload: LongApplyOperationsResultSchema.parse(
         await service.applyOperations(command.payload)
+      )
+    };
+  }
+  if (command.type === "long.restoreOperations") {
+    return {
+      status: "accepted",
+      requestId: command.id,
+      payload: LongRestoreOperationsResultSchema.parse(
+        await service.restoreOperations(command.payload)
       )
     };
   }
