@@ -189,7 +189,6 @@ export async function readRegularFileOptionalWithIdentity(
       }
       throw error;
     }
-    assertContained(projectRoot, canonical);
     let pathInfo: BigIntStats;
     try {
       pathInfo = await lstat(path, { bigint: true });
@@ -207,6 +206,9 @@ export async function readRegularFileOptionalWithIdentity(
       if (options.pathRaceAsMissing) return undefined;
       throw new Error("项目事务目标在读取期间发生替换。");
     }
+    // A concurrently deleted Windows file can resolve to a deletion path.
+    // Check that the original directory entry still owns this handle first.
+    assertContained(projectRoot, canonical);
     const bytes = await handle.readFile();
     const after = await handle.stat({ bigint: true });
     const changedDuringRead =
