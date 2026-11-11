@@ -1,3 +1,4 @@
+import { traceSubagentStream } from "./subagent-call-trace";
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { Type, type Api, type Model, type Static } from "@earendil-works/pi-ai";
 import {
@@ -218,7 +219,11 @@ export async function runDrawEvaluator(
         messages: [],
         tools
       },
-      streamFn: withoutProviderRetries(resolved.streamFn),
+      streamFn: traceSubagentStream(
+        withoutProviderRetries(resolved.streamFn),
+        (activity) =>
+          emitProgress({ ...base, type: "activity", activity }, "模型调用记录")
+      ),
       sessionId: `${input.parentSessionId}:${base.subagentRunId}`,
       toolExecution: "sequential"
     });

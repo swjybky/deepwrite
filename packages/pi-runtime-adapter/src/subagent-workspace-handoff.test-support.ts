@@ -102,7 +102,9 @@ export function directoryId(
 ): string {
   const line = directory?.split("\n").find((item) => item.includes(title));
   const suffix = line?.slice(line.indexOf(title) + title.length).trim();
-  const match = /^[（(]([^）)]+)[）)]/u.exec(suffix ?? "");
+  const match = /^[（(](?:kind=plot_stage[，,]\s*id=)?([^）)]+)[）)]/u.exec(
+    suffix ?? ""
+  );
   if (!match) throw new Error(`Directory does not contain ${title}`);
   return match[1]!;
 }

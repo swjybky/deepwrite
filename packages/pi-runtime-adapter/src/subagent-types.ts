@@ -48,6 +48,10 @@ export interface AgentToolExecutionHooks {
 }
 
 export type SubagentProjectedActivity =
+  | Extract<
+      import("@deepwrite/contracts").SubagentActivity,
+      { type: "model_call" }
+    >
   | ({ type: "turn_started" } & AgentTurnAttempt)
   | ({ type: "retry_scheduled" } & AgentTurnRetrySchedule)
   | { type: "thinking_delta"; delta: string }

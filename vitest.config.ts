@@ -70,6 +70,7 @@ const diskIntegrationTests = [
   "apps/desktop/src/main/smoke-model-config.test.ts",
   "apps/desktop/src/main/software-token-usage-reporter.test.ts",
   "apps/desktop/src/main/startup-log.test.ts",
+  "apps/desktop/src/main/subagent-call-journal.test.ts",
   "apps/desktop/src/main/storage-bootstrap.test.ts",
   "apps/desktop/src/main/storage-settings-service.test.ts",
   "apps/desktop/src/main/voice/voice-persistence.test.ts",

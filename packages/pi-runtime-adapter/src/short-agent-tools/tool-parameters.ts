@@ -36,7 +36,10 @@ export const writingEditKindParameter = literalUnion(WRITING_TARGET_KINDS, {
   description:
     "目标对象类型，建议显式提供。小节或剧集改名使用 draft_section。仅编辑小节正文/人物状态，或用 meta.title 修改已知小节名称时可省略；其他对象必须指定。"
 });
-export const writingReadKindParameter = literalUnion(WRITING_READ_KINDS);
+export const writingReadKindParameter = literalUnion(WRITING_READ_KINDS, {
+  description:
+    "目标对象类型，必须与目录中该 id 的类型一致，不按标题或正文内容猜测。character_overview 仅配 id=character_design；character 配人物条目 id；plot_stage 配剧情结构 id（如 plot_stage-…），即使阶段标题涉及人物也仍用 plot_stage；draft_section 配正文小节 id；draft 仅配 id=draft；workspace 仅配 id=workspace。"
+});
 export const writingCreateKindParameter = literalUnion(WRITING_CREATE_KINDS, {
   description:
     "character 仅在人物为条目样式时使用，为单个人物创建独立条目；文本样式禁止使用 character，应把所有人物写入 character_overview。plot_stage 新建全局剧情结构。draft_section 新建正文小节或剧集。"

@@ -140,7 +140,7 @@ export function buildShortUnifiedReadTool(
     name: "read",
     label: `读取${workspaceKindLabel(input)}对象`,
     description:
-      "按稳定业务 id 一次读全人物概览、人物条目、剧情结构或正文小节，没有分页和预览模式。kind=workspace、id=workspace 获取实时人物、剧情结构和正文小节目录，包含本轮新建对象；不知道目标 id 时先读此目录，不要用人名或标题代替 id。kind=draft_section 必须同时给出 document=body 或 character_state。kind=draft、id=draft 读取正文目录及各小节的正文、人物状态字数；再设置 include_all_sections=true 可一次返回全部小节及合计字数，不传 document 时默认 body。全部正文超过五万字时会给出分步精读建议，但仍完整返回。修改任何已有正文前必须先 read 完整读取。" +
+      "按稳定业务 id 一次读全人物概览、人物条目、剧情结构或正文小节，没有分页和预览模式。kind 与 id 必须按目录配对：人物概览用 kind=character_overview、id=character_design；剧情结构用 kind=plot_stage 与该阶段 id，不能把 plot_stage-… 与 character_overview 混用。kind=workspace、id=workspace 获取实时人物、剧情结构和正文小节目录，包含本轮新建对象；不知道目标 id 时先读此目录，不要用人名或标题代替 id。kind=draft_section 必须同时给出 document=body 或 character_state。kind=draft、id=draft 读取正文目录及各小节的正文、人物状态字数；再设置 include_all_sections=true 可一次返回全部小节及合计字数，不传 document 时默认 body。全部正文超过五万字时会给出分步精读建议，但仍完整返回。修改任何已有正文前必须先 read 完整读取。" +
       WRITING_READ_CONTENT_COUNT_DESCRIPTION,
     parameters: Type.Object(
       {

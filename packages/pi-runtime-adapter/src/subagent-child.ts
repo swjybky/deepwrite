@@ -1,3 +1,4 @@
+import { traceSubagentStream } from "./subagent-call-trace";
 import { randomBytes } from "node:crypto";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import {
@@ -261,7 +262,11 @@ export async function runSubagentTask(
         // same parent-run mutation/revision overlay.
         tools: childTools
       },
-      streamFn: withoutProviderRetries(childStreamFn),
+      streamFn: traceSubagentStream(
+        withoutProviderRetries(childStreamFn),
+        (activity) =>
+          emitProgress({ ...base, type: "activity", activity }, "模型调用记录")
+      ),
       sessionId: `${input.parentSessionId}:${base.subagentRunId}`,
       toolExecution: "sequential",
       ...input.toolExecutionHooks

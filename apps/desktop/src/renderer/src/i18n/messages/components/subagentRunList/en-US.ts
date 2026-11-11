@@ -1,4 +1,20 @@
 export default {
+  exportModelCalls: "Export call records",
+  interrupted: "Interrupted; outcome unknown",
+  modelCalls: "Model calls",
+  modelCallEvidence:
+    "Actual client requests; upstream response model and underlying weights are unknown.",
+  requestModel: "Requested model",
+  callStatus: "Status",
+  callStarted: "Started",
+  callDuration: "Duration",
+  callIdentity: "Local call ID",
+  unknown: "Unknown",
+  running: "Running",
+  completed: "Completed",
+  error: "Failed",
+  aborted: "Cancelled",
+
   subagentRuns: "Subagent runs",
   subtaskSummary: "Subtask summary",
   tools: " tools",

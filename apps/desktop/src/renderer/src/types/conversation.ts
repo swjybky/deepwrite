@@ -309,6 +309,10 @@ export type AgentSubagentProcessingStep =
  * the child run from the conversation card and from restored display history.
  */
 export interface AgentSubagentRun {
+  modelCalls?: Extract<
+    import("@deepwrite/contracts").SubagentActivity,
+    { type: "model_call" }
+  >["call"][];
   parentToolCallId: string;
   subagentRunId: string;
   subagentId: string;

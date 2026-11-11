@@ -39,11 +39,38 @@ export class ConversationRuntimeRecovery {
           .all() as (MessageRow & { scope_key: string; session_id: string })[];
         const sessions = new Map<string, Set<string>>();
         for (const row of rows) {
-          const ref = this.nodes.patch(this.records.ref(row), {
+          let ref = this.nodes.patch(this.records.ref(row), {
             op: "set",
             path: ["status"],
             value: "stopped"
           });
+          const children = this.nodes.get(ref, ["subagentRuns"]);
+          if (children) {
+            const runs = this.nodes.read(children);
+            if (Array.isArray(runs)) {
+              for (const run of runs) {
+                if (!run || typeof run !== "object" || Array.isArray(run))
+                  continue;
+                if (Array.isArray(run.modelCalls)) {
+                  for (const call of run.modelCalls) {
+                    if (
+                      call &&
+                      typeof call === "object" &&
+                      !Array.isArray(call) &&
+                      call.status === "running"
+                    ) {
+                      call.status = "interrupted";
+                    }
+                  }
+                }
+              }
+              ref = this.nodes.patch(ref, {
+                op: "set",
+                path: ["subagentRuns"],
+                value: runs
+              });
+            }
+          }
           this.records.save(
             row.scope_key,
             row.session_id,

@@ -1,3 +1,4 @@
+import { appendSubagentCallJournal } from "./subagent-call-journal";
 import {
   LibraryOrganizationSchema,
   CreateUnboundEntryResultSchema,
@@ -544,6 +545,19 @@ function handleUtilityEvent(
   const validated = SystemEventEnvelopeSchema.parse(
     event
   ) as SystemEventEnvelope;
+  if (
+    validated.type === "subagent.activity" &&
+    validated.payload.activity.type === "model_call"
+  ) {
+    try {
+      appendSubagentCallJournal(
+        join(configurationPath, "diagnostics"),
+        validated
+      );
+    } catch (error) {
+      console.error("DeepWrite model call journal write failed:", error);
+    }
+  }
   if (validated.type === "agent.user_input_requested")
     teamPromptReviews.receive(validated.payload);
   if (validated.type === "decomposition.job_settled") {

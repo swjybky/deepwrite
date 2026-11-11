@@ -41,8 +41,8 @@ function renderCreativePlotStructure(
   return workspace.plotStages
     .map((stage, index) =>
       english
-        ? `${index + 1}. ${stage.title} (${stage.id})\n   Scope and delivery standard: ${stage.description}`
-        : `${index + 1}. ${stage.title}（${stage.id}）\n   阶段边界与交付标准：${stage.description}`
+        ? `${index + 1}. ${stage.title} (kind=plot_stage, id=${stage.id})\n   Scope and delivery standard: ${stage.description}`
+        : `${index + 1}. ${stage.title}（kind=plot_stage，id=${stage.id}）\n   阶段边界与交付标准：${stage.description}`
     )
     .join("\n");
 }

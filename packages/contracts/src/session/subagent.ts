@@ -78,7 +78,21 @@ export const SubagentEventBaseSchema = z.object({
 });
 export type SubagentEventBase = z.infer<typeof SubagentEventBaseSchema>;
 
+export const ModelCallTraceSchema = z.object({
+  requestId: z.string(),
+  sequence: z.number().int().positive(),
+  requestedProvider: z.string(),
+  requestedModel: z.string(),
+  responseModel: z.null(),
+  responseModelEvidence: z.literal("unknown"),
+  startedAt: z.string(),
+  endedAt: z.string().optional(),
+  durationMs: z.number().nonnegative().optional(),
+  status: z.enum(["running", "completed", "error", "aborted", "interrupted"])
+});
+
 export const SubagentActivitySchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("model_call"), call: ModelCallTraceSchema }),
   AgentTurnStartedFieldsSchema.extend({
     type: z.literal("turn_started")
   }).superRefine(validateTurnAttempt),

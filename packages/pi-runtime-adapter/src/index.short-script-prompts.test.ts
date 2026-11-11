@@ -50,7 +50,9 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(scriptSystemPrompt).toContain(
       "【当前剧情结构配置（顺序即执行顺序）】"
     );
-    expect(scriptSystemPrompt).toContain("叙事视角（narrative_perspective）");
+    expect(scriptSystemPrompt).toContain(
+      "叙事视角（kind=plot_stage，id=narrative_perspective）"
+    );
     expect(scriptSystemPrompt).toContain("阶段边界与交付标准：确定叙事人称");
     expect(scriptSystemPrompt).toContain(
       "delete（kind=draft_section）删除整个剧集"

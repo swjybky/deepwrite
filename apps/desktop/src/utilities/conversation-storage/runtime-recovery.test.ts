@@ -29,6 +29,9 @@ it("recovers only on a new Main instance and fences both writes and restarting r
             content: "已落盘的流式正文",
             status: "streaming",
             future: { retained: true },
+            subagentRuns: [
+              { modelCalls: [{ requestId: "call", status: "running" }] }
+            ],
             editProposals: [
               {
                 id: "proposal",
@@ -65,6 +68,9 @@ it("recovers only on a new Main instance and fences both writes and restarting r
       content: "已落盘的流式正文",
       status: "stopped",
       future: { retained: true },
+      subagentRuns: [
+        { modelCalls: [{ requestId: "call", status: "interrupted" }] }
+      ],
       editProposals: [
         {
           id: "proposal",

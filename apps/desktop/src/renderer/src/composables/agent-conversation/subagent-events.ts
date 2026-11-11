@@ -57,6 +57,15 @@ export function handleSubagentEvent(
   }
   if (event.type === "subagent.activity") {
     const activity = event.payload.activity;
+    if (activity.type === "model_call") {
+      const calls = (run.modelCalls ??= []);
+      const index = calls.findIndex(
+        (call) => call.requestId === activity.call.requestId
+      );
+      if (index < 0) calls.push(activity.call);
+      else if (!calls[index]?.endedAt) calls[index] = activity.call;
+      return;
+    }
     if (activity.type === "turn_started") {
       if (run.status === "running") {
         ctx.handleSubagentTurnStarted(event, run, activity);

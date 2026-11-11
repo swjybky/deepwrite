@@ -13,3 +13,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# Local-only release presentation and cover skill.
+/.agents/skills/deepwrite-release-media/
+/.codex/skills/deepwrite-release-media

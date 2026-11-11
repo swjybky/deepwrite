@@ -59,7 +59,9 @@ describe("writing workspace directory reads", () => {
     });
     const renamed = await directory();
     expect(renamed).toContain("交接后的新人物名 (character-lin)");
-    expect(renamed).toContain("交接后的剧情（plot_design）");
+    expect(renamed).toContain(
+      "交接后的剧情（kind=plot_stage，id=plot_design）"
+    );
     expect(renamed).toContain("新的交付标准。");
     expect(renamed).toContain("交接后的正文 (section-1)");
     expect(renamed.indexOf("苏遥")).toBeLessThan(
