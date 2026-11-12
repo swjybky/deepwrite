@@ -2,18 +2,22 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.8.0",
-  "title": "DeepWrite 1.8.0",
-  "publishedAt": "2026-11-04T20:21:08+08:00",
+  "version": "1.8.3",
+  "title": "DeepWrite 1.8.3",
+  "publishedAt": "2026-11-12T10:03:43+08:00",
   "releaseNotes": [
-    "新增外部智能体 MCP 控制，可读取和管理作品、资料库并运行内置智能体，支持不同作品并发运行及可恢复删除。",
-    "支持为作品单独绑定智能体团队，并改进团队选择与运行错误提示。",
-    "新增意见反馈入口，支持截图、图片附件和反馈记录。",
-    "云备份改由 DeepwriteApi 中转，客户端不再携带 OSS 凭据。",
-    "改进通知设置、账号交互和外观设置，修复版本号比较与 Linux 模型密钥存储。"
+    "改进资料库整理、未绑定条目和领域管理。",
+    "长篇已接受的修改可以建立恢复点，并改进修改提案处理。",
+    "团队生效提示词需经过差异审阅，并带有一次性确认和冲突检查。",
+    "区分 LLM 与 JEV 自定义模型，抽卡评估可以按 JEV 评分。",
+    "更新模型刷新、联网搜索提供方和本地化智能体提示词。",
+    "开发环境与安装版可以安全共享配置，并记住启动窗口大小。",
+    "加载团队时忽略已退役的预设成员。",
+    "活动跳转保持居中，运行中的智能体列表超出时可滚动。",
+    "修复 Windows 上事务锁被并发删除时的写入失败。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.0",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.3",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
