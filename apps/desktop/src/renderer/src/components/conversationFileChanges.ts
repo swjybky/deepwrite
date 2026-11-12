@@ -152,6 +152,16 @@ function editRow(key: string, writes: ApprovalCardItem[]): FileChangeRow {
     0
   );
   const hasStats = !structure || additions + deletions > 0;
+  const latestState = editRowState(proposal, latest.remoteDevice);
+  const states = edits.map(({ proposal: write, remoteDevice }) =>
+    editRowState(write, remoteDevice)
+  );
+  // A later auto-approved write may wait on an earlier manual review. Keep
+  // unresolved work visible instead of letting the latest generation hide it.
+  const state =
+    states.find(({ status }) => status === "action") ??
+    states.find(({ status }) => status === "progress") ??
+    latestState;
   return {
     key,
     kind: structure ? "structure" : "text",
@@ -160,7 +170,8 @@ function editRow(key: string, writes: ApprovalCardItem[]): FileChangeRow {
     ...(hasStats ? { additions, deletions } : {}),
     creates: edits.some(({ proposal: write }) => editCreates(write)),
     deletes: editDeletes(proposal),
-    ...editRowState(proposal, latest.remoteDevice)
+    ...state,
+    danger: states.some(({ danger }) => danger)
   };
 }
 

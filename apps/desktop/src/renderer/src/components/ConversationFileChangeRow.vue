@@ -8,7 +8,8 @@ import type { FileChangeRow } from "./conversationFileChanges";
 import type { ApprovalCardItem } from "./conversationToolPresentation";
 import {
   proposalStatusLabel,
-  proposalVisualStatus
+  proposalVisualStatus,
+  showProposalReviewActions
 } from "./agentEditProposalPresentation";
 import {
   contentProposalVisualStatus,
@@ -249,7 +250,16 @@ function locate(): void {
               <span class="is-deletion">−{{ write.proposal.deletions }}</span>
             </span>
           </header>
-          <AgentEditProposalDiff :proposal="write.proposal" inline />
+          <AgentEditProposalCard
+            v-if="showProposalReviewActions(editView(write))"
+            variant="row"
+            :proposal="write.proposal"
+            :message-status="messageStatus"
+            :allow-live-edit-review="allowLiveEditReview"
+            :remote-device="write.remoteDevice"
+            @review="emit('reviewEdit', $event)"
+          />
+          <AgentEditProposalDiff v-else :proposal="write.proposal" inline />
         </section>
       </ConversationDetails>
     </div>
