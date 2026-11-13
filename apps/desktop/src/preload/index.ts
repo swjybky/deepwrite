@@ -1,3 +1,4 @@
+import { bookImages } from "./book-images-api";
 import {
   reorderLibrary,
   createUnboundEntry,
@@ -14,6 +15,7 @@ import { bookIdentity } from "./book-identity-api";
 import { longMaterialPack } from "./long-material-pack-api";
 import { libraryPackage } from "./library-package-api";
 import { storageSettings } from "./storage-settings-api";
+import { versions } from "./document-versions-api";
 import { textContextMenu } from "./text-context-menu-api";
 import { analysisApis } from "./analysis-apis";
 import { conversationExport } from "./conversation-export-api";
@@ -1008,9 +1010,11 @@ const api: DeepWriteApi = {
   imageModels,
   webSearch,
   bookIdentity,
+  bookImages,
   longMaterialPack,
   libraryPackage,
   storageSettings,
+  versions,
   voice,
   textContextMenu,
   system: {

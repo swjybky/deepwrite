@@ -98,6 +98,7 @@ export async function collectProjectFiles(
         continue;
       }
       const fullPath = join(directory, entry.name);
+      if (fullPath === join(root, ".deepwrite", "versions")) continue;
       let info;
       try {
         info = await lstat(fullPath);

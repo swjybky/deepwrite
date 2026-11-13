@@ -29,7 +29,8 @@ describe("renderer native menu coordination", () => {
         password: false,
         hasText: true,
         hasSelection: true,
-        canInsertReference: false
+        canInsertReference: false,
+        canInsertImage: false
       },
       valid
     });
@@ -150,5 +151,35 @@ describe("renderer native menu coordination", () => {
     send("menu_input", { phase: "prepare" });
     documentEvents.dispatchEvent(new Event("input"));
     expect(reply.mock.lastCall![0].payload.phase).toBe("cancel");
+  });
+  it("merges image insertion with the existing selection-reference action", () => {
+    const event = contextEvent();
+    const insert = vi.fn();
+    const insertImage = vi.fn();
+    registerTextMenuExtension(event, { valid: () => true, insert });
+    registerTextMenuExtension(event, { valid: () => true, insertImage });
+    send("menu_image", { phase: "prepare" });
+    expect(reply.mock.lastCall![0].payload.context).toMatchObject({
+      canInsertReference: true,
+      canInsertImage: true
+    });
+    send("menu_image", { phase: "action", action: "insertImage" });
+    expect(insertImage).toHaveBeenCalledOnce();
+    expect(insert).not.toHaveBeenCalled();
+    expect(reply.mock.lastCall![0].payload).toMatchObject({
+      allowed: true,
+      handled: true
+    });
+  });
+  it("recaptures an unselected readonly preview when it has an image extension", () => {
+    vi.mocked(captureTextMenuTarget).mockReturnValueOnce(undefined);
+    const event = contextEvent();
+    registerTextMenuExtension(event, {
+      valid: () => true,
+      insertImage: vi.fn()
+    });
+    send("menu_preview", { phase: "prepare" });
+    expect(captureTextMenuTarget).toHaveBeenLastCalledWith(event, true);
+    expect(reply.mock.lastCall![0].payload.context.canInsertImage).toBe(true);
   });
 });

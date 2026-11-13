@@ -31,7 +31,7 @@ function proposal(patch: Partial<AgentEditProposal> = {}): AgentEditProposal {
 
 async function render(
   value: AgentEditProposal,
-  messageStatus: "streaming" | "completed" = "completed"
+  messageStatus: "streaming" | "completed" | "stopped" | "error" = "completed"
 ): Promise<string> {
   const app = createSSRApp({
     render: () =>
@@ -51,6 +51,27 @@ const staleBase = {
 };
 
 describe("AgentEditProposalCard after the user edited its target", () => {
+  it.each(["completed", "stopped", "error"] as const)(
+    "offers review actions for an automatic proposal left pending after a %s run",
+    async (messageStatus) => {
+      const html = await render(
+        proposal({ approvalMode: "auto-approve" }),
+        messageStatus
+      );
+      expect(html).toContain("接受并保存");
+      expect(html).toContain("拒绝");
+    }
+  );
+
+  it("keeps review actions hidden while an ordinary automatic save is running", async () => {
+    const html = await render(
+      proposal({ approvalMode: "auto-approve" }),
+      "streaming"
+    );
+    expect(html).not.toContain("接受并保存");
+    expect(html).not.toContain(">拒绝<");
+  });
+
   it("asks to keep the user's version or overwrite it, even mid-run", async () => {
     const html = await render(proposal({ staleBase }), "streaming");
     expect(html).toContain("你修改过");

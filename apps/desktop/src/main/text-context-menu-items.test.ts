@@ -25,7 +25,8 @@ const context: TextContextMenuContext = {
   password: false,
   hasSelection: true,
   hasText: true,
-  canInsertReference: false
+  canInsertReference: false,
+  canInsertImage: false
 };
 const build = (
   overrides: Partial<TextContextMenuContext> = {},
@@ -34,6 +35,24 @@ const build = (
   buildTextMenuItems(params, { ...context, ...overrides }, clipboard, "darwin");
 
 describe("native text menu policy", () => {
+  it("offers the image insertion submenu only for registered non-password targets", () => {
+    const items = build({
+      kind: "readonly",
+      hasSelection: false,
+      canInsertImage: true
+    });
+    expect(items.at(-2)?.type).toBe("separator");
+    expect(items.at(-1)?.submenu).toEqual([
+      { action: "insertImage", label: "图片…", enabled: true }
+    ]);
+    expect(build().some((item) => item.submenu)).toBe(false);
+    expect(
+      build({ canInsertImage: true, password: true }).some(
+        (item) => item.submenu
+      )
+    ).toBe(false);
+    expect(build({ kind: "none", canInsertImage: true })).toEqual([]);
+  });
   it("groups editing actions in the expected order", () => {
     expect(build().map((item) => item.action ?? item.type)).toEqual([
       "undo",
@@ -66,16 +85,24 @@ describe("native text menu policy", () => {
   });
   it("adds reference insertion to selected content, but not empty or password fields", () => {
     expect(
-      build({ kind: "selection", canInsertReference: true }).map(
-        (item) => item.action ?? item.type
-      )
+      build({
+        kind: "selection",
+        canInsertReference: true,
+        canInsertImage: false
+      }).map((item) => item.action ?? item.type)
     ).toEqual(["insertReference", "separator", "copy"]);
     expect(
-      build({ canInsertReference: true, hasSelection: false }).some(
-        (item) => item.action === "insertReference"
-      )
+      build({
+        canInsertReference: true,
+        canInsertImage: false,
+        hasSelection: false
+      }).some((item) => item.action === "insertReference")
     ).toBe(false);
-    const passwordItems = build({ password: true, canInsertReference: true });
+    const passwordItems = build({
+      password: true,
+      canInsertReference: true,
+      canInsertImage: false
+    });
     expect(passwordItems.find((item) => item.action === "copy")?.enabled).toBe(
       false
     );
@@ -99,7 +126,8 @@ describe("native text menu policy", () => {
     expect(build({ kind: "none" })).toEqual([]);
     expect(fallbackTextContext(params)).toMatchObject({
       kind: "editable",
-      canInsertReference: false
+      canInsertReference: false,
+      canInsertImage: false
     });
     expect(fallbackTextContext({ ...params, isEditable: false })).toMatchObject(
       { kind: "none" }

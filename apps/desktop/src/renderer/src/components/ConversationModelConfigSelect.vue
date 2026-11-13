@@ -36,6 +36,7 @@ const props = defineProps<{
   webSearchEnabled: boolean;
   webSearchAvailable: boolean;
   webSearchDisabledReason: string;
+  hidesWebSearch?: boolean;
   responding: boolean;
 }>();
 
@@ -301,7 +302,7 @@ onBeforeUnmount(() => {
       <span class="conversation-model-config-icons">
         <AppIcon name="model" :size="14" />
         <AppIcon
-          v-if="webSearchEnabled"
+          v-if="webSearchEnabled && !hidesWebSearch"
           class="conversation-model-config-network-indicator"
           name="globe"
           :size="11"
@@ -392,6 +393,7 @@ onBeforeUnmount(() => {
                 <AppIcon name="chevron" :size="16" />
               </button>
               <button
+                v-if="!hidesWebSearch"
                 class="conversation-model-config-network"
                 type="button"
                 :disabled="responding || !webSearchAvailable"

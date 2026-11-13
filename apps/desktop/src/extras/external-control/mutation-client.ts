@@ -12,6 +12,7 @@ import type {
   ExternalWindowRequest
 } from "@deepwrite/contracts/external-control";
 import { randomUUID } from "node:crypto";
+import { hasActiveResourceRun } from "../../main/active-resource-runs";
 import type { CoreRequest } from "./core-client";
 import { ExternalControlError } from "./errors";
 import type { TrashStore } from "./trash-store";
@@ -41,13 +42,13 @@ export function assertNoActiveRun(
   context: MutationContext,
   resourceIds?: readonly string[]
 ): void {
-  const active = context.activeResourceIds?.();
-  const conflicts =
-    resourceIds === undefined ||
-    !active ||
-    active.has("*") ||
-    resourceIds.some((id) => active.has(id));
-  if (context.activeRunCount() > 0 && conflicts) {
+  if (
+    hasActiveResourceRun(
+      context.activeRunCount(),
+      context.activeResourceIds?.(),
+      resourceIds
+    )
+  ) {
     throw new ExternalControlError(
       "external.busy",
       "目标资源或全局配置正被智能体使用，暂时不能修改。请等对应运行结束后重试。"

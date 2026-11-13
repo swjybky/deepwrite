@@ -33,35 +33,19 @@
 .chat-assistant-toolbar-spacer {
   flex: 1;
 }
-.chat-assistant-placeholder-action,
-.chat-assistant-web-search {
+.chat-assistant-placeholder-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
   height: 34px;
-  padding: 0 10px;
-  gap: 5px;
+  padding: 0;
   color: var(--text-secondary);
   background: transparent;
   border: 0;
   border-radius: 10px;
-  font: inherit;
-  white-space: nowrap;
 }
-.chat-assistant-placeholder-action {
-  width: 34px;
-  padding: 0;
-}
-.chat-assistant-web-search:not(:disabled):hover {
-  color: var(--text-primary);
-  background: var(--surface-hover);
-}
-.chat-assistant-web-search.is-active {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.chat-assistant-placeholder-action:disabled,
-.chat-assistant-web-search:disabled {
+.chat-assistant-placeholder-action:disabled {
   opacity: 0.42;
 }
 .chat-assistant-send {

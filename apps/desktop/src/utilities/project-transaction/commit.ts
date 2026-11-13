@@ -28,25 +28,35 @@ import { withProjectTransactionLock } from "./lock";
 import { recoverProjectTransactionLocked } from "./recovery";
 
 export async function commitProjectTransaction(
-  rawInput: CommitProjectTransactionInput
+  rawInput: CommitProjectTransactionInput,
+  afterCommit?: (
+    before: ReadonlyMap<string, Buffer | undefined>
+  ) => Promise<void>
 ): Promise<ProjectTransactionResult> {
   const projectRoot = await secureProjectRoot(rawInput.projectRoot);
   const maxFileBytes = positiveByteLimit(rawInput.maxFileBytes);
   const operations = validateOperations(rawInput.operations, maxFileBytes);
   return await withProjectTransactionLock(projectRoot, async () => {
     await recoverProjectTransactionLocked(projectRoot, maxFileBytes, false);
-    return await commitProjectTransactionLocked(
+    const before = afterCommit
+      ? new Map<string, Buffer | undefined>()
+      : undefined;
+    const result = await commitProjectTransactionLocked(
       projectRoot,
       operations,
-      maxFileBytes
+      maxFileBytes,
+      before
     );
+    if (afterCommit) await afterCommit(before!);
+    return result;
   });
 }
 
 export async function commitProjectTransactionLocked(
   projectRoot: string,
   operations: readonly ProjectTransactionFileOperation[],
-  maxFileBytes: number
+  maxFileBytes: number,
+  beforeContents?: Map<string, Buffer | undefined>
 ): Promise<ProjectTransactionResult> {
   const transactionId = `txn-${Date.now()}-${randomHex8()}`;
   const transactionRoot = join(
@@ -72,6 +82,7 @@ export async function commitProjectTransactionLocked(
         target,
         maxFileBytes
       );
+      beforeContents?.set(operation.path, existing?.bytes);
       if (existing?.identity) {
         const firstPath = firstPathByIdentity.get(existing.identity);
         if (firstPath) {

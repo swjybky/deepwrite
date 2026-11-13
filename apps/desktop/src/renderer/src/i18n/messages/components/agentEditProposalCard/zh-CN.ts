@@ -78,5 +78,11 @@ export default {
   staleLongMessage:
     "智能体读取后这份内容已被修改。覆盖会用智能体版本替换当前内容；保留则放弃这条修改。",
   keepMine: "保留我的",
+  edit: "修改",
+  cancelEdit: "取消",
+  saveEdited: "保存修改",
+  editHint: "改好后保存，作品按你的版本写入。",
+  editProposalText: "修改《{title}》",
+  acceptedWithEdits: "已按你的修改保存",
   overwriteWithAgentVersion: "用智能体版本覆盖"
 };

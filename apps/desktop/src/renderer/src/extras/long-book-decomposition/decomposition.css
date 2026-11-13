@@ -113,45 +113,6 @@
   color: var(--accent);
 }
 
-/* Reuse selector beside the auto-continue switch */
-.decomposition-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
-  gap: 12px;
-}
-.decomposition-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  box-sizing: border-box;
-  padding: 9px 12px;
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 10px;
-  background: var(--surface-muted);
-  cursor: pointer;
-}
-.decomposition-check input {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  margin: 2px 0 0;
-}
-.decomposition-check > span {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-.decomposition-check strong {
-  font-size: 0.857143rem;
-  font-weight: 550;
-}
-.decomposition-check small {
-  color: var(--text-tertiary);
-  font-size: 0.785714rem;
-  line-height: 1.5;
-}
-
 /* Estimate panel, styled like the analysis preset summary */
 .decomposition-estimate {
   display: grid;
@@ -200,9 +161,6 @@
   /* The run bar stacks, so the hint's flex-basis would become a height. */
   .long-book-decomposition-page .analysis-run-bar > .decomposition-run-hint {
     flex: none;
-  }
-  .decomposition-options {
-    grid-template-columns: minmax(0, 1fr);
   }
   .decomposition-taskbar-field {
     flex-basis: 100%;

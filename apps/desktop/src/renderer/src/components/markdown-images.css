@@ -1,0 +1,31 @@
+.markdown-content .markdown-image {
+  margin: 1em 0;
+  text-align: center;
+  text-indent: 0;
+}
+
+.markdown-content .markdown-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.markdown-content .markdown-image.is-missing {
+  display: grid;
+  align-content: center;
+  height: 8rem;
+  padding: 12px;
+  overflow: auto;
+  border: 1px dashed var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-tertiary);
+  font-size: 0.857143rem;
+  overflow-wrap: anywhere;
+}
+
+.markdown-content .markdown-image:not(.is-loaded) {
+  min-height: 8rem;
+}

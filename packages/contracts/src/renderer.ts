@@ -65,6 +65,10 @@ export {
   decompositionInputBudget
 } from "./long-book-decomposition/chunking";
 export { estimateDecomposition } from "./long-book-decomposition/estimate";
+export {
+  DECOMPOSITION_DEFAULT_CONCURRENCY,
+  DECOMPOSITION_MAX_CONCURRENCY
+} from "./long-book-decomposition/limits";
 export { DecompositionCommandRecoverySchema } from "./long-book-decomposition/commands";
 export {
   decompositionUsageLimit,
@@ -447,7 +451,9 @@ export {
 export { LongMutationProposalEventEnvelopeSchema } from "./session/envelopes";
 export {
   SUBAGENT_DRAW_QUESTION_ID,
-  SUBAGENT_DRAW_REJECT_OPTION_ID
+  SUBAGENT_DRAW_REJECT_OPTION_ID,
+  WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH,
+  WRITE_APPROVAL_QUESTION_ID
 } from "./session/user-input";
 export { SESSION_STEER_MAX_PER_RUN } from "./session/steering";
 export {
@@ -573,3 +579,7 @@ export { ExtrasAgentTaskSchema } from "./extras-agent/tasks";
 export * from "./library-organization";
 
 export * from "./library-structure";
+
+export type * from "./document-versions";
+
+export * from "./book-images";

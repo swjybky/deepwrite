@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./proposal-coordinator/version-origin";
 import {
   stageLibraryStructureProposal as stageLibraryStructure,
   acceptLibraryStructureProposal
@@ -83,6 +84,7 @@ import {
   staleRevisionAfterConflict,
   staleTextProposalPatch
 } from "./proposal-coordinator/stale-base";
+import { editedProposalPatch } from "../utils/agentProposalEdit";
 import {
   holdStaleLongProposal as holdStaleLongProposalForUser,
   isLongDocumentChanged,
@@ -301,6 +303,8 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     runId: string;
     proposalId: string;
     decision: "accept" | "reject";
+    /** Accept the user's rewrite of the proposed text instead. */
+    editedText?: string;
   }
 
   const plotStructureProposalLane = createPlotStructureProposalLane({
@@ -936,6 +940,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         target.initialContent?.trim()
       ) {
         await saveCreatedCharacterContent(currentApi.catalog, {
+          versionOrigin: conversationVersionOrigin(
+            conversation,
+            proposal.runId,
+            proposal.summary
+          ),
           bookId: proposal.workspaceId,
           itemId: createdItemId!,
           currentContent:
@@ -2644,6 +2653,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         );
       }
       await saveCreatedDraftSectionContents(currentApi.catalog, {
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: proposal.workspaceId,
         requested: target.sections,
         created: created.sections
@@ -3322,6 +3336,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         return;
       }
       const result = await api.applyOperations({
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: target.bookId,
         captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
@@ -3594,6 +3613,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         return;
       }
       const result = await api.applyOperations({
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: target.bookId,
         captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
@@ -3806,6 +3830,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         return;
       }
       const result = await api.applyOperations({
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: target.bookId,
         captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({
@@ -4024,8 +4053,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       if (
         !predecessor ||
         predecessor.status === "rejected" ||
-        predecessor.status === "conflict" ||
-        predecessor.status === "error"
+        predecessor.status === "conflict"
       ) {
         const message = t(
           "proposalCoordinator.anEarlierAgentEditCouldNotBeSavedThis"
@@ -4040,9 +4068,17 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       if (predecessor.status !== "accepted") {
         conversation.updateEditProposal(request.runId, request.proposalId, {
           status: "pending",
-          statusMessage: t(
-            "proposalCoordinator.waitingForEarlierEditsToFinishSaving"
-          )
+          statusMessage:
+            predecessor.status === "accepting"
+              ? t("proposalCoordinator.waitingForEarlierEditsToFinishSaving")
+              : predecessor.status === "error"
+                ? t("proposalCoordinator.predecessorSaveFailed", {
+                    title: predecessor.title,
+                    detail: predecessor.statusMessage ?? ""
+                  })
+                : t("proposalCoordinator.reviewPredecessorFirst", {
+                    title: predecessor.title
+                  })
         });
         return;
       }
@@ -4540,7 +4576,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
             {
               bookId: persistedDocument.workspaceId,
               documentId: persistedDocument.catalogDocumentId,
-              content: payload.content
+              content: payload.content,
+              versionOrigin: conversationVersionOrigin(
+                conversation,
+                proposal.runId,
+                proposal.summary
+              )
             },
             expectedDiskRevision(
               persistedDocument.catalogContentLoaded === false
@@ -4809,10 +4850,31 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
+  /** Swaps in the user's version; false when the card can no longer edit it. */
+  function applyEditedText(
+    conversation: AgentConversationController,
+    request: AgentEditReviewRequest
+  ): boolean {
+    if (request.editedText === undefined || request.decision !== "accept")
+      return true;
+    const proposal = conversation.getEditProposal(
+      request.runId,
+      request.proposalId
+    );
+    const patch = proposal && editedProposalPatch(proposal, request.editedText);
+    if (!patch) {
+      uiMessage.warning(t("proposalCoordinator.proposalNoLongerEditable"));
+      return false;
+    }
+    conversation.updateEditProposal(request.runId, request.proposalId, patch);
+    return true;
+  }
+
   async function reviewAgentEdit(
     request: AgentEditReviewRequest
   ): Promise<void> {
     const conversation = activeConversation.value;
+    if (!applyEditedText(conversation, request)) return;
     const proposal = conversation.getEditProposal(
       request.runId,
       request.proposalId
@@ -4839,7 +4901,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     request: AgentEditReviewRequest
   ): Promise<void> {
     const conversation = activeLongConversation.value;
-    if (!conversation) return;
+    if (!conversation || !applyEditedText(conversation, request)) return;
     const proposal = conversation.getEditProposal(
       request.runId,
       request.proposalId

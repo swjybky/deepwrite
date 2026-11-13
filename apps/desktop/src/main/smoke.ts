@@ -30,6 +30,7 @@ import { runBookIdentitySmoke } from "./smoke-book-identity";
 import { runLibraryGroupDeletionSmoke } from "./smoke-library-group-deletion";
 import { runShortBookSourceSmoke } from "./smoke-short-book-sources";
 import { smokeReleaseConfig } from "./smoke-release-config";
+import { runBookImageSmoke } from "./smoke-book-images";
 
 export function smokeErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -49,6 +50,11 @@ export async function runApplicationSmoke(
   externalCall?: ExternalControl["call"]
 ): Promise<void> {
   const releaseConfig = smokeReleaseConfig();
+  if (process.env.DEEPWRITE_SMOKE_SUITE === "book-images") {
+    const bookImages = await runBookImageSmoke(window);
+    console.log(`DEEPWRITE_SMOKE_OK ${JSON.stringify({ health, bookImages })}`);
+    return;
+  }
   if (process.env.DEEPWRITE_SMOKE_SUITE === "external-concurrency") {
     if (!externalCall) throw new Error("External control smoke unavailable");
     const concurrency = await runExternalConcurrencySmoke(externalCall);

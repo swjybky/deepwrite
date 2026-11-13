@@ -50,6 +50,7 @@ describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
     const envelope = createEnvelope(
       "manuscript.exportShort",
       {
+        book: { projectType: "short", projectId: "book_test" },
         title: "雨夜来信",
         format: "epub" as const,
         sections: [
@@ -67,7 +68,8 @@ describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
     expect(
       ExportShortManuscriptResultSchema.parse({
         status: "saved",
-        filePath: "/tmp/雨夜来信.epub"
+        filePath: "/tmp/雨夜来信.epub",
+        missingImages: 0
       })
     ).toMatchObject({ status: "saved" });
   });

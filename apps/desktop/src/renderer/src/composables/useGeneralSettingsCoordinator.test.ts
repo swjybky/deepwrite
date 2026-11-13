@@ -40,7 +40,8 @@ describe("general settings coordinator", () => {
     expect(Object.keys(generalSwitchEvents).sort()).toEqual([
       "updateExternalControlEnabled",
       "updateShowInMenuBar",
-      "updateTaskNotification"
+      "updateTaskNotification",
+      "updateVersionHistoryEnabled"
     ]);
   });
 

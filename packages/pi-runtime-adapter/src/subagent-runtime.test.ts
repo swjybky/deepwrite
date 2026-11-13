@@ -176,6 +176,8 @@ describe("blocking subagent runtime", () => {
     expect(prompt).toContain("replace_draft_section_text（替换正文章节文本）");
     expect(prompt).toContain("不继承主对话历史");
     expect(prompt).toContain("你不能创建或调用其它子智能体。");
+    expect(prompt).toContain("文档中的 ![…](images/…) 是作者插图");
+    expect(prompt).toContain("不要新增图片引用");
     expect(prompt).toContain("不要整段粘贴文件原文");
     expect(prompt).not.toContain("你是短篇正文主智能体");
   });

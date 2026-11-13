@@ -1,3 +1,5 @@
+import { withBookImageCommands } from "./book-images/commands";
+import { withDocumentVersionCommands } from "./document-versions/version-commands";
 import { withDecompositionCommands } from "./long-book-decomposition/commands";
 import { withBookIdentityCommands } from "./book-identity/commands";
 import { withLongMaterialPackCommands } from "./long-material-pack/commands";
@@ -599,25 +601,33 @@ async function handleCatalogCommand(
 bootUtility("core", {
   mode: "catalog-store",
   onShutdown: conversationRuntime.close,
-  commandHandler: conversationRuntime.wrap(
-    withLibraryPackageCommands(
-      requireCatalogStore,
-      withLongMaterialPackCommands(
+  commandHandler: withDocumentVersionCommands(
+    requireCatalogStore,
+    longWorkspaceService,
+    conversationRuntime.wrap(
+      withLibraryPackageCommands(
         requireCatalogStore,
-        longWorkspaceService,
-        withBookIdentityCommands(
+        withLongMaterialPackCommands(
           requireCatalogStore,
           longWorkspaceService,
-          withDeviceSyncCommands(
-            resolvedUserDataPath,
+          withBookIdentityCommands(
             requireCatalogStore,
             longWorkspaceService,
-            withDecompositionCommands(
-              resolvedUserDataPath,
+            withBookImageCommands(
               requireCatalogStore,
               longWorkspaceService,
-              withLongBookAnalysisSources(
-                withShortBookAnalysisSources(handleCatalogCommand)
+              withDeviceSyncCommands(
+                resolvedUserDataPath,
+                requireCatalogStore,
+                longWorkspaceService,
+                withDecompositionCommands(
+                  resolvedUserDataPath,
+                  requireCatalogStore,
+                  longWorkspaceService,
+                  withLongBookAnalysisSources(
+                    withShortBookAnalysisSources(handleCatalogCommand)
+                  )
+                )
               )
             )
           )

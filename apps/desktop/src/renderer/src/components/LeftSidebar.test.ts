@@ -39,6 +39,19 @@ describe("LeftSidebar account controls", () => {
     expectSourceToContain(source, "{{ displayedUserName }}");
   });
 
+  it("offers sign-in or sign-out from the avatar and gates feedback", () => {
+    expect(source).toContain('v-if="!marketplaceSignedIn"');
+    expect(source).toContain('@click="signIn"');
+    expect(source).toContain('v-if="marketplaceSignedIn"');
+    expect(source).toContain('@click="signOut"');
+    expect(source).toContain(
+      "requireMarketplaceLogin(props.marketplaceSignedIn === true"
+    );
+    expect(source).toContain(
+      "@marketplace-signed-out=\"emit('marketplaceSignedOut', $event)\""
+    );
+  });
+
   it("shows a background-running marker for running analyses", () => {
     expect(source).toContain("revisionAnalysisRunning");
     expect(source).toContain("nav-background-status");

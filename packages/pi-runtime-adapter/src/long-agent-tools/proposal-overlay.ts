@@ -176,6 +176,11 @@ export function createProposalOverlay() {
     },
     document(fileId: string): OverlayDocument | undefined {
       return documents.get(fileId);
+    },
+    /** After the user settled the proposals, Core is the only source again. */
+    clear(): void {
+      structure.length = 0;
+      documents.clear();
     }
   };
 }

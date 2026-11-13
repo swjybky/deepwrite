@@ -1,4 +1,15 @@
+import {
+  installBookImageProtocolHandler,
+  registerBookImageScheme
+} from "./book-images/protocol";
+import { pickBookImages, BookImageError } from "./book-images/pick";
+import { createBookImageExportLoader } from "./book-images/export-assets";
 import { appendSubagentCallJournal } from "./subagent-call-journal";
+import { activeRunResourceIds } from "./active-resource-runs";
+import {
+  filterVersionOrigin,
+  handleDocumentVersionCommands
+} from "./ipc/document-version-commands";
 import {
   LibraryOrganizationSchema,
   CreateUnboundEntryResultSchema,
@@ -63,6 +74,7 @@ import {
 import { handleRendererStateCommands } from "./ipc/renderer-state-commands";
 import { handleAgentTeamCommands } from "./ipc/agent-team-commands";
 import {
+  protocol,
   app,
   BrowserWindow,
   Menu,
@@ -240,8 +252,18 @@ import {
 } from "../extras/agent-team-marketplace";
 import { registerFeedbackIpc, type FeedbackClient } from "../extras/feedback";
 
-registerAppearanceFontScheme();
-registerCoverScheme();
+const privilegedSchemes: Parameters<
+  typeof protocol.registerSchemesAsPrivileged
+>[0] = [];
+const schemeCollector = {
+  registerSchemesAsPrivileged(schemes: typeof privilegedSchemes) {
+    privilegedSchemes.push(...schemes);
+  }
+};
+registerAppearanceFontScheme(schemeCollector);
+registerCoverScheme(schemeCollector);
+registerBookImageScheme(schemeCollector);
+protocol.registerSchemesAsPrivileged(privilegedSchemes);
 const sharedConfigurationDefault = applyDevelopmentProfile(app);
 const hasSingleInstanceLock = acquireStorageInstanceLock(app);
 // A second instance must not write diagnostics into a profile being migrated.
@@ -315,14 +337,7 @@ const externalControl = createExternalControl({
         !mainWindow.webContents.isLoading()
       ),
     activeRunCount: () => activeRuns.size,
-    activeResourceIds: () =>
-      new Set(
-        [...activeRuns.values()].flatMap(
-          (run) =>
-            run.externalResourceIds ??
-            (run.resourceId ? [run.resourceId] : ["*"])
-        )
-      ),
+    activeResourceIds: () => activeRunResourceIds(activeRuns.values()),
     generalSettings: () => cachedGeneralSettings,
     core: (command, timeoutMs) =>
       supervisor.requestCommand("core", command, timeoutMs),
@@ -1211,7 +1226,19 @@ function registerIpc(): void {
         };
       }
 
-      const command = parsed.data;
+      const command = filterVersionOrigin(
+        parsed.data,
+        cachedGeneralSettings.versionHistoryEnabled
+      );
+      const versionResult = await handleDocumentVersionCommands(
+        {
+          supervisor,
+          activeRuns,
+          versionHistoryEnabled: cachedGeneralSettings.versionHistoryEnabled
+        },
+        command
+      );
+      if (versionResult) return versionResult;
       if (
         command.type.startsWith("imageModels.") ||
         command.type.startsWith("bookIdentity.")
@@ -1364,13 +1391,54 @@ function registerIpc(): void {
         };
       }
 
+      if (command.type === "bookImages.pick") {
+        if (event.senderFrame !== event.sender.mainFrame)
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "image.untrusted_frame",
+              message: "图片操作仅允许从应用主界面发起。"
+            }
+          };
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: await pickBookImages(
+              mainWindow,
+              command.payload,
+              (coreCommand) => supervisor.requestCommand("core", coreCommand, 0)
+            )
+          };
+        } catch (error) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code:
+                error instanceof BookImageError
+                  ? error.code
+                  : "book_image.write_failed",
+              message: error instanceof Error ? error.message : "图片写入失败。"
+            }
+          };
+        }
+      }
+
       if (command.type === "manuscript.exportShort") {
         try {
           return {
             status: "accepted",
             requestId: command.id,
             payload: ExportShortManuscriptResultSchema.parse(
-              await exportShortManuscript(mainWindow, command.payload)
+              await exportShortManuscript(
+                mainWindow,
+                command.payload,
+                createBookImageExportLoader((coreCommand) =>
+                  supervisor.requestCommand("core", coreCommand, 0)
+                )
+              )
             )
           };
         } catch (error: unknown) {
@@ -1378,7 +1446,10 @@ function registerIpc(): void {
             status: "rejected",
             requestId: command.id,
             error: {
-              code: "manuscript.export_failed",
+              code:
+                error instanceof BookImageError
+                  ? error.code
+                  : "manuscript.export_failed",
               message:
                 error instanceof Error ? error.message : "导出正文失败。",
               details: safeErrorDetails(error)
@@ -1393,7 +1464,13 @@ function registerIpc(): void {
             status: "accepted",
             requestId: command.id,
             payload: ExportLongManuscriptResultSchema.parse(
-              await exportLongManuscript(mainWindow, command.payload)
+              await exportLongManuscript(
+                mainWindow,
+                command.payload,
+                createBookImageExportLoader((coreCommand) =>
+                  supervisor.requestCommand("core", coreCommand, 0)
+                )
+              )
             )
           };
         } catch (error: unknown) {
@@ -1401,7 +1478,10 @@ function registerIpc(): void {
             status: "rejected",
             requestId: command.id,
             error: {
-              code: "manuscript.export_failed",
+              code:
+                error instanceof BookImageError
+                  ? error.code
+                  : "manuscript.export_failed",
               message:
                 error instanceof Error ? error.message : "导出长篇失败。",
               details: safeErrorDetails(error)
@@ -2741,6 +2821,9 @@ if (!hasSingleInstanceLock) {
       });
     }
     installAppearanceFontProtocolHandler(appearanceService);
+    installBookImageProtocolHandler((command) =>
+      supervisor.requestCommand("core", command, 0)
+    );
     installCoverProtocolHandler((command) =>
       supervisor.requestCommand("core", command, 0)
     );

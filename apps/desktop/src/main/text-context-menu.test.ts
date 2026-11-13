@@ -50,6 +50,7 @@ function fixture() {
     hasSelection: true,
     hasText: true,
     canInsertReference: true,
+    canInsertImage: false,
     history: { canUndo: true, canRedo: true }
   };
   function open() {

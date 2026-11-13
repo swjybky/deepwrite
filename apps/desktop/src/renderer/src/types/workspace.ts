@@ -51,6 +51,7 @@ export type IconName =
   | "trash"
   | "undo"
   | "user"
+  | "logout"
   | "wand";
 
 import type {

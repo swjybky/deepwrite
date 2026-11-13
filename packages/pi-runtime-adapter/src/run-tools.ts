@@ -52,6 +52,7 @@ export interface BuildRunToolsOptions extends Pick<
   portableToolSchemaProfile: PortableToolSchemaProfile;
   subagentTimeoutMs?: number;
   onContextCompacted?: (listener: () => void) => void;
+  onWriteApprovalSettled?: (listener: () => void) => void;
 }
 export function buildRunTools(
   input: AgentRunInput,
@@ -93,6 +94,13 @@ export function buildRunTools(
     longWorkspace && input.longAgentProfile
       ? createLongWorkspaceToolSharedState()
       : undefined;
+  // Every proposal of a paused-for step is settled once the user answered:
+  // saved ones are in Core now, the rest must not stay visible to reads.
+  if (longToolSharedState) {
+    options.onWriteApprovalSettled?.(() =>
+      longToolSharedState.proposalOverlay.clear()
+    );
+  }
   const buildWritingToolSet = (
     onContextCompacted = options.onContextCompacted
   ): AgentTool[] => {
@@ -221,6 +229,7 @@ export function buildRunTools(
       thinkingLevel: effectiveThinkingLevel,
       streamFn: spawnStreamFn,
       requestUserInput,
+      pausesForWriteApproval: input.writeApprovalMode !== "auto-approve",
       definitions: input.subagentDefinitions ?? [],
       getParentMessages: options.getParentMessages,
       ...(childContextPolicy ? { contextPolicy: childContextPolicy } : {}),

@@ -192,6 +192,26 @@ function createDeepWriteSiteOfficialModel(
   });
 }
 
+function compareCatalogIds(left: string, right: string): number {
+  const leftPoints = Array.from(
+    left,
+    (character) => character.codePointAt(0) ?? 0
+  );
+  const rightPoints = Array.from(
+    right,
+    (character) => character.codePointAt(0) ?? 0
+  );
+  for (
+    let index = 0;
+    index < Math.max(leftPoints.length, rightPoints.length);
+    index++
+  ) {
+    const difference = (leftPoints[index] ?? -1) - (rightPoints[index] ?? -1);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
 export function createDeepWriteSiteOfficialModels(
   apiKey: string,
   catalog: DeepWriteSiteOfficialRemoteCatalog,
@@ -205,7 +225,27 @@ export function createDeepWriteSiteOfficialModels(
     if (!allById.has(model.id)) allById.set(model.id, model);
   }
 
-  const models = [...allById.values()].map((remote) => {
+  const sortOf = (remote: RemoteModelListItem) =>
+    googleById.get(remote.id)?.sort ?? remote.sort;
+  const ordered = [...allById.values()];
+  if (ordered.some((remote) => sortOf(remote) !== undefined)) {
+    ordered.sort((left, right) => {
+      const difference = (sortOf(left) ?? 0) - (sortOf(right) ?? 0);
+      if (difference) return difference;
+      // Match the gateway's SQLite NOCASE ordering, then the original id.
+      const leftId = left.id.replace(/[A-Z]/gu, (letter) =>
+        letter.toLowerCase()
+      );
+      const rightId = right.id.replace(/[A-Z]/gu, (letter) =>
+        letter.toLowerCase()
+      );
+      return (
+        compareCatalogIds(leftId, rightId) ||
+        compareCatalogIds(left.id, right.id)
+      );
+    });
+  }
+  const models = ordered.map((remote) => {
     const google = googleById.get(remote.id);
     const resolvedRemote = google ? { ...remote, ...google } : remote;
     // The v1 catalog lists every protocol. Use its declared API before

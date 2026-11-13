@@ -44,6 +44,7 @@ export async function handleDecompositionCommands(
         mode,
         targetSelection,
         autoContinue,
+        maxConcurrency,
         profileId,
         reuseJobId
       } = command.payload;
@@ -150,6 +151,7 @@ export async function handleDecompositionCommands(
           phase: "prepare_target",
           status: "idle",
           autoContinue,
+          maxConcurrency,
           units: {},
           ...(reuseJobId ? { reusedFromJobId: reuseJobId } : {})
         });

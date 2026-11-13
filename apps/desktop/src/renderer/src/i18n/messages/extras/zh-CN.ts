@@ -874,15 +874,9 @@ export default {
     loadingZhuque: "正在加载朱雀检测…"
   },
   chatAssistant: {
-    waitBeforeSearchChange: "当前回复完成或停止后，才能切换联网",
-    disableWebSearch: "关闭联网搜索",
-    enableWebSearch: "开启联网搜索",
     messageAssistant: "给聊天助手发送消息",
     desktopRequiredToSend: "浏览器预览不可发送，请启动桌面客户端",
     attachmentsComingSoon: "附件功能后续开放",
-    webSearch: "联网",
-    chatModel: "聊天模型",
-    defaultModel: "默认模型",
     voiceInput: "语音输入",
     stopGeneration: "停止生成",
     sendMessage: "发送消息",
@@ -898,7 +892,6 @@ export default {
     newChat: "新聊天",
     webSearchUnavailable:
       "联网搜索未启用或未配置密钥，请先在设置 → 个人 → 联网搜索中开启",
-    currentModel: "当前模型",
     normalMode: "普通模式",
     addRoleplayOption: "+ 添加新扮演配置",
     roleplay: "人物扮演",

@@ -22,6 +22,7 @@ interface DiskGeneralSettings extends Omit<
   | "contextCompaction"
   | "useNetworkProxy"
   | "moreFeatures"
+  | "versionHistoryEnabled"
 > {
   version: 1 | 2;
   permissionMode: GeneralSettings["permissionMode"] | "full-access";
@@ -35,6 +36,7 @@ interface DiskGeneralSettings extends Omit<
   contextCompaction?: GeneralSettings["contextCompaction"];
   useNetworkProxy?: boolean;
   moreFeatures?: GeneralSettings["moreFeatures"];
+  versionHistoryEnabled?: boolean;
 }
 
 function isNodeError(error: unknown, code: string): boolean {
@@ -108,7 +110,8 @@ export class GeneralSettingsStore {
         workspacePaneLayout: candidate.workspacePaneLayout,
         defaultTextViewMode: candidate.defaultTextViewMode,
         bodyTextFormats: candidate.bodyTextFormats,
-        moreFeatures: candidate.moreFeatures
+        moreFeatures: candidate.moreFeatures,
+        versionHistoryEnabled: candidate.versionHistoryEnabled
       });
       if (!parsed.success) {
         return GeneralSettingsSnapshotSchema.parse({

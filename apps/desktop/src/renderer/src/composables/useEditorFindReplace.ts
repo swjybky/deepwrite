@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { uiMessage } from "../ui-feedback";
 import type { TextSelectionRange } from "../utils/boundedTextHistory";
 import { revealTextareaOffset } from "../utils/textareaMirror";
+import type { RichMarkdownBridge } from "../utils/richMarkdownBridge";
 
 const t = createScopedTranslator("workspace.editorFindReplace");
 
@@ -19,6 +20,7 @@ export interface EditorFindReplaceOptions {
   /** Text tools can be unavailable while a document is loading. */
   canOpen?: () => boolean;
   editorInput: () => HTMLTextAreaElement | null | undefined;
+  preview?: () => RichMarkdownBridge | undefined;
   showEditor: () => void;
   onOpen?: () => void;
   replaceContent: (
@@ -47,7 +49,7 @@ export function findEditorSearchMatches(
 }
 
 /**
- * Find and replace for a textarea editor. Focus stays in the find panel while
+ * Focus stays in the find panel while
  * searching: moving it would commit an IME composition as raw pinyin. The panel
  * closes only on an explicit request, so returning to the window and clicking
  * the text keeps the search.
@@ -90,6 +92,8 @@ export function useEditorFindReplace(options: EditorFindReplaceOptions) {
       if (input && input.ownerDocument.activeElement === input) {
         searchAnchor = input.selectionStart;
       }
+      const preview = options.preview?.();
+      if (preview?.hasFocus()) searchAnchor = preview.selection().start;
     },
     { flush: "sync" }
   );
@@ -106,17 +110,24 @@ export function useEditorFindReplace(options: EditorFindReplaceOptions) {
       panel?.contains(panel.ownerDocument.activeElement)
     );
     closeFindPanel();
-    if (focusInPanel) options.editorInput()?.focus({ preventScroll: true });
+    if (focusInPanel) {
+      const preview = options.preview?.();
+      if (preview) preview.focus();
+      else options.editorInput()?.focus({ preventScroll: true });
+    }
   }
 
   async function openFindPanel(mode: EditorFindPanelMode): Promise<void> {
     if (options.canOpen && !options.canOpen()) return;
-    options.showEditor();
+    if (!options.preview?.()) options.showEditor();
     options.onOpen?.();
     findPanelMode.value = mode;
     if (!findPanelOpen.value) {
       findPanelOpen.value = true;
-      searchAnchor = options.editorInput()?.selectionStart ?? 0;
+      searchAnchor =
+        options.preview?.()?.selection().start ??
+        options.editorInput()?.selectionStart ??
+        0;
       currentMatchIndex.value = -1;
     }
     await nextTick();
@@ -157,8 +168,13 @@ export function useEditorFindReplace(options: EditorFindReplaceOptions) {
     const match = searchMatches.value[index];
     if (!match) return;
     currentMatchIndex.value = index;
-    options.showEditor();
+    if (!options.preview?.()) options.showEditor();
     await nextTick();
+    const preview = options.preview?.();
+    if (preview) {
+      preview.select(match.start, match.end, false);
+      return;
+    }
     const input = options.editorInput();
     if (!input) return;
     // The selection is kept without focusing the editor; it shows once the

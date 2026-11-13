@@ -1,3 +1,4 @@
+import { ChatAssistantProjectRefSchema } from "./chat-assistant-base";
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "./expert-draft";
@@ -22,6 +23,7 @@ export type ShortManuscriptExportSection = z.infer<
 
 export const ExportShortManuscriptInputSchema = z
   .object({
+    book: ChatAssistantProjectRefSchema,
     title: z.string().trim().min(1).max(256),
     format: ShortManuscriptExportFormatSchema,
     sections: z.array(ShortManuscriptExportSectionSchema).min(1).max(100)
@@ -49,6 +51,7 @@ export const ExportShortManuscriptResultSchema = z.discriminatedUnion(
     z.object({ status: z.literal("cancelled") }),
     z.object({
       status: z.literal("saved"),
+      missingImages: z.number().int().nonnegative(),
       filePath: z.string().min(1)
     })
   ]

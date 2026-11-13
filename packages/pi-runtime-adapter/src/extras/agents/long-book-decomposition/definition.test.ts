@@ -149,6 +149,14 @@ function worldTask(category: string) {
 }
 
 describe("decomposition child execution boundaries", () => {
+  it("runs a package with the task's concurrency, five when unset", () => {
+    const { task, services } = fixture();
+    const limit = (input: typeof task.input) =>
+      longBookDecompositionAgent.orchestration!({ ...task, input }, services)
+        .maxConcurrency;
+    expect(limit(task.input)).toBe(5);
+    expect(limit({ ...task.input, maxConcurrency: 2 })).toBe(2);
+  });
   it("defaults a single-unit status query to its current package", async () => {
     const { task, query, services } = fixture();
     task.input.unitIds = ["chunk:1"];

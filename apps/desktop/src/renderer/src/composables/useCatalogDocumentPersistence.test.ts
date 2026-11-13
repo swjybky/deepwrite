@@ -206,6 +206,29 @@ function createHarness(
 }
 
 describe("catalog document persistence", () => {
+  it("prepares and applies a version restore through document reconciliation", async () => {
+    const test = createHarness();
+    const payload = { id: "body-1", title: "第一节", content: "提交 A" };
+    expect(await test.persistence.documentVersions.prepare(payload)).toBe(true);
+    expect(test.saveDocument).toHaveBeenCalledOnce();
+    expect(test.saveDocument.mock.calls[0]?.[0]).not.toHaveProperty(
+      "versionOrigin"
+    );
+    expect(test.drafts.value["body-1"]).toBeUndefined();
+    expect(await test.persistence.documentVersions.prepare(payload)).toBe(true);
+    expect(test.saveDocument).toHaveBeenCalledOnce();
+    await test.persistence.documentVersions.apply(
+      "body-1",
+      savedDocument("恢复正文", 4)
+    );
+    expect(test.documents.value[0]?.content).toBe("恢复正文");
+    expect(test.documents.value[0]?.catalogProjectRevision).toBe(4);
+    expect(test.drafts.value["body-1"]).toBeUndefined();
+    expect(
+      test.preserveAuthoritativeBodyForNextProjection
+    ).toHaveBeenLastCalledWith("body-1", "恢复正文", 4);
+  });
+
   it("saves a recovered character overview with its canonical title", async () => {
     const harness = createHarness({
       saveDocument: async (input) => ({

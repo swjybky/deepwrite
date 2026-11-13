@@ -14,6 +14,10 @@ import { handleModelCommands } from "./model-commands";
 import { handleRendererStateCommands } from "./renderer-state-commands";
 import { handleSessionCommands } from "./session-commands";
 import { handleSettingsCommands } from "./settings-commands";
+import {
+  filterVersionOrigin,
+  handleDocumentVersionCommands
+} from "./document-version-commands";
 
 export async function dispatchCommand(
   ctx: IpcCommandContext,
@@ -37,6 +41,24 @@ export async function dispatchCommand(
         await ctx.supervisor.collectHealth()
       )
     };
+  }
+
+  if (
+    command.type.startsWith("versions.") ||
+    command.type === "catalog.saveDocument" ||
+    command.type === "long.applyOperations"
+  ) {
+    const settings = (await ctx.requireGeneralSettingsStore().list()).settings;
+    command = filterVersionOrigin(command, settings.versionHistoryEnabled);
+    const versionResult = await handleDocumentVersionCommands(
+      {
+        supervisor: ctx.supervisor,
+        activeRuns: ctx.activeRuns,
+        versionHistoryEnabled: settings.versionHistoryEnabled
+      },
+      command
+    );
+    if (versionResult) return versionResult;
   }
 
   const result =

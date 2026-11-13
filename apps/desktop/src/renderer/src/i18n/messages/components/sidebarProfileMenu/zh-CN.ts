@@ -22,5 +22,9 @@ export default {
   forFeedbackOrEarlyAccessToNewVersionsAdd:
     "如果你有任何反馈，或者想体验最新版本，请添加作者微信并加入交流群。",
   weChatID: "微信号",
-  gotIt: "我知道了"
+  gotIt: "我知道了",
+  signIn: "登录",
+  signOut: "退出登录",
+  signedOut: "已退出登录",
+  couldNotSignOut: "退出登录失败，请稍后重试"
 };

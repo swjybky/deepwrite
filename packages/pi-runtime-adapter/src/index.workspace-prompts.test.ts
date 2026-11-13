@@ -17,6 +17,7 @@ import {
 import { runtimeConfig } from "./web-search/test-support";
 import { buildLongWorkspaceRules } from "./prompts-long-rules";
 import { writeApprovalBoundary } from "./write-approval";
+import { bookImagePreservationRule } from "./prompts-book-images";
 
 /** Ground rules → long role prompt → non-editable long rules → approval. */
 function withWriteApprovalBoundary(
@@ -31,7 +32,9 @@ function withWriteApprovalBoundary(
     "",
     buildLongWorkspaceRules("zh-CN"),
     "",
-    writeApprovalBoundary(mode)
+    writeApprovalBoundary(mode),
+    "",
+    bookImagePreservationRule()
   ].join("\n");
 }
 

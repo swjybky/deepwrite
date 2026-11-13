@@ -4,7 +4,9 @@ import { createScopedTranslator } from "../i18n";
 import type { TextViewMode } from "@deepwrite/contracts";
 import { onBeforeUnmount, ref, watch } from "vue";
 import EditorSearchHighlight from "./EditorSearchHighlight.vue";
-import MarkdownContent from "./MarkdownContent.vue";
+import EditableMarkdownPreview from "./EditableMarkdownPreview.vue";
+import { useBookImageResolver } from "../composables/bookImageContext";
+import type { MarkdownSourceEdit } from "../utils/bookImageInsertion";
 import { editorCompositionValue } from "../composables/useEditorComposition";
 
 const t = createScopedTranslator("components.longManuscriptEditor");
@@ -16,6 +18,7 @@ defineProps<{
   titleReadOnly: boolean;
   format: string;
   content: string;
+  documentKey?: string;
   composing: boolean;
   viewMode: TextViewMode;
   readOnly: boolean;
@@ -36,11 +39,16 @@ const emit = defineEmits<{
   keydown: [event: KeyboardEvent];
   contextmenu: [event: MouseEvent];
   previewContextmenu: [event: MouseEvent];
+  previewEdit: [edit: MarkdownSourceEdit];
+  previewCompositionChange: [composing: boolean];
+  undo: [];
+  redo: [];
   editorElementChange: [element: HTMLTextAreaElement | null];
   previewElementChange: [element: HTMLElement | null];
   editorScroll: [event: Event];
 }>();
 
+const resolveImage = useBookImageResolver();
 const editorElement = ref<HTMLTextAreaElement | null>(null);
 const previewElement = ref<HTMLElement | null>(null);
 
@@ -121,14 +129,19 @@ function updateTitle(event: Event): void {
       @contextmenu="emit('previewContextmenu', $event)"
       @scroll="emit('editorScroll', $event)"
     >
-      <MarkdownContent
-        v-if="content.trim()"
+      <EditableMarkdownPreview
         :content="content"
+        :document-key="documentKey"
+        :editable="!readOnly && !busy"
+        :resolve-image="resolveImage"
+        :empty-text="t('noManuscriptYet')"
         annotate-headings
+        @edit="emit('previewEdit', $event)"
+        @keydown="emit('keydown', $event)"
+        @composition-change="emit('previewCompositionChange', $event)"
+        @undo="emit('undo')"
+        @redo="emit('redo')"
       />
-      <p v-else class="is-empty">
-        {{ t("noManuscriptYet") }}
-      </p>
     </article>
   </section>
 </template>

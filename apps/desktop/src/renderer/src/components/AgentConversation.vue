@@ -18,6 +18,7 @@ import { resolveAgentWelcome } from "../data/agentWelcome";
 import { useConversationTextReferences } from "../composables/useConversationTextReferences";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
 import type { FollowUpQueueController } from "../composables/agent-conversation/follow-up-queue";
+import type { WriteApprovalItem } from "../composables/agent-conversation/write-approval";
 import type {
   AgentApprovalMode,
   ChatMessage,
@@ -35,6 +36,7 @@ import AppIcon from "./AppIcon.vue";
 import ConversationHistoryMenu from "./ConversationHistoryMenu.vue";
 import AgentActivityFloatPanel from "./AgentActivityFloatPanel.vue";
 import AgentUserInputCard from "./AgentUserInputCard.vue";
+import AgentWriteApprovalCard from "./AgentWriteApprovalCard.vue";
 import SubagentDrawPickerCard from "./SubagentDrawPickerCard.vue";
 import ConversationComposer from "./ConversationComposer.vue";
 import ConversationMessageList from "./ConversationMessageList.vue";
@@ -89,6 +91,9 @@ const props = withDefaults(
     rightPane?: boolean;
     userInputRequest?: AgentUserInputRequestedPayload | null;
     userInputSubmitting?: boolean;
+    /** Proposals a paused user-review run waits for. */
+    writeApprovalItems?: WriteApprovalItem[] | null;
+    writeApprovalSubmitFailed?: boolean;
   }>(),
   {
     allowLiveEditReview: false,
@@ -98,7 +103,9 @@ const props = withDefaults(
     longWorkspaceIndex: null,
     rightPane: false,
     userInputRequest: null,
-    userInputSubmitting: false
+    userInputSubmitting: false,
+    writeApprovalItems: null,
+    writeApprovalSubmitFailed: false
   }
 );
 
@@ -159,7 +166,14 @@ const emit = defineEmits<{
   retryLongProposalPreview: [eventId: string];
   locateLongProposal: [eventId: string];
   submitUserInput: [answers: AgentUserInputAnswer[]];
+  retryWriteApproval: [];
 }>();
+
+// A paused run only resumes after its proposals are reviewed, so they stay
+// reviewable although the reply is still streaming.
+const waitingForWriteApproval = computed(
+  () => props.userInputRequest?.source === "write_approval"
+);
 
 const {
   scroller,
@@ -362,7 +376,9 @@ const {
           :defer-history-rendering="deferHistoryRendering"
           :can-rewrite-history="canRewriteHistory"
           :submit-edited-message="submitEditedMessage"
-          :allow-live-edit-review="allowLiveEditReview"
+          :allow-live-edit-review="
+            allowLiveEditReview || waitingForWriteApproval
+          "
           :long-proposal-items="longProposalItems"
           :long-workspace-index="longWorkspaceIndex"
           :pending-messages="followUps?.sentItems.value"
@@ -395,8 +411,17 @@ const {
 
       <footer v-if="userInputRequest" class="composer-wrap">
         <div class="composer-stack">
+          <AgentWriteApprovalCard
+            v-if="waitingForWriteApproval"
+            :items="writeApprovalItems"
+            :submitting="userInputSubmitting"
+            :submit-failed="writeApprovalSubmitFailed"
+            @review-edit="emit('reviewEdit', $event)"
+            @stop="emit('stop')"
+            @retry="emit('retryWriteApproval')"
+          />
           <SubagentDrawPickerCard
-            v-if="userInputRequest.draw"
+            v-else-if="userInputRequest.draw"
             :request="{ ...userInputRequest, draw: userInputRequest.draw }"
             :submitting="userInputSubmitting"
             :messages="messages"

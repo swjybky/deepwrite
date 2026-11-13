@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
-  SUBAGENT_PARALLEL_MAX_CONCURRENCY,
+  DECOMPOSITION_DEFAULT_CONCURRENCY,
   type DecompositionRegistry,
   type LongBookDecompositionJob
 } from "@deepwrite/contracts/renderer";
@@ -88,7 +88,7 @@ function actionText(row: SubtaskRow, now: number): string {
       : t("subtaskWaitingSlot", {
           position: row.slotPosition ?? 1,
           running: running.value,
-          limit: SUBAGENT_PARALLEL_MAX_CONCURRENCY
+          limit: props.job.maxConcurrency ?? DECOMPOSITION_DEFAULT_CONCURRENCY
         });
   if (row.group === "running") {
     const action = subtaskAction(run);

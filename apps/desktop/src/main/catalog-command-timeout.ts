@@ -4,6 +4,7 @@ export const CATALOG_INTERACTIVE_COMMAND_TIMEOUT_MS = 60_000;
 
 const CATALOG_INTERACTIVE_WRITE_COMMANDS = new Set<CommandEnvelope["type"]>([
   "catalog.saveDocument",
+  "versions.restore",
   "catalog.writeWritingContext",
   "catalog.updateLibrary",
   "catalog.saveLibraryEntry",
@@ -18,6 +19,8 @@ const CATALOG_INTERACTIVE_WRITE_COMMANDS = new Set<CommandEnvelope["type"]>([
 
 const CATALOG_INTERACTIVE_READ_COMMANDS = new Set<CommandEnvelope["type"]>([
   "catalog.snapshot",
+  "versions.list",
+  "versions.read",
   "catalog.index",
   "catalog.readDocument",
   "catalog.readWritingContext"

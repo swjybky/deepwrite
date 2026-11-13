@@ -78,7 +78,8 @@ it("保存中与未确认不能建任务；确认使用持久化版本，后续�
       action: "create",
       title: "合成资料"
     },
-    autoContinue: false
+    autoContinue: false,
+    maxConcurrency: 5
   } as const;
   await expect(controller.create(request)).rejects.toThrow("确认");
   controller.replaceChapters([{ ...source.chapters[0]!, title: "校对标题" }]);

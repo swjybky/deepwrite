@@ -91,6 +91,7 @@ describe("short manuscript export projection", () => {
     );
 
     expect(result).toEqual({
+      book: { projectType: "short", projectId: "book-1" },
       title: "雨夜来信",
       format: "docx",
       sections: [
@@ -103,6 +104,7 @@ describe("short manuscript export projection", () => {
 
   it("creates clipboard text in the same title and section order without a BOM", () => {
     const text = createShortManuscriptClipboardText({
+      book: { projectType: "short", projectId: "book-1" },
       title: "雨夜来信",
       format: "txt",
       sections: [

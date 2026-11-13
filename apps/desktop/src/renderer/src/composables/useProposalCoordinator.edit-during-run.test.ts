@@ -5,6 +5,7 @@ import {
   DOCUMENT_ID,
   INITIAL_CONTENT,
   RUN_ID,
+  SESSION_ID,
   createFixture,
   mutationEvent
 } from "./useProposalCoordinator.short-script.test-support";
@@ -77,6 +78,11 @@ describe("editing a document while the agent runs", () => {
       bookId: BOOK_ID,
       documentId: DOCUMENT_ID,
       content: AGENT_TEXT,
+      versionOrigin: {
+        sessionId: SESSION_ID,
+        runId: RUN_ID,
+        summary: "第 1 次写入正文"
+      },
       baseRevision: revision(USER_TEXT)
     });
     expect(

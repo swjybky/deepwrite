@@ -14,6 +14,7 @@ import { useMarketplaceDisplayName } from "./useMarketplaceDisplayName";
 import { useWorkspaceDirectorySettings } from "./useWorkspaceDirectorySettings";
 import type { buildSettingsFeatureModule } from "./settingsFeatureModule";
 import { longMaterialPackLaunchBookId } from "../stores/longMaterialPackActivity";
+import { requireMarketplaceLogin } from "../stores/marketplaceLoginPrompt";
 
 const t = createScopedTranslator("workspace.workspaceFeatureHostCoordinator");
 export type {
@@ -41,6 +42,9 @@ export function useWorkspaceFeatureHostCoordinator(
     useMarketplaceDisplayName();
   const agentTeamNavigationEpoch = ref(0);
   const knownMarketplaceSession = ref<MarketplaceSession | null>(null);
+  const marketplaceSignedIn = computed(
+    () => knownMarketplaceSession.value?.authenticated === true
+  );
   let active = true;
   let navigationGeneration = 0;
   let marketplaceRevision = 0;
@@ -235,7 +239,21 @@ export function useWorkspaceFeatureHostCoordinator(
     }
   }
 
-  async function openMarketplace(): Promise<void> {
+  /** Signed-out users sign in first; the page opens once they have. */
+  async function openSignedInFeature(open: () => Promise<void>): Promise<void> {
+    if (marketplaceSignedIn.value) return open();
+    requireMarketplaceLogin(false, () => issueBackground(open));
+  }
+
+  function openMarketplace(): Promise<void> {
+    return openSignedInFeature(showMarketplace);
+  }
+
+  function openAgentTeamMarketplace(): Promise<void> {
+    return openSignedInFeature(showAgentTeamMarketplace);
+  }
+
+  async function showMarketplace(): Promise<void> {
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
     options.view.workspaceMain.value = "marketplace";
@@ -244,7 +262,7 @@ export function useWorkspaceFeatureHostCoordinator(
     }
   }
 
-  async function openAgentTeamMarketplace(): Promise<void> {
+  async function showAgentTeamMarketplace(): Promise<void> {
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
     options.view.workspaceMain.value = "agent-team-marketplace";
@@ -281,6 +299,16 @@ export function useWorkspaceFeatureHostCoordinator(
     marketplaceRevision += 1;
     knownMarketplaceSession.value = session;
     applyDisplayName(session);
+  }
+
+  function signedOutOfMarketplace(session: MarketplaceSession): void {
+    applyMarketplaceSession(session);
+    if (
+      activeFeature.value === "marketplace" ||
+      activeFeature.value === "agent-team-marketplace"
+    ) {
+      showConversation();
+    }
   }
 
   async function loadMarketplaceSession(): Promise<void> {
@@ -341,6 +369,7 @@ export function useWorkspaceFeatureHostCoordinator(
     activeFeature,
     workspaceFeatureModule,
     marketplaceDisplayName,
+    marketplaceSignedIn,
     showConversation,
     newConversation,
     openWorkspaceDialog,
@@ -358,6 +387,7 @@ export function useWorkspaceFeatureHostCoordinator(
     resetWorkspaceDirectory,
     closeSettings,
     applyMarketplaceSession,
+    signedOutOfMarketplace,
     loadMarketplaceSession,
     ensureActiveFeatureDependencies,
     dispose

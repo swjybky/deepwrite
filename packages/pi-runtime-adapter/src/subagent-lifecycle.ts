@@ -2,6 +2,7 @@ import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { AgentRuntimeRef } from "@deepwrite/contracts";
 import { runAgentWithTurnRetries } from "./agent-turn-retry";
+import { createWriteApprovalGate } from "./kernel/write-approval-gate";
 import { createSubagentReplyGuard } from "./subagent-reply-guard";
 import { createSubagentFailureHandoff } from "./subagent-failure-handoff";
 import {
@@ -51,6 +52,13 @@ export async function runSubagentLifecycle(
   let acceptingActivity = true;
   let cutOff = false;
   const replies = createSubagentReplyGuard(child);
+  const writeApprovalGate =
+    input.pausesForWriteApproval && input.requestUserInput
+      ? createWriteApprovalGate({
+          requestUserInput: input.requestUserInput,
+          runtime: childRuntime
+        })
+      : undefined;
   const failureHandoff = createSubagentFailureHandoff();
   // Declared before the handler so a cut-off reply can stop the child.
   let stopCutOff = (): void => {};
@@ -111,6 +119,7 @@ export async function runSubagentLifecycle(
         subagentRunId,
         event.toolCallId
       );
+      writeApprovalGate?.observeToolResult(event, toolCallId);
       emitProgress(
         {
           ...progressBase,
@@ -205,14 +214,21 @@ export async function runSubagentLifecycle(
       const early = new Promise<PromptOutcome>((resolve) => {
         resolveEarly = resolve;
       });
-      timeout = setTimeout(() => {
-        acceptingActivity = false;
-        timedOut = true;
-        lifecycleController.abort();
-        child.abort();
-        resolveEarly?.({ kind: "timeout" });
-      }, timeoutMs);
-      timeout.unref();
+      // Time spent waiting for the user's approval does not count.
+      let remainingMs = timeoutMs;
+      let armedAt = Date.now();
+      const armTimeout = (): void => {
+        armedAt = Date.now();
+        timeout = setTimeout(() => {
+          acceptingActivity = false;
+          timedOut = true;
+          lifecycleController.abort();
+          child.abort();
+          resolveEarly?.({ kind: "timeout" });
+        }, remainingMs);
+        timeout.unref();
+      };
+      armTimeout();
       const taskMessage: UserMessage = {
         role: "user",
         content: task,
@@ -252,10 +268,26 @@ export async function runSubagentLifecycle(
             notifyCompacted
           })
         : undefined;
-      if (contextGuard) {
+      if (writeApprovalGate) {
+        child.prepareNextTurnWithContext = async (context) => {
+          clearTimeout(timeout);
+          remainingMs = Math.max(0, remainingMs - (Date.now() - armedAt));
+          let approval: UserMessage | undefined;
+          try {
+            approval = await writeApprovalGate.wait(lifecycleController.signal);
+          } finally {
+            if (!lifecycleController.signal.aborted) armTimeout();
+          }
+          if (approval) contextGuard?.state.midRunMessages.add(approval);
+          const update = await contextGuard?.prepareNextTurn(context);
+          return approval
+            ? { ...update, messages: [...(update?.messages ?? []), approval] }
+            : update;
+        };
+      } else if (contextGuard) {
         child.prepareNextTurnWithContext = contextGuard.prepareNextTurn;
-        contextGuard.noteRunStart(taskMessage, undefined);
       }
+      contextGuard?.noteRunStart(taskMessage, undefined);
       running = (async () => {
         await contextGuard?.beforeRun(taskMessage);
         lifecycleController.signal.throwIfAborted();

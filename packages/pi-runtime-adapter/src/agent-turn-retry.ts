@@ -18,6 +18,22 @@ export const DEFAULT_AGENT_TURN_RETRY_DELAYS_MS = [
 
 const DEFAULT_RETRY_JITTER_RATIO = 0.2;
 
+/**
+ * The DeepWrite site gateway returns this 504 only after its own failover and
+ * first-content budget ran out. Re-sending the whole context again and again
+ * rarely helps and multiplies upstream load, so such a turn retries once.
+ */
+const SITE_GATEWAY_TIMEOUT =
+  /upstream_(?:startup_)?timeout|等待上游响应超时|等待首段内容已超过总启动预算/u;
+const SITE_GATEWAY_TIMEOUT_MAX_RETRIES = 1;
+
+function isSiteGatewayTimeout(message: AssistantMessage): boolean {
+  return (
+    message.stopReason === "error" &&
+    SITE_GATEWAY_TIMEOUT.test(message.errorMessage ?? "")
+  );
+}
+
 export type AgentTurnRetrySleep = (
   delayMs: number,
   signal?: AbortSignal
@@ -225,6 +241,7 @@ export async function runAgentWithTurnRetries(
     { schedule: AgentTurnRetrySchedule; message: AssistantMessage } | undefined;
   let overflowRecoveryAttempted = false;
   let overflowContinuationPending = false;
+  let siteGatewayTimeouts = 0;
 
   const unsubscribe = options.agent.subscribe(async (event, signal) => {
     if (event.type === "turn_start") {
@@ -233,6 +250,7 @@ export async function runAgentWithTurnRetries(
         activeTurn = { ...activeTurn, attempt: activeTurn.attempt + 1 };
       } else {
         turnSequence += 1;
+        siteGatewayTimeouts = 0;
         activeTurn = {
           turnId: `${options.runId}:turn:${turnSequence}`,
           attempt: 1,
@@ -317,11 +335,17 @@ export async function runAgentWithTurnRetries(
       return;
     }
 
+    const siteGatewayTimeout =
+      event.type === "message_end" &&
+      isAssistantMessage(event.message) &&
+      isSiteGatewayTimeout(event.message);
+    if (siteGatewayTimeout) siteGatewayTimeouts += 1;
     if (
       event.type === "message_end" &&
       isAssistantMessage(event.message) &&
       activeTurn &&
-      activeTurn.attempt < maxAttempts
+      activeTurn.attempt < maxAttempts &&
+      siteGatewayTimeouts <= SITE_GATEWAY_TIMEOUT_MAX_RETRIES
     ) {
       const reason = emptyResponse
         ? event.message.errorMessage
@@ -336,7 +360,10 @@ export async function runAgentWithTurnRetries(
           turnId: activeTurn.turnId,
           failedAttempt: activeTurn.attempt,
           nextAttempt: activeTurn.attempt + 1,
-          maxAttempts,
+          // The retry notice must not promise attempts the cap will refuse.
+          maxAttempts: siteGatewayTimeout
+            ? activeTurn.attempt + 1
+            : maxAttempts,
           delayMs,
           retryAt: new Date(policy.now() + delayMs).toISOString(),
           reason: reason.slice(0, 4_000)

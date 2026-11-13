@@ -1,4 +1,12 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,11 +18,50 @@ const roots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
+    roots.splice(0).map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 20
+      })
+    )
   );
 });
 
 describe("LongProjectStore duplicateBook", () => {
+  it("copies images into the published book and leaves no stage on failure", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-copy-"));
+    roots.push(parent);
+    const store = new LongProjectStore({ now: () => NOW });
+    const source = await store.createBook(parent, {
+      title: "插图长篇",
+      genre: "悬疑"
+    });
+    const images = join(source.projectDirectory, "images");
+    await mkdir(images);
+    await writeFile(join(images, "地图.png"), "image bytes");
+    if (process.platform !== "win32")
+      await symlink(join(images, "地图.png"), join(images, "链接.png"));
+    const copy = await store.duplicateBook(
+      parent,
+      source.projectDirectory,
+      "插图长篇copy1"
+    );
+    expect(
+      await readFile(join(copy.projectDirectory, "images", "地图.png"), "utf8")
+    ).toBe("image bytes");
+    expect(await readdir(join(copy.projectDirectory, "images"))).toEqual([
+      "地图.png"
+    ]);
+    await writeFile(join(images, "empty.jpg"), "");
+    const before = await readdir(parent);
+    await expect(
+      store.duplicateBook(parent, source.projectDirectory, "不完整副本")
+    ).rejects.toThrow("图片大小");
+    expect(await readdir(parent)).toEqual(before);
+  });
+
   it("copies current content and keeps audit commits without rollback metadata", async () => {
     const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-copy-"));
     roots.push(parent);

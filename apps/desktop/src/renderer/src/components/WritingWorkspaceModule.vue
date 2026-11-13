@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { t } from "../i18n";
+import { provideBookImageContext } from "../composables/bookImageContext";
 import type {
   AgentTeamRunMode,
   ThinkingLevel,
@@ -74,7 +75,7 @@ type WritingEditorViewModel = Readonly<
   >
 >;
 
-defineProps<{
+const props = defineProps<{
   conversationController: AgentConversationController;
   conversationContext: WritingConversationContext;
   editor: WritingEditorViewModel;
@@ -86,6 +87,20 @@ defineProps<{
     width: number;
   }>;
 }>();
+
+provideBookImageContext(() => {
+  const document = props.editor.document;
+  return document.domain === "creation" &&
+    document.workspaceType &&
+    document.workspaceId
+    ? {
+        book: {
+          projectType: document.workspaceType,
+          projectId: document.workspaceId
+        }
+      }
+    : undefined;
+});
 
 const emit = defineEmits<{
   "update:draft": [value: string];
@@ -153,6 +168,10 @@ const emit = defineEmits<{
     :agent-team-mode="conversationController.agentTeamMode.value"
     :user-input-request="conversationController.pendingUserInput.value"
     :user-input-submitting="conversationController.submittingUserInput.value"
+    :write-approval-items="conversationController.writeApprovalItems.value"
+    :write-approval-submit-failed="
+      conversationController.writeApprovalSubmitFailed.value
+    "
     @update:draft="emit('update:draft', $event)"
     @new-conversation="emit('newConversation')"
     @select-conversation="emit('selectConversation', $event)"
@@ -174,6 +193,7 @@ const emit = defineEmits<{
     @remove-editor-reference="emit('removeEditorReference', $event)"
     @locate-editor-reference="emit('locateEditorReference', $event)"
     @submit-user-input="conversationController.submitUserInput($event)"
+    @retry-write-approval="conversationController.retryWriteApproval()"
   />
 
   <RightEditorPane

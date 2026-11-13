@@ -1,3 +1,5 @@
+import { createBookImageExportLoader } from "../book-images/export-assets";
+import { BookImageError } from "../book-images/pick";
 import {
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptResultSchema,
@@ -17,7 +19,13 @@ export async function handleManuscriptCommands(
         status: "accepted",
         requestId: command.id,
         payload: ExportShortManuscriptResultSchema.parse(
-          await ctx.exportShortManuscript(ctx.getMainWindow(), command.payload)
+          await ctx.exportShortManuscript(
+            ctx.getMainWindow(),
+            command.payload,
+            createBookImageExportLoader((coreCommand) =>
+              ctx.supervisor.requestCommand("core", coreCommand, 0)
+            )
+          )
         )
       };
     } catch (error: unknown) {
@@ -25,7 +33,10 @@ export async function handleManuscriptCommands(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "manuscript.export_failed",
+          code:
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
           message: error instanceof Error ? error.message : "导出正文失败。",
           details: safeErrorDetails(error)
         }
@@ -39,7 +50,13 @@ export async function handleManuscriptCommands(
         status: "accepted",
         requestId: command.id,
         payload: ExportLongManuscriptResultSchema.parse(
-          await ctx.exportLongManuscript(ctx.getMainWindow(), command.payload)
+          await ctx.exportLongManuscript(
+            ctx.getMainWindow(),
+            command.payload,
+            createBookImageExportLoader((coreCommand) =>
+              ctx.supervisor.requestCommand("core", coreCommand, 0)
+            )
+          )
         )
       };
     } catch (error: unknown) {
@@ -47,7 +64,10 @@ export async function handleManuscriptCommands(
         status: "rejected",
         requestId: command.id,
         error: {
-          code: "manuscript.export_failed",
+          code:
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
           message: error instanceof Error ? error.message : "导出长篇失败。",
           details: safeErrorDetails(error)
         }

@@ -1,3 +1,4 @@
+import { DocumentVersionOriginSchema } from "./document-version-origin";
 import {
   CatalogPreviewLibraryStructureCommandEnvelopeSchema,
   CatalogApplyLibraryStructureCommandEnvelopeSchema
@@ -2117,6 +2118,7 @@ export const DeleteBookResultSchema = z.object({
 export type DeleteBookResult = z.infer<typeof DeleteBookResultSchema>;
 
 export const SaveDocumentInputSchema = z.object({
+  versionOrigin: DocumentVersionOriginSchema.optional(),
   bookId: CatalogIdSchema,
   documentId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),

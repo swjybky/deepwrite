@@ -82,7 +82,10 @@ export function trackExternalRun(
       const error = replies
         .filter((reply) => reply.errorMessage)
         .at(-1)?.errorMessage;
-      if (question) {
+      if (question?.source === "write_approval") {
+        // Only the user can settle proposals; the run resumes afterwards.
+        snapshot = { ...base, status: "waiting_for_user" };
+      } else if (question) {
         snapshot = {
           ...base,
           status: "waiting_for_input",

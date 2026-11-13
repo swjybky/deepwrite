@@ -267,6 +267,13 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
             "external.invalid_input",
             "这次运行已经结束，不能再提交回答。"
           );
+        if (
+          run.conversation.pendingUserInput.value?.source === "write_approval"
+        )
+          throw new BridgeFailure(
+            "external.invalid_input",
+            "这次运行正在等待用户在 DeepWrite 里审批修改，不能代为回答。"
+          );
         if (!(await run.conversation.submitUserInput(request.answers))) {
           throw new BridgeFailure(
             "external.invalid_input",

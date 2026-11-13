@@ -54,6 +54,7 @@ describe("more features general settings IPC", () => {
     );
     const settings = {
       ...defaults.settings,
+      versionHistoryEnabled: true,
       moreFeatures: [...defaults.settings.moreFeatures]
         .reverse()
         .map((entry) => ({ ...entry, visible: entry.id !== "chat-assistant" }))

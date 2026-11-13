@@ -10,7 +10,7 @@ import {
 } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal, ChatMessage } from "../../types/conversation";
 
-function settlementStatus(
+export function settlementStatus(
   proposal: AgentEditProposal
 ): ProposalSettlementStatus | undefined {
   if (proposal.discardState?.status === "discarded") return "reverted";
@@ -50,10 +50,13 @@ function concurrentEditDetail(
   if (status === "saved" && resolution === "overwrote") {
     return "用户在你修改期间编辑过该文档，确认用你的版本覆盖。";
   }
+  if (status === "saved" && proposal.userEditedText !== undefined) {
+    return "用户修改了你的版本后再保存，以作品中的内容为准。";
+  }
   return undefined;
 }
 
-function toSettlement(
+export function toSettlement(
   proposal: AgentEditProposal,
   status: ProposalSettlementStatus
 ): ProposalSettlement {

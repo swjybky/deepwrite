@@ -1,4 +1,5 @@
 import { resolveLongProjectConflicts } from "./long-project-store/resolve-conflicts";
+import { withLongDocumentVersions } from "./long-project-store/document-versions";
 import { transactManagedLongProject } from "./long-project-store/managed-transaction";
 import type { LongWorkspaceOperationBatch } from "@deepwrite/contracts";
 import { commitChapter } from "./long-project-store/commit-chapter";
@@ -166,6 +167,21 @@ export class LongProjectStore {
 
   async writeDocument(projectDirectory: string, input: WriteLongDocumentInput) {
     return await writeDocument(this.context, projectDirectory, input);
+  }
+
+  async withDocumentVersions<T>(
+    projectDirectory: string,
+    bookId: string,
+    fileId: string,
+    operation: Parameters<typeof withLongDocumentVersions<T>>[4]
+  ): Promise<T> {
+    return withLongDocumentVersions(
+      this.context,
+      projectDirectory,
+      bookId,
+      fileId,
+      operation
+    );
   }
 
   async previewWorkspaceOperations(

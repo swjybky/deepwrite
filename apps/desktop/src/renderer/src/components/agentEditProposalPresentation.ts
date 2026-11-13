@@ -93,6 +93,8 @@ export function proposalStatusLabel(view: AgentEditProposalView): string {
   );
   if (discardLabel) return discardLabel;
   if (isStaleProposal(proposal)) return t("youEditedThis");
+  if (proposal.status === "accepted" && proposal.userEditedText !== undefined)
+    return t("acceptedWithEdits");
   if (
     proposal.status === "pending" &&
     proposal.approvalMode === "auto-approve"
@@ -160,6 +162,7 @@ export function showProposalReviewActions(
   if (
     !isStaleProposal(proposal) &&
     proposal.approvalMode === "auto-approve" &&
+    view.messageStatus === "streaming" &&
     canReviewProposalWhileStreaming(view) &&
     (proposal.status === "pending" || proposal.status === "accepting")
   ) {

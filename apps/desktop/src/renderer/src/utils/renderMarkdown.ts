@@ -1,7 +1,10 @@
+import { parseBookImageLine } from "@deepwrite/contracts/renderer";
 import { parseMarkdownHeadingLine } from "./markdownOutline";
 
 export interface RenderMarkdownOptions {
   annotateHeadings?: boolean;
+  resolveImage?: ((path: string) => string | undefined) | undefined;
+  blockHtmlCache?: Map<string, string>;
 }
 
 function escapeHtml(value: string): string {
@@ -168,26 +171,74 @@ function isThematicBreak(line: string): boolean {
   );
 }
 
-export function renderMarkdown(
+export type MarkdownBlockKind =
+  | "paragraph"
+  | "heading"
+  | "quote"
+  | "list"
+  | "table"
+  | "code"
+  | "separator"
+  | "image";
+
+export interface MarkdownBlock {
+  start: number;
+  end: number;
+  kind: MarkdownBlockKind;
+  html: string;
+}
+
+export function renderMarkdownBlocks(
   source: string,
   options: RenderMarkdownOptions = {}
-): string {
-  const lines = source.replaceAll("\r\n", "\n").split("\n");
-  const blocks: string[] = [];
-  let paragraph: string[] = [];
+): MarkdownBlock[] {
+  const lines = source.split(/\r?\n/);
+  const offsets: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    offsets.push(offset);
+    offset += line.length + (source[offset + line.length] === "\r" ? 2 : 1);
+  }
+  const blocks: MarkdownBlock[] = [];
+  const usedCacheKeys = new Set<string>();
+  let paragraphStart = -1;
   let index = 0;
   let headingIndex = 0;
 
-  const flushParagraph = (): void => {
-    if (paragraph.length === 0) {
-      return;
+  function push(
+    kind: MarkdownBlockKind,
+    first: number,
+    after: number,
+    render: () => string,
+    suffix = ""
+  ): void {
+    const start = offsets[first] ?? source.length;
+    const last = Math.min(after - 1, lines.length - 1);
+    const end = (offsets[last] ?? source.length) + (lines[last]?.length ?? 0);
+    const key = `${kind}\0${suffix}\0${source.slice(start, end)}`;
+    usedCacheKeys.add(key);
+    let html = options.blockHtmlCache?.get(key);
+    if (html === undefined) {
+      html = render();
+      options.blockHtmlCache?.set(key, html);
     }
-    blocks.push(`<p>${paragraph.map(renderInline).join("<br>")}</p>`);
-    paragraph = [];
+    blocks.push({ start, end, kind, html });
+  }
+  const flushParagraph = (): void => {
+    if (paragraphStart < 0) return;
+    const paragraph = lines.slice(paragraphStart, index);
+    push(
+      "paragraph",
+      paragraphStart,
+      index,
+      () => `<p>${paragraph.map(renderInline).join("<br>")}</p>`
+    );
+    paragraphStart = -1;
   };
 
   while (index < lines.length) {
     const line = lines[index] ?? "";
+    const first = index;
     const fence = line.match(/^```([\w-]*)\s*$/);
     if (fence) {
       flushParagraph();
@@ -200,19 +251,36 @@ export function renderMarkdown(
       const language = fence[1]
         ? ` class="language-${escapeHtml(fence[1])}"`
         : "";
-      blocks.push(
-        `<pre><code${language}>${escapeHtml(code.join("\n"))}</code></pre>`
+      index = Math.min(index + 1, lines.length);
+      push(
+        "code",
+        first,
+        index,
+        () =>
+          `<pre><code${language}>${escapeHtml(code.join("\n"))}</code></pre>`
       );
-      index += 1;
       continue;
     }
-
     if (!line.trim()) {
       flushParagraph();
       index += 1;
       continue;
     }
-
+    const image = options.resolveImage ? parseBookImageLine(line) : undefined;
+    const imageUrl = image && options.resolveImage?.(image.path);
+    if (image && imageUrl) {
+      flushParagraph();
+      index += 1;
+      push(
+        "image",
+        first,
+        index,
+        () =>
+          `<figure class="markdown-image" data-image-path="${escapeHtml(image.path)}"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(image.alt)}" loading="lazy"></figure>`,
+        imageUrl
+      );
+      continue;
+    }
     const tableHeader = splitTableRow(line);
     const tableAlignments = tableHeader
       ? parseTableDelimiter(lines[index + 1] ?? "", tableHeader.length)
@@ -223,62 +291,51 @@ export function renderMarkdown(
       index += 2;
       while (index < lines.length) {
         const row = splitTableRow(lines[index] ?? "");
-        if (!row) {
-          break;
-        }
+        if (!row) break;
         rows.push(row);
         index += 1;
       }
-      blocks.push(renderTable(tableHeader, rows, tableAlignments));
+      push("table", first, index, () =>
+        renderTable(tableHeader, rows, tableAlignments)
+      );
       continue;
     }
-
     if (isThematicBreak(line)) {
       flushParagraph();
-      blocks.push("<hr>");
       index += 1;
+      push("separator", first, index, () => "<hr>");
       continue;
     }
-
     const heading = parseMarkdownHeadingLine(line);
     if (heading) {
       flushParagraph();
       const attributes = options.annotateHeadings
         ? ` data-markdown-heading-index="${headingIndex}" tabindex="-1"`
         : "";
-      blocks.push(
-        `<h${heading.level}${attributes}>${renderInline(heading.source)}</h${heading.level}>`
+      index += 1;
+      push(
+        "heading",
+        first,
+        index,
+        () =>
+          `<h${heading.level}${attributes}>${renderInline(heading.source)}</h${heading.level}>`,
+        attributes
       );
       headingIndex += 1;
-      index += 1;
       continue;
     }
-
-    if (/^\s*[-*+]\s+/.test(line)) {
+    const ordered = /^\s*\d+[.)]\s+/.test(line);
+    if (ordered || /^\s*[-*+]\s+/.test(line)) {
       flushParagraph();
+      const expression = ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*+]\s+/;
       const items: string[] = [];
-      while (index < lines.length && /^\s*[-*+]\s+/.test(lines[index] ?? "")) {
+      while (index < lines.length && expression.test(lines[index] ?? "")) {
         items.push(lines[index] ?? "");
         index += 1;
       }
-      blocks.push(renderList(items, false));
+      push("list", first, index, () => renderList(items, ordered));
       continue;
     }
-
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      flushParagraph();
-      const items: string[] = [];
-      while (
-        index < lines.length &&
-        /^\s*\d+[.)]\s+/.test(lines[index] ?? "")
-      ) {
-        items.push(lines[index] ?? "");
-        index += 1;
-      }
-      blocks.push(renderList(items, true));
-      continue;
-    }
-
     if (/^>\s?/.test(line)) {
       flushParagraph();
       const quote: string[] = [];
@@ -286,16 +343,31 @@ export function renderMarkdown(
         quote.push((lines[index] ?? "").replace(/^>\s?/, ""));
         index += 1;
       }
-      blocks.push(
-        `<blockquote>${quote.map(renderInline).join("<br>")}</blockquote>`
+      push(
+        "quote",
+        first,
+        index,
+        () => `<blockquote>${quote.map(renderInline).join("<br>")}</blockquote>`
       );
       continue;
     }
-
-    paragraph.push(line);
+    if (paragraphStart < 0) paragraphStart = index;
     index += 1;
   }
-
   flushParagraph();
-  return blocks.join("");
+  if (options.blockHtmlCache) {
+    for (const key of options.blockHtmlCache.keys()) {
+      if (!usedCacheKeys.has(key)) options.blockHtmlCache.delete(key);
+    }
+  }
+  return blocks;
+}
+
+export function renderMarkdown(
+  source: string,
+  options: RenderMarkdownOptions = {}
+): string {
+  return renderMarkdownBlocks(source, options)
+    .map((block) => block.html)
+    .join("");
 }

@@ -79,6 +79,7 @@ export function useGeneralSettingsCoordinator(
   let bodyTextPatch: Partial<GeneralSettings["bodyTextFormats"]> = {};
   let savedMoreFeatures = options.settings.value.moreFeatures;
   let savedTaskNotification = options.settings.value.taskNotification;
+  let savedVersionHistoryEnabled = options.settings.value.versionHistoryEnabled;
   let moreFeaturesRevision = 0;
   let savedMoreFeaturesRevision = 0;
   let saveRevision = 0;
@@ -104,6 +105,7 @@ export function useGeneralSettingsCoordinator(
       .then(async () => {
         const saved = await api.save(snapshot);
         savedTaskNotification = saved.settings.taskNotification;
+        savedVersionHistoryEnabled = saved.settings.versionHistoryEnabled;
         savedMoreFeatures = saved.settings.moreFeatures;
         savedMoreFeaturesRevision = featureRevision;
         if (featureRevision > 0 && revision === saveRevision) {
@@ -111,11 +113,29 @@ export function useGeneralSettingsCoordinator(
         }
         saveFailed = false;
         if (revision === saveRevision) {
-          applyLocalPatch({ taskNotification: savedTaskNotification });
+          applyLocalPatch({
+            taskNotification: savedTaskNotification,
+            versionHistoryEnabled: savedVersionHistoryEnabled
+          });
         }
       });
     saveChain = operation.catch(async (error: unknown) => {
       saveFailed = true;
+      const versionSaveFailed =
+        snapshot.versionHistoryEnabled !== savedVersionHistoryEnabled;
+      if (versionSaveFailed && revision === saveRevision) {
+        try {
+          savedVersionHistoryEnabled = (await api.list()).settings
+            .versionHistoryEnabled;
+        } catch {
+          // Keep the last acknowledged value if authority is unavailable.
+        }
+        if (revision === saveRevision) {
+          applyLocalPatch({
+            versionHistoryEnabled: savedVersionHistoryEnabled
+          });
+        }
+      }
       const notificationSaveFailed =
         snapshot.taskNotification !== savedTaskNotification;
       if (notificationSaveFailed && revision === saveRevision) {
@@ -192,6 +212,7 @@ export function useGeneralSettingsCoordinator(
         : snapshot.settings;
       savedMoreFeatures = settings.moreFeatures;
       savedTaskNotification = settings.taskNotification;
+      savedVersionHistoryEnabled = settings.versionHistoryEnabled;
       if (disposed) {
         loading = false;
         return;
@@ -253,6 +274,11 @@ export function useGeneralSettingsCoordinator(
     queueSave();
     if (enabled) options.scheduleDirtyAutoSave();
     else options.cancelAutoSave();
+  }
+
+  function updateVersionHistoryEnabled(enabled: boolean): void {
+    applyLocalPatch({ versionHistoryEnabled: enabled });
+    queueSave();
   }
 
   function updateLanguage(language: GeneralSettings["language"]): void {
@@ -355,6 +381,7 @@ export function useGeneralSettingsCoordinator(
     load,
     /** Plain on/off preferences: one binding keeps new switches out of the shell. */
     generalSwitchEvents: {
+      updateVersionHistoryEnabled,
       updateExternalControlEnabled,
       updateShowInMenuBar,
       updateTaskNotification

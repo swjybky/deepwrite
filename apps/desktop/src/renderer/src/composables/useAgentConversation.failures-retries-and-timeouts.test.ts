@@ -589,14 +589,14 @@ describe("agent conversation controller: failures-retries-and-timeouts", () => {
     controller.dispose();
   });
 
-  it("uses a five-minute idle timeout by default", async () => {
+  it("backs up the Agent's five-minute deadline with a six-minute UI timeout", async () => {
     vi.useFakeTimers();
     const deferred = createDeferredApi();
     const controller = useAgentConversation({ api: () => deferred.api });
     controller.draft.value = "验证默认空闲超时";
     void controller.sendMessage(document);
 
-    await vi.advanceTimersByTimeAsync(5 * 60_000 - 1);
+    await vi.advanceTimersByTimeAsync(6 * 60_000 - 1);
     expect(controller.isBusy.value).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1);

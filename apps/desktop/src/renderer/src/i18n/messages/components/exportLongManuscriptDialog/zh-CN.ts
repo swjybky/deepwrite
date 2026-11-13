@@ -1,4 +1,6 @@
 export default {
+  imageExportDescription:
+    "图片以文字占位；按文件夹导出时，用到的图片会复制到导出目录的 images 文件夹。",
   worldbuilding: "世界观",
   categoryContentAndAllEntries: "分类正文与全部条目",
   characters: "人物",

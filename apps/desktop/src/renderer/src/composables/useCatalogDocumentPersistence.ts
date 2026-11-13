@@ -9,7 +9,17 @@ import {
   type CatalogLibraryEntry,
   type DeepWriteApi
 } from "@deepwrite/contracts";
-import { ref, type Ref, type ShallowRef } from "vue";
+import {
+  getCurrentInstance,
+  provide,
+  ref,
+  type Ref,
+  type ShallowRef
+} from "vue";
+import {
+  CATALOG_DOCUMENT_VERSION_PORT,
+  type CatalogDocumentVersionPort
+} from "./catalogDocumentVersionPort";
 import type {
   CatalogDocumentLoadResult,
   CatalogDocumentTarget,
@@ -1190,7 +1200,43 @@ export function useCatalogDocumentPersistence(
     }
   }
 
+  const documentVersions: CatalogDocumentVersionPort = {
+    async prepare(payload) {
+      await drain();
+      const document = documents.value.find(({ id }) => id === payload.id);
+      if (!document) return false;
+      if (
+        document.content === payload.content &&
+        document.title === payload.title &&
+        !editorDrafts.value[payload.id]?.dirty
+      )
+        return true;
+      return trackOperation(() => persistEditorDocument(payload, false), false);
+    },
+    async apply(id, result) {
+      const payload = { id, title: result.title, content: result.content };
+      const document = documents.value.find((candidate) => candidate.id === id);
+      if (!document?.workspaceId) return;
+      applyAcceptedAgentDocumentLocally(
+        payload,
+        result.projectRevision,
+        editorDrafts.value[id]
+      );
+      await refreshBookAfterSuccessfulDocumentSave(
+        document.workspaceId,
+        captureWorkspaceDocumentBaselines(
+          documents.value,
+          document.workspaceId
+        ),
+        result.projectRevision
+      );
+    }
+  };
+  if (getCurrentInstance())
+    provide(CATALOG_DOCUMENT_VERSION_PORT, documentVersions);
+
   return {
+    documentVersions,
     savingDocumentIds,
     saveConflict,
     saveConflictSubmitting,

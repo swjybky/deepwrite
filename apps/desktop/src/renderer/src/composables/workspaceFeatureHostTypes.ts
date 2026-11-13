@@ -91,6 +91,7 @@ export interface WorkspaceFeatureHostCoordinator {
   activeFeature: ComputedRef<ActiveFeature>;
   workspaceFeatureModule: ComputedRef<WorkspaceFeatureModule | null>;
   marketplaceDisplayName: Ref<string | undefined>;
+  marketplaceSignedIn: ComputedRef<boolean>;
   showConversation(): void;
   newConversation(): void;
   openWorkspaceDialog(mode: DialogMode): Promise<void>;
@@ -109,6 +110,8 @@ export interface WorkspaceFeatureHostCoordinator {
   resetWorkspaceDirectory(): Promise<void>;
   closeSettings(): void;
   applyMarketplaceSession(session: MarketplaceSession): void;
+  /** An explicit sign-out also leaves pages that only work while signed in. */
+  signedOutOfMarketplace(session: MarketplaceSession): void;
   loadMarketplaceSession(): Promise<void>;
   ensureActiveFeatureDependencies(feature: ActiveFeature): Promise<void>;
   dispose(): void;

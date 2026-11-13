@@ -291,6 +291,7 @@ export async function decompositionUiStep(
           integration: reusable.models.integration
         },
         autoContinue: false,
+        maxConcurrency: 5,
         reuseJobId: reusable.id
       });
       const paused = await api.longBookDecomposition.control({

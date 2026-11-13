@@ -17,6 +17,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { RuntimeSubagentDefinition } from "./subagent-types";
 import { webSearchPromptFor } from "./web-search/prompt";
+import { bookImagePreservationRule } from "./prompts-book-images";
 export const SUBAGENT_SUMMARY_MAX_LENGTH = 20_000;
 export function textResult<T>(text: string, details: T): AgentToolResult<T> {
   return { content: [{ type: "text", text }], details };
@@ -166,6 +167,7 @@ export function buildSubagentSystemPrompt(
       ? "你继承了主智能体调用时的对话快照。历史工具结果仅供理解任务，不代表你拥有那些工具或已经读取过待编辑条目；必须使用自己的工具重新读取。"
       : "你由当前主智能体为一个明确子任务临时创建。本次运行使用全新上下文，不继承主对话历史。",
     "你不能创建或调用其它子智能体。",
+    bookImagePreservationRule(),
     ...(runtimeNote ? [runtimeNote] : []),
     ...webSearchSection(definition, childTools),
     ...(toolLines.length > 0

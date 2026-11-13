@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   LONG_WORKSPACE_INDEX_PATH,
+  LONG_DOCUMENT_MAX_BYTES,
   LongProjectManifestSchema,
   LongWorkspaceOperationBatchSchema,
   LongWorkspaceOperationError,
@@ -12,6 +13,10 @@ import {
   type LongWorkspaceImpactPreview,
   type LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
+import {
+  captureDocumentVersions,
+  DocumentVersionStore
+} from "../document-versions/version-store";
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { loadIndexedFile } from "./cache";
 import {
@@ -104,6 +109,7 @@ export async function applyWorkspaceOperations(
       ])
     );
     const fileOperations: ProjectTransactionFileOperation[] = [];
+    const versionWrites: { fileId: string; path: string; after: string }[] = [];
 
     for (const intent of operationResult.fileIntents) {
       if (intent.action === "delete") {
@@ -130,6 +136,12 @@ export async function applyWorkspaceOperations(
         content,
         expectedSha256: null
       });
+      if (proposal)
+        versionWrites.push({
+          fileId: intent.file.id,
+          path: intent.file.path,
+          after: content
+        });
     }
 
     for (const proposal of operationResult.documentWrites) {
@@ -145,6 +157,11 @@ export async function applyWorkspaceOperations(
         proposal.mode === "append"
           ? `${current.disk.content}${proposal.content}`
           : proposal.content;
+      versionWrites.push({
+        fileId: proposal.fileId,
+        path: current.reference.path,
+        after: content
+      });
       const nextFile = requireIndexedFileReference(nextIndex, proposal.fileId);
       nextFile.updatedAt = nextIndex.updatedAt;
       updateChapterBodyStatus(nextIndex, nextFile.id, content);
@@ -187,15 +204,38 @@ export async function applyWorkspaceOperations(
             fileOperations
           )
         : undefined;
-    await commitLongProjectTransaction({
-      projectRoot: loaded.projectDirectory,
-      operations: [
-        ...fileOperations,
-        { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
-      ],
-      maxFileBytes: MAX_LEDGER_RECORD_BYTES
-    });
+    await commitLongProjectTransaction(
+      {
+        projectRoot: loaded.projectDirectory,
+        operations: [
+          ...fileOperations,
+          { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
+          { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        ],
+        maxFileBytes: MAX_LEDGER_RECORD_BYTES
+      },
+      input.versionOrigin
+        ? async (beforeContents) => {
+            for (const write of versionWrites) {
+              await captureDocumentVersions(
+                new DocumentVersionStore(
+                  loaded.projectDirectory,
+                  {
+                    workspace: "long",
+                    bookId: loaded.index.bookId,
+                    fileId: write.fileId
+                  },
+                  LONG_DOCUMENT_MAX_BYTES,
+                  ctx.now
+                ),
+                beforeContents.get(write.path) ?? new Uint8Array(),
+                write.after,
+                input.versionOrigin!
+              );
+            }
+          }
+        : undefined
+    );
     const next = await loadProject(ctx, loaded.projectDirectory);
     // The batch is already saved; a failed snapshot only loses the undo.
     const restorePoint = restoreBaseline

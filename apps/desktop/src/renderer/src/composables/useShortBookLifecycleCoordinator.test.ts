@@ -207,6 +207,7 @@ function createHarness(options: HarnessOptions = {}) {
   const manuscriptApi = {
     exportShort: vi.fn(async () => ({
       status: "saved" as const,
+      missingImages: 0,
       filePath: "/tmp/example.test-output.docx"
     }))
   };
@@ -608,6 +609,22 @@ describe("useShortBookLifecycleCoordinator", () => {
         ])
       })
     );
+    expect(harness.exportBookTarget.value).toBeNull();
+  });
+
+  it("warns about missing images after an otherwise successful export", async () => {
+    const harness = createHarness();
+    harness.exportBookTarget.value = harness.target;
+    harness.manuscriptApi.exportShort.mockResolvedValueOnce({
+      status: "saved",
+      filePath: "/example.test/output.docx",
+      missingImages: 2
+    });
+    await harness.coordinator.exportBookManuscript("docx");
+    expect(harness.notifications.warning).toHaveBeenCalledWith(
+      "已导出，2 张图片缺失已跳过。"
+    );
+    expect(harness.notifications.success).not.toHaveBeenCalled();
     expect(harness.exportBookTarget.value).toBeNull();
   });
 

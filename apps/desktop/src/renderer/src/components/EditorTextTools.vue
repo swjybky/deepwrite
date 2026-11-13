@@ -10,6 +10,7 @@ defineProps<{
   disabled?: boolean;
   findPanelOpen: boolean;
   findPanelMode: "find" | "replace";
+  versionVisible?: boolean;
   formatVisible?: boolean;
   formatDisabled?: boolean;
   formatLabel?: string | undefined;
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   redo: [];
   toggleFind: [mode: "find" | "replace"];
   format: [];
+  versions: [];
 }>();
 </script>
 
@@ -70,6 +72,17 @@ const emit = defineEmits<{
     @click="emit('toggleFind', 'replace')"
   >
     <AppIcon name="replace" :size="16" />
+  </button>
+  <button
+    v-if="versionVisible"
+    class="text-tool-button"
+    type="button"
+    :aria-label="t('versions')"
+    :title="t('versions')"
+    @mousedown.prevent
+    @click="emit('versions')"
+  >
+    <AppIcon name="history" :size="16" />
   </button>
   <button
     v-if="formatVisible"

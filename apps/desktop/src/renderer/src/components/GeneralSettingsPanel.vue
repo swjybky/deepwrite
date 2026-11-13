@@ -4,16 +4,17 @@ import type {
   GeneralPermissionMode,
   WorkspacePaneLayout
 } from "@deepwrite/contracts";
-import { computed } from "vue";
+import { computed, nextTick } from "vue";
 import { createScopedTranslator } from "../i18n";
 import PopupSelect from "./PopupSelect.vue";
 
 const t = createScopedTranslator("foundation");
 
-defineProps<{
+const props = defineProps<{
   permissionMode: GeneralPermissionMode;
   autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
+  versionHistoryEnabled: boolean;
   language: AppLanguage;
   showInMenuBar: boolean;
   taskNotification: boolean;
@@ -25,12 +26,21 @@ const emit = defineEmits<{
   updatePermissionMode: [mode: GeneralPermissionMode];
   updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
+  updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowInMenuBar: [enabled: boolean];
   updateTaskNotification: [enabled: boolean];
   updateUseNetworkProxy: [enabled: boolean];
   updateWorkspacePaneLayout: [layout: WorkspacePaneLayout];
 }>();
+
+function updateVersionHistory(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  emit("updateVersionHistoryEnabled", input.checked);
+  void nextTick(() => {
+    input.checked = props.versionHistoryEnabled;
+  });
+}
 
 const languageOptions = computed<Array<{ value: AppLanguage; label: string }>>(
   () => [
@@ -196,6 +206,25 @@ const workspacePaneLayoutOptions = computed<
               )
             " /></span
       ></label>
+    </div>
+
+    <h2 class="settings-group-title">{{ t("versionControl") }}</h2>
+    <div class="settings-card">
+      <label class="settings-item">
+        <span class="settings-item-text">
+          <strong>{{ t("versionHistory") }}</strong>
+          <small>{{ t("versionHistoryDescription") }}</small>
+        </span>
+        <span class="settings-toggle">
+          <input
+            type="checkbox"
+            role="switch"
+            :checked="versionHistoryEnabled"
+            :aria-label="t('versionHistory')"
+            @change="updateVersionHistory"
+          />
+        </span>
+      </label>
     </div>
 
     <h2 class="settings-group-title">{{ t("network") }}</h2>

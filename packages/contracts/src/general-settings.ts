@@ -50,6 +50,7 @@ export const GeneralSettingsSchema = z
     permissionMode: GeneralPermissionModeSchema,
     autoApproveCrossStageOperations: z.boolean().default(true),
     autoSave: z.boolean(),
+    versionHistoryEnabled: z.boolean().default(false),
     language: AppLanguageSchema,
     showInMenuBar: z.boolean(),
     /** Show a system notification when an agent run or a task settles. */
@@ -100,6 +101,7 @@ export function createDefaultGeneralSettings(): GeneralSettings {
     permissionMode: "auto-approve",
     autoApproveCrossStageOperations: true,
     autoSave: true,
+    versionHistoryEnabled: false,
     language: "auto",
     showInMenuBar: true,
     taskNotification: false,

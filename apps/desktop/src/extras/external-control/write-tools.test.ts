@@ -269,6 +269,9 @@ describe("external write tools against real stores", () => {
     });
     expect(after.content).toBe("新的正文");
     expect(written.revision).toBe(after.revision);
+    await expect(
+      stat(join(await store.projectDirectory(bookId), ".deepwrite", "versions"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
     expect(broadcast).toHaveBeenCalledWith({
       domain: "work",
       resourceId: bookId

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import type { AgentEditProposal, ChatMessage } from "../types/conversation";
 import { longImpactSummary } from "../utils/longImpactSummary";
 import { useLongWorkspaceStore } from "../stores/longWorkspaceStore";
 import AppIcon from "./AppIcon.vue";
 import AgentEditProposalDiff from "./AgentEditProposalDiff.vue";
+import AgentEditProposalEditor from "./AgentEditProposalEditor.vue";
 import ApprovalDiscardButton from "./ApprovalDiscardButton.vue";
+import { proposalEditBaseText } from "../utils/agentProposalEdit";
 import {
   isStaleProposal,
   longExpectedImpact as proposalExpectedImpact,
@@ -47,6 +49,8 @@ const emit = defineEmits<{
       runId: string;
       proposalId: string;
       decision: "accept" | "reject";
+      /** Accept the user's rewrite instead of the agent's text. */
+      editedText?: string;
     }
   ];
   locate: [payload: { runId: string; proposalId: string }];
@@ -80,13 +84,39 @@ const showFooter = computed(() => {
   );
 });
 
-function review(decision: "accept" | "reject"): void {
+function review(decision: "accept" | "reject", editedText?: string): void {
   if (proposalReviewDisabled(props, decision)) return;
   emit("review", {
     runId: props.proposal.runId,
     proposalId: props.proposal.id,
-    decision
+    decision,
+    ...(editedText === undefined ? {} : { editedText })
   });
+}
+
+// Edit mode: the user rewrites the agent's text on the card, then saves it.
+const editing = ref(false);
+const editedText = ref("");
+const canEdit = computed(
+  () =>
+    !props.remoteDevice &&
+    !isStale.value &&
+    !proposalReviewDisabled(props, "accept") &&
+    proposalEditBaseText(props.proposal) !== undefined
+);
+watch(canEdit, (value) => {
+  if (!value) editing.value = false;
+});
+
+function startEditing(): void {
+  editedText.value = props.proposal.proposedText ?? "";
+  editing.value = true;
+}
+
+function saveEdited(): void {
+  const text = editedText.value;
+  editing.value = false;
+  review("accept", text === props.proposal.proposedText ? undefined : text);
 }
 
 function locate(): void {
@@ -200,7 +230,16 @@ function discard(): void {
       </div>
     </div>
 
-    <AgentEditProposalDiff :proposal="proposal" :inline="variant === 'row'" />
+    <AgentEditProposalEditor
+      v-if="editing"
+      v-model="editedText"
+      :label="t('editProposalText', { title: proposal.title })"
+    />
+    <AgentEditProposalDiff
+      v-else
+      :proposal="proposal"
+      :inline="variant === 'row'"
+    />
 
     <section
       v-if="longExpectedImpact"
@@ -213,10 +252,27 @@ function discard(): void {
 
     <footer v-if="showFooter" class="edit-proposal-footer">
       <span class="edit-proposal-message">{{
-        proposalStatusMessage(props)
+        editing ? t("editHint") : proposalStatusMessage(props)
       }}</span>
+      <div v-if="editing" class="edit-proposal-actions">
+        <button
+          class="edit-review-button"
+          type="button"
+          @click="editing = false"
+        >
+          {{ t("cancelEdit") }}
+        </button>
+        <button
+          class="edit-review-button is-accept"
+          type="button"
+          :disabled="!canEdit"
+          @click="saveEdited"
+        >
+          {{ t("saveEdited") }}
+        </button>
+      </div>
       <div
-        v-if="showProposalReviewActions(props)"
+        v-else-if="showProposalReviewActions(props)"
         class="edit-proposal-actions"
       >
         <button
@@ -226,6 +282,14 @@ function discard(): void {
           @click="review('reject')"
         >
           {{ isStale ? t("keepMine") : t("reject") }}
+        </button>
+        <button
+          v-if="canEdit"
+          class="edit-review-button"
+          type="button"
+          @click="startEditing"
+        >
+          {{ t("edit") }}
         </button>
         <button
           v-if="proposal.status !== 'conflict'"

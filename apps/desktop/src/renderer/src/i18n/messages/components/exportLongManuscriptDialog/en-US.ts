@@ -1,4 +1,6 @@
 export default {
+  imageExportDescription:
+    "Images use text placeholders. Folder exports also copy referenced images to the images folder.",
   worldbuilding: "Worldbuilding",
   categoryContentAndAllEntries: "Category content and all entries",
   characters: "Characters",

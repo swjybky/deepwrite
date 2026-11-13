@@ -1,6 +1,6 @@
 import { t } from "../i18n";
 import { computed, ref, watch } from "vue";
-import { countNonWhitespaceCharacters } from "../utils/boundedTextHistory";
+import { countDocumentCharacters } from "../utils/bookImageText";
 import { createShortManuscriptExportInput } from "../utils/shortManuscriptExport";
 import type { ShortManuscriptPreviewContext } from "./shortManuscriptPreviewContext";
 
@@ -64,7 +64,7 @@ export function useShortManuscriptCharacterCount(
       "txt"
     );
     return manuscript.sections.reduce(
-      (total, section) => total + countNonWhitespaceCharacters(section.content),
+      (total, section) => total + countDocumentCharacters(section.content),
       0
     );
   });

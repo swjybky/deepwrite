@@ -12,7 +12,16 @@ describe("appearance IPC wiring", () => {
 
     expect(mainSource).toContain("handleAppearanceCommands(");
     expect(mainSource).toContain("requireAppearanceService");
-    expect(mainSource).toContain("registerAppearanceFontScheme();");
+    expect(mainSource).toContain(
+      "registerAppearanceFontScheme(schemeCollector);"
+    );
+    expect(mainSource).toContain("registerCoverScheme(schemeCollector);");
+    expect(mainSource).toContain("registerBookImageScheme(schemeCollector);");
+    expect(
+      mainSource.match(
+        /protocol\.registerSchemesAsPrivileged\(privilegedSchemes\)/g
+      )
+    ).toHaveLength(1);
     expect(mainSource).toContain(
       "installAppearanceFontProtocolHandler(appearanceService);"
     );

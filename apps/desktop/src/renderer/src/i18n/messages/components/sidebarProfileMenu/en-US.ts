@@ -22,5 +22,9 @@ export default {
   forFeedbackOrEarlyAccessToNewVersionsAdd:
     "For feedback or early access to new versions, add the author on WeChat and join the discussion group.",
   weChatID: "WeChat ID",
-  gotIt: "Got it"
+  gotIt: "Got it",
+  signIn: "Sign in",
+  signOut: "Sign out",
+  signedOut: "Signed out",
+  couldNotSignOut: "Could not sign out. Try again later."
 };

@@ -46,7 +46,9 @@ export function unknownRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export async function commitLongProjectTransaction(
-  input: CommitProjectTransactionInput
+  input: CommitProjectTransactionInput,
+  afterCommit?: Parameters<typeof commitProjectTransaction>[1],
+  preservePreconditions = false
 ) {
   for (const operation of input.operations) {
     if (operation.action === "delete" || operation.action === "check") {
@@ -75,17 +77,22 @@ export async function commitLongProjectTransaction(
   // recovery, but long-form callers must not turn hashes captured while
   // reading into a user-visible optimistic-concurrency boundary. A null
   // precondition is retained only for files that are being created.
+  // A user-requested version restore explicitly keeps its content CAS instead.
   const operations = input.operations.flatMap((operation) => {
     if (operation.action === "check") return [];
-    if (operation.expectedSha256 === null) return [operation];
+    if (preservePreconditions || operation.expectedSha256 === null)
+      return [operation];
     const { expectedSha256: _expectedSha256, ...lastWriteWins } = operation;
     return [lastWriteWins];
   });
-  return await commitProjectTransaction({
-    ...input,
-    operations,
-    maxFileBytes: MAX_LEDGER_RECORD_BYTES
-  });
+  return await commitProjectTransaction(
+    {
+      ...input,
+      operations,
+      maxFileBytes: MAX_LEDGER_RECORD_BYTES
+    },
+    afterCommit
+  );
 }
 
 export async function readPortableBundleSource(

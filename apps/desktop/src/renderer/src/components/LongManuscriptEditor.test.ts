@@ -14,8 +14,8 @@ describe("LongManuscriptEditor", () => {
     expect(source).toContain('class="long-document-title-input"');
     expect(source).toContain('class="long-document-editor"');
     expect(source).toContain('class="long-document-preview"');
-    expect(source).toContain("<MarkdownContent");
-    expect(source).toContain("noManuscriptYet");
+    expect(source).toContain("<EditableMarkdownPreview");
+    expect(source).toContain(':editable="!readOnly && !busy"');
   });
 
   it("accepts a narrow manuscript projection and emits user intent", () => {

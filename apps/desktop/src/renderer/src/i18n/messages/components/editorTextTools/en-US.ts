@@ -1,4 +1,5 @@
 export default {
+  versions: "Version history",
   undo: "Undo",
   undoCtrlZ: "Undo (⌘/Ctrl+Z)",
   redo: "Redo",

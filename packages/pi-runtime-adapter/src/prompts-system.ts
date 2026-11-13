@@ -11,6 +11,7 @@ import { promptLocaleOf } from "./prompt-locale";
 import type { AgentRunInput } from "./runtime-types";
 import { renderSubagentAuthoringSystemPrompt } from "./subagent-authoring-tools";
 import { writeApprovalBoundary } from "./write-approval";
+import { bookImagePreservationRule } from "./prompts-book-images";
 
 export { buildDeepWriteSystemPrompt } from "./prompts-base";
 
@@ -104,10 +105,14 @@ export function buildEffectiveSystemPrompt(
   input: AgentRunInput
 ): string {
   return appendWorkspaceWebSearchPrompt(
-    buildWorkspaceAgentSystemPrompt(
-      basePrompt ?? buildDeepWriteSystemPrompt(promptLocaleOf(input)),
-      input
-    ),
+    [
+      buildWorkspaceAgentSystemPrompt(
+        basePrompt ?? buildDeepWriteSystemPrompt(promptLocaleOf(input)),
+        input
+      ),
+      "",
+      bookImagePreservationRule(promptLocaleOf(input))
+    ].join("\n"),
     input
   );
 }

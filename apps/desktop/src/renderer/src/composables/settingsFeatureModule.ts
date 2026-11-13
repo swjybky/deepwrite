@@ -14,6 +14,7 @@ export function buildSettingsFeatureModule(
     autoApproveCrossStageOperations:
       settingsStore.generalSettings.autoApproveCrossStageOperations,
     autoSaveEnabled: settingsStore.editorAutoSaveEnabled,
+    versionHistoryEnabled: settingsStore.generalSettings.versionHistoryEnabled,
     language: settingsStore.generalSettings.language,
     showContextUsage: settingsStore.generalSettings.showContextUsage,
     textAttachmentMaxCharacters:

@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./version-origin";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import {
@@ -890,8 +891,7 @@ export function createApplyReview(ctx: ProposalLaneContext) {
       if (
         !predecessor ||
         predecessor.status === "rejected" ||
-        predecessor.status === "conflict" ||
-        predecessor.status === "error"
+        predecessor.status === "conflict"
       ) {
         const message = t(
           "proposalCoordinator.anEarlierAgentEditCouldNotBeSavedThis"
@@ -906,9 +906,17 @@ export function createApplyReview(ctx: ProposalLaneContext) {
       if (predecessor.status !== "accepted") {
         conversation.updateEditProposal(request.runId, request.proposalId, {
           status: "pending",
-          statusMessage: t(
-            "proposalCoordinator.waitingForEarlierEditsToFinishSaving"
-          )
+          statusMessage:
+            predecessor.status === "accepting"
+              ? t("proposalCoordinator.waitingForEarlierEditsToFinishSaving")
+              : predecessor.status === "error"
+                ? t("proposalCoordinator.predecessorSaveFailed", {
+                    title: predecessor.title,
+                    detail: predecessor.statusMessage ?? ""
+                  })
+                : t("proposalCoordinator.reviewPredecessorFirst", {
+                    title: predecessor.title
+                  })
         });
         return;
       }
@@ -1349,6 +1357,11 @@ export function createApplyReview(ctx: ProposalLaneContext) {
           bookId: persistedDocument.workspaceId,
           documentId: persistedDocument.catalogDocumentId,
           content: payload.content,
+          versionOrigin: conversationVersionOrigin(
+            conversation,
+            proposal.runId,
+            proposal.summary
+          ),
           force: true
         });
         const normalizedPayload = {

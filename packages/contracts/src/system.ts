@@ -1,3 +1,5 @@
+import { BookImagesCommandSchemas } from "./book-images";
+import { DocumentVersionCommandSchemas } from "./document-versions";
 import {
   CatalogPreviewLibraryStructureCommandEnvelopeSchema,
   CatalogApplyLibraryStructureCommandEnvelopeSchema,
@@ -277,12 +279,14 @@ export const SystemHealthCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 });
 
 export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
+  ...DocumentVersionCommandSchemas,
   ExternalControlLocateProjectCommandEnvelopeSchema,
   ExternalControlWindowResponseCommandEnvelopeSchema,
   ...ExternalControlSettingsCommandSchemas,
   ...StorageSettingsCommandSchemas,
   ...VoiceCommandSchemas,
   ...BookIdentityCommandSchemas,
+  ...BookImagesCommandSchemas,
   ...LongMaterialCommandSchemas,
   ...LibraryPackageCommandSchemas,
   ...ImageModelCommandSchemas,

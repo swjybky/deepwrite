@@ -23,6 +23,14 @@ export const DECOMPOSITION_CHILD_QUERY_LIMIT = 6;
 export const DECOMPOSITION_BRIEF_MAX_CHARACTERS = 2_000_000;
 /** Pause once actual usage passes the high estimate by this factor. */
 export const DECOMPOSITION_USAGE_LIMIT_FACTOR = 2;
+/** Children of one work package that run at once; the user picks per task. */
+export const DECOMPOSITION_DEFAULT_CONCURRENCY = 5;
+export const DECOMPOSITION_MAX_CONCURRENCY = 10;
+export const DecompositionConcurrencySchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(DECOMPOSITION_MAX_CONCURRENCY);
 export const DecompositionIdSchema = z
   .string()
   .min(1)

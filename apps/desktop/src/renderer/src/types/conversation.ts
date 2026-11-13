@@ -104,6 +104,13 @@ export interface AgentEditProposal {
     /** How the user settled it; reported with the next turn. */
     resolution?: "kept-user" | "overwrote";
   };
+  /**
+   * The user's own version, edited on the card before accepting (clipped to
+   * `WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH`); reported to the agent.
+   */
+  userEditedText?: string;
+  /** The edited text was longer than `userEditedText` holds. */
+  userEditedTextTruncated?: boolean;
   /** Presentation and retry state for restoring an accepted edit. */
   discardState?: {
     status: "discarding" | "discarded" | "conflict" | "error";

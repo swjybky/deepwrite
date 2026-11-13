@@ -202,6 +202,9 @@ export function planExtrasRun(input: ExtrasAgentRunInput): AgentRunPlan {
           prepareChild: orchestration.prepareChild,
           buildChildTools: () => [],
           parallel: true,
+          ...(orchestration.maxConcurrency
+            ? { maxConcurrency: orchestration.maxConcurrency }
+            : {}),
           workspaceAccess: "none",
           ...(agent.interaction === "task" &&
           agent.contextTask &&

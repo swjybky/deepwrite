@@ -1,7 +1,7 @@
 import { nativeText } from "./native-i18n";
 import type { BrowserWindow } from "electron";
 import { dialog } from "electron";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ExportLongManuscriptInputSchema,
@@ -9,6 +9,13 @@ import {
   type ExportLongManuscriptInput,
   type ExportLongManuscriptResult
 } from "@deepwrite/contracts";
+
+import {
+  loadManuscriptImages,
+  textWithImagePlaceholders,
+  type ManuscriptImageAssets
+} from "./manuscript-export-images";
+import type { BookImageExportLoader } from "./book-images/export-assets";
 
 const WINDOWS_RESERVED_NAMES =
   /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu;
@@ -47,7 +54,8 @@ async function uniquePath(path: string, extension = ""): Promise<string> {
 
 export async function writeLongManuscriptExport(
   parentDirectory: string,
-  rawInput: ExportLongManuscriptInput
+  rawInput: ExportLongManuscriptInput,
+  assets?: ManuscriptImageAssets
 ): Promise<{ directoryPath: string; fileCount: number }> {
   const input = ExportLongManuscriptInputSchema.parse(rawInput);
   const directoryBase = join(
@@ -57,31 +65,51 @@ export async function writeLongManuscriptExport(
   const directoryPath = await uniquePath(directoryBase);
   await mkdir(directoryPath, { recursive: false });
 
-  const usedRelativePaths = new Set<string>();
-  for (const file of input.files) {
-    const directories = file.path
-      .slice(0, -1)
-      .map((segment) => safeLongExportName(segment));
-    const filename = safeLongExportName(file.path.at(-1) ?? "未命名");
-    const parentPath = join(directoryPath, ...directories);
-    await mkdir(parentPath, { recursive: true });
-
-    const relativeBase = join(...directories, filename).toLocaleLowerCase();
-    let suffix = 1;
-    let relativeKey = `${relativeBase}.txt`;
-    while (usedRelativePaths.has(relativeKey)) {
-      suffix += 1;
-      relativeKey = `${relativeBase} (${suffix}).txt`;
+  try {
+    if (assets?.size) {
+      await mkdir(join(directoryPath, "images"));
+      for (const [path, asset] of assets) {
+        await writeFile(join(directoryPath, path), asset.bytes, { flag: "wx" });
+      }
     }
-    usedRelativePaths.add(relativeKey);
-    const targetBase = join(
-      parentPath,
-      suffix === 1 ? filename : `${filename} (${suffix})`
-    );
-    await writeFile(`${targetBase}.txt`, `\ufeff${file.content}`, "utf8");
-  }
+    const usedRelativePaths = new Set<string>();
+    for (const file of input.files) {
+      const directories = file.path
+        .slice(0, -1)
+        .map((segment) => safeLongExportName(segment));
+      const filename = safeLongExportName(file.path.at(-1) ?? "未命名");
+      const parentPath = join(directoryPath, ...directories);
+      await mkdir(parentPath, { recursive: true });
 
-  return { directoryPath, fileCount: input.files.length };
+      const relativeBase = join(...directories, filename).toLocaleLowerCase();
+      let suffix = 1;
+      let relativeKey = `${relativeBase}.txt`;
+      while (usedRelativePaths.has(relativeKey)) {
+        suffix += 1;
+        relativeKey = `${relativeBase} (${suffix}).txt`;
+      }
+      usedRelativePaths.add(relativeKey);
+      const targetBase = join(
+        parentPath,
+        suffix === 1 ? filename : `${filename} (${suffix})`
+      );
+      await writeFile(
+        `${targetBase}.txt`,
+        `\ufeff${textWithImagePlaceholders(file.content, assets, true)}`,
+        "utf8"
+      );
+    }
+
+    return { directoryPath, fileCount: input.files.length };
+  } catch (error) {
+    await rm(directoryPath, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 20
+    });
+    throw error;
+  }
 }
 
 export function combinedLongManuscriptText(
@@ -97,14 +125,16 @@ export function combinedLongManuscriptText(
       parts.push(`【${section}】`);
     }
     parts.push(`〔${labels.join(" / ")}〕`);
-    if (file.content.trim()) parts.push(file.content.trimEnd());
+    const content = textWithImagePlaceholders(file.content);
+    if (content.trim()) parts.push(content.trimEnd());
   }
   return `\ufeff${parts.join("\n\n")}\n`;
 }
 
 export async function exportLongManuscript(
   window: BrowserWindow,
-  rawInput: ExportLongManuscriptInput
+  rawInput: ExportLongManuscriptInput,
+  loadImages?: BookImageExportLoader
 ): Promise<ExportLongManuscriptResult> {
   const input = ExportLongManuscriptInputSchema.parse(rawInput);
   if (input.mode === "single-txt") {
@@ -116,6 +146,7 @@ export async function exportLongManuscript(
     if (selection.canceled || !selection.filePath) {
       return ExportLongManuscriptResultSchema.parse({ status: "cancelled" });
     }
+    // A single TXT only writes placeholders and never reads image bytes.
     await writeFile(
       selection.filePath,
       combinedLongManuscriptText(input),
@@ -124,7 +155,8 @@ export async function exportLongManuscript(
     return ExportLongManuscriptResultSchema.parse({
       status: "saved",
       filePath: selection.filePath,
-      fileCount: 1
+      fileCount: 1,
+      missingImages: 0
     });
   }
   const selection = await dialog.showOpenDialog(window, {
@@ -136,8 +168,14 @@ export async function exportLongManuscript(
   if (selection.canceled || !parentDirectory) {
     return ExportLongManuscriptResultSchema.parse({ status: "cancelled" });
   }
+  const { assets, missingImages } = await loadManuscriptImages(
+    input.book,
+    input.files.map((file) => file.content),
+    loadImages
+  );
   return ExportLongManuscriptResultSchema.parse({
     status: "saved",
-    ...(await writeLongManuscriptExport(parentDirectory, input))
+    missingImages,
+    ...(await writeLongManuscriptExport(parentDirectory, input, assets))
   });
 }

@@ -20,7 +20,7 @@ type ActivityEvent = Extract<
   { type: "subagent.activity" }
 >;
 
-/** Diagnostic metadata only; never stores workspace content or credentials.
+/** Local model input snapshots and call metadata; excludes transport credentials.
  * Each line is flushed before returning. A start without an end means unknown
  * outcome, not success. Rotation retains at most three 10 MiB segments.
  */

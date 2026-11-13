@@ -1,0 +1,22 @@
+export default {
+  current: "Current content",
+  changed: "Changes not yet versioned",
+  before: "Before conversation",
+  preRestore: "Before restore",
+  edit: "Conversation edit",
+  restored: "Restored v{seq}",
+  compare: "Compare with previous",
+  full: "Full content",
+  empty: "No versions yet",
+  noComparison: "No previous version to compare with current content.",
+  local: "Versions stay on this device and are not synced.",
+  restore: "Restore this version",
+  confirm: "Restore v{seq}?",
+  detail: "Current content will be saved first, so you can restore it later.",
+  action: "Restore",
+  success: "Restored v{seq}",
+  busy: "An agent is editing this work. Wait for it to finish.",
+  unsaved: "Save your editor changes first.",
+  conflict: "Content changed. The list was refreshed; confirm again.",
+  unavailable: "This version is missing or damaged."
+};

@@ -1,4 +1,6 @@
 const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
+  "bookImages.write",
+  "bookImages.resolve",
   "bookIdentity.submitRound",
   "bookIdentity.readContext",
   "bookIdentity.appendRound",

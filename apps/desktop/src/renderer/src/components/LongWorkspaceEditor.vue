@@ -2,6 +2,7 @@
 import { createScopedTranslator } from "../i18n";
 import {
   computed,
+  defineAsyncComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -23,9 +24,10 @@ import {
 import { LONG_EDITOR_LIST_MIN_WIDTH } from "../utils/longEditorPanePreferences";
 import { longDeletionDescription } from "../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../utils/longImpactConfirmation";
-import { countNonWhitespaceCharacters } from "../utils/boundedTextHistory";
+import { countDocumentCharacters } from "../utils/bookImageText";
 import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
 import { revealTextareaOffset } from "../utils/textareaMirror";
+import { richMarkdownEditorAt } from "../utils/richMarkdownBridge";
 import { resolveEditorTextReferenceRange } from "../utils/editorTextReferences";
 import type { EditorTextReference } from "../types/conversation";
 import {
@@ -38,6 +40,7 @@ import {
 import AppIcon from "./AppIcon.vue";
 import EditorPaneToggle from "./EditorPaneToggle.vue";
 import EditorTextTools from "./EditorTextTools.vue";
+import { useEditorDocumentVersions } from "../composables/useEditorDocumentVersions";
 import { useBodyTextFormatting } from "../composables/useBodyTextFormatting";
 import { longBodyTextKind } from "../utils/bodyTextTarget";
 import EditorSearchHighlight from "./EditorSearchHighlight.vue";
@@ -52,7 +55,13 @@ import LongManuscriptEditor from "./LongManuscriptEditor.vue";
 import LongManuscriptNavigation from "./LongManuscriptNavigation.vue";
 import LongPlotStoryListPane from "./LongPlotStoryListPane.vue";
 import LongWorldbuildingNavigation from "./LongWorldbuildingNavigation.vue";
-import MarkdownContent from "./MarkdownContent.vue";
+import EditableMarkdownPreview from "./EditableMarkdownPreview.vue";
+import {
+  applyMarkdownSourceEdit,
+  type MarkdownSourceEdit
+} from "../utils/bookImageInsertion";
+import { useBookImageResolver } from "../composables/bookImageContext";
+import { useBookImageInsertion } from "../composables/useBookImageInsertion";
 import PreviewOutlinePopover from "./PreviewOutlinePopover.vue";
 import {
   useLongEditorDeleteDialogs,
@@ -83,6 +92,10 @@ import { useTextViewMode } from "../composables/useTextViewMode";
 import { useLongEntryReorder } from "../composables/useLongEntryReorder";
 import { vLongPressReorder } from "../directives/longPressReorder";
 import { orderLongChapterNavigationItems } from "../utils/orderLongChapterNavigationItems";
+
+const DocumentVersionDialog = defineAsyncComponent(
+  () => import("./DocumentVersionDialog.vue")
+);
 
 const t = createScopedTranslator("components.longWorkspaceEditor");
 
@@ -1113,6 +1126,39 @@ const {
   clearRecoveryRecordForKey,
   persistRecoveryForKey
 });
+const {
+  visible: versionVisible,
+  open: versionOpen,
+  dialogProps: versionDialogProps
+} = useEditorDocumentVersions({
+  target: () =>
+    currentSelectionFile.value &&
+    isEditableLongFile(currentSelectionFile.value.file) &&
+    !currentIsStructuredText.value &&
+    !currentIsForeshadowingView.value &&
+    !currentIsPlotPointStoryline.value
+      ? {
+          workspace: "long",
+          bookId: props.bookId,
+          fileId: currentSelectionFile.value.file.id
+        }
+      : null,
+  title: () => currentDocumentTitle.value,
+  content: () => currentState.value?.content ?? "",
+  unsaved: () => currentDirty.value || workspaceSavePending.value,
+  autoSave: () => props.autoSaveEnabled,
+  locked: () => Boolean(props.locked),
+  restoreDisabledReason: () =>
+    currentReadOnly.value && !props.locked ? t("readOnlyContent") : "",
+  prepareRestore: () => saveAllChanges(),
+  async applyRestore(result) {
+    if (result.workspace !== "long") return;
+    emit("saved", result.document);
+    await loadSelectedDocument(true);
+    resetEditorHistory();
+  }
+});
+
 const activeEditorScrollMemoryKey = computed(() =>
   longEditorScrollMemoryKey({
     bookId: props.bookId,
@@ -1135,8 +1181,8 @@ const currentReferenceDocumentId = computed(
 );
 const {
   closeSelectionAction,
-  handleEditorContextMenu,
-  handlePreviewContextMenu
+  handleEditorContextMenu: handleSelectionEditorContextMenu,
+  handlePreviewContextMenu: handleSelectionPreviewContextMenu
 } = useEditorSelectionInsertion({
   history: {
     canUndo: () => canUndo.value,
@@ -1171,7 +1217,7 @@ const {
   documentPreview
 });
 const characterCount = ref(
-  countNonWhitespaceCharacters(currentVisibleContent.value)
+  countDocumentCharacters(currentVisibleContent.value)
 );
 let countedVisibleContent = currentVisibleContent.value;
 watch(
@@ -1179,7 +1225,7 @@ watch(
   (nextContent) => {
     if (nextContent === countedVisibleContent) return;
     countedVisibleContent = nextContent;
-    characterCount.value = countNonWhitespaceCharacters(nextContent);
+    characterCount.value = countDocumentCharacters(nextContent);
   },
   { flush: "post" }
 );
@@ -1211,6 +1257,7 @@ const {
   viewMode,
   editorInput,
   composition: editorComposition,
+  preview: () => richMarkdownEditorAt(documentPreview.value),
   characterCount,
   stateKey,
   updateVisibleContent: (content) => historyHost.updateVisibleContent(content),
@@ -1218,6 +1265,49 @@ const {
   clearRecoveryRecordForKey,
   scheduleRecoveryWrite
 });
+
+const resolveImage = useBookImageResolver();
+const imageInsertion = useBookImageInsertion({
+  documentKey: () => activeEditorScrollMemoryKey.value,
+  content: () => currentVisibleContent.value,
+  editable: () => !currentReadOnly.value && !isDocumentContentBusy.value,
+  history: {
+    canUndo: () => canUndo.value,
+    canRedo: () => canRedo.value,
+    undo,
+    redo
+  },
+  applyEdit: applyPreviewEdit
+});
+function handleEditorContextMenu(event: MouseEvent): void {
+  handleSelectionEditorContextMenu(event);
+  imageInsertion.handleContextMenu(event);
+}
+function handlePreviewContextMenu(event: MouseEvent): void {
+  handleSelectionPreviewContextMenu(event);
+  imageInsertion.handleContextMenu(event);
+}
+function applyPreviewEdit(edit: MarkdownSourceEdit): void {
+  if (currentReadOnly.value || isDocumentContentBusy.value) return;
+  const nextContent = applyMarkdownSourceEdit(
+    currentVisibleContent.value,
+    edit
+  );
+  const delta = recordProgrammaticChange(
+    nextContent,
+    {
+      start: edit.start + edit.text.length,
+      end: edit.start + edit.text.length
+    },
+    edit.input
+  );
+  historyHost.updateVisibleContent(nextContent);
+  updateVisibleCharacterCount(nextContent, delta);
+}
+function handlePreviewCompositionChange(composing: boolean): void {
+  if (composing) editorComposition.start();
+  else editorComposition.finish(() => {});
+}
 
 const {
   visible: bodyFormatVisible,
@@ -1266,6 +1356,7 @@ const {
   readOnly: () => currentReadOnly.value,
   canOpen: () => canUseTextTools.value,
   editorInput: () => editorInput.value,
+  preview: () => richMarkdownEditorAt(documentPreview.value),
   showEditor: () => setViewMode("edit"),
   replaceContent: (nextContent, selectionAfter) => {
     const delta = recordProgrammaticChange(nextContent, selectionAfter);
@@ -1544,6 +1635,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <DocumentVersionDialog
+    v-if="versionOpen && versionVisible"
+    v-bind="versionDialogProps"
+    @close="versionOpen = false"
+  />
   <section
     v-long-press-reorder="entryReorder"
     class="long-workspace-editor"
@@ -1893,12 +1989,14 @@ onBeforeUnmount(() => {
             :disabled="!canUseTextTools"
             :find-panel-open="findPanelOpen"
             :find-panel-mode="findPanelMode"
+            :version-visible="versionVisible"
             :format-visible="bodyFormatVisible"
             :format-disabled="bodyFormatDisabled"
             @undo="undo"
             @redo="redo"
             @toggle-find="toggleFindPanel"
             @format="formatBody"
+            @versions="versionOpen = true"
           />
           <PreviewOutlinePopover
             v-if="viewMode === 'preview' && canUseTextTools"
@@ -2122,12 +2220,14 @@ onBeforeUnmount(() => {
                       :disabled="!canUseTextTools"
                       :find-panel-open="findPanelOpen"
                       :find-panel-mode="findPanelMode"
+                      :version-visible="versionVisible"
                       :format-visible="bodyFormatVisible"
                       :format-disabled="bodyFormatDisabled"
                       @undo="undo"
                       @redo="redo"
                       @toggle-find="toggleFindPanel"
                       @format="formatBody"
+                      @versions="versionOpen = true"
                     />
                     <PreviewOutlinePopover
                       v-if="viewMode === 'preview'"
@@ -2204,14 +2304,27 @@ onBeforeUnmount(() => {
                   @contextmenu="handlePreviewContextMenu"
                   @scroll="handleEditorScroll"
                 >
-                  <MarkdownContent
-                    v-if="currentVisibleContent.trim()"
+                  <EditableMarkdownPreview
                     :content="currentVisibleContent"
+                    :document-key="activeEditorScrollMemoryKey"
+                    :max-length="
+                      currentIsStructuredText
+                        ? 200000
+                        : currentIsWorldbuildingList &&
+                            !currentWorldbuildingListState.error
+                          ? 1000000
+                          : undefined
+                    "
+                    :editable="!currentReadOnly && !isDocumentContentBusy"
+                    :resolve-image="resolveImage"
+                    :empty-text="t('noStoryEventManuscriptYet')"
                     annotate-headings
+                    @edit="applyPreviewEdit"
+                    @keydown="handleEditorKeydown"
+                    @composition-change="handlePreviewCompositionChange"
+                    @undo="undo"
+                    @redo="redo"
                   />
-                  <p v-else class="is-empty">
-                    {{ t("noStoryEventManuscriptYet") }}
-                  </p>
                 </article>
               </div>
               <div v-else class="long-story-plot-detail-empty">
@@ -2255,6 +2368,7 @@ onBeforeUnmount(() => {
           :title-read-only="currentStructureTitleReadOnly"
           :format="currentDocumentFormat"
           :content="currentVisibleContent"
+          :document-key="activeEditorScrollMemoryKey"
           :composing="editorComposition.isComposing.value"
           :view-mode="viewMode"
           :read-only="currentReadOnly"
@@ -2271,6 +2385,10 @@ onBeforeUnmount(() => {
           @keydown="handleEditorKeydown"
           @contextmenu="handleEditorContextMenu"
           @preview-contextmenu="handlePreviewContextMenu"
+          @preview-edit="applyPreviewEdit"
+          @preview-composition-change="handlePreviewCompositionChange"
+          @undo="undo"
+          @redo="redo"
           @editor-element-change="setEditorInputElement"
           @preview-element-change="setDocumentPreviewElement"
           @editor-scroll="handleEditorScroll"
@@ -2411,24 +2529,37 @@ onBeforeUnmount(() => {
               @contextmenu="handlePreviewContextMenu"
               @scroll="handleEditorScroll"
             >
-              <MarkdownContent
-                v-if="currentVisibleContent.trim()"
+              <EditableMarkdownPreview
                 :content="currentVisibleContent"
-                annotate-headings
-              />
-              <p v-else class="is-empty">
-                {{
+                :document-key="activeEditorScrollMemoryKey"
+                :max-length="
+                  currentIsStructuredText
+                    ? 200000
+                    : currentIsWorldbuildingList &&
+                        !currentWorldbuildingListState.error
+                      ? 1000000
+                      : undefined
+                "
+                :editable="!currentReadOnly && !isDocumentContentBusy"
+                :resolve-image="resolveImage"
+                :empty-text="
                   currentIsPlotPointStoryline
-                    ? t("noStoryEventsYet")
+                    ? t('noStoryEventsYet')
                     : currentIsPlotPointSummary
-                      ? t("noSummaryYet")
+                      ? t('noSummaryYet')
                       : currentIsChapterCardContent
-                        ? t("noChapterCardContentYet")
+                        ? t('noChapterCardContentYet')
                         : currentIsVolumeOutline
-                          ? t("noVolumeOutlineYet")
-                          : t("noManuscriptYet")
-                }}
-              </p>
+                          ? t('noVolumeOutlineYet')
+                          : t('noManuscriptYet')
+                "
+                annotate-headings
+                @edit="applyPreviewEdit"
+                @keydown="handleEditorKeydown"
+                @composition-change="handlePreviewCompositionChange"
+                @undo="undo"
+                @redo="redo"
+              />
             </article>
           </template>
         </div>

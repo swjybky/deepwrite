@@ -1,4 +1,9 @@
 export default {
+  insert: "插入",
+  insertImage: "图片…",
+  pickBookImages: "选择要插入的图片",
+  bookImageFiles: "图片（PNG、JPEG、WebP）",
+  bookImageSelectionLimit: "一次最多选择 10 张图片。",
   showApp: "显示 DeepWrite",
   quit: "退出",
   copy: "复制",

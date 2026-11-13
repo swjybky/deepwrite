@@ -5,6 +5,7 @@ import {
   DOCUMENT_ID,
   INITIAL_CONTENT,
   RUN_ID,
+  SESSION_ID,
   createFixture,
   mutationEvent,
   renameEvent,
@@ -66,12 +67,22 @@ describe("short/script agent direct document writes", () => {
           bookId: BOOK_ID,
           documentId: DOCUMENT_ID,
           content: firstText,
+          versionOrigin: {
+            sessionId: SESSION_ID,
+            runId: RUN_ID,
+            summary: "第 1 次写入正文"
+          },
           baseRevision: revision(INITIAL_CONTENT)
         },
         {
           bookId: BOOK_ID,
           documentId: DOCUMENT_ID,
           content: secondText,
+          versionOrigin: {
+            sessionId: SESSION_ID,
+            runId: RUN_ID,
+            summary: "第 2 次写入正文"
+          },
           baseRevision: revision(firstText)
         }
       ]);
@@ -137,6 +148,11 @@ describe("short/script agent direct document writes", () => {
         bookId: BOOK_ID,
         documentId: DOCUMENT_ID,
         content: nextText,
+        versionOrigin: {
+          sessionId: SESSION_ID,
+          runId: RUN_ID,
+          summary: "第 2 次写入正文"
+        },
         baseRevision: revision(INITIAL_CONTENT)
       });
       expect(fixture.saveDocument.mock.calls[1]![0]).not.toHaveProperty(

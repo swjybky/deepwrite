@@ -63,6 +63,11 @@ export interface AgentRunBuildContext {
    * the context, so tools can forget which documents were fully read.
    */
   onContextCompacted(listener: () => void): void;
+  /**
+   * Registers a callback for when the user settled a paused-for step, so
+   * tools can drop their same-run view of proposals that were not saved.
+   */
+  onWriteApprovalSettled(listener: () => void): void;
 }
 
 export interface AgentRunAssembly {
@@ -94,6 +99,8 @@ export interface AgentRunPlan {
   userMessageContent(firstTurn: boolean): UserMessage["content"];
   /** The user's own words without workspace context, for later pruning. */
   rawUserMessageContent?(): UserMessage["content"];
+  /** User-review mode: pause after each step that formed proposals. */
+  pausesForWriteApproval?: boolean;
   /** Requires a successful unified output event; missing submissions get nudged. */
   requiredOutputTool?: string;
   /**

@@ -81,6 +81,71 @@ function responseStream(message: AssistantMessage) {
 
 describe("agent turn retry coordinator", () => {
   it.each([
+    "504 等待上游响应超时",
+    "504 等待首段内容已超过总启动预算",
+    '{"error":{"message":"timeout","type":"gateway_error","code":"upstream_timeout"}}'
+  ])(
+    "retries a site gateway first-content timeout only once: %s",
+    async (errorMessage) => {
+      let calls = 0;
+      const agent = new Agent({
+        initialState: { model, systemPrompt: "test", thinkingLevel: "off" },
+        streamFn: () => {
+          calls++;
+          return responseStream(assistantMessage("error", [], errorMessage));
+        }
+      });
+      const retries: AgentTurnRetrySchedule[] = [];
+      const failures: AssistantMessage[] = [];
+      await runAgentWithTurnRetries({
+        agent,
+        initialPrompt: { role: "user", content: "fixture task", timestamp: 1 },
+        runId: "run_site_timeout",
+        retryPolicy: { delaysMs: [0, 0, 0, 0, 0], sleep: async () => {} },
+        onRetryScheduled: (schedule) => {
+          retries.push(schedule);
+        },
+        onEvent: (event) => {
+          if (
+            event.type === "message_end" &&
+            event.message.role === "assistant"
+          )
+            failures.push(event.message);
+        }
+      });
+      expect(calls).toBe(2);
+      expect(retries).toHaveLength(1);
+      expect(retries[0]).toMatchObject({ nextAttempt: 2, maxAttempts: 2 });
+      expect(failures.map((message) => message.errorMessage)).toEqual([
+        errorMessage
+      ]);
+    }
+  );
+
+  it("keeps the full retry budget for other transient failures", async () => {
+    let calls = 0;
+    const agent = new Agent({
+      initialState: { model, systemPrompt: "test", thinkingLevel: "off" },
+      streamFn: () => {
+        calls++;
+        return responseStream(
+          calls < 4
+            ? assistantMessage("error", [], "503 service unavailable")
+            : assistantMessage("stop", [{ type: "text", text: "完成" }])
+        );
+      }
+    });
+    await runAgentWithTurnRetries({
+      agent,
+      initialPrompt: { role: "user", content: "fixture task", timestamp: 1 },
+      runId: "run_transient",
+      retryPolicy: { delaysMs: [0, 0, 0, 0, 0], sleep: async () => {} }
+    });
+    expect(calls).toBe(4);
+    expect(agent.state.messages.at(-1)).toMatchObject({ stopReason: "stop" });
+  });
+
+  it.each([
     "Provider stopped with: PROHIBITED_CONTENT",
     "503 Provider returned error: Provider stopped with: PROHIBITED_CONTENT",
     "502 gateway error: Provider stopped with: SAFETY"

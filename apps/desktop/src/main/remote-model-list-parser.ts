@@ -21,6 +21,7 @@ function normalizeModelId(raw: string): string {
 function remoteCandidate(record: Record<string, unknown>, id: string) {
   return {
     id,
+    sort: record.sort,
     label: recordValue(record, "label", "display_name", "displayName"),
     description: record.description,
     provider: record.provider,

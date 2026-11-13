@@ -11,7 +11,7 @@ describe("LongWorkspaceEditor continuity text-file integration", () => {
       'import LongContinuityWorkspace from "./LongContinuityWorkspace.vue"'
     );
     expect(source).not.toContain("<LongContinuityWorkspace");
-    expect(source).toContain("<MarkdownContent");
+    expect(source).toContain("<EditableMarkdownPreview");
     expect(source).toContain(`v-if="viewMode === 'edit'"`);
     expect(source).toContain(
       ':readonly="currentReadOnly || isDocumentContentBusy"'

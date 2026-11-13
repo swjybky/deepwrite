@@ -252,6 +252,43 @@ describe("整书拆解纯契约", () => {
       }).success
     ).toBe(true);
   });
+  it("并发智能体数默认 5，只接受 1 到 10，预估耗时随并发缩短", () => {
+    const input = {
+      confirmation: {
+        id: "confirm_1",
+        sourceId: "source_1",
+        sourceRevision: 1,
+        fingerprint: "a".repeat(64),
+        range: { start: 1, end: 1 },
+        confirmedAt: "2026-11-12T00:00:00.000Z"
+      },
+      profileId: "default",
+      mode: "continuation",
+      targetSelection: { kind: "long", action: "create", title: "目标" },
+      models: {
+        reading: { modelId: "model_1", thinkingLevel: "off" },
+        integration: { modelId: "model_1", thinkingLevel: "off" }
+      }
+    };
+    const parsed = CreateDecompositionJobInputSchema.safeParse(input);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.data?.maxConcurrency).toBe(5);
+    for (const maxConcurrency of [0, 11, 2.5])
+      expect(
+        CreateDecompositionJobInputSchema.safeParse({
+          ...input,
+          maxConcurrency
+        }).success
+      ).toBe(false);
+    expect(
+      CreateDecompositionJobInputSchema.parse({ ...input, maxConcurrency: 10 })
+        .maxConcurrency
+    ).toBe(10);
+    const serial = estimateDecomposition(300, 300_000, 15, 1);
+    const wide = estimateDecomposition(300, 300_000, 15, 10);
+    expect(serial.calls).toBe(wide.calls);
+    expect(serial.minutes[1]).toBeGreaterThan(wide.minutes[1]);
+  });
   it("300 万字预估始终以区间表达成本与时间", () => {
     const estimate = estimateDecomposition(3000, 3_000_000, 150);
     expect(estimate.inputTokens[1]).toBeGreaterThan(estimate.inputTokens[0]);

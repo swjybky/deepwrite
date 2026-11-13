@@ -1,3 +1,4 @@
+import type { DocumentVersionsApi } from "./document-versions";
 import type {
   LibraryStructureRequest,
   LibraryStructurePlan
@@ -199,6 +200,7 @@ import type { ConversationPersistenceApi } from "./renderer-state";
 
 export interface DeepWriteApi extends TextContextMenuPreloadApi {
   voice: import("./voice").VoiceApi;
+  bookImages: import("./book-images").BookImagesApi;
   bookIdentity: import("./book-identity").BookIdentityApi;
   longMaterialPack: import("./long-material-pack").LongMaterialPackApi;
   libraryPackage: import("./library-package").LibraryPackageApi;
@@ -394,6 +396,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     ): Promise<DuplicateCatalogProjectResult>;
   };
   long: LongPreloadApi;
+  versions: DocumentVersionsApi;
   session: {
     prompt(
       payload: SessionPromptCommandPayload

@@ -81,7 +81,11 @@ async function action(operation: () => Promise<unknown>) {
 async function create(
   input: Pick<
     CreateDecompositionJobInput,
-    "mode" | "targetSelection" | "autoContinue" | "reuseJobId"
+    | "mode"
+    | "targetSelection"
+    | "autoContinue"
+    | "maxConcurrency"
+    | "reuseJobId"
   >
 ) {
   await action(() => props.controller.create(input));
@@ -171,7 +175,6 @@ onMounted(() => {
       <DecompositionSetup
         :controller="controller"
         :models="models"
-        :catalog="catalogSnapshot"
         :range="range"
         :disabled="busy || controller.sourceDeleting.value"
         @create="create"

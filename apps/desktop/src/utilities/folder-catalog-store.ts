@@ -1,4 +1,10 @@
 import { resolveLibraryEntryLocation } from "@deepwrite/contracts";
+import { withProjectTransactionLock } from "./project-transaction/lock";
+import { copyBookImages } from "./book-images/copy";
+import {
+  captureDocumentVersions,
+  DocumentVersionStore
+} from "./document-versions/version-store";
 import { planLibraryStructure } from "./folder-catalog-store/structure-plan";
 import {
   commitStructureTransaction,
@@ -394,6 +400,7 @@ interface DuplicateProjectWritePlan {
   parentDirectory: string;
   resource: FolderCatalogResource;
   writingContext?: string;
+  sourceBookDirectory?: string;
 }
 
 export type SaveFolderDocumentInput = SaveDocumentInput;
@@ -2503,6 +2510,54 @@ export class FolderCatalogStore {
   async saveDocument(
     rawInput: SaveFolderDocumentInput
   ): Promise<SaveDocumentResult> {
+    return this.saveDocumentWithLock(rawInput, false);
+  }
+
+  async withDocumentVersions<T>(
+    bookId: string,
+    documentId: string,
+    operation: (
+      versions: DocumentVersionStore,
+      current: import("@deepwrite/contracts").CatalogReadDocumentResult,
+      save: (content: string) => Promise<SaveDocumentResult>
+    ) => Promise<T>
+  ): Promise<T> {
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const registration = findRegistration(registry, bookId, "book");
+      const directory = await secureProjectRoot(registration.projectDirectory);
+      return withProjectTransactionLock(directory, async () => {
+        const current = await this.readDocument({
+          projectId: bookId,
+          target: "document",
+          documentId
+        });
+        const versions = new DocumentVersionStore(
+          directory,
+          { workspace: "catalog", bookId, documentId },
+          this.maxMarkdownBytes,
+          this.now
+        );
+        return operation(versions, current, (content) =>
+          this.saveDocumentWithLock(
+            {
+              bookId,
+              documentId,
+              content,
+              baseProjectRevision: current.projectRevision,
+              baseRevision: current.revision
+            },
+            true
+          )
+        );
+      });
+    });
+  }
+
+  private async saveDocumentWithLock(
+    rawInput: SaveFolderDocumentInput,
+    lockHeld: boolean
+  ): Promise<SaveDocumentResult> {
     const input = SaveDocumentInputSchema.parse(rawInput);
     if (input.preserveCurrentContent && input.title === undefined) {
       throw new Error("保留正文内容时必须同时提供新标题。");
@@ -2520,6 +2575,10 @@ export class FolderCatalogStore {
       const projectDirectory = await secureProjectRoot(
         registration.projectDirectory
       );
+      if (!lockHeld)
+        return withProjectTransactionLock(projectDirectory, () =>
+          this.saveDocumentWithLock(input, true)
+        );
       const manifest = await this.readCurrentBookManifest(
         projectDirectory,
         input.bookId
@@ -2740,6 +2799,23 @@ export class FolderCatalogStore {
         this.maxManifestBytes
       );
       await this.bumpRegistry(registry, now);
+      if (input.versionOrigin && !input.preserveCurrentContent) {
+        await captureDocumentVersions(
+          new DocumentVersionStore(
+            projectDirectory,
+            {
+              workspace: "catalog",
+              bookId: input.bookId,
+              documentId: input.documentId
+            },
+            this.maxMarkdownBytes,
+            this.now
+          ),
+          currentContent,
+          committedContent,
+          input.versionOrigin
+        );
+      }
       return SaveDocumentResultSchema.parse({
         id: documentManifest.id,
         title: documentManifest.title,
@@ -3919,7 +3995,8 @@ export class FolderCatalogStore {
           domain: "book",
           parentDirectory: dirname(registration.projectDirectory),
           resource: primaryResource,
-          writingContext: sourceWritingContext.content
+          writingContext: sourceWritingContext.content,
+          sourceBookDirectory: registration.projectDirectory
         });
       } else if (input.domain === "material" || input.domain === "skill") {
         const registryDomain = libraryProjectDomain(input.domain);
@@ -4067,15 +4144,16 @@ export class FolderCatalogStore {
           const projectDirectory = await this.writeNewResourceProject(
             plan.domain,
             plan.parentDirectory,
-            plan.resource
+            plan.resource,
+            plan.sourceBookDirectory
           );
+          createdProjectDirectories.push(projectDirectory);
           if (plan.writingContext !== undefined) {
             await writeWritingContextFile(
               projectDirectory,
               plan.writingContext
             );
           }
-          createdProjectDirectories.push(projectDirectory);
           registrations.push({
             id: plan.resource.id,
             domain: plan.domain,
@@ -4610,7 +4688,8 @@ export class FolderCatalogStore {
   private async writeNewResourceProject(
     domain: FolderCatalogProjectDomain,
     parentDirectory: string,
-    resource: FolderCatalogResource
+    resource: FolderCatalogResource,
+    sourceBookDirectory?: string
   ): Promise<string> {
     await mkdir(parentDirectory, { recursive: true, mode: 0o700 });
     const secureParent = await secureDirectory(
@@ -4639,6 +4718,9 @@ export class FolderCatalogStore {
           stagingDirectory,
           (resource as Book).bookType
         );
+        if (sourceBookDirectory) {
+          await copyBookImages(sourceBookDirectory, stagingDirectory);
+        }
       }
       await atomicWriteJson(
         join(stagingDirectory, MANIFEST_FILE),

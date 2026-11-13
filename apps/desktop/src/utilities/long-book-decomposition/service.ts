@@ -149,6 +149,7 @@ export class DecompositionService {
         ),
         contextWindow: model.contextWindow,
         ...(model.maxTokens ? { maxTokens: model.maxTokens } : {}),
+        ...(job.maxConcurrency ? { maxConcurrency: job.maxConcurrency } : {}),
         units: Object.fromEntries(
           [...authorized].map((id) => [id, job.units[id]])
         )

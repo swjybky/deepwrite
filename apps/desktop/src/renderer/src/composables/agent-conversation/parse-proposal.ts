@@ -249,6 +249,14 @@ export function parseStoredEditProposal(
       ? { discardState }
       : {}),
     ...(staleBase ? { staleBase } : {}),
+    ...(typeof value.userEditedText === "string"
+      ? {
+          userEditedText: value.userEditedText,
+          ...(value.userEditedTextTruncated === true
+            ? { userEditedTextTruncated: true }
+            : {})
+        }
+      : {}),
     ...(libraryStructureTarget ? { libraryStructureTarget } : {}),
     ...(libraryTarget ? { libraryTarget } : {}),
     ...(longWorldbuildingTarget ? { longWorldbuildingTarget } : {}),

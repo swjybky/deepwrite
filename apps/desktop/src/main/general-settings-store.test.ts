@@ -201,6 +201,7 @@ describe("GeneralSettingsStore", () => {
         showInMenuBar: false,
         taskNotification: false,
         externalControlEnabled: false,
+        versionHistoryEnabled: false,
         showContextUsage: true,
         textAttachmentMaxCharacters: 100_000,
         contextCompaction: createDefaultGeneralSettings().contextCompaction,

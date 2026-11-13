@@ -1,4 +1,5 @@
 import type { FollowUpQueueController } from "./follow-up-queue";
+import type { WriteApprovalItem } from "./write-approval";
 import type { ConversationPersistenceChanges } from "./persistence-changes";
 import { type Ref } from "vue";
 import type {
@@ -165,6 +166,10 @@ export interface AgentConversationController {
   conversationError: Ref<string | null>;
   pendingUserInput: Ref<AgentUserInputRequestedPayload | null>;
   submittingUserInput: Ref<boolean>;
+  /** Proposals a paused user-review run waits for; null when not paused. */
+  writeApprovalItems: Readonly<Ref<WriteApprovalItem[] | null>>;
+  writeApprovalSubmitFailed: Readonly<Ref<boolean>>;
+  retryWriteApproval(): void;
   history: Readonly<Ref<ConversationHistoryItem[]>>;
   isBusy: Readonly<Ref<boolean>>;
   hasPendingEditReview: Readonly<Ref<boolean>>;

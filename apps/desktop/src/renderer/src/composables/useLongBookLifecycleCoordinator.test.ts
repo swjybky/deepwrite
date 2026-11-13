@@ -251,8 +251,9 @@ function createHarness(overrides: HarnessOverrides = {}) {
   const manuscript = {
     available: vi.fn(() => true),
     createInput: vi.fn(
-      async ({ title, sections }) =>
+      async ({ bookId, title, sections }) =>
         ({
+          book: { projectType: "long", projectId: bookId },
           title,
           sections: [...sections],
           files: []
@@ -627,9 +628,35 @@ describe("useLongBookLifecycleCoordinator", () => {
     );
   });
 
+  it("warns about missing images after a completed export", async () => {
+    const test = createHarness({
+      manuscript: {
+        exportLong: vi.fn(async () => ({
+          status: "saved" as const,
+          directoryPath: "/example.test/export",
+          fileCount: 2,
+          missingImages: 3
+        }))
+      }
+    });
+    await test.coordinator.handleLongBookAction(
+      bookAction("export", BOOK_A, "导出 A")
+    );
+    await test.coordinator.exportLongBookManuscript({
+      sections: ["manuscript"],
+      manuscriptChapterCardIds: []
+    });
+    expect(test.notifications.warning).toHaveBeenCalledWith(
+      "已导出，3 张图片缺失已跳过。"
+    );
+    expect(test.notifications.success).not.toHaveBeenCalled();
+    expect(test.state.exportTarget.value).toBeNull();
+  });
+
   it("does not let an older export completion close or announce a later export target", async () => {
     const pendingExport = deferred<{
       status: "saved";
+      missingImages: number;
       directoryPath: string;
       fileCount: number;
     }>();
@@ -653,6 +680,7 @@ describe("useLongBookLifecycleCoordinator", () => {
     const laterTarget = test.state.exportTarget.value;
     pendingExport.resolve({
       status: "saved",
+      missingImages: 0,
       directoryPath: "/example.test/export",
       fileCount: 3
     });

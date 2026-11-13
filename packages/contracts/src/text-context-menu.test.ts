@@ -33,7 +33,8 @@ describe("text menu envelopes", () => {
       password: false,
       hasText: true,
       hasSelection: true,
-      canInsertReference: true
+      canInsertReference: true,
+      canInsertImage: false
     };
     const reply = (value: unknown) =>
       createEnvelope(

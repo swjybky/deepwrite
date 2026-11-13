@@ -1,3 +1,4 @@
+import { ChatAssistantProjectRefSchema } from "./chat-assistant-base";
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 
@@ -33,6 +34,7 @@ export const LONG_MANUSCRIPT_EXPORT_MAX_CHARACTERS = 256 * 1024 * 1024;
 
 export const ExportLongManuscriptInputSchema = z
   .object({
+    book: ChatAssistantProjectRefSchema,
     title: z.string().trim().min(1).max(256),
     mode: LongManuscriptExportModeSchema.optional(),
     sections: z.array(LongManuscriptExportSectionSchema).min(1).max(4),
@@ -68,11 +70,13 @@ export const ExportLongManuscriptResultSchema = z.union([
   z.object({ status: z.literal("cancelled") }),
   z.object({
     status: z.literal("saved"),
+    missingImages: z.number().int().nonnegative(),
     directoryPath: z.string().min(1),
     fileCount: z.number().int().nonnegative()
   }),
   z.object({
     status: z.literal("saved"),
+    missingImages: z.number().int().nonnegative(),
     filePath: z.string().min(1),
     fileCount: z.literal(1)
   })

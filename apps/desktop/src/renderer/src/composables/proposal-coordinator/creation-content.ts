@@ -1,5 +1,5 @@
 import { createScopedTranslator } from "../../i18n";
-import type { DeepWriteApi } from "@deepwrite/contracts";
+import type { DeepWriteApi, DocumentVersionOrigin } from "@deepwrite/contracts";
 
 const t = createScopedTranslator("workspace");
 
@@ -48,6 +48,7 @@ export function createdDraftSectionsAreVisible(
 export async function saveCreatedCharacterContent(
   catalog: CatalogDocumentWriter,
   input: {
+    versionOrigin?: DocumentVersionOrigin;
     bookId: string;
     itemId: string;
     currentContent: string;
@@ -64,6 +65,7 @@ export async function saveCreatedCharacterContent(
     bookId: input.bookId,
     documentId: input.itemId,
     content: input.content,
+    ...(input.versionOrigin ? { versionOrigin: input.versionOrigin } : {}),
     force: true
   });
 }
@@ -71,6 +73,7 @@ export async function saveCreatedCharacterContent(
 async function saveCreatedDraftDocument(
   catalog: CatalogDocumentWriter,
   input: {
+    versionOrigin?: DocumentVersionOrigin;
     bookId: string;
     documentId: string;
     currentContent: string;
@@ -92,6 +95,7 @@ async function saveCreatedDraftDocument(
     bookId: input.bookId,
     documentId: input.documentId,
     content: input.content,
+    ...(input.versionOrigin ? { versionOrigin: input.versionOrigin } : {}),
     force: true
   });
 }
@@ -99,6 +103,7 @@ async function saveCreatedDraftDocument(
 export async function saveCreatedDraftSectionContents(
   catalog: CatalogDocumentWriter,
   input: {
+    versionOrigin?: DocumentVersionOrigin;
     bookId: string;
     requested: readonly RequestedDraftSectionContent[];
     created: readonly CreatedDraftSectionContentTarget[];
@@ -109,6 +114,7 @@ export async function saveCreatedDraftSectionContents(
       (section) => section.provisionalSectionId === result.clientSectionId
     );
     await saveCreatedDraftDocument(catalog, {
+      ...(input.versionOrigin ? { versionOrigin: input.versionOrigin } : {}),
       bookId: input.bookId,
       documentId: result.section.body.id,
       currentContent: result.section.body.content,
@@ -116,6 +122,7 @@ export async function saveCreatedDraftSectionContents(
       label: t("catalogWorkspace.manuscript")
     });
     await saveCreatedDraftDocument(catalog, {
+      ...(input.versionOrigin ? { versionOrigin: input.versionOrigin } : {}),
       bookId: input.bookId,
       documentId: result.section.characterState.id,
       currentContent: result.section.characterState.content,

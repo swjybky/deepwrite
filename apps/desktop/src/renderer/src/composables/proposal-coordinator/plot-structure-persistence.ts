@@ -1,5 +1,6 @@
 import {
   createShortWorkspaceContentRevision,
+  type DocumentVersionOrigin,
   type Book,
   type DeepWriteApi
 } from "@deepwrite/contracts/renderer";
@@ -42,6 +43,7 @@ export async function persistPlotStructure(
     api: DeepWriteApi;
     book: Book;
     proposal: AgentEditProposal;
+    versionOrigin?: DocumentVersionOrigin;
   }
 ): Promise<number | undefined> {
   const { api, book, proposal } = input;
@@ -103,6 +105,9 @@ export async function persistPlotStructure(
             bookId: proposal.workspaceId,
             documentId: createdDocument.id,
             content,
+            ...(input.versionOrigin
+              ? { versionOrigin: input.versionOrigin }
+              : {}),
             force: true
           });
   }

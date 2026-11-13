@@ -24,6 +24,7 @@ DeepWrite is a desktop writing app. These tools operate the user's running copy.
 - `external.stale_revision` means the text changed after you read it, usually because the user edited it. Read it again and redo your edit on the new text. Never retry the same content.
 - `external.busy` means this target/shared resource is in use, the short setup queue is full, or the long editor has unsaved text. Unrelated works can still be created and edited while another work generates. Retry only the affected step; read again before writing. Global team changes/restoration remain protected while runs are active.
 - Keep the user's existing text unless they asked you to change it. Replacing a document cannot be undone; only deletions can be restored.
+- A standalone `![description](images/filename.png)` or `.jpg` line references an illustration relative to the work's root folder. Preserve existing image references when editing; these tools cannot insert or upload images.
 
 ## Deleting
 

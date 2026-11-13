@@ -196,6 +196,7 @@ export interface WriteLongDocumentResult extends OpenedLongBook {
 export interface ApplyLongWorkspaceOperationsInput {
   batch: LongWorkspaceOperationBatch;
   captureRestorePoint?: boolean;
+  versionOrigin?: import("@deepwrite/contracts").DocumentVersionOrigin;
 }
 
 export interface ApplyLongWorkspaceOperationsResult extends OpenedLongBook {

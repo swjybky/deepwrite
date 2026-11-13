@@ -25,6 +25,7 @@ import type {
   ContextCompactionRunSettings,
   ConversationCheckpoint,
   AgentUserInputDraw,
+  AgentUserInputWriteApproval,
   AgentUserInputQuestion,
   AgentUserInputSource,
   SessionUserInputResponsePayload,
@@ -107,6 +108,8 @@ export interface AgentUserInputRequest {
   /** Candidates of a `subagent_draw` request. */
   draw?: AgentUserInputDraw;
   promptReview?: AgentTeamPromptReview;
+  /** Tool calls whose proposals a `write_approval` wait covers. */
+  writeApproval?: AgentUserInputWriteApproval;
 }
 
 export type AgentUserInputRequester = (
@@ -269,6 +272,7 @@ export type AgentRuntimeEvent =
         questions: AgentUserInputQuestion[];
         draw?: AgentUserInputDraw;
         promptReview?: AgentTeamPromptReview;
+        writeApproval?: AgentUserInputWriteApproval;
         runtime: AgentRuntimeRef;
       };
     }

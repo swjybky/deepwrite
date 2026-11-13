@@ -551,6 +551,7 @@ export default {
     couldNotOpenTheLongFormProject: "Could not open the long-form project."
   },
   longManuscriptExportFlow: {
+    exportedWithMissingImages: "Exported; {count} missing images were skipped.",
     exportedAsTxtFiles: "Exported “{title}” as {fileCount} TXT files.",
     exportedAsSingleTxtFile: "Exported “{title}” as one TXT file.",
     couldNotExportTheLongFormProject: "Could not export the long-form project."

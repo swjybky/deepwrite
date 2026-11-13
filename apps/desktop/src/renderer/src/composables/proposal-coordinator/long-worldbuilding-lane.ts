@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./version-origin";
 import { longRestorePatch } from "./long-restore";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
@@ -220,6 +221,11 @@ export function createLongWorldbuildingProposalLane(
         return;
       }
       const result = await api.applyOperations({
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: target.bookId,
         captureRestorePoint: true,
         batch: LongWorkspaceOperationBatchSchema.parse({

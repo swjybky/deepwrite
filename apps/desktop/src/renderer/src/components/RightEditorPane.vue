@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { createScopedTranslator } from "../i18n";
+import { createScopedTranslator, t as translate } from "../i18n";
 import {
   computed,
   defineAsyncComponent,
+  inject,
   nextTick,
   onBeforeUnmount,
   onBeforeUpdate,
@@ -55,18 +56,35 @@ import {
 import { useTextViewMode } from "../composables/useTextViewMode";
 import { useEditorFindReplace } from "../composables/useEditorFindReplace";
 import { revealTextareaOffset } from "../utils/textareaMirror";
+import { richMarkdownEditorAt } from "../utils/richMarkdownBridge";
 import AppIcon from "./AppIcon.vue";
 import EditorTextTools from "./EditorTextTools.vue";
+import { useEditorDocumentVersions } from "../composables/useEditorDocumentVersions";
+import { CATALOG_DOCUMENT_VERSION_PORT } from "../composables/catalogDocumentVersionPort";
 import { useBodyTextFormatting } from "../composables/useBodyTextFormatting";
 import { catalogBodyTextKind } from "../utils/bodyTextTarget";
 import EditorPaneToggle from "./EditorPaneToggle.vue";
 import CatalogEditorFooterMeta from "./CatalogEditorFooterMeta.vue";
 import EditorDocumentMetadata from "./EditorDocumentMetadata.vue";
 import EditorSearchHighlight from "./EditorSearchHighlight.vue";
-import MarkdownContent from "./MarkdownContent.vue";
+import EditableMarkdownPreview from "./EditableMarkdownPreview.vue";
+import { countDocumentCharacters } from "../utils/bookImageText";
+import {
+  applyMarkdownSourceEdit,
+  type MarkdownSourceEdit
+} from "../utils/bookImageInsertion";
+import {
+  useBookImageContext,
+  useBookImageResolver
+} from "../composables/bookImageContext";
+import { useBookImageInsertion } from "../composables/useBookImageInsertion";
 import PreviewOutlinePopover from "./PreviewOutlinePopover.vue";
 
 const t = createScopedTranslator("components.rightEditorPane");
+
+const DocumentVersionDialog = defineAsyncComponent(
+  () => import("./DocumentVersionDialog.vue")
+);
 
 const EditorFindReplacePanel = defineAsyncComponent(
   () => import("./EditorFindReplacePanel.vue")
@@ -114,6 +132,12 @@ const emit = defineEmits<{
   prepareEntrySearch: [];
 }>();
 
+const bookImageContext = useBookImageContext();
+function countEditorCharacters(value: string): number {
+  return bookImageContext.value
+    ? countDocumentCharacters(value)
+    : countNonWhitespaceCharacters(value);
+}
 const editorInput = ref<HTMLTextAreaElement>();
 let composingDocumentId: string | undefined;
 const editorComposition = useEditorComposition({
@@ -130,14 +154,12 @@ const title = ref(
   resolveWorkspaceDocumentTitle(props.document, props.draftState?.title)
 );
 const content = ref(props.draftState?.content ?? props.document.content);
-const nonWhitespaceCharacterCount = ref(
-  countNonWhitespaceCharacters(content.value)
-);
+const nonWhitespaceCharacterCount = ref(countEditorCharacters(content.value));
 const dirty = ref(props.draftState?.dirty ?? false);
 const {
   closeSelectionAction,
-  handleEditorContextMenu,
-  handlePreviewContextMenu
+  handleEditorContextMenu: handleSelectionEditorContextMenu,
+  handlePreviewContextMenu: handleSelectionPreviewContextMenu
 } = useEditorSelectionInsertion({
   history: {
     canUndo: () => canUndo.value,
@@ -180,6 +202,7 @@ const {
   content: () => content.value,
   readOnly: () => editorReadOnly.value,
   editorInput: () => editorInput.value,
+  preview: () => richMarkdownEditorAt(documentPreview.value),
   showEditor: () => setViewMode("edit"),
   onOpen: () => {
     closeSelectionAction();
@@ -261,9 +284,7 @@ watch(activeScrollMemoryKey, (nextScrollMemoryKey, previousScrollMemoryKey) => {
     props.draftState?.title
   );
   content.value = props.draftState?.content ?? props.document.content;
-  nonWhitespaceCharacterCount.value = countNonWhitespaceCharacters(
-    content.value
-  );
+  nonWhitespaceCharacterCount.value = countEditorCharacters(content.value);
   dirty.value = props.draftState?.dirty ?? false;
   const nextViewMode = resetToDefault();
   closeSelectionAction();
@@ -294,12 +315,54 @@ watch(
     if (content.value !== resolvedContent) {
       content.value = resolvedContent;
       nonWhitespaceCharacterCount.value =
-        countNonWhitespaceCharacters(resolvedContent);
+        countEditorCharacters(resolvedContent);
       resetEditorHistory();
     }
     dirty.value = nextDirty ?? false;
   }
 );
+
+const catalogVersions = inject(CATALOG_DOCUMENT_VERSION_PORT, null);
+const {
+  visible: versionVisible,
+  open: versionOpen,
+  dialogProps: versionDialogProps
+} = useEditorDocumentVersions({
+  target: () =>
+    props.document.domain === "creation" &&
+    props.document.workspaceId &&
+    props.document.catalogDocumentId
+      ? {
+          workspace: "catalog",
+          bookId: props.document.workspaceId,
+          documentId: props.document.catalogDocumentId
+        }
+      : null,
+  content: () => content.value,
+  title: () => title.value,
+  unsaved: () => dirty.value || Boolean(props.saving),
+  autoSave: () => Boolean(props.autoSaveEnabled),
+  locked: () => props.locked,
+  restoreDisabledReason: () =>
+    props.document.readOnly
+      ? translate("components.longWorkspaceEditor.readOnlyContent")
+      : "",
+  prepareRestore: () =>
+    catalogVersions?.prepare({
+      id: props.document.id,
+      title: title.value,
+      content: content.value
+    }) ?? Promise.resolve(false),
+  async applyRestore(result) {
+    if (result.workspace !== "catalog") return;
+    await catalogVersions?.apply(props.document.id, result.document);
+    content.value = result.document.content;
+    title.value = result.document.title;
+    nonWhitespaceCharacterCount.value = countEditorCharacters(content.value);
+    dirty.value = false;
+    resetEditorHistory();
+  }
+});
 
 const isLibraryEntry = computed(
   () =>
@@ -339,6 +402,47 @@ const characterCount = computed(() =>
 const showSectionTabs = computed(() => Boolean(props.sectionTabs?.length));
 const showDraftFileTabs = computed(() => Boolean(props.document.draftFileKind));
 const editorReadOnly = computed(() => props.document.readOnly || props.locked);
+const resolveImage = useBookImageResolver();
+const imageInsertion = useBookImageInsertion({
+  documentKey: () => activeScrollMemoryKey.value,
+  content: () => content.value,
+  editable: () => !editorReadOnly.value,
+  history: {
+    canUndo: () => canUndo.value,
+    canRedo: () => canRedo.value,
+    undo,
+    redo
+  },
+  applyEdit: applyPreviewEdit
+});
+function handleEditorContextMenu(event: MouseEvent): void {
+  handleSelectionEditorContextMenu(event);
+  imageInsertion.handleContextMenu(event);
+}
+function handlePreviewContextMenu(event: MouseEvent): void {
+  handleSelectionPreviewContextMenu(event);
+  imageInsertion.handleContextMenu(event);
+}
+function applyPreviewEdit(edit: MarkdownSourceEdit): void {
+  if (editorReadOnly.value) return;
+  const nextContent = applyMarkdownSourceEdit(content.value, edit);
+  updateContent(
+    nextContent,
+    recordProgrammaticChange(
+      nextContent,
+      {
+        start: edit.start + edit.text.length,
+        end: edit.start + edit.text.length
+      },
+      edit.input
+    )
+  );
+}
+function handlePreviewCompositionChange(composing: boolean): void {
+  if (composing) editorComposition.start();
+  else editorComposition.finish(() => {});
+}
+
 const canUndo = computed(() => {
   void historyVersion.value;
   return !editorReadOnly.value && textHistory.canUndo;
@@ -414,6 +518,8 @@ function applyLibraryMetadata(nextContent: string): void {
 function getEditorSelection(
   fallback = content.value.length
 ): TextSelectionRange {
+  const preview = richMarkdownEditorAt(documentPreview.value);
+  if (preview) return preview.selection();
   const input = editorInput.value;
   return {
     start: input?.selectionStart ?? fallback,
@@ -510,10 +616,11 @@ function updateContent(
   nonWhitespaceDelta?: number
 ): boolean {
   if (content.value === nextContent) return true;
+  const recount = content.value.includes("![") || nextContent.includes("![");
   content.value = nextContent;
   nonWhitespaceCharacterCount.value =
-    nonWhitespaceDelta === undefined
-      ? countNonWhitespaceCharacters(nextContent)
+    recount || nonWhitespaceDelta === undefined
+      ? countEditorCharacters(nextContent)
       : Math.max(0, nonWhitespaceCharacterCount.value + nonWhitespaceDelta);
   markDirty();
   return true;
@@ -521,14 +628,17 @@ function updateContent(
 
 function recordProgrammaticChange(
   nextContent: string,
-  selectionAfter: TextSelectionRange
+  selectionAfter: TextSelectionRange,
+  input?: MarkdownSourceEdit["input"]
 ): number | undefined {
-  const result = textHistory.recordChange({
-    beforeContent: content.value,
-    afterContent: nextContent,
-    selectionBefore: getEditorSelection(),
-    selectionAfter
-  });
+  const change = { beforeContent: content.value, afterContent: nextContent };
+  const result = input
+    ? textHistory.recordInput({ ...change, ...input })
+    : textHistory.recordChange({
+        ...change,
+        selectionBefore: getEditorSelection(),
+        selectionAfter
+      });
   if (result) {
     notifyHistoryChanged();
   }
@@ -538,9 +648,16 @@ function recordProgrammaticChange(
 async function restoreEditorHistory(
   result: TextHistoryRestoreResult
 ): Promise<void> {
-  setViewMode("edit");
+  const inPreview = viewMode.value === "preview";
   updateContent(result.content, result.nonWhitespaceDelta);
   await nextTick();
+  if (inPreview) {
+    richMarkdownEditorAt(documentPreview.value)?.select(
+      result.start,
+      result.end
+    );
+    return;
+  }
   const input = editorInput.value;
   if (!input) return;
   input.focus({ preventScroll: true });
@@ -656,6 +773,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <DocumentVersionDialog
+    v-if="versionOpen && versionVisible"
+    v-bind="versionDialogProps"
+    @close="versionOpen = false"
+  />
   <aside
     class="editor-pane"
     :class="{
@@ -771,6 +893,7 @@ onBeforeUnmount(() => {
           :can-redo="canRedo"
           :find-panel-open="findPanelOpen"
           :find-panel-mode="findPanelMode"
+          :version-visible="versionVisible"
           :format-visible="bodyFormatVisible"
           :format-disabled="bodyFormatDisabled || formatAllPending"
           :format-label="
@@ -783,6 +906,7 @@ onBeforeUnmount(() => {
           @redo="redo"
           @toggle-find="toggleFindPanel"
           @format="handleFormatBody"
+          @versions="versionOpen = true"
         />
         <PreviewOutlinePopover
           v-if="viewMode === 'preview'"
@@ -882,14 +1006,19 @@ onBeforeUnmount(() => {
         @contextmenu="handlePreviewContextMenu"
         @scroll="handleDocumentScroll"
       >
-        <MarkdownContent
-          v-if="content.trim()"
+        <EditableMarkdownPreview
           :content="content"
+          :document-key="activeScrollMemoryKey"
+          :editable="!editorReadOnly"
+          :resolve-image="resolveImage"
+          :empty-text="t('noContentYet')"
           annotate-headings
+          @edit="applyPreviewEdit"
+          @keydown="handleEditorKeydown"
+          @composition-change="handlePreviewCompositionChange"
+          @undo="undo"
+          @redo="redo"
         />
-        <p v-else class="document-preview-empty">
-          {{ t("noContentYet") }}
-        </p>
       </article>
     </div>
 

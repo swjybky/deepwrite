@@ -1,3 +1,5 @@
+import documentVersions from "./documentVersions/zh-CN";
+import bookImages from "./bookImages/zh-CN";
 import imageModelSettings from "./imageModelSettings/zh-CN";
 import webSearchSettings from "./webSearchSettings/zh-CN";
 import metadataEditMessages from "./metadataEditMessages/zh-CN";
@@ -20,6 +22,7 @@ import agentTeamSubagentCard from "./agentTeamSubagentCard/zh-CN";
 import agentTeamSubagentEditor from "./agentTeamSubagentEditor/zh-CN";
 import agentTeamSubagentSection from "./agentTeamSubagentSection/zh-CN";
 import agentUserInputCard from "./agentUserInputCard/zh-CN";
+import agentWriteApprovalCard from "./agentWriteApprovalCard/zh-CN";
 import appearanceFontDeleteDialog from "./appearanceFontDeleteDialog/zh-CN";
 import appearanceFontSettings from "./appearanceFontSettings/zh-CN";
 import appearanceThemeSettings from "./appearanceThemeSettings/zh-CN";
@@ -128,6 +131,7 @@ import longWorkspacePanePlaceholder from "./longWorkspacePanePlaceholder/zh-CN";
 import longWorldbuildingNavigation from "./longWorldbuildingNavigation/zh-CN";
 import longWorldbuildingSyncDialog from "./longWorldbuildingSyncDialog/zh-CN";
 import marketplaceAuthForm from "./marketplaceAuthForm/zh-CN";
+import marketplaceLoginDialog from "./marketplaceLoginDialog/zh-CN";
 import marketplaceBindEmail from "./marketplaceBindEmail/zh-CN";
 import marketplaceEmailFields from "./marketplaceEmailFields/zh-CN";
 import materialMetadataEditor from "./materialMetadataEditor/zh-CN";
@@ -192,6 +196,8 @@ import writingContextPanel from "./writingContextPanel/zh-CN";
 import writingWorkspaceModule from "./writingWorkspaceModule/zh-CN";
 
 export default {
+  documentVersions,
+  bookImages,
   imageModelSettings,
   webSearchSettings,
   metadataEditMessages,
@@ -214,6 +220,7 @@ export default {
   agentTeamSubagentEditor,
   agentTeamSubagentSection,
   agentUserInputCard,
+  agentWriteApprovalCard,
   appearanceFontDeleteDialog,
   appearanceFontSettings,
   appearanceThemeSettings,
@@ -322,6 +329,7 @@ export default {
   longWorldbuildingNavigation,
   longWorldbuildingSyncDialog,
   marketplaceAuthForm,
+  marketplaceLoginDialog,
   marketplaceBindEmail,
   marketplaceEmailFields,
   materialMetadataEditor,

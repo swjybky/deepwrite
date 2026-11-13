@@ -124,7 +124,11 @@ export function useLongBookDecomposition(options: {
   async function create(
     input: Pick<
       CreateDecompositionJobInput,
-      "mode" | "targetSelection" | "autoContinue" | "reuseJobId"
+      | "mode"
+      | "targetSelection"
+      | "autoContinue"
+      | "maxConcurrency"
+      | "reuseJobId"
     >
   ) {
     if (
@@ -168,7 +172,10 @@ export function useLongBookDecomposition(options: {
     if (engine.job.value?.lastError)
       throw new Error(engine.job.value.lastError);
   }
-  function estimate(range: { start: number; end: number }) {
+  function estimate(
+    range: { start: number; end: number },
+    concurrency?: number
+  ) {
     const source = sources.source.value;
     const model = configuredModels.value.find(
       ({ id }) => id === readingModelId.value
@@ -187,7 +194,8 @@ export function useLongBookDecomposition(options: {
     return estimateDecomposition(
       chapters.length,
       chapters.reduce((sum, { charCount }) => sum + charCount, 0),
-      chunks.length
+      chunks.length,
+      concurrency
     );
   }
   return {

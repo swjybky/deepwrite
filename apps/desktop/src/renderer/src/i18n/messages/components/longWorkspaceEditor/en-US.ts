@@ -1,4 +1,6 @@
 export default {
+  documentLengthExceeded:
+    "This content exceeds the document length limit. Shorten it and try again.",
   noValueYet: "No {arg0} yet",
   createACharacterThenSelectItInTheLeft:
     "Create a character, then select it in the left tree to edit its profile.",

@@ -504,6 +504,7 @@ export default {
     couldNotOpenTheLongFormProject: "打开长篇项目失败。"
   },
   longManuscriptExportFlow: {
+    exportedWithMissingImages: "已导出，{count} 张图片缺失已跳过。",
     exportedAsTxtFiles: "已导出“{title}”，共生成 {fileCount} 个 TXT 文件",
     exportedAsSingleTxtFile: "已将“{title}”导出为一个 TXT 文件",
     couldNotExportTheLongFormProject: "导出长篇失败。"

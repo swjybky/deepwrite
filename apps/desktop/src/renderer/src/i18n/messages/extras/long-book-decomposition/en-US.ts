@@ -3,7 +3,7 @@ export default {
   noticeModel:
     "Configure the model with a context window of at least 270,000 tokens and an output limit of at least 120,000 tokens. If either setting is lower, open your model and adjust it under Advanced configuration.",
   noticeMode:
-    "Only continuation mode is currently available, saving the whole-book decomposition to the writing workspace. To convert the results into related materials, use More features → Book to materials.",
+    "Results are saved only to a novel in the writing workspace. To turn a novel into materials, first decompose it here into a book in the writing workspace, then convert that book with More features → Novel to Materials.",
   noticeResume: "If a problem occurs, you can resume the task.",
   noticeTokens:
     "Decomposition consumes a large number of tokens. Consider the cost carefully before starting.",
@@ -25,7 +25,7 @@ export default {
   waitingForSlot: "Waiting for another analysis to release a run slot.",
   title: "Whole Novel Decomposition",
   description:
-    "Read chapter by chapter, confirm the registry, and save finished characters, plot and worldbuilding into a novel or material libraries. Reading notes, registries and reviews stay with the task.",
+    "Read chapter by chapter, confirm the registry, and save finished characters, plot and worldbuilding into a novel in the writing workspace. Reading notes, registries and reviews stay with the task.",
   source: "Confirm the range to decompose",
   sourceEyebrow: "Chapters and range",
   range: "Range",
@@ -46,30 +46,19 @@ export default {
   endOrder: "Last chapter",
   setup: "Set destination and models",
   setupEyebrow: "Decomposition task",
-  modeHelpContinuation:
-    "Continue writing saves characters, plot, chapter cards and worldbuilding into a novel; the style profile stays with the task. A novel that already has content cannot be the destination.",
-  modeHelpMaterials:
-    "Material mode saves into a material group and fills in five novel material libraries.",
+  concurrency: "Concurrent agents",
   createLong: "Create a novel",
   selectLong: "Use an existing novel",
-  createGroup: "Create a material group",
-  selectGroup: "Use an existing material group",
   longTitle: "Novel name",
-  groupTitle: "Material group name",
   existingLong: "Existing novel",
-  existingGroup: "Existing material group",
   choose: "Choose",
   continuation: "Continue writing",
   materials: "Material libraries",
-  mode: "Output mode",
   target: "Destination",
   profile: "Analysis profile",
   profiles: "Profile management",
   readingModel: "Reading model",
   integrationModel: "Integration model",
-  autoContinue: "Continue automatically after building the registry",
-  autoContinueHelp:
-    "When off, the task pauses after the registry is built so you can review characters and terms first.",
   estimateHelp:
     "Input includes context re-sent on every turn; the cacheable part is billed at the cache rate. Cost depends on model pricing, and retries and additional topics add requests. The task pauses for your go-ahead once usage passes twice the high estimate. Consider trying a few dozen chapters first.",
   estimateTitle: "Estimated size and time",

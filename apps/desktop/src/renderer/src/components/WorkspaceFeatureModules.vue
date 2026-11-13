@@ -80,6 +80,7 @@ const emit = defineEmits<{
   updatePermissionMode: [mode: GeneralPermissionMode];
   updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
+  updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
   updateTextAttachmentMaxCharacters: [value: number];
@@ -138,6 +139,7 @@ const emit = defineEmits<{
       module.autoApproveCrossStageOperations
     "
     :auto-save-enabled="module.autoSaveEnabled"
+    :version-history-enabled="module.versionHistoryEnabled"
     :language="module.language"
     :show-context-usage="module.showContextUsage"
     :text-attachment-max-characters="module.textAttachmentMaxCharacters"
@@ -182,6 +184,9 @@ const emit = defineEmits<{
       emit('updateAutoApproveCrossStageOperations', $event)
     "
     @update-auto-save="emit('updateAutoSave', $event)"
+    @update-version-history-enabled="
+      emit('updateVersionHistoryEnabled', $event)
+    "
     @update-language="emit('updateLanguage', $event)"
     @update-show-context-usage="emit('updateShowContextUsage', $event)"
     @update-text-attachment-max-characters="

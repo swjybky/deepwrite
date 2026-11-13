@@ -30,6 +30,7 @@ export interface SettingsFeatureModule {
   permissionMode: GeneralPermissionMode;
   autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
+  versionHistoryEnabled: boolean;
   language: AppLanguage;
   showContextUsage: boolean;
   textAttachmentMaxCharacters: number;

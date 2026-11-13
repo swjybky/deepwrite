@@ -9,6 +9,9 @@ describe("catalog command timeout", () => {
   it("bounds editor reads and approval writes at 60 seconds", () => {
     expect(CATALOG_INTERACTIVE_COMMAND_TIMEOUT_MS).toBe(60_000);
     expect(catalogCommandTimeoutMs("catalog.saveDocument")).toBe(60_000);
+    expect(catalogCommandTimeoutMs("versions.restore")).toBe(60_000);
+    expect(catalogCommandTimeoutMs("versions.list")).toBe(60_000);
+    expect(catalogCommandTimeoutMs("versions.read")).toBe(60_000);
     expect(catalogCommandTimeoutMs("catalog.snapshot")).toBe(60_000);
     expect(catalogCommandTimeoutMs("catalog.index")).toBe(60_000);
     expect(catalogCommandTimeoutMs("catalog.readDocument")).toBe(60_000);

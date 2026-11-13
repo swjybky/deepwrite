@@ -1,3 +1,4 @@
+import { ref } from "vue";
 import {
   createEnvelope,
   type Book,
@@ -139,6 +140,8 @@ function updatePlotEvent(
 function createConversation() {
   const proposals = new Map<string, AgentEditProposal>();
   const controller = {
+    sessionId: ref("session-plot-direct"),
+    messages: ref([]),
     markToolConflict: vi.fn(),
     getEditProposal: vi.fn((runId: string, proposalId: string) => {
       const proposal = proposals.get(proposalId);
@@ -341,6 +344,11 @@ describe("plot structure proposal lane", () => {
       bookId: BOOK_ID,
       documentId: createdStageId,
       content: "结构正文",
+      versionOrigin: {
+        sessionId: "session-plot-direct",
+        runId: "run-plot-direct",
+        summary: "创建剧情结构：终局"
+      },
       force: true
     });
     expect(conversation.proposals.get(proposal.id)).toMatchObject({

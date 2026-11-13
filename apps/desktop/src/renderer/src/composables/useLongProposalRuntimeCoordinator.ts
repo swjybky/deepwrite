@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./proposal-coordinator/version-origin";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { longBookConversationKey } from "../utils/bookConversationKey";
@@ -17,6 +18,10 @@ import type {
   LongWorkspaceProposalItem
 } from "./useLongWorkspaceProposals";
 import { useLazyLongWorkspaceProposals } from "./useLazyLongWorkspaceProposals";
+import {
+  clipWriteApprovalTitle,
+  registerWriteApprovalSource
+} from "./agent-conversation/write-approval";
 import type { LongWorkspaceRendererApi } from "../types/longWorkspace";
 import type { ConversationDisposalOptions } from "./book-removal-runtime";
 
@@ -69,10 +74,40 @@ export function useLongProposalRuntimeCoordinator(
     api: context.api,
     acceptsEvent: acceptsProposalEvent,
     approvalModeForEvent: proposalApprovalMode,
+    versionOriginForEvent: (event) => {
+      const conversation = conversationForProposalEvent(event);
+      return conversation
+        ? conversationVersionOrigin(
+            conversation,
+            event.payload.runId,
+            event.payload.summary
+          )
+        : undefined;
+    },
     prepareAutoApprove: prepareAutomaticProposal,
     onApplied: handleProposalApplied,
     notifications
   });
+  // A paused user-review run also waits for this queue; a rejected item
+  // leaves it, which the conversation reports as rejected.
+  const unregisterWriteApprovalSource = registerWriteApprovalSource(
+    (request) => {
+      const toolCallIds = new Set(request.writeApproval.toolCallIds);
+      return Object.values(workspaceProposals.queues.value)
+        .flat()
+        .filter(
+          ({ event }) =>
+            event.payload.sessionId === request.sessionId &&
+            event.payload.runId === request.runId &&
+            toolCallIds.has(event.payload.toolCallId)
+        )
+        .map((item) => ({
+          key: `long:${item.event.id}`,
+          state: item.status === "accepted" ? "saved" : "waiting",
+          result: { title: clipWriteApprovalTitle(item.event.payload.summary) }
+        }));
+    }
+  );
   const activeProposalItems = computed(() =>
     workspaceProposals.itemsForBook(state.activeBookId.value)
   );
@@ -268,6 +303,7 @@ export function useLongProposalRuntimeCoordinator(
 
   function dispose(): void {
     disposed = true;
+    unregisterWriteApprovalSource();
     workspaceProposals.dispose();
   }
 

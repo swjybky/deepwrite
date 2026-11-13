@@ -60,6 +60,7 @@ const props = defineProps<{
   permissionMode: GeneralPermissionMode;
   autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
+  versionHistoryEnabled: boolean;
   language: AppLanguage;
   showContextUsage: boolean;
   textAttachmentMaxCharacters: number;
@@ -107,6 +108,7 @@ const emit = defineEmits<{
   updatePermissionMode: [mode: GeneralPermissionMode];
   updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
+  updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
   updateShowContextUsage: [enabled: boolean];
   updateTextAttachmentMaxCharacters: [value: number];
@@ -350,6 +352,7 @@ async function selectCategory(id: string): Promise<void> {
               autoApproveCrossStageOperations
             "
             :auto-save-enabled="autoSaveEnabled"
+            :version-history-enabled="versionHistoryEnabled"
             :language="language"
             :show-in-menu-bar="showInMenuBar"
             :task-notification="taskNotification"
@@ -360,6 +363,9 @@ async function selectCategory(id: string): Promise<void> {
               emit('updateAutoApproveCrossStageOperations', $event)
             "
             @update-auto-save="emit('updateAutoSave', $event)"
+            @update-version-history-enabled="
+              emit('updateVersionHistoryEnabled', $event)
+            "
             @update-language="emit('updateLanguage', $event)"
             @update-show-in-menu-bar="emit('updateShowInMenuBar', $event)"
             @update-task-notification="emit('updateTaskNotification', $event)"

@@ -12,8 +12,17 @@ import {
 import type { MarketplaceSession, UpdateState } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useAnnouncedVersion } from "../composables/useAnnouncedVersion";
-import { AuthorSupportDialog, FeedbackDialog } from "./lazyAppComponents";
+import {
+  AuthorSupportDialog,
+  FeedbackDialog,
+  MarketplaceLoginDialog
+} from "./lazyAppComponents";
 import { uiMessage } from "../ui-feedback";
+import { marketplaceAccountError } from "../utils/marketplaceAccountError";
+import {
+  marketplaceLoginPromptOpen,
+  requireMarketplaceLogin
+} from "../stores/marketplaceLoginPrompt";
 
 const t = createScopedTranslator("components.sidebarProfileMenu");
 const VersionUpdateDialog = defineAsyncComponent(
@@ -22,10 +31,14 @@ const VersionUpdateDialog = defineAsyncComponent(
 const AnnouncementDialog = defineAsyncComponent(
   () => import("./AnnouncementDialog.vue")
 );
-const props = defineProps<{ marketplaceDisplayName?: string | undefined }>();
+const props = defineProps<{
+  marketplaceDisplayName?: string | undefined;
+  marketplaceSignedIn?: boolean;
+}>();
 const emit = defineEmits<{
   openSettings: [];
   marketplaceSessionChange: [session: MarketplaceSession];
+  marketplaceSignedOut: [session: MarketplaceSession];
 }>();
 
 const accountMenuRoot = ref<HTMLElement | null>(null);
@@ -82,7 +95,26 @@ function openSupportDialog(): void {
 
 function openFeedbackDialog(): void {
   accountMenuOpen.value = false;
-  profileDialog.value = "feedback";
+  requireMarketplaceLogin(props.marketplaceSignedIn === true, () => {
+    profileDialog.value = "feedback";
+  });
+}
+
+function signIn(): void {
+  accountMenuOpen.value = false;
+  requireMarketplaceLogin(false);
+}
+
+async function signOut(): Promise<void> {
+  accountMenuOpen.value = false;
+  const api = window.deepwrite?.marketplace;
+  if (!api) return;
+  try {
+    emit("marketplaceSignedOut", await api.logout());
+    uiMessage.success(t("signedOut"));
+  } catch (error: unknown) {
+    uiMessage.error(marketplaceAccountError(error, t("couldNotSignOut")));
+  }
 }
 
 function openAnnouncementDialog(): void {
@@ -233,6 +265,16 @@ onBeforeUnmount(() => {
           class="account-menu"
           role="menu"
         >
+          <button
+            v-if="!marketplaceSignedIn"
+            class="account-sign-in-button"
+            type="button"
+            role="menuitem"
+            @click="signIn"
+          >
+            <AppIcon name="user" :size="16" />
+            <span>{{ t("signIn") }}</span>
+          </button>
           <button type="button" role="menuitem" @click="openSettings">
             <AppIcon name="settings" :size="16" />
             <span>{{ t("settings") }}</span>
@@ -268,6 +310,15 @@ onBeforeUnmount(() => {
             <AppIcon name="message" :size="16" />
             <span>{{ t("feedback") }}</span>
           </button>
+          <button
+            v-if="marketplaceSignedIn"
+            type="button"
+            role="menuitem"
+            @click="signOut"
+          >
+            <AppIcon name="logout" :size="16" />
+            <span>{{ t("signOut") }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -279,6 +330,11 @@ onBeforeUnmount(() => {
   <AuthorSupportDialog
     v-if="profileDialog === 'support'"
     @close="closeProfileDialog"
+  />
+  <!-- The one sign-in entry for 技能广场、团队广场 and 反馈 lives behind the avatar. -->
+  <MarketplaceLoginDialog
+    v-if="marketplaceLoginPromptOpen"
+    @session-change="emit('marketplaceSessionChange', $event)"
   />
   <FeedbackDialog
     v-if="profileDialog === 'feedback'"

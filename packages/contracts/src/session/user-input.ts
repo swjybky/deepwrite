@@ -2,6 +2,10 @@ import { z } from "zod";
 import { AgentRuntimeRefSchema } from "./agent-event-identity";
 import { AgentTeamPromptReviewSchema } from "../agent-team-management";
 import {
+  PROPOSAL_SETTLEMENT_MAX_ITEMS,
+  ProposalSettlementSchema
+} from "./proposal-settlements";
+import {
   SUBAGENT_DRAW_MAX_COUNT,
   SUBAGENT_DRAW_MIN_COUNT,
   SUBAGENT_DRAW_VARIANT_MAX_LENGTH
@@ -14,7 +18,8 @@ export const AgentUserInputSourceSchema = z.enum([
   "ask_user_question",
   "cross_stage_write",
   "subagent_draw",
-  "agent_team_prompt"
+  "agent_team_prompt",
+  "write_approval"
 ]);
 export type AgentUserInputSource = z.infer<typeof AgentUserInputSourceSchema>;
 
@@ -158,6 +163,50 @@ export const AgentUserInputDrawSchema = z
   .strict();
 export type AgentUserInputDraw = z.infer<typeof AgentUserInputDrawSchema>;
 
+/** Question id of a write approval wait; answered with text `settled`. */
+export const WRITE_APPROVAL_QUESTION_ID = "write_approval";
+export const WRITE_APPROVAL_MAX_TOOL_CALLS = 64;
+/** User-edited text is echoed to the agent up to this length. */
+export const WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH = 20_000;
+
+/**
+ * In user-review mode the run pauses after a step whose tool calls formed
+ * proposals, until the user settled every proposal of those calls.
+ */
+export const AgentUserInputWriteApprovalSchema = z
+  .object({
+    toolCallIds: z
+      .array(z.string().min(1))
+      .min(1)
+      .max(WRITE_APPROVAL_MAX_TOOL_CALLS)
+  })
+  .strict();
+export type AgentUserInputWriteApproval = z.infer<
+  typeof AgentUserInputWriteApprovalSchema
+>;
+
+/** Outcome of one paused-for proposal; `edited` means the user's version was saved. */
+export const AgentWriteApprovalResultSchema = ProposalSettlementSchema.extend({
+  edited: z.boolean().optional(),
+  editedText: z.string().max(WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH).optional(),
+  editedTextTruncated: z.boolean().optional()
+}).strict();
+export type AgentWriteApprovalResult = z.infer<
+  typeof AgentWriteApprovalResultSchema
+>;
+
+export const AgentWriteApprovalResponseSchema = z
+  .object({
+    items: z
+      .array(AgentWriteApprovalResultSchema)
+      .max(PROPOSAL_SETTLEMENT_MAX_ITEMS),
+    omittedCount: z.number().int().positive().optional()
+  })
+  .strict();
+export type AgentWriteApprovalResponse = z.infer<
+  typeof AgentWriteApprovalResponseSchema
+>;
+
 export const AgentUserInputRequestedPayloadSchema = z
   .object({
     sessionId: z.string().min(1),
@@ -169,10 +218,22 @@ export const AgentUserInputRequestedPayloadSchema = z
     /** Present exactly when `source` is `subagent_draw`. */
     draw: AgentUserInputDrawSchema.optional(),
     promptReview: AgentTeamPromptReviewSchema.optional(),
+    /** Present exactly when `source` is `write_approval`. */
+    writeApproval: AgentUserInputWriteApprovalSchema.optional(),
     runtime: AgentRuntimeRefSchema
   })
   .strict()
   .superRefine((value, context) => {
+    if (
+      (value.source === "write_approval") !==
+      (value.writeApproval !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["writeApproval"],
+        message: "Write approval waits carry their tool calls only."
+      });
+    }
     if (
       (value.source === "agent_team_prompt") !==
       (value.promptReview !== undefined)
@@ -203,7 +264,9 @@ export const SessionUserInputResponsePayloadSchema = z
     answers: z
       .array(AgentUserInputAnswerSchema)
       .min(1)
-      .max(AGENT_USER_INPUT_MAX_QUESTIONS)
+      .max(AGENT_USER_INPUT_MAX_QUESTIONS),
+    /** Outcomes reported when answering a `write_approval` wait. */
+    writeApproval: AgentWriteApprovalResponseSchema.optional()
   })
   .strict();
 export type SessionUserInputResponsePayload = z.infer<

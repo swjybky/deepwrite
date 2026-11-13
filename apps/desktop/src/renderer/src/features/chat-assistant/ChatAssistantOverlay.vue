@@ -26,7 +26,7 @@ import { useChatAssistantMode } from "./useChatAssistantMode";
 import { useChatAssistantHistoryActions } from "./useChatAssistantHistoryActions";
 import { useChatAssistantWebSearch } from "./useChatAssistantWebSearch";
 import { useWebSearchStatusStore } from "../../stores/webSearchStatus";
-import { buildModelSelectOptions } from "../../utils/modelSelectOptions";
+import { useConversationModelOptions } from "../../composables/useConversationModelOptions";
 
 const t = createScopedTranslator("extras");
 
@@ -71,11 +71,6 @@ const title = computed(
 const lastAssistantMessage = computed(() =>
   findLastAssistantMessage(messages.value, true)
 );
-const selectedModel = computed(() =>
-  controller.value!.configuredModels.value.find(
-    (model) => model.id === controller.value!.selectedModelId.value
-  )
-);
 const webSearchStatus = useWebSearchStatusStore();
 void webSearchStatus.ensureLoaded();
 const webSearch = useChatAssistantWebSearch({
@@ -84,52 +79,24 @@ const webSearch = useChatAssistantWebSearch({
 const webSearchDisabledReason = computed(() =>
   t("chatAssistant.webSearchUnavailable")
 );
-const modelOptions = computed(() =>
-  buildModelSelectOptions(controller.value!.configuredModels.value).map(
-    (option) => ({
-      ...option,
-      ...(option.value === controller.value!.selectedModelId.value
-        ? { description: t("chatAssistant.currentModel") }
-        : {})
-    })
-  )
-);
-const thinkingLabels: Record<string, string> = {
-  get off() {
-    return t("longBookAnalysis.thinkingOff");
+const {
+  modelOptions,
+  availableThinkingOptions,
+  showsTemperature,
+  temperatureSelectOptions
+} = useConversationModelOptions({
+  get models() {
+    return controller.value!.configuredModels.value;
   },
-  get minimal() {
-    return t("longBookAnalysis.minimalThinking");
+  get selectedModelId() {
+    return controller.value!.selectedModelId.value;
   },
-  get low() {
-    return t("longBookAnalysis.lowThinking");
+  get thinkingLevel() {
+    return controller.value!.thinkingLevel.value;
   },
-  get medium() {
-    return t("longBookAnalysis.mediumThinking");
-  },
-  get high() {
-    return t("longBookAnalysis.highThinking");
-  },
-  get xhigh() {
-    return t("longBookAnalysis.extraHighThinking");
-  },
-  get max() {
-    return t("longBookAnalysis.maxThinking");
-  }
-};
-const thinkingOptions = computed(() => [
-  { value: "off", label: t("longBookAnalysis.thinkingOff") },
-  ...(
-    selectedModel.value?.thinkingLevelOptions ?? [
-      "minimal",
-      "low",
-      "medium",
-      "high",
-      "xhigh",
-      "max"
-    ]
-  ).map((value) => ({ value, label: thinkingLabels[value] ?? value }))
-]);
+  // Chat runs never write manuscripts; approval only feeds unused fields.
+  approvalMode: "auto-approve"
+});
 const canSend = computed(() => controller.value!.canSend.value);
 const canStop = computed(() => controller.value!.canStop.value);
 const effectiveCanSend = computed(
@@ -403,7 +370,10 @@ watch(
       :selected-model-id="controller.selectedModelId.value"
       :model-options="modelOptions"
       :thinking-level="controller.thinkingLevel.value"
-      :thinking-options="thinkingOptions"
+      :thinking-options="availableThinkingOptions"
+      :temperature="controller.temperature.value"
+      :temperature-options="temperatureSelectOptions"
+      :shows-temperature="showsTemperature"
       :web-search-visible="assistant.mode.value !== 'roleplay'"
       :web-search-enabled="
         assistant.mode.value !== 'roleplay' && webSearch.enabled.value
@@ -415,6 +385,7 @@ watch(
       @stop="controller.stopGeneration()"
       @select-model="controller.selectModel($event)"
       @select-thinking="controller.selectThinkingLevel($event)"
+      @select-temperature="controller.selectTemperature($event)"
       @toggle-web-search="webSearch.setEnabled($event)"
     />
 

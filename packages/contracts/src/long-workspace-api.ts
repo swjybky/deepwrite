@@ -1,3 +1,4 @@
+import { DocumentVersionOriginSchema } from "./document-version-origin";
 import { z } from "zod";
 import {
   LinkedMaterialIdsByKindInputSchema,
@@ -634,11 +635,13 @@ export const LongSearchResultSchema = z
   .strict();
 export type LongSearchResult = z.infer<typeof LongSearchResultSchema>;
 
+export const LONG_DOCUMENT_MAX_BYTES = 16 * 1024 * 1024;
+
 export const LongWriteDocumentInputSchema = z
   .object({
     bookId: LongBookIdSchema,
     fileId: LongFileIdSchema,
-    content: z.string().max(16 * 1024 * 1024),
+    content: z.string().max(LONG_DOCUMENT_MAX_BYTES),
     /** Refuses the write if the file changed after this index timestamp. */
     expectedUpdatedAt: z.string().datetime().optional()
   })
@@ -749,6 +752,7 @@ export type LongPreviewOperationsResult = z.infer<
 
 export const LongApplyOperationsInputSchema = z
   .object({
+    versionOrigin: DocumentVersionOriginSchema.optional(),
     bookId: LongBookIdSchema,
     batch: LongWorkspaceOperationBatchSchema,
     /** Keep an undo snapshot when the batch deletes or rewrites records. */

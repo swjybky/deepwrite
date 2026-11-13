@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./version-origin";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import {
@@ -229,6 +230,11 @@ export function createDraftSectionLane(ctx: ProposalLaneContext) {
         );
       }
       await saveCreatedDraftSectionContents(currentApi.catalog, {
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        ),
         bookId: proposal.workspaceId,
         requested: target.sections,
         created: created.sections

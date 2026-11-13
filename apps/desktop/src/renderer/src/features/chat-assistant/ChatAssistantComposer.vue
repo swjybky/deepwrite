@@ -17,10 +17,8 @@ import VoiceInputBar from "../../components/VoiceInputBar.vue";
 import { useVoiceInput } from "../../composables/useVoiceInput";
 import { useSettingsStore } from "../../stores/settingsStore";
 import AppIcon from "../../components/AppIcon.vue";
-import PopupSelect, {
-  type PopupSelectOption,
-  type PopupSelectValue
-} from "../../components/PopupSelect.vue";
+import ConversationModelConfigSelect from "../../components/ConversationModelConfigSelect.vue";
+import type { ModelSelectOption } from "../../utils/modelSelectOptions";
 
 const t = createScopedTranslator("extras");
 const attachmentT = createScopedTranslator("components.conversationComposer");
@@ -37,9 +35,12 @@ const props = defineProps<{
   canSendAttachments: boolean;
   canStop: boolean;
   selectedModelId: string;
-  modelOptions: PopupSelectOption[];
+  modelOptions: ModelSelectOption[];
   thinkingLevel: ThinkingLevel;
-  thinkingOptions: PopupSelectOption[];
+  thinkingOptions: Array<{ value: ThinkingLevel; label: string }>;
+  temperature: number;
+  temperatureOptions: Array<{ value: number; label: string }>;
+  showsTemperature: boolean;
   webSearchVisible?: boolean;
   webSearchEnabled: boolean;
   webSearchAvailable: boolean;
@@ -52,6 +53,7 @@ const emit = defineEmits<{
   stop: [];
   selectModel: [modelId: string];
   selectThinking: [level: ThinkingLevel];
+  selectTemperature: [temperature: number];
   toggleWebSearch: [enabled: boolean];
 }>();
 
@@ -139,18 +141,6 @@ function handleKeydown(event: KeyboardEvent): void {
   if (!voice.active.value) submit();
 }
 
-function handleThinking(value: PopupSelectValue): void {
-  emit("selectThinking", value as ThinkingLevel);
-}
-
-function webSearchTitle(): string {
-  if (props.busy) return t("chatAssistant.waitBeforeSearchChange");
-  if (!props.webSearchAvailable) return props.webSearchDisabledReason;
-  return props.webSearchEnabled
-    ? t("chatAssistant.disableWebSearch")
-    : t("chatAssistant.enableWebSearch");
-}
-
 defineExpose({ focus });
 </script>
 
@@ -214,6 +204,24 @@ defineExpose({ focus });
       >
         <AppIcon name="plus" :size="19" />
       </button>
+      <ConversationModelConfigSelect
+        :selected-model-id="selectedModelId"
+        :model-options="modelOptions"
+        :thinking-level="thinkingLevel"
+        :thinking-options="thinkingOptions"
+        :temperature="temperature"
+        :temperature-options="temperatureOptions"
+        :shows-temperature="showsTemperature"
+        :web-search-enabled="webSearchEnabled"
+        :web-search-available="webSearchAvailable"
+        :web-search-disabled-reason="webSearchDisabledReason"
+        :hides-web-search="webSearchVisible === false"
+        :responding="busy"
+        @select-model="emit('selectModel', $event)"
+        @select-thinking="emit('selectThinking', $event)"
+        @select-temperature="emit('selectTemperature', $event)"
+        @toggle-web-search="emit('toggleWebSearch', $event)"
+      />
       <ContextCompactionButton
         v-if="
           settingsStore.generalSettings.contextCompaction.showManualButton &&
@@ -224,42 +232,6 @@ defineExpose({ focus });
         :disabled="busy || !runtimeAvailable"
       />
       <span class="chat-assistant-toolbar-spacer" />
-      <button
-        v-if="webSearchVisible !== false"
-        class="chat-assistant-web-search"
-        :class="{ 'is-active': webSearchEnabled }"
-        type="button"
-        :disabled="busy || !webSearchAvailable"
-        :title="webSearchTitle()"
-        :aria-label="t('chatAssistant.webSearch')"
-        :aria-pressed="webSearchEnabled"
-        @click="emit('toggleWebSearch', !webSearchEnabled)"
-      >
-        <span>{{ t("chatAssistant.webSearch") }}</span>
-      </button>
-      <PopupSelect
-        :model-value="selectedModelId"
-        :options="modelOptions"
-        :accessible-label="t('chatAssistant.chatModel')"
-        :placeholder="t('chatAssistant.defaultModel')"
-        variant="compact"
-        size="small"
-        align="end"
-        :disabled="modelOptions.length === 0"
-        :menu-min-width="220"
-        :menu-z-index="95"
-        @update:model-value="emit('selectModel', String($event))"
-      />
-      <PopupSelect
-        :model-value="thinkingLevel"
-        :options="thinkingOptions"
-        :accessible-label="t('longBookAnalysis.thinkingLevel')"
-        variant="compact"
-        size="small"
-        align="end"
-        :menu-z-index="95"
-        @update:model-value="handleThinking"
-      />
       <button
         class="chat-assistant-placeholder-action"
         type="button"

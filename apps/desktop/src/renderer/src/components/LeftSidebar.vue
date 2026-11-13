@@ -51,6 +51,7 @@ const props = defineProps<{
     | "zhuque-detection"
     | undefined;
   marketplaceDisplayName?: string | undefined;
+  marketplaceSignedIn?: boolean;
   longTreeActionsDisabled?: boolean;
   moreFeaturesSettings?: MoreFeaturesSettings;
 }>();
@@ -68,6 +69,7 @@ const emit = defineEmits<{
   openZhuqueDetection: [];
   openSettings: [];
   marketplaceSessionChange: [session: MarketplaceSession];
+  marketplaceSignedOut: [session: MarketplaceSession];
   selectResource: [node: ResourceTreeNode];
   bookAction: [mode: BookResourceDialogMode, node: ResourceTreeNode];
   exportBook: [node: ResourceTreeNode];
@@ -408,8 +410,10 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
 
     <SidebarProfileMenu
       :marketplace-display-name="marketplaceDisplayName"
+      :marketplace-signed-in="marketplaceSignedIn"
       @open-settings="emit('openSettings')"
       @marketplace-session-change="emit('marketplaceSessionChange', $event)"
+      @marketplace-signed-out="emit('marketplaceSignedOut', $event)"
     />
     <BookAgentTeamDialog v-if="bookAgentTeamBindingTarget" />
   </aside>

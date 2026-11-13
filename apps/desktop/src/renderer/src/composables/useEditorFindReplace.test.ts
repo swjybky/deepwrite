@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectScope, markRaw, nextTick, ref } from "vue";
 import { revealTextareaOffset } from "../utils/textareaMirror";
 import { useEditorFindReplace } from "./useEditorFindReplace";
+import type { RichMarkdownBridge } from "../utils/richMarkdownBridge";
 
 vi.mock("../ui-feedback", () => ({
   uiMessage: { info: vi.fn(), success: vi.fn() }
@@ -28,7 +29,7 @@ function key(
   } as unknown as KeyboardEvent;
 }
 
-function setup() {
+function setup(preview?: RichMarkdownBridge) {
   const ownerDocument = { activeElement: null as unknown };
   const content = ref(TEXT);
   const editor = {
@@ -57,12 +58,14 @@ function setup() {
   };
   const scope = effectScope();
   scopes.push(scope);
+  const showEditor = vi.fn();
   const api = scope.run(() =>
     useEditorFindReplace({
       content: () => content.value,
       readOnly: () => false,
       editorInput: () => editor as unknown as HTMLTextAreaElement,
-      showEditor: vi.fn(),
+      preview: () => preview,
+      showEditor,
       replaceContent: (nextContent) => {
         content.value = nextContent;
       },
@@ -73,7 +76,7 @@ function setup() {
   // DOM elements are never proxied by Vue; keep the stand-ins raw as well.
   api.findInput.value = markRaw(findInput) as unknown as HTMLInputElement;
   api.findPanelElement.value = markRaw(panel) as unknown as HTMLElement;
-  return { api, content, editor, findInput, ownerDocument };
+  return { api, content, editor, findInput, ownerDocument, showEditor };
 }
 
 async function settle(): Promise<void> {
@@ -94,6 +97,28 @@ afterEach(() => {
 });
 
 describe("editor find and replace", () => {
+  it("searches and replaces in the rendered preview without switching mode or taking focus from the find field", async () => {
+    const preview = {
+      selection: () => ({ start: 8, end: 8 }),
+      select: vi.fn(),
+      focus: vi.fn(),
+      hasFocus: () => false
+    };
+    const { api, content, editor, showEditor, findInput, ownerDocument } =
+      setup(preview);
+    await search(api, "你好");
+    expect(showEditor).not.toHaveBeenCalled();
+    expect(editor.setSelectionRange).not.toHaveBeenCalled();
+    expect(preview.select).toHaveBeenCalledWith(8, 10, false);
+    expect(ownerDocument.activeElement).toBe(findInput);
+    api.replacementText.value = "您好";
+    api.replaceCurrentMatch();
+    await settle();
+    expect(content.value).toBe("你好，世界。他说您好。你好");
+    expect(showEditor).not.toHaveBeenCalled();
+    api.dismissFindPanel();
+    expect(preview.focus).toHaveBeenCalledOnce();
+  });
   it("selects matches without taking focus from the find field", async () => {
     const { api, editor, findInput, ownerDocument } = setup();
     await search(api, "你好");

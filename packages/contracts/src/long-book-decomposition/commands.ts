@@ -12,7 +12,11 @@ import {
   DecompositionTaskInputSchema,
   LongBookDecompositionJobSchema
 } from "./job";
-import { DecompositionIdSchema } from "./limits";
+import {
+  DECOMPOSITION_DEFAULT_CONCURRENCY,
+  DecompositionConcurrencySchema,
+  DecompositionIdSchema
+} from "./limits";
 import { DecompositionQuerySchema } from "./query";
 import { DecompositionRegistryDataSchema } from "./registry";
 import { DecompositionTargetSelectionSchema } from "./target";
@@ -35,6 +39,9 @@ export const CreateDecompositionJobInputSchema = z
       })
     }),
     autoContinue: z.boolean().default(false),
+    maxConcurrency: DecompositionConcurrencySchema.default(
+      DECOMPOSITION_DEFAULT_CONCURRENCY
+    ),
     reuseJobId: DecompositionIdSchema.optional()
   })
   .refine(

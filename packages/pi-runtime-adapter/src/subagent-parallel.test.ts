@@ -50,6 +50,7 @@ function deferred<T>() {
 function harness(options: {
   responses: Parameters<ReturnType<typeof fauxProvider>["setResponses"]>[0];
   parallel: boolean;
+  maxConcurrency?: number;
   definitions?: RuntimeSubagentDefinition[];
   streamGate?: number;
   childTools?: () => AgentTool[];
@@ -84,7 +85,10 @@ function harness(options: {
     definitions: options.definitions ?? [writer, reviewer],
     buildChildTools: options.childTools ?? (() => []),
     createRunId: () => `subrun_${++sequence}`,
-    parallel: options.parallel
+    parallel: options.parallel,
+    ...(options.maxConcurrency
+      ? { maxConcurrency: options.maxConcurrency }
+      : {})
   });
   if (!tool) throw new Error("spawn_subagent was not built");
   return tool;
@@ -155,6 +159,35 @@ describe("spawn_subagent task lists", () => {
     expect(text).toContain("共 2 个，完成 2 个");
     expect(text).toContain("【c3｜单章写手｜已完成】");
     expect(text).toContain("【c4｜单章写手｜已完成】");
+  });
+
+  it("runs no more children at once than the configured limit", async () => {
+    const tool = harness({
+      parallel: true,
+      maxConcurrency: 1,
+      responses: [
+        fauxAssistantMessage("第三章完成"),
+        fauxAssistantMessage("第四章完成")
+      ]
+    });
+    expect(tool.description).toContain("最多 1 个");
+    const updates: AgentToolResult<SubagentToolDetails>[] = [];
+    await tool.execute(
+      "parent-call",
+      {
+        tasks: [
+          { key: "c3", subagent_id: "chapter_writer", task: "写第三章" },
+          { key: "c4", subagent_id: "chapter_writer", task: "写第四章" }
+        ]
+      },
+      undefined,
+      (update) => updates.push(update)
+    );
+    expect(
+      childProgressOf(updates)
+        .filter((item) => item.type === "started" || item.type === "completed")
+        .map((item) => `${item.type}:${item.batchTask?.key}`)
+    ).toEqual(["started:c3", "completed:c3", "started:c4", "completed:c4"]);
   });
 
   it("reports a skipped dependent without starting it", async () => {

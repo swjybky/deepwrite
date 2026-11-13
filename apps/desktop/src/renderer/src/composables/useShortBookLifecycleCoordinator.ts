@@ -1004,6 +1004,14 @@ export function useShortBookLifecycleCoordinator(
           currentBook.bookType === "script"
             ? t("shortBookLifecycleCoordinator.allEpisodes")
             : t("shortBookLifecycleCoordinator.theIntroductionAndAllSections");
+        if (result.status === "saved" && result.missingImages > 0) {
+          notifications.warning(
+            t("shortBookLifecycleCoordinator.exportedWithMissingImages", {
+              count: result.missingImages
+            })
+          );
+          return;
+        }
         notifications.success(
           targetOutput === "clipboard"
             ? t(

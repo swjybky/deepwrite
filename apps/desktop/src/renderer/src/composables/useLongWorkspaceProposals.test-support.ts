@@ -20,6 +20,7 @@ import {
 import type { LongWorkspaceRendererApi } from "../types/longWorkspace";
 import {
   useLongWorkspaceProposals,
+  type UseLongWorkspaceProposalsOptions,
   type LongMutationProposalEvent
 } from "./useLongWorkspaceProposals";
 
@@ -369,7 +370,8 @@ function textFilesLedgerEvent() {
 
 function harness(
   acceptsEvent = true,
-  approvalMode: "request-approval" | "auto-approve" = "request-approval"
+  approvalMode: "request-approval" | "auto-approve" = "request-approval",
+  versionOriginForEvent?: UseLongWorkspaceProposalsOptions["versionOriginForEvent"]
 ) {
   const previewOperations = vi.fn<
     LongWorkspaceRendererApi["previewOperations"]
@@ -540,6 +542,7 @@ function harness(
     api: () => api,
     acceptsEvent: () => acceptsEvent,
     approvalModeForEvent: () => approvalMode,
+    ...(versionOriginForEvent ? { versionOriginForEvent } : {}),
     prepareAutoApprove,
     onApplied,
     onRejected,

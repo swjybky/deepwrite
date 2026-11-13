@@ -2,13 +2,15 @@ import type { TextViewMode } from "@deepwrite/contracts";
 import { computed, nextTick, ref, type ComputedRef, type Ref } from "vue";
 import type { LongWorkspaceSelectionFile } from "../types/longWorkspace";
 import {
-  countNonWhitespaceCharacters,
   createBoundedTextHistory,
   type TextHistoryRestoreResult,
   type TextSelectionRange
 } from "../utils/boundedTextHistory";
+import { countDocumentCharacters } from "../utils/bookImageText";
+import type { MarkdownSourceEdit } from "../utils/bookImageInsertion";
 import type { LongDocumentState } from "./useLongEditorDocumentSession";
 import type { EditorComposition } from "./useEditorComposition";
+import type { RichMarkdownBridge } from "../utils/richMarkdownBridge";
 
 export function useLongEditorHistory(options: {
   documentStates: Ref<Record<string, LongDocumentState>>;
@@ -21,6 +23,7 @@ export function useLongEditorHistory(options: {
   canUseTextTools: ComputedRef<boolean>;
   viewMode: Ref<TextViewMode>;
   editorInput: Ref<HTMLTextAreaElement | null>;
+  preview?: () => RichMarkdownBridge | undefined;
   composition: EditorComposition;
   characterCount: Ref<number>;
   stateKey: (fileId: string, bookId?: string) => string;
@@ -45,7 +48,8 @@ export function useLongEditorHistory(options: {
   handleEditorCompositionEnd: (event: CompositionEvent) => void;
   recordProgrammaticChange: (
     nextContent: string,
-    selectionAfter: TextSelectionRange
+    selectionAfter: TextSelectionRange,
+    input?: MarkdownSourceEdit["input"]
   ) => number | undefined;
   updateVisibleCharacterCount: (
     nextContent: string,
@@ -59,6 +63,8 @@ export function useLongEditorHistory(options: {
 } {
   const textHistory = createBoundedTextHistory();
   const historyVersion = ref(0);
+  let lastCountHadImageSyntax =
+    options.currentVisibleContent.value.includes("![");
   let pendingEditorInput: {
     selectionBefore: TextSelectionRange;
     inputType: string;
@@ -91,6 +97,8 @@ export function useLongEditorHistory(options: {
   function getEditorSelection(
     fallback = options.currentVisibleContent.value.length
   ): TextSelectionRange {
+    const preview = options.preview?.();
+    if (preview) return preview.selection();
     const input = options.editorInput.value;
     return {
       start: input?.selectionStart ?? fallback,
@@ -210,14 +218,20 @@ export function useLongEditorHistory(options: {
 
   function recordProgrammaticChange(
     nextContent: string,
-    selectionAfter: TextSelectionRange
+    selectionAfter: TextSelectionRange,
+    input?: MarkdownSourceEdit["input"]
   ): number | undefined {
-    const result = textHistory.recordChange({
+    const change = {
       beforeContent: options.currentVisibleContent.value,
-      afterContent: nextContent,
-      selectionBefore: getEditorSelection(),
-      selectionAfter
-    });
+      afterContent: nextContent
+    };
+    const result = input
+      ? textHistory.recordInput({ ...change, ...input })
+      : textHistory.recordChange({
+          ...change,
+          selectionBefore: getEditorSelection(),
+          selectionAfter
+        });
     if (result) {
       notifyHistoryChanged();
     }
@@ -230,18 +244,25 @@ export function useLongEditorHistory(options: {
   ): void {
     if (options.currentVisibleContent.value !== nextContent) return;
     options.characterCount.value =
-      nonWhitespaceDelta === undefined
-        ? countNonWhitespaceCharacters(nextContent)
+      nonWhitespaceDelta === undefined ||
+      lastCountHadImageSyntax ||
+      nextContent.includes("![")
+        ? countDocumentCharacters(nextContent)
         : Math.max(0, options.characterCount.value + nonWhitespaceDelta);
+    lastCountHadImageSyntax = nextContent.includes("![");
   }
 
   async function restoreEditorHistory(
     result: TextHistoryRestoreResult
   ): Promise<void> {
-    options.viewMode.value = "edit";
+    const preview = options.viewMode.value === "preview";
     options.updateVisibleContent(result.content);
     updateVisibleCharacterCount(result.content, result.nonWhitespaceDelta);
     await nextTick();
+    if (preview) {
+      options.preview?.()?.select(result.start, result.end);
+      return;
+    }
     const input = options.editorInput.value;
     if (!input) return;
     input.focus({ preventScroll: true });

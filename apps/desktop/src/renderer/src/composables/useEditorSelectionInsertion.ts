@@ -1,5 +1,6 @@
 import { watch } from "vue";
 import type { TextMenuHistory } from "./nativeTextContextMenu";
+import { textareaOffsetToMarkdownSource } from "../utils/bookImageInsertion";
 import { randomHex8 } from "@deepwrite/shared";
 import type { EditorTextReference } from "../types/conversation";
 import {
@@ -8,6 +9,7 @@ import {
   type EditorTextReferenceDocument
 } from "../utils/editorTextReferences";
 import { useSelectionInsertionMenu } from "./useSelectionInsertionMenu";
+import { richMarkdownEditorAt } from "../utils/richMarkdownBridge";
 
 export interface EditorSelectionReferenceSource {
   resourceId: string;
@@ -35,15 +37,25 @@ export function useEditorSelectionInsertion(options: {
   }
 
   function handleEditorContextMenu(event: MouseEvent): void {
-    const input = event.currentTarget;
+    const input =
+      event.target instanceof HTMLTextAreaElement
+        ? event.target
+        : event.currentTarget;
     const source = options.source();
     if (!(input instanceof HTMLTextAreaElement) || !source) {
       menu.closeSelectionAction();
       return;
     }
 
-    const start = input.selectionStart ?? 0;
-    const end = input.selectionEnd ?? start;
+    const blockSource = source.document.content;
+    const start = textareaOffsetToMarkdownSource(
+      blockSource,
+      input.selectionStart ?? 0
+    );
+    const end = textareaOffsetToMarkdownSource(
+      blockSource,
+      input.selectionEnd ?? input.selectionStart ?? 0
+    );
     const reference = createEditorTextReference({
       id: randomHex8(),
       resourceId: source.resourceId,
@@ -63,6 +75,11 @@ export function useEditorSelectionInsertion(options: {
     const preview = event.currentTarget;
     const source = options.source();
     const selection = globalThis.getSelection?.();
+    const editor =
+      event.target instanceof HTMLElement
+        ? richMarkdownEditorAt(event.target)
+        : undefined;
+    const history = editor ? options.history : undefined;
     if (
       !(preview instanceof HTMLElement) ||
       !source ||
@@ -71,20 +88,29 @@ export function useEditorSelectionInsertion(options: {
       selection.rangeCount !== 1 ||
       !preview.contains(selection.getRangeAt(0).commonAncestorContainer)
     ) {
-      menu.closeSelectionAction();
+      if (source && history)
+        menu.openSelectionAction(undefined, event, history, () =>
+          sourceIsCurrent(source)
+        );
+      else menu.closeSelectionAction();
       return;
     }
-    const reference = createRenderedEditorTextReference({
+    const input = {
       id: randomHex8(),
       resourceId: source.resourceId,
-      document: source.document,
-      text: selection.toString()
-    });
+      document: source.document
+    };
+    const reference = editor
+      ? createEditorTextReference({ ...input, ...editor.selection() })
+      : createRenderedEditorTextReference({
+          ...input,
+          text: selection.toString()
+        });
     if (!reference) {
       menu.closeSelectionAction();
       return;
     }
-    menu.openSelectionAction(reference, event, undefined, () =>
+    menu.openSelectionAction(reference, event, history, () =>
       sourceIsCurrent(source)
     );
   }

@@ -3,6 +3,8 @@ export const loadAuthorSupportDialog = () =>
   import("./AuthorSupportDialog.vue");
 export const loadFeedbackDialog = () =>
   import("../extras/feedback/FeedbackDialog.vue");
+export const loadMarketplaceLoginDialog = () =>
+  import("./MarketplaceLoginDialog.vue");
 export const loadBookAgentTeamDialog = () =>
   import("./BookAgentTeamDialog.vue");
 export const loadAgentTeamSettingsPanel = () =>

@@ -20,6 +20,7 @@ const externalConcurrencyOnly = process.argv.includes(
 const conversationOnly = process.argv.includes("--conversation-only");
 const decompositionOnly = process.argv.includes("--decomposition-only");
 const bookIdentityOnly = process.argv.includes("--book-identity-only");
+const bookImagesOnly = process.argv.includes("--book-images-only");
 const libraryEntriesOnly = process.argv.includes("--library-entries-only");
 const libraryGroupsOnly = process.argv.includes("--library-groups-only");
 const shortBookSourcesOnly = process.argv.includes("--short-book-sources-only");
@@ -80,27 +81,29 @@ const child = spawn(command, args, {
   env: {
     ...process.env,
     DEEPWRITE_SMOKE: "1",
-    DEEPWRITE_SMOKE_SUITE: externalConcurrencyOnly
-      ? "external-concurrency"
-      : presetProtectionOnly
-        ? "preset-protection"
-        : shortBookSourcesOnly
-          ? "short-book-sources"
-          : libraryEntriesOnly
-            ? "library-entries"
-            : libraryGroupsOnly
-              ? "library-groups"
-              : bookIdentityOnly
-                ? "book-identity"
-                : decompositionRealModel
-                  ? "decomposition-real-model"
-                  : decompositionOnly
-                    ? "decomposition"
-                    : conversationOnly
-                      ? "conversation"
-                      : i18nOnly
-                        ? "i18n"
-                        : "all",
+    DEEPWRITE_SMOKE_SUITE: bookImagesOnly
+      ? "book-images"
+      : externalConcurrencyOnly
+        ? "external-concurrency"
+        : presetProtectionOnly
+          ? "preset-protection"
+          : shortBookSourcesOnly
+            ? "short-book-sources"
+            : libraryEntriesOnly
+              ? "library-entries"
+              : libraryGroupsOnly
+                ? "library-groups"
+                : bookIdentityOnly
+                  ? "book-identity"
+                  : decompositionRealModel
+                    ? "decomposition-real-model"
+                    : decompositionOnly
+                      ? "decomposition"
+                      : conversationOnly
+                        ? "conversation"
+                        : i18nOnly
+                          ? "i18n"
+                          : "all",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "true"
   },
   stdio: ["ignore", "pipe", "pipe"]
@@ -122,7 +125,7 @@ const timeout = setTimeout(
     ? 1_800_000
     : decompositionOnly
       ? 240_000
-      : bookIdentityOnly
+      : bookIdentityOnly || bookImagesOnly
         ? 120_000
         : 40_000
 );
@@ -166,6 +169,44 @@ child.on("close", async (code) => {
     process.exit(1);
   }
 
+  if (bookImagesOnly) {
+    if (
+      summary.bookImages?.status !== "ok" ||
+      !summary.bookImages.inserted ||
+      !summary.bookImages.displayed ||
+      summary.bookImages.selectedImages !== 3 ||
+      summary.bookImages.exports !== 3 ||
+      summary.bookImages.editor?.status !== "ok" ||
+      summary.bookImages.editor.characters < 100_000 ||
+      !summary.bookImages.editor.automaticallySaved ||
+      !summary.bookImages.editor.sharedUndo ||
+      !summary.bookImages.editor.unchangedImagePreserved ||
+      !summary.bookImages.editor.formattedClicksUnchanged ||
+      !summary.bookImages.editor.formattedEditsPreserved ||
+      !summary.bookImages.editor.imeCommittedOnly ||
+      !summary.bookImages.editor.findKeptPreview ||
+      !summary.bookImages.editor.typedHeadingSaved ||
+      !summary.bookImages.editor.tailImageDeletion ||
+      summary.bookImages.editor.layouts?.length !== 2 ||
+      summary.bookImages.longEditor?.status !== "ok" ||
+      summary.bookImages.longEditor.characters < 100_000 ||
+      !summary.bookImages.longEditor.automaticallySaved ||
+      !summary.bookImages.longEditor.sharedUndo ||
+      !summary.bookImages.longEditor.unchangedImagePreserved ||
+      !summary.bookImages.longEditor.formattedClicksUnchanged ||
+      !summary.bookImages.longEditor.formattedEditsPreserved ||
+      !summary.bookImages.longEditor.imeCommittedOnly ||
+      !summary.bookImages.longEditor.findKeptPreview ||
+      !summary.bookImages.longEditor.typedHeadingSaved ||
+      !summary.bookImages.longEditor.tailImageDeletion
+    ) {
+      throw new Error("Book image smoke returned an invalid summary.");
+    }
+    console.log(
+      `Electron book image smoke passed: image import, protocol rendering, DOCX/EPUB/TXT exports, and real editor checks: ${JSON.stringify({ short: summary.bookImages.editor, long: summary.bookImages.longEditor })}`
+    );
+    return;
+  }
   if (externalConcurrencyOnly) {
     if (
       summary.concurrency?.sessions !== 5 ||

@@ -1,4 +1,5 @@
 export default {
+  versions: "版本记录",
   undo: "撤销",
   undoCtrlZ: "撤销（⌘/Ctrl+Z）",
   redo: "还原",

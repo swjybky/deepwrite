@@ -19,7 +19,8 @@ import {
 import { createId } from "@deepwrite/shared";
 import {
   buildTextMenuItems,
-  fallbackTextContext
+  fallbackTextContext,
+  type TextMenuItem
 } from "./text-context-menu-items";
 
 interface PendingMenu {
@@ -102,28 +103,31 @@ export function installTextContextMenu(window: BrowserWindow): () => void {
       cancel();
       return;
     }
-    state.menu = Menu.buildFromTemplate(
-      items.map(({ action, ...item }) => ({
-        ...item,
-        // Explicit native commands keep enabled flags authoritative on macOS too.
-        registerAccelerator: false,
-        ...(action
-          ? {
-              click: () => {
-                if (pending !== state || !item.enabled) return;
-                if (state.fallback) {
-                  execute(action);
-                  cancel();
-                  return;
-                }
-                state.action = action;
-                state.timer = setTimeout(cancel, 1000);
-                send(state, { phase: "action", action });
+    const toNativeItem = ({
+      action,
+      submenu,
+      ...item
+    }: TextMenuItem): Electron.MenuItemConstructorOptions => ({
+      ...item,
+      registerAccelerator: false,
+      ...(submenu ? { submenu: submenu.map(toNativeItem) } : {}),
+      ...(action
+        ? {
+            click: () => {
+              if (pending !== state || !item.enabled) return;
+              if (state.fallback) {
+                execute(action);
+                cancel();
+                return;
               }
+              state.action = action;
+              state.timer = setTimeout(cancel, 1000);
+              send(state, { phase: "action", action });
             }
-          : {})
-      }))
-    );
+          }
+        : {})
+    });
+    state.menu = Menu.buildFromTemplate(items.map(toNativeItem));
     state.menu.popup({
       window,
       // Omitting frame prevents macOS from appending writing/AI services.

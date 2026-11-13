@@ -61,7 +61,7 @@ describe("conversation idle timeout during delegation", () => {
           eventOptions(sessionId, runId, "completed")
         )
       );
-      await vi.advanceTimersByTimeAsync(5 * 60_000 - 1);
+      await vi.advanceTimersByTimeAsync(6 * 60_000 - 1);
       expect(controller.isBusy.value).toBe(true);
       await vi.advanceTimersByTimeAsync(1);
       expect(controller.isBusy.value).toBe(false);

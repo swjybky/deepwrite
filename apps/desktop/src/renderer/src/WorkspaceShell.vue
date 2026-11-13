@@ -2503,6 +2503,7 @@ onBeforeUnmount(() => {
         chatAssistant.active.value ? 'chat-assistant' : activePrimaryFeature
       "
       :marketplace-display-name="marketplaceDisplayName"
+      :marketplace-signed-in="featureHost.marketplaceSignedIn.value"
       :long-tree-actions-disabled="longBookActionPending"
       @collapse="leftCollapsed = true"
       @create-book="openCreateBookDialog"
@@ -2512,6 +2513,7 @@ onBeforeUnmount(() => {
       @open-marketplace="featureHost.openMarketplace"
       @open-agent-team-marketplace="featureHost.openAgentTeamMarketplace"
       @marketplace-session-change="featureHost.applyMarketplaceSession"
+      @marketplace-signed-out="featureHost.signedOutOfMarketplace"
       @open-cloud-backup="featureHost.openCloudBackup"
       @open-device-sync="featureHost.openDeviceSync"
       @open-zhuque-detection="featureHost.openZhuqueDetection"

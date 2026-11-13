@@ -1,4 +1,13 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,11 +28,71 @@ async function temporaryRoot(): Promise<string> {
 
 afterEach(async () => {
   await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
+    roots.splice(0).map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 20
+      })
+    )
   );
 });
 
 describe("FolderCatalogStore duplicateProject", () => {
+  it("copies book images and skips symbolic links without sharing file bytes", async () => {
+    const root = await temporaryRoot();
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: () => NOW
+    });
+    const source = await store.createShortBook({
+      title: "插图原稿",
+      genre: "悬疑"
+    });
+    const images = join(source.projectDirectory, "images");
+    await mkdir(images);
+    const bytes = Buffer.from("illustration bytes");
+    await writeFile(join(images, "地图.png"), bytes);
+    if (process.platform !== "win32")
+      await symlink(join(images, "地图.png"), join(images, "链接.png"));
+    const duplicated = await store.duplicateProject({
+      domain: "book",
+      projectId: source.resource.id
+    });
+    const target = join(
+      await store.projectDirectory(duplicated.projectId),
+      "images"
+    );
+    expect(await readFile(join(target, "地图.png"))).toEqual(bytes);
+    expect((await lstat(join(target, "地图.png"))).isSymbolicLink()).toBe(
+      false
+    );
+    expect(await readdir(target)).toEqual(["地图.png"]);
+    await writeFile(join(images, "地图.png"), "changed source");
+    expect(await readFile(join(target, "地图.png"))).toEqual(bytes);
+  });
+
+  it("rolls back a book copy when its image directory is invalid", async () => {
+    const root = await temporaryRoot();
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: () => NOW
+    });
+    const source = await store.createShortBook({
+      title: "损坏插图",
+      genre: "悬疑"
+    });
+    await writeFile(join(source.projectDirectory, "images"), "not a directory");
+    const parent = join(source.projectDirectory, "..");
+    const before = await readdir(parent);
+    await expect(
+      store.duplicateProject({ domain: "book", projectId: source.resource.id })
+    ).rejects.toThrow("images");
+    expect(await readdir(parent)).toEqual(before);
+    expect((await store.snapshot()).books).toHaveLength(1);
+  });
+
   it("duplicates short books with content, bindings, structure and copyN names", async () => {
     const root = await temporaryRoot();
     const store = new FolderCatalogStore({

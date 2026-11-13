@@ -136,9 +136,11 @@ describe("system prompt language", () => {
     expect(prompt).toContain(buildLongWorkspaceRules("en-US"));
     expect(prompt).toContain("[Write approval: user review]");
     expect(
-      runtimeLines(prompt, [profile.label, "【上一轮修改的处理结果】"]).filter(
-        (line) => CJK.test(line)
-      )
+      runtimeLines(prompt, [
+        profile.label,
+        "【上一轮修改的处理结果】",
+        "【本步修改的审批结果】"
+      ]).filter((line) => CJK.test(line))
     ).toEqual([]);
     expect(
       buildLongRuntimeToolBoundary(
@@ -209,9 +211,11 @@ describe("system prompt language", () => {
     expect(prompt).toContain("edit_skill_library_overview");
     expect(prompt).toContain("[Current location]");
     expect(
-      runtimeLines(prompt, [profile.label, "【上一轮修改的处理结果】"]).filter(
-        (line) => CJK.test(line)
-      )
+      runtimeLines(prompt, [
+        profile.label,
+        "【上一轮修改的处理结果】",
+        "【本步修改的审批结果】"
+      ]).filter((line) => CJK.test(line))
     ).toEqual([]);
   });
 

@@ -363,6 +363,10 @@ export default {
       "已拒绝智能体修改，原文未改变",
     anEarlierAgentEditCouldNotBeSavedThis:
       "前序智能体修改未能落盘，当前这项依赖已阻断，没有覆盖当前文稿。",
+    predecessorSaveFailed:
+      "前序修改「{title}」保存失败。请先重试该提案，本项修改已保留。原因：{detail}",
+    reviewPredecessorFirst:
+      "请先审阅并保存前序修改「{title}」，本项修改已保留。",
     waitingForEarlierEditsToFinishSaving: "正在等待前序修改完成落盘…",
     theTemporaryChapterAwaitingReviewHasAnInvalidFile:
       "待审阅的临时章节文件标识无效，请重新生成。",
@@ -409,6 +413,7 @@ export default {
       "本地 Markdown 已在其他位置更新，未保存智能体修改；请基于最新文稿重新生成。",
     couldNotSaveTheAgentEditsTheOriginalText:
       "保存智能体修改失败，原文保持不变。",
+    proposalNoLongerEditable: "这项修改已无法编辑，请重新审阅。",
     userEditedAgentTarget:
       "你在智能体读取后修改了《{title}》，这条修改已暂停，请在对话中选择保留或覆盖。",
     waitingForYourSaveToFinish: "等待你的保存完成后自动保存…"

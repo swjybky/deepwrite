@@ -124,6 +124,11 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
       <circle cx="12" cy="8" r="3" />
       <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
     </template>
+    <template v-else-if="name === 'logout'">
+      <path
+        d="M10 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H10M15 8l4 4-4 4M19 12H9"
+      />
+    </template>
     <template v-else-if="name === 'ledger'">
       <path d="M5 3.5h14V21H5zM8 3.5v17M11 8h5M11 12h5M11 16h4" />
     </template>

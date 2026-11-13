@@ -10,7 +10,10 @@ const TEXT_INPUT_TYPES = new Set([
   "number"
 ]);
 
-export function captureTextMenuTarget(event: MouseEvent) {
+export function captureTextMenuTarget(
+  event: MouseEvent,
+  allowReadonly = false
+) {
   const target = event.target;
   if (
     !(target instanceof HTMLElement) ||
@@ -41,18 +44,23 @@ export function captureTextMenuTarget(event: MouseEvent) {
     range && !range.collapsed && range.intersectsNode(target)
       ? (selection?.toString() ?? "")
       : "";
-  if (!input && !editable && !selectedText) return undefined;
+  if (!input && !editable && !selectedText && !allowReadonly) return undefined;
   const value = input?.value ?? target.textContent;
   const start = input?.selectionStart;
   const end = input?.selectionEnd;
   const context: TextContextMenuContext = {
-    kind: editable ? "editable" : input ? "readonly" : "selection",
+    kind: editable
+      ? "editable"
+      : input || !selectedText
+        ? "readonly"
+        : "selection",
     password: input instanceof HTMLInputElement && input.type === "password",
     hasSelection: input
       ? start != null && end != null && end > start
       : Boolean(selectedText),
     hasText: Boolean(value),
-    canInsertReference: false
+    canInsertReference: false,
+    canInsertImage: false
   };
   return {
     target,
@@ -71,7 +79,8 @@ export function captureTextMenuTarget(event: MouseEvent) {
       if (editable !== target.isContentEditable) return false;
       if (!checkSelection) return true;
       const current = globalThis.getSelection();
-      if (!range || !current || current.rangeCount !== 1) return false;
+      if (!range) return !current || current.rangeCount === 0;
+      if (!current || current.rangeCount !== 1) return false;
       const next = current.getRangeAt(0);
       return (
         next.startContainer === range.startContainer &&

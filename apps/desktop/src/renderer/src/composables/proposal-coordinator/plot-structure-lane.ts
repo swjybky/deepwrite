@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./version-origin";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import type { DeepWriteApi, SystemEventEnvelope } from "@deepwrite/contracts";
@@ -210,7 +211,12 @@ export function createPlotStructureProposalLane(input: PlotStructureLaneInput) {
         ...input,
         api,
         book,
-        proposal
+        proposal,
+        versionOrigin: conversationVersionOrigin(
+          conversation,
+          proposal.runId,
+          proposal.summary
+        )
       });
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",

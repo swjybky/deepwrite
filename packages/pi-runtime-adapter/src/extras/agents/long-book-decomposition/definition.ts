@@ -1,4 +1,5 @@
 import {
+  DECOMPOSITION_DEFAULT_CONCURRENCY,
   decompositionChildContextBudget,
   decompositionTaskUnitIds
 } from "@deepwrite/contracts";
@@ -146,6 +147,8 @@ export const longBookDecompositionAgent: ExtrasTaskAgentDefinition<"long-book-de
       const dispatches = new Map<string, number>();
       return {
         definitions: decompositionRoleDefinitions(),
+        maxConcurrency:
+          task.input.maxConcurrency ?? DECOMPOSITION_DEFAULT_CONCURRENCY,
         prepareChild: async (definition, _libraryId, _signal, request) => {
           const role = definition.id as DecompositionRole;
           if (!(role in DECOMPOSITION_ROLES)) throw new Error("未知拆解角色。");

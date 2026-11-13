@@ -1,6 +1,10 @@
 import { createScopedTranslator } from "../../i18n";
 import type { AgentConversationContext } from "./context";
-import { expireIdleConversation, type IdleTimeoutScope } from "./idle-timeout";
+import {
+  expireIdleConversation,
+  IDLE_BACKSTOP_MS,
+  type IdleTimeoutScope
+} from "./idle-timeout";
 import type { AgentRuntimeRef } from "@deepwrite/contracts";
 import {
   isActiveSubagentRun,
@@ -197,7 +201,7 @@ export function scheduleIdleTimeout(
   ctx.idleTimer = globalThis.setTimeout(
     () => {
       ctx.idleTimer = undefined;
-      expireIdleConversation(
+      const expiredRunId = expireIdleConversation(
         {
           epoch: ctx.epoch,
           sessionId: ctx.sessionId,
@@ -217,8 +221,22 @@ export function scheduleIdleTimeout(
           ctx.invalidateAttemptForRun(runId);
         }
       );
+      // A run the UI gave up on must not keep retrying in the background: it
+      // would hold the session and the provider's concurrency.
+      if (expiredRunId) {
+        void ctx.options
+          .api()
+          ?.session.abort({
+            sessionId: scope.expectedSessionId,
+            runId: expiredRunId
+          })
+          .catch(() => undefined);
+      }
     },
-    ctx.options.idleTimeoutMs ?? 5 * 60000
+    Math.max(
+      ctx.options.idleTimeoutMs ?? IDLE_BACKSTOP_MS,
+      scope.minTimeoutMs ?? 0
+    )
   );
 }
 export function failProtocol(

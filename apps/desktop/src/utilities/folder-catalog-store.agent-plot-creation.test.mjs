@@ -87,6 +87,11 @@ describe("agent plot creation with the metadata catalog", () => {
       });
       const proposals = new Map();
       const conversation = {
+        sessionId: ref("session-created-plot"),
+        messages: ref([
+          { role: "user", content: "请创建终局结构\n保留所有伏笔" },
+          { role: "assistant", runId: "run-created-plot", content: "" }
+        ]),
         markToolConflict: vi.fn(),
         getEditProposal: (_runId, id) => proposals.get(id),
         upsertEditProposal: (_runId, proposal) =>
@@ -157,6 +162,23 @@ describe("agent plot creation with the metadata catalog", () => {
         const createdStage = catalogBook(bookId).plotStages.find(
           ({ title }) => title === "终局回收"
         );
+        expect(
+          await store.withDocumentVersions(
+            bookId,
+            createdStage.id,
+            (versions) => versions.list()
+          )
+        ).toMatchObject([
+          {
+            seq: 1,
+            kind: "conversation",
+            origin: {
+              sessionId: "session-created-plot",
+              runId: "run-created-plot",
+              summary: "请创建终局结构"
+            }
+          }
+        ]);
         // The index intentionally carries no document body.
         expect(
           catalogBook(bookId).documents.find(({ id }) => id === createdStage.id)

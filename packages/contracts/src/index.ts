@@ -109,3 +109,7 @@ export * from "./https-base-url";
 export * from "./library-organization";
 
 export * from "./library-structure";
+
+export * from "./document-versions";
+
+export * from "./book-images";

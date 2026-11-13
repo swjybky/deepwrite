@@ -265,8 +265,12 @@ export interface BuildSpawnSubagentToolInput {
    * writes to the work are serialized by a shared lock.
    */
   parallel?: boolean;
+  /** Parallel slots of one call; the team default when absent. */
+  maxConcurrency?: number;
   /** Extras tasks use dedicated, authorized submissions and never touch the work's write tools. */
   workspaceAccess?: "workspace" | "none";
   /** Asks the user to pick a draw candidate; queued per parent run. */
   requestUserInput?: AgentUserInputRequester;
+  /** User-review mode: a child pauses after each step that formed proposals. */
+  pausesForWriteApproval?: boolean;
 }

@@ -6,6 +6,11 @@ import { createPinia, setActivePinia } from "pinia";
 import { ref, shallowRef } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "../stores/settingsStore";
+import {
+  completeMarketplaceLogin,
+  dismissMarketplaceLogin,
+  marketplaceLoginPromptOpen
+} from "../stores/marketplaceLoginPrompt";
 import { loadSettingsFeature } from "../components/loadSettingsFeature";
 import { buildSettingsFeatureModule } from "./settingsFeatureModule";
 import type { WorkspaceMainView } from "../stores/layoutStore";
@@ -304,6 +309,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     await analysisNavigation;
     expect(harness.workspaceMainView.value).toBe("cloud-backup");
 
+    harness.coordinator.applyMarketplaceSession(signedInSession("Plaza User"));
     const teamNavigation = harness.coordinator.openAgentTeams();
     await Promise.resolve();
     await harness.coordinator.openMarketplace();
@@ -437,6 +443,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
         }
       }
     });
+    harness.coordinator.applyMarketplaceSession(signedInSession("Plaza User"));
 
     await expect(
       harness.coordinator.openMarketplace()
@@ -486,6 +493,45 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     expect(guarded.chooseDirectory).toHaveBeenCalledOnce();
     pendingChoice.resolve({ path: "/workspace-c" });
     await firstChoice;
+  });
+
+  it("asks signed-out users to sign in before opening either plaza", async () => {
+    const harness = createHarness();
+
+    await harness.coordinator.openMarketplace();
+    expect(marketplaceLoginPromptOpen.value).toBe(true);
+    expect(harness.workspaceMainView.value).toBe("conversation");
+
+    dismissMarketplaceLogin();
+    expect(marketplaceLoginPromptOpen.value).toBe(false);
+    await harness.coordinator.openAgentTeamMarketplace();
+    expect(marketplaceLoginPromptOpen.value).toBe(true);
+
+    harness.coordinator.applyMarketplaceSession(signedInSession("Plaza User"));
+    completeMarketplaceLogin();
+    await vi.waitFor(() =>
+      expect(harness.workspaceMainView.value).toBe("agent-team-marketplace")
+    );
+    expect(marketplaceLoginPromptOpen.value).toBe(false);
+
+    await harness.coordinator.openMarketplace();
+    expect(marketplaceLoginPromptOpen.value).toBe(false);
+    expect(harness.workspaceMainView.value).toBe("marketplace");
+  });
+
+  it("leaves a plaza page after an explicit sign-out but not other pages", async () => {
+    const harness = createHarness();
+    harness.coordinator.applyMarketplaceSession(signedInSession("Plaza User"));
+    await harness.coordinator.openAgentTeamMarketplace();
+
+    harness.coordinator.signedOutOfMarketplace(signedOutSession());
+    expect(harness.workspaceMainView.value).toBe("conversation");
+    expect(harness.coordinator.marketplaceSignedIn.value).toBe(false);
+
+    await harness.coordinator.openCloudBackup();
+    harness.coordinator.signedOutOfMarketplace(signedOutSession());
+    expect(harness.workspaceMainView.value).toBe("cloud-backup");
+    dismissMarketplaceLogin();
   });
 
   it("projects the known marketplace session into the feature module", async () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ThinkingLevelSchema } from "../models";
 import { decompositionInputBudget, DecompositionChunkSchema } from "./chunking";
 import {
+  DecompositionConcurrencySchema,
   DecompositionIdSchema,
   DECOMPOSITION_MAX_CHARACTERS,
   DECOMPOSITION_MAX_CHAPTERS,
@@ -103,6 +104,8 @@ export const LongBookDecompositionJobSchema = z
     phase: DecompositionPhaseSchema,
     status: z.enum(["idle", "running", "stopped", "failed", "completed"]),
     autoContinue: z.boolean(),
+    /** Absent on tasks created before it was configurable: the default. */
+    maxConcurrency: DecompositionConcurrencySchema.optional(),
     units: z.record(DecompositionIdSchema, DecompositionUnitSchema),
     reusedFromJobId: DecompositionIdSchema.optional(),
     lastError: z.string().max(2000).optional(),
@@ -146,6 +149,7 @@ export const DecompositionResolvedInputSchema =
     /** Capacity of the phase model; child budgets are shares of it. */
     contextWindow: z.number().int().min(16_000),
     maxTokens: z.number().int().positive().optional(),
+    maxConcurrency: DecompositionConcurrencySchema.optional(),
     units: z.record(z.string(), DecompositionUnitSchema)
   });
 export type DecompositionTaskInput = z.infer<

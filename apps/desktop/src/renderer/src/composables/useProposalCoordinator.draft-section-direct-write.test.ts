@@ -488,12 +488,22 @@ describe("short/script section creation followed by direct writes", () => {
           bookId: BOOK_ID,
           documentId: REAL_BODY_ID,
           content: bodyText,
+          versionOrigin: {
+            sessionId: SESSION_ID,
+            runId: RUN_ID,
+            summary: "建章后写入步骤 2"
+          },
           baseRevision: createShortWorkspaceContentRevision("")
         },
         {
           bookId: BOOK_ID,
           documentId: REAL_STATE_ID,
           content: characterStateText,
+          versionOrigin: {
+            sessionId: SESSION_ID,
+            runId: RUN_ID,
+            summary: "建章后写入步骤 3"
+          },
           baseRevision: createShortWorkspaceContentRevision("")
         }
       ]);

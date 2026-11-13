@@ -1,3 +1,4 @@
+import { DocumentVersionOriginSchema } from "../document-version-origin";
 import { z } from "zod";
 
 import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
@@ -288,6 +289,7 @@ export const DeleteBookResultSchema = z.object({
 export type DeleteBookResult = z.infer<typeof DeleteBookResultSchema>;
 
 export const SaveDocumentInputSchema = z.object({
+  versionOrigin: DocumentVersionOriginSchema.optional(),
   bookId: CatalogIdSchema,
   documentId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),

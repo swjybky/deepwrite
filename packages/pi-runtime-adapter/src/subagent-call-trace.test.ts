@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import {
+  normalizeContext,
+  createAssistantMessageEventStream
+} from "@earendil-works/pi-ai";
+import { ModelCallTraceSchema } from "@deepwrite/contracts";
 import { traceSubagentStream } from "./subagent-call-trace";
 
 describe("subagent call metadata", () => {
@@ -57,4 +61,54 @@ describe("subagent call metadata", () => {
       expect(JSON.stringify(events)).not.toContain("sdk-configured-name");
     }
   );
+  it("captures each full ordered input after async preset transformation", async () => {
+    const calls: unknown[] = [];
+    const longText = "完整上下文".repeat(20000);
+    const source: StreamFn = async (model, _context, options) => {
+      await options?.onPayload?.({ messages: [], apiKey: "never-save" }, model);
+      throw new Error("failed after request preparation");
+    };
+    const traced = traceSubagentStream(source, (activity) =>
+      calls.push(structuredClone(activity.call))
+    );
+    const model = {
+      id: "test",
+      provider: "test",
+      api: "openai-completions"
+    } as Parameters<StreamFn>[0];
+    for (const step of [1, 2]) {
+      const stream = await traced(
+        model,
+        normalizeContext({
+          systemPrompt: `step ${step}`,
+          messages: [{ role: "user", content: longText, timestamp: 0 }]
+        }),
+        {
+          onPayload: async () => ({
+            messages: [
+              { role: "system", content: `preset ${step}` },
+              { role: "user", content: longText },
+              { role: "system", content: "late instruction" }
+            ],
+            apiKey: "never-save"
+          })
+        }
+      );
+      for await (const event of stream) void event;
+    }
+    const final = calls
+      .map((call) => ModelCallTraceSchema.parse(call))
+      .filter((call) => call.status === "error");
+    expect(final).toHaveLength(2);
+    expect(final.map((call) => call.sequence)).toEqual([1, 2]);
+    expect(final[0]?.snapshot?.messages[1]).toMatchObject({
+      content: longText
+    });
+    expect(final[1]?.snapshot?.providerInput?.messages).toEqual([
+      { role: "system", content: "preset 2" },
+      { role: "user", content: longText },
+      { role: "system", content: "late instruction" }
+    ]);
+    expect(JSON.stringify(calls)).not.toContain("never-save");
+  });
 });

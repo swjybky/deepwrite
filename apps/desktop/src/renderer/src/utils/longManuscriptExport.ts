@@ -276,6 +276,7 @@ export async function createLongManuscriptExportInput(input: {
   }
 
   return {
+    book: { projectType: "long", projectId: input.bookId },
     title: input.title,
     sections: [...input.sections],
     files

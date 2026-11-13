@@ -970,17 +970,10 @@ export default {
     loadingZhuque: "Loading Zhuque detection…"
   },
   chatAssistant: {
-    waitBeforeSearchChange:
-      "Wait for the current reply to finish or stop it before changing web access",
-    disableWebSearch: "Turn off web search",
-    enableWebSearch: "Turn on web search",
     messageAssistant: "Send a message to the chat assistant",
     desktopRequiredToSend:
       "Sending is unavailable in browser previews. Open the desktop app.",
     attachmentsComingSoon: "Attachments are coming soon",
-    webSearch: "Web",
-    chatModel: "Chat model",
-    defaultModel: "Default model",
     voiceInput: "Voice input",
     stopGeneration: "Stop generation",
     sendMessage: "Send message",
@@ -996,7 +989,6 @@ export default {
     newChat: "New chat",
     webSearchUnavailable:
       "Web search is off or has no key. Turn it on under Settings > Personal > Web search",
-    currentModel: "Current model",
     normalMode: "Normal mode",
     addRoleplayOption: "+ Add roleplay configuration",
     roleplay: "Roleplay",

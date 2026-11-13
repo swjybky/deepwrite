@@ -1,4 +1,6 @@
 export default {
+  imageExportDescription:
+    "DOCX and EPUB include manuscript images; TXT uses text placeholders.",
   dOCXDocument: "DOCX document",
   forFurtherFormattingEditingAndPrinting:
     "For further formatting, editing, and printing",

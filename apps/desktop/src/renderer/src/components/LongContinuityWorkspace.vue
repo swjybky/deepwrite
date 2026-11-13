@@ -4,8 +4,10 @@ import type {
   LongLedgerCommitRecord,
   LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
+import { useBookImageResolver } from "../composables/bookImageContext";
 import MarkdownContent from "./MarkdownContent.vue";
 
+const resolveImage = useBookImageResolver();
 const t = createScopedTranslator("components.longContinuityWorkspace");
 
 /**
@@ -36,6 +38,7 @@ withDefaults(
     <MarkdownContent
       v-if="evidenceContent?.trim()"
       :content="evidenceContent"
+      :resolve-image="resolveImage"
     />
     <p v-else>
       {{ t("selectAMarkdownFileFromPendingChaptersOrChapter") }}

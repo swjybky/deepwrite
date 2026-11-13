@@ -4,6 +4,7 @@ import { ref, type Ref } from "vue";
 import type {
   AgentUserInputAnswer,
   AgentUserInputRequestedPayload,
+  AgentWriteApprovalResponse,
   DeepWriteApi
 } from "@deepwrite/contracts";
 
@@ -13,7 +14,10 @@ export interface AgentUserInputController {
   request: Ref<AgentUserInputRequestedPayload | null>;
   submitting: Ref<boolean>;
   receive(request: AgentUserInputRequestedPayload): void;
-  submit(answers: AgentUserInputAnswer[]): Promise<boolean>;
+  submit(
+    answers: AgentUserInputAnswer[],
+    writeApproval?: AgentWriteApprovalResponse
+  ): Promise<boolean>;
   clearSubmitted(runId: string): void;
   clear(runId?: string): void;
 }
@@ -46,7 +50,10 @@ export function createAgentUserInputController(options: {
     submitting.value = false;
   }
 
-  async function submit(answers: AgentUserInputAnswer[]): Promise<boolean> {
+  async function submit(
+    answers: AgentUserInputAnswer[],
+    writeApproval?: AgentWriteApprovalResponse
+  ): Promise<boolean> {
     const pending = request.value;
     const api = options.api();
     if (!pending || !api || submitting.value) return false;
@@ -60,7 +67,14 @@ export function createAgentUserInputController(options: {
         sessionId: pending.sessionId,
         runId: pending.runId,
         requestId: pending.requestId,
-        answers: cloneAnswersForIpc(answers)
+        answers: cloneAnswersForIpc(answers),
+        ...(writeApproval
+          ? {
+              writeApproval: JSON.parse(
+                JSON.stringify(writeApproval)
+              ) as AgentWriteApprovalResponse
+            }
+          : {})
       });
       if (
         accepted.sessionId !== pending.sessionId ||

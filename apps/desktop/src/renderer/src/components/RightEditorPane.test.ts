@@ -348,9 +348,9 @@ describe("RightEditorPane expert draft navigation", () => {
 
   it("renders creation, skill, and material document previews through Markdown", () => {
     expect(source).toContain(
-      'import MarkdownContent from "./MarkdownContent.vue"'
+      'import EditableMarkdownPreview from "./EditableMarkdownPreview.vue"'
     );
-    expect(source).toContain("<MarkdownContent");
+    expect(source).toContain("<EditableMarkdownPreview");
     expect(source).toContain("annotate-headings");
     expect(source).not.toContain('v-for="(paragraph, index) in paragraphs"');
   });

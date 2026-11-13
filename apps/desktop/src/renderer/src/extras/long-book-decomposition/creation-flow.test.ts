@@ -144,7 +144,8 @@ it("创建超时后工作台保留原任务入口，点击继续恢复原任务�
       controller.create({
         mode: stored.mode,
         targetSelection: stored.targetSelection,
-        autoContinue: false
+        autoContinue: false,
+        maxConcurrency: 5
       })
     ).rejects.toEqual(failure);
     expect(controller.job.value).toMatchObject({

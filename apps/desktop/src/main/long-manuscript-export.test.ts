@@ -22,9 +22,14 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((path) => rm(path, { recursive: true, force: true }))
+    temporaryDirectories.splice(0).map((path) =>
+      rm(path, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 20
+      })
+    )
   );
 });
 
@@ -33,6 +38,7 @@ describe("long manuscript folder export", () => {
     const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-export-"));
     temporaryDirectories.push(parent);
     const result = await writeLongManuscriptExport(parent, {
+      book: { projectType: "long", projectId: "longbook-export" },
       title: "雾港:/长篇",
       sections: ["worldbuilding", "manuscript"],
       files: [
@@ -61,6 +67,7 @@ describe("long manuscript folder export", () => {
 describe("long manuscript single-file export", () => {
   it("merges selected entries in order with their visible headings", () => {
     const text = combinedLongManuscriptText({
+      book: { projectType: "long", projectId: "longbook-export" },
       title: "雾港",
       mode: "single-txt",
       sections: ["worldbuilding", "manuscript"],
@@ -87,6 +94,7 @@ describe("long manuscript single-file export", () => {
     });
 
     const result = await exportLongManuscript({} as BrowserWindow, {
+      book: { projectType: "long", projectId: "longbook-export" },
       title: "雾港",
       mode: "single-txt",
       sections: ["manuscript"],
@@ -97,9 +105,131 @@ describe("long manuscript single-file export", () => {
       expect.anything(),
       expect.objectContaining({ defaultPath: "雾港.txt" })
     );
-    expect(result).toEqual({ status: "saved", filePath, fileCount: 1 });
+    expect(result).toEqual({
+      status: "saved",
+      filePath,
+      fileCount: 1,
+      missingImages: 0
+    });
     expect(await readFile(filePath, "utf8")).toBe(
       "\ufeff雾港\n\n【正文】\n\n〔第一章〕\n\n正文\n"
     );
+  });
+});
+
+describe("long manuscript image export", () => {
+  const imagePath = "images/map-1234abcd.png";
+  const assets = new Map([
+    [
+      imagePath,
+      {
+        path: imagePath,
+        bytes: Buffer.from("test-png-image"),
+        ext: "png" as const,
+        mimeType: "image/png" as const,
+        width: 100,
+        height: 100
+      }
+    ]
+  ]);
+  const input = {
+    book: { projectType: "long" as const, projectId: "longbook-export" },
+    title: "插图作品",
+    sections: ["worldbuilding", "characters", "plot", "manuscript"] as const,
+    files: ["世界观", "人物", "剧情", "正文"].map((section) => ({
+      path: [section, "条目"],
+      content: `文字\n![地图](${imagePath})\n![](images/missing-1234abcd.jpg)`
+    }))
+  };
+  const exportInput = { ...input, sections: [...input.sections] };
+
+  it("copies each referenced image once and adds matching links in every folder section", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-"));
+    temporaryDirectories.push(parent);
+    const result = await writeLongManuscriptExport(parent, exportInput, assets);
+    expect(await readdir(join(result.directoryPath, "images"))).toEqual([
+      "map-1234abcd.png"
+    ]);
+    expect(await readFile(join(result.directoryPath, imagePath))).toEqual(
+      Buffer.from("test-png-image")
+    );
+    for (const section of ["世界观", "人物", "剧情", "正文"]) {
+      expect(
+        await readFile(join(result.directoryPath, section, "条目.txt"), "utf8")
+      ).toBe(`\ufeff文字\n[图片：地图](${imagePath})\n`);
+    }
+    expect(result.fileCount).toBe(4);
+    const combined = combinedLongManuscriptText(exportInput);
+    expect(combined.match(/\[图片：地图\]/g)).toHaveLength(4);
+    expect(combined.match(/\[图片\]/g)).toHaveLength(4);
+    expect(combined).not.toContain("images/");
+  });
+
+  it("writes a single TXT without reading book images", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-"));
+    temporaryDirectories.push(parent);
+    const filePath = join(parent, "插图作品.txt");
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+      canceled: false,
+      filePath
+    });
+    const loader = vi.fn();
+    const result = await exportLongManuscript(
+      {} as BrowserWindow,
+      { ...exportInput, mode: "single-txt" },
+      loader
+    );
+    expect(loader).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: "saved",
+      filePath,
+      fileCount: 1,
+      missingImages: 0
+    });
+    expect(await readFile(filePath, "utf8")).toContain(
+      "文字\n[图片：地图]\n[图片]"
+    );
+  });
+
+  it("returns missing-image counts from the resolver after a folder export", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-"));
+    temporaryDirectories.push(parent);
+    vi.mocked(dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: [parent]
+    });
+    const loader = vi.fn(async () => ({ assets, missingImages: 4 }));
+    const result = await exportLongManuscript(
+      {} as BrowserWindow,
+      exportInput,
+      loader
+    );
+    expect(loader).toHaveBeenCalledWith(
+      input.book,
+      input.files.map((file) => file.content)
+    );
+    expect(result).toMatchObject({
+      status: "saved",
+      missingImages: 4,
+      fileCount: 4
+    });
+  });
+
+  it("writes no output if image preflight rejects the export size", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-"));
+    temporaryDirectories.push(parent);
+    vi.mocked(dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: [parent]
+    });
+    const loader = vi.fn(async () => {
+      throw Object.assign(new Error("Export image limit exceeded"), {
+        code: "book_image.export_too_large"
+      });
+    });
+    await expect(
+      exportLongManuscript({} as BrowserWindow, exportInput, loader)
+    ).rejects.toMatchObject({ code: "book_image.export_too_large" });
+    expect(await readdir(parent)).toEqual([]);
   });
 });

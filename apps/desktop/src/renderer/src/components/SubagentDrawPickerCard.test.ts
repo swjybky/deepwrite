@@ -22,7 +22,9 @@ describe("SubagentDrawPickerCard", () => {
 
   it("replaces the question card for draw requests", () => {
     expect(conversationSource).toContain("<SubagentDrawPickerCard");
-    expect(conversationSource).toContain('v-if="userInputRequest.draw"');
+    // A write approval wait takes the slot first; draws come next.
+    expect(conversationSource).toContain('v-if="waitingForWriteApproval"');
+    expect(conversationSource).toContain('v-else-if="userInputRequest.draw"');
     expect(conversationSource).toContain(
       "<AgentUserInputCard\n            v-else"
     );

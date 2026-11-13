@@ -255,6 +255,15 @@ function createDeferredApi(): {
       else reject(queued.error);
     });
   const api: DeepWriteApi = {
+    versions: {
+      list: vi.fn(async () => ({ versions: [], current: null })),
+      read: vi.fn(async () => {
+        throw new Error("Version history is not used by conversation tests.");
+      }),
+      restore: vi.fn(async () => {
+        throw new Error("Version history is not used by conversation tests.");
+      })
+    },
     libraryPackage: {
       exportPackage: vi.fn(async () => ({ status: "cancelled" as const })),
       chooseSource: vi.fn(async () => null),
@@ -300,6 +309,7 @@ function createDeferredApi(): {
         );
       })
     },
+    bookImages: { pick: vi.fn(async () => ({ status: "cancelled" as const })) },
     bookIdentity: {
       get: vi.fn(async () => {
         throw new Error("Book identity is not used by conversation tests.");

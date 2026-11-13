@@ -1,4 +1,5 @@
 export default {
+  documentLengthExceeded: "内容超过文档长度上限，请缩短后重试。",
   noValueYet: "还没有{arg0}",
   createACharacterThenSelectItInTheLeft:
     "新建人物后，可从左侧树选择并编辑人物档案。",

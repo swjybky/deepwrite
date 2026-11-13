@@ -6,6 +6,7 @@ import {
   LongWorkspaceOperationBatchSchema,
   createEnvelope,
   type AgentWriteApprovalMode,
+  type DocumentVersionOrigin,
   type LongAgentId,
   type LongContinuityFileChange,
   type LongContinuityFileRole,
@@ -280,6 +281,7 @@ export type LongWorkspaceProposalStatus =
 export interface LongWorkspaceProposalItem {
   event: LongWorkspaceReviewEvent;
   approvalMode: AgentWriteApprovalMode;
+  versionOrigin?: DocumentVersionOrigin;
   status: LongWorkspaceProposalStatus;
   preview?: LongWorkspaceImpactPreview;
   effectiveBatch?: LongWorkspaceOperationBatch;
@@ -302,6 +304,9 @@ export interface UseLongWorkspaceProposalsOptions {
   approvalModeForEvent?: (
     event: LongWorkspaceProposalEvent
   ) => AgentWriteApprovalMode | undefined;
+  versionOriginForEvent?: (
+    event: LongWorkspaceProposalEvent
+  ) => DocumentVersionOrigin | undefined;
   prepareAutoApprove?: (
     event: LongWorkspaceProposalEvent
   ) => void | Promise<void>;
@@ -933,9 +938,11 @@ export function useLongWorkspaceProposals(
       return false;
     }
 
+    const versionOrigin = options.versionOriginForEvent?.(event);
     const item: LongWorkspaceProposalItem = {
       event,
       approvalMode,
+      ...(versionOrigin ? { versionOrigin } : {}),
       status:
         event.type === "long.mutation_proposal" || isContentFileProposal(event)
           ? "previewing"
@@ -1156,6 +1163,9 @@ export function useLongWorkspaceProposals(
         await api.applyOperations(
           ipcSafeJson({
             bookId,
+            ...(item.versionOrigin
+              ? { versionOrigin: item.versionOrigin }
+              : {}),
             ...(destructive && item.approvalMode === "auto-approve"
               ? { captureRestorePoint: true }
               : {}),

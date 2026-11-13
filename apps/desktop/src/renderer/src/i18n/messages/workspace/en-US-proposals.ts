@@ -385,6 +385,10 @@ export default {
       "Agent edits rejected. The original text is unchanged.",
     anEarlierAgentEditCouldNotBeSavedThis:
       "An earlier agent edit could not be saved. This dependent change is blocked and has not overwritten the manuscript.",
+    predecessorSaveFailed:
+      'Earlier edit "{title}" failed to save. Retry that proposal first. This change has been preserved. Reason: {detail}',
+    reviewPredecessorFirst:
+      'Review and save the earlier edit "{title}" first. This change has been preserved.',
     waitingForEarlierEditsToFinishSaving:
       "Waiting for earlier edits to finish saving…",
     theTemporaryChapterAwaitingReviewHasAnInvalidFile:
@@ -434,6 +438,8 @@ export default {
       "The local Markdown file was updated elsewhere. The agent edits were not saved. Generate new edits based on the latest manuscript.",
     couldNotSaveTheAgentEditsTheOriginalText:
       "Could not save the agent edits. The original text is unchanged.",
+    proposalNoLongerEditable:
+      "This change can no longer be edited. Review it again.",
     userEditedAgentTarget:
       "You edited “{title}” after the agent read it. This change is paused; keep yours or overwrite it in the conversation.",
     waitingForYourSaveToFinish:

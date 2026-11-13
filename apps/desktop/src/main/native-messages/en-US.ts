@@ -1,4 +1,9 @@
 export default {
+  insert: "Insert",
+  insertImage: "Image…",
+  pickBookImages: "Choose images to insert",
+  bookImageFiles: "Images (PNG, JPEG, WebP)",
+  bookImageSelectionLimit: "Select up to 10 images at a time.",
   showApp: "Show DeepWrite",
   quit: "Quit",
   copy: "Copy",

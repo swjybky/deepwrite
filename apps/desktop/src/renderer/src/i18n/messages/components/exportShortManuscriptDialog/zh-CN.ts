@@ -1,4 +1,5 @@
 export default {
+  imageExportDescription: "DOCX、EPUB 会包含文中的图片；TXT 以文字占位。",
   dOCXDocument: "DOCX 文档",
   forFurtherFormattingEditingAndPrinting: "适合继续排版、编辑和打印",
   tXTPlainText: "TXT 纯文本",

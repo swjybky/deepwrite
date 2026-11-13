@@ -12,6 +12,7 @@ import {
   isSubagentEvent
 } from "./event-kinds";
 import { applyContextCompactionEvent } from "./context-compaction";
+import { COMPACTION_IDLE_BACKSTOP_MS } from "./idle-timeout";
 import { appendSteeringNote } from "./steering-notes";
 import { uiMessage } from "../../ui-feedback";
 import {
@@ -124,7 +125,11 @@ export function handleEvent(
     ctx.scheduleIdleTimeout({
       expectedEpoch: ctx.epoch,
       expectedSessionId: ctx.sessionId.value,
-      runId
+      runId,
+      ...(event.type === "agent.context_compaction" &&
+      event.payload.phase === "started"
+        ? { minTimeoutMs: COMPACTION_IDLE_BACKSTOP_MS }
+        : {})
     });
   }
   if (!isStreamedTextDelta(event)) {

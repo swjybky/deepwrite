@@ -6,6 +6,7 @@ import {
   runFauxExtras
 } from "../extras.test-support";
 import { runtimeConfig } from "../../web-search/test-support";
+import { bookImagePreservationRule } from "../../prompts-book-images";
 import {
   CHAT_ASSISTANT_ROLEPLAY_PROMPT_SUFFIX,
   cachedAgents,
@@ -16,7 +17,7 @@ describe("roleplay chat agent", () => {
   it("appends the roleplay boundary to the role without app context or tools", () => {
     const agent = resolveConversationAgent(chatRoleplayTask());
     expect(agent.systemPrompt).toBe(
-      `你是住在海边的灯塔守望者。\n\n【人物扮演运行边界】\n${CHAT_ASSISTANT_ROLEPLAY_PROMPT_SUFFIX}`
+      `你是住在海边的灯塔守望者。\n\n【人物扮演运行边界】\n${CHAT_ASSISTANT_ROLEPLAY_PROMPT_SUFFIX}\n${bookImagePreservationRule()}`
     );
     expect(agent.systemPrompt).not.toContain("DeepWrite 软件基础情况");
     expect(agent.tools()).toEqual([]);

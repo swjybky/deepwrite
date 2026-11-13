@@ -16,6 +16,9 @@ function lazyFeature<T extends Component>(
 export const FeedbackDialog = lazyFeature((features) =>
   features.loadFeedbackDialog()
 );
+export const MarketplaceLoginDialog = lazyFeature((features) =>
+  features.loadMarketplaceLoginDialog()
+);
 export const AuthorSupportDialog = lazyFeature((features) =>
   features.loadAuthorSupportDialog()
 );

@@ -15,6 +15,7 @@ import { bindConversationOperations } from "./agent-conversation/bind-operations
 import { createConversationHistory } from "./agent-conversation/conversation-history";
 import { watchConversationPersistence } from "./agent-conversation/persistence-watch";
 import { createAgentUserInputController } from "./agent-conversation/user-input";
+import { createWriteApprovalWatcher } from "./agent-conversation/write-approval";
 import { createFollowUpQueue } from "./agent-conversation/follow-up-queue";
 import type {
   AgentConversationController,
@@ -55,6 +56,7 @@ export function useAgentConversation(
       ctx.conversationError.value = message;
     }
   });
+  const writeApproval = createWriteApprovalWatcher(ctx);
   ctx.isBusy = computed(
     () =>
       ctx.pendingAttemptId.value !== null ||
@@ -160,6 +162,9 @@ export function useAgentConversation(
     conversationError: ctx.conversationError,
     pendingUserInput: ctx.userInput.request,
     submittingUserInput: ctx.userInput.submitting,
+    writeApprovalItems: writeApproval.items,
+    writeApprovalSubmitFailed: writeApproval.submitFailed,
+    retryWriteApproval: writeApproval.retry,
     history: ctx.history,
     isBusy: ctx.isBusy,
     hasPendingEditReview: ctx.hasPendingEditReview,
@@ -223,6 +228,7 @@ export function useAgentConversation(
       const queuedTexts = ctx.followUps.takeTexts();
       ctx.followUps.stop();
       stopAcceptingWatchdog();
+      writeApproval.stop();
       if (queuedTexts.length && !disposeOptions?.clearPersistence) {
         ctx.draft.value = [...queuedTexts, ctx.draft.value]
           .filter((text) => text.trim())

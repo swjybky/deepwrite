@@ -15,6 +15,7 @@ export interface TextMenuHistory {
 export interface TextMenuExtension {
   valid(): boolean;
   insert?: () => void;
+  insertImage?: () => void;
   history?: TextMenuHistory | undefined;
 }
 
@@ -28,7 +29,15 @@ export function registerTextMenuExtension(
   event: MouseEvent,
   extension: TextMenuExtension
 ): () => void {
-  const registration: TextMenuRegistration = { extension };
+  const previous = extensions.get(event)?.extension;
+  const combined: TextMenuExtension = previous
+    ? {
+        ...previous,
+        ...extension,
+        valid: () => previous.valid() && extension.valid()
+      }
+    : extension;
+  const registration: TextMenuRegistration = { extension: combined };
   extensions.set(event, registration);
   return () => {
     extensions.delete(event);
@@ -90,6 +99,7 @@ export function installNativeTextContextMenu(
       return false;
     const context = state.snapshot.context;
     if (action === "insertReference") return Boolean(state.extension?.insert);
+    if (action === "insertImage") return Boolean(state.extension?.insertImage);
     if (action === "copy" || action === "selectAll") return true;
     return context.kind === "editable";
   }
@@ -101,11 +111,16 @@ export function installNativeTextContextMenu(
       candidate = undefined;
       // Chromium can select a word after DOM contextmenu dispatch (macOS).
       // Capture that settled selection without accepting a changed document.
-      const snapshot = current?.snapshot?.valid(false)
-        ? captureTextMenuTarget(current.event)
-        : undefined;
       const registration = current && extensions.get(current.event);
       const extension = registration?.extension;
+      const allowReadonly = Boolean(
+        extension?.insertImage && extension.valid()
+      );
+      const snapshot =
+        current &&
+        (current.snapshot?.valid(false) || (!current.snapshot && allowReadonly))
+          ? captureTextMenuTarget(current.event, allowReadonly)
+          : undefined;
       if (current) extensions.delete(current.event);
       if (!snapshot || !snapshot.valid()) {
         if (registration) registration.extension = undefined;
@@ -116,7 +131,8 @@ export function installNativeTextContextMenu(
             password: false,
             hasSelection: false,
             hasText: false,
-            canInsertReference: false
+            canInsertReference: false,
+            canInsertImage: false
           }
         });
         return;
@@ -133,6 +149,7 @@ export function installNativeTextContextMenu(
         context: {
           ...snapshot.context,
           canInsertReference: Boolean(active.extension?.insert),
+          canInsertImage: Boolean(active.extension?.insertImage),
           ...(history
             ? {
                 history: {
@@ -159,6 +176,10 @@ export function installNativeTextContextMenu(
       try {
         if (allowed && action === "insertReference") {
           extension?.insert?.();
+          handled = true;
+        }
+        if (allowed && action === "insertImage") {
+          extension?.insertImage?.();
           handled = true;
         }
         if (

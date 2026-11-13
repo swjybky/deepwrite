@@ -9,6 +9,8 @@ import {
   longAgentsMdCharacterCount
 } from "@deepwrite/contracts";
 import { sliceAgentsMdContent, tryReadAgentsMdFile } from "./agents-md";
+import { documentVersionCurrent } from "../document-versions/version-store";
+import { DocumentVersionError } from "../document-versions/version-errors";
 import { loadIndexedFile, sliceIndexedUnicodeCodePointPage } from "./cache";
 import { assertDirectlyMutableDocument } from "./integrity";
 import {
@@ -240,60 +242,90 @@ export async function writeDocument(
   input: WriteLongDocumentInput
 ): Promise<WriteLongDocumentResult> {
   const canonical = await secureDirectory(projectDirectory, "长篇项目目录");
-  return await ctx.runExclusive(canonical, async () => {
-    const loaded = await loadProject(ctx, canonical);
-    const fileId = LongFileIdSchema.parse(input.fileId);
-    assertDirectlyMutableDocument(loaded.index, fileId);
-    // Before loadIndexedFile, which replaces this index time with the mtime;
-    // readDocument reports the index time, so that is what callers send back.
-    if (
-      input.expectedUpdatedAt !== undefined &&
-      input.expectedUpdatedAt !== loaded.files.get(fileId)?.reference.updatedAt
-    ) {
-      throw new LongDocumentConflictError();
-    }
-    const file = await loadIndexedFile(loaded, fileId);
-    if (file.kind !== "markdown") {
-      throw new Error("第一阶段只允许通过 writeDocument 写入 Markdown 文件。");
-    }
-    const nextBytes = encodeUtf8Strict(input.content);
-    if (nextBytes.byteLength > MAX_DOCUMENT_BYTES) {
-      throw new Error("长篇 Markdown 文件超过 32 MiB 限制。");
-    }
-    const timestamp = ctx.timestamp();
-    file.reference.updatedAt = timestamp;
-    updateChapterBodyStatus(loaded.index, file.reference.id, input.content);
+  return await ctx.runExclusive(canonical, () =>
+    writeDocumentLocked(ctx, canonical, input)
+  );
+}
 
-    const nextIndex = LongWorkspaceIndexSnapshotSchema.parse({
-      ...loaded.index,
+/** Internal entry for a version restore already holding the project queue. */
+export async function writeDocumentLocked(
+  ctx: LongProjectStoreContext,
+  canonical: string,
+  input: WriteLongDocumentInput,
+  versionRestore?: {
+    expectedSha256: string;
+    afterCommit: (before: string) => Promise<void>;
+  }
+): Promise<WriteLongDocumentResult> {
+  const loaded = await loadProject(ctx, canonical);
+  const fileId = LongFileIdSchema.parse(input.fileId);
+  assertDirectlyMutableDocument(loaded.index, fileId);
+  // Before loadIndexedFile, which replaces this index time with the mtime;
+  // readDocument reports the index time, so that is what callers send back.
+  if (
+    input.expectedUpdatedAt !== undefined &&
+    input.expectedUpdatedAt !== loaded.files.get(fileId)?.reference.updatedAt
+  ) {
+    throw new LongDocumentConflictError();
+  }
+  const file = await loadIndexedFile(loaded, fileId);
+  if (
+    versionRestore &&
+    documentVersionCurrent(file.disk.content).sha256 !==
+      versionRestore.expectedSha256
+  ) {
+    throw new DocumentVersionError("version.conflict", "当前内容已变化。");
+  }
+  if (file.kind !== "markdown") {
+    throw new Error("第一阶段只允许通过 writeDocument 写入 Markdown 文件。");
+  }
+  const nextBytes = encodeUtf8Strict(input.content);
+  if (nextBytes.byteLength > MAX_DOCUMENT_BYTES) {
+    throw new Error("长篇 Markdown 文件超过 32 MiB 限制。");
+  }
+  const timestamp = ctx.timestamp();
+  file.reference.updatedAt = timestamp;
+  updateChapterBodyStatus(loaded.index, file.reference.id, input.content);
+
+  const nextIndex = LongWorkspaceIndexSnapshotSchema.parse({
+    ...loaded.index,
+    updatedAt: timestamp
+  });
+  const indexContent = serializeJson(nextIndex);
+  const nextManifest = LongProjectManifestSchema.parse({
+    ...loaded.manifest,
+    updatedAt: timestamp,
+    workspaceIndexFile: {
+      ...loaded.manifest.workspaceIndexFile,
       updatedAt: timestamp
-    });
-    const indexContent = serializeJson(nextIndex);
-    const nextManifest = LongProjectManifestSchema.parse({
-      ...loaded.manifest,
-      updatedAt: timestamp,
-      workspaceIndexFile: {
-        ...loaded.manifest.workspaceIndexFile,
-        updatedAt: timestamp
-      }
-    });
-    const manifestContent = serializeJson(nextManifest);
+    }
+  });
+  const manifestContent = serializeJson(nextManifest);
 
-    await commitLongProjectTransaction({
+  await commitLongProjectTransaction(
+    {
       projectRoot: loaded.projectDirectory,
       operations: [
-        { path: file.reference.path, content: input.content },
+        {
+          path: file.reference.path,
+          content: input.content,
+          ...(versionRestore ? { expectedSha256: file.disk.sha256 } : {})
+        },
         { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
         { path: MANIFEST_PATH, content: manifestContent }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
-    });
+    },
+    versionRestore
+      ? () => versionRestore.afterCommit(file.disk.content)
+      : undefined,
+    Boolean(versionRestore)
+  );
 
-    const next = await loadProject(ctx, loaded.projectDirectory);
-    return {
-      book: next.book,
-      summary: next.summary,
-      fileId
-    };
-  });
+  const next = await loadProject(ctx, loaded.projectDirectory);
+  return {
+    book: next.book,
+    summary: next.summary,
+    fileId
+  };
 }

@@ -1,4 +1,9 @@
 export default {
+  versionControl: "Version control",
+  versionHistory: "Save conversation edits",
+  versionHistoryDescription:
+    "Keep a version of each file edited per turn. View and restore in the editor. Versions stay on this device.",
+
   historicalContinuityReadOnly:
     "Earlier continuity records are read-only. Only the latest recorded chapter is editable.",
   permissions: "Permissions",

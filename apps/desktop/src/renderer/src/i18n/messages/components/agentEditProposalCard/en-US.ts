@@ -82,5 +82,11 @@ export default {
   staleLongMessage:
     "This content changed after the agent read it. Overwrite replaces it with the agent's version; Keep mine discards this change.",
   keepMine: "Keep mine",
+  edit: "Edit",
+  cancelEdit: "Cancel",
+  saveEdited: "Save edits",
+  editHint: "Save when done; your version is written to the work.",
+  editProposalText: "Edit “{title}”",
+  acceptedWithEdits: "Saved with your edits",
   overwriteWithAgentVersion: "Overwrite with agent's version"
 };

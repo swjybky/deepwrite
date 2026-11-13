@@ -257,6 +257,9 @@ export function toEventEnvelope(
         ...(event.payload.promptReview
           ? { promptReview: event.payload.promptReview }
           : {}),
+        ...(event.payload.writeApproval
+          ? { writeApproval: event.payload.writeApproval }
+          : {}),
         runtime: event.payload.runtime
       },
       { id: createId("evt"), context }

@@ -1,0 +1,45 @@
+.editable-markdown-preview {
+  min-height: 8rem;
+  position: relative;
+}
+.editable-markdown-preview.is-editable {
+  cursor: text;
+}
+.editable-markdown-document {
+  min-height: 8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.editable-markdown-document:focus-visible {
+  outline: none;
+}
+.editable-markdown-document > :first-child {
+  margin-top: 0;
+}
+.editable-markdown-document > :last-child {
+  margin-bottom: 0;
+}
+.editable-markdown-document li p {
+  margin: 0;
+}
+.editable-markdown-document td p,
+.editable-markdown-document th p {
+  margin: 0;
+}
+.editable-markdown-document .markdown-image {
+  white-space: normal;
+}
+.editable-markdown-document .markdown-image.ProseMirror-selectednode {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+.editable-markdown-document .selectedCell {
+  background: var(--surface-selected);
+}
+.editable-markdown-preview.is-empty::before {
+  content: attr(data-empty-text);
+  position: absolute;
+  pointer-events: none;
+  color: var(--text-tertiary);
+}

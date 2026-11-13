@@ -1,3 +1,4 @@
+import { createBookProjectResolver } from "../book-project-resolver";
 import {
   BookIdentityUpdatedEventEnvelopeSchema,
   createEnvelope,
@@ -30,18 +31,7 @@ export function withBookIdentityCommands(
   handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>
 ): NonNullable<UtilityRuntimeOptions["commandHandler"]> {
   const store = new BookIdentityStore({
-    async resolveProject(book) {
-      if (book.projectType === "long")
-        return (await longs.catalog.open(book.projectId)).projectDirectory;
-      const catalog = await requireCatalog();
-      const snapshot = await catalog.indexSnapshot();
-      const resource = snapshot.books.find(
-        (entry) => entry.id === book.projectId
-      );
-      if (!resource || resource.bookType !== book.projectType)
-        throw new Error("作品不存在或类型不一致。");
-      return catalog.managedProjectDirectory(book.projectId);
-    }
+    resolveProject: createBookProjectResolver(requireCatalog, longs)
   });
 
   return async (command, emitEvent, context) => {

@@ -197,6 +197,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             </p>
           </div>
 
+          <p class="dialog-description">{{ t("imageExportDescription") }}</p>
+
           <fieldset class="export-long-options">
             <legend>{{ t("exportMode") }}</legend>
             <div class="export-long-mode-grid">

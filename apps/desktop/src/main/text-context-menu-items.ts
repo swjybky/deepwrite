@@ -11,6 +11,7 @@ export interface TextMenuItem {
   enabled?: boolean;
   accelerator?: string;
   type?: "separator";
+  submenu?: TextMenuItem[];
 }
 
 export function fallbackTextContext(
@@ -25,7 +26,8 @@ export function fallbackTextContext(
     password: params.formControlType === "input-password",
     hasSelection: Boolean(params.selectionText),
     hasText: params.editFlags.canSelectAll,
-    canInsertReference: false
+    canInsertReference: false,
+    canInsertImage: false
   };
 }
 
@@ -103,6 +105,12 @@ export function buildTextMenuItems(
       item("insertReference", nativeText("insertReference"), true),
       separator()
     );
+  }
+  if (context.canInsertImage && !context.password) {
+    items.push(separator(), {
+      label: nativeText("insert"),
+      submenu: [item("insertImage", nativeText("insertImage"), true)]
+    });
   }
   return items;
 }

@@ -11,6 +11,7 @@ function fixture(
   format: ExportShortManuscriptInput["format"]
 ): ExportShortManuscriptInput {
   return {
+    book: { projectType: "short", projectId: "book-export" },
     title: "雨夜<&来信",
     format,
     sections: [
@@ -88,6 +89,7 @@ describe("short manuscript file builders", () => {
     (_, content, lines) => {
       const entries = storedZipEntries(
         buildDocx({
+          book: { projectType: "short", projectId: "book-export" },
           title: "测试作品",
           format: "docx",
           sections: [
@@ -154,5 +156,118 @@ describe("short manuscript file builders", () => {
     expect(safeManuscriptFileName('  雨夜:/\\*?<>|" 来信...  ')).toBe(
       "雨夜 来信"
     );
+  });
+});
+
+function imageAssets() {
+  return new Map([
+    [
+      "images/map-1234abcd.png",
+      {
+        path: "images/map-1234abcd.png",
+        bytes: Buffer.from("test-png-image"),
+        ext: "png" as const,
+        mimeType: "image/png" as const,
+        width: 1200,
+        height: 600
+      }
+    ],
+    [
+      "images/portrait-8765abcd.jpg",
+      {
+        path: "images/portrait-8765abcd.jpg",
+        bytes: Buffer.from("test-jpeg-image"),
+        ext: "jpg" as const,
+        mimeType: "image/jpeg" as const,
+        width: 100,
+        height: 200
+      }
+    ]
+  ]);
+}
+
+function illustratedFixture(): ExportShortManuscriptInput {
+  return {
+    ...fixture("docx"),
+    sections: [
+      {
+        title: "插图",
+        content: [
+          "前文",
+          '![地图<"&>](images/map-1234abcd.png)',
+          "后文",
+          "![](images/portrait-8765abcd.jpg)",
+          "![再次使用](images/map-1234abcd.png)",
+          "![丢失](images/missing-abcd1234.png)",
+          "外链 ![说明](https://example.test/image.png)"
+        ].join("\n")
+      }
+    ]
+  };
+}
+
+describe("illustrated manuscript builders", () => {
+  it("embeds unique DOCX media, relationships, dimensions, accessible captions and types", () => {
+    const entries = storedZipEntries(
+      buildDocx(illustratedFixture(), imageAssets())
+    );
+    expect(
+      [...entries.keys()].filter((path) => path.startsWith("word/media/"))
+    ).toEqual(["word/media/image1.png", "word/media/image2.jpg"]);
+    expect(entries.get("word/media/image1.png")).toEqual(
+      Buffer.from("test-png-image")
+    );
+    const relationships = entries
+      .get("word/_rels/document.xml.rels")!
+      .toString();
+    expect(relationships.match(/relationships\/image/g)).toHaveLength(2);
+    expect(relationships).toContain('Id="rIdImage1"');
+    expect(relationships).toContain('Target="media/image2.jpg"');
+    const types = entries.get("[Content_Types].xml")!.toString();
+    expect(types).toContain('Extension="png" ContentType="image/png"');
+    expect(types).toContain('Extension="jpg" ContentType="image/jpeg"');
+    const document = entries.get("word/document.xml")!.toString();
+    expect(document.match(/<w:drawing>/g)).toHaveLength(3);
+    expect(document.match(/r:embed="rIdImage1"/g)).toHaveLength(2);
+    expect(document).toContain('<wp:extent cx="5731510" cy="2865755"/>');
+    expect(document).toContain('descr="地图&lt;&quot;&amp;&gt;"');
+    expect(document).toContain('id="3" name="Image 3"');
+    expect(document).not.toContain("丢失");
+    expect(document).not.toContain("![再次使用]");
+    expect(document).toContain("https://example.test/image.png");
+  });
+
+  it("embeds EPUB media once and references manifest paths from figures outside text paragraphs", () => {
+    const entries = storedZipEntries(
+      buildEpub(illustratedFixture(), imageAssets())
+    );
+    expect(
+      [...entries.keys()].filter((path) => path.startsWith("OEBPS/images/"))
+    ).toEqual(["OEBPS/images/1.png", "OEBPS/images/2.jpg"]);
+    const manifest = entries.get("OEBPS/content.opf")!.toString();
+    expect(manifest).toContain('href="images/1.png" media-type="image/png"');
+    expect(manifest).toContain('href="images/2.jpg" media-type="image/jpeg"');
+    const content = entries.get("OEBPS/section-001.xhtml")!.toString();
+    expect(content).toContain("<p>前文</p>\n<figure>");
+    expect(content).toContain(
+      '<img src="images/1.png" alt="地图&lt;&quot;&amp;&gt;"/>'
+    );
+    expect(content).toContain(
+      "<figcaption>地图&lt;&quot;&amp;&gt;</figcaption>"
+    );
+    expect(content).toContain(
+      '<figure><img src="images/2.jpg" alt=""/></figure>'
+    );
+    expect(content.match(/src="images\/1.png"/g)).toHaveLength(2);
+    expect(content).not.toContain("丢失");
+    expect(content).toContain("https://example.test/image.png");
+  });
+
+  it("uses TXT placeholders for every valid image line without image assets", () => {
+    const text = buildTxt(illustratedFixture()).toString();
+    expect(text).toContain('[图片：地图<"&>]');
+    expect(text).toContain("[图片]\n[图片：再次使用]");
+    expect(text).toContain("[图片：丢失]");
+    expect(text).toContain("外链 ![说明](https://example.test/image.png)");
   });
 });

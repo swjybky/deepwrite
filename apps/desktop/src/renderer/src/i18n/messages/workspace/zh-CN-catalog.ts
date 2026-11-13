@@ -379,6 +379,7 @@ export default {
     failedToOpenLocalProject: "打开本地项目失败。"
   },
   shortBookLifecycleCoordinator: {
+    exportedWithMissingImages: "已导出，{count} 张图片缺失已跳过。",
     theCurrentHasNoVersionIdentifierCannotSafelyPerform:
       "当前{value}缺少项目版本，无法安全{operationLabel}。",
     theConfigurationWasUpdatedElsewhereReopenTheDialogBefore:

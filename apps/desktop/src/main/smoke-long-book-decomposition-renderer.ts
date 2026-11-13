@@ -255,7 +255,8 @@ export async function decompositionSmokeInRenderer(
           reading: { modelId, thinkingLevel },
           integration: { modelId, thinkingLevel }
         },
-        autoContinue: true
+        autoContinue: true,
+        maxConcurrency: 5
       })
     );
     diagnostic.step = "target-check";

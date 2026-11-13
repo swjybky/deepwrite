@@ -20,6 +20,14 @@ describe("subagent diagnostic journal", () => {
           activity: {
             type: "model_call",
             call: {
+              snapshot: {
+                systemPrompt: "full system",
+                messages: [{ role: "user", content: "全文".repeat(20000) }],
+                tools: [],
+                providerInput: {
+                  messages: [{ role: "system", content: "second instruction" }]
+                }
+              },
               requestId: "request",
               sequence: 1,
               requestedProvider: "test",
@@ -39,6 +47,12 @@ describe("subagent diagnostic journal", () => {
       appendSubagentCallJournal(dir, event);
       const path = join(dir, "subagent-model-calls.jsonl");
       const saved = readFileSync(path, "utf8");
+      expect(JSON.parse(saved).call.snapshot.messages[0].content).toBe(
+        "全文".repeat(20000)
+      );
+      expect(
+        JSON.parse(saved).call.snapshot.providerInput.messages[0].content
+      ).toBe("second instruction");
       expect(JSON.parse(saved).call.status).toBe("running");
       expect(saved).not.toContain("never-save");
       if (event.payload.activity.type === "model_call")

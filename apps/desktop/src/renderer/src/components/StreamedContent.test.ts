@@ -62,7 +62,7 @@ describe("streaming conversation content", () => {
     expect(
       subagentSource.match(/:streaming="run\.status === 'running'"/g)
     ).toHaveLength(2);
-    expect(subagentSource.match(/format="markdown"/g)).toHaveLength(2);
+    expect(subagentSource.match(/format="markdown"/g)).toHaveLength(1);
     expect(subagentSource).not.toContain('format="plain"');
     expect(subagentSource).not.toContain("<MessageMarkdown");
   });

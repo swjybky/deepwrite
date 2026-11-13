@@ -1,4 +1,9 @@
 export default {
+  versionControl: "版本控制",
+  versionHistory: "保存对话修改的版本",
+  versionHistoryDescription:
+    "每轮对话修改的文件各保存一个版本，可在编辑器查看与回退。版本只保存在本机，不参与双端同步。",
+
   permissions: "权限",
   approvalLabel: "智能体默认审批方式",
   requestApproval: "请求批准",

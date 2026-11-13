@@ -28,6 +28,7 @@ import {
 import { createId, randomHex8 } from "@deepwrite/shared";
 import { assertLongLedgerRecordMatchesIndex } from "../long-portable-bundle";
 import { parseLongLedgerCommitRecord } from "../long-version-metadata";
+import { copyBookImages } from "../book-images/copy";
 import { readAgentsMdContentOrDefault } from "./agents-md";
 import {
   commitLongProjectTransaction,
@@ -218,6 +219,7 @@ export async function duplicateBook(
         );
       }
       const indexContent = serializeJson(validatedIndex);
+      await copyBookImages(source.projectDirectory, stagingDirectory);
       const manifest = LongProjectManifestSchema.parse({
         ...replaceExactIdentity(
           structuredClone(source.manifest),

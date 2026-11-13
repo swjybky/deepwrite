@@ -128,23 +128,26 @@ describe("independent chat assistant feature", () => {
     expect(modeSource).toContain("controller.value.sendAssistantMessage(");
     expect(overlaySource).toContain("assistant.sendAssistantMessage(");
     expect(composerSource).toContain("emit('stop')");
-    expect(composerSource).toContain("chatAssistant.chatModel");
+    expect(composerSource).toContain("<ConversationModelConfigSelect");
     expect(overlaySource).toContain("controller.value!.configuredModels.value");
     expect(composerSource).toContain("openAttachmentPicker");
     expect(composerSource).toContain("chatAssistant.voiceInput");
     expect(composerSource).toContain("<VoiceInputBar");
   });
 
-  it("adds a persisted web search toggle that follows the search settings, before the model selector", () => {
-    const searchIndex = composerSource.indexOf("chatAssistant.webSearch");
-    const modelIndex = composerSource.indexOf("chatAssistant.chatModel");
-    expect(searchIndex).toBeGreaterThan(-1);
-    expect(modelIndex).toBeGreaterThan(searchIndex);
-    expect(composerSource).toContain("webSearchAvailable");
-    expect(composerSource).toContain("is-active");
+  it("puts model, reasoning, temperature and the persisted web search toggle in the workspace model menu", () => {
     expect(composerSource).toContain('src="./chat-assistant-composer.css"');
-    expect(composerSource).toContain("chatAssistant.webSearch");
-    expect(composerSource).not.toContain('<AppIcon name="search"');
+    expect(composerSource).toContain(
+      ':web-search-available="webSearchAvailable"'
+    );
+    expect(composerSource).toContain(
+      ':hides-web-search="webSearchVisible === false"'
+    );
+    expect(composerSource).not.toContain("<PopupSelect");
+    expect(overlaySource).toContain("useConversationModelOptions({");
+    expect(overlaySource).toContain(
+      '@select-temperature="controller.selectTemperature($event)"'
+    );
     expect(webSearchSource).toContain(
       '"deepwrite:chat-assistant-web-search:v1"'
     );

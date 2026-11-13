@@ -159,6 +159,7 @@ export type RemoteModelListInput = z.infer<typeof RemoteModelListInputSchema>;
 
 export const RemoteModelListItemSchema = z.object({
   id: z.string().trim().min(1).max(240),
+  sort: z.number().int().nonnegative().optional(),
   label: z.string().trim().min(1).max(240).optional(),
   description: z.string().trim().max(500).optional(),
   provider: z.string().trim().min(1).max(120).optional(),

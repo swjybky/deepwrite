@@ -79,6 +79,14 @@ export const SubagentEventBaseSchema = z.object({
 export type SubagentEventBase = z.infer<typeof SubagentEventBaseSchema>;
 
 export const ModelCallTraceSchema = z.object({
+  snapshot: z
+    .object({
+      systemPrompt: z.string(),
+      messages: z.array(z.unknown()),
+      tools: z.array(z.unknown()),
+      providerInput: z.record(z.string(), z.unknown()).optional()
+    })
+    .optional(),
   requestId: z.string(),
   sequence: z.number().int().positive(),
   requestedProvider: z.string(),

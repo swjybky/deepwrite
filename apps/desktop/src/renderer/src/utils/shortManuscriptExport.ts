@@ -31,6 +31,7 @@ export function createShortManuscriptExportInput(
   );
 
   return {
+    book: { projectType: book.bookType, projectId: book.id },
     title: book.title,
     format,
     sections: book.draft.sections.map((section) => {

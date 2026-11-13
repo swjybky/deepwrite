@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { provideBookImageContext } from "../composables/bookImageContext";
 import { builtinAgentLabel } from "../i18n/builtinLabels";
 import { createScopedTranslator } from "../i18n";
 import { computed, watch } from "vue";
@@ -73,6 +74,12 @@ const props = defineProps<{
     width: number;
   }>;
 }>();
+
+provideBookImageContext(() =>
+  props.book
+    ? { book: { projectType: "long", projectId: props.book.id } }
+    : undefined
+);
 
 const emit = defineEmits<{
   "update:draft": [value: string];
@@ -364,6 +371,10 @@ function forwardPreviewMutation(
         :user-input-submitting="
           conversationController.submittingUserInput.value
         "
+        :write-approval-items="conversationController.writeApprovalItems.value"
+        :write-approval-submit-failed="
+          conversationController.writeApprovalSubmitFailed.value
+        "
         :left-collapsed="leftCollapsed"
         :right-collapsed="rightPane.collapsed"
         :right-pane="paneLayout === 'editor-agent'"
@@ -393,6 +404,7 @@ function forwardPreviewMutation(
         @remove-editor-reference="removeEditorReference"
         @locate-editor-reference="locateEditorReference"
         @submit-user-input="conversationController.submitUserInput($event)"
+        @retry-write-approval="conversationController.retryWriteApproval()"
       />
       <LongWorkspacePanePlaceholder v-else kind="agent" />
       <section

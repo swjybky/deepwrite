@@ -45,6 +45,7 @@ import type { AgentRunPlan } from "./run-plan";
 import { ToolDeltaStream } from "./tool-delta-stream";
 import { createRequiredOutputGuard } from "./required-output-guard";
 import { createRunSteering, type RunSteeringRegistry } from "./run-steering";
+import { createWriteApprovalGate } from "./write-approval-gate";
 
 export interface AgentRunKernelOptions {
   idleTimeoutMs: number;
@@ -71,6 +72,7 @@ export class AgentRunKernel {
     const reusableConversationAgent = this.options.agents.select(plan);
     const lifecycle = new RunLifecycle();
     let userInputRequestSequence = 0;
+    const writeApprovalListeners = new Set<() => void>();
     // The broker holds one question per run, while parallel children (draw
     // selections, cross-stage confirmations) may ask at the same time: each
     // request is shown only after the previous one settled.
@@ -107,10 +109,17 @@ export class AgentRunKernel {
               runtime,
               ...(request.promptReview
                 ? { promptReview: request.promptReview }
+                : {}),
+              ...(request.writeApproval
+                ? { writeApproval: request.writeApproval }
                 : {})
             }
           });
-          return await response;
+          const answered = await response;
+          if (request.source === "write_approval") {
+            for (const listener of writeApprovalListeners) listener();
+          }
+          return answered;
         });
       } finally {
         userInputWaiting = Math.max(0, userInputWaiting - 1);
@@ -134,8 +143,12 @@ export class AgentRunKernel {
       parentSignal: lifecycle.signal,
       requestUserInput,
       getParentMessages: () => prepared?.state.messages ?? [],
-      onContextCompacted: (listener) => compactedListeners.add(listener)
+      onContextCompacted: (listener) => compactedListeners.add(listener),
+      onWriteApprovalSettled: (listener) => writeApprovalListeners.add(listener)
     });
+    const writeApprovalGate = plan.pausesForWriteApproval
+      ? createWriteApprovalGate({ requestUserInput, runtime })
+      : undefined;
     let emitToolCallEvent: (
       event: ToolCallAssistantEvent,
       assistantTurnIndex: number
@@ -317,7 +330,16 @@ export class AgentRunKernel {
           }
         })
       : undefined;
-    if (contextManager) {
+    if (writeApprovalGate) {
+      agent.prepareNextTurnWithContext = async (context, signal) => {
+        const approval = await writeApprovalGate.wait(signal);
+        if (approval) contextManager?.state.midRunMessages.add(approval);
+        const update = await contextManager?.prepareNextTurn(context);
+        return approval
+          ? { ...update, messages: [...(update?.messages ?? []), approval] }
+          : update;
+      };
+    } else if (contextManager) {
       agent.prepareNextTurnWithContext = contextManager.prepareNextTurn;
     } else {
       delete agent.prepareNextTurnWithContext;
@@ -472,6 +494,7 @@ export class AgentRunKernel {
             runtime,
             messageId
           )) {
+            writeApprovalGate?.observe(runtimeEvent);
             if (runtimeEvent.type === "agent.completed")
               completedEvent = runtimeEvent;
             else emit(runtimeEvent);

@@ -14,6 +14,13 @@ export function traceSubagentStream(
   return (model, context, options) => {
     const start = Date.now();
     const call: Activity["call"] = {
+      snapshot: JSON.parse(
+        JSON.stringify({
+          systemPrompt: "systemPrompt" in context ? context.systemPrompt : "",
+          messages: context.messages,
+          tools: "tools" in context ? context.tools : []
+        })
+      ),
       requestId: randomUUID(),
       sequence: ++sequence,
       requestedProvider: model.provider,
@@ -44,6 +51,32 @@ export function traceSubagentStream(
           }
         });
       }
-    )(model, context, options);
+    )(model, context, {
+      ...options,
+      onPayload: async (payload, targetModel) => {
+        const replacement = await options?.onPayload?.(payload, targetModel);
+        const effective = replacement ?? payload;
+        if (effective && typeof effective === "object" && call.snapshot) {
+          // Only model input fields; transport headers and credentials stay out.
+          const input = Object.fromEntries(
+            Object.entries(effective).filter(([key]) =>
+              [
+                "messages",
+                "system",
+                "systemInstruction",
+                "contents",
+                "input",
+                "instructions",
+                "tools",
+                "tool_choice"
+              ].includes(key)
+            )
+          );
+          call.snapshot.providerInput = JSON.parse(JSON.stringify(input));
+          emit({ type: "model_call", call: { ...call } });
+        }
+        return replacement;
+      }
+    });
   };
 }

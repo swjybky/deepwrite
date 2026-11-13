@@ -49,6 +49,7 @@ interface EditorState {
   updateCurrentContent(content: string): void;
   saveCurrentDocument(): Promise<void>;
   undo(): void;
+  redo(): void;
 }
 
 const apps: App[] = [];
@@ -172,6 +173,18 @@ afterEach(() => {
 });
 
 describe("long editor view mode across document refreshes", () => {
+  it("keeps preview mode when undoing and redoing an illustration edit", async () => {
+    const { state, edit } = await setupEditor();
+    edit("初稿\n\n![地图](images/map.png)");
+    await nextTick();
+    state.undo();
+    expect(state.currentVisibleContent).toBe("初稿");
+    expect(state.viewMode).toBe("preview");
+    state.redo();
+    expect(state.currentVisibleContent).toBe("初稿\n\n![地图](images/map.png)");
+    expect(state.viewMode).toBe("preview");
+  });
+
   it.each([true, false])(
     "shows the manual save button only when auto-save is off (auto-save: %s)",
     async (autoSaveEnabled) => {

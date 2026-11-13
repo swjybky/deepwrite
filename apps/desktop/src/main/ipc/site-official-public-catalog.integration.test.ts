@@ -59,13 +59,19 @@ describe("public official-site catalog through Main, preload and storage", () =>
         data: [
           {
             id: "writer",
+            sort: 0,
             api: "openai-responses",
             description: "写作模型",
             input: 1.25,
             output: 2.5,
             cache: 0.25
           },
-          { id: "native", api: "google-generative-ai", label: "Native Model" }
+          {
+            id: "native",
+            sort: 10,
+            api: "google-generative-ai",
+            label: "Native Model"
+          }
         ]
       });
     });
@@ -82,6 +88,10 @@ describe("public official-site catalog through Main, preload and storage", () =>
     );
     const settings = await refreshSiteOfficialModels();
     expect(settings.defaultModelId).toBe("");
+    expect(settings.models.map((model) => model.modelId)).toEqual([
+      "writer",
+      "native"
+    ]);
     expect(settings.models).toHaveLength(2);
     expect(
       settings.models.every(

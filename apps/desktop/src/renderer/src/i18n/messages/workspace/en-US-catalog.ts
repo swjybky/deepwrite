@@ -400,6 +400,7 @@ export default {
     failedToOpenLocalProject: "Failed to open local project."
   },
   shortBookLifecycleCoordinator: {
+    exportedWithMissingImages: "Exported; {count} missing images were skipped.",
     theCurrentHasNoVersionIdentifierCannotSafelyPerform:
       "The current {value} has no version identifier. Cannot safely perform: {operationLabel}.",
     theConfigurationWasUpdatedElsewhereReopenTheDialogBefore:

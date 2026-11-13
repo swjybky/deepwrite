@@ -52,6 +52,7 @@ export function planWorkspaceRun(
     eventSource: input,
     agentKey: conversationAgentKey(input),
     portableToolSchemaProfile,
+    pausesForWriteApproval: input.writeApprovalMode !== "auto-approve",
     assertModelBudget: () =>
       assertConversationPromptBudget(
         { message: input.prompt, attachments: input.attachments },
@@ -82,7 +83,8 @@ export function planWorkspaceRun(
           ? {}
           : { subagentTimeoutMs: options.subagentTimeoutMs }),
         getParentMessages: context.getParentMessages,
-        onContextCompacted: context.onContextCompacted
+        onContextCompacted: context.onContextCompacted,
+        onWriteApprovalSettled: context.onWriteApprovalSettled
       });
       return {
         systemPrompt: [

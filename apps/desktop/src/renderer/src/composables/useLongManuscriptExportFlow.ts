@@ -157,6 +157,12 @@ export function createLongManuscriptExportFlow(
         }
         if (context.targetIsCurrent(state.exportTarget, target, requestId)) {
           clearExportSelection(state);
+          if (result.missingImages > 0) {
+            uiMessage.warning(
+              t("exportedWithMissingImages", { count: result.missingImages })
+            );
+            return;
+          }
           uiMessage.success(
             request.mode === "single-txt"
               ? t("exportedAsSingleTxtFile", { title: target.title })

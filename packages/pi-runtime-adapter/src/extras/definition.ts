@@ -18,6 +18,7 @@ import type {
 import type { BuildSpawnSubagentToolInput } from "../subagent-types";
 import type { ContextTaskKind, ToolCompactor } from "../kernel/context/types";
 import type { LongCommandExecutor } from "../long-agent-tools";
+import { bookImagePreservationRule } from "../prompts-book-images";
 
 export type ExtrasTaskAgentId = Exclude<
   ExtrasAgentId,
@@ -54,6 +55,7 @@ export interface ExtrasAgentRunServices {
 export interface ExtrasTaskOrchestration {
   definitions: BuildSpawnSubagentToolInput["definitions"];
   prepareChild: NonNullable<BuildSpawnSubagentToolInput["prepareChild"]>;
+  maxConcurrency?: number;
 }
 
 /**
@@ -153,7 +155,8 @@ export function composeExtrasSystemPrompt(
   return [
     ...(profilePrompt?.trim() ? [profilePrompt.trim(), ""] : []),
     `【${boundaryTitle}运行边界】`,
-    ...boundary
+    ...boundary,
+    bookImagePreservationRule()
   ].join("\n");
 }
 

@@ -589,6 +589,9 @@ export class LongWorkspaceService {
       opened.projectDirectory,
       {
         batch: parsed.batch,
+        ...(parsed.versionOrigin
+          ? { versionOrigin: parsed.versionOrigin }
+          : {}),
         ...(parsed.captureRestorePoint ? { captureRestorePoint: true } : {})
       }
     );

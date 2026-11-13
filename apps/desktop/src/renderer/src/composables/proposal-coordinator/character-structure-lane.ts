@@ -1,3 +1,4 @@
+import { conversationVersionOrigin } from "./version-origin";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import type { AgentEditProposal } from "../../types/conversation";
@@ -111,6 +112,11 @@ export function createCharacterStructureLane(ctx: ProposalLaneContext) {
         target.initialContent?.trim()
       ) {
         await saveCreatedCharacterContent(currentApi.catalog, {
+          versionOrigin: conversationVersionOrigin(
+            conversation,
+            proposal.runId,
+            proposal.summary
+          ),
           bookId: proposal.workspaceId,
           itemId: createdItemId!,
           currentContent:

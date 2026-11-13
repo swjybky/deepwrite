@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DECOMPOSITION_DEFAULT_CONCURRENCY } from "./limits";
 
 const range = z.tuple([z.number(), z.number()]);
 export const DecompositionEstimateSchema = z.object({
@@ -29,7 +30,9 @@ const pair = (low: number, high: number) =>
 export function estimateDecomposition(
   chapters: number,
   characters: number,
-  chunks: number
+  chunks: number,
+  /** Children running at once; wall time shrinks with it. */
+  concurrency = DECOMPOSITION_DEFAULT_CONCURRENCY
 ): DecompositionEstimate {
   const source = pair(characters * 1.0, characters * 1.5);
   // Reading: one child per chunk; records run to 35–80% of the source.
@@ -80,7 +83,7 @@ export function estimateDecomposition(
       readOutput[0] + integrateOutput[0],
       readOutput[1] + integrateOutput[1] + registryInput[1] * 0.5
     ),
-    minutes: pair((calls / 5) * 0.5, (calls / 5) * 1.5),
+    minutes: pair((calls / concurrency) * 0.5, (calls / concurrency) * 1.5),
     calls
   });
 }

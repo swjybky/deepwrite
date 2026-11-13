@@ -1,0 +1,22 @@
+export default {
+  current: "当前内容",
+  changed: "有尚未入版本的修改",
+  before: "对话前内容",
+  preRestore: "回退前内容",
+  edit: "对话修改",
+  restored: "回退（回到 v{seq}）",
+  compare: "与上一版对比",
+  full: "完整内容",
+  empty: "还没有版本记录",
+  noComparison: "暂无历史版本，无法对比当前内容。",
+  local: "版本只保存在本机，不参与双端同步。",
+  restore: "回退到此版本",
+  confirm: "回退到 v{seq}？",
+  detail: "当前内容会先保存为一个版本，回退后仍可再回到现在的样子。",
+  action: "回退",
+  success: "已回退到 v{seq}",
+  busy: "智能体正在修改这部作品，请等运行结束后再回退。",
+  unsaved: "请先保存编辑器中未保存的内容。",
+  conflict: "内容刚刚变化过，已刷新版本列表，请重新确认。",
+  unavailable: "这个版本的记录已损坏或不存在。"
+};
