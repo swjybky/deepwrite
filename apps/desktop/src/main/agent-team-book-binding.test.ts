@@ -61,7 +61,14 @@ async function setup() {
 
 afterEach(async () => {
   await Promise.all(
-    [...roots].map((root) => rm(root, { recursive: true, force: true }))
+    [...roots].map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50
+      })
+    )
   );
   roots.clear();
 });

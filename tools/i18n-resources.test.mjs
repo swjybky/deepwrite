@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createServer } from "vite";
+import { createServer, normalizePath } from "vite";
 import { describe, expect, it, vi } from "vitest";
 import { i18nResourcesPlugin } from "../apps/desktop/scripts/i18n-resources";
 import { messageCatalogKeys } from "../apps/desktop/src/localization/message-catalog";
@@ -73,7 +73,7 @@ describe("language data assets", () => {
           ...server.environments.client.moduleGraph.getModuleById(`\0${url}`)
             .importedModules
         ].map((module) => module.file);
-      expect(dependencyFiles()).toContain(removed);
+      expect(dependencyFiles()).toContain(normalizePath(removed));
 
       await writeFile(
         entry,
@@ -83,11 +83,16 @@ describe("language data assets", () => {
       server.watcher.emit("unlink", removed);
       await vi.waitFor(() => expect(send).toHaveBeenCalled());
       const transformed = await server.transformRequest(url);
-      expect(dependencyFiles()).not.toContain(removed);
+      expect(dependencyFiles()).not.toContain(normalizePath(removed));
       expect(transformed.code).toContain("/@deepwrite-locales/zh-CN.json");
     } finally {
       await server?.close();
-      await rm(directory, { recursive: true, force: true });
+      await rm(directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50
+      });
     }
   });
 
@@ -107,7 +112,12 @@ describe("language data assets", () => {
       );
       await expect(plugin.load.call(context, id)).resolves.toContain("schema");
     } finally {
-      await rm(directory, { recursive: true, force: true });
+      await rm(directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50
+      });
     }
   });
 

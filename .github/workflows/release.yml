@@ -7,8 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag (vMAJOR.MINOR.PATCH)
+        description: Version label (vMAJOR.MINOR.PATCH); publication requires an existing tag
         required: true
+        type: string
+      publish:
+        description: Publish verified installers as a public GitHub Release
+        required: true
+        type: boolean
+        default: false
+      source_ref:
+        description: Source commit or branch for build-only runs (optional)
+        required: false
         type: string
       reuse_run_id:
         description: Reuse verified installers from an earlier run (optional)
@@ -42,7 +51,7 @@ jobs:
         id: source
         uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish && inputs.source_ref || format('refs/tags/{0}', env.RELEASE_TAG) }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -212,7 +221,30 @@ jobs:
       - name: Check Windows filesystem and renderer regressions early
         if: runner.os == 'Windows'
         run: |
-          pnpm exec vitest run \
+          pnpm exec vitest run --bail=0 \
+            tools/i18n-resources.test.mjs \
+            apps/desktop/src/main/agent-team-book-binding.test.ts \
+            apps/desktop/src/main/development-profile.test.ts \
+            apps/desktop/src/main/builtin-agent-prompts.test.ts \
+            apps/desktop/src/main/marketplace-backup.test.ts \
+            apps/desktop/src/extras/external-control/settings-commands.test.ts \
+            tools/windows-runtime-architecture.test.mjs \
+            tools/smoke-workspace.test.mjs \
+            apps/desktop/src/extras/cloud-backup/identity.test.ts \
+            apps/desktop/src/extras/agents/config-store.decomposition.test.ts \
+            apps/desktop/src/utilities/folder-catalog-store.plot-stage-import.test.ts \
+            apps/desktop/src/utilities/long-workspace-service.index.test.ts \
+            apps/desktop/src/main/book-template-store.test.ts \
+            apps/desktop/src/main/smoke-model-config.test.ts \
+            apps/desktop/src/main/startup-log.test.ts \
+            apps/desktop/src/main/smoke-conversation.test.ts \
+            apps/desktop/src/main/model-config-store.batch.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/generated-record-storage.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/usage-guard.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/scale.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/creation-recovery.test.ts \
+            apps/desktop/src/utilities/long-book-decomposition/job-state-store.test.ts \
+            apps/desktop/src/utilities/device-sync-ledger.test.ts \
             tools/package-runtime-archive.test.mjs \
             tools/renderer-state-history-migration.test.mjs \
             tools/renderer-vendor-graph.test.mjs \
@@ -268,7 +300,7 @@ jobs:
   upload:
     name: Publish verified release installers
     needs: [prepare, package]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
+    if: ${{ !cancelled() && (github.event_name == 'push' || inputs.publish == true) && needs.prepare.result == 'success' && (needs.package.result == 'success' || (needs.prepare.outputs.reuse_run_id != '' && needs.package.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

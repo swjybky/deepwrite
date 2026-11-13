@@ -156,7 +156,7 @@ export function i18nResourcesPlugin(messagesDirectory: string): Plugin {
       return `export default { ${entries.join(",")} };`;
     },
     watchChange(path) {
-      if (!watchedPaths.has(path)) return;
+      if (!watchedPaths.has(resolve(path))) return;
       catalogPromise = undefined;
       invalidateClient?.();
     }
