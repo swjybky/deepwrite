@@ -17,6 +17,7 @@
 | Main / Utility 错误路径、IPC | [cross-process-error](error/cross-process-error.md) |
 | 拉起 Electron、冒烟、探针、开发服务器 | [electron-sandbox](error/electron-sandbox.md)、[process-kill](error/process-kill.md) |
 | 提交、多会话共用工作区 | [mixed-worktree](error/mixed-worktree.md) |
+| R2 更新源、版本指针条件写入 | [r2-weak-etag](error/r2-weak-etag.md) |
 
 ## 处理步骤
 
@@ -43,6 +44,7 @@
 | 作用域样式无效、元素莫名隐藏 | [css-class-collision](error/css-class-collision.md) |
 | 端口被占、要 `kill` 进程 | [process-kill](error/process-kill.md) |
 | `typecheck` 报与本次无关的错、工作区有他人改动 | [mixed-worktree](error/mixed-worktree.md) |
+| R2 激活 HTTP 412、`If-Match` 使用 `W/` ETag | [r2-weak-etag](error/r2-weak-etag.md) |
 
 ## 条目格式
 

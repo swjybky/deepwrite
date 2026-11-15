@@ -77,7 +77,8 @@ export function createR2Client(config, fetcher = fetch) {
     );
     return fetcher(`https://${host}${path}`, {
       method,
-      headers: signed.headers,
+      // Compressed GET responses may carry weak ETags, which cannot guard writes.
+      headers: { ...signed.headers, "accept-encoding": "identity" },
       body,
       ...(body && typeof body !== "string" ? { duplex: "half" } : {}),
       redirect: "error",

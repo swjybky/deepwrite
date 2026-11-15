@@ -151,6 +151,34 @@ describe("R2 release publication", () => {
     expect(f.puts.at(-1).headers["if-match"]).toBe('"fixture-etag"');
   });
 
+  it("uses the original response representation so conditional activation has a strong ETag", async () => {
+    const f = await fixture();
+    await uploadR2Release(f.request, f.release);
+    f.objects.set("update.json", { body: JSON.stringify(f.manifest) });
+    const request = createR2Client(config, async (url, options) => {
+      const key = new URL(url).pathname.split("/").slice(2).join("/");
+      const headers = new Headers(options.headers);
+      if (headers.get("if-match")?.startsWith("W/")) {
+        return new Response(null, { status: 412 });
+      }
+      const response = await f.request(options.method, key, {
+        body: options.body,
+        size: Number(headers.get("content-length")),
+        sha256: headers.get("x-amz-content-sha256"),
+        headers: Object.fromEntries(headers)
+      });
+      if (
+        options.method === "GET" &&
+        headers.get("accept-encoding") !== "identity"
+      ) {
+        response.headers.set("etag", 'W/"fixture-etag"');
+      }
+      return response;
+    });
+    expect(await activateR2Release(request, f.release)).toBe(true);
+    expect(f.puts.at(-1).headers["if-match"]).toBe('"fixture-etag"');
+  });
+
   it("rejects a mismatched manifest before any upload", async () => {
     const f = await fixture();
     await expect(
@@ -174,7 +202,8 @@ describe("R2 release publication", () => {
         method: "HEAD",
         redirect: "error",
         headers: expect.objectContaining({
-          Authorization: expect.stringContaining("AWS4-HMAC-SHA256")
+          Authorization: expect.stringContaining("AWS4-HMAC-SHA256"),
+          "accept-encoding": "identity"
         })
       })
     );
