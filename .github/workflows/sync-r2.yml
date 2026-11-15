@@ -52,7 +52,7 @@ jobs:
         env:
           DEEPWRITE_R2_PUBLISH_CONFIG: ${{ secrets.DEEPWRITE_R2_PUBLISH_CONFIG }}
         run: node tools/publish-r2-release.mjs upload release-upload update.json
-      - name: Activate the complete update feed
+      - name: Activate the feed and remove previous R2 releases
         env:
           DEEPWRITE_R2_PUBLISH_CONFIG: ${{ secrets.DEEPWRITE_R2_PUBLISH_CONFIG }}
         run: node tools/publish-r2-release.mjs activate release-upload update.json

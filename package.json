@@ -41,6 +41,7 @@
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/tsconfig": "catalog:",
+    "@xmldom/xmldom": "catalog:",
     "aws4": "catalog:",
     "electron": "catalog:",
     "electron-vite": "catalog:",

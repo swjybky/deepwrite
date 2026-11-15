@@ -11,6 +11,7 @@ catalog:
   "@types/node": "26.0.1"
   "@vitejs/plugin-vue": "6.0.7"
   "@vue/tsconfig": "0.9.1"
+  "@xmldom/xmldom": "0.9.12"
   aws4: "1.13.2"
   electron: "42.5.0"
   electron-builder: "26.15.3"

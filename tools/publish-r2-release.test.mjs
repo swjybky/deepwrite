@@ -56,6 +56,19 @@ async function fixture() {
   const objects = new Map();
   const puts = [];
   const request = vi.fn(async (method, key, options = {}) => {
+    if (method === "GET" && key === "") {
+      const contents = [...objects].map(
+        ([key, object]) =>
+          `<Contents><Key>${encodeURIComponent(key)}</Key><Size>${object.size ?? Buffer.byteLength(object.body)}</Size></Contents>`
+      );
+      return new Response(
+        `<ListBucketResult><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated>${contents.join("")}</ListBucketResult>`
+      );
+    }
+    if (method === "DELETE") {
+      objects.delete(key);
+      return new Response(null, { status: 204 });
+    }
     const object = objects.get(key);
     if (method === "HEAD")
       return object
@@ -113,6 +126,40 @@ describe("R2 release publication", () => {
     expect(f.puts).toHaveLength(count);
   });
 
+  it("keeps the active release during upload, then deletes it only after activation", async () => {
+    const f = await fixture();
+    f.objects.set("update.json", {
+      body: JSON.stringify({ ...f.manifest, version: "9.8.6" })
+    });
+    f.objects.set("releases/v9.8.6/old.exe", { size: 123 });
+    f.objects.set("health.json", { body: "{}", size: 2 });
+    await uploadR2Release(f.request, f.release);
+    expect(f.objects.has("releases/v9.8.6/old.exe")).toBe(true);
+    await activateR2Release(f.request, f.release);
+    expect(f.objects.has("releases/v9.8.6/old.exe")).toBe(false);
+    expect(f.objects.has("releases/v9.8.7/installer.exe")).toBe(true);
+    expect(f.objects.has("health.json")).toBe(true);
+  });
+
+  it("does not delete the active release if activation fails", async () => {
+    const f = await fixture();
+    f.objects.set("update.json", {
+      body: JSON.stringify({ ...f.manifest, version: "9.8.6" })
+    });
+    f.objects.set("releases/v9.8.6/old.exe", { size: 123 });
+    await uploadR2Release(f.request, f.release);
+    const original = f.request.getMockImplementation();
+    f.request.mockImplementation((method, key, options) =>
+      method === "PUT" && key === "update.json"
+        ? new Response(null, { status: 412 })
+        : original(method, key, options)
+    );
+    await expect(activateR2Release(f.request, f.release)).rejects.toThrow(
+      "412"
+    );
+    expect(f.objects.has("releases/v9.8.6/old.exe")).toBe(true);
+  });
+
   it("refuses activation after a missing file or conflicting remote content", async () => {
     const f = await fixture();
     await expect(activateR2Release(f.request, f.release)).rejects.toThrow(
@@ -135,6 +182,16 @@ describe("R2 release publication", () => {
       .mockImplementationOnce(async () => new Response(null, { status: 503 }));
     await expect(uploadR2Release(f.request, f.release)).rejects.toThrow("503");
     expect(f.objects.has("update.json")).toBe(false);
+  });
+
+  it("stops before sending any file when the upload would exceed the storage limit", async () => {
+    const f = await fixture();
+    f.release.files[0].size = 10_000_000_000;
+    await expect(uploadR2Release(f.request, f.release)).rejects.toThrow(
+      "超过 10 GB"
+    );
+    expect(f.puts).toHaveLength(0);
+    expect(f.objects.size).toBe(0);
   });
 
   it("keeps a newer pointer and uses conditional writes for an older pointer", async () => {
@@ -207,6 +264,18 @@ describe("R2 release publication", () => {
         })
       })
     );
+  });
+
+  it("preserves an opaque listing cursor in the signed request URL", async () => {
+    const fetcher = vi.fn(async () => new Response(null));
+    const cursor = "opaque+cursor/with=padding";
+    await createR2Client(config, fetcher)("GET", "", {
+      query: { "list-type": "2", "continuation-token": cursor }
+    });
+    const url = new URL(fetcher.mock.lastCall[0]);
+    expect(url.pathname).toBe("/example-updates/");
+    expect(url.searchParams.get("list-type")).toBe("2");
+    expect(url.searchParams.get("continuation-token")).toBe(cursor);
   });
 
   it.each([

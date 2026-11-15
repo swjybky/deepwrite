@@ -8,6 +8,7 @@ import aws4 from "aws4";
 import { UpdateManifestSchema } from "../packages/contracts/src/update.ts";
 import { compareVersions } from "../packages/contracts/src/update-version.ts";
 import { inspectReleaseFile } from "./release-files.mjs";
+import { cleanupR2Storage, prepareR2Upload } from "./r2-storage.mjs";
 
 const desktopRequire = createRequire(
   new URL("../apps/desktop/package.json", import.meta.url)
@@ -54,8 +55,13 @@ export function readR2Config(source) {
 
 export function createR2Client(config, fetcher = fetch) {
   const host = `${config.accountId}.r2.cloudflarestorage.com`;
-  return async (method, key, { body, size, sha256, headers = {} } = {}) => {
-    const path = `/${config.bucket}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  return async (
+    method,
+    key,
+    { body, size, sha256, headers = {}, query } = {}
+  ) => {
+    const search = query ? `?${new URLSearchParams(query)}` : "";
+    const path = `/${config.bucket}/${key.split("/").map(encodeURIComponent).join("/")}${search}`;
     const signed = aws4.sign(
       {
         host,
@@ -148,6 +154,7 @@ export async function loadR2Release(directory, manifestPath, tag, publicUrl) {
 }
 
 export async function uploadR2Release(request, release) {
+  await prepareR2Upload(request, release);
   for (const file of release.files) {
     const key = `${release.prefix}/${file.name}`;
     if (await inspectRemote(request, key, file)) continue;
@@ -204,6 +211,10 @@ export async function activateR2Release(request, release) {
     throw new Error(
       `更新 R2 版本指针失败（HTTP ${response.status}）；可重跑激活步骤。`
     );
+  const storage = await cleanupR2Storage(request);
+  console.log(
+    `R2_STORAGE_OK bytes=${storage.bytes} deleted=${storage.deleted}`
+  );
   return true;
 }
 
