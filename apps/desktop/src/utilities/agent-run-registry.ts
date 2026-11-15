@@ -7,7 +7,7 @@ import type { AgentRuntimeEvent } from "@deepwrite/pi-runtime-adapter";
 import { createId } from "@deepwrite/shared";
 import { toEventEnvelope } from "./agent-event-envelope";
 
-const MAX_ACTIVE_RUNS = 8;
+const MAX_ACTIVE_RUNS = 100;
 /** Preserve the analysis limit while allowing concurrent creation sessions. */
 const MAX_ACTIVE_EXTRAS_RUNS = 3;
 

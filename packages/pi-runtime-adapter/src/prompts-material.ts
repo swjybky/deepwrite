@@ -22,7 +22,7 @@ export function buildWorkspaceMaterialContext(input: AgentRunInput): string {
             input.longAgentProfile!.readAccess.materialKinds.includes(item.kind)
         )
       : materials;
-  return buildMaterialCatalogPrompt(readable);
+  return buildMaterialCatalogPrompt(readable, input.promptLocale === "en-US");
 }
 
 export function buildSubagentMaterialContext(input: AgentRunInput): string {
@@ -36,10 +36,14 @@ export function materialCatalogNotes(input: AgentRunInput): string[] {
   const catalog = input.workspaceContext?.materialCatalog;
   return catalog
     ? [
-        `本轮可查询素材共 ${catalog.total} 条。`,
+        input.promptLocale === "en-US"
+          ? `${catalog.total} materials available.`
+          : `本轮可查询素材共 ${catalog.total} 条。`,
         ...(catalog.nextCursor !== undefined
           ? [
-              `目录还有后续条目，调用 query_linked_material_entries（mode=list，cursor=${catalog.nextCursor}）继续。`
+              input.promptLocale === "en-US"
+                ? `More entries: use mode=list, cursor=${catalog.nextCursor}.`
+                : `目录还有后续条目，调用 query_linked_material_entries（mode=list，cursor=${catalog.nextCursor}）继续。`
             ]
           : []),
         ...catalog.notices

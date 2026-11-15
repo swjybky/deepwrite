@@ -7,8 +7,6 @@ import type {
 import { promptLocaleOf } from "./prompt-locale";
 import { renderWritingRules } from "./prompts-writing-rules";
 import type { AgentRunInput } from "./runtime-types";
-import { mainAgentHasWebSearch } from "./web-search/mount";
-import { webToolNamesFor } from "./web-search/prompt";
 import { writeApprovalBoundary } from "./write-approval";
 import { renderWritingWorkspaceDirectory } from "./writing-workspace-directory";
 
@@ -112,21 +110,28 @@ function renderWritingStageContext(
   ].join("\n");
 }
 
-export function shortRuntimeSystemRequirements(input: AgentRunInput): string {
+export function shortRuntimeSystemRequirements(
+  input: AgentRunInput,
+  toolNames?: readonly string[]
+): string {
   const workspace = input.workspaceContext?.shortWorkspace;
   if (!workspace || !input.agentProfile) return "";
-  return writingRuntimeSystemRequirements(input, "short");
+  return writingRuntimeSystemRequirements(input, "short", toolNames);
 }
 
-export function scriptRuntimeSystemRequirements(input: AgentRunInput): string {
+export function scriptRuntimeSystemRequirements(
+  input: AgentRunInput,
+  toolNames?: readonly string[]
+): string {
   const workspace = input.workspaceContext?.scriptWorkspace;
   if (!workspace || !input.scriptAgentProfile) return "";
-  return writingRuntimeSystemRequirements(input, "script");
+  return writingRuntimeSystemRequirements(input, "script", toolNames);
 }
 
 function writingRuntimeSystemRequirements(
   input: AgentRunInput,
-  workspaceType: "short" | "script"
+  workspaceType: "short" | "script",
+  toolNames?: readonly string[]
 ): string {
   const locale = promptLocaleOf(input);
   const english = locale === "en-US";
@@ -135,7 +140,7 @@ function writingRuntimeSystemRequirements(
     ? input.workspaceContext!.scriptWorkspace!
     : input.workspaceContext!.shortWorkspace!;
   return [
-    renderWritingWorkspaceDirectory(workspace, locale),
+    renderWritingWorkspaceDirectory(workspace, locale, workspaceType),
     "",
     renderWritingStageContext(
       workspace,
@@ -148,13 +153,7 @@ function writingRuntimeSystemRequirements(
       {
         workspaceType,
         characterFormat: workspace.characterStructure?.format ?? "text",
-        hasSubagents: Boolean(input.subagentDefinitions?.length),
-        ...(input.webSearch && mainAgentHasWebSearch(input)
-          ? {
-              webToolNames: webToolNamesFor(input.webSearch.providerId, locale)
-            }
-          : {}),
-        autoApproveCrossStage: input.autoApproveCrossStageOperations === true
+        ...(toolNames ? { toolNames } : {})
       },
       locale
     ),
@@ -175,12 +174,17 @@ function writingRuntimeSystemRequirements(
 function buildProfileSystemPrompt(
   basePrompt: string,
   input: AgentRunInput,
-  workspaceType: "short" | "script"
+  workspaceType: "short" | "script",
+  toolNames?: readonly string[]
 ): string {
   const profile =
     workspaceType === "script"
       ? input.scriptAgentProfile!
       : input.agentProfile!;
+  const agentsMd = (
+    input.workspaceContext?.scriptWorkspace ??
+    input.workspaceContext?.shortWorkspace
+  )?.agentsMd;
   const english = promptLocaleOf(input) === "en-US";
   const header = english
     ? `[Current ${workspaceType === "script" ? "screenplay" : "short-fiction"} agent: ${profile.label} / ${profile.id}]`
@@ -191,22 +195,32 @@ function buildProfileSystemPrompt(
     header,
     profile.systemPrompt.trim(),
     "",
+    ...(agentsMd?.trim()
+      ? [
+          english
+            ? "[Work context (AGENTS.md)]"
+            : `【${workspaceType === "script" ? "剧本" : "短篇"}上下文（AGENTS.md）】`,
+          agentsMd.trim(),
+          ""
+        ]
+      : []),
     workspaceType === "script"
-      ? scriptRuntimeSystemRequirements(input)
-      : shortRuntimeSystemRequirements(input)
+      ? scriptRuntimeSystemRequirements(input, toolNames)
+      : shortRuntimeSystemRequirements(input, toolNames)
   ].join("\n");
 }
 
 /** Short-form and screenplay runs share one workspace-shaped prompt. */
 export function buildWritingSystemPrompt(
   basePrompt: string,
-  input: AgentRunInput
+  input: AgentRunInput,
+  toolNames?: readonly string[]
 ): string {
   if (input.workspaceContext?.shortWorkspace && input.agentProfile) {
-    return buildProfileSystemPrompt(basePrompt, input, "short");
+    return buildProfileSystemPrompt(basePrompt, input, "short", toolNames);
   }
   if (input.workspaceContext?.scriptWorkspace && input.scriptAgentProfile) {
-    return buildProfileSystemPrompt(basePrompt, input, "script");
+    return buildProfileSystemPrompt(basePrompt, input, "script", toolNames);
   }
   return basePrompt;
 }

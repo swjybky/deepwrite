@@ -61,6 +61,10 @@ function shortTail(
     input.workspaceContext?.scriptWorkspace ??
     input.workspaceContext?.shortWorkspace;
   if (!workspace) return undefined;
+  if (workspace.readSource === "core")
+    return input.promptLocale === "en-US"
+      ? "For continuity, read the current manuscript or State by id from Core before continuing."
+      : "续写前请按 id 从 Core 读取当前正文或状态，衔接最新保存的内容。";
   const sections = workspace.expertDraft.sections;
   const refIds = [...refs.proposed, ...refs.read]
     .map((ref) => ref.split(/[: /@]/))

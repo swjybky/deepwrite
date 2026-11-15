@@ -47,7 +47,8 @@ export async function prepareLibraryManagementRunContext(
   return LibraryManagementRuntimeContextSchema.parse({
     scope,
     managers,
-    libraries: LibraryManagementQueryResultSchema.parse(result.payload)
-      .libraries
+    libraries: LibraryManagementQueryResultSchema.parse(
+      result.payload
+    ).libraries.filter((library) => settings[library.domain].enabled)
   });
 }

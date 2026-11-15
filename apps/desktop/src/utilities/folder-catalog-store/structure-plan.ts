@@ -1,3 +1,4 @@
+import { applyRecoverableEntryOperation } from "./structure-plan-recovery";
 import { assertJsonByteLength, assertTextByteLength } from "./paths-io";
 import { dirname } from "node:path";
 import {
@@ -46,9 +47,13 @@ export async function planLibraryStructure(
     rootIds,
     remove
   } = state;
-  for (const op of request.operations) {
+  for (const [index, op] of request.operations.entries()) {
+    if (op.action === "archive-entries" || op.action === "restore-entries") {
+      await applyRecoverableEntryOperation(op, state);
+      continue;
+    }
     if (isEntryStructureOperation(op)) {
-      await applyEntryStructureOperation(op, state);
+      await applyEntryStructureOperation(op, state, index);
       continue;
     }
     if (op.action === "create-library") {
@@ -166,11 +171,12 @@ export async function planLibraryStructure(
     if (
       item.original !== null &&
       current === JSON.stringify(JSON.parse(item.original)) &&
-      !item.files.size
+      [...item.files.values()].every((file) => file.action === "check")
     ) {
       roots.push({
         root: item.registration.projectDirectory,
         files: [
+          ...item.files.values(),
           {
             action: "check",
             path: "deepwrite.json",

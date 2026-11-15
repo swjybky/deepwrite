@@ -1,212 +1,142 @@
-import { describe, expect, it, vi } from "vitest";
-import type {
-  LongReadDocumentInput,
-  LongReadDocumentResult,
-  LongWorldbuildingCategory
-} from "@deepwrite/contracts";
+import { describe, expect, it } from "vitest";
+import type { LongWorldbuildingCategory } from "@deepwrite/contracts";
 import type { LongWorkspaceSelection } from "../types/longWorkspace";
 import {
   buildLongWorldbuildingDirectorySnapshot,
   buildLongWorldbuildingFocusSnapshot
 } from "./longWorldbuildingAgentContext";
 
-const UPDATED_AT = "2026-07-30T10:00:00.000Z";
+const file = (id: string) => ({
+  id: `file_${id}`,
+  path: `long/test/${id}.md`,
+  updatedAt: "2026-07-30T10:00:00.000Z"
+});
 
-function file(id: string, path: string) {
+function category(order: number, count: number): LongWorldbuildingCategory {
   return {
-    id,
-    path,
-    updatedAt: UPDATED_AT
+    id: `world_${order}`,
+    title: `分类${order}`,
+    order,
+    format: "list",
+    contentAuthority: "files",
+    overview: file(`overview_${order}`),
+    items: Array.from({ length: count }, (_, index) => ({
+      id: `worlditem_${order}_${index + 1}`,
+      title: `条目${index + 1}`,
+      order: index + 1,
+      file: file(`item_${order}_${index + 1}`)
+    })).reverse()
   };
 }
 
-function page(
-  input: LongReadDocumentInput,
-  content: string,
-  totalCharacters = Array.from(content).length
-): LongReadDocumentResult {
-  const visible = Array.from(content).slice(0, input.maxCharacters).join("");
-  const end = input.offset + Array.from(visible).length;
+function selection(): LongWorkspaceSelection {
   return {
-    bookId: input.bookId,
-    file: file(input.fileId, `long/test/${input.fileId}.md`),
-    content: visible,
-    offset: input.offset,
-    totalCharacters,
-    nextOffset: end < totalCharacters ? end : null
+    key: "worldbuilding:world_1",
+    root: "worldbuilding",
+    title: "势力",
+    breadcrumbs: ["合成书", "世界观", "势力"],
+    worldbuildingFormat: "list",
+    worldbuildingItems: [
+      { id: "worlditem_watch", title: "守夜人", order: 1, file: file("watch") }
+    ],
+    files: [
+      { role: "overview", label: "概览", file: file("overview") },
+      { role: "content", label: "守夜人", file: file("watch") }
+    ],
+    preferredRole: "content"
   };
 }
 
 describe("long worldbuilding agent context", () => {
-  it("builds a lightweight ordered directory without document contents", () => {
-    const categories: LongWorldbuildingCategory[] = [
-      {
-        id: "world_factions",
-        title: "势力",
-        order: 2,
-        format: "list",
-        contentAuthority: "files",
-        overview: file(
-          "file_world_factions:overview",
-          "long/worldbuilding/world_factions/overview.md"
-        ),
-        items: [
-          {
-            id: "worlditem_harbor",
-            title: "港务会",
-            order: 2,
-            file: file(
-              "file_worlditem_harbor:content",
-              "long/worldbuilding/world_factions/items/worlditem_harbor.md"
-            )
-          },
-          {
-            id: "worlditem_watchers",
-            title: "守夜人",
-            order: 1,
-            file: file(
-              "file_worlditem_watchers:content",
-              "long/worldbuilding/world_factions/items/worlditem_watchers.md"
-            )
-          }
-        ]
-      },
-      {
-        id: "world_rules",
-        title: "规则",
-        order: 1,
-        format: "text",
-        contentAuthority: "markdown",
-        file: file(
-          "file_world_rules:content",
-          "long/worldbuilding/world_rules/content.md"
-        )
+  it.each([1, 200, 201])(
+    "bounds each category while preserving order and counts (%i)",
+    (count) => {
+      const snapshot = buildLongWorldbuildingDirectorySnapshot([
+        category(2, count),
+        category(1, count)
+      ]);
+      expect(snapshot.categories.map(({ categoryId }) => categoryId)).toEqual([
+        "world_1",
+        "world_2"
+      ]);
+      for (const entry of snapshot.categories) {
+        if (entry.format !== "list") throw new Error("Expected list category");
+        expect(entry.items).toHaveLength(Math.min(count, 200));
+        expect(entry.items[0]!.order).toBe(1);
+        expect(entry.itemCount).toBe(count);
+        expect(entry.omittedItemCount).toBe(Math.max(count - 200, 0));
       }
-    ];
+      expect(JSON.stringify(snapshot)).not.toContain("file_");
+    }
+  );
 
-    expect(buildLongWorldbuildingDirectorySnapshot(categories)).toEqual({
-      categories: [
-        {
-          categoryId: "world_rules",
-          title: "规则",
-          order: 1,
-          format: "text"
-        },
-        {
-          categoryId: "world_factions",
-          title: "势力",
-          order: 2,
-          format: "list",
-          itemCount: 2,
-          items: [
-            { itemId: "worlditem_watchers", title: "守夜人", order: 1 },
-            { itemId: "worlditem_harbor", title: "港务会", order: 2 }
-          ],
-          omittedItemCount: 0
-        }
-      ],
-      omittedCategoryCount: 0
+  it("keeps the total item limit and all category entry points", () => {
+    const snapshot = buildLongWorldbuildingDirectorySnapshot(
+      Array.from({ length: 11 }, (_, index) => category(index + 1, 201))
+    );
+    expect(snapshot.categories).toHaveLength(11);
+    const counts = snapshot.categories.map((entry) =>
+      entry.format === "list" ? entry.items.length : 0
+    );
+    expect(counts.reduce((total, count) => total + count, 0)).toBe(2_000);
+    expect(counts.at(-1)).toBe(0);
+    expect(snapshot.categories.at(-1)).toMatchObject({
+      itemCount: 201,
+      omittedItemCount: 201
     });
   });
 
-  it("captures the active list item together with its category overview", async () => {
-    const overview = file(
-      "file_factions:overview",
-      "long/worldbuilding/factions/overview.md"
-    );
-    const item = file(
-      "file_faction_watch:content",
-      "long/worldbuilding/factions/items/watch.md"
-    );
-    const selection: LongWorkspaceSelection = {
-      key: "worldbuilding:factions",
-      root: "worldbuilding",
-      title: "势力",
-      breadcrumbs: ["雾港", "世界观", "势力"],
-      worldbuildingFormat: "list",
-      worldbuildingItems: [
-        { id: "faction_watch", title: "守夜人", order: 1, file: item }
-      ],
-      files: [
-        { role: "overview", label: "概览", file: overview },
-        { role: "content", label: "守夜人", file: item }
-      ],
-      preferredRole: "content",
-      description: "列表型世界设定。"
-    };
-    const readDocument = vi.fn(
-      async (input: LongReadDocumentInput): Promise<LongReadDocumentResult> =>
-        page(
-          input,
-          input.fileId === item.id
-            ? "守夜人负责维持雾港宵禁。"
-            : "势力围绕港务权和雾潮资源竞争。"
-        )
-    );
-
-    const result = await buildLongWorldbuildingFocusSnapshot({
-      bookId: "longbook_focus",
-      selection,
-      activeFileId: item.id,
-      readDocument
-    });
-
-    expect(result).toEqual({
+  it("captures an item id without loading its text or overview", () => {
+    expect(
+      buildLongWorldbuildingFocusSnapshot({
+        selection: selection(),
+        activeFileId: "file_watch"
+      })
+    ).toEqual({
+      categoryId: "world_1",
       categoryTitle: "势力",
       format: "list",
-      currentStage: {
-        kind: "item",
-        title: "守夜人",
-        text: { content: "守夜人负责维持雾港宵禁。" }
-      },
-      overview: { content: "势力围绕港务权和雾潮资源竞争。" }
+      currentStage: { kind: "item", itemId: "worlditem_watch", title: "守夜人" }
     });
-    expect(readDocument).toHaveBeenCalledTimes(2);
-    expect(
-      readDocument.mock.calls.map(([input]) => input.maxCharacters)
-    ).toEqual(expect.arrayContaining([12_000, 8_000]));
   });
 
-  it("captures only the active stage for a text category", async () => {
-    const contentFile = file(
-      "file_world_rules:content",
-      "long/worldbuilding/world_rules/content.md"
-    );
-    const selection: LongWorkspaceSelection = {
-      key: "worldbuilding:world_rules",
-      root: "worldbuilding",
-      title: "世界规则",
-      breadcrumbs: ["雾港", "世界观", "世界规则"],
-      worldbuildingFormat: "text",
-      files: [{ role: "content", label: "设定正文", file: contentFile }],
-      preferredRole: "content",
-      description: "文本型世界设定。"
-    };
-    const readDocument = vi.fn(
-      async (input: LongReadDocumentInput): Promise<LongReadDocumentResult> =>
-        page(input, "雾潮出现时，城内不得点燃蓝焰。")
-    );
-
-    const result = await buildLongWorldbuildingFocusSnapshot({
-      bookId: "longbook_focus",
-      selection,
-      activeFileId: contentFile.id,
-      readDocument
+  it("captures list overview and text category locations", () => {
+    const current = selection();
+    expect(
+      buildLongWorldbuildingFocusSnapshot({
+        selection: current,
+        activeFileId: "file_overview"
+      })
+    ).toMatchObject({
+      categoryId: "world_1",
+      currentStage: { kind: "overview", title: "概览" }
     });
-
-    expect(result).toEqual({
-      categoryTitle: "世界规则",
+    current.worldbuildingFormat = "text";
+    expect(
+      buildLongWorldbuildingFocusSnapshot({
+        selection: current,
+        activeFileId: "file_watch"
+      })
+    ).toEqual({
+      categoryId: "world_1",
+      categoryTitle: "势力",
       format: "text",
-      currentStage: {
-        kind: "text",
-        title: "世界规则",
-        text: { content: "雾潮出现时，城内不得点燃蓝焰。" }
-      }
+      currentStage: { kind: "text", title: "势力" }
     });
-    expect(result).not.toHaveProperty("overview");
-    expect(readDocument).toHaveBeenCalledTimes(1);
-    expect(readDocument).toHaveBeenCalledWith(
-      expect.objectContaining({ maxCharacters: 20_000 })
-    );
+  });
+
+  it("ignores a missing file or a non-category selection", () => {
+    expect(
+      buildLongWorldbuildingFocusSnapshot({
+        selection: selection(),
+        activeFileId: "file_missing"
+      })
+    ).toBeUndefined();
+    expect(
+      buildLongWorldbuildingFocusSnapshot({
+        selection: { ...selection(), key: "worldbuilding:reveals" },
+        activeFileId: "file_watch"
+      })
+    ).toBeUndefined();
   });
 });

@@ -19,6 +19,8 @@ const LAUNCH_WAIT_MS = 20_000;
 const LAUNCH_POLL_MS = 200;
 /** Answers before a client's own 60 second tool timeout hides the reason. */
 const CALL_TIMEOUT_MS = 50_000;
+/** An installer that never finishes must not keep the app closed for good. */
+const UPDATE_HOLD_MS = 10 * 60_000;
 
 interface BridgeConnectionOptions {
   readState(): Promise<ExternalControlStateFile | undefined>;
@@ -28,6 +30,7 @@ interface BridgeConnectionOptions {
   launchWaitMs?: number;
   launchPollMs?: number;
   callTimeoutMs?: number;
+  now?: () => number;
 }
 
 interface PendingCall {
@@ -56,6 +59,16 @@ function appUnavailable(detail?: string): ExternalControlError {
     "external.app_unavailable",
     `无法连接 DeepWrite${detail ? `（${detail}）` : ""}。请让用户手动打开软件后重试。`
   );
+}
+
+/** Reopening the app now would lock its files and undo the update. */
+export class AppUpdatingError extends ExternalControlError {
+  constructor() {
+    super(
+      "external.app_unavailable",
+      "DeepWrite 正在安装更新，暂时不能操作。请等待更新完成、用户重新打开 DeepWrite 后再试。"
+    );
+  }
 }
 
 function disabled(): ExternalControlError {
@@ -155,6 +168,7 @@ export function createBridgeConnection(options: BridgeConnectionOptions) {
   const launchWaitMs = options.launchWaitMs ?? LAUNCH_WAIT_MS;
   const launchPollMs = options.launchPollMs ?? LAUNCH_POLL_MS;
   const callTimeoutMs = options.callTimeoutMs ?? CALL_TIMEOUT_MS;
+  const now = options.now ?? Date.now;
   let session: Session | undefined;
   let opening: Promise<Session> | undefined;
 
@@ -164,6 +178,8 @@ export function createBridgeConnection(options: BridgeConnectionOptions) {
   ): Promise<Session | undefined> {
     if (!state || !isAlive(state.pid)) return undefined;
     if (state.status === "disabled") throw disabled();
+    // An expired update marker: the installer is gone, so start the app.
+    if (state.status === "updating") return undefined;
     let socket: Socket;
     try {
       socket = await openSocket(state.endpoint);
@@ -192,7 +208,13 @@ export function createBridgeConnection(options: BridgeConnectionOptions) {
   }
 
   async function open(): Promise<Session> {
-    const existing = await tryState(await options.readState());
+    const state = await options.readState();
+    if (
+      state?.status === "updating" &&
+      now() - Date.parse(state.startedAt) < UPDATE_HOLD_MS
+    )
+      throw new AppUpdatingError();
+    const existing = await tryState(state);
     if (existing) return existing;
 
     let launch: AppLaunch;

@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
 import { computed } from "vue";
+import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
+import AgentEditProposalDiff from "./AgentEditProposalDiff.vue";
+import {
+  canDisplayContentFileDiff,
+  contentFileTitle,
+  longContentFileDiffs
+} from "./longProposalPresentation";
 import AppIcon from "./AppIcon.vue";
 
 const t = createScopedTranslator("components.longLedgerFinalizationCard");
 const proposalText = createScopedTranslator("components.longProposalReview");
 
-const props = defineProps<{ item: LongWorkspaceProposalItem }>();
+const props = defineProps<{
+  item: LongWorkspaceProposalItem;
+  workspaceIndex?: LongWorkspaceIndexSnapshot | null | undefined;
+}>();
 
 const emit = defineEmits<{
   approve: [];
@@ -18,6 +28,19 @@ const event = computed(() =>
   props.item.event.type === "long.ledger_commit_proposal"
     ? props.item.event
     : null
+);
+const combined = computed(
+  () =>
+    event.value?.payload.input.mode === "text_files_batch" &&
+    Boolean(event.value.payload.input.preparation)
+);
+const manual = computed(
+  () => combined.value && props.item.approvalMode === "request-approval"
+);
+const fileDiffs = computed(() =>
+  combined.value && canDisplayContentFileDiff(props.item)
+    ? longContentFileDiffs(props.item)
+    : []
 );
 
 const batchInfo = computed(() => {
@@ -33,7 +56,11 @@ const batchInfo = computed(() => {
       : input.chapterCardId;
   return t("batchOfValueChaptersFinalChapterCheckpointValue", {
     arg0: chapterCardIds.length,
-    arg1: checkpointChapterCardId
+    arg1: combined.value
+      ? (props.workspaceIndex?.plot.chapterCards.find(
+          ({ id }) => id === checkpointChapterCardId
+        )?.title ?? checkpointChapterCardId)
+      : checkpointChapterCardId
   });
 });
 
@@ -52,7 +79,7 @@ const statusLabel = computed(() => {
     case "previewing":
       return t("validating");
     case "ready":
-      return t("awaitingArchive");
+      return t(manual.value ? "awaitingReview" : "awaitingArchive");
     default:
       return t("awaitingArchive");
   }
@@ -62,32 +89,49 @@ const statusMessage = computed(() => {
   if (props.item.status === "error") {
     return (
       props.item.error ??
-      t("continuityLedgerArchivalFailedTheCurrentFilesRemainSaved")
+      t(
+        combined.value
+          ? "combinedSaveFailed"
+          : "continuityLedgerArchivalFailedTheCurrentFilesRemainSaved"
+      )
     );
   }
   if (props.item.status === "waiting") {
-    return props.item.blockedByError
+    return props.item.blockedByError || combined.value
       ? proposalText("waitingForPrecedingFileOperationsToFinishBeforeResuming")
       : t("theFullChapterBatchWillBeArchivedAfterAll");
   }
   if (props.item.status === "submitting") {
-    return t("validatingBatchManuscriptsHistoricalLedgersAndFinalChapterFiles");
+    return t(
+      combined.value
+        ? "savingFilesAndLedger"
+        : "validatingBatchManuscriptsHistoricalLedgersAndFinalChapterFiles"
+    );
   }
   if (props.item.status === "accepted") {
     return t("theChapterBatchSharesOneContinuityRecordSavedIn");
   }
-  return t("waitingToArchiveTheContinuityLedger");
+  return t(
+    combined.value
+      ? "reviewFilesAndLedger"
+      : "waitingToArchiveTheContinuityLedger"
+  );
 });
 </script>
 
 <template>
-  <section class="ledger-finalization-card" :class="`is-${item.status}`">
+  <section
+    class="ledger-finalization-card"
+    :class="[`is-${item.status}`, { 'is-combined': combined }]"
+  >
     <header>
       <span class="ledger-finalization-icon" aria-hidden="true">
         <AppIcon name="wand" :size="16" />
       </span>
       <div>
-        <strong>{{ t("continuityLedgerArchive") }}</strong>
+        <strong>{{
+          t(combined ? "continuityCommit" : "continuityLedgerArchive")
+        }}</strong>
         <small>{{ batchInfo }}</small>
       </div>
       <span class="ledger-finalization-status">{{ statusLabel }}</span>
@@ -98,19 +142,52 @@ const statusMessage = computed(() => {
     </p>
     <p class="ledger-finalization-message">{{ statusMessage }}</p>
 
-    <footer v-if="item.status === 'error'">
-      <button type="button" class="is-secondary" @click="emit('reject')">
+    <section
+      v-for="card in fileDiffs"
+      :key="card.file.fileId"
+      class="ledger-file-diff"
+    >
+      <strong>{{ contentFileTitle(item, card.file, workspaceIndex) }}</strong>
+      <AgentEditProposalDiff
+        :proposal="{
+          id: `${item.event.id}:${card.file.fileId}`,
+          hunks: card.diff.hunks,
+          truncated: card.diff.truncated
+        }"
+      />
+    </section>
+
+    <footer
+      v-if="item.status === 'error' || (manual && item.status !== 'accepted')"
+    >
+      <button
+        type="button"
+        class="is-secondary"
+        :disabled="item.status === 'submitting'"
+        @click="emit('reject')"
+      >
         {{
-          item.errorRetryable === false ? t("closeAndKeepFiles") : t("close")
+          combined
+            ? proposalText("reject")
+            : item.errorRetryable === false
+              ? t("closeAndKeepFiles")
+              : t("close")
         }}
       </button>
       <button
         v-if="item.errorRetryable !== false"
         type="button"
         class="is-primary"
+        :disabled="item.status !== 'ready' && item.status !== 'error'"
         @click="emit('approve')"
       >
-        {{ t("retryArchive") }}
+        {{
+          item.status === "error"
+            ? t("retryArchive")
+            : item.status === "submitting"
+              ? t("archiving")
+              : proposalText("acceptAndSave")
+        }}
       </button>
     </footer>
   </section>
@@ -141,6 +218,8 @@ header {
 header > div {
   display: grid;
   gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 header small,
@@ -185,6 +264,23 @@ footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ledger-file-diff {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.is-combined button.is-primary {
+  min-width: 8em;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 button {

@@ -71,6 +71,20 @@ export function draftScopeLines(
   unknownScope(scopeId);
 }
 
+function continuityStatus(
+  index: LongWorkspaceIndexSnapshot,
+  commitId: string | null | undefined
+): string {
+  if (!commitId) return "未提交";
+  const commit = index.ledger.commits.find((c) => c.id === commitId);
+  const state = !commit?.bodyEvidence
+    ? "正文版本未核验"
+    : commit.changedChapterIds?.length
+      ? "正文已变更，待复核"
+      : "正文版本一致";
+  return `已提交；${state}；账本 ${commitId}`;
+}
+
 function chapterContinuityLine(
   index: LongWorkspaceIndexSnapshot,
   chapter: LongWorkspaceIndexSnapshot["plot"]["chapterCards"][number]
@@ -78,7 +92,7 @@ function chapterContinuityLine(
   const files = index.chapters.find(
     ({ chapterCardId }) => chapterCardId === chapter.id
   );
-  return `- ${chapter.id} ${chapter.title}（正文：${bodyStatusLabel(files?.bodyStatus ?? "empty")}；连续记录：${files?.commitId ? "已提交" : "未提交"}）`;
+  return `- ${chapter.id} ${chapter.title}（正文：${bodyStatusLabel(files?.bodyStatus ?? "empty")}；连续记录：${continuityStatus(index, files?.commitId)}）`;
 }
 
 function chapterContinuityScopeLines(
@@ -104,9 +118,12 @@ function chapterContinuityScopeLines(
   );
   return [
     listScopeHeader("continuity", chapter.title, chapter.id),
-    `状态：正文 ${bodyStatusLabel(files.bodyStatus)}；连续记录 ${files.commitId ? "已提交" : "未提交"}。`,
+    `状态：正文 ${bodyStatusLabel(files.bodyStatus)}；连续记录 ${continuityStatus(index, files.commitId)}。`,
     countLine(documents.length, "份章节连续性文档"),
-    ...documents.map((document) => `- ${document}`),
+    ...documents.map(
+      (document) =>
+        `- ${document}；read(id="${chapter.id}", document="${document.split(" ")[0]}")`
+    ),
     countLine(files.characterContinuity.length, "名连续性人物"),
     ...files.characterContinuity.map(
       ({ characterId }) =>
@@ -125,6 +142,34 @@ export function continuityScopeLines(
   index: LongWorkspaceIndexSnapshot,
   scopeId: string
 ): string[] {
+  if (scopeId === "book_line") {
+    const commits = index.ledger.commits;
+    return [
+      "全书连续性概览（book_line）",
+      `当前连续记录位置：${index.ledger.committedThroughChapterId ?? "无"}`,
+      `账本批次：${commits.length}；待复核：${commits.filter((c) => c.changedChapterIds?.length).length}；未核验：${commits.filter((c) => !c.bodyEvidence).length}`,
+      ...[...index.plot.volumes]
+        .sort((a, b) => a.order - b.order)
+        .flatMap((volume) => {
+          const chapters = orderedLongChapterCards(index).filter(
+            (c) => c.volumeId === volume.id
+          );
+          const recorded = chapters.filter((c) =>
+            index.chapters.some((f) => f.chapterCardId === c.id && f.commitId)
+          );
+          return [
+            `- ${volume.id} ${volume.title}：已记账 ${recorded.length}/${chapters.length}，本卷最后记账章 ${recorded.at(-1)?.id ?? "无"}`,
+            `下一步：list(scope_id="${volume.id}", view="continuity")`
+          ];
+        }),
+      ...commits
+        .filter((c) => !c.bodyEvidence || c.changedChapterIds?.length)
+        .map(
+          (c) =>
+            `- ${c.id}：${c.changedChapterIds?.length ? "待复核" : "未核验"}；下一步：list(scope_id="${c.chapterCardId}", view="continuity")`
+        )
+    ];
+  }
   const volume = index.plot.volumes.find(({ id }) => id === scopeId);
   if (volume) {
     const chapters = orderedLongChapterCards(index).filter(

@@ -12,6 +12,7 @@ import type {
 import type { Api, Model, FauxResponseStep } from "@earendil-works/pi-ai";
 import type {
   AgentRuntimeRef,
+  PromptLocale,
   AgentUsage,
   AgentUsageObservationStatus,
   AgentProviderRuntimeConfig,
@@ -192,6 +193,7 @@ export function isSubagentToolProgressDetails(
 }
 
 export interface BuildSpawnSubagentToolInput {
+  promptLocale?: PromptLocale | undefined;
   parentSessionId: string;
   /** Parent run lifetime, independent of the SDK's individual tool invocation. */
   parentSignal?: AbortSignal;
@@ -203,9 +205,11 @@ export interface BuildSpawnSubagentToolInput {
   definitions: readonly RuntimeSubagentDefinition[];
   getParentMessages?: () => readonly AgentMessage[];
   /** Runtime-owned requirements; factories resolve the live view at child startup. */
-  systemPromptRequirements?: string | (() => string);
+  systemPromptRequirements?:
+    string | ((toolNames?: readonly string[]) => string | Promise<string>);
   /** Read-only variant, also resolved at child startup, without any write rules. */
-  pureReadSystemPromptRequirements?: string | (() => string);
+  pureReadSystemPromptRequirements?:
+    string | ((toolNames?: readonly string[]) => string | Promise<string>);
   /** Material directory for ordinary team members, never library managers. */
   materialContext?: string;
   /**
@@ -229,7 +233,9 @@ export interface BuildSpawnSubagentToolInput {
     thinkingLevel: PiThinkingLevel;
   };
   buildChildTools: (
-    onContextCompacted?: (listener: () => void) => void
+    onContextCompacted?: (
+      listener: (removedToolCallIds?: readonly string[]) => void
+    ) => void
   ) => AgentTool[];
   /** Whether the main agent has search; members in `inherit` mode follow it. */
   mainWebSearch?: boolean;

@@ -1,0 +1,362 @@
+{
+  "baseline": "7cef1f92",
+  "runtime": {
+    "node": "24.17.0",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.2",
+    "merve": "1.2.2",
+    "modules": "146",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.1",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.0",
+    "tz": "2025c",
+    "undici": "7.28.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "14.8.178.33-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "42.5.0",
+    "chrome": "148.0.7778.271"
+  },
+  "checks": {
+    "actualVueComponents": true,
+    "actualAppAlertStore": true,
+    "actualMainIpcAndPreload": true,
+    "restartedStoreOffline": true,
+    "distinctLocalAnnouncements": 18,
+    "historySwitchWithoutRequests": true,
+    "escapeClose": true,
+    "offlineReopen": true,
+    "emptyHistory": true,
+    "historySwitchRequestCounts": {
+      "before": 20,
+      "after": 20
+    }
+  },
+  "samples": [
+    {
+      "name": "before-light-1200x900-14",
+      "mode": "before",
+      "width": 1200,
+      "height": 900,
+      "fontSize": "14px",
+      "theme": "light",
+      "dialog": {
+        "left": 320,
+        "right": 880,
+        "top": 230.1875,
+        "bottom": 669.8125
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 0,
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": null,
+      "content": {
+        "client": 282,
+        "scroll": 282,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "before-dark-1200x900-14",
+      "mode": "before",
+      "width": 1200,
+      "height": 900,
+      "fontSize": "14px",
+      "theme": "dark",
+      "dialog": {
+        "left": 320,
+        "right": 880,
+        "top": 230.1875,
+        "bottom": 669.8125
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 0,
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": null,
+      "content": {
+        "client": 282,
+        "scroll": 282,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "before-light-1000x680-24",
+      "mode": "before",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "light",
+      "dialog": {
+        "left": 220,
+        "right": 780,
+        "top": 73.1171875,
+        "bottom": 606.875
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 0,
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": null,
+      "content": {
+        "client": 347,
+        "scroll": 347,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "before-dark-1000x680-24",
+      "mode": "before",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "dark",
+      "dialog": {
+        "left": 220,
+        "right": 780,
+        "top": 73.1171875,
+        "bottom": 606.875
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 0,
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": null,
+      "content": {
+        "client": 347,
+        "scroll": 347,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-light-1200x900-14",
+      "mode": "after",
+      "width": 1200,
+      "height": 900,
+      "fontSize": "14px",
+      "theme": "light",
+      "dialog": {
+        "left": 170,
+        "right": 1030,
+        "top": 130,
+        "bottom": 770
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-14T10:30:00.000Z",
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 482,
+        "scroll": 1245,
+        "top": 0
+      },
+      "content": {
+        "client": 482,
+        "scroll": 482,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-dark-1200x900-14",
+      "mode": "after",
+      "width": 1200,
+      "height": 900,
+      "fontSize": "14px",
+      "theme": "dark",
+      "dialog": {
+        "left": 170,
+        "right": 1030,
+        "top": 130,
+        "bottom": 770
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-14T10:30:00.000Z",
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 482,
+        "scroll": 1245,
+        "top": 0
+      },
+      "content": {
+        "client": 482,
+        "scroll": 482,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-light-1000x680-24",
+      "mode": "after",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "light",
+      "dialog": {
+        "left": 70,
+        "right": 930,
+        "top": 30,
+        "bottom": 650
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-14T10:30:00.000Z",
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 434,
+        "scroll": 1630,
+        "top": 0
+      },
+      "content": {
+        "client": 434,
+        "scroll": 435,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-dark-1000x680-24",
+      "mode": "after",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "dark",
+      "dialog": {
+        "left": 70,
+        "right": 930,
+        "top": 30,
+        "bottom": 650
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-14T10:30:00.000Z",
+      "lead": "第 18 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 434,
+        "scroll": 1630,
+        "top": 0
+      },
+      "content": {
+        "client": 434,
+        "scroll": 435,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-dark-1000x680-24-history-long",
+      "mode": "after",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "dark",
+      "dialog": {
+        "left": 70,
+        "right": 930,
+        "top": 30,
+        "bottom": 650
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-13T10:30:00.000Z",
+      "lead": "第 17 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 434,
+        "scroll": 1630,
+        "top": 0
+      },
+      "content": {
+        "client": 434,
+        "scroll": 12712,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-dark-1000x680-24-history-scrolled",
+      "mode": "after",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "dark",
+      "dialog": {
+        "left": 70,
+        "right": 930,
+        "top": 30,
+        "bottom": 650
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 18,
+      "selected": "2026-11-13T10:30:00.000Z",
+      "lead": "第 17 次公告 · 创作体验更新",
+      "sidebar": {
+        "client": 434,
+        "scroll": 1630,
+        "top": 1196.5
+      },
+      "content": {
+        "client": 434,
+        "scroll": 12712,
+        "top": 12278
+      },
+      "focused": "dialog-primary-button"
+    },
+    {
+      "name": "after-dark-1000x680-24-empty",
+      "mode": "after",
+      "width": 1000,
+      "height": 680,
+      "fontSize": "24px",
+      "theme": "dark",
+      "dialog": {
+        "left": 70,
+        "right": 930,
+        "top": 183.2734375,
+        "bottom": 496.71875
+      },
+      "horizontalOverflow": false,
+      "footerVisible": true,
+      "historyCount": 0,
+      "sidebar": {
+        "client": 127,
+        "scroll": 127,
+        "top": 0
+      },
+      "content": {
+        "client": 127,
+        "scroll": 127,
+        "top": 0
+      },
+      "focused": "dialog-primary-button"
+    }
+  ],
+  "consoleErrors": []
+}

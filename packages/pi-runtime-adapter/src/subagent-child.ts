@@ -157,7 +157,9 @@ export async function runSubagentTask(
     `子智能体「${definition.name}」已开始执行。`
   );
 
-  const compactionListeners = new Set<() => void>();
+  const compactionListeners = new Set<
+    (removedToolCallIds?: readonly string[]) => void
+  >();
   let childContextPolicy = subagentContextPolicyForMode(
     input.contextPolicy,
     mode
@@ -249,11 +251,25 @@ export async function runSubagentTask(
         systemPrompt: buildSubagentSystemPrompt(
           childDefinition,
           childTools,
-          prepared ? undefined : subagentModeSystemRequirements(input, mode),
+          prepared
+            ? undefined
+            : await waitForSubagentPreparation(
+                subagentModeSystemRequirements(
+                  input,
+                  mode,
+                  childTools.map((tool) => tool.name)
+                ),
+                signal
+              ),
           // A pure child states its mode; a parallel standard child states
           // that others may be changing the work at the same time.
-          subagentModeNote(mode) ??
-            (sharesWorkspace ? subagentParallelNote() : undefined)
+          subagentModeNote(mode, input.promptLocale === "en-US") ??
+            (sharesWorkspace
+              ? input.promptLocale === "en-US"
+                ? "Other agents can edit this work concurrently. Check current targets and avoid overwriting their changes."
+                : subagentParallelNote()
+              : undefined),
+          input.promptLocale
         ),
         model: childModel,
         thinkingLevel: childThinkingLevel,
@@ -304,8 +320,8 @@ export async function runSubagentTask(
     base.runtime!,
     emitProgress,
     signal,
-    () => {
-      for (const listener of compactionListeners) listener();
+    (ids) => {
+      for (const listener of compactionListeners) listener(ids);
     }
   );
 }

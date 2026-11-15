@@ -294,6 +294,7 @@ export const ScriptWorkspaceSnapshotSchema = z
     activeStageId: ScriptWorkspaceStageIdSchema,
     activeAgentId: ScriptWorkspaceSnapshotAgentIdSchema.optional(),
     activeSectionId: z.string().trim().min(1).max(120).optional(),
+    readSource: z.literal("core").optional(),
     agentsMd: z.string().max(WRITING_CONTEXT_MAX_CHARACTERS).optional(),
     plotStages: CreativePlotStagesSchema,
     characterStructure: ScriptCharacterStructureSnapshotSchema.default({

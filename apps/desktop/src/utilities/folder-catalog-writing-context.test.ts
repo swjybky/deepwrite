@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  WritingIndexSchema,
+  WritingFileSchema,
+  createShortWorkspaceContentRevision,
   DEFAULT_SCRIPT_WRITING_CONTEXT,
   DEFAULT_SHORT_WRITING_CONTEXT,
   WRITING_CONTEXT_MAX_CHARACTERS
@@ -24,6 +27,81 @@ afterEach(async () => {
 });
 
 describe("FolderCatalogStore writing context", () => {
+  it.each(["short", "script"] as const)(
+    "reads only the registered %s work and its latest saved State file",
+    async (bookType) => {
+      const root = await temporaryRoot();
+      const store = new FolderCatalogStore({
+        userDataPath: join(root, "user-data")
+      });
+      const book = await (bookType === "short"
+        ? store.createShortBook(
+            { title: "测试", genre: "其他" },
+            join(root, "books")
+          )
+        : store.createScriptBook(
+            { title: "测试", genre: "其他" },
+            join(root, "books")
+          ));
+      const scope = { bookType, bookId: book.resource.id };
+      const read = (query: import("@deepwrite/contracts").WritingReadQuery) =>
+        store.readWritingWorkspace({ ...scope, query }, "run-test");
+      const index = WritingIndexSchema.parse(await read({ mode: "index" }));
+      const documentId = index.sections[0]!.characterState.id;
+      const disabledStage = book.resource.plotStages.find(
+        (stage) => !stage.enabled
+      )!;
+      await expect(
+        read({ mode: "file", documentId: disabledStage.id })
+      ).rejects.toThrow();
+      expect(
+        index.plotStages.some((stage) => stage.id === disabledStage.id)
+      ).toBe(false);
+      await expect(
+        read({ mode: "file", documentId: "../other.md" })
+      ).rejects.toThrow();
+      await expect(
+        store.readWritingWorkspace(
+          {
+            ...scope,
+            bookType: bookType === "short" ? "script" : "short",
+            query: { mode: "index" }
+          },
+          "run-test"
+        )
+      ).rejects.toThrow();
+      const before = WritingFileSchema.parse(
+        await read({ mode: "file", documentId })
+      );
+      await store.saveDocument({
+        bookId: scope.bookId,
+        documentId,
+        content: "情感 转变",
+        baseRevision: before.revision,
+        baseProjectRevision: 0
+      });
+      const slice = WritingFileSchema.parse(
+        await read({ mode: "file", documentId, offset: 3, limit: 2 })
+      );
+      expect(slice).toMatchObject({
+        content: "转变",
+        length: 5,
+        characters: 4,
+        revision: createShortWorkspaceContentRevision("情感 转变")
+      });
+      const directory = WritingIndexSchema.parse(
+        await read({ mode: "index", counts: "draft" })
+      );
+      expect(directory.counts).toContainEqual({
+        id: documentId,
+        length: 5,
+        characters: 4,
+        revision: slice.revision
+      });
+      expect(JSON.stringify(directory)).not.toContain("情感 转变");
+    }
+  );
+
   it("initializes distinct AGENTS.md defaults for new short and script books", async () => {
     const root = await temporaryRoot();
     const store = new FolderCatalogStore({

@@ -1,16 +1,13 @@
 import {
   LIBRARY_MANAGEMENT_INVOCATION_POLICY,
   MATERIAL_METADATA_AUTHORING_GUIDANCE,
-  DEFAULT_LIBRARY_AGENT_PROFILES,
-  LibraryAgentWorkspaceSnapshotSchema,
-  createShortWorkspaceContentRevision,
-  CommandEnvelopeSchema,
-  LibraryManagementQueryResultSchema,
-  createEnvelope,
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
-import { buildIndexedLibraryTools } from "./library-agent-tools/domain-tools";
+import { buildLibraryOrganizeTool } from "./library-management-tools/organize-tool";
+import { buildLibraryReadTools } from "./library-management-tools/read-tools";
+import { LibraryManagementSession } from "./library-management-tools/session";
+import { buildLibraryWriteTool } from "./library-management-tools/write-tool";
 import type { AgentRunInput } from "./runtime-types";
 
 export type LibraryManagementCommandExecutor = (
@@ -18,113 +15,45 @@ export type LibraryManagementCommandExecutor = (
   signal?: AbortSignal
 ) => Promise<CommandResult>;
 
+const DOMAIN_NAME = { material: "素材库", skill: "技能库" } as const;
+
 export function libraryManagementParentPrompt(input: AgentRunInput): string {
   const context = input.libraryManagement;
   if (!context?.managers.length) return "";
+  const domains = new Set(context.managers.map((manager) => manager.domain));
+  const libraries = context.libraries.filter((library) =>
+    domains.has(library.domain)
+  );
   return [
     "【内置资料库管理工具】",
     LIBRARY_MANAGEMENT_INVOCATION_POLICY,
     ...context.managers.map(
-      (manager) =>
-        `${manager.domain} 管理工具：${manager.description} 工具名前缀 manage_${manager.domain}_；必须用 library_id 指定目标库。`
+      (manager) => `${DOMAIN_NAME[manager.domain]}管理：${manager.description}`
     ),
-    "管理范围是整本作品绑定的资料库；目标不明确时先用 ask_user_question 询问。只读库不能写入，未绑定的库不可管理。",
-    ...(context.managers.some((manager) => manager.domain === "material")
-      ? [MATERIAL_METADATA_AUTHORING_GUIDANCE]
-      : []),
-    "已绑定的候选库：",
-    ...context.libraries
-      .filter((library) =>
-        context.managers.some((manager) => manager.domain === library.domain)
-      )
-      .map(
-        (library) =>
-          `- ${library.domain} / ${library.libraryId}：${library.title}${library.readOnly ? "（只读）" : ""}`
-      ),
-    ...(context.libraries.length
-      ? []
+    "工具：library_list 看已绑定库与目录，library_read 读全文（一次最多 10 条），library_search 跨库搜索，library_write 批量新建或修改条目与库介绍，library_organize 复制、移动、删除或恢复条目。读写与整理用 library_id 指定库，列表和搜索可以省略 library_id。只读库可以作为复制来源，写入目标须可写。",
+    "一次要记录或修改多条时，放进同一个 library_write 调用；新建后还要修改，直接在 create 里给出最终正文。",
+    ...(domains.has("material") ? [MATERIAL_METADATA_AUTHORING_GUIDANCE] : []),
+    ...(libraries.length
+      ? [
+          "已绑定的候选库：",
+          ...libraries.map(
+            (library) =>
+              `- ${DOMAIN_NAME[library.domain]} / ${library.libraryId}：${library.title}${library.readOnly ? "（只读）" : ""}`
+          )
+        ]
       : ["当前没有已绑定的资料库，请告知用户先绑定目标库。"])
   ].join("\n");
 }
 
 export function createLibraryManagementRuntime(input: AgentRunInput) {
-  const context = input.libraryManagement;
-  const tools = (context?.managers ?? []).flatMap((manager) => {
-    const index = context!.libraries.filter(
-      (library) => library.domain === manager.domain
-    );
-    // A manifest snapshot only; the selected library is always fetched through the authorized bridge.
-    const workspace = LibraryAgentWorkspaceSnapshotSchema.parse({
-      domain: manager.domain,
-      libraryId: index[0]?.libraryId ?? "unbound",
-      title: index[0]?.title ?? "未绑定",
-      kind: manager.domain === "skill" ? "general" : "mixed",
-      readOnly: false,
-      libraryType: context!.scope.bookType,
-      overviewDocumentId: "manifest-overview",
-      overviewRevision: createShortWorkspaceContentRevision(""),
-      overview: "",
-      entries: []
-    });
-    const profile = DEFAULT_LIBRARY_AGENT_PROFILES.find(
-      (profile) => profile.domain === manager.domain
-    )!;
-    return buildIndexedLibraryTools(
-      {
-        workspace,
-        profile,
-        writeApprovalMode: input.writeApprovalMode ?? "request-approval"
-      },
-      {
-        index,
-        preload: false,
-        requireLibraryId: true,
-        load: async (libraryId, signal) => {
-          if (!input.libraryManagementCommandExecutor)
-            throw new Error("资料库管理通道不可用。");
-          const command = CommandEnvelopeSchema.parse(
-            createEnvelope(
-              "catalog.queryLibraryManagement",
-              { scope: context!.scope, domain: manager.domain, libraryId },
-              {
-                id: `library-management:${input.runId}:${libraryId}`,
-                context: {
-                  sessionId: input.sessionId,
-                  runId: input.runId,
-                  resourceId: context!.scope.bookId
-                }
-              }
-            )
-          ) as Parameters<LibraryManagementCommandExecutor>[0];
-          const result = await input.libraryManagementCommandExecutor(
-            command,
-            signal
-          );
-          if (result.status !== "accepted")
-            throw new Error(result.error.message);
-          const snapshot = LibraryManagementQueryResultSchema.parse(
-            result.payload
-          ).workspace;
-          if (!snapshot) throw new Error("目标资料库不可用。");
-          const candidate = index.find(
-            (library) => library.libraryId === libraryId
-          )!;
-          return {
-            ...snapshot,
-            readOnly: candidate.readOnly || snapshot.readOnly
-          };
-        }
-      }
-    )
-      .filter((tool) => tool.name !== "load_skill")
-      .map((tool) => ({
-        ...tool,
-        name: `manage_${manager.domain}_${tool.name}`,
-        description: tool.description.replace(
-          /\b(?:list|read|search|create|edit)_(?:material|skill)_(?:entries|entry|library_overview)\b/g,
-          (name) => `manage_${manager.domain}_${name}`
-        )
-      }));
-  });
-  return { tools };
+  if (!input.libraryManagement?.managers.length) return { tools: [] };
+  const session = new LibraryManagementSession(input);
+  return {
+    reset: () => session.reset(),
+    tools: [
+      ...buildLibraryReadTools(session),
+      buildLibraryWriteTool(session),
+      buildLibraryOrganizeTool(session)
+    ]
+  };
 }

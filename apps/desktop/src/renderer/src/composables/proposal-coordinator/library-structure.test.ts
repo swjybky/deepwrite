@@ -82,4 +82,42 @@ describe("library structure proposal acceptance", () => {
       expect.objectContaining({ status: "error", statusMessage: "版本已更新" })
     );
   });
+  it.each([
+    [
+      [{ action: "delete-entries", libraryId: "library", entryIds: ["a"] }],
+      "整理已保存；删除的条目及其正文文件无法恢复。"
+    ],
+    [
+      [{ action: "archive-entries", libraryId: "library", entryIds: ["a"] }],
+      "整理已保存；删除的条目已保留本地备份，可使用删除提案中的恢复标识恢复。"
+    ],
+    [
+      [
+        {
+          action: "reorder-entry",
+          libraryId: "library",
+          id: "a",
+          anchorId: "b",
+          position: "after"
+        }
+      ],
+      "整理已保存。"
+    ]
+  ])(
+    "says whether removed entries can be restored",
+    async (operations, message) => {
+      const h = harness();
+      h.proposal.libraryStructureTarget!.operations = operations as never;
+      await acceptLibraryStructureProposal(
+        h.context,
+        h.conversation,
+        h.proposal
+      );
+      expect(h.update).toHaveBeenLastCalledWith(
+        "run",
+        "proposal",
+        expect.objectContaining({ status: "accepted", statusMessage: message })
+      );
+    }
+  );
 });

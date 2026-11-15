@@ -105,5 +105,8 @@ export default {
   startupAppearance: "读取外观设置",
   startupSettings: "读取常规设置",
   startupUtilities: "启动后台服务",
-  startupWindow: "加载主界面"
+  startupWindow: "加载主界面",
+  updateFilesInUse: "仍有程序在使用 DeepWrite",
+  installAnyway: "仍然安装",
+  updateNotInstalled: "更新没有安装成功"
 };

@@ -65,7 +65,7 @@ describe("script workspace tool regression", () => {
     );
     expect(
       draftTools.find(({ name }) => name === "edit")?.description
-    ).toContain("剧本正文必须遵守");
+    ).not.toContain("剧本正文必须遵守");
     expect(draftTools.map(({ name }) => name)).not.toContain(
       "delete_draft_section"
     );
@@ -74,7 +74,7 @@ describe("script workspace tool regression", () => {
     );
   });
 
-  it("uses script-aware deletion semantics for all three writing phases", async () => {
+  it("deletes episodes with script wording and refuses to clear text", async () => {
     const workspace = screenplayWorkspace();
     const characterStage = workspace.stages.find(
       ({ stageId }) => stageId === "character_design"
@@ -101,7 +101,7 @@ describe("script workspace tool regression", () => {
       },
       characterState: {
         documentId: "draft:episode-2:state",
-        title: "第二集 · 人物状态",
+        title: "第二集 · 状态",
         content: "主角抵达码头。",
         revision: createShortWorkspaceContentRevision("主角抵达码头。")
       }
@@ -110,35 +110,20 @@ describe("script workspace tool regression", () => {
     const tools = buildScriptWorkspaceTools({
       workspace,
       profile: scriptAgentProfile(),
-      sharedState,
-      autoApproveCrossStageOperations: true
+      sharedState
     });
     const remove = toolByName(tools, "delete");
 
-    expect(
-      (
-        await remove.execute("clear-script-characters", {
-          kind: "character_overview",
-          id: "character_design"
-        })
-      ).details
-    ).toMatchObject({
-      kind: "workspace-editor-mutation",
-      stageId: "character_design",
-      text: ""
-    });
-    expect(
-      (
-        await remove.execute("clear-script-plot", {
-          kind: "plot_stage",
-          id: "plot_design"
-        })
-      ).details
-    ).toMatchObject({
-      kind: "workspace-editor-mutation",
-      stageId: "plot_design",
-      text: ""
-    });
+    for (const target of [
+      { kind: "character_overview", id: "character_design" },
+      { kind: "plot_stage", id: "plot_design" }
+    ]) {
+      const refused = await remove.execute("clear-with-delete", target);
+      expect(resultText(refused)).toContain(
+        "未修改：delete 只删除人物条目和剧集"
+      );
+      expect(refused.details).toEqual({ kind: "none" });
+    }
     const deletedEpisode = await remove.execute("delete-script-episode", {
       kind: "draft_section",
       id: "episode-2"

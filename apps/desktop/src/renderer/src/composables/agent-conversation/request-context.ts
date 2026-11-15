@@ -26,14 +26,14 @@ export function preparePromptContext(
   const activeDocument = sourceDocument
     ? { ...sourceDocument, path: [...sourceDocument.path] }
     : null;
-  const originalLength = activeDocument?.content.length ?? 0;
-  const snapshotContent =
-    activeDocument &&
+  const creative =
+    activeDocument?.domain === "creation" &&
     (activeDocument.workspaceType === "short" ||
-      activeDocument.workspaceType === "script") &&
-    activeDocument.stageId === "draft"
-      ? activeDocument.content
-      : (activeDocument?.content.slice(0, 20000) ?? "");
+      activeDocument.workspaceType === "script");
+  const originalLength = creative ? 0 : (activeDocument?.content.length ?? 0);
+  const snapshotContent = creative
+    ? ""
+    : (activeDocument?.content.slice(0, 20000) ?? "");
   // Chat agents get their context from Main, never from the editor.
   const contextSnapshot: WorkspaceRuntimeContext | undefined = chat
     ? undefined

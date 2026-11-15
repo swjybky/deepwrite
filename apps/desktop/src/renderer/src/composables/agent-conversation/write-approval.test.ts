@@ -116,9 +116,15 @@ describe("write approval watcher", () => {
           status: "saved",
           detail: "用户修改了你的版本后再保存，以作品中的内容为准。",
           edited: true,
-          editedText: "我的版本"
+          editedText: "我的版本",
+          toolCallIds: ["call_1"]
         },
-        { title: "文档b", summary: "改写", status: "rejected" }
+        {
+          title: "文档b",
+          summary: "改写",
+          status: "rejected",
+          toolCallIds: ["call_2"]
+        }
       ]
     });
     watcher.stop();

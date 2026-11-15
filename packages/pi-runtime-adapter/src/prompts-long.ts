@@ -3,27 +3,14 @@ import type { LongWorkspaceRuntimeContext } from "@deepwrite/contracts";
 import {
   renderLongCharacterDirectory,
   renderLongCharacterTypeDirectory,
-  renderLongCurrentStageSection,
   renderLongWorldbuildingDirectory,
   renderLongWorldbuildingScopeDirectory
 } from "./prompts-long-directory";
-import {
-  renderLongPlotFocus,
-  renderLongPlotNavigation
-} from "./prompts-long-navigation";
+import { renderLongPlotNavigation } from "./prompts-long-navigation";
+
+import { renderLongCurrentPosition } from "./prompts-long-position";
 
 export { buildLongRuntimeToolBoundary } from "./prompts-long-rules";
-
-function renderLongListScopeGuide(): string {
-  return [
-    "【list 范围规则】",
-    "list 必须同时提供 stage 与 scope_id，只返回该范围的二层目录，不能查询阶段最上层。",
-    "合法容器：worldbuilding=分类 id；character=人物类型 id；plot=book_line / volume_ / arc_ / chapter_ / event_ / foreshadow_；draft=volume_ / arc_；continuity=volume_ / chapter_ / character_。",
-    "叶子不要 list，直接 read：worlditem_、storyplot_、connection_、placement_、beat_、character_overview；人物卡与章卡正文也用 read。上一次 list 返回的 id 不都是合法 scope_id。",
-    "连续性不要传 arc_ 或 book_line；查看某章连续性用 list(stage=continuity, scope_id=<chapter_id>)。",
-    "切换章卡的主剧情点用 edit(id=<chapter_id>, meta={primary_arc_id:<同卷 arc_id>}, summary=<说明>)；解除关联传 primary_arc_id:null。仅修改章卡信息可省略 document，换绑保持章节顺序，形成带关联影响预览的提案。"
-  ].join("\n");
-}
 
 /** Fixed-context block injected on the first turn of a long-form run. */
 export function buildLongFixedContextLines(
@@ -45,18 +32,7 @@ export function buildLongFixedContextLines(
       longWorkspace.navigation,
       longWorkspace.activeChapterCardId
     )}`,
-    renderLongListScopeGuide(),
-    longWorkspace.plotFocus
-      ? `当前剧情工作区: ${renderLongPlotFocus(longWorkspace.plotFocus)}`
-      : "",
-    renderLongCurrentStageSection(
-      longWorkspace.worldbuildingFocus,
-      longWorkspace.characterFocus,
-      longWorkspace
-    ),
-    longWorkspace.activeChapterCardId
-      ? `当前章卡: ${longWorkspace.activeChapterCardId}`
-      : ""
+    renderLongCurrentPosition(longWorkspace)
   ];
 }
 
@@ -79,16 +55,10 @@ export function buildLongFollowUpContextLines(
     `【人物类型入口（本轮发送时快照）】\n${renderLongCharacterTypeDirectory(
       longWorkspace.navigation
     )}`,
-    longWorkspace.activeChapterCardId
-      ? `当前章卡: ${longWorkspace.activeChapterCardId}`
-      : "",
     `【长篇结构导航（本轮发送时快照；条目正文与最新内容请通过工具读取）】\n${renderLongPlotNavigation(
       longWorkspace.navigation,
       longWorkspace.activeChapterCardId
     )}`,
-    renderLongListScopeGuide(),
-    longWorkspace.plotFocus
-      ? `当前剧情工作区: ${renderLongPlotFocus(longWorkspace.plotFocus)}`
-      : ""
+    renderLongCurrentPosition(longWorkspace)
   ];
 }

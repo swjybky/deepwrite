@@ -6,6 +6,8 @@ import {
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
 import { createId } from "@deepwrite/shared";
+import { reviewContinuityCommit } from "./review-continuity-commit";
+import { prepareContinuityCommit } from "./prepare-continuity-commit";
 import { loadIndexedFile } from "./cache";
 import {
   applyChapterDecisions,
@@ -24,6 +26,8 @@ export async function commitTextFilesBatch(
   input: LongTextFilesBatchCommitInput,
   managedCommitId?: string
 ): Promise<LongCommitChapterResult> {
+  if (input.review) return reviewContinuityCommit(ctx, loaded, input);
+  managedCommitId ??= input.preparation?.commitId;
   if (managedCommitId) {
     LongLedgerCommitIdSchema.parse(managedCommitId);
     const existing = loaded.index.ledger.commits.find(
@@ -43,11 +47,7 @@ export async function commitTextFilesBatch(
       return { record };
     }
   }
-  const chapterEntries = resolveBatchEntries(
-    loaded.index,
-    input.chapterCardIds
-  );
-  const checkpointEntry = chapterEntries.at(-1)!;
+  let chapterEntries = resolveBatchEntries(loaded.index, input.chapterCardIds);
 
   const bodies = await Promise.all(
     chapterEntries.map(
@@ -69,6 +69,16 @@ export async function commitTextFilesBatch(
     Object.keys(input.foreshadowingBeatDecisions)
   );
 
+  const prepared = input.preparation
+    ? await prepareContinuityCommit(
+        loaded,
+        input.preparation,
+        input.chapterCardIds
+      )
+    : undefined;
+  if (prepared)
+    chapterEntries = resolveBatchEntries(loaded.index, input.chapterCardIds);
+  const checkpointEntry = chapterEntries.at(-1)!;
   const continuityReferences = [
     checkpointEntry.characterState,
     checkpointEntry.handoff,
@@ -80,8 +90,10 @@ export async function commitTextFilesBatch(
     ])
   ];
   const continuityFiles = await Promise.all(
-    continuityReferences.map(
-      async (reference) => await loadIndexedFile(loaded, reference.id)
+    continuityReferences.map(async (reference) =>
+      prepared?.contents.has(reference.id)
+        ? { reference, disk: { content: prepared.contents.get(reference.id)! } }
+        : await loadIndexedFile(loaded, reference.id)
     )
   );
   for (const file of continuityFiles) {
@@ -126,7 +138,17 @@ export async function commitTextFilesBatch(
     loaded,
     chapterEntries,
     record,
-    mode: "text_files_batch"
+    mode: "text_files_batch",
+    ...(prepared
+      ? {
+          fileOperations: prepared.fileOperations,
+          versionWrites: prepared.versionWrites,
+          ...(input.preparation?.versionOrigin
+            ? { versionOrigin: input.preparation.versionOrigin }
+            : {}),
+          preservePreconditions: true
+        }
+      : {})
   });
 }
 

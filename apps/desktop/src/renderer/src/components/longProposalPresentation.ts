@@ -57,14 +57,15 @@ export function longContentFileDiffs(
   if (
     event.type !== "long.worldbuilding_file_proposal" &&
     event.type !== "long.character_file_proposal" &&
-    event.type !== "long.continuity_file_proposal"
+    event.type !== "long.continuity_file_proposal" &&
+    !(event.type === "long.ledger_commit_proposal" && event.payload.files)
   ) {
     return [];
   }
   const key = toRaw(event);
   let diffs = contentDiffCache.get(key);
   if (!diffs) {
-    diffs = event.payload.files.map((file) => ({
+    diffs = event.payload.files!.map((file) => ({
       file,
       diff: buildAgentTextDiff(file.beforeText, file.afterText)
     }));
@@ -92,7 +93,8 @@ export function canDisplayContentFileDiff(
   item: LongWorkspaceProposalItem
 ): boolean {
   return (
-    item.event.type !== "long.continuity_file_proposal" ||
+    (item.event.type !== "long.continuity_file_proposal" &&
+      item.event.type !== "long.ledger_commit_proposal") ||
     (Boolean(item.preview) &&
       (item.status === "ready" ||
         item.status === "submitting" ||
@@ -202,7 +204,8 @@ export function contentFileTitle(
   file: LongContentFileChange,
   index: LongWorkspaceIndex
 ): string {
-  return item.event.type === "long.continuity_file_proposal"
+  return item.event.type === "long.continuity_file_proposal" ||
+    item.event.type === "long.ledger_commit_proposal"
     ? continuityFileTitle(item, file as LongContinuityFileChange, index)
     : file.title;
 }

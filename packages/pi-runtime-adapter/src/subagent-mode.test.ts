@@ -135,6 +135,12 @@ describe("subagent agent modes in a short workspace", () => {
     expect(toolNames(context)).toEqual(
       expect.arrayContaining(["read", "create", "edit", "delete"])
     );
+    expect(context.systemPrompt).toContain(
+      `本轮可用工具：${toolNames(context).join("、")}。`
+    );
+    expect(context.systemPrompt).not.toMatch(
+      /load_skill|ask_user_question|spawn_subagent/u
+    );
     expect(JSON.stringify(context.messages)).toContain(MATERIAL_TITLE);
     expect(context.systemPrompt).toContain("【写入审批方式：用户审批】");
   });
@@ -189,7 +195,9 @@ describe("subagent agent modes in a long workspace", () => {
     expect(names).toContain("read");
     expect(
       names.every((name) =>
-        ["read", "list", "query_linked_material_entries"].includes(name)
+        ["read", "list", "search", "query_linked_material_entries"].includes(
+          name
+        )
       )
     ).toBe(true);
     expect(context.systemPrompt).toContain("单层只读子任务");
@@ -201,6 +209,7 @@ describe("subagent mode helpers", () => {
     const names = [
       "read",
       "list",
+      "search",
       "query_linked_material_entries",
       "create",
       "edit",
@@ -209,10 +218,10 @@ describe("subagent mode helpers", () => {
       "future_tool"
     ];
     const tools = names.map((name) => ({ name }) as AgentTool);
-    expect(applySubagentAgentMode(tools, "standard")).toHaveLength(8);
+    expect(applySubagentAgentMode(tools, "standard")).toHaveLength(9);
     expect(
       applySubagentAgentMode(tools, "pure-read").map((tool) => tool.name)
-    ).toEqual(["read", "list", "query_linked_material_entries"]);
+    ).toEqual(["read", "list", "search", "query_linked_material_entries"]);
     expect(applySubagentAgentMode(tools, "pure-bare")).toEqual([]);
   });
 

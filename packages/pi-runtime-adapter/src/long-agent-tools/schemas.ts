@@ -42,18 +42,16 @@ export const listScopeIdParameter = Type.String({
   minLength: 1,
   maxLength: 160,
   pattern: `^${STABLE_ID_SUFFIX_PATTERN}$`,
-  description:
-    "当前 stage 允许的容器业务 id，来自固定上下文或上一次 list 的容器项，不是所有返回 id。worldbuilding：world_ 分类；character：人物类型 id；plot：book_line、volume_、arc_、chapter_、event_、foreshadow_；draft：volume_ 或 arc_；continuity：volume_、chapter_ 或 character_。不要对 worlditem_、storyplot_、connection_、placement_、beat_、character_overview 调用 list。"
+  description: "容器的稳定业务 id，格式为字母、数字及 . _ : -。"
 });
 
 export const stageParameter = StringEnum(LONG_STAGES, {
-  description:
-    "阶段，必须与 scope_id 匹配。worldbuilding 世界观分类；character 人物类型；plot 剧情结构；draft 正文目录（仅 volume_/arc_）；continuity 连续性（仅 volume_/chapter_/character_，禁止 arc_）。"
+  description: "阶段名称：worldbuilding、character、plot、draft 或 continuity。"
 });
 
 export const documentParameter = StringEnum(LONG_TOOL_DOCUMENTS, {
   description:
-    "人物或章卡的具体文档；其余对象不要传。人物：core_profile、relationships、current_state、history。章卡：card、body、character_state、handoff、foreshadowing_changes、world_reveals。人物 current_state/history 可用 chapter_id 精确限定章节。"
+    "人物或章卡的具体文档；其余对象不要传。人物：core_profile、relationships、current_state、history。章卡：card、body、character_state、handoff、foreshadowing_changes、world_reveals。人物 current_state/history 可用 chapter_id 精确限定章节；读取章节本身无需 chapter_id，重复且相同会被忽略，不同则拒绝。"
 });
 
 export const summaryParameter = Type.String({

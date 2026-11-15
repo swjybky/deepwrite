@@ -15,24 +15,9 @@ import {
 const countLabel = "目标内容字数（本次提案）：";
 const body = "# 甲 A，\n\t乙\u3000🙂";
 
-function writingTools(
-  type: "short" | "script",
-  autoApprove = false,
-  cancel = false
-) {
+function writingTools(type: "short" | "script", autoApprove = false) {
   const workspace = shortWorkspace("draft", { characterList: true });
   const input = {
-    autoApproveCrossStageOperations: !cancel,
-    ...(cancel
-      ? {
-          requestUserInput: async () => ({
-            sessionId: "session_counts",
-            runId: "run_counts",
-            requestId: "cancel",
-            answers: []
-          })
-        }
-      : {}),
     writeApprovalMode: autoApprove
       ? ("auto-approve" as const)
       : ("request-approval" as const)
@@ -89,7 +74,7 @@ describe.each(["short", "script"] as const)(
           /第三节 · 正文（文档标识=.+:body）目标内容字数（本次提案）：7 字/u
         );
         expect(text).toMatch(
-          /第三节 · 人物状态（文档标识=.+:character-state）目标内容字数（本次提案）：5 字/u
+          /第三节 · 状态（文档标识=.+:character-state）目标内容字数（本次提案）：5 字/u
         );
         expect(text).toContain("section_id=pending:section:");
         expect(text).toContain(
@@ -192,28 +177,6 @@ describe.each(["short", "script"] as const)(
           })
         )
       ).not.toContain(countLabel);
-    });
-
-    it("omits counts when create or edit is cancelled", async () => {
-      const tools = writingTools(type, false, true);
-      const results = [
-        await toolByName(tools, "create").execute("cancel-create", {
-          kind: "character",
-          meta: { title: "新人物" },
-          content: body
-        }),
-        await toolByName(tools, "edit").execute("cancel-edit", {
-          kind: "character",
-          id: "character-lin",
-          content: body,
-          summary: "改写"
-        })
-      ];
-      for (const result of results) {
-        expect(resultText(result)).toContain("用户取消");
-        expect(resultText(result)).not.toContain(countLabel);
-        expect(details(result)).toEqual({ kind: "none" });
-      }
     });
   }
 );

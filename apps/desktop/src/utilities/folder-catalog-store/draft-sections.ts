@@ -1,3 +1,8 @@
+import { applyDraftSectionChange } from "./draft-section-change";
+import {
+  captureDocumentVersions,
+  DocumentVersionStore
+} from "../document-versions/version-store";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import {
@@ -34,6 +39,7 @@ import {
   mutate
 } from "./registry";
 import {
+  inspectProjectMarkdownMetadata,
   findDraftDocumentManifest,
   manifestContentItems,
   readCurrentBookManifest,
@@ -62,7 +68,7 @@ import {
 } from "./types";
 import { DEFAULT_SHORT_DOCUMENTS } from "./lifecycle";
 
-const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 人物状态";
+const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 状态";
 const CATALOG_TITLE_MAX_LENGTH = 256;
 
 export function draftCharacterStateTitle(sectionTitle: string): string {
@@ -143,7 +149,9 @@ export function createDraftSectionsRequestHash(
     sections: input.sections.map((section) => ({
       clientSectionId: section.clientSectionId,
       title: section.title ?? null,
-      wordCountRequirement: section.wordCountRequirement ?? null
+      wordCountRequirement: section.wordCountRequirement ?? null,
+      ...(section.bodyContent ? { bodyContent: section.bodyContent } : {}),
+      ...(section.stateContent ? { stateContent: section.stateContent } : {})
     }))
   };
   return createHash("sha256").update(JSON.stringify(intent)).digest("hex");
@@ -220,7 +228,11 @@ export async function saveDocument(
   rawInput: SaveFolderDocumentInput
 ): Promise<SaveDocumentResult> {
   const input = SaveDocumentInputSchema.parse(rawInput);
-  if (input.preserveCurrentContent && input.title === undefined) {
+  if (
+    input.preserveCurrentContent &&
+    input.title === undefined &&
+    !input.draftSectionChange
+  ) {
     throw new Error("保留正文内容时必须同时提供新标题。");
   }
   if (!input.preserveCurrentContent) {
@@ -260,6 +272,13 @@ export async function saveDocument(
     ) {
       throw new Error("该正文小节已删除或不存在。");
     }
+    if (
+      input.draftSectionChange &&
+      (draftTarget?.kind !== "body" ||
+        !input.preserveCurrentContent ||
+        input.title !== undefined)
+    )
+      throw new Error("小节属性修改必须指定正文文档并保留原文。");
     const changesDraftSectionTitle = Boolean(
       draftTarget?.kind === "body" &&
       input.title !== undefined &&
@@ -267,7 +286,10 @@ export async function saveDocument(
     );
     if (
       !input.force &&
-      (regularDocumentIndex >= 0 || !draftTarget || changesDraftSectionTitle)
+      (regularDocumentIndex >= 0 ||
+        !draftTarget ||
+        changesDraftSectionTitle ||
+        input.draftSectionChange)
     ) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
@@ -351,7 +373,8 @@ export async function saveDocument(
             draft.sections.some(
               (candidate, index) =>
                 index !== draftTarget.sectionIndex &&
-                candidate.title === sectionTitle
+                candidate.title.toLocaleLowerCase() ===
+                  sectionTitle.toLocaleLowerCase()
             )
           ) {
             throw new Error(
@@ -390,6 +413,15 @@ export async function saveDocument(
             characterState: documentManifest,
             updatedAt: now
           };
+        }
+        if (input.draftSectionChange) {
+          applyDraftSectionChange(
+            draft.sections,
+            draftTarget.sectionIndex,
+            input.draftSectionChange,
+            (expected, actual) =>
+              new FolderCatalogConflictError(expected, actual)
+          );
         }
         draft.updatedAt = now;
       } else {
@@ -745,17 +777,17 @@ export async function createDraftSections(
     }
 
     const seenDraftSectionTitles = new Set(
-      manifest.draft.sections.map(({ title }) => title)
+      manifest.draft.sections.map(({ title }) => title.toLocaleLowerCase())
     );
     for (const section of createdSections) {
-      if (seenDraftSectionTitles.has(section.title)) {
+      if (seenDraftSectionTitles.has(section.title.toLocaleLowerCase())) {
         throw new Error(
           `正文目录已存在同名${
             manifest.bookType === "script" ? "剧集" : "小节"
           }“${section.title}”。`
         );
       }
-      seenDraftSectionTitles.add(section.title);
+      seenDraftSectionTitles.add(section.title.toLocaleLowerCase());
     }
 
     sections.splice(insertionIndex, 0, ...createdSections);
@@ -785,16 +817,42 @@ export async function createDraftSections(
       ].slice(-256)
     });
     const files = await Promise.all(
-      createdSections.flatMap((section) => [
+      createdSections.flatMap((section, index) => [
         secureWritableProjectPath(projectDirectory, section.body.path).then(
-          (target) => ({ target, content: "" })
+          (target) => ({
+            target,
+            content: input.sections[index]!.bodyContent ?? ""
+          })
         ),
         secureWritableProjectPath(
           projectDirectory,
           section.characterState.path
-        ).then((target) => ({ target, content: "" }))
+        ).then((target) => ({
+          target,
+          content: input.sections[index]!.stateContent ?? ""
+        }))
       ])
     );
+    const batchBytes = files.reduce(
+      (sum, file) => sum + Buffer.byteLength(file.content, "utf8"),
+      0
+    );
+    if (batchBytes) {
+      const remaining =
+        store.maxProjectContentBytes -
+        Buffer.byteLength(JSON.stringify(next), "utf8") -
+        batchBytes;
+      if (remaining < 0)
+        throw new Error(
+          `项目 Markdown 总量超过 ${store.maxProjectContentBytes} 字节安全上限。`
+        );
+      await inspectProjectMarkdownMetadata(
+        projectDirectory,
+        manifest,
+        store.maxMarkdownBytes,
+        remaining
+      );
+    }
     await commitProjectFileCreations(
       files,
       join(projectDirectory, MANIFEST_FILE),
@@ -803,6 +861,32 @@ export async function createDraftSections(
       store.maxManifestBytes
     );
     await bumpRegistry(store, registry, now);
+    if (input.versionOrigin) {
+      for (const [index, section] of createdSections.entries()) {
+        const requested = input.sections[index]!;
+        for (const [doc, content] of [
+          [section.body, requested.bodyContent],
+          [section.characterState, requested.stateContent]
+        ] as const) {
+          if (content)
+            await captureDocumentVersions(
+              new DocumentVersionStore(
+                projectDirectory,
+                {
+                  workspace: "catalog",
+                  bookId: input.bookId,
+                  documentId: doc.id
+                },
+                store.maxMarkdownBytes,
+                store.now
+              ),
+              "",
+              content,
+              input.versionOrigin
+            );
+        }
+      }
+    }
     return await hydrateDraftSectionCreationResult(
       projectDirectory,
       next,

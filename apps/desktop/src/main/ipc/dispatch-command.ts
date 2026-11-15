@@ -46,6 +46,7 @@ export async function dispatchCommand(
   if (
     command.type.startsWith("versions.") ||
     command.type === "catalog.saveDocument" ||
+    command.type === "catalog.createDraftSections" ||
     command.type === "long.applyOperations"
   ) {
     const settings = (await ctx.requireGeneralSettingsStore().list()).settings;

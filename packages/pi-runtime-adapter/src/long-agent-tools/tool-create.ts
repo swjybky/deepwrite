@@ -32,7 +32,7 @@ import {
 } from "./create-support";
 import { formLongProposal } from "./proposals";
 import type { LongToolContext } from "./context";
-import { confirmCrossStageWrite, crossStageWriteCancelled } from "./user-input";
+import { assertCreateMeta, CREATE_META_TABLE } from "./create-meta";
 
 const CREATE_KIND_STAGES: Record<
   LongCreateKind,
@@ -88,8 +88,10 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
     name: "create",
     label: "新建对象",
     description:
-      "一次新建一个对象：kind 决定类型，meta 只放必要的标题与关系字段，content 是该对象的正文，创建时即可直接写入。创建 worldbuilding_item 时，meta.category_id 与 meta.title 都必须提供；即使 content 已含同名 Markdown 标题，也不能省略 meta.title。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；故事情节用 kind=story_plot，只写该剧情点下的场景链。排序与 id 由系统生成，不要自己指定。世界观分类与人物类型这类容器不能新建，请提示用户在界面上操作。连续性文件同样在 create 时携带正文：continuity_world_reveals 的 content 即世界观揭露；continuity_character 必须提供 meta.character_id 与 meta.document=current_state|history，content 写入该文档。" +
-      WRITING_CONTENT_COUNT_DESCRIPTION,
+      "一次新建一个对象，meta 按下表填写，content 是初始正文。剧情点的 content 写入该剧情点的概要，不要为此再新建故事情节；story_plot 写已有剧情点下的场景链。id 与排序由系统生成；世界观分类和人物类型由用户在界面管理。continuity_character.document=current_state|history，content 写入该文档。\n" +
+      WRITING_CONTENT_COUNT_DESCRIPTION +
+      "\n" +
+      CREATE_META_TABLE,
     parameters: strictObject({
       kind: StringEnum(LONG_CREATE_KINDS),
       meta: createMetaParameter,
@@ -101,6 +103,7 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
       const kind = params.kind as LongCreateKind;
       const content = params.content ?? "";
       const meta = normalizeCreateMeta(kind, params.meta, content);
+      assertCreateMeta(kind, meta, ctx.workspace.activeChapterCardId);
       const stageKind = CREATE_KIND_STAGES[kind];
       const stage =
         stageKind === "continuity"
@@ -109,19 +112,6 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
       if (!writableRoots.has(LONG_STAGE_ROOTS[stage])) {
         throw new Error(`当前智能体无权写入 ${stage} 阶段。`);
       }
-      const decision = await confirmCrossStageWrite(ctx, {
-        toolCallId,
-        targetStage: stage,
-        targetTitle:
-          typeof meta.title === "string"
-            ? meta.title
-            : typeof meta.name === "string"
-              ? meta.name
-              : kind,
-        operationLabel: "新建",
-        signal
-      });
-      if (decision === "cancel") return crossStageWriteCancelled(ctx, stage);
       const index = await loadIndex(signal);
       const timestamp = new Date().toISOString();
       const result = buildCreate({

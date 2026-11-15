@@ -101,7 +101,6 @@ export const SessionPromptCommandPayloadSchema = z
     /** Outcomes of earlier write proposals, reported once with the next turn. */
     proposalSettlements: ProposalSettlementsSchema.optional(),
     agentTeamMode: AgentTeamRunModeSchema.optional(),
-    autoApproveCrossStageOperations: z.boolean().optional(),
     /** The user's switch for this run; Main still checks the search settings. */
     webSearchEnabled: z.boolean().optional(),
     workspaceContext: WorkspaceRuntimeContextSchema.optional()

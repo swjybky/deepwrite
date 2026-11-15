@@ -12,7 +12,6 @@ const t = createScopedTranslator("foundation");
 
 const props = defineProps<{
   permissionMode: GeneralPermissionMode;
-  autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
   versionHistoryEnabled: boolean;
   language: AppLanguage;
@@ -24,7 +23,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updatePermissionMode: [mode: GeneralPermissionMode];
-  updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
   updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
@@ -94,27 +92,6 @@ const workspacePaneLayoutOptions = computed<
             :checked="permissionMode === 'auto-approve'"
             :aria-label="t('autoApproval')"
             @change="emit('updatePermissionMode', 'auto-approve')"
-        /></span>
-      </label>
-    </div>
-
-    <div class="settings-card">
-      <label class="settings-item">
-        <span class="settings-item-text"
-          ><strong>{{ t("crossStageApproval") }}</strong
-          ><small>{{ t("crossStageApprovalDescription") }}</small></span
-        >
-        <span class="settings-toggle"
-          ><input
-            type="checkbox"
-            :checked="autoApproveCrossStageOperations"
-            :aria-label="t('crossStageApproval')"
-            @change="
-              emit(
-                'updateAutoApproveCrossStageOperations',
-                ($event.target as HTMLInputElement).checked
-              )
-            "
         /></span>
       </label>
     </div>

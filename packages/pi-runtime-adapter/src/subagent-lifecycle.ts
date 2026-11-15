@@ -37,7 +37,7 @@ export async function runSubagentLifecycle(
   childRuntime: AgentRuntimeRef,
   emitProgress: (progress: SubagentToolProgress, text: string) => void,
   signal?: AbortSignal,
-  notifyCompacted: () => void = () => {},
+  notifyCompacted: (removedToolCallIds?: readonly string[]) => void = () => {},
   /**
    * A run that delivers its result through a terminating tool has no final
    * text reply; a returned string completes it with that summary instead.
@@ -56,7 +56,8 @@ export async function runSubagentLifecycle(
     input.pausesForWriteApproval && input.requestUserInput
       ? createWriteApprovalGate({
           requestUserInput: input.requestUserInput,
-          runtime: childRuntime
+          runtime: childRuntime,
+          locale: input.promptLocale
         })
       : undefined;
   const failureHandoff = createSubagentFailureHandoff();

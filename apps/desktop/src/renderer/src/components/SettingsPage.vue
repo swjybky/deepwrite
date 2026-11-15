@@ -58,7 +58,6 @@ const props = defineProps<{
   workspaceDirectoryPath: string | null;
   workspaceDirectoryLoading: boolean;
   permissionMode: GeneralPermissionMode;
-  autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
   versionHistoryEnabled: boolean;
   language: AppLanguage;
@@ -106,7 +105,6 @@ const emit = defineEmits<{
   chooseWorkspaceDirectory: [];
   resetWorkspaceDirectory: [];
   updatePermissionMode: [mode: GeneralPermissionMode];
-  updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
   updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
@@ -348,9 +346,6 @@ async function selectCategory(id: string): Promise<void> {
         <template v-else-if="activeCategory === 'general'">
           <GeneralSettingsPanel
             :permission-mode="permissionMode"
-            :auto-approve-cross-stage-operations="
-              autoApproveCrossStageOperations
-            "
             :auto-save-enabled="autoSaveEnabled"
             :version-history-enabled="versionHistoryEnabled"
             :language="language"
@@ -359,9 +354,6 @@ async function selectCategory(id: string): Promise<void> {
             :use-network-proxy="useNetworkProxy"
             :workspace-pane-layout="workspacePaneLayout"
             @update-permission-mode="emit('updatePermissionMode', $event)"
-            @update-auto-approve-cross-stage-operations="
-              emit('updateAutoApproveCrossStageOperations', $event)
-            "
             @update-auto-save="emit('updateAutoSave', $event)"
             @update-version-history-enabled="
               emit('updateVersionHistoryEnabled', $event)

@@ -6,7 +6,7 @@ export default {
   close: "关闭",
   deleteLabel: "确认删除“",
   thisValueSTitleManuscriptAndCharacterStateWill:
-    "该{arg0}的标题、正文和人物状态都会删除。",
+    "该{arg0}的标题、正文和状态都会删除。",
   thisEmptyValueWillBeRemovedFromTheManuscript:
     "该空{arg0}会从正文结构中删除。",
   clickApplyOnTheRightToSaveTheDeletion:

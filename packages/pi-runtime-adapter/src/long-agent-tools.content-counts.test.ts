@@ -8,7 +8,6 @@ import {
   fixtureStoryPlotIndex,
   fixtureWorldbuildingIndex,
   it,
-  longTools,
   profile,
   resultText,
   toolByName,
@@ -57,7 +56,6 @@ function toolsFor(index = contentIndex(), auto = false) {
     sessionId: "session_counts",
     runId: "run_counts",
     executor: documentExecutor(index),
-    autoApproveCrossStageOperations: true,
     writeApprovalMode: auto ? "auto-approve" : "request-approval"
   });
 }
@@ -317,7 +315,7 @@ describe("long tool editing content counts", () => {
     });
   });
 
-  it("omits counts for metadata-only, cancelled and failed proposals", async () => {
+  it("omits counts for metadata-only and failed proposals", async () => {
     const index = contentIndex();
     const tools = toolsFor(index);
     const edit = toolByName(tools, "edit");
@@ -355,23 +353,6 @@ describe("long tool editing content counts", () => {
         content: body
       })
     ];
-    const cancelledTools = longTools({
-      index,
-      executor: documentExecutor(index),
-      requestUserInput: async () => ({
-        sessionId: "session_counts",
-        runId: "run_counts",
-        requestId: "cancel",
-        answers: []
-      })
-    });
-    unsuccessful.push(
-      await toolByName(cancelledTools, "edit").execute("cancel", {
-        id: "world_rules",
-        content: body,
-        summary: "取消"
-      })
-    );
     for (const result of unsuccessful)
       expect(resultText(result)).not.toContain(countLabel);
   });

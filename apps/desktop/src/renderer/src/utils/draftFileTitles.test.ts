@@ -6,7 +6,7 @@ import {
 
 describe("draft file titles", () => {
   it("keeps character-state titles within the catalog limit", () => {
-    expect(draftCharacterStateTitle("雨中的门")).toBe("雨中的门 · 人物状态");
+    expect(draftCharacterStateTitle("雨中的门")).toBe("雨中的门 · 状态");
   });
 
   it("suggests the next unused short-section or script-episode title", () => {

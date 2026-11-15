@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`long workspace context on every turn > renders the same current position on first and later character_design turns 1`] = `
+"【用户当前位置】
+阶段: 人物
+人物位置: 「林岚」 / 人物关系（id=character_alice；document=relationships；type_id=protagonist）
+仅定位当前人物文档，正文未注入；需要时调用 read（id=character_alice, document=relationships）读取。
+当前章卡: chapter_one（第一章）"
+`;
+
+exports[`long workspace context on every turn > renders the same current position on first and later continuity_ledger turns 1`] = `
+"【用户当前位置】
+阶段: 连续性
+当前章卡: chapter_one（第一章）
+正文未注入；需要时调用 read（id=chapter_one, document=handoff）读取。"
+`;
+
+exports[`long workspace context on every turn > renders the same current position on first and later draft turns 1`] = `
+"【用户当前位置】
+阶段: 正文
+当前章卡: chapter_one（第一章）
+正文未注入；需要时调用 read（id=chapter_one, document=body）读取。"
+`;
+
+exports[`long workspace context on every turn > renders the same current position on first and later plot_design turns 1`] = `
+"【用户当前位置】
+阶段: 剧情
+剧情位置: 剧情点「主线」(arc_one)，所属分卷「第一卷」(volume_one)
+当前章卡: chapter_one（第一章）
+正文未注入；需要时调用 read（id=arc_one）读取。"
+`;
+
+exports[`long workspace context on every turn > renders the same current position on first and later worldbuilding turns 1`] = `
+"【用户当前位置】
+阶段: 世界观
+世界观位置: 文本型分类「世界规则」（category_id=world_rules）
+仅定位当前页面，正文未注入；需要时调用 read（id=world_rules）读取。
+当前章卡: chapter_one（第一章）"
+`;

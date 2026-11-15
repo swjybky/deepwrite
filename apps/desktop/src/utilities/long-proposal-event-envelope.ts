@@ -121,6 +121,7 @@ export function longProposalEventEnvelope(
         bookId: event.payload.bookId,
         agentId: event.payload.agentId,
         input: event.payload.input,
+        ...(event.payload.files ? { files: event.payload.files } : {}),
         summary: event.payload.summary,
         runtime: event.payload.runtime
       },

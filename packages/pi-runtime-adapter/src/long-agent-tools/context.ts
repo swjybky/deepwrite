@@ -60,13 +60,26 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
   let indexPromise: Promise<LongWorkspaceIndexSnapshot> | undefined;
   let querySequence = 0;
   let indexSequence = 0;
+  const retainedReads = new Map<
+    string,
+    { fingerprint: string; toolCallId: string }
+  >();
   const fullyReadDocuments = new Map<string, FullyReadDocumentEntry>();
   /** Index-backed entities have no file, so their read credential is the body text. */
   const fullyReadRecords = new Map<string, string>();
   // Reads summarized away no longer authorize edits of existing text.
-  input.onContextCompacted?.(() => {
+  input.onContextCompacted?.((removedToolCallIds) => {
     fullyReadDocuments.clear();
     fullyReadRecords.clear();
+    if (removedToolCallIds === undefined) {
+      retainedReads.clear();
+      return;
+    }
+    const removed = new Set(removedToolCallIds);
+    for (const [key, entry] of retainedReads) {
+      if (!removed.has(entry.toolCallId)) continue;
+      retainedReads.delete(key);
+    }
   });
   const proposalOverlay =
     input.sharedState?.proposalOverlay ?? createProposalOverlay();
@@ -124,7 +137,45 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     return loadIndex(signal);
   };
 
-  /** Reads a document end to end. */
+  const readDocumentPage = async (
+    file: LongWorkspaceFileReference,
+    offset: number,
+    maxCharacters: number,
+    signal?: AbortSignal
+  ) => {
+    const command = LongReadDocumentCommandEnvelopeSchema.parse(
+      createEnvelope(
+        "long.readDocument",
+        {
+          bookId: workspace.bookId,
+          fileId: file.id,
+          offset,
+          maxCharacters
+        },
+        {
+          id: `long-query-${input.runId}-read-${++querySequence}`,
+          context: {
+            sessionId: input.sessionId,
+            runId: input.runId,
+            resourceId: workspace.bookId
+          }
+        }
+      )
+    );
+    const result = LongReadDocumentResultSchema.parse(
+      await execute(command, signal)
+    );
+    if (
+      result.bookId !== workspace.bookId ||
+      result.file.id !== file.id ||
+      result.file.path !== file.path ||
+      result.offset !== offset
+    ) {
+      throw new Error("Core returned a different long document.");
+    }
+    return result;
+  };
+
   const readWholeDocument = async (
     file: LongWorkspaceFileReference,
     signal?: AbortSignal
@@ -134,42 +185,46 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     let offset = 0;
     let content = "";
     for (;;) {
-      const command = LongReadDocumentCommandEnvelopeSchema.parse(
-        createEnvelope(
-          "long.readDocument",
-          {
-            bookId: workspace.bookId,
-            fileId: file.id,
-            offset,
-            maxCharacters: 262_144
-          },
-          {
-            id: `long-query-${input.runId}-read-${++querySequence}`,
-            context: {
-              sessionId: input.sessionId,
-              runId: input.runId,
-              resourceId: workspace.bookId
-            }
-          }
-        )
-      );
-      const result = LongReadDocumentResultSchema.parse(
-        await execute(command, signal)
-      );
-      if (
-        result.bookId !== workspace.bookId ||
-        result.file.id !== file.id ||
-        result.file.path !== file.path ||
-        result.offset !== offset
-      ) {
-        throw new Error("Core returned a different long document.");
-      }
+      const result = await readDocumentPage(file, offset, 262_144, signal);
       content += result.content;
       if (result.nextOffset === null) {
         return { content, file: result.file };
       }
       offset = result.nextOffset;
     }
+  };
+
+  const readDocumentRange = async (
+    file: LongWorkspaceFileReference,
+    range: "head" | "tail",
+    maximum: number,
+    signal?: AbortSignal
+  ): Promise<string> => {
+    const pending = proposalOverlay.document(file.id);
+    if (pending) {
+      const characters = Array.from(pending.content);
+      return (
+        range === "head"
+          ? characters.slice(0, maximum)
+          : characters.slice(-maximum)
+      ).join("");
+    }
+    const first = await readDocumentPage(
+      file,
+      0,
+      range === "head" ? maximum : 1,
+      signal
+    );
+    if (range === "head" || first.totalCharacters <= 1) return first.content;
+    const offset = Math.max(0, first.totalCharacters - maximum);
+    const tail = await readDocumentPage(file, offset, maximum, signal);
+    if (
+      tail.file.updatedAt !== first.file.updatedAt ||
+      tail.totalCharacters !== first.totalCharacters
+    ) {
+      throw new Error("文档在范围读取时已有改动，请重新读取。");
+    }
+    return tail.content;
   };
 
   const loadActiveChapterMutationContext = async (
@@ -261,10 +316,12 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     capabilities,
     fullyReadDocuments,
     fullyReadRecords,
+    retainedReads,
     execute,
     loadIndex,
     reloadIndex,
     readWholeDocument,
+    readDocumentRange,
     loadActiveChapterMutationContext,
     formLongMutationProposal,
     rememberProposal

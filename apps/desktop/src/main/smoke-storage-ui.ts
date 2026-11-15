@@ -70,7 +70,7 @@ async function storageUiInRenderer(input: {
     const button = await until(
       () =>
         selector<HTMLButtonElement>(
-          '#account-menu button[role="menuitem"]:first-child'
+          '#account-menu button[role="menuitem"]:not(.account-sign-in-button)'
         ),
       "settings entry"
     );

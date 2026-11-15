@@ -34,7 +34,6 @@ export function writingInput(
     runId: "handoff-run",
     prompt: "先创建对象，再读取对象。",
     writeApprovalMode: "auto-approve",
-    autoApproveCrossStageOperations: true,
     ...(type === "script"
       ? {
           scriptAgentProfile: DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES[0]!,
@@ -84,8 +83,19 @@ export function handoffRuntime(
       model: model.id,
       mode: "provider"
     },
-    requestUserInput: async () => {
-      throw new Error("Unexpected user-input request in handoff test");
+    // Auto-save runs confirm changes to the shared plot structure first.
+    requestUserInput: async (request) => {
+      if (request.source !== "plot_structure_change") {
+        throw new Error("Unexpected user-input request in handoff test");
+      }
+      return {
+        sessionId: input.sessionId,
+        runId: input.runId,
+        requestId: "plot-structure",
+        answers: [
+          { id: request.questions[0]!.id, selectedOptionIds: ["allow_once"] }
+        ]
+      };
     },
     getParentMessages: () => [],
     portableToolSchemaProfile: "writing-workspace",

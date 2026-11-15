@@ -51,12 +51,20 @@ export const AppAlertDesktopRevisionSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/u);
 
+export const AppAlertHistoryEntrySchema = z.object({
+  revision: AppAlertDesktopRevisionSchema,
+  receivedAt: z.string().datetime(),
+  messages: z.array(AlertMessageSchema).min(1).max(20)
+});
+export type AppAlertHistoryEntry = z.infer<typeof AppAlertHistoryEntrySchema>;
+
 export const AppAlertSnapshotSchema = z.object({
   desktopMessages: z.array(AlertMessageSchema).max(20),
   modelMessages: z.array(AlertMessageSchema).max(20),
   pcLatestVersion: AlertVersionSchema,
   officialDocsUrl: OfficialDocsUrlSchema,
   desktopRevision: AppAlertDesktopRevisionSchema,
-  shouldShowDesktop: z.boolean()
+  shouldShowDesktop: z.boolean(),
+  history: z.array(AppAlertHistoryEntrySchema).optional()
 });
 export type AppAlertSnapshot = z.infer<typeof AppAlertSnapshotSchema>;

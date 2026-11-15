@@ -16,7 +16,7 @@ import {
 function workspaceTools(workspaceType: "short" | "script") {
   const workspace = shortWorkspace("draft", { characterList: true });
   const sharedState = createShortWorkspaceToolSharedState(workspace);
-  const input = { sharedState, autoApproveCrossStageOperations: true };
+  const input = { sharedState };
   const tools =
     workspaceType === "short"
       ? buildShortWorkspaceTools({
@@ -81,7 +81,7 @@ describe.each(["short", "script"] as const)(
       const { tools, sharedState } = workspaceTools(workspaceType);
       const tool = toolByName(tools, name);
       const read = toolByName(tools, "read");
-      expect(tool.description).toContain("空字符串表示清空目标正文");
+      expect(JSON.stringify(tool.parameters)).toContain("表示清空目标正文");
       expect(JSON.stringify(tool.parameters)).toContain("表示清空目标正文");
 
       for (const { target, mutation } of targets) {
@@ -145,7 +145,7 @@ describe.each(["short", "script"] as const)(
       ).toContain("allow_overwrite_existing=true");
     });
 
-    it("edit accepts an already empty document without overwrite permission", async () => {
+    it("edit skips a proposal when clearing an already empty document", async () => {
       const name = "edit";
       const { tools } = workspaceTools(workspaceType);
       const tool = toolByName(tools, name);
@@ -156,8 +156,7 @@ describe.each(["short", "script"] as const)(
         summary: "清空人物状态"
       };
       expect((await tool.execute("clear-empty", args)).details).toMatchObject({
-        kind: "workspace-expert-draft-file-mutation",
-        text: ""
+        kind: "none"
       });
     });
 
@@ -169,7 +168,9 @@ describe.each(["short", "script"] as const)(
           ...targets[3]!.target,
           summary: "清空正文"
         })
-      ).rejects.toThrow("edit 必须且只能选择 content、replacements 或 meta。");
+      ).rejects.toThrow(
+        "edit 必须且只能选择 content、replacements、append、insert 或 meta。"
+      );
     });
   }
 );

@@ -1,5 +1,6 @@
 .agents/
 .codex/
+.claude/
 .git/
 **/node_modules/
 **/out/
@@ -7,6 +8,7 @@
 **/release/
 **/coverage/
 docs/
+test/
 *.md
 LICENSE
 pnpm-lock.yaml

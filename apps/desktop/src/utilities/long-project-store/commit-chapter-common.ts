@@ -1,5 +1,7 @@
 import {
   LONG_WORKSPACE_INDEX_PATH,
+  LONG_DOCUMENT_MAX_BYTES,
+  type DocumentVersionOrigin,
   LongProjectManifestSchema,
   LongWorkspaceIndexSnapshotSchema,
   longLedgerRecordChapterIds,
@@ -9,7 +11,12 @@ import {
   type LongWorkspaceFileReference,
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
+import {
+  captureDocumentVersions,
+  DocumentVersionStore
+} from "../document-versions/version-store";
 import type { ProjectTransactionFileOperation } from "../project-transaction";
+import { loadIndexedFile } from "./cache";
 import { deriveLongForeshadowingStatus } from "./continuity";
 import { commitLongProjectTransaction, serializeJson } from "./io";
 import { contiguousRecordedThrough, ledgerPath } from "./paths";
@@ -156,8 +163,17 @@ export async function finishChapterCommit(input: {
   record: LongLedgerCommitRecord;
   mode: "structured" | "text_files" | "text_files_batch";
   fileOperations?: readonly ProjectTransactionFileOperation[];
+  versionWrites?: readonly { fileId: string; path: string; after: string }[];
+  versionOrigin?: DocumentVersionOrigin;
+  preservePreconditions?: boolean;
 }): Promise<LongCommitChapterResult> {
   const timestamp = input.record.committedAt;
+  input.record.bodyEvidence = await Promise.all(
+    input.chapterEntries.map(async (entry) => ({
+      chapterCardId: entry.chapterCardId,
+      sha256: (await loadIndexedFile(input.loaded, entry.body.id)).disk.sha256
+    }))
+  );
   const recordContent = serializeJson(input.record);
   const recordReference: LongWorkspaceFileReference = {
     id: longLedgerCommitFileId(input.record.id),
@@ -184,6 +200,8 @@ export async function finishChapterCommit(input: {
     chapterCardId: input.record.chapterCardId,
     ...batchFields,
     committedAt: timestamp,
+    bodyEvidence: input.record.bodyEvidence,
+    changedChapterIds: [],
     placementIds: input.record.placementChanges.map(
       ({ placementId }) => placementId
     ),
@@ -204,23 +222,47 @@ export async function finishChapterCommit(input: {
       updatedAt: timestamp
     }
   });
-  await commitLongProjectTransaction({
-    projectRoot: input.loaded.projectDirectory,
-    operations: [
-      ...(input.fileOperations ?? []),
-      {
-        path: recordReference.path,
-        content: recordContent,
-        expectedSha256: null
-      },
-      {
-        path: LONG_WORKSPACE_INDEX_PATH,
-        content: serializeJson(nextIndex)
-      },
-      { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
-    ],
-    maxFileBytes: MAX_LEDGER_RECORD_BYTES
-  });
+  await commitLongProjectTransaction(
+    {
+      projectRoot: input.loaded.projectDirectory,
+      operations: [
+        ...(input.fileOperations ?? []),
+        {
+          path: recordReference.path,
+          content: recordContent,
+          expectedSha256: null
+        },
+        {
+          path: LONG_WORKSPACE_INDEX_PATH,
+          content: serializeJson(nextIndex)
+        },
+        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+      ],
+      maxFileBytes: MAX_LEDGER_RECORD_BYTES
+    },
+    input.versionOrigin
+      ? async (beforeContents) => {
+          for (const write of input.versionWrites ?? [])
+            await captureDocumentVersions(
+              new DocumentVersionStore(
+                input.loaded.projectDirectory,
+                {
+                  workspace: "long",
+                  bookId: input.loaded.index.bookId,
+                  fileId: write.fileId
+                },
+                LONG_DOCUMENT_MAX_BYTES,
+                input.ctx.now
+              ),
+              beforeContents.get(write.path) ?? new Uint8Array(),
+              write.after,
+              input.versionOrigin!
+            );
+        }
+      : undefined,
+    input.preservePreconditions
+  );
+
   return { record: input.record };
 }
 

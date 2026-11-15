@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+  AppAlertHistoryEntrySchema,
   AppAlertManifestSchema,
+  type AppAlertHistoryEntry,
   AppAlertSnapshotSchema,
   type AppAlertManifest,
   type AppAlertSnapshot
@@ -28,6 +30,7 @@ interface AppAlertStateFile {
   fetchedAt: string;
   manifest: AppAlertManifest;
   lastSeenDesktopRevision?: string;
+  history?: AppAlertHistoryEntry[];
 }
 
 type RemoteConfigFetcher = (
@@ -72,6 +75,15 @@ function parseStateFile(raw: unknown): AppAlertStateFile | undefined {
     version: 1,
     fetchedAt: record.fetchedAt,
     manifest: manifest.data,
+    history: Array.isArray(record.history)
+      ? record.history.flatMap((entry) => {
+          const parsed = AppAlertHistoryEntrySchema.safeParse(entry);
+          return parsed.success &&
+            parsed.data.revision === desktopRevision(parsed.data.messages)
+            ? [parsed.data]
+            : [];
+        })
+      : [],
     ...(lastSeenDesktopRevision ? { lastSeenDesktopRevision } : {})
   };
 }
@@ -84,6 +96,7 @@ export class AppAlertStore {
   private readonly stateLoad: Promise<void>;
   private manifest: AppAlertManifest = structuredClone(FALLBACK_MANIFEST);
   private fetchedAt = "";
+  private history: AppAlertHistoryEntry[] = [];
   private lastSeenDesktopRevision: string | undefined;
   private refreshPromise: Promise<void> | undefined;
 
@@ -119,6 +132,7 @@ export class AppAlertStore {
       pcLatestVersion: this.manifest.pcLatestVersion,
       officialDocsUrl: this.manifest.officialDocsUrl,
       desktopRevision: revision,
+      history: this.history,
       shouldShowDesktop:
         this.manifest.desketop.length > 0 &&
         this.lastSeenDesktopRevision !== revision
@@ -163,6 +177,7 @@ export class AppAlertStore {
       }
       this.manifest = AppAlertManifestSchema.parse(JSON.parse(text) as unknown);
       this.fetchedAt = new Date(now).toISOString();
+      this.archiveDesktop();
       await this.persistState();
     } catch {
       // Only show model announcements and documentation links from a successful fetch.
@@ -180,9 +195,28 @@ export class AppAlertStore {
       this.manifest = parsed.manifest;
       this.fetchedAt = parsed.fetchedAt;
       this.lastSeenDesktopRevision = parsed.lastSeenDesktopRevision;
+      this.history = parsed.history ?? [];
+      this.archiveDesktop();
     } catch {
       this.manifest = structuredClone(FALLBACK_MANIFEST);
     }
+  }
+
+  private archiveDesktop(): void {
+    const messages = this.manifest.desketop;
+    const revision = desktopRevision(messages);
+    if (
+      !messages.length ||
+      this.history.some((entry) => entry.revision === revision)
+    )
+      return;
+    this.history.unshift({
+      revision,
+      receivedAt: Number.isFinite(Date.parse(this.fetchedAt))
+        ? new Date(this.fetchedAt).toISOString()
+        : new Date(this.now()).toISOString(),
+      messages: [...messages]
+    });
   }
 
   private async persistState(): Promise<void> {
@@ -190,6 +224,7 @@ export class AppAlertStore {
       version: 1,
       fetchedAt: this.fetchedAt || new Date(this.now()).toISOString(),
       manifest: this.manifest,
+      history: this.history,
       ...(this.lastSeenDesktopRevision
         ? { lastSeenDesktopRevision: this.lastSeenDesktopRevision }
         : {})

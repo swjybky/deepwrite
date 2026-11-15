@@ -61,6 +61,15 @@ const readCompactor: ToolCompactor = {
   }
 };
 
+const searchCompactor: ToolCompactor = {
+  result(result, call) {
+    if (result.isError) return undefined;
+    const query = call ? stringArg(call.arguments ?? {}, "query") : undefined;
+    const count = /命中 (\d+) 条/u.exec(firstLine(result))?.[1];
+    return `〔检索过 ${JSON.stringify(query ?? "")}，命中 ${count ?? "若干"} 条；需要时重新检索。〕`;
+  }
+};
+
 function stubProse(
   value: JsonValue | undefined,
   label: string
@@ -75,7 +84,12 @@ const mutationCompactor: ToolCompactor = {
   args(args) {
     let changed = false;
     const next: JsonObject = { ...args };
-    for (const key of ["content", "character_state", "document_content"]) {
+    for (const key of [
+      "content",
+      "state",
+      "character_state",
+      "document_content"
+    ]) {
       const stubbed = stubProse(args[key], key === "content" ? "正文" : key);
       if (stubbed !== undefined && stubbed !== args[key]) {
         next[key] = stubbed;
@@ -85,6 +99,40 @@ const mutationCompactor: ToolCompactor = {
     if (Array.isArray(args.replacements)) {
       next.replacements = `〔${args.replacements.length} 处片段替换，已作为提案提交；以作品当前内容为准〕`;
       changed = true;
+    }
+    if (
+      args.documents &&
+      typeof args.documents === "object" &&
+      !Array.isArray(args.documents)
+    ) {
+      const documents: JsonObject = { ...(args.documents as JsonObject) };
+      for (const key of ["chapter_end_state", "handoff", "world_reveals"]) {
+        const stubbed = stubProse(documents[key], key);
+        if (stubbed !== undefined && stubbed !== documents[key]) {
+          documents[key] = stubbed;
+          changed = true;
+        }
+      }
+      if (Array.isArray(documents.characters)) {
+        documents.characters = documents.characters.map((character) => {
+          if (
+            !character ||
+            typeof character !== "object" ||
+            Array.isArray(character)
+          )
+            return character;
+          const next = { ...character };
+          for (const key of ["current_state", "history"]) {
+            const stubbed = stubProse(next[key], key);
+            if (stubbed !== undefined && stubbed !== next[key]) {
+              next[key] = stubbed;
+              changed = true;
+            }
+          }
+          return next;
+        });
+      }
+      next.documents = documents;
     }
     return changed ? next : undefined;
   },
@@ -157,9 +205,11 @@ export const WORKSPACE_TOOL_COMPACTORS: Readonly<
   Record<string, ToolCompactor>
 > = {
   read: readCompactor,
+  search: searchCompactor,
   read_authoring_skill: readCompactor,
   edit: mutationCompactor,
   create: mutationCompactor,
+  propose_continuity_commit: mutationCompactor,
   delete: deleteCompactor,
   load_skill: skillCompactor,
   query_linked_material_entries: materialCompactor,

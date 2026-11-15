@@ -185,7 +185,10 @@ import {
   registerCoverScheme
 } from "../extras/book-identity/cover-protocol";
 import { handleBookIdentitySubmission } from "../extras/book-identity/submit-bridge";
-import { handleTeamManagementCommand } from "./team-management-bridge";
+import {
+  handleTeamManagementCommand,
+  teamModelChoices
+} from "./team-management-bridge";
 import { teamPromptReviews } from "./team-prompt-reviews";
 import { handleVoiceCommands } from "./ipc/voice-commands";
 import {
@@ -218,6 +221,10 @@ import {
 import { WorkspaceAgentConfigStore } from "./workspace-agent-config-store";
 import { WorkspaceDirectoryStore } from "./workspace-directory-store";
 import { UpdateService } from "./update-service";
+import {
+  confirmUpdateInstall,
+  showFailedUpdateNotice
+} from "./update-install-guard";
 import { AppAlertStore } from "./app-alert-store";
 import { MarketplaceClient } from "./marketplace-client";
 import {
@@ -429,8 +436,8 @@ const gracefulShutdown = createGracefulShutdown({
       await rendererStateFlush.request(mainWindow);
     mainWindow?.close();
   },
-  shutdownUtilities: async () => {
-    await externalControl.stop();
+  shutdownUtilities: async (installUpdate) => {
+    await externalControl.stop({ updating: installUpdate });
     await supervisor.shutdownAll();
   },
   flushUsage: () => modelUsageStore?.flush(),
@@ -750,7 +757,8 @@ const supervisor: UtilitySupervisor = new UtilitySupervisor({
             )
           )
         );
-      }
+      },
+      async () => teamModelChoices(await requireModelConfigStore().list())
     )) ??
     handleBookIdentitySubmission(context, activeRuns, (command) =>
       supervisor.requestCommand("core", command, 60_000)
@@ -1126,9 +1134,9 @@ function registerIpc(): void {
   ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, (event): Promise<UpdateState> =>
     requireUpdateService(event).download()
   );
-  ipcMain.handle(UPDATE_INSTALL_CHANNEL, (event): void => {
-    requireUpdateService(event).install();
-  });
+  ipcMain.handle(UPDATE_INSTALL_CHANNEL, (event): Promise<void> =>
+    requireUpdateService(event).install()
+  );
   const requireAppAlertStore = (
     event: Electron.IpcMainInvokeEvent
   ): AppAlertStore => {
@@ -1351,9 +1359,10 @@ function registerIpc(): void {
         command.type === "agent.steer" ||
         command.type === "agent.model_test" ||
         command.type === "agent.model_capacity" ||
-        command.type === "agentTeams.listActivePrompts" ||
-        command.type === "agentTeams.readActivePrompt" ||
-        command.type === "agentTeams.applyActivePrompt" ||
+        command.type === "agentTeams.listActive" ||
+        command.type === "agentTeams.readActiveMembers" ||
+        command.type === "agentTeams.previewActiveChange" ||
+        command.type === "agentTeams.applyActiveChange" ||
         command.type === "catalog.createShortBookAtPath" ||
         command.type === "catalog.createScriptBookAtPath" ||
         command.type === "long.createBookAtPath" ||
@@ -1366,6 +1375,7 @@ function registerIpc(): void {
         command.type === "catalog.createLibraryAtPath" ||
         command.type === "catalog.createLibraryGroupAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
+        command.type === "catalog.readWritingWorkspace" ||
         command.type === "catalog.readLibraryAgentLibrary" ||
         command.type === "catalog.readLibraryPackageSource" ||
         command.type === "catalog.previewLibraryPackageAtPath" ||
@@ -2774,7 +2784,8 @@ if (!hasSingleInstanceLock) {
         command: (command) => supervisor.requestCommand("core", command, 0),
         busy: () => activeRuns.size > 0,
         conversationLease: conversationSyncLease,
-        installUpdate: () => beginGracefulShutdown({ installUpdate: true })
+        installUpdate: () => beginGracefulShutdown({ installUpdate: true }),
+        confirmUpdateInstall: () => confirmUpdateInstall(mainWindow)
       })
     );
     ({
@@ -2863,6 +2874,8 @@ if (!hasSingleInstanceLock) {
     await desktopStartup.step("window", () => {
       mainWindow = createMainWindow();
     });
+    const failedUpdate = updateService.takeFailedInstall();
+    if (failedUpdate) showFailedUpdateNotice(mainWindow, failedUpdate);
     mainWindowStartupGate.markReady();
     void externalControl.sync(cachedGeneralSettings.externalControlEnabled);
 

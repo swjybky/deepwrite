@@ -1,3 +1,6 @@
+import { createWritingReader } from "./short-agent-tools/core-reader";
+import { settleWritingMutations } from "./short-agent-tools/settlement";
+import type { AgentWriteApprovalResponse } from "@deepwrite/contracts";
 import type {
   AgentMessage,
   AgentTool,
@@ -24,7 +27,7 @@ import { buildSubagentAuthoringTools } from "./subagent-authoring-tools";
 import { buildSubagentMaterialContext } from "./prompts-material";
 import { buildSpawnSubagentTool } from "./subagent-runtime";
 import { workspaceContextPolicy } from "./workspace-context-policy";
-import { longSubagentRequirements } from "./long-subagent-requirements";
+import { longSubagentContext } from "./long-subagent-requirements";
 import { writingSubagentContext } from "./writing-subagent-context";
 import { buildProviderRuntime, toPiThinkingLevel } from "./provider-runtime";
 import { mainWebSearchSession, withWebSearchTool } from "./web-search/mount";
@@ -51,8 +54,15 @@ export interface BuildRunToolsOptions extends Pick<
   getParentMessages: () => readonly AgentMessage[];
   portableToolSchemaProfile: PortableToolSchemaProfile;
   subagentTimeoutMs?: number;
-  onContextCompacted?: (listener: () => void) => void;
-  onWriteApprovalSettled?: (listener: () => void) => void;
+  onContextCompacted?: (
+    listener: (removedToolCallIds?: readonly string[]) => void
+  ) => void;
+  onWriteApprovalSettled?: (
+    listener: (
+      toolCallIds: string[],
+      response?: AgentWriteApprovalResponse
+    ) => void
+  ) => void;
 }
 export function buildRunTools(
   input: AgentRunInput,
@@ -101,16 +111,21 @@ export function buildRunTools(
       longToolSharedState.proposalOverlay.clear()
     );
   }
+  if (writingToolSharedState) {
+    options.onWriteApprovalSettled?.((ids, response) =>
+      settleWritingMutations(writingToolSharedState, ids, response)
+    );
+  }
   const buildWritingToolSet = (
     onContextCompacted = options.onContextCompacted
   ): AgentTool[] => {
     if (scriptWorkspace && input.scriptAgentProfile) {
       return buildScriptWorkspaceTools({
+        promptLocale: input.promptLocale,
+        writingReader: createWritingReader(input, scriptWorkspace.id, "script"),
         workspace: scriptWorkspace,
         profile: input.scriptAgentProfile,
         writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-        autoApproveCrossStageOperations:
-          input.autoApproveCrossStageOperations === true,
         attachedSkills: input.workspaceContext?.attachedSkills,
         attachedMaterials: input.workspaceContext?.attachedMaterials,
         queryMaterials: createMaterialQueryRunner(input),
@@ -123,11 +138,11 @@ export function buildRunTools(
     }
     return shortWorkspace && input.agentProfile
       ? buildShortWorkspaceTools({
+          promptLocale: input.promptLocale,
+          writingReader: createWritingReader(input, shortWorkspace.id, "short"),
           workspace: shortWorkspace,
           profile: input.agentProfile,
           writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-          autoApproveCrossStageOperations:
-            input.autoApproveCrossStageOperations === true,
           attachedSkills: input.workspaceContext?.attachedSkills,
           attachedMaterials: input.workspaceContext?.attachedMaterials,
           queryMaterials: createMaterialQueryRunner(input),
@@ -156,8 +171,6 @@ export function buildRunTools(
           sessionId: input.sessionId,
           runId: input.runId,
           writeApprovalMode: input.writeApprovalMode ?? "request-approval",
-          autoApproveCrossStageOperations:
-            input.autoApproveCrossStageOperations === true,
           attachedSkills: input.workspaceContext?.attachedSkills,
           attachedMaterials: input.workspaceContext?.attachedMaterials,
           queryMaterials: createMaterialQueryRunner(input),
@@ -180,6 +193,7 @@ export function buildRunTools(
       search
     );
   const management = createLibraryManagementRuntime(input);
+  options.onWriteApprovalSettled?.(() => management.reset?.());
   const teamManagement = createTeamManagementRuntime(input, requestUserInput);
   let tools: AgentTool[] = subagentAuthoring
     ? withWebSearchTool(
@@ -220,6 +234,7 @@ export function buildRunTools(
       ...(parentPolicy.rehydrate ? { rehydrate: parentPolicy.rehydrate } : {})
     };
     const spawnTool = buildSpawnSubagentTool({
+      promptLocale: input.promptLocale,
       parentSessionId: input.sessionId,
       ...((options.parentSignal ?? input.signal)
         ? { parentSignal: options.parentSignal ?? input.signal }
@@ -264,7 +279,7 @@ export function buildRunTools(
       ...(scriptWorkspace || shortWorkspace
         ? writingSubagentContext(input, writingToolSharedState)
         : longWorkspace
-          ? longSubagentRequirements(input)
+          ? longSubagentContext(input, longToolSharedState)
           : {}),
       toolExecutionHooks: options.toolExecutionHooks,
       ...(options.retryPolicy ? { retryPolicy: options.retryPolicy } : {}),

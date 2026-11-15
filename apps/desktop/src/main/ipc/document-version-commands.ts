@@ -27,6 +27,7 @@ export function filterVersionOrigin(
   if (
     !enabled &&
     (command.type === "catalog.saveDocument" ||
+      command.type === "catalog.createDraftSections" ||
       command.type === "long.applyOperations") &&
     command.payload.versionOrigin
   ) {

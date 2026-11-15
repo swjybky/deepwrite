@@ -153,6 +153,15 @@ export function isProvisionalExpertDraftSectionId(sectionId: string): boolean {
   return sectionId.startsWith(PROVISIONAL_EXPERT_DRAFT_SECTION_ID_PREFIX);
 }
 
+export function plotStructureCreationStageId(
+  proposalId: string,
+  provisionalStageId: string
+): string {
+  const proposalRevision = createShortWorkspaceContentRevision(proposalId);
+  const safeProposalId = proposalId.replace(/[^A-Za-z0-9._:-]/gu, "-");
+  return `plot-stage-agent:${proposalRevision}:${safeProposalId.slice(0, 20)}:${safeProposalId.slice(-20)}:${provisionalStageId.slice(-24)}`;
+}
+
 /**
  * Directory/structure revision for expert draft. Must NOT include body or
  * character-state content hashes — otherwise same-run content writes falsely
@@ -489,6 +498,7 @@ export const ShortWorkspaceSnapshotSchema = z
     activeStageId: ShortWorkspaceStageIdSchema,
     activeAgentId: ShortWorkspaceSnapshotAgentIdSchema.optional(),
     activeSectionId: z.string().trim().min(1).max(120).optional(),
+    readSource: z.literal("core").optional(),
     agentsMd: z.string().max(WRITING_CONTEXT_MAX_CHARACTERS).optional(),
     plotStages: CreativePlotStagesSchema,
     characterStructure: ShortCharacterStructureSnapshotSchema.default({

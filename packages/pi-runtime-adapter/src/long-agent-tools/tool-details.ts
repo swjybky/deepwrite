@@ -12,6 +12,7 @@ export function isLongAgentToolDetails(
     kind === "long-character-file-proposal" ||
     kind === "long-continuity-file-proposal" ||
     kind === "long-chapter-write-proposal" ||
-    kind === "long-ledger-commit-proposal"
+    kind === "long-ledger-commit-proposal" ||
+    kind === "long-continuity-commit-proposal"
   );
 }

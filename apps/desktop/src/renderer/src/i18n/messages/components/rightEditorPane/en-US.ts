@@ -9,7 +9,9 @@ export default {
   textContent: "Text content",
   valueFile: "{arg0} file",
   manuscript: "Manuscript",
-  characterState: "Character state",
+  characterState: "State",
+  stateDescription:
+    "Record character, plot, emotional or any other state relevant to this work.",
   textView: "Text view",
   edit: "Edit",
   preview: "Preview",

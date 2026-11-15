@@ -12,6 +12,7 @@ import {
   commitProjectTransaction,
   projectTransactionContentSha256,
   projectTransactionFileIdentity,
+  type ProjectTransactionFileOperation,
   type CommitProjectTransactionInput
 } from "../project-transaction";
 import { encodeUtf8Strict } from "./utf8";
@@ -77,14 +78,17 @@ export async function commitLongProjectTransaction(
   // recovery, but long-form callers must not turn hashes captured while
   // reading into a user-visible optimistic-concurrency boundary. A null
   // precondition is retained only for files that are being created.
-  // A user-requested version restore explicitly keeps its content CAS instead.
-  const operations = input.operations.flatMap((operation) => {
-    if (operation.action === "check") return [];
-    if (preservePreconditions || operation.expectedSha256 === null)
-      return [operation];
-    const { expectedSha256: _expectedSha256, ...lastWriteWins } = operation;
-    return [lastWriteWins];
-  });
+  // Version restores and combined continuity commits retain their CAS checks.
+  const operations = input.operations.flatMap<ProjectTransactionFileOperation>(
+    (operation) => {
+      if (operation.action === "check")
+        return preservePreconditions ? [operation] : [];
+      if (preservePreconditions || operation.expectedSha256 === null)
+        return [operation];
+      const { expectedSha256: _expectedSha256, ...lastWriteWins } = operation;
+      return [lastWriteWins];
+    }
+  );
   return await commitProjectTransaction(
     {
       ...input,

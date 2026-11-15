@@ -38,7 +38,7 @@ watch(
       @keydown.esc.stop="emit('close')"
     >
       <section
-        class="startup-alert-dialog"
+        :class="['startup-alert-dialog', { 'has-sidebar': $slots.sidebar }]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="startup-alert-title"
@@ -61,35 +61,41 @@ watch(
           </button>
         </header>
 
-        <div
-          id="startup-alert-content"
-          class="startup-alert-content"
-          :aria-busy="loading"
-          aria-live="polite"
-        >
-          <p v-if="messages.length === 0" class="startup-alert-empty">
-            {{ emptyText }}
-          </p>
-          <div v-else class="startup-alert-lead">
-            <span>{{ t("announcement") }}</span>
-            <p>{{ messages[0] }}</p>
-          </div>
-
-          <ol
-            v-if="messages.length > 1"
-            class="startup-alert-list"
-            :aria-label="t('moreReminders')"
+        <div class="startup-alert-body">
+          <aside v-if="$slots.sidebar" class="startup-alert-sidebar">
+            <slot name="sidebar" />
+          </aside>
+          <div
+            id="startup-alert-content"
+            class="startup-alert-content"
+            :aria-busy="loading"
+            aria-live="polite"
           >
-            <li
-              v-for="(message, index) in messages.slice(1)"
-              :key="`${index + 1}:${message}`"
+            <slot name="content-heading" />
+            <p v-if="messages.length === 0" class="startup-alert-empty">
+              {{ emptyText }}
+            </p>
+            <div v-else class="startup-alert-lead">
+              <span>{{ t("announcement") }}</span>
+              <p>{{ messages[0] }}</p>
+            </div>
+
+            <ol
+              v-if="messages.length > 1"
+              class="startup-alert-list"
+              :aria-label="t('moreReminders')"
             >
-              <span class="startup-alert-index" aria-hidden="true">
-                {{ String(index + 1).padStart(2, "0") }}
-              </span>
-              <p>{{ message }}</p>
-            </li>
-          </ol>
+              <li
+                v-for="(message, index) in messages.slice(1)"
+                :key="`${index + 1}:${message}`"
+              >
+                <span class="startup-alert-index" aria-hidden="true">
+                  {{ String(index + 1).padStart(2, "0") }}
+                </span>
+                <p>{{ message }}</p>
+              </li>
+            </ol>
+          </div>
         </div>
 
         <footer class="dialog-actions">
@@ -149,6 +155,28 @@ watch(
   color: var(--text-secondary);
   font-size: 1.45rem;
   line-height: 1;
+}
+
+.startup-alert-body {
+  display: flex;
+  min-height: 0;
+}
+
+.startup-alert-dialog.has-sidebar {
+  width: min(860px, calc(100vw - 48px));
+}
+
+.startup-alert-sidebar {
+  flex: 0 0 13rem;
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 12px;
+  border-right: 1px solid var(--theme-line-soft);
+}
+
+.startup-alert-body > .startup-alert-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .startup-alert-content {
@@ -272,6 +300,11 @@ watch(
 }
 
 @media (max-width: 620px) {
+  .startup-alert-sidebar {
+    flex-basis: 9rem;
+    padding: 14px 8px;
+  }
+
   .startup-alert-backdrop {
     padding: 14px;
   }

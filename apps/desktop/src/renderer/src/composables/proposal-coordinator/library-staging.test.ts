@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createEnvelope,
   createShortWorkspaceContentRevision,
+  type CreateLibraryEntryInput,
+  type MaterialLibrary,
   type LibraryEditorMutationEventEnvelope
 } from "@deepwrite/contracts";
 import type { AgentEditProposal } from "../../types/conversation";
@@ -10,6 +12,12 @@ import type { WorkspaceDocument } from "../../types/workspace";
 import type { ProposalCoordinatorContext } from "../useProposalCoordinator";
 import { createLibraryProposalStager } from "./library-staging";
 import { parseStoredLibraryTarget } from "../agent-conversation/library-target";
+import {
+  createFixture,
+  NOW,
+  RUN_ID,
+  SESSION_ID
+} from "../useProposalCoordinator.short-script.test-support";
 
 const revision = createShortWorkspaceContentRevision;
 const scope = { bookId: "book", bookType: "short" as const };
@@ -130,6 +138,93 @@ describe("library proposals in the originating writing conversation", () => {
       parseStoredLibraryTarget(proposal.libraryTarget)?.managementScope
     ).toEqual(scope);
     expect(test.queue).not.toHaveBeenCalled();
+  });
+  it("accepts independent entries from one batch in sequence and detects an intervening user save", async () => {
+    const library: MaterialLibrary = {
+      id: "library",
+      title: "素材库",
+      materialType: "short",
+      materialKind: "character",
+      parentGenre: "",
+      subGenre: "",
+      overview: "",
+      entries: [],
+      projectRevision: 4,
+      createdAt: NOW,
+      updatedAt: NOW
+    };
+    const createLibraryEntry = vi.fn(
+      async (input: CreateLibraryEntryInput) => ({
+        id: "entry-" + input.title,
+        title: input.title,
+        stageId: "character" as const,
+        body: input.content,
+        createdAt: NOW,
+        updatedAt: NOW
+      })
+    );
+    const { coordinator, conversation } = createFixture("short", {
+      approvalMode: "request-approval",
+      configure(context) {
+        const api = context.api()!;
+        context.api = () => ({
+          ...api,
+          catalog: { ...api.catalog, createLibraryEntry }
+        });
+        context.catalog.findCatalogLibrary = () => library;
+        context.catalog.applyCreatedLibraryEntry = async (
+          _domain,
+          _id,
+          _entry,
+          revision
+        ) => {
+          library.projectRevision = revision;
+        };
+      }
+    });
+    try {
+      for (const title of ["甲", "乙", "丙"])
+        await coordinator.stageLibraryEditProposal(
+          event(
+            {
+              sessionId: SESSION_ID,
+              runId: RUN_ID,
+              toolCallId: "batch",
+              creationId: title,
+              title,
+              baseProjectRevision: 4
+            },
+            "event-" + title
+          )
+        );
+      const proposals = conversation.listEditProposals(RUN_ID);
+      expect(new Set(proposals.map((p) => p.documentId)).size).toBe(3);
+      for (const proposal of proposals) {
+        if (proposal.title === "丙")
+          library.projectRevision = library.projectRevision! + 1;
+        await coordinator.reviewAgentEdit({
+          runId: RUN_ID,
+          proposalId: proposal.id,
+          decision: "accept"
+        });
+        await coordinator.drain();
+      }
+      expect(
+        createLibraryEntry.mock.calls.map(([input]) => [
+          input.title,
+          input.baseProjectRevision,
+          input.managementScope
+        ])
+      ).toEqual([
+        ["甲", 4, scope],
+        ["乙", 5, scope]
+      ]);
+      expect(
+        conversation.listEditProposals(RUN_ID).map((p) => p.status)
+      ).toEqual(["accepted", "accepted", "conflict"]);
+    } finally {
+      await coordinator.dispose();
+    }
   });
   it("converts a follow-up creation edit to an edit of the already saved entry", async () => {
     const test = harness(true);

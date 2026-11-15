@@ -543,75 +543,30 @@ export function useLongConversationCoordinator(
 
         let runtimeContext = baseRuntimeContext;
         if (target.activeRoot === "worldbuilding" && target.fileId) {
-          const api = options.workspace.api();
-          if (!api) {
-            options.notifications.warning(
-              t("theNovelWorkspaceIsNotConnectedInThisEnvironment")
-            );
-            return;
-          }
-          try {
-            const { buildLongWorldbuildingFocusSnapshot } =
-              await import("../utils/longWorldbuildingAgentContext");
-            if (!confirmSendTarget(target)) return;
-            const worldbuildingFocus =
-              await buildLongWorldbuildingFocusSnapshot({
-                bookId: target.bookId,
-                selection: options.state.selection.value,
-                activeFileId: target.fileId,
-                readDocument: (input) => api.readDocument(input)
-              });
-            if (!confirmSendTarget(target)) return;
-            if (worldbuildingFocus) {
-              runtimeContext = { ...baseRuntimeContext, worldbuildingFocus };
-            }
-          } catch (error: unknown) {
-            if (!sendTargetIsCurrent(target)) return;
-            options.notifications.warning(
-              error instanceof Error
-                ? t("failedToReadTheCurrentWorldbuildingStage", {
-                    message: error.message
-                  })
-                : t("failedToReadTheCurrentWorldbuildingStagePleaseTry")
-            );
-            return;
+          const { buildLongWorldbuildingFocusSnapshot } =
+            await import("../utils/longWorldbuildingAgentContext");
+          if (!confirmSendTarget(target)) return;
+          const worldbuildingFocus = buildLongWorldbuildingFocusSnapshot({
+            selection: options.state.selection.value,
+            activeFileId: target.fileId
+          });
+          if (worldbuildingFocus) {
+            runtimeContext = { ...runtimeContext, worldbuildingFocus };
           }
         }
 
         if (target.activeRoot === "character_design" && target.fileId) {
-          const api = options.workspace.api();
-          if (!api) {
-            options.notifications.warning(
-              t("theNovelWorkspaceIsNotConnectedInThisEnvironment")
-            );
-            return;
-          }
-          try {
-            const { buildLongCharacterFocusSnapshot } =
-              await import("../utils/longCharacterAgentContext");
-            if (!confirmSendTarget(target)) return;
-            const characterFocus = await buildLongCharacterFocusSnapshot({
-              bookId: target.bookId,
-              selection: options.state.selection.value,
-              activeFileId: target.fileId,
-              characterOverviewFile:
-                options.state.workspaceIndex.value?.characterOverview ?? null,
-              readDocument: (input) => api.readDocument(input)
-            });
-            if (!confirmSendTarget(target)) return;
-            if (characterFocus) {
-              runtimeContext = { ...baseRuntimeContext, characterFocus };
-            }
-          } catch (error: unknown) {
-            if (!sendTargetIsCurrent(target)) return;
-            options.notifications.warning(
-              error instanceof Error
-                ? t("failedToReadTheCurrentCharacterStage", {
-                    message: error.message
-                  })
-                : t("failedToReadTheCurrentCharacterStagePleaseTry")
-            );
-            return;
+          const { buildLongCharacterFocusSnapshot } =
+            await import("../utils/longCharacterAgentContext");
+          if (!confirmSendTarget(target)) return;
+          const characterFocus = buildLongCharacterFocusSnapshot({
+            selection: options.state.selection.value,
+            activeFileId: target.fileId,
+            characterOverviewFile:
+              options.state.workspaceIndex.value?.characterOverview ?? null
+          });
+          if (characterFocus) {
+            runtimeContext = { ...runtimeContext, characterFocus };
           }
         }
 

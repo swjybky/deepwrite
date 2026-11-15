@@ -119,10 +119,6 @@ export default {
     pendingCommit: "Pending commit",
     notWritten: "Not written"
   },
-  longWorldbuildingAgentContext: {
-    theWorldbuildingStageResponseDoesNotMatchTheCurrent:
-      "The worldbuilding stage response does not match the current selection."
-  },
   longWorkspaceContinuityTree: {
     importedCheckpoint: "Imported checkpoint",
     pendingChapters: "Pending chapters",
@@ -138,9 +134,7 @@ export default {
     coreProfile: "Core profile",
     relationships: "Relationships",
     currentState: "Current state",
-    history: "History",
-    theCharacterStageResponseDoesNotMatchTheCurrent:
-      "The character stage response does not match the current selection."
+    history: "History"
   },
   longDeletionImpact: {
     deleteThisCharacterSCoreProfileAndRelationshipFiles:

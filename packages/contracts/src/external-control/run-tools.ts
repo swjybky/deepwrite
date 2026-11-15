@@ -74,8 +74,43 @@ export const ExternalAgentRunStatusSchema = z.enum([
   "waiting_for_user",
   "completed",
   "failed",
-  "stopped"
+  "stopped",
+  "interrupted"
 ]);
+
+const ToolCountsSchema = z
+  .object({
+    total: z.number().int().nonnegative(),
+    succeeded: z.number().int().nonnegative(),
+    directSucceeded: z.number().int().nonnegative().default(0),
+    normalizedSucceeded: z.number().int().nonnegative().default(0),
+    failed: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    durationMs: z.number().nonnegative()
+  })
+  .strict();
+export const ExternalToolUsageSchema = ToolCountsSchema.extend({
+  byTool: z.array(ToolCountsSchema.extend({ name: z.string().min(1) }).strict())
+}).strict();
+export type ExternalToolUsage = z.infer<typeof ExternalToolUsageSchema>;
+
+export const ExternalRunRecoverySchema = z
+  .object({
+    runId: IdSchema,
+    sessionId: IdSchema,
+    assistantId: IdSchema,
+    lastStatus: ExternalAgentRunStatusSchema.optional(),
+    internalRunId: IdSchema.optional(),
+    target: z
+      .object({
+        kind: z.enum(["short", "script", "long", "library"]),
+        id: IdSchema
+      })
+      .strict(),
+    mode: ExternalAgentModeSchema.optional()
+  })
+  .strict();
+export type ExternalRunRecovery = z.infer<typeof ExternalRunRecoverySchema>;
 
 export const ExternalAgentRunSchema = z
   .object({
@@ -93,7 +128,20 @@ export const ExternalAgentRunSchema = z
     /** Present while status is waiting_for_input. */
     questionSource: AgentUserInputSourceSchema.optional(),
     questions: AgentUserInputQuestionsSchema.optional(),
-    error: z.string().optional()
+    error: z.string().optional(),
+    toolUsage: ExternalToolUsageSchema.optional(),
+    lastCompletedTool: z
+      .object({
+        name: z.string(),
+        completedAt: z.string().optional(),
+        success: z.boolean()
+      })
+      .strict()
+      .optional(),
+    recovery: z
+      .object({ available: z.boolean(), resumedFromDisk: z.boolean() })
+      .strict()
+      .optional()
   })
   .strict();
 export type ExternalAgentRun = z.infer<typeof ExternalAgentRunSchema>;

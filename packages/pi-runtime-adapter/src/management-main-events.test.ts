@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import { toRuntimeEvents } from "./event-mapping";
 import type { AgentRunInput } from "./runtime-types";
 import { createLibraryManagementRuntime } from "./library-management-runtime";
+import { libraryExecutor } from "./library-management-tools/test-support";
 import { materialWorkspace } from "./library-agent-tools/test-fixtures";
 
 it.each(["request-approval", "auto-approve"] as const)(
@@ -26,22 +27,22 @@ it.each(["request-approval", "auto-approve"] as const)(
           }
         ]
       },
-      libraryManagementCommandExecutor: async (command) => ({
-        status: "accepted",
-        requestId: command.id,
-        payload: { libraries: [], workspace }
-      })
+      libraryManagementCommandExecutor: libraryExecutor(workspace)
     };
     const tool = createLibraryManagementRuntime(input).tools.find(
-      (tool) => tool.name === "manage_material_create_material_entry"
+      (tool) => tool.name === "library_write"
     )!;
     const result = await tool.execute("main-call", {
       library_id: workspace.libraryId,
-      stage_id: "pacing",
-      name: "新素材",
-      description: "测试素材",
-      title: "新素材",
-      body: "正文"
+      operations: [
+        {
+          action: "create",
+          stage_id: "pacing",
+          name: "新素材",
+          description: "测试素材",
+          body: "正文"
+        }
+      ]
     });
     const events = toRuntimeEvents(
       {

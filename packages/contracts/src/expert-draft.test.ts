@@ -208,7 +208,7 @@ describe("expert draft Markdown contracts", () => {
 
     expect(review).toContain("正文。");
     expect(review).toContain("字数要求：1000 字");
-    expect(review).toContain("人物状态：\n她已经受伤。");
+    expect(review).toContain("状态：\n她已经受伤。");
     expect(review).not.toContain("deepwrite:");
     expect(review).not.toContain("%E5");
   });

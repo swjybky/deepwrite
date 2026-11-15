@@ -1,4 +1,10 @@
 export default {
+  awaitingReview: "待审阅",
+  continuityCommit: "连续性提交",
+  combinedSaveFailed: "连续性文件与账本尚未确认保存成功，请重试。",
+  savingFilesAndLedger: "正在校验并一并保存连续性文件与账本……",
+  reviewFilesAndLedger: "确认文件差异后，将一并保存连续性文件与账本。",
+
   batchOfValueChaptersFinalChapterCheckpointValue:
     "本批 {arg0} 章 · 末章检查点 {arg1}",
   waitingForPrerequisiteFiles: "等待前序文件",

@@ -25,7 +25,9 @@ export default defineConfig(
     "**/release/**",
     "**/coverage/**",
     ".agents/**",
-    ".codex/**"
+    ".codex/**",
+    ".claude/**",
+    "test/**"
   ]),
   {
     files: sourceFiles,

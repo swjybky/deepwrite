@@ -126,12 +126,14 @@ describe("edit tool result labels", () => {
 });
 
 it.each([
-  ["manage_skill_read_skill_entry", "read"],
-  ["manage_material_create_material_entry", "write"],
-  ["manage_skill_edit_skill_library_overview", "write"],
+  ["library_list", "read"],
+  ["library_read", "read"],
+  ["library_search", "read"],
+  ["library_write", "write"],
+  ["library_organize", "write"],
   ["list_active_agent_teams", "read"],
-  ["read_agent_team_prompt", "read"],
-  ["propose_agent_team_prompt", "write"]
+  ["read_agent_team_members", "read"],
+  ["propose_agent_team_change", "write"]
 ])("shows a readable status for %s", (name, kind) => {
   expect(workspaceToolLabel(name)).not.toBe(name);
   expect(toolKind(name)).toBe(kind);

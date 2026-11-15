@@ -10,7 +10,8 @@ import {
 
 function harness(
   options: Partial<ExternalControlBridgePorts> = {},
-  running = false
+  running = false,
+  saved?: Map<string, unknown>
 ) {
   const messages = ref<Record<string, unknown>[]>([]);
   const activeRunId = ref<string | null>(null);
@@ -68,7 +69,20 @@ function harness(
   };
   let send = options.send ?? sendForTest;
   const dispose = useExternalControlBridge({
-    api: () => ({ externalControl: { respond } }) as never,
+    api: () =>
+      ({
+        externalControl: { respond },
+        ...(saved
+          ? {
+              conversationPersistence: {
+                load: async (key: string) => saved.get(key),
+                save: async (key: string, value: unknown) => {
+                  saved.set(key, structuredClone(value));
+                }
+              }
+            }
+          : {})
+      }) as never,
     open: async () => true,
     conversation: () => conversation,
     conversationsRestored: async () => undefined,
@@ -289,6 +303,36 @@ describe("external control bridge", () => {
     test.dispose();
   });
 
+  it("waits for a newly opened work's conversation to stop changing", async () => {
+    const test = harness();
+    const started = test.start();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    test.sessionId.value = "session-restored";
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(test.sentDrafts).toEqual([]);
+    expect(await started).toMatchObject({ ok: true });
+    expect(test.sentDrafts).toEqual(["外部消息"]);
+    test.dispose();
+  });
+
+  it("reports why a sent message never got a reply", async () => {
+    const test = harness();
+    test.setSend(async () => {
+      test.messages.value.push({
+        id: "user",
+        role: "user",
+        content: "外部消息"
+      });
+      test.conversationError.value = "智能体请求未被接受。作品还在加载。";
+    });
+    expect(await test.start()).toMatchObject({
+      ok: false,
+      code: "external.not_ready",
+      message: "智能体请求未被接受。作品还在加载。"
+    });
+    test.dispose();
+  });
+
   it("forwards a question with plain data the bridge can carry", async () => {
     const test = harness({}, true);
     const { result } = await test.start();
@@ -440,4 +484,66 @@ describe("external run ownership", () => {
       test.dispose();
     }
   });
+});
+
+describe("external run recovery", () => {
+  it("recovers the old run id and trace statistics without resending after a renderer restart", async () => {
+    const saved = new Map<string, unknown>();
+    const first = harness({}, true, saved);
+    const started = await first.start();
+    const runId = String(started.result.runId);
+    first.messages.value.at(-1)!.toolCalls = [
+      {
+        id: "call_saved",
+        name: "read",
+        status: "completed",
+        requestedAt: "2026-11-14T00:00:00.000Z",
+        completedAt: "2026-11-14T00:00:00.050Z",
+        args: {}
+      }
+    ];
+    await vi.waitFor(() => expect(saved.size).toBe(1));
+    first.dispose();
+    const second = harness({}, false, saved);
+    second.messages.value = first.messages.value;
+    const restored = await second.ask({ action: "run_status", runId });
+    expect(restored.result).toMatchObject({
+      runId,
+      sessionId: "session-1",
+      status: "interrupted",
+      toolUsage: { total: 1, succeeded: 1, failed: 0 },
+      recovery: { available: true, resumedFromDisk: true }
+    });
+    expect(second.sentDrafts).toEqual([]);
+    expect(restored).toBeDefined();
+    second.dispose();
+  });
+});
+
+describe("external recovery terminal status", () => {
+  it.each(["completed", "stopped"] as const)(
+    "retains %s after restart",
+    async (status) => {
+      const saved = new Map<string, unknown>();
+      const first = harness({}, true, saved);
+      const started = await first.start();
+      const runId = String(started.result.runId);
+      if (status === "stopped") await first.ask({ action: "stop_run", runId });
+      else {
+        first.messages.value.at(-1)!.status = "completed";
+        first.activeRunId.value = null;
+        first.busy.value = false;
+      }
+      await vi.waitFor(() =>
+        expect([...saved.values()][0]).toMatchObject({ lastStatus: status })
+      );
+      first.dispose();
+      const second = harness({}, false, saved);
+      second.messages.value = first.messages.value;
+      const restored = await second.ask({ action: "run_status", runId });
+      expect(restored.result).toMatchObject({ status });
+      expect(second.sentDrafts).toEqual([]);
+      second.dispose();
+    }
+  );
 });

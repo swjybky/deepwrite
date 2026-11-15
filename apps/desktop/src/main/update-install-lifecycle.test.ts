@@ -37,7 +37,7 @@ describe("update install lifecycle", () => {
 
     expect(constructorStart).toBeGreaterThanOrEqual(0);
     expect(constructorEnd).toBeGreaterThan(constructorStart);
-    expect(services).toContain("new UpdateService(options.installUpdate)");
+    expect(services).toContain("new UpdateService(options.installUpdate, {");
     expect(installRequest).toContain(
       "installUpdate: () => beginGracefulShutdown({ installUpdate: true })"
     );
@@ -62,7 +62,9 @@ describe("update install lifecycle", () => {
       new URL("./update-service.ts", import.meta.url),
       "utf8"
     );
-    const installStart = updateServiceSource.indexOf("  install(): void {");
+    const installStart = updateServiceSource.indexOf(
+      "  async install(): Promise<void> {"
+    );
     const installEnd = updateServiceSource.indexOf(
       "  quitAndInstall(): void {",
       installStart

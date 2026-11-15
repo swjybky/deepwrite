@@ -329,20 +329,6 @@ describe("general settings coordinator", () => {
     expect(resumeAutomaticAgentEdits).toHaveBeenCalledOnce();
   });
 
-  it("persists cross-stage auto approval without changing proposal approval mode", async () => {
-    const { coordinator, settings, api, applyApprovalMode } = harness();
-
-    coordinator.updateAutoApproveCrossStageOperations(true);
-    await coordinator.drain();
-
-    expect(settings.value.autoApproveCrossStageOperations).toBe(true);
-    expect(settings.value.permissionMode).toBe("auto-approve");
-    expect(applyApprovalMode).not.toHaveBeenCalled();
-    expect(api?.save).toHaveBeenCalledWith(
-      expect.objectContaining({ autoApproveCrossStageOperations: true })
-    );
-  });
-
   it("persists context usage visibility independently", async () => {
     const { coordinator, settings, api } = harness();
 

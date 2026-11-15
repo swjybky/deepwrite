@@ -27,8 +27,8 @@ export function writeApprovalBoundary(
 ): string {
   if (locale === "en-US") {
     return mode === "auto-approve"
-      ? `[Write approval: auto-save] The client saves the proposals your write tools create automatically; the user does not approve them one by one. A successful write tool call means the proposal is submitted and the step is done: move on to the next step, do not wait for a save confirmation, do not resubmit, and do not describe a submitted change as unfinished or ask the user to approve it. Deletions and their cascading effects are saved directly too; the user can undo them from the change card. Changes that fail to save, conflict or are undone are reported in the ${PROPOSAL_SETTLEMENTS_HEADING} block (outcomes of earlier changes) before the next user message; without such a notice, treat the change as saved.`
-      : `[Write approval: user review] Proposals created by your write tools are saved only after the user accepts them on the approval card. After a step that submits proposals, the client pauses the run until the user has handled every proposal of that step; the user may accept, reject, or edit the text before saving. The outcomes then arrive in the ${WRITE_APPROVAL_RESULTS_HEADING} block before you continue: follow it. Do not resubmit what was saved; do not resubmit a rejected change unchanged unless the user asks again; when the user edited a change before saving, the user's version is final and later changes build on it. Never ask the user in your reply to approve a change; the client already does.`;
+      ? `[Write approval: auto-save] The client saves the proposals your write tools create automatically; the user does not approve them one by one. A successful write tool call means the proposal is submitted and the step is done: move on to the next step, do not wait for a save confirmation, do not resubmit, and do not describe a submitted change as unfinished or ask the user to approve it. Deletions and their cascading effects are saved directly too; the user can undo them from the change card. Changes that fail to save, conflict or are undone are reported in the [Outcomes of earlier changes] block before the next user message; without such a notice, treat the change as saved.`
+      : `[Write approval: user review] Proposals created by your write tools are saved only after the user accepts them on the approval card. After a step that submits proposals, the client pauses the run until the user has handled every proposal of that step; the user may accept, reject, or edit the text before saving. The outcomes then arrive in the [Review results] block before you continue: follow it. Do not resubmit what was saved; do not resubmit a rejected change unchanged unless the user asks again; when the user edited a change before saving, the user's version is final and later changes build on it. Never ask the user in your reply to approve a change; the client already does.`;
   }
   return mode === "auto-approve"
     ? `【写入审批方式：自动保存】写入工具形成的提案由客户端自动保存，用户不逐笔审批。写入工具成功返回即表示提案已提交、这一步已完成：直接继续后续步骤，不要等待保存确认，不要重复提交，也不要把已提交的修改说成未完成或请用户审批。删除及其关联影响也会直接保存，用户可在修改卡片上撤销。保存失败、冲突或被撤销的修改会在下一轮用户消息前的${PROPOSAL_SETTLEMENTS_HEADING}中告知；没有收到这类通知即视为已保存。`
@@ -45,9 +45,21 @@ const STATUS_TEXT: Record<ProposalSettlementStatus, string> = {
 
 /** Renders the client-reported outcomes; empty when nothing settled. */
 export function renderProposalSettlements(
-  settlements: ProposalSettlements | undefined
+  settlements: ProposalSettlements | undefined,
+  locale?: PromptLocale
 ): string {
   if (!settlements?.items.length) return "";
+  if (locale === "en-US")
+    return [
+      "[Outcomes of earlier changes]",
+      ...settlements.items.map(
+        (item) =>
+          `- ${item.title}: ${item.status}${item.summary ? ` (${item.summary})` : ""}${item.detail ? `. ${item.detail}` : ""}`
+      ),
+      ...(settlements.omittedCount
+        ? [`${settlements.omittedCount} further outcomes omitted.`]
+        : [])
+    ].join("\n");
   const lines = settlements.items.map((item) => {
     const summary = item.summary?.trim();
     const detail = item.detail?.trim();
@@ -71,8 +83,33 @@ export function renderProposalSettlements(
  * missing report means the wait was answered without the approval card.
  */
 export function renderWriteApprovalResults(
-  response: AgentWriteApprovalResponse | undefined
+  response: AgentWriteApprovalResponse | undefined,
+  locale?: PromptLocale
 ): string {
+  if (locale === "en-US") {
+    if (!response?.items.length)
+      return "[Review results] No saved outcome was reported. Read the target before proceeding.";
+    return [
+      "[Review results]",
+      ...response.items.map((item) =>
+        [
+          `- ${item.title}: ${item.status}${item.summary ? ` (${item.summary})` : ""}${item.detail ? `. ${item.detail}` : ""}`,
+          ...(item.edited
+            ? [
+                item.editedText === undefined || item.editedTextTruncated
+                  ? "The user edited the saved text. Read the full saved version before further edits."
+                  : "The user saved the following version:",
+                ...(item.editedText !== undefined ? [item.editedText] : [])
+              ]
+            : [])
+        ].join("\n")
+      ),
+      ...(response.omittedCount
+        ? [`${response.omittedCount} further outcomes omitted.`]
+        : []),
+      "Use the reported outcomes. Do not resubmit saved or rejected changes. Read the latest version after a conflict."
+    ].join("\n");
+  }
   if (!response) {
     return [
       WRITE_APPROVAL_RESULTS_HEADING,

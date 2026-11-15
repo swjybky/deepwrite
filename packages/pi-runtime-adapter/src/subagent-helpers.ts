@@ -1,3 +1,4 @@
+import type { PromptLocale } from "@deepwrite/contracts";
 import type {
   AgentMessage,
   AgentTool,
@@ -134,9 +135,10 @@ export function isAssistantMessage(
 /** A prepared child may already carry the section inside its own prompt. */
 function webSearchSection(
   definition: RuntimeSubagentDefinition,
-  childTools: readonly AgentTool[]
+  childTools: readonly AgentTool[],
+  locale?: PromptLocale
 ): string[] {
-  const section = webSearchPromptFor(childTools);
+  const section = webSearchPromptFor(childTools, locale);
   return section && !definition.systemPrompt.includes(section)
     ? ["", section, ""]
     : [];
@@ -146,7 +148,8 @@ export function buildSubagentSystemPrompt(
   definition: RuntimeSubagentDefinition,
   childTools: readonly AgentTool[],
   systemPromptRequirements?: string,
-  runtimeNote?: string
+  runtimeNote?: string,
+  locale?: PromptLocale
 ): string {
   const toolLines = childTools.map((tool) => {
     const label =
@@ -155,6 +158,25 @@ export function buildSubagentSystemPrompt(
         : tool.name;
     return `- ${tool.name}（${label}）`;
   });
+  if (locale === "en-US")
+    return [
+      definition.systemPrompt.trim(),
+      systemPromptRequirements,
+      `[Current subagent: ${definition.name} / ${definition.id}]`,
+      definition.contextMode === "parent-snapshot"
+        ? "You inherit a conversation snapshot. Read editing targets with your own tools."
+        : "You have fresh context for the assigned task.",
+      "You cannot delegate to other agents.",
+      bookImagePreservationRule(locale),
+      runtimeNote,
+      ...webSearchSection(definition, childTools, locale),
+      toolLines.length
+        ? `Available tools:\n${toolLines.join("\n")}`
+        : "No tools available. Return your findings as text.",
+      `Your final response goes to the parent agent and is truncated above ${SUBAGENT_SUMMARY_MAX_LENGTH} characters. Include the information it needs.`
+    ]
+      .filter(Boolean)
+      .join("\n");
   return [
     definition.systemPrompt.trim(),
     ...(systemPromptRequirements?.trim()

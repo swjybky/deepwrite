@@ -11,7 +11,6 @@ export function createGeneralSettingsTestApi(): DeepWriteApi["generalSettings"] 
         settings: {
           ...createDefaultGeneralSettings(),
           permissionMode: "request-approval",
-          autoApproveCrossStageOperations: false,
           autoSave: false
         }
       };

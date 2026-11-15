@@ -10,7 +10,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { homedir } from "node:os";
 import { version } from "../../../package.json";
-import { createBridgeConnection } from "./bridge-connection";
+import { AppUpdatingError, createBridgeConnection } from "./bridge-connection";
 import {
   isPackagedBridge,
   launchApp,
@@ -72,6 +72,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     );
     return { content: [{ type: "text", text: JSON.stringify(result) }] };
   } catch (error: unknown) {
+    // This process runs the app's own binary; exiting frees it for the installer.
+    if (error instanceof AppUpdatingError) setTimeout(shutdown, 500);
     const text =
       error instanceof ExternalControlError
         ? `${error.code}: ${error.message}`

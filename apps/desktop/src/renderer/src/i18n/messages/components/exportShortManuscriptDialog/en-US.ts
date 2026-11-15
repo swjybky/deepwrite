@@ -18,9 +18,9 @@ export default {
   close: "Close",
   exportScope: "Export scope",
   exportsAllEpisodeManuscriptsOnlyExcludingCharacterStatePlot:
-    "Exports all episode manuscripts only, excluding character state, plot design, and outlines. Unsaved edits in this client are included.",
+    "Exports all episode manuscripts only, excluding state, plot design, and outlines. Unsaved edits in this client are included.",
   exportsTheIntroductionAndAllManuscriptSectionsOnlyExcluding:
-    "Exports the introduction and all manuscript sections only, excluding character state, plot design, and outlines. Unsaved edits in this client are included.",
+    "Exports the introduction and all manuscript sections only, excluding state, plot design, and outlines. Unsaved edits in this client are included.",
   selectExportFormat: "Select export format",
   fullManuscriptValueCharacters: "Full manuscript: {arg0} characters",
   countingFullManuscript: "Counting full manuscript…",

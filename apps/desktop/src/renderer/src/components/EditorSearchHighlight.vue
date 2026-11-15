@@ -34,7 +34,7 @@ let editor: HTMLTextAreaElement | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
 function syncOverlay(): void {
-  if (!editor) return;
+  if (!editor || !props.visible || !props.matches.length) return;
   const style = globalThis.getComputedStyle(editor);
   overlayStyle.value = {
     top: `${editor.offsetTop + editor.clientTop}px`,
@@ -52,7 +52,10 @@ function syncOverlay(): void {
 
 function bindEditor(): void {
   const nextEditor =
-    rootElement.value?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+    props.visible && props.matches.length
+      ? (rootElement.value?.querySelector<HTMLTextAreaElement>("textarea") ??
+        null)
+      : null;
   if (nextEditor === editor) {
     syncOverlay();
     return;
@@ -72,7 +75,7 @@ function bindEditor(): void {
 
 onMounted(() => void nextTick(bindEditor));
 watch(
-  () => [props.content, props.visible] as const,
+  () => [props.content, props.visible, props.matches] as const,
   () => void nextTick(bindEditor),
   { flush: "post" }
 );

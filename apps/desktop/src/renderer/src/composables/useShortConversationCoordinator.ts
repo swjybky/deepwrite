@@ -6,10 +6,7 @@ import {
   creationMaterialReferences
 } from "../utils/shortLibraryReferences";
 import { createConversationHistorySelection } from "./conversationHistorySelection";
-import {
-  withoutMaterialBindings,
-  withoutMaterialBodies
-} from "../utils/library-attachments/sending";
+import { withoutMaterialBindings } from "../utils/library-attachments/sending";
 import {
   ATTACHED_CONTEXT_MAX_ITEMS,
   resolveScriptWorkspaceAgentIdForStage,
@@ -648,7 +645,7 @@ export function useShortConversationCoordinator(
           });
         const contextReady = await options.resource.ensureDocumentsLoaded(
           options.resource.activeAgentDocument.value.domain === "creation"
-            ? withoutMaterialBodies(contextDocuments)
+            ? contextDocuments.filter((document) => document.domain === "skill")
             : contextDocuments
         );
         if (!sendTargetIsCurrent(target)) {

@@ -1,5 +1,6 @@
 import {
   createShortWorkspaceContentRevision,
+  type LibraryStructurePlan,
   type LibraryStructureProposalEventEnvelope
 } from "@deepwrite/contracts/renderer";
 import type { ProposalCoordinatorContext } from "../useProposalCoordinator";
@@ -58,6 +59,20 @@ export function stageLibraryStructureProposal(
   });
 }
 
+/** Says what each kind of removal leaves behind, since only archives can be restored. */
+function savedStructureMessage(plan: LibraryStructurePlan): string {
+  const has = (action: LibraryStructurePlan["operations"][number]["action"]) =>
+    plan.operations.some((operation) => operation.action === action);
+  const notes = [
+    ...(has("delete-library") ? ["移除的库保留本地文件"] : []),
+    ...(has("delete-entries") ? ["删除的条目及其正文文件无法恢复"] : []),
+    ...(has("archive-entries")
+      ? ["删除的条目已保留本地备份，可使用删除提案中的恢复标识恢复"]
+      : [])
+  ];
+  return `整理已保存${notes.length ? `；${notes.join("；")}` : ""}。`;
+}
+
 export async function acceptLibraryStructureProposal(
   context: ProposalCoordinatorContext,
   conversation: AgentConversationController,
@@ -91,8 +106,7 @@ export async function acceptLibraryStructureProposal(
     conversation.updateEditProposal(proposal.runId, proposal.id, {
       status: "accepted",
       proposedText: undefined,
-      statusMessage:
-        "整理已保存；移除的库保留本地文件，删除的条目及其正文文件无法恢复。"
+      statusMessage: savedStructureMessage(plan)
     });
     try {
       await context.catalog.loadSnapshot();

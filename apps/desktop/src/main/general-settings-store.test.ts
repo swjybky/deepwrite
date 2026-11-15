@@ -32,7 +32,6 @@ describe("GeneralSettingsStore", () => {
     });
     expect(createDefaultGeneralSettings()).toMatchObject({
       permissionMode: "auto-approve",
-      autoApproveCrossStageOperations: true,
       autoSave: true,
       showContextUsage: true,
       useNetworkProxy: false,
@@ -45,7 +44,6 @@ describe("GeneralSettingsStore", () => {
     const settings = {
       ...createDefaultGeneralSettings(),
       permissionMode: "auto-approve" as const,
-      autoApproveCrossStageOperations: true,
       autoSave: true,
       language: "en-US" as const,
       showInMenuBar: false,
@@ -195,7 +193,6 @@ describe("GeneralSettingsStore", () => {
       persisted: true,
       settings: {
         permissionMode: "auto-approve",
-        autoApproveCrossStageOperations: true,
         autoSave: false,
         language: "zh-CN",
         showInMenuBar: false,
@@ -286,7 +283,6 @@ describe("GeneralSettingsStore", () => {
     const settings = {
       ...createDefaultGeneralSettings(),
       permissionMode: "request-approval" as const,
-      autoApproveCrossStageOperations: false,
       autoSave: false,
       workspacePaneLayout: "editor-agent" as const
     };
@@ -298,8 +294,7 @@ describe("GeneralSettingsStore", () => {
 
     const migrated = {
       ...settings,
-      permissionMode: "auto-approve",
-      autoApproveCrossStageOperations: true
+      permissionMode: "auto-approve"
     };
     await expect(store.list()).resolves.toEqual({
       persisted: true,
@@ -317,6 +312,25 @@ describe("GeneralSettingsStore", () => {
     });
   });
 
+  it("ignores the removed cross-stage switch in an older settings file", async () => {
+    const { root, store } = await createStore();
+    const settings = createDefaultGeneralSettings();
+    await mkdir(join(root, "config"));
+    await writeFile(
+      store.settingsPath,
+      JSON.stringify({
+        version: 2,
+        ...settings,
+        autoApproveCrossStageOperations: false
+      })
+    );
+
+    await expect(store.list()).resolves.toEqual({
+      persisted: true,
+      settings
+    });
+  });
+
   it("preserves a save queued while legacy settings are being read", async () => {
     const { root, store } = await createStore();
     await mkdir(join(root, "config"));
@@ -326,8 +340,7 @@ describe("GeneralSettingsStore", () => {
     );
     const settings = {
       ...createDefaultGeneralSettings(),
-      permissionMode: "request-approval" as const,
-      autoApproveCrossStageOperations: false
+      permissionMode: "request-approval" as const
     };
 
     await Promise.all([store.list(), store.save(settings)]);

@@ -8,11 +8,13 @@ import type {
 } from "@deepwrite/contracts";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
 import { systemEventCenter } from "../../events/systemEventCenter";
+import { createExternalRunRecovery } from "./run-recovery";
 import { trackExternalRun, type TrackedRun } from "./tracked-run";
 
 const READY_TIMEOUT_MS = 15_000;
 const READY_POLL_MS = 50;
 const LONG_SETTLE_MS = 1_500;
+const SETTLE_MS = 300;
 const SEND_ATTEMPTS = 3;
 const SEND_RETRY_DELAY_MS = 1_000;
 
@@ -71,6 +73,9 @@ async function sendThroughComposer(
  */
 export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
   const runs = new Map<string, TrackedRun>();
+  const recovery = createExternalRunRecovery(ports.api);
+  const restoredRuns = new Set<string>();
+  const recoveryFailures = new Set<string>();
   let navigation: Promise<unknown> = Promise.resolve();
   const navigate = <T>(action: () => Promise<T>): Promise<T> => {
     const result = navigation.then(action);
@@ -78,8 +83,56 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
     return result;
   };
 
-  function requireRun(runId: string): TrackedRun {
-    const run = runs.get(runId);
+  async function requireRun(runId: string): Promise<TrackedRun> {
+    let run = runs.get(runId);
+    if (!run) {
+      const saved = await recovery.load(runId);
+      if (saved) {
+        await open(saved.target);
+        await waitForRestoredConversation();
+        const conversation = ports.conversation();
+        if (!conversation)
+          throw new BridgeFailure("external.not_ready", "原会话尚未恢复。");
+        if (conversation.sessionId.value !== saved.sessionId) {
+          if (conversation.isBusy.value)
+            throw new BridgeFailure(
+              "external.busy",
+              "当前会话正在运行，不能切换到待恢复会话。"
+            );
+          if (!(await conversation.openConversation?.(saved.sessionId)))
+            throw new BridgeFailure(
+              "external.not_found",
+              "原运行的会话已被移除。"
+            );
+        }
+        const assistant = conversation.messages.value.find(
+          (m) =>
+            m.id === saved.assistantId ||
+            (saved.internalRunId &&
+              m.runId === saved.internalRunId &&
+              m.role === "assistant")
+        );
+        if (!assistant)
+          throw new BridgeFailure(
+            "external.not_found",
+            "原运行的回复记录已被移除。"
+          );
+        run = trackExternalRun(
+          runId,
+          conversation,
+          assistant,
+          saved.mode,
+          saved.target,
+          {
+            recovered: true,
+            internalRunId: saved.internalRunId,
+            lastStatus: saved.lastStatus
+          }
+        );
+        runs.set(runId, run);
+        restoredRuns.add(runId);
+      }
+    }
     if (!run) {
       throw new BridgeFailure("external.not_found", "找不到这次运行。");
     }
@@ -93,13 +146,21 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
   }
 
   /**
-   * A long work keeps settling for a moment after it reports ready, and a send
-   * that sees it change is cancelled, so readiness has to hold for a while.
+   * A freshly opened work keeps settling for a moment after it reports ready:
+   * its conversation can be swapped or re-selected, and a send that sees that
+   * change is cancelled, so readiness has to hold for a while.
    */
   async function waitUntilSettled(target: ExternalWindowTarget): Promise<void> {
-    const settleMs = target.kind === "long" ? LONG_SETTLE_MS : 0;
+    const settleMs = target.kind === "long" ? LONG_SETTLE_MS : SETTLE_MS;
     const deadline = Date.now() + READY_TIMEOUT_MS;
-    let readySince = ports.sendReady() ? Date.now() : null;
+    const observe = () => {
+      const conversation = ports.sendReady() ? ports.conversation() : null;
+      return conversation
+        ? { conversation, sessionId: conversation.sessionId.value }
+        : null;
+    };
+    let observed = observe();
+    let readySince = observed ? Date.now() : null;
     while (readySince === null || Date.now() - readySince < settleMs) {
       if (Date.now() > deadline) {
         throw new BridgeFailure(
@@ -108,7 +169,15 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
         );
       }
       await pause(READY_POLL_MS);
-      if (!ports.sendReady()) readySince = null;
+      const next = observe();
+      const unchanged =
+        next !== null &&
+        observed !== null &&
+        next.conversation === observed.conversation &&
+        next.sessionId === observed.sessionId;
+      observed = next;
+      if (!next) readySince = null;
+      else if (!unchanged) readySince = Date.now();
       else readySince ??= Date.now();
     }
   }
@@ -219,17 +288,36 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
     if (!assistant)
       throw new BridgeFailure(
         "external.not_ready",
-        "这次运行尚未建立回复记录。"
+        conversation.conversationError.value ||
+          "消息已发出但运行被撤销，没有开始回复；可以直接重试。"
       );
     const run = trackExternalRun(
       runId,
       conversation,
       assistant,
       teamMode,
-      request.target
+      request.target,
+      {
+        onIdentity: (identity) => {
+          void recovery.save(identity).catch(() => recoveryFailures.add(runId));
+        }
+      }
     );
     runs.set(runId, run);
-    return run.snapshot();
+    await recovery.flush();
+    return snapshot(runId, run);
+  }
+
+  function snapshot(runId: string, run: TrackedRun): ExternalAgentRun {
+    return {
+      ...run.snapshot(),
+      recovery: {
+        available:
+          !!ports.api()?.conversationPersistence &&
+          !recoveryFailures.has(runId),
+        resumedFromDisk: restoredRuns.has(runId)
+      }
+    };
   }
 
   /** Conversation state is reactive, and proxies cannot cross the bridge. */
@@ -258,9 +346,11 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
       case "start_run":
         return navigate(() => startRun(request, id));
       case "run_status":
-        return requireRun(request.runId).snapshot();
+        return navigate(async () =>
+          snapshot(request.runId, await requireRun(request.runId))
+        );
       case "answer_run": {
-        const run = requireRun(request.runId);
+        const run = await navigate(() => requireRun(request.runId));
         run.snapshot();
         if (!run.ownsActiveRun())
           throw new BridgeFailure(
@@ -280,14 +370,14 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
             run.conversation.conversationError.value || "回答没有被接受。"
           );
         }
-        return run.snapshot();
+        return snapshot(request.runId, run);
       }
       case "stop_run": {
-        const run = requireRun(request.runId);
-        const snapshot = run.snapshot();
-        if (!run.ownsActiveRun()) return snapshot;
+        const run = await navigate(() => requireRun(request.runId));
+        const current = snapshot(request.runId, run);
+        if (!run.ownsActiveRun()) return current;
         await run.conversation.stopGeneration();
-        return run.snapshot();
+        return snapshot(request.runId, run);
       }
       case "long_editor_state":
         return { dirty: ports.longEditorHasUnsavedChanges(request.bookId) };

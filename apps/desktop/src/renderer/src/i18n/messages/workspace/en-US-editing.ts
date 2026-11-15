@@ -47,7 +47,7 @@ export default {
   },
   editorEntrySearch: {
     manuscript: "{title} · Manuscript",
-    characterState: "{title} · Character state",
+    characterState: "{title} · State",
     characterOverview: "Character overview",
     searching: "Searching…",
     failedToSearchAllEntries: "Failed to search all entries.",
@@ -355,7 +355,7 @@ export default {
     thisNoLongerExists2: "This {value} no longer exists.",
     manuscriptSection: "manuscript section",
     deletedAndItsCharacterStateFiles:
-      "Deleted “{sectionTitle}” and its character state files.",
+      "Deleted “{sectionTitle}” and its state files.",
     couldNotDeleteThe: "Could not delete the {value}."
   },
   lazyApprovalNavigationCoordinator: {

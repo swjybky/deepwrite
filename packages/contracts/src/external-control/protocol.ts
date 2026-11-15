@@ -21,8 +21,7 @@ export const ExternalControlErrorCodeSchema = z.enum([
   "external.not_found",
   "external.invalid_input",
   "external.busy",
-  "external.stale_revision",
-  "external.cross_stage_disabled"
+  "external.stale_revision"
 ]);
 export type ExternalControlErrorCode = z.infer<
   typeof ExternalControlErrorCodeSchema
@@ -42,7 +41,12 @@ export const ExternalControlStateFileSchema = z.discriminatedUnion("status", [
     token: z.string().min(32),
     startedAt: z.string().datetime()
   }),
-  StateFileBaseSchema.extend({ status: z.literal("disabled") })
+  StateFileBaseSchema.extend({ status: z.literal("disabled") }),
+  /** The app quit to install an update: the bridge must not reopen it. */
+  StateFileBaseSchema.extend({
+    status: z.literal("updating"),
+    startedAt: z.string().datetime()
+  })
 ]);
 export type ExternalControlStateFile = z.infer<
   typeof ExternalControlStateFileSchema

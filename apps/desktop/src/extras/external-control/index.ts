@@ -95,6 +95,7 @@ export function createExternalControl(options: ExternalControlOptions) {
   let settingsKnown = false;
   let launchRequested = false;
   let stopped = false;
+  let updating = false;
   let server: ExternalControlServer | undefined;
   let queue: Promise<void> = Promise.resolve();
 
@@ -186,7 +187,14 @@ export function createExternalControl(options: ExternalControlOptions) {
   }
 
   async function publishStopped(): Promise<void> {
-    if (launchRequested && !stopped) {
+    if (updating) {
+      // Holds bridges back until the next app start replaces this file.
+      await writeExternalControlState(options.paths.stateFile, {
+        ...identity,
+        status: "updating",
+        startedAt: now()
+      });
+    } else if (launchRequested && !stopped) {
       // Answers a bridge waiting on launch; carries no way to connect.
       await writeExternalControlState(options.paths.stateFile, {
         ...identity,
@@ -282,8 +290,9 @@ export function createExternalControl(options: ExternalControlOptions) {
       }
     },
     /** Never rejects, so shutdown continues if cleanup fails. */
-    stop(): Promise<void> {
+    stop(options: { updating?: boolean } = {}): Promise<void> {
       stopped = true;
+      updating = options.updating === true;
       return enqueue();
     }
   };

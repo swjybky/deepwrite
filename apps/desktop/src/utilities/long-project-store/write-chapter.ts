@@ -13,7 +13,7 @@ import {
   serializeJson
 } from "./io";
 import { loadProject } from "./load-project";
-import { firstEmptyChapter } from "./paths";
+import { firstEmptyChapter, updateChapterBodyStatus } from "./paths";
 import type { LongProjectStoreContext } from "./store-context";
 import {
   MANIFEST_PATH,
@@ -71,7 +71,7 @@ export async function writeChapter(
     for (const write of writes) {
       write.file.reference.updatedAt = timestamp;
     }
-    entry.bodyStatus = input.body.content.trim() ? "written" : "empty";
+    updateChapterBodyStatus(loaded.index, entry.body.id, input.body.content);
     const nextIndex = LongWorkspaceIndexSnapshotSchema.parse({
       ...loaded.index,
       updatedAt: timestamp

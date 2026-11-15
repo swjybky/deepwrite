@@ -1,0 +1,41 @@
+{
+  "runtime": "Electron Agent Utility / Faux",
+  "synthetic": true,
+  "reports": [
+    {
+      "root": "worldbuilding",
+      "accepted": true,
+      "completed": true,
+      "currentPosition": true,
+      "textOmitted": true
+    },
+    {
+      "root": "character_design",
+      "accepted": true,
+      "completed": true,
+      "currentPosition": true,
+      "textOmitted": true
+    },
+    {
+      "root": "plot_design",
+      "accepted": true,
+      "completed": true,
+      "currentPosition": true,
+      "textOmitted": true
+    },
+    {
+      "root": "draft",
+      "accepted": true,
+      "completed": true,
+      "currentPosition": true,
+      "textOmitted": true
+    },
+    {
+      "root": "continuity_ledger",
+      "accepted": true,
+      "completed": true,
+      "currentPosition": true,
+      "textOmitted": true
+    }
+  ]
+}

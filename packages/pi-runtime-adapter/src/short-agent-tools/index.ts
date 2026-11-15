@@ -1,3 +1,4 @@
+import { withCoreWritingView } from "./core-tool-view";
 import { buildAskUserQuestionTool } from "../ask-user-question-tool";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
@@ -103,7 +104,6 @@ function createWritingWorkspaceToolSharedState(
     expertSectionOrder: workspace.expertDraft.sections.map(
       (section) => section.id
     ),
-    pendingExpertSectionTitles: new Set<string>(),
     pendingSectionSeq: 0,
     expertDraftDirectoryBaseRevision: workspace.expertDraft.revision
   };
@@ -131,15 +131,24 @@ function buildUnifiedWritingWorkspaceTools(
   // Reads summarized away no longer authorize edits of existing text.
   input.onContextCompacted?.(() => readState.fullyRead.clear());
   return [
-    buildShortUnifiedReadTool(toolInput, sharedState, readState),
-    buildShortUnifiedCreateTool(toolInput, sharedState),
-    buildShortUnifiedEditTool(toolInput, sharedState, readState),
-    buildShortUnifiedDeleteTool(toolInput, sharedState, readState),
+    ...[
+      buildShortUnifiedReadTool(toolInput, sharedState, readState),
+      buildShortUnifiedCreateTool(toolInput, sharedState),
+      buildShortUnifiedEditTool(toolInput, sharedState, readState),
+      buildShortUnifiedDeleteTool(toolInput, sharedState)
+    ].map((tool) =>
+      withCoreWritingView(
+        tool,
+        toolInput,
+        sharedState,
+        createWritingWorkspaceToolSharedState
+      )
+    ),
     buildQueryLinkedMaterialEntriesTool(toolInput),
     buildLoadSkillTool(toolInput),
     ...(input.includeAskUserQuestion === false
       ? []
-      : [buildAskUserQuestionTool(input.requestUserInput)])
+      : [buildAskUserQuestionTool(input.requestUserInput, input.promptLocale)])
   ];
 }
 

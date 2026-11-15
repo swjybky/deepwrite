@@ -70,6 +70,7 @@ export * from "./subagent-authoring";
 export * from "./system";
 export * from "./utility";
 export * from "./update";
+export * from "./writing-workspace-read";
 export * from "./workspace";
 export * from "./workspace-directory";
 export * from "./writing-agent-prompts";

@@ -217,7 +217,7 @@ describe("the main agent's switch", () => {
     expect(prompt).not.toContain(FETCH);
     const on = buildEffectiveSystemPrompt("基础提示。", mainInputs(true).短篇!);
     expect(on).toContain(WEB_SEARCH_FETCH_PROMPT);
-    expect(on).toContain("联网查证公开资料使用 web_search、web_fetch");
+    expect(on).toContain("【联网搜索】");
     expect(
       buildEffectiveSystemPrompt("基础提示。", mainInputs(false).短篇!)
     ).not.toContain(FETCH);
@@ -441,11 +441,7 @@ describe("web_search in library management children", () => {
     const runtime = harness();
     const tools = buildRunTools(run, options(runtime));
     expect(webOf(tools)).toEqual(WEB_PAIR);
-    expect(
-      tools.some(
-        (tool) => tool.name === "manage_material_create_material_entry"
-      )
-    ).toBe(true);
+    expect(tools.some((tool) => tool.name === "library_write")).toBe(true);
     expect(
       tools.find((tool) => tool.name === "spawn_subagent")?.description ?? ""
     ).not.toContain("builtin:material-manager");

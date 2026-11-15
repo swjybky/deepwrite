@@ -621,7 +621,9 @@ function createDraftFileDocument(
     id: bookDocumentId(book.id, source.id),
     domain: "creation",
     get title() {
-      return fileKind === "body" ? section.title : source.title;
+      return fileKind === "body"
+        ? section.title
+        : t("catalogWorkspace.characterState2", { value: section.title });
     },
     get eyebrow() {
       return fileKind === "body"

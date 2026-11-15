@@ -1,4 +1,8 @@
-import type { LongWorkspaceRuntimeContext } from "@deepwrite/contracts";
+import {
+  LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS,
+  LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS_PER_CATEGORY,
+  type LongWorkspaceRuntimeContext
+} from "@deepwrite/contracts";
 
 const LONG_CHARACTER_DIRECTORY_LIMIT_PER_TYPE = 50;
 
@@ -41,6 +45,7 @@ export function renderLongWorldbuildingDirectory(
   navigation: LongWorkspaceRuntimeContext["navigation"]
 ): string {
   const categories = directory?.categories ?? [];
+  let remaining = LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS;
   const lines = categories.flatMap((category) => {
     if (category.format === "text") {
       return [
@@ -48,15 +53,23 @@ export function renderLongWorldbuildingDirectory(
       ];
     }
     const header = `- ${category.title}（category_id=${category.categoryId}；类型=条目列表；共 ${category.itemCount} 项）`;
-    const items = category.items.length
-      ? category.items.map(
+    const visible = category.items.slice(
+      0,
+      Math.min(remaining, LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS_PER_CATEGORY)
+    );
+    remaining -= visible.length;
+    const items = visible.length
+      ? visible.map(
           (item) =>
             `  - ${item.title}（item_id=${item.itemId}；顺序=${item.order}）`
         )
-      : ["  - 暂无条目"];
-    if (category.omittedItemCount > 0) {
+      : category.itemCount
+        ? []
+        : ["  - 暂无条目"];
+    const omitted = category.itemCount - visible.length;
+    if (omitted > 0) {
       items.push(
-        `  - 另有 ${category.omittedItemCount} 项未进入固定上下文，需要时调用 list（stage=worldbuilding, scope_id=${category.categoryId}）查询。`
+        `  - 另有 ${omitted} 项未进入固定上下文，需要时调用 list（stage=worldbuilding, scope_id=${category.categoryId}）查询。`
       );
     }
     return [header, ...items];
@@ -129,97 +142,4 @@ export function renderLongCharacterDirectory(
     return [header, ...items];
   });
   return lines.length ? lines.join("\n") : "- 暂无人物类型";
-}
-
-function renderLongWorldbuildingStageBrief(
-  focus: NonNullable<LongWorkspaceRuntimeContext["worldbuildingFocus"]>,
-  directory: LongWorkspaceRuntimeContext["worldbuildingDirectory"]
-): string {
-  const category = directory?.categories.find(
-    (entry) => entry.title === focus.categoryTitle
-  );
-  const categoryId = category?.categoryId;
-  const itemId =
-    focus.currentStage.kind === "item" && category?.format === "list"
-      ? category.items.find((item) => item.title === focus.currentStage.title)
-          ?.itemId
-      : undefined;
-  const ids = [
-    categoryId ? `category_id=${categoryId}` : "",
-    itemId ? `item_id=${itemId}` : ""
-  ]
-    .filter(Boolean)
-    .join("；");
-  const location =
-    focus.format === "list"
-      ? `列表型分类「${focus.categoryTitle}」${
-          focus.currentStage.kind === "item"
-            ? ` / 条目「${focus.currentStage.title}」`
-            : " / 分类概览"
-        }${ids ? `（${ids}）` : ""}`
-      : `文本型分类「${focus.categoryTitle}」${
-          categoryId ? `（category_id=${categoryId}）` : ""
-        }`;
-  const readId = itemId ?? categoryId;
-  return [
-    `当前用户所处的世界观阶段: ${location}`,
-    `当前阶段简要信息: 仅定位当前页面，正文未注入；需要时调用 read${
-      readId ? `（id=${readId}）` : ""
-    }读取。`
-  ].join("\n");
-}
-
-function renderLongCharacterStageBrief(
-  focus: NonNullable<LongWorkspaceRuntimeContext["characterFocus"]>,
-  navigation: LongWorkspaceRuntimeContext["navigation"]
-): string {
-  if (focus.currentDocument.kind === "overview") {
-    return [
-      "当前用户所处的人物阶段: 人物概览",
-      "当前阶段简要信息: 仅定位人物概览，正文未注入；需要时调用 read（id=character_overview）读取。"
-    ].join("\n");
-  }
-  const character = navigation.characters.find(
-    (entry) =>
-      entry.name === focus.characterName &&
-      (focus.group === undefined || entry.group === focus.group)
-  );
-  const characterId = character?.id;
-  const typeId = focus.group ?? character?.group;
-  const ids = [
-    characterId ? `id=${characterId}` : "",
-    `document=${focus.currentDocument.kind}`,
-    typeId ? `type_id=${typeId}` : ""
-  ]
-    .filter(Boolean)
-    .join("；");
-  return [
-    `当前用户所处的人物阶段: 「${focus.characterName}」 / ${focus.currentDocument.title}${
-      ids ? `（${ids}）` : ""
-    }`,
-    `当前阶段简要信息: 仅定位当前人物文档，正文未注入；需要时调用 read${
-      characterId
-        ? `（id=${characterId}, document=${focus.currentDocument.kind}）`
-        : ""
-    }读取。`
-  ].join("\n");
-}
-
-export function renderLongCurrentStageSection(
-  worldbuildingFocus: LongWorkspaceRuntimeContext["worldbuildingFocus"],
-  characterFocus: LongWorkspaceRuntimeContext["characterFocus"],
-  longWorkspace: LongWorkspaceRuntimeContext | undefined
-): string {
-  const parts = [
-    worldbuildingFocus
-      ? renderLongWorldbuildingStageBrief(
-          worldbuildingFocus,
-          longWorkspace?.worldbuildingDirectory
-        )
-      : "",
-    characterFocus && longWorkspace
-      ? renderLongCharacterStageBrief(characterFocus, longWorkspace.navigation)
-      : ""
-  ].filter(Boolean);
-  return parts.length ? `【当前阶段信息与要求】\n${parts.join("\n")}` : "";
 }

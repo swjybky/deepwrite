@@ -11,8 +11,6 @@ export function buildSettingsFeatureModule(
     workspaceDirectoryLoading: settingsStore.workspaceDirectoryLoading,
     initialCategory: options.view.settingsInitialCategory.value,
     permissionMode: settingsStore.generalSettings.permissionMode,
-    autoApproveCrossStageOperations:
-      settingsStore.generalSettings.autoApproveCrossStageOperations,
     autoSaveEnabled: settingsStore.editorAutoSaveEnabled,
     versionHistoryEnabled: settingsStore.generalSettings.versionHistoryEnabled,
     language: settingsStore.generalSettings.language,

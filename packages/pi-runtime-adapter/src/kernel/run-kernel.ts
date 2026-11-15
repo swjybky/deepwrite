@@ -1,3 +1,4 @@
+import type { AgentWriteApprovalResponse } from "@deepwrite/contracts";
 import type { Agent } from "@earendil-works/pi-agent-core";
 import {
   isRetryableAssistantError,
@@ -72,9 +73,11 @@ export class AgentRunKernel {
     const reusableConversationAgent = this.options.agents.select(plan);
     const lifecycle = new RunLifecycle();
     let userInputRequestSequence = 0;
-    const writeApprovalListeners = new Set<() => void>();
+    const writeApprovalListeners = new Set<
+      (toolCallIds: string[], response?: AgentWriteApprovalResponse) => void
+    >();
     // The broker holds one question per run, while parallel children (draw
-    // selections, cross-stage confirmations) may ask at the same time: each
+    // selections, plot structure confirmations) may ask at the same time: each
     // request is shown only after the previous one settled.
     const userInputTurns = createConcurrencyLimiter(1);
     const requestUserInput: AgentUserInputRequester = async (
@@ -107,9 +110,7 @@ export class AgentRunKernel {
               questions: request.questions,
               ...(request.draw ? { draw: request.draw } : {}),
               runtime,
-              ...(request.promptReview
-                ? { promptReview: request.promptReview }
-                : {}),
+              ...(request.teamReview ? { teamReview: request.teamReview } : {}),
               ...(request.writeApproval
                 ? { writeApproval: request.writeApproval }
                 : {})
@@ -117,7 +118,11 @@ export class AgentRunKernel {
           });
           const answered = await response;
           if (request.source === "write_approval") {
-            for (const listener of writeApprovalListeners) listener();
+            for (const listener of writeApprovalListeners)
+              listener(
+                request.writeApproval?.toolCallIds ?? [],
+                answered.writeApproval
+              );
           }
           return answered;
         });
@@ -134,7 +139,9 @@ export class AgentRunKernel {
     plan.assertModelBudget?.(model);
     assertAttachmentsSupported(target, model, runtime);
     let prepared: Agent | undefined = reusableConversationAgent;
-    const compactedListeners = new Set<() => void>();
+    const compactedListeners = new Set<
+      (removedToolCallIds?: readonly string[]) => void
+    >();
     const { systemPrompt, tools } = plan.build({
       model,
       thinkingLevel,
@@ -147,7 +154,11 @@ export class AgentRunKernel {
       onWriteApprovalSettled: (listener) => writeApprovalListeners.add(listener)
     });
     const writeApprovalGate = plan.pausesForWriteApproval
-      ? createWriteApprovalGate({ requestUserInput, runtime })
+      ? createWriteApprovalGate({
+          requestUserInput,
+          runtime,
+          locale: target.promptLocale
+        })
       : undefined;
     let emitToolCallEvent: (
       event: ToolCallAssistantEvent,
@@ -325,8 +336,8 @@ export class AgentRunKernel {
             else scheduleIdleTimeout();
           },
           refreshUserContent: () => plan.userMessageContent(true),
-          notifyCompacted: () => {
-            for (const listener of compactedListeners) listener();
+          notifyCompacted: (ids) => {
+            for (const listener of compactedListeners) listener(ids);
           }
         })
       : undefined;

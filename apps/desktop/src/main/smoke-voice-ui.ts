@@ -84,7 +84,9 @@ async function voiceUiStep(step: VoiceUiStep) {
     );
     if (!selector(".settings-page")) {
       if (!selector("#account-menu")) await click(".account-identity-button");
-      await click('#account-menu button[role="menuitem"]:first-child');
+      await click(
+        '#account-menu button[role="menuitem"]:not(.account-sign-in-button)'
+      );
     }
     await buttonText(".settings-nav", "语音模型");
     await until(() => {

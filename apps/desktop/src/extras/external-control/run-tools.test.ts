@@ -1,4 +1,3 @@
-import { createDefaultGeneralSettings } from "@deepwrite/contracts";
 import type { ExternalWindowRequest } from "@deepwrite/contracts/external-control";
 import { describe, expect, it, vi } from "vitest";
 import { testAppState } from "./external-control.test-support";
@@ -32,27 +31,6 @@ describe("run tools", () => {
     await expect(
       call("open_in_app", { workId: "a", libraryId: "b" })
     ).rejects.toMatchObject({ code: "external.invalid_input" });
-  });
-
-  it("refuses to run until the cross-stage switch is on", async () => {
-    const windowRequest = vi.fn();
-    await expect(
-      call(
-        "run_agent",
-        { workId: "longbook_1", message: "写" },
-        {
-          windowRequest,
-          generalSettings: () => ({
-            ...createDefaultGeneralSettings(),
-            autoApproveCrossStageOperations: false
-          })
-        }
-      )
-    ).rejects.toMatchObject({
-      code: "external.cross_stage_disabled",
-      message: expect.stringContaining("设置 → 常规") as string
-    });
-    expect(windowRequest).not.toHaveBeenCalled();
   });
 
   it("will not start a second run", async () => {

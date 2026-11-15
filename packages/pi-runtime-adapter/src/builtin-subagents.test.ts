@@ -26,6 +26,8 @@ import { buildAskUserQuestionTool } from "./ask-user-question-tool";
 import type { AgentRunInput } from "./runtime-types";
 import { reconcileLibraryToolState } from "./library-management-state";
 
+import { libraryExecutor } from "./library-management-tools/test-support";
+
 const revision = createShortWorkspaceContentRevision;
 const workspace: LibraryAgentWorkspaceSnapshot = {
   domain: "skill",
@@ -72,11 +74,7 @@ function input(): AgentRunInput {
         }
       ]
     },
-    libraryManagementCommandExecutor: vi.fn(async () => ({
-      status: "accepted" as const,
-      requestId: "query",
-      payload: { libraries: [], workspace }
-    }))
+    libraryManagementCommandExecutor: libraryExecutor(workspace)
   };
 }
 function provider() {
@@ -139,35 +137,31 @@ describe("built-in management subagents", () => {
     const tools = createLibraryManagementRuntime(run).tools;
     expect(tools.some((tool) => tool.name === "load_skill")).toBe(false);
     expect(run.libraryManagementCommandExecutor).not.toHaveBeenCalled();
-    const read = tools.find(
-      (tool) => tool.name === "manage_skill_read_skill_entry"
-    )!;
-    const edit = tools.find(
-      (tool) => tool.name === "manage_skill_edit_skill_entry"
-    )!;
+    const read = tools.find((tool) => tool.name === "library_read")!;
+    const edit = tools.find((tool) => tool.name === "library_write")!;
     const call = (params: Record<string, unknown>) =>
       read.execute("read", params);
-    expect(JSON.stringify(await call({ entry_id: "skill-1" }))).toContain(
-      "library_id"
+    expect(JSON.stringify(await call({ entry_ids: ["skill-1"] }))).toContain(
+      "未绑定"
     );
     expect(
-      JSON.stringify(await call({ library_id: "unbound", entry_id: "skill-1" }))
-    ).toContain("库不存在");
-    await call({ library_id: "skills", entry_id: "skill-1" });
+      JSON.stringify(
+        await call({ library_id: "unbound", entry_ids: ["skill-1"] })
+      )
+    ).toContain("未绑定");
+    await call({ library_id: "skills", entry_ids: ["skill-1"] });
     const result = await edit.execute("edit", {
       library_id: "skills",
-      entry_id: "skill-1",
-      mode: "replace",
-      allow_overwrite_existing: true,
-      body: "新内容",
-      summary: "优化"
+      operations: [
+        { action: "edit", entry_id: "skill-1", mode: "append", body: "新内容" }
+      ]
     });
     expect(result.details).toMatchObject({
       kind: "library-entry-mutation",
       libraryId: "skills",
       baseProjectRevision: 1
     });
-    expect(run.libraryManagementCommandExecutor).toHaveBeenCalledOnce();
+    expect(run.libraryManagementCommandExecutor).toHaveBeenCalledTimes(2);
     expect(libraryManagementParentPrompt(run)).not.toContain("spawn_subagent");
   });
 
@@ -176,13 +170,18 @@ describe("built-in management subagents", () => {
     run.libraryManagement!.libraries[0]!.readOnly = true;
     const tools = createLibraryManagementRuntime(run).tools;
     const result = await tools
-      .find((tool) => tool.name === "manage_skill_create_skill_entry")!
+      .find((tool) => tool.name === "library_write")!
       .execute("create", {
         library_id: "skills",
-        stage_id: "outline",
-        title: "技能",
-        body: "内容",
-        summary: "创建"
+        operations: [
+          {
+            action: "create",
+            stage_id: "outline",
+            name: "技能",
+            description: "用途",
+            body: "内容"
+          }
+        ]
       });
     expect(JSON.stringify(result)).toContain("只读");
     expect(result.details).not.toHaveProperty("libraryId");

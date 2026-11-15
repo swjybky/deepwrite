@@ -43,7 +43,7 @@ describe.each(["short", "script"] as const)(
   "%s character card prompt context",
   (workspaceType) => {
     it.each(["女主", "男主", "概览"])(
-      "sends the selected %s through the validated session prompt",
+      "sends the selected %s structure without text through the validated session prompt",
       async (title) => {
         const { documents, overview, items } =
           characterDocuments(workspaceType);
@@ -82,27 +82,29 @@ describe.each(["short", "script"] as const)(
               format: "list",
               items: items.map((item) => ({
                 id: item.characterItemId,
-                content: item.content
+                content: "",
+                revision: createShortWorkspaceContentRevision("")
               }))
             }
           });
           expect(context.activeResource).toMatchObject({
             id: active.id,
             title: active.title,
-            content: active.content
+            content: ""
           });
+          expect(workspace?.readSource).toBe("core");
           expect(
             workspace?.stages.find(
               ({ stageId }) => stageId === "character_design"
             )?.content
-          ).toBe(overview.content);
+          ).toBe("");
         } finally {
           controller.dispose();
         }
       }
     );
 
-    it("keeps a newly edited long card consistent with its bounded active snapshot", async () => {
+    it("does not send a newly edited long card text and keeps the card structure", async () => {
       const { documents, items } = characterDocuments(workspaceType);
       const stale = items[0]!;
       stale.content = "尚未刷新的目录内容。";
@@ -135,20 +137,21 @@ describe.each(["short", "script"] as const)(
         expect(deferred.prompts).toHaveLength(1);
         const context = deferred.prompts[0]!.workspaceContext!;
         const workspace = context.shortWorkspace ?? context.scriptWorkspace;
-        expect(context.activeResource).toMatchObject({
-          content: sentContent.slice(0, 20_000),
-          truncated: true,
-          originalLength: sentContent.length
-        });
+        expect(context.activeResource).toMatchObject({ content: "" });
+        expect(context.activeResource?.truncated).toBeUndefined();
         expect(workspace?.characterStructure).toMatchObject({
           format: "list",
           items: [
             {
               id: stale.characterItemId,
-              content: sentContent,
-              revision: createShortWorkspaceContentRevision(sentContent)
+              content: "",
+              revision: createShortWorkspaceContentRevision("")
             },
-            { id: items[1]!.characterItemId, content: items[1]!.content }
+            {
+              id: items[1]!.characterItemId,
+              content: "",
+              revision: createShortWorkspaceContentRevision("")
+            }
           ]
         });
         expect(stale.content).toBe("尚未刷新的目录内容。");

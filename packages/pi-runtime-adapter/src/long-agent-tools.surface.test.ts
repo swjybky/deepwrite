@@ -15,7 +15,7 @@ import {
 } from "./long-agent-tools.test-support";
 
 describe("unified long-form tools: surface", () => {
-  it("exposes the nine-tool surface", () => {
+  it("exposes the ten-tool surface", () => {
     const tools = longTools({ executor: documentExecutor(fixtureIndex()) });
     expect(tools.map((tool) => tool.name)).toEqual([
       "query_linked_material_entries",
@@ -23,6 +23,7 @@ describe("unified long-form tools: surface", () => {
       "ask_user_question",
       "list",
       "read",
+      "search",
       "create",
       "edit",
       "delete",

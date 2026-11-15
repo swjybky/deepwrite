@@ -26,6 +26,7 @@ import type {
 export const PURE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   "read",
   "list",
+  "search",
   "query_linked_material_entries",
   WEB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME
@@ -78,14 +79,17 @@ export function subagentModeSystemRequirements(
     BuildSpawnSubagentToolInput,
     "systemPromptRequirements" | "pureReadSystemPromptRequirements"
   >,
-  mode: SubagentAgentMode
-): string | undefined {
+  mode: SubagentAgentMode,
+  toolNames?: readonly string[]
+): string | Promise<string> | undefined {
   if (mode === "pure-bare") return undefined;
   const requirements =
     mode === "pure-read"
       ? input.pureReadSystemPromptRequirements
       : input.systemPromptRequirements;
-  return typeof requirements === "function" ? requirements() : requirements;
+  return typeof requirements === "function"
+    ? requirements(toolNames)
+    : requirements;
 }
 
 /** A bare child must not get manuscript text re-attached after compaction. */
@@ -99,11 +103,18 @@ export function subagentContextPolicyForMode(
 }
 
 /** Runtime fact appended to a pure child's system prompt. */
-export function subagentModeNote(mode: SubagentAgentMode): string | undefined {
+export function subagentModeNote(
+  mode: SubagentAgentMode,
+  english = false
+): string | undefined {
   if (mode === "pure-read") {
+    if (english)
+      return "Read-only mode. Read the work and linked materials and return findings to the parent.";
     return "你运行在纯净·只读模式：可以读取作品与素材，但没有任何写入工具，不能修改作品。把成果以文字形式写进交接摘要交给主智能体。";
   }
   if (mode === "pure-bare") {
+    if (english)
+      return "No-tool mode. Use only the supplied task and report missing information.";
     return "你运行在纯净·无工具模式：看不到作品、素材和主对话，只能依据主智能体在任务里给出的内容工作。信息不足时在回复中说明缺什么，不要编造作品内容。";
   }
   return undefined;

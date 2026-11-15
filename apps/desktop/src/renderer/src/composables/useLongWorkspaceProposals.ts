@@ -75,6 +75,31 @@ type LongContentFileProposalEvent =
 type LongBatchProposalEvent =
   LongMutationProposalEvent | LongContentFileProposalEvent;
 
+function combinedContinuityPreviewItem(
+  item: LongWorkspaceProposalItem
+): LongWorkspaceProposalItem | undefined {
+  const event = item.event;
+  if (
+    event.type !== "long.ledger_commit_proposal" ||
+    event.payload.input.mode !== "text_files_batch" ||
+    !event.payload.input.preparation ||
+    !event.payload.files
+  )
+    return undefined;
+  return {
+    ...item,
+    event: {
+      ...event,
+      type: "long.continuity_file_proposal",
+      payload: {
+        ...event.payload,
+        batch: event.payload.input.preparation.batch,
+        files: event.payload.files
+      }
+    }
+  };
+}
+
 function isContentFileProposal(
   event: LongWorkspaceProposalEvent
 ): event is LongContentFileProposalEvent {
@@ -801,7 +826,22 @@ export function useLongWorkspaceProposals(
         });
         continue;
       }
+      const current = currentItem(bookId, event.id);
+      if (
+        current &&
+        combinedContinuityPreviewItem(current) &&
+        (!current.preview ||
+          current.status === "waiting" ||
+          current.errorPhase === "preview")
+      ) {
+        await previewMutation(combinedContinuityPreviewItem(current)!);
+        if (currentItem(bookId, event.id)?.status !== "ready") continue;
+      }
       if (options.canFinalizeContinuity?.(event) === false) {
+        if (current && combinedContinuityPreviewItem(current)) {
+          updateItem(bookId, event.id, { status: "waiting", clearError: true });
+          continue;
+        }
         pendingContinuityFinalizations.delete(key);
         removeItem(bookId, event.id);
         continue;
@@ -819,7 +859,19 @@ export function useLongWorkspaceProposals(
               "longConversationCoordinator.theNovelWorkspaceIsNotConnectedInThisEnvironment"
             )
           );
-        await commitLongContinuityFinalization(api, event);
+        const active = currentItem(bookId, event.id);
+        if (
+          active &&
+          combinedContinuityPreviewItem(active) &&
+          active.approvalMode === "auto-approve"
+        )
+          await options.prepareAutoApprove?.(event);
+        await commitLongContinuityFinalization(
+          api,
+          event,
+          active?.versionOrigin,
+          active?.effectiveBatch
+        );
       } catch (error: unknown) {
         const message = errorMessage(
           error,
@@ -979,7 +1031,17 @@ export function useLongWorkspaceProposals(
     if (event.type === "long.ledger_commit_proposal") {
       if (!rememberEvent(event)) return false;
       const finalizationKey = continuityFinalizationKey(event);
-      pendingContinuityFinalizations.set(finalizationKey, event);
+      const combined =
+        event.payload.input.mode === "text_files_batch" &&
+        event.payload.input.preparation !== undefined;
+      const approvalMode = combined
+        ? (options.approvalModeForEvent?.(event) ?? "request-approval")
+        : "auto-approve";
+      if (approvalMode === "auto-approve")
+        pendingContinuityFinalizations.set(finalizationKey, event);
+      const versionOrigin = combined
+        ? options.versionOriginForEvent?.(event)
+        : undefined;
       const retainedItems = itemsForBook(event.payload.bookId).filter(
         (item) =>
           item.status === "accepted" ||
@@ -990,10 +1052,16 @@ export function useLongWorkspaceProposals(
         ...retainedItems,
         {
           event,
-          approvalMode: "auto-approve",
-          status: "waiting"
+          approvalMode,
+          ...(versionOrigin ? { versionOrigin } : {}),
+          status: combined ? "previewing" : "waiting"
         }
       ]);
+      if (combined && approvalMode !== "auto-approve") {
+        const queued = currentItem(event.payload.bookId, event.id)!;
+        await previewMutation(combinedContinuityPreviewItem(queued)!);
+        return true;
+      }
       await proposalApprovalQueue.enqueue(event.payload.bookId, () =>
         attemptContinuityFinalizations(event.payload.bookId)
       );
@@ -1064,6 +1132,11 @@ export function useLongWorkspaceProposals(
       return;
     }
     if (item.event.type === "long.ledger_commit_proposal") {
+      const combined = combinedContinuityPreviewItem(item);
+      if (combined && item.approvalMode === "request-approval") {
+        await previewMutation(combined);
+        return;
+      }
       await proposalApprovalQueue.enqueue(bookId, () =>
         attemptContinuityFinalizations(bookId)
       );
@@ -1099,7 +1172,12 @@ export function useLongWorkspaceProposals(
   ): Promise<void> {
     const item = currentItem(bookId, eventId);
     const api = options.api();
-    if (!item || !api || item.status === "submitting") {
+    if (
+      !item ||
+      !api ||
+      item.status === "submitting" ||
+      item.status === "accepted"
+    ) {
       if (!api) {
         options.notifications.warning(
           t(
@@ -1110,6 +1188,17 @@ export function useLongWorkspaceProposals(
       return;
     }
     if (item.event.type === "long.ledger_commit_proposal") {
+      const combined = combinedContinuityPreviewItem(item);
+      if (combined) {
+        if (!item.preview || item.errorPhase === "preview") {
+          await previewMutation(combined);
+          if (currentItem(bookId, eventId)?.status !== "ready") return;
+        }
+        pendingContinuityFinalizations.set(
+          continuityFinalizationKey(item.event),
+          item.event
+        );
+      }
       await attemptContinuityFinalizations(bookId);
       return;
     }
@@ -1289,6 +1378,14 @@ export function useLongWorkspaceProposals(
         }
       }
     }
+    for (const waiting of itemsForBook(bookId).filter(
+      (candidate) =>
+        candidate.status === "waiting" &&
+        candidate.approvalMode === "request-approval" &&
+        combinedContinuityPreviewItem(candidate)
+    )) {
+      await previewMutation(combinedContinuityPreviewItem(waiting)!);
+    }
     await attemptContinuityFinalizations(bookId);
   }
 
@@ -1346,6 +1443,21 @@ export function useLongWorkspaceProposals(
           }
         });
       }
+    }
+    for (const waiting of itemsForBook(bookId).filter(
+      (candidate) =>
+        candidate.status === "waiting" &&
+        combinedContinuityPreviewItem(candidate)
+    )) {
+      queueMicrotask(() => {
+        if (waiting.approvalMode === "auto-approve") {
+          void proposalApprovalQueue.enqueue(bookId, () =>
+            attemptContinuityFinalizations(bookId)
+          );
+        } else {
+          void previewMutation(combinedContinuityPreviewItem(waiting)!);
+        }
+      });
     }
     return true;
   }

@@ -1,7 +1,10 @@
 import { LibraryManagementScopeSchema } from "../library-management-scope";
 import { z } from "zod";
 import { MaterialStageIdSchema, SkillStageIdSchema } from "../catalog";
-import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "../expert-draft";
+import {
+  DraftSectionChangeSchema,
+  SHORT_WORKSPACE_FILE_MAX_CHARACTERS
+} from "../expert-draft";
 import { ShortWorkspaceStageIdSchema } from "../workspace";
 import { AgentRuntimeRefSchema } from "./agent-event-identity";
 
@@ -38,6 +41,7 @@ export const WorkspaceEditorMutationTargetSchema = z.discriminatedUnion(
     }),
     z.object({
       kind: z.literal("expert-draft-section-rename"),
+      change: DraftSectionChangeSchema.optional(),
       sectionId: z.string().trim().min(1).max(120),
       previousTitle: z.string().trim().min(1).max(240),
       title: z.string().trim().min(1).max(240)

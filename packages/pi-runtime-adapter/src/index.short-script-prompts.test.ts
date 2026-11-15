@@ -54,24 +54,25 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
       "叙事视角（kind=plot_stage，id=narrative_perspective）"
     );
     expect(scriptSystemPrompt).toContain("阶段边界与交付标准：确定叙事人称");
-    expect(scriptSystemPrompt).toContain(
-      "delete（kind=draft_section）删除整个剧集"
-    );
+    expect(scriptSystemPrompt).toContain("kind=draft_section 删除整个剧集");
     expect(scriptSystemPrompt).toContain("正文至少保留一个剧集");
 
     const runtimePrompt = buildRuntimeUserPrompt(scriptInput);
-    expect(runtimePrompt).toContain("【剧本上下文（AGENTS.md）】");
-    expect(runtimePrompt).toContain("本剧每集围绕一次不可撤销的选择");
-    expect(runtimePrompt).toContain("【当前剧本情况（发送时快照）】");
+    expect(scriptSystemPrompt).toContain("【剧本上下文（AGENTS.md）】");
+    expect(scriptSystemPrompt).toContain("本剧每集围绕一次不可撤销的选择");
+    expect(scriptSystemPrompt).toContain("当前剧集：第一集 (episode-1)");
+    const sectionOrder = [
+      "【当前剧本智能体",
+      scriptProfile.systemPrompt.trim(),
+      "\n\n【剧本上下文（AGENTS.md）】\n",
+      "本剧每集围绕一次不可撤销的选择。\n\n",
+      "【当前剧情结构配置（顺序即执行顺序）】"
+    ].map((marker) => scriptSystemPrompt.indexOf(marker));
+    expect(sectionOrder.every((index) => index >= 0)).toBe(true);
+    expect(sectionOrder).toEqual([...sectionOrder].sort((a, b) => a - b));
     expect(runtimePrompt).toContain("剧本作品: 《雾港剧本》");
-    expect(runtimePrompt).toContain(
-      "当前用户正在操作的剧集: 第一集（section_id=episode-1）"
-    );
-    expect(runtimePrompt).toContain(
-      "正文目录剧集（由早到晚）: 第一集 (episode-1)"
-    );
-    expect(runtimePrompt).toContain(
-      "人物结构: 文本样式（所有人物写在同一份总稿，kind=character_overview、id=character_design）"
+    expect(runtimePrompt).not.toMatch(
+      /AGENTS\.md|episode-1|sessionId:|runId:/u
     );
     expect(runtimePrompt).not.toContain("短篇作品:");
 
@@ -222,13 +223,13 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
 
     expect(draftPrompt).toContain("【当前阶段：正文】");
     expect(draftPrompt).toContain(
-      "document=body（小说正文）和 document=character_state（人物状态）"
+      "document=body（小说正文）和 document=state（状态"
     );
     expect(draftPrompt).toContain("读写其中任何一份都必须指定 document");
     expect(draftPrompt).toContain("不传 document 时默认 body");
     expect(draftPrompt).toContain("kind=draft_section 加小节 id");
-    expect(draftPrompt).toContain("read、create、edit、delete");
-    expect(draftPrompt).toContain("delete（kind=draft_section）删除整个小节");
+    expect(draftPrompt).toContain("本轮工具清单");
+    expect(draftPrompt).toContain("kind=draft_section 删除整个小节");
 
     const characterPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
       runId: "run_character_context",
@@ -283,7 +284,7 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(textCharacterPrompt).toContain("都用 edit 写入这份总稿");
     expect(textCharacterPrompt).toContain("不要 create character");
     expect(textCharacterPrompt).toContain(
-      "delete（kind=character_overview）只清空总稿内容，保留人物结构"
+      '清空总稿用 edit 传 content=""，不要用 delete'
     );
     expect(textCharacterPrompt).not.toContain("人物（条目样式）");
 
@@ -303,28 +304,15 @@ describe("DeepWrite Pi runtime adapter: short and script prompts", () => {
     expect(plotPrompt).toContain("【当前阶段：剧情】");
     expect(plotPrompt).toContain("剧情设计 (plot_design)");
     expect(plotPrompt).toContain("阶段边界与交付标准");
-    expect(plotPrompt).toContain("delete（kind=plot_stage）只清空该阶段正文");
-
-    const autoApprovedPrompt = buildEffectiveSystemPrompt("DeepWrite base", {
-      runId: "run_plot_auto_approved_context",
-      sessionId: "session_plot_auto_approved_context",
-      prompt: "跨阶段完善人物",
-      agentProfile: profile,
-      autoApproveCrossStageOperations: true,
-      workspaceContext: {
-        shortWorkspace: {
-          ...draftWorkspace,
-          activeStageId: "plot_design",
-          activeSectionId: undefined
-        }
-      }
-    });
-    expect(autoApprovedPrompt).toContain(
-      "跨阶段操作已由用户在常规设置中授权自动允许，不会逐笔询问"
+    expect(plotPrompt).toContain("delete 只做真正的删除");
+    expect(plotPrompt).toContain(
+      "清空人物总稿或剧情阶段的内容不是删除，用 edit 传"
     );
-    expect(autoApprovedPrompt).toContain("修改提案仍按下面的写入审批方式处理");
-    expect(autoApprovedPrompt).not.toContain(
-      "每笔跨阶段变更都会单独请求用户确认"
+    expect(plotPrompt).toContain("create、edit、delete 不受界面当前阶段限制");
+    expect(plotPrompt).not.toContain("逐笔询问");
+    expect(plotPrompt).not.toContain("跨阶段变更");
+    expect(plotPrompt).toContain(
+      "剧情阶段的标题和说明同样是短篇与剧本共享的全局结构定义"
     );
   });
 });

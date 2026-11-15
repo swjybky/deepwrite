@@ -9,6 +9,15 @@ export const DEEPWRITE_FAUX_RUNTIME: AgentRuntimeRef = {
 
 export function buildLocalThinking(input: AgentRunInput): string {
   const title = input.workspaceContext?.activeResource?.title ?? "未命名资源";
+  if (
+    (
+      input.workspaceContext?.shortWorkspace ??
+      input.workspaceContext?.scriptWorkspace
+    )?.readSource === "core"
+  )
+    return input.promptLocale === "en-US"
+      ? `Checking the selected work and current target: ${title}.`
+      : `正在核对作品目录与当前目标《${title}》。`;
   const selectedProfile =
     input.scriptAgentProfile ??
     input.agentProfile ??
@@ -21,6 +30,15 @@ export function buildLocalThinking(input: AgentRunInput): string {
 export function buildLocalWritingResponse(input: AgentRunInput): string {
   const active = input.workspaceContext?.activeResource;
   const request = input.prompt.replace(/\s+/g, " ").slice(0, 220);
+  if (
+    (
+      input.workspaceContext?.shortWorkspace ??
+      input.workspaceContext?.scriptWorkspace
+    )?.readSource === "core"
+  )
+    return input.promptLocale === "en-US"
+      ? `The local Faux runtime received the work directory and your request: ${request}. Saved text is available through the read tool.`
+      : `本地 Faux 流式链路已就绪。已收到作品目录与请求：${request}。可通过 read 工具按需读取已保存的文稿。`;
   const activeLabel = active ? `《${active.title}》` : "当前创作资源";
   const contentLength = active?.content.replace(/\s/g, "").length ?? 0;
   const snapshotLabel = active?.truncated

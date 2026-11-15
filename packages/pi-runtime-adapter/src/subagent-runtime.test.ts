@@ -268,16 +268,15 @@ describe("blocking subagent runtime", () => {
     expect(tool?.description).toContain("#成员名");
   });
 
-  it("lets child tools inherit cross-stage auto approval", async () => {
+  it("lets child tools write another stage without asking the user", async () => {
     const requestUserInput = vi.fn(async () => {
-      throw new Error("cross-stage input should have been auto-approved");
+      throw new Error("a cross-stage write must not ask the user");
     });
     const { tool } = makeHarness({
       buildChildTools: () =>
         buildShortWorkspaceTools({
           workspace: shortWorkspace("character_design"),
           profile: shortProfile(),
-          autoApproveCrossStageOperations: true,
           requestUserInput
         }),
       responses: [

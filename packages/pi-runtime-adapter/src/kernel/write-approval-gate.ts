@@ -3,6 +3,7 @@ import type { UserMessage } from "@earendil-works/pi-ai";
 import {
   WRITE_APPROVAL_MAX_TOOL_CALLS,
   WRITE_APPROVAL_QUESTION_ID,
+  type PromptLocale,
   type AgentRuntimeRef
 } from "@deepwrite/contracts";
 import { toRuntimeEvents } from "../event-mapping";
@@ -47,6 +48,7 @@ export interface WriteApprovalGate {
  */
 export function createWriteApprovalGate(options: {
   requestUserInput: AgentUserInputRequester;
+  locale?: PromptLocale | undefined;
   runtime: AgentRuntimeRef;
 }): WriteApprovalGate {
   const pending: string[] = [];
@@ -83,7 +85,10 @@ export function createWriteApprovalGate(options: {
           questions: [
             {
               id: WRITE_APPROVAL_QUESTION_ID,
-              question: "等待用户审批本步修改。"
+              question:
+                options.locale === "en-US"
+                  ? "Waiting for review of these changes."
+                  : "等待用户审批本步修改。"
             }
           ],
           writeApproval: { toolCallIds }
@@ -92,7 +97,10 @@ export function createWriteApprovalGate(options: {
       );
       return {
         role: "user",
-        content: renderWriteApprovalResults(response.writeApproval),
+        content: renderWriteApprovalResults(
+          response.writeApproval,
+          options.locale
+        ),
         timestamp: Date.now()
       };
     }

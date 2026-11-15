@@ -175,9 +175,6 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(switchedOffPrompt).not.toContain("web_search");
     expect(switchedOffPrompt).not.toContain("web_fetch");
     expect(enabledPrompt).toContain("【联网搜索】");
-    expect(enabledPrompt).toContain(
-      "联网查证公开资料使用 web_search、web_fetch"
-    );
     expect(enabledPrompt).toContain("网络能力仅限 web_search 与 web_fetch");
     expect(enabledPrompt).not.toContain("DeepSeek 服务端");
   });
@@ -457,7 +454,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain(
       "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
     );
-    expect(userPrompt).toContain("【当前阶段信息与要求】");
+    expect(userPrompt).toContain("【用户当前位置】");
     expect(userPrompt.indexOf("【世界观条目列表（发送时快照）】")).toBeLessThan(
       userPrompt.indexOf("【人物设计列表（发送时快照）】")
     );
@@ -470,7 +467,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       userPrompt.indexOf(
         "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
       )
-    ).toBeLessThan(userPrompt.indexOf("【当前阶段信息与要求】"));
+    ).toBeLessThan(userPrompt.indexOf("【用户当前位置】"));
     expect(userPrompt).toContain(
       "全书共 1 卷、0 个剧情点、0 张章卡、0 条故事情节、0 个故事事件、0 条伏笔线"
     );
@@ -490,10 +487,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain("主角（type_id=protagonist；共 0 人）");
     expect(userPrompt).toContain("当前智能体: 长篇智能体");
     expect(userPrompt).toContain(
-      "当前用户所处的世界观阶段: 文本型分类「世界规则」（category_id=world_rules）"
+      "世界观位置: 文本型分类「世界规则」（category_id=world_rules）"
     );
     expect(userPrompt).toContain(
-      "当前阶段简要信息: 仅定位当前页面，正文未注入；需要时调用 read（id=world_rules）读取。"
+      "仅定位当前页面，正文未注入；需要时调用 read（id=world_rules）读取。"
     );
     expect(userPrompt).not.toContain("雾潮期间禁止点燃蓝焰。");
     expect(userPrompt).not.toContain("当前阶段信息:");
@@ -526,10 +523,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       }
     });
     expect(listPrompt).toContain(
-      "当前用户所处的世界观阶段: 列表型分类「势力」 / 条目「守夜人」（category_id=world_factions；item_id=worlditem_watchers）"
+      "世界观位置: 列表型分类「势力」 / 条目「守夜人」（category_id=world_factions；item_id=worlditem_watchers）"
     );
     expect(listPrompt).toContain(
-      "当前阶段简要信息: 仅定位当前页面，正文未注入；需要时调用 read（id=worlditem_watchers）读取。"
+      "仅定位当前页面，正文未注入；需要时调用 read（id=worlditem_watchers）读取。"
     );
     expect(listPrompt).not.toContain("守夜人负责执行宵禁。");
     expect(listPrompt).not.toContain("各势力争夺港务权。");
@@ -626,7 +623,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain(
       "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
     );
-    expect(userPrompt).toContain("【当前阶段信息与要求】");
+    expect(userPrompt).toContain("【用户当前位置】");
     expect(userPrompt.indexOf("【人物设计列表（发送时快照）】")).toBeLessThan(
       userPrompt.indexOf(
         "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
@@ -636,7 +633,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       userPrompt.indexOf(
         "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
       )
-    ).toBeLessThan(userPrompt.indexOf("【当前阶段信息与要求】"));
+    ).toBeLessThan(userPrompt.indexOf("【用户当前位置】"));
     expect(userPrompt).toContain(
       "全书共 1 卷、0 个剧情点、0 张章卡、0 条故事情节、0 个故事事件、0 条伏笔线"
     );
@@ -646,10 +643,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     );
     expect(userPrompt).toContain("林岚（id=character_lan；顺序=1）");
     expect(userPrompt).toContain(
-      "当前用户所处的人物阶段: 「林岚」 / 人物关系（id=character_lan；document=relationships；type_id=chartype_viewpoint）"
+      "人物位置: 「林岚」 / 人物关系（id=character_lan；document=relationships；type_id=chartype_viewpoint）"
     );
     expect(userPrompt).toContain(
-      "当前阶段简要信息: 仅定位当前人物文档，正文未注入；需要时调用 read（id=character_lan, document=relationships）读取。"
+      "仅定位当前人物文档，正文未注入；需要时调用 read（id=character_lan, document=relationships）读取。"
     );
     expect(userPrompt).not.toContain("与沈砚暂时合作。");
     expect(userPrompt).not.toContain("雾港巡夜人，害怕深水。");
@@ -803,9 +800,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain(
       "目录窗口：围绕当前章展示第 27-40 张（前最多 3 张、后最多 10 张）；之前省略 26 张，之后省略 20 张。需要完整目录时按上下文中的 volume_id 调用 list（stage=draft, scope_id=<volume_id>）查询。"
     );
-    expect(userPrompt).toContain(
-      "查连续性：list（stage=continuity, scope_id=chapter_window_30）"
-    );
+    expect(userPrompt).toContain("read（id=chapter_window_30, document=body）");
     expect(userPrompt).not.toContain("「第26章」(chapter_window_26)");
     expect(userPrompt).not.toContain("「第41章」(chapter_window_41)");
 
@@ -980,12 +975,11 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain(
       "连续性记录：1 章；最高连续记录位置为「第一章」(chapter_plot_one)"
     );
-    expect(userPrompt).toContain("【list 范围规则】");
-    expect(userPrompt).toContain("叶子不要 list，直接 read");
-    expect(userPrompt).toContain(
-      "查连续性：list（stage=continuity, scope_id=<volume_id|chapter_id|character_id>）"
+    expect(userPrompt).not.toContain("【list 范围规则】");
+    expect(systemPrompt).toContain("叶子对象不要 list，直接 read");
+    expect(systemPrompt).toContain(
+      "view=continuity，book_line 返回全书概览，其他容器为 volume_、chapter_、character_"
     );
-    expect(userPrompt).toContain("不要对 arc_ 使用 continuity");
     expect(userPrompt).toContain("记录只作参考，不锁定正文或结构");
     expect(userPrompt).toContain("【章卡目录（由早到晚；共 1 张）】");
     expect(userPrompt).toContain(
@@ -998,7 +992,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       "- 第 2 卷「转折」(volume_plot_b): 「反击」(arc_plot_turn)"
     );
     expect(userPrompt).toContain(
-      "当前剧情工作区: 剧情点「主线」(arc_plot_main)，所属分卷「起势」(volume_plot_a)"
+      "剧情位置: 剧情点「主线」(arc_plot_main)，所属分卷「起势」(volume_plot_a)"
     );
     expect(userPrompt).toContain("【世界观条目列表（发送时快照）】");
     expect(userPrompt).toContain(
@@ -1011,7 +1005,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(userPrompt).toContain(
       "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
     );
-    expect(userPrompt).not.toContain("【当前阶段信息与要求】");
+    expect(userPrompt).toContain("【用户当前位置】");
     expect(userPrompt.indexOf("【人物设计列表（发送时快照）】")).toBeLessThan(
       userPrompt.indexOf(
         "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
@@ -1044,7 +1038,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       }
     });
     expect(chapterCardPrompt).toContain(
-      "当前剧情工作区: 章卡「第一章」(chapter_plot_one)，所属分卷「起势」(volume_plot_a)"
+      "剧情位置: 章卡「第一章」(chapter_plot_one)，所属分卷「起势」(volume_plot_a)"
     );
 
     const bookLinePrompt = buildRuntimeUserPrompt({
@@ -1056,7 +1050,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
         }
       }
     });
-    expect(bookLinePrompt).toContain("当前剧情工作区: 全书故事线");
+    expect(bookLinePrompt).toContain("剧情位置: 全书故事线");
     expect(bookLinePrompt).not.toContain("当前文件:");
     expect(bookLinePrompt).not.toContain("file_long-book-line");
 
@@ -1157,7 +1151,7 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       "【本次智能体会话固定上下文】"
     );
     expect(String(userMessages?.[0]?.content)).toContain(
-      "当前剧情工作区: 全书故事线"
+      "剧情位置: 全书故事线"
     );
     expect(String(userMessages?.[0]?.content)).not.toContain(
       "session_plot_turns"
@@ -1191,10 +1185,10 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(String(userMessages?.[1]?.content)).toContain(
       "【人物类型入口（本轮发送时快照）】"
     );
-    expect(String(userMessages?.[1]?.content)).toContain("【list 范围规则】");
-    expect(String(userMessages?.[1]?.content)).toContain(
-      "连续性不要传 arc_ 或 book_line"
+    expect(String(userMessages?.[1]?.content)).not.toContain(
+      "【list 范围规则】"
     );
+    expect(String(userMessages?.[1]?.content)).toContain("【用户当前位置】");
     expect(String(userMessages?.[1]?.content)).toContain(
       "世界规则（category_id=world_rules；类型=文本）"
     );
@@ -1202,18 +1196,16 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
       "主角（type_id=protagonist；共 1 人）"
     );
     expect(String(userMessages?.[1]?.content)).toContain(
-      "当前剧情工作区: 剧情点「暗线」(arc_plot_hidden)"
+      "剧情位置: 剧情点「暗线」(arc_plot_hidden)"
     );
     expect(String(userMessages?.[1]?.content)).not.toContain("当前文件:");
     expect(String(userMessages?.[1]?.content)).not.toContain(
       "file_long-book-line"
     );
     expect(String(userMessages?.[1]?.content)).not.toContain("当前根节点:");
+    expect(String(userMessages?.[2]?.content)).toContain("阶段: 剧情");
     expect(String(userMessages?.[2]?.content)).toContain(
-      "当前章卡: chapter_plot_one"
-    );
-    expect(String(userMessages?.[2]?.content)).toContain(
-      "当前剧情工作区: 章卡「第一章」(chapter_plot_one)"
+      "剧情位置: 章卡「第一章」(chapter_plot_one)"
     );
     expect(String(userMessages?.[2]?.content)).not.toContain("当前文件:");
   });
@@ -1375,7 +1367,9 @@ describe("DeepWrite Pi runtime adapter: workspace-prompts", () => {
     expect(String(userMessages?.[1]?.content)).toContain(
       "【人物类型入口（本轮发送时快照）】"
     );
-    expect(String(userMessages?.[1]?.content)).toContain("【list 范围规则】");
+    expect(String(userMessages?.[1]?.content)).not.toContain(
+      "【list 范围规则】"
+    );
     expect(String(userMessages?.[1]?.content)).not.toContain("当前剧情工作区");
   });
 });

@@ -30,8 +30,11 @@ export function buildCreativeWorkspaceContext(
   const currentDocument = workspaceDocuments.find(
     (document) => document.id === activeDocument.id
   );
-  // The editor may already have a newly saved body while the directory still
-  // carries metadata only. Both snapshots must use the same live document.
+  // Keep navigation and selection in the prompt. Core owns saved text and revisions.
+  const unloaded = {
+    content: "",
+    revision: createShortWorkspaceContentRevision("")
+  };
   const liveStages = [
     ...workspaceDocuments.filter(
       (document) => document.id !== activeDocument.id
@@ -71,8 +74,7 @@ export function buildCreativeWorkspaceContext(
     return {
       stageId,
       title: document.title,
-      content: document.content,
-      revision: createShortWorkspaceContentRevision(document.content)
+      ...unloaded
     };
   });
   const completeStages = stages.filter(
@@ -104,8 +106,7 @@ export function buildCreativeWorkspaceContext(
               id: document.characterItemId!,
               title: document.title,
               order: document.characterItemOrder ?? index + 1,
-              content: document.content,
-              revision: createShortWorkspaceContentRevision(document.content)
+              ...unloaded
             };
           })
         }
@@ -135,7 +136,10 @@ export function buildCreativeWorkspaceContext(
       title:
         document.draftFileKind === "body"
           ? document.title
-          : document.title.replace(/\s*·\s*人物状态$/u, ""),
+          : document.title.replace(
+              /\s*·\s*(?:人物状态|状态|Character state|State)$/u,
+              ""
+            ),
       wordCountRequirement: document.expertWordCountRequirement ?? ""
     };
     if (document.draftFileKind === "body") {
@@ -159,16 +163,12 @@ export function buildCreativeWorkspaceContext(
           body: {
             documentId: section.body.id,
             title: section.body.title,
-            content: section.body.content,
-            revision: createShortWorkspaceContentRevision(section.body.content)
+            ...unloaded
           },
           characterState: {
             documentId: section.characterState.id,
             title: section.characterState.title,
-            content: section.characterState.content,
-            revision: createShortWorkspaceContentRevision(
-              section.characterState.content
-            )
+            ...unloaded
           }
         }
       ];
@@ -185,6 +185,7 @@ export function buildCreativeWorkspaceContext(
       }))
     );
     const creativeWorkspace = {
+      readSource: "core",
       id: activeDocument.workspaceId,
       title: activeDocument.workspaceTitle,
       categories: [...(activeDocument.workspaceCategories ?? [])],

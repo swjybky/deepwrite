@@ -264,6 +264,9 @@ function createHarness() {
   const synchronizeRunPreferences = vi.fn();
   const updatePermissionMode = vi.fn();
   const indexSnapshot = shallowRef<CatalogIndexSnapshot | null>(null);
+  const fileContext = shallowRef<{ bookId: string; fileId: string } | null>(
+    null
+  );
   const workspaceIndex = shallowRef({
     plot: { foreshadowing: [] }
   } as unknown as LongWorkspaceIndexSnapshot);
@@ -273,7 +276,7 @@ function createHarness() {
       activeBookSummary: summary,
       workspaceIndex,
       selection: activeSelection,
-      fileContext: shallowRef(null),
+      fileContext,
       activeRoot: computed(
         () => activeSelection.value?.root ?? "worldbuilding"
       ),
@@ -324,6 +327,7 @@ function createHarness() {
     ensureAgentSettingsLoaded,
     ensureDocumentsLoaded,
     filterReadableAttachments,
+    fileContext,
     foreshadowingFocus,
     hydratedSnapshot,
     indexSnapshot,
@@ -348,6 +352,80 @@ async function waitForCall(mock: ReturnType<typeof vi.fn>): Promise<void> {
 }
 
 describe("useLongConversationCoordinator", () => {
+  it.each(["worldbuilding", "character_design"] as const)(
+    "sends a %s focus even when document reads are unavailable",
+    async (root) => {
+      const test = createHarness();
+      const file = {
+        id: "file_focus",
+        path: "long/test/focus.md",
+        updatedAt: NOW
+      };
+      test.activeSelection.value =
+        root === "worldbuilding"
+          ? {
+              key: "worldbuilding:world_rules",
+              root,
+              title: "世界规则",
+              breadcrumbs: ["合成书", "世界观"],
+              worldbuildingFormat: "text",
+              files: [{ role: "content", label: "设定", file }],
+              preferredRole: "content"
+            }
+          : {
+              key: "character-group:protagonist",
+              root,
+              title: "林岚",
+              breadcrumbs: ["合成书", "人物"],
+              characterId: "character_lan",
+              characterGroup: "protagonist",
+              files: [{ role: "relationships", label: "人物关系", file }],
+              preferredRole: "relationships"
+            };
+      test.context.value = {
+        ...test.context.value!,
+        activeRoot: root,
+        activeFileId: file.id
+      };
+      test.fileContext.value = { bookId: BOOK_ID, fileId: file.id };
+      const readDocument = vi.fn(async () => {
+        throw new Error("Synthetic document read failure");
+      });
+      vi.mocked(test.options.workspace.api).mockReturnValue({
+        readDocument,
+        readAgentsMd: async () => ({
+          bookId: BOOK_ID,
+          content: "",
+          truncated: false
+        })
+      } as unknown as LongWorkspaceRendererApi);
+      await test.coordinator.sendLongMessage();
+      expect(readDocument).not.toHaveBeenCalled();
+      expect(test.conversation.sendLongMessage).toHaveBeenCalledOnce();
+      const sent = test.conversation.sendLongMessage.mock.calls[0]![0]!;
+      expect(
+        root === "worldbuilding" ? sent.worldbuildingFocus : sent.characterFocus
+      ).toEqual(
+        root === "worldbuilding"
+          ? {
+              categoryId: "world_rules",
+              categoryTitle: "世界规则",
+              format: "text",
+              currentStage: { kind: "text", title: "世界规则" }
+            }
+          : {
+              characterId: "character_lan",
+              characterName: "林岚",
+              group: "protagonist",
+              currentDocument: { kind: "relationships", title: "人物关系" }
+            }
+      );
+      expect(test.notifications.warning).not.toHaveBeenCalled();
+      expect(test.notifications.error).not.toHaveBeenCalled();
+      await test.coordinator.dispose();
+    }
+  );
+
   it("builds UI references from metadata and full attachments only on send", async () => {
     const test = createHarness();
     test.summary.value = {

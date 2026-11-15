@@ -247,7 +247,7 @@ describe("legacy combined draft recovery migration", () => {
       baseProjectRevision: 7
     });
     expect(result.drafts[section.characterStateDocumentId]).toEqual({
-      title: "第一节：名单 · 人物状态",
+      title: "第一节：名单 · 状态",
       content: "恢复后的人物状态",
       dirty: true,
       recoveryUpdatedAt: RECOVERED_AT,

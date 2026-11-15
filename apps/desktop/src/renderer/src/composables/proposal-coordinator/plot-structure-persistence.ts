@@ -1,5 +1,5 @@
 import {
-  createShortWorkspaceContentRevision,
+  plotStructureCreationStageId,
   type DocumentVersionOrigin,
   type Book,
   type DeepWriteApi
@@ -28,14 +28,7 @@ export interface PlotStructurePersistencePort {
   ): void;
 }
 
-export function plotStructureCreationStageId(
-  proposalId: string,
-  provisionalStageId: string
-): string {
-  const proposalRevision = createShortWorkspaceContentRevision(proposalId);
-  const safeProposalId = proposalId.replace(/[^A-Za-z0-9._:-]/gu, "-");
-  return `plot-stage-agent:${proposalRevision}:${safeProposalId.slice(0, 20)}:${safeProposalId.slice(-20)}:${provisionalStageId.slice(-24)}`;
-}
+export { plotStructureCreationStageId } from "@deepwrite/contracts/renderer";
 
 /** Save through Core, then publish the returned body over the metadata index. */
 export async function persistPlotStructure(

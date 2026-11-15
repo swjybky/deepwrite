@@ -14,6 +14,24 @@ describe("long agent team contracts", () => {
     expect(settings.teams[0]!.parentAgentId).toBe("long");
   });
 
+  it("provides disabled writer, recorder and pure-read reviewer templates", () => {
+    const members = DEFAULT_LONG_AGENT_TEAM_SETTINGS.teams[0]!.subagents;
+    expect(members.map((member) => member.id)).toEqual([
+      "chapter_writer",
+      "continuity_recorder",
+      "continuity_reviewer"
+    ]);
+    expect(
+      members.every(
+        (member) => !member.enabled && member.modelMode === "inherit"
+      )
+    ).toBe(true);
+    expect(members[2]!.agentMode).toBe("pure-read");
+    expect(members[0]!.systemPrompt).toContain("tail");
+    expect(members[1]!.systemPrompt).toContain("documents");
+    expect(members[2]!.systemPrompt).toContain("search");
+  });
+
   it("rejects team lists that do not hold exactly the long parent role", () => {
     const extra = structuredClone(DEFAULT_LONG_AGENT_TEAM_SETTINGS);
     extra.teams.push(structuredClone(extra.teams[0]!));

@@ -400,7 +400,8 @@ export type LongChapterWriteProposalPayload = z.infer<
 
 export const LongLedgerCommitProposalPayloadSchema =
   LongProposalBasePayloadSchema.extend({
-    input: LongCommitChapterInputSchema
+    input: LongCommitChapterInputSchema,
+    files: z.array(LongContinuityFileChangeSchema).min(1).max(1_024).optional()
   }).superRefine((value, context) => {
     if (value.input.bookId !== value.bookId) {
       context.addIssue({
@@ -408,6 +409,50 @@ export const LongLedgerCommitProposalPayloadSchema =
         path: ["input", "bookId"],
         message: "Ledger proposal input must belong to the proposal book."
       });
+    }
+    const preparation =
+      value.input.mode === "text_files_batch"
+        ? value.input.preparation
+        : undefined;
+    if (Boolean(preparation) !== Boolean(value.files)) {
+      context.addIssue({
+        code: "custom",
+        path: ["files"],
+        message:
+          "Combined continuity proposals require both preparation and file changes."
+      });
+    }
+    if (preparation && value.files) {
+      const validated = LongContinuityFileProposalPayloadSchema.safeParse({
+        ...value,
+        input: undefined,
+        batch: preparation.batch,
+        files: value.files
+      });
+      if (!validated.success) {
+        for (const issue of validated.error.issues)
+          context.addIssue({
+            code: "custom",
+            path: issue.path,
+            message: issue.message
+          });
+      }
+      if (
+        value.files.some(
+          (file) =>
+            file.chapterCardId !==
+            (value.input.mode === "text_files_batch"
+              ? value.input.checkpointChapterCardId
+              : undefined)
+        )
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["files"],
+          message:
+            "Combined continuity files must belong to the checkpoint chapter."
+        });
+      }
     }
   });
 export type LongLedgerCommitProposalPayload = z.infer<

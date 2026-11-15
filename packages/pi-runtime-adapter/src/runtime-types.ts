@@ -1,7 +1,7 @@
 import type { LibraryAgentCommandExecutor } from "./library-agent-tools/domain-tools";
 import type {
   TeamManagementRuntimeContext,
-  AgentTeamPromptReview,
+  AgentTeamChangeReview,
   LibraryManagementRuntimeContext,
   LibraryManagementScope
 } from "@deepwrite/contracts";
@@ -68,7 +68,6 @@ export interface AgentRunInput {
   promptLocale?: PromptLocale;
   /** Outcomes of earlier proposals, rendered into this turn's user message. */
   proposalSettlements?: ProposalSettlements;
-  autoApproveCrossStageOperations?: boolean;
   thinkingLevel?: ConfiguredThinkingLevel;
   temperature?: number;
   runtimeConfig?: AgentProviderRuntimeConfig;
@@ -90,6 +89,10 @@ export interface AgentRunInput {
    * Narrow Agent Utility -> Core query bridge for the active long-form book.
    * Proposal tools never use this callback for mutation commands.
    */
+  writingCommandExecutor?: (
+    command: import("@deepwrite/contracts").WritingReadCommand,
+    signal?: AbortSignal
+  ) => Promise<import("@deepwrite/contracts").CommandResult>;
   longCommandExecutor?: LongCommandExecutor;
   materialCommandExecutor?: MaterialCommandExecutor;
   signal?: AbortSignal;
@@ -107,7 +110,7 @@ export interface AgentUserInputRequest {
   questions: AgentUserInputQuestion[];
   /** Candidates of a `subagent_draw` request. */
   draw?: AgentUserInputDraw;
-  promptReview?: AgentTeamPromptReview;
+  teamReview?: AgentTeamChangeReview;
   /** Tool calls whose proposals a `write_approval` wait covers. */
   writeApproval?: AgentUserInputWriteApproval;
 }
@@ -271,7 +274,7 @@ export type AgentRuntimeEvent =
         source: AgentUserInputSource;
         questions: AgentUserInputQuestion[];
         draw?: AgentUserInputDraw;
-        promptReview?: AgentTeamPromptReview;
+        teamReview?: AgentTeamChangeReview;
         writeApproval?: AgentUserInputWriteApproval;
         runtime: AgentRuntimeRef;
       };
@@ -380,6 +383,7 @@ export type AgentRuntimeEvent =
             }
           | {
               kind: "expert-draft-section-rename";
+              change?: import("@deepwrite/contracts").DraftSectionChange;
               sectionId: string;
               previousTitle: string;
               title: string;
@@ -503,6 +507,7 @@ export type AgentRuntimeEvent =
         bookId: string;
         agentId: import("@deepwrite/contracts").LongAgentId;
         input: import("@deepwrite/contracts").LongCommitChapterInput;
+        files?: import("@deepwrite/contracts").LongContinuityFileChange[];
         summary: string;
         runtime: AgentRuntimeRef;
       };

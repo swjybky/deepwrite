@@ -120,6 +120,17 @@ export default {
       "前序连续性文件提案已被拒绝，本章账本未归档。"
   },
   proposalCoordinator: {
+    waitForDirectoryCreation: "请先保存关联的创建提案，再应用这项目录修改。",
+    missingDirectoryEntry: "关联的目录条目已不存在。",
+    sectionPosition: "目录位置",
+    firstPosition: "目录首位",
+    afterSection: "在《{title}》之后",
+    lengthTarget: "篇幅要求",
+    unsetTarget: "未设置",
+    savingSectionChange: "正在保存目录修改…",
+    sectionChangeSaved: "目录修改已保存。",
+    sectionChangeFailed: "未能保存目录修改。",
+
     failedToApproveAgentEdits: "批准智能体修改失败。",
     thePendingNewEntryIsMissingCompleteContentGenerate:
       "待审阅的新条目缺少完整内容，请重新生成。",
@@ -170,7 +181,7 @@ export default {
     deleteCharacterEntry: "删除人物条目：{title}",
     theManuscriptDirectoryIsUnavailableChapterCreationWasNot:
       "目标正文目录已不可用，本次章节创建未进入审阅。",
-    createBlankChapters: "创建 {length} 个空白章节",
+    createBlankChapters: "创建 {length} 项目录条目",
     theTargetChapterIsUnavailableRenamingWasNotSubmitted:
       "目标章节已不可用，本次章节改名未进入审阅。",
     renameChapter: "修改章节名称：{previousTitle} → {title}",
@@ -182,7 +193,7 @@ export default {
       "目标章节尚未创建或已失效，本次智能体变更未进入审阅。",
     theTextHasNotChangedNoSaveIsNeeded: "文本没有实际变化，无需保存。",
     newChapter: "新章节",
-    characterState: "{sectionTitle} · 人物状态",
+    characterState: "{sectionTitle} · 状态",
     theTargetCharacterEntryHasNotBeenCreatedOr:
       "目标人物条目尚未创建或已失效，本次智能体变更未进入审阅。",
     theTargetManuscriptIsNotWritableThisAgentChange:
@@ -204,18 +215,18 @@ export default {
     otherEditsToThisProjectAreBeingSavedWait:
       "同一作品正在保存其他修改，请稍候再接受",
     automaticallyApprovingAndCreatingBlankChapterFiles:
-      "正在自动批准并创建空白章节文件…",
+      "正在自动批准并创建目录条目文件…",
     creatingChapterFiles: "正在创建章节文件…",
     chaptersCreatedButTheNewChaptersCouldNotBe:
       "章节已创建，但刷新工作区后仍无法定位新章节；请重试以完成正文映射。",
     automaticallyApprovedAndCreatedChaptersIncludingTheirSubmittedProse:
-      "已自动批准并创建 {createdCount} 个章节；随创建提交的正文与人物状态已一并保存。",
+      "已自动批准并创建 {createdCount} 个章节；随创建提交的正文与状态已一并保存。",
     createdChaptersAndSavedTheirSubmittedProseAndCharacter:
-      "已创建 {createdCount} 个章节，并保存随创建提交的正文与人物状态。",
-    createdBlankChapterFiles: "已创建 {createdCount} 个空白章节文件",
-    failedToCreateBlankChapters: "创建空白章节失败。",
+      "已创建 {createdCount} 个章节，并保存随创建提交的正文与状态。",
+    createdBlankChapterFiles: "已创建 {createdCount} 项目录条目文件",
+    failedToCreateBlankChapters: "创建目录条目失败。",
     theAssociatedBlankChapterCouldNotBeCreatedRelated:
-      "关联的空白章节确认未能创建，相关正文写入已取消。",
+      "关联的目录条目确认未能创建，相关正文写入已取消。",
     chapterCreationHasNotBeenConfirmedTheProseIs:
       "章节创建结果尚未确认，正文内容已保留；请先重试章节创建。",
     thePendingChapterRenameIsMissingRequiredParametersGenerate:
@@ -250,11 +261,10 @@ export default {
     deleting: "正在删除{draftUnit}…",
     noLongerExists: "{draftUnit}「{title}」已经不存在。",
     automaticallyApprovedAndDeletedAndItsManuscriptAndCharacter:
-      "已自动批准并删除{draftUnit}「{title}」及其正文与人物状态文件。",
+      "已自动批准并删除{draftUnit}「{title}」及其正文与状态文件。",
     deletedAndItsManuscriptAndCharacterStateFiles:
-      "已删除{draftUnit}「{title}」及其正文与人物状态文件。",
-    deletedAndItsCharacterStateFile:
-      "已删除{draftUnit}“{title}”及对应人物状态文件",
+      "已删除{draftUnit}「{title}」及其正文与状态文件。",
+    deletedAndItsCharacterStateFile: "已删除{draftUnit}“{title}”及对应状态文件",
     failedToDelete: "删除{draftUnit}失败。",
     theNovelPlotDesignServiceIsUnavailable: "长篇剧情设计服务当前不可用。",
     otherContentInThisBookIsBeingSavedAutomatic:
@@ -495,7 +505,7 @@ export default {
       "正文目录已存在同名章节“{duplicateTitle}”，未重复创建。",
     theRequestedChapterInsertionPositionNoLongerExistsNo:
       "指定的章节插入位置已不存在，未创建章节。",
-    creatingAnEmptyChapterFile: "正在创建空白章节文件…"
+    creatingAnEmptyChapterFile: "正在创建目录条目文件…"
   },
   longWorldbuildingLane: {
     theLongFormWorldbuildingFileServiceIsCurrentlyUnavailable:

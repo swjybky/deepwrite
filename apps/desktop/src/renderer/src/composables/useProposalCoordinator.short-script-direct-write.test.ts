@@ -13,6 +13,36 @@ import {
 } from "./useProposalCoordinator.short-script.test-support";
 
 describe("short/script agent direct document writes", () => {
+  it.each(["short", "script"] as const)(
+    "reviews and saves %s length targets through the existing document pair",
+    async (type) => {
+      const fixture = createFixture(type, { holdFirstSave: false });
+      const event = renameEvent("length", "第一节", 1);
+      const target = event.payload.mutationTarget;
+      if (target?.kind !== "expert-draft-section-rename")
+        throw new Error("Expected a directory change");
+      target.change = {
+        field: "wordCountRequirement",
+        before: "before",
+        after: "after"
+      };
+      fixture.coordinator.stageAgentEditProposal(event);
+      await fixture.coordinator.drain();
+      expect(fixture.saveDocument).toHaveBeenCalledWith({
+        bookId: BOOK_ID,
+        documentId: DOCUMENT_ID,
+        content: "",
+        preserveCurrentContent: true,
+        draftSectionChange: target.change
+      });
+      expect(fixture.conversation.listEditProposals(RUN_ID)[0]).toMatchObject({
+        status: "accepted",
+        draftSectionRenameTarget: { change: target.change }
+      });
+      expect(fixture.documents.value[0]!.content).toBe(INITIAL_CONTENT);
+      await fixture.coordinator.dispose();
+    }
+  );
   it.each([
     ["short", "短篇"],
     ["script", "剧本"]

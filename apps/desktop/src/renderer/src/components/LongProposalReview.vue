@@ -204,6 +204,7 @@ function diffLineMark(type: "context" | "addition" | "deletion"): string {
         <LongLedgerFinalizationCard
           v-if="item.event.type === 'long.ledger_commit_proposal'"
           :item="item"
+          :workspace-index="workspaceIndex"
           @approve="emit('approve', item.event.id)"
           @reject="emit('reject', item.event.id)"
         />

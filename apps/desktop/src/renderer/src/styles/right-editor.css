@@ -11,14 +11,6 @@
   background: var(--editor);
 }
 
-.editor-pane.is-script-workspace {
-  border-left-color: color-mix(in srgb, var(--accent) 38%, var(--line));
-}
-
-.editor-pane.is-script-workspace .editor-toolbar {
-  background: color-mix(in srgb, var(--accent-soft) 48%, var(--editor));
-}
-
 .editor-pane.has-section-tabs {
   grid-template-rows: 42px 40px minmax(0, 1fr) 36px;
 }

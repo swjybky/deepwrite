@@ -84,8 +84,7 @@ function getAppStatus(state: ExternalControlAppState) {
     platform: state.platform,
     rendererReady: state.rendererReady(),
     activeRunCount: state.activeRunCount(),
-    permissionMode: settings.permissionMode,
-    crossStageAutoApprove: settings.autoApproveCrossStageOperations
+    permissionMode: settings.permissionMode
   });
 }
 

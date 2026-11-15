@@ -39,7 +39,6 @@ import { resolveLongTarget, type LongResolvedTarget } from "./target";
 import { longStructureUpdateOperation } from "./structure-operations";
 import { volumeChapterOrderOperation } from "./volume-chapter-order";
 import type { LongToolContext } from "./context";
-import { confirmCrossStageWrite, crossStageWriteCancelled } from "./user-input";
 
 interface Replacement {
   original_text: string;
@@ -170,16 +169,6 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
       });
       if (!writableRoots.has(LONG_STAGE_ROOTS[target.stage])) {
         throw new Error(`当前智能体无权写入 ${target.stage} 阶段。`);
-      }
-      const decision = await confirmCrossStageWrite(ctx, {
-        toolCallId,
-        targetStage: target.stage,
-        targetTitle: target.title,
-        operationLabel: "修改",
-        signal
-      });
-      if (decision === "cancel") {
-        return crossStageWriteCancelled(ctx, target.stage);
       }
       if (LONG_STAGE_ROOTS[target.stage] !== ctx.workspace.activeRoot) {
         index = await reloadIndex(signal);

@@ -34,6 +34,7 @@ export function createMaterialQueryRunner(
   const catalog = input.workspaceContext?.materialCatalog;
   const executor = input.materialCommandExecutor;
   if (!catalog || !executor) return undefined;
+  const english = input.promptLocale === "en-US";
   const revisions = new Map(
     catalog.entries.map((entry) => [entry.id, entry.revision])
   );
@@ -69,14 +70,24 @@ export function createMaterialQueryRunner(
     const result = MaterialQueryResultSchema.parse(response.payload);
     for (const entry of result.entries) revisions.set(entry.id, entry.revision);
     if (result.status === "not_found")
-      return "没有找到当前仍关联且可读取的素材；请刷新目录。";
+      return english
+        ? "No currently linked, readable material found. Refresh the directory."
+        : "没有找到当前仍关联且可读取的素材；请刷新目录。";
     if (params.mode === "read" && result.status === "ok") {
       const item = result.entries[0];
       if (!item || result.content === undefined)
-        throw new Error("素材读取结果缺少原文，请重试。");
+        throw new Error(
+          english
+            ? "The material read returned no source text. Retry the read."
+            : "素材读取结果缺少原文，请重试。"
+        );
       return [
         ...(result.revisionChanged
-          ? ["素材已在目录生成后更新，以下为最新原文。"]
+          ? [
+              english
+                ? "The material changed after indexing. The latest source text follows."
+                : "素材已在目录生成后更新，以下为最新原文。"
+            ]
           : []),
         `【${item.title}】（${item.kind}，id=${item.id}，revision=${item.revision}）`,
         result.content,
@@ -85,20 +96,34 @@ export function createMaterialQueryRunner(
     }
     return [
       result.status === "ambiguous"
-        ? "匹配到多个素材条目，请改用稳定 id（entry_id）。"
-        : `找到 ${result.total} 条可读素材。`,
+        ? english
+          ? "Multiple materials match. Use entry_id."
+          : "匹配到多个素材条目，请改用稳定 id（entry_id）。"
+        : english
+          ? `${result.total} readable materials found.`
+          : `找到 ${result.total} 条可读素材。`,
       ...result.entries.map((entry) =>
         [
-          materialIndexLine({
-            ...entry,
-            source: "attached-material",
-            content: ""
-          }),
-          ...(entry.matchSnippet ? [`  命中片段：${entry.matchSnippet}`] : [])
+          materialIndexLine(
+            {
+              ...entry,
+              source: "attached-material",
+              content: ""
+            },
+            160,
+            english
+          ),
+          ...(entry.matchSnippet
+            ? [`  ${english ? "Match: " : "命中片段："}${entry.matchSnippet}`]
+            : [])
         ].join("\n")
       ),
       ...(result.nextCursor !== undefined
-        ? [`更多结果：使用相同查询参数并传 cursor=${result.nextCursor} 继续。`]
+        ? [
+            english
+              ? `Continue with cursor=${result.nextCursor}.`
+              : `更多结果：使用相同查询参数并传 cursor=${result.nextCursor} 继续。`
+          ]
         : []),
       ...result.notices
     ].join("\n");

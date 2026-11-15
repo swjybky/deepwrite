@@ -78,7 +78,6 @@ const emit = defineEmits<{
   expandLeft: [];
   back: [];
   updatePermissionMode: [mode: GeneralPermissionMode];
-  updateAutoApproveCrossStageOperations: [enabled: boolean];
   updateAutoSave: [enabled: boolean];
   updateVersionHistoryEnabled: [enabled: boolean];
   updateLanguage: [language: AppLanguage];
@@ -135,9 +134,6 @@ const emit = defineEmits<{
     @choose-workspace-directory="emit('chooseWorkspaceDirectory')"
     @reset-workspace-directory="emit('resetWorkspaceDirectory')"
     :permission-mode="module.permissionMode"
-    :auto-approve-cross-stage-operations="
-      module.autoApproveCrossStageOperations
-    "
     :auto-save-enabled="module.autoSaveEnabled"
     :version-history-enabled="module.versionHistoryEnabled"
     :language="module.language"
@@ -180,9 +176,6 @@ const emit = defineEmits<{
     :runtime-available="module.runtimeAvailable"
     @back="emit('back')"
     @update-permission-mode="emit('updatePermissionMode', $event)"
-    @update-auto-approve-cross-stage-operations="
-      emit('updateAutoApproveCrossStageOperations', $event)
-    "
     @update-auto-save="emit('updateAutoSave', $event)"
     @update-version-history-enabled="
       emit('updateVersionHistoryEnabled', $event)

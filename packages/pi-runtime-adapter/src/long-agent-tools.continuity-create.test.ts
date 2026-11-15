@@ -197,7 +197,7 @@ describe("unified long-form tools: continuity create with content", () => {
         },
         content: "缺少 document。"
       })
-    ).rejects.toThrow("meta.document=current_state 或 history");
+    ).rejects.toThrow("kind=continuity_character 缺少 meta.document");
   });
 
   it("rejects continuity-file creation after the chapter ledger is committed", async () => {

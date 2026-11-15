@@ -204,7 +204,7 @@ function catalogDraftDirectoryFromExpertDraft(
       },
       characterState: {
         id: catalogDraftCharacterStateDocumentId(section.id),
-        title: `${section.title} · 人物状态`,
+        title: `${section.title} · 状态`,
         content: section.characterState,
         createdAt,
         updatedAt

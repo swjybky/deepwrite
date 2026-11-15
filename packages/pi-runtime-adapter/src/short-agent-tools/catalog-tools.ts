@@ -21,8 +21,14 @@ export function buildQueryLinkedMaterialEntriesTool(
   const allowedKinds = input.profile.readAccess.material;
   return defineTool({
     name: "query_linked_material_entries",
-    label: "查询关联素材条目",
-    description: MATERIAL_QUERY_DESCRIPTION,
+    label:
+      input.promptLocale === "en-US"
+        ? "Query linked materials"
+        : "查询关联素材条目",
+    description:
+      input.promptLocale === "en-US"
+        ? "List, search or read material linked to this work within the current read scope. Prefer entry_id; a unique entry_name also works."
+        : MATERIAL_QUERY_DESCRIPTION,
     parameters: Type.Object({
       mode: Type.Union([
         Type.Literal("list"),
@@ -45,7 +51,9 @@ export function buildQueryLinkedMaterialEntriesTool(
       const items = (input.attachedMaterials ?? []).filter(
         (item) => item.kind !== undefined && allowedKinds.includes(item.kind)
       );
-      return textResult(queryAttachedMaterials(items, params));
+      return textResult(
+        queryAttachedMaterials(items, params, input.promptLocale === "en-US")
+      );
     }
   });
 }
@@ -56,10 +64,21 @@ export function buildLoadSkillTool(
   const allowedKinds = input.profile.readAccess.skill;
   return defineTool({
     name: "load_skill",
-    label: "加载技能",
-    description: LOAD_SKILL_TOOL_DESCRIPTION,
+    label: input.promptLocale === "en-US" ? "Load skill" : "加载技能",
+    description:
+      input.promptLocale === "en-US"
+        ? "Load an attached skill by full title, unique short name or library name within the current read scope."
+        : LOAD_SKILL_TOOL_DESCRIPTION,
     parameters: Type.Object({
-      name: Type.String(LOAD_SKILL_NAME_PARAMETER)
+      name: Type.String({
+        ...LOAD_SKILL_NAME_PARAMETER,
+        ...(input.promptLocale === "en-US"
+          ? {
+              description:
+                "Full skill title, unique short name or library name."
+            }
+          : {})
+      })
     }),
     execute: async (_toolCallId, params) => {
       const name = String(params.name ?? "");
@@ -69,7 +88,12 @@ export function buildLoadSkillTool(
         (allowedKinds as readonly string[]).includes(item.kind);
       const result = resolveAttachedSkill(name, attached, isReadable);
       return textResult(
-        formatLoadSkillToolResult(name, result, attached.filter(isReadable))
+        formatLoadSkillToolResult(
+          name,
+          result,
+          attached.filter(isReadable),
+          input.promptLocale === "en-US"
+        )
       );
     }
   });

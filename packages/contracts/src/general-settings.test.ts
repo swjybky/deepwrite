@@ -25,7 +25,6 @@ describe("general settings contracts", () => {
         showInMenuBar: false
       })
     ).toMatchObject({
-      autoApproveCrossStageOperations: true,
       showContextUsage: true,
       useNetworkProxy: false,
       workspacePaneLayout: "agent-editor",
@@ -52,8 +51,7 @@ describe("general settings contracts", () => {
 
   it("enables both automatic approval preferences by default", () => {
     expect(createDefaultGeneralSettings()).toMatchObject({
-      permissionMode: "auto-approve",
-      autoApproveCrossStageOperations: true
+      permissionMode: "auto-approve"
     });
   });
 

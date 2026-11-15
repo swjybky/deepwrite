@@ -12,10 +12,21 @@ import {
 } from "@deepwrite/contracts";
 import { compareVersions } from "./update-version";
 import { createUpdateServiceUpdater } from "./arch-package-updater";
+import {
+  takeUpdateInstallMarker,
+  writeUpdateInstallMarker
+} from "./update-install-marker";
 
 const autoUpdater = createUpdateServiceUpdater(nativeAutoUpdater);
 
 type UpdateStateListener = (state: UpdateState) => void;
+
+export interface UpdateServiceOptions {
+  /** Where the version being installed is recorded across the restart. */
+  installMarkerPath: string;
+  /** Resolves false when the user would rather not install yet. */
+  confirmInstall(): Promise<boolean>;
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message.trim()
@@ -29,8 +40,12 @@ export class UpdateService {
   private readonly listeners = new Set<UpdateStateListener>();
   private checkPromise: Promise<UpdateState> | undefined;
   private downloadPromise: Promise<UpdateState> | undefined;
+  private confirmingInstall = false;
 
-  constructor(private readonly requestInstall: () => void) {
+  constructor(
+    private readonly requestInstall: () => void,
+    private readonly options: UpdateServiceOptions
+  ) {
     this.state = UpdateStateSchema.parse({
       status: "idle",
       currentVersion: app.getVersion(),
@@ -230,10 +245,38 @@ export class UpdateService {
     }
   }
 
-  install(): void {
+  /**
+   * Undefined unless the previous start handed over to an installer that left
+   * an older version behind, which the installer itself may report as success.
+   */
+  takeFailedInstall(): string | undefined {
+    const expected = takeUpdateInstallMarker(this.options.installMarkerPath);
+    if (!expected || compareVersions(app.getVersion(), expected) >= 0) {
+      return undefined;
+    }
+    this.patchState({
+      status: "error",
+      currentVersion: app.getVersion(),
+      latestVersion: expected,
+      canDownload: false,
+      canInstall: false,
+      message: `上次更新到 v${expected} 没有成功，当前仍是 v${app.getVersion()}。请关闭 Claude Code、Codex 等外部智能体客户端后重新检查更新。`
+    });
+    return expected;
+  }
+
+  async install(): Promise<void> {
     if (this.state.status !== "downloaded") {
       throw new Error("更新尚未下载完成。");
     }
+    if (this.confirmingInstall) return;
+    this.confirmingInstall = true;
+    try {
+      if (!(await this.options.confirmInstall())) return;
+    } finally {
+      this.confirmingInstall = false;
+    }
+    if (this.state.status !== "downloaded") return;
     this.patchState({
       status: "installing",
       canDownload: false,
@@ -254,6 +297,16 @@ export class UpdateService {
   }
 
   quitAndInstall(): void {
+    if (this.state.latestVersion) {
+      try {
+        writeUpdateInstallMarker(
+          this.options.installMarkerPath,
+          this.state.latestVersion
+        );
+      } catch {
+        console.warn("DeepWrite could not record the update being installed.");
+      }
+    }
     autoUpdater.quitAndInstall(false, true);
   }
 

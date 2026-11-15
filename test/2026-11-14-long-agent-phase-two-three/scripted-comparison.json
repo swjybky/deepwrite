@@ -1,0 +1,182 @@
+{
+  "kind": "scripted-tool-replay",
+  "fixture": "synthetic-volume-three-chapters-v1",
+  "note": "Fixed sequences compare tool behavior and prompt character counts, not model quality or tokens. Counts exclude per-run tool-boundary text and schemas. Read characters include result metadata; internal Core reads are not model-visible tool calls.",
+  "reports": [
+    {
+      "version": "before",
+      "scenario": "create",
+      "systemCharacters": 4504,
+      "userCharacters": 1023,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 4,
+      "toolErrors": 0,
+      "readCalls": 0,
+      "repeatedReads": 0,
+      "readCharacters": {},
+      "proposalCards": 4,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "before",
+      "scenario": "write",
+      "systemCharacters": 4504,
+      "userCharacters": 1024,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 3,
+      "toolErrors": 0,
+      "readCalls": 2,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "card": 79,
+        "body": 68
+      },
+      "proposalCards": 1,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "before",
+      "scenario": "continuity",
+      "systemCharacters": 4504,
+      "userCharacters": 1035,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 4,
+      "toolErrors": 0,
+      "readCalls": 1,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "body": 68
+      },
+      "proposalCards": 3,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "before",
+      "scenario": "delegate",
+      "systemCharacters": 4504,
+      "userCharacters": 1022,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 4,
+      "toolErrors": 0,
+      "readCalls": 2,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "card": 79,
+        "body": 68
+      },
+      "proposalCards": 1,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": true
+    },
+    {
+      "version": "after",
+      "scenario": "create",
+      "systemCharacters": 5220,
+      "userCharacters": 1023,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 4,
+      "toolErrors": 0,
+      "readCalls": 0,
+      "repeatedReads": 0,
+      "readCharacters": {},
+      "proposalCards": 4,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "after",
+      "scenario": "write",
+      "systemCharacters": 5220,
+      "userCharacters": 1024,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 3,
+      "toolErrors": 0,
+      "readCalls": 2,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "card": 79,
+        "body": 81
+      },
+      "proposalCards": 1,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "after",
+      "scenario": "continuity",
+      "systemCharacters": 5220,
+      "userCharacters": 1035,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 2,
+      "toolErrors": 0,
+      "readCalls": 1,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "body": 68
+      },
+      "proposalCards": 1,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": null
+    },
+    {
+      "version": "after",
+      "scenario": "delegate",
+      "systemCharacters": 5220,
+      "userCharacters": 1022,
+      "inputTokens": null,
+      "outputTokens": null,
+      "firstInputTokens": null,
+      "toolCalls": 4,
+      "toolErrors": 0,
+      "readCalls": 2,
+      "repeatedReads": 0,
+      "readCharacters": {
+        "card": 79,
+        "body": 81
+      },
+      "proposalCards": 1,
+      "pruned": false,
+      "compacted": false,
+      "delegationHasDirectory": true
+    }
+  ],
+  "stressRead": {
+    "documentCharacters": 12000,
+    "versions": {
+      "before": {
+        "fullReadCharacters": 12041,
+        "repeatedFullReadCharacters": 12041,
+        "endingReadCharacters": 12041
+      },
+      "after": {
+        "fullReadCharacters": 12074,
+        "repeatedFullReadCharacters": 47,
+        "endingReadCharacters": 2053
+      }
+    }
+  }
+}

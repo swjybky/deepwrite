@@ -1,4 +1,5 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { StringEnum, Type } from "@earendil-works/pi-ai";
 import { defineTool, textResult } from "./shared";
 import { listScopeIdParameter, stageParameter, strictObject } from "./schemas";
 import { LONG_STAGE_ROOTS, type LongStage } from "./entity-registry";
@@ -16,23 +17,39 @@ export function buildListTool(ctx: LongToolContext): AgentTool {
     name: "list",
     label: "列出范围细节",
     description:
-      "列出一个已知容器的二层结构，不分页也不搜索。必须同时提供 stage 与该 stage 允许的 scope_id；不能查询阶段最上层，也不能把叶子 id 再拿来 list。plot 允许 book_line、volume_、arc_、chapter_、event_、foreshadow_；draft 仅 volume_、arc_；continuity 仅 volume_、chapter_、character_，不要传 arc_。storyplot_、connection_、placement_、beat_ 等叶子用 read。返回稳定业务 id、标题与关系，不返回正文。",
+      "列出已知容器的二层结构（业务 id、标题、关系，不含正文）。scope_id 必填，默认按 id 推断：world_=世界观；人物类型 id=人物；book_line / volume_ / arc_ / chapter_ / event_ / foreshadow_=剧情。连续性用 view=continuity，book_line 返回全书连续性概览，其他容器为 volume_ / chapter_ / character_。stage 为兼容旧调用保留，draft 是卷/剧情点视图的旧别名；仅有正文读取权限时仍返回正文目录。",
     parameters: strictObject({
-      stage: stageParameter,
+      stage: Type.Optional(stageParameter),
+      view: Type.Optional(StringEnum(["continuity"] as const)),
       scope_id: listScopeIdParameter
     }),
     execute: async (_toolCallId, params, signal) => {
-      const stage = params.stage as LongStage;
       const scopeId = params.scope_id;
       if (!scopeId) {
         throw new Error(
           "list 必须提供 scope_id；阶段最上层目录已在当前上下文中传输。"
         );
       }
+      if (params.view && params.stage && params.stage !== "continuity") {
+        throw new Error("view=continuity 不能与其它 stage 同时使用。");
+      }
+      const index = await loadIndex(signal);
+      const inferred: LongStage =
+        scopeId.startsWith("world_") || scopeId.startsWith("worlditem_")
+          ? "worldbuilding"
+          : index.characterTypes.some(({ id }) => id === scopeId) ||
+              scopeId.startsWith("chartype_") ||
+              scopeId === "character_overview" ||
+              scopeId.startsWith("character_")
+            ? "character"
+            : "plot";
+      const stage =
+        params.view === "continuity"
+          ? "continuity"
+          : ((params.stage as LongStage | undefined) ?? inferred);
       if (!readableRoots.has(LONG_STAGE_ROOTS[stage])) {
         throw new Error(`当前智能体无权读取 ${stage} 阶段。`);
       }
-      const index = await loadIndex(signal);
       const lines =
         stage === "worldbuilding"
           ? worldbuildingScopeLines(index, scopeId)
@@ -41,7 +58,10 @@ export function buildListTool(ctx: LongToolContext): AgentTool {
             : stage === "plot"
               ? plotScopeLines(index, scopeId)
               : stage === "draft"
-                ? draftScopeLines(index, scopeId)
+                ? readableRoots.has("plot_design") &&
+                  (scopeId.startsWith("volume_") || scopeId.startsWith("arc_"))
+                  ? plotScopeLines(index, scopeId)
+                  : draftScopeLines(index, scopeId)
                 : continuityScopeLines(index, scopeId);
       return textResult(lines.join("\n"));
     }

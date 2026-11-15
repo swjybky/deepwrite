@@ -158,7 +158,7 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       body: { content: "第一节正文", title: "雨中的门" },
       characterState: {
         content: "林舟：仍在门外",
-        title: "雨中的门 · 人物状态"
+        title: "雨中的门 · 状态"
       }
     });
     expect(await store.getProjectRevision(opened.resource.id, "book")).toBe(3);
@@ -199,7 +199,7 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
     expect(snapshot.books[0]?.draft.sections[0]).toMatchObject({
       title: "新的剧集名",
       body: { title: "新的剧集名", content: "磁盘上的最新正文" },
-      characterState: { title: "新的剧集名 · 人物状态" }
+      characterState: { title: "新的剧集名 · 状态" }
     });
   });
 
@@ -338,6 +338,115 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       access(join(opened.projectDirectory, mappedSection.characterState.path))
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it.each(["short", "script"] as const)(
+    "commits %s batch contents together and guards reversible metadata changes",
+    async (type) => {
+      const root = await makeTemporaryRoot("deepwrite-folder-batch-content-");
+      const store = new FolderCatalogStore({
+        userDataPath: join(root, "data"),
+        now: tickingClock()
+      });
+      const info = { title: "目录验证", genre: "其他" as const };
+      const opened =
+        type === "short"
+          ? await store.createShortBook(info, join(root, "books"))
+          : await store.createScriptBook(info, join(root, "books"));
+      const bookId = opened.resource.id;
+      const request = {
+        bookId,
+        operationId: "batch-1",
+        sections: [
+          {
+            clientSectionId: "a",
+            title: "A",
+            bodyContent: "body",
+            stateContent: "fear",
+            wordCountRequirement: "5"
+          },
+          {
+            clientSectionId: "b",
+            title: "B",
+            bodyContent: "NEXT",
+            stateContent: "plot"
+          }
+        ]
+      };
+      await expect(
+        store.createDraftSections({
+          ...request,
+          sections: [request.sections[0]!, request.sections[0]!]
+        })
+      ).rejects.toThrow();
+      const result = await store.createDraftSections(request);
+      expect(
+        result.sections.map((item) => [
+          item.section.body.content,
+          item.section.characterState.content
+        ])
+      ).toEqual([
+        ["body", "fear"],
+        ["NEXT", "plot"]
+      ]);
+      expect(await store.createDraftSections(request)).toEqual(result);
+      await expect(
+        store.createDraftSections({
+          ...request,
+          sections: request.sections.map((s) => ({
+            ...s,
+            stateContent: "different"
+          }))
+        })
+      ).rejects.toThrow();
+      const [a, b] = result.sections.map((item) => item.section);
+      const update = {
+        bookId,
+        documentId: b!.body.id,
+        content: "",
+        preserveCurrentContent: true
+      };
+      const length = {
+        field: "wordCountRequirement" as const,
+        before: "",
+        after: "one scene"
+      };
+      await store.saveDocument({ ...update, draftSectionChange: length });
+      await expect(
+        store.saveDocument({ ...update, draftSectionChange: length })
+      ).rejects.toBeInstanceOf(FolderCatalogConflictError);
+      const move = {
+        field: "afterSectionId" as const,
+        before: a!.id,
+        after: null
+      };
+      await store.saveDocument({ ...update, draftSectionChange: move });
+      const directory = async () =>
+        (await store.snapshot()).books[0]!.draft.sections;
+      expect((await directory())[0]).toMatchObject({
+        id: b!.id,
+        wordCountRequirement: "one scene",
+        body: { content: "NEXT" },
+        characterState: { content: "plot" }
+      });
+      await expect(
+        store.saveDocument({ ...update, draftSectionChange: move })
+      ).rejects.toBeInstanceOf(FolderCatalogConflictError);
+      await store.saveDocument({
+        ...update,
+        draftSectionChange: { ...move, before: null, after: a!.id }
+      });
+      await store.saveDocument({
+        ...update,
+        draftSectionChange: { ...length, before: "one scene", after: "" }
+      });
+      expect((await directory()).at(-1)).toMatchObject({
+        id: b!.id,
+        wordCountRequirement: "",
+        body: { content: "NEXT" },
+        characterState: { content: "plot" }
+      });
+    }
+  );
 
   it("moves the complete draft section entry and preserves its paired files", async () => {
     const root = await makeTemporaryRoot(

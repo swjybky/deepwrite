@@ -1,7 +1,10 @@
 import type { UserMessage } from "@earendil-works/pi-ai";
 import type { AgentRunInput } from "./runtime-types";
 
-type RawUserTurn = Pick<AgentRunInput, "prompt" | "attachments">;
+type RawUserTurn = Pick<
+  AgentRunInput,
+  "prompt" | "attachments" | "promptLocale"
+>;
 
 /** Raw user turn: the prompt plus any uploaded attachments, without context. */
 export function buildRawUserText(input: RawUserTurn): string {
@@ -14,14 +17,21 @@ export function buildRawUserText(input: RawUserTurn): string {
   );
   const lines = [input.prompt];
   if (textAttachments.length) {
-    lines.push("", "【用户上传的文本附件】");
+    lines.push(
+      "",
+      input.promptLocale === "en-US"
+        ? "[Uploaded text attachments]"
+        : "【用户上传的文本附件】"
+    );
     for (const attachment of textAttachments) {
       lines.push(
         "",
         `--- ${attachment.name} (${attachment.mediaType}) ---`,
         attachment.content,
         attachment.truncated
-          ? `[DeepWrite：附件文本已截断；原文 ${attachment.originalLength?.toLocaleString("zh-CN") ?? "超过限制"} 个字符。]`
+          ? input.promptLocale === "en-US"
+            ? `[DeepWrite: attachment truncated${attachment.originalLength === undefined ? "" : ` from ${attachment.originalLength} characters`}.]`
+            : `[DeepWrite：附件文本已截断；原文 ${attachment.originalLength?.toLocaleString("zh-CN") ?? "超过限制"} 个字符。]`
           : ""
       );
     }
@@ -29,7 +39,9 @@ export function buildRawUserText(input: RawUserTurn): string {
   if (imageAttachments.length) {
     lines.push(
       "",
-      `【用户上传的图片】${imageAttachments.map((attachment) => attachment.name).join("、")}`
+      input.promptLocale === "en-US"
+        ? `[Uploaded images] ${imageAttachments.map((item) => item.name).join(", ")}`
+        : `【用户上传的图片】${imageAttachments.map((attachment) => attachment.name).join("、")}`
     );
   }
   return lines.filter((line) => line !== "").join("\n");

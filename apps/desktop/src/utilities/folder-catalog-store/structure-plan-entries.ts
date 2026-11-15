@@ -4,6 +4,7 @@ import {
   type LibraryStructureOperation
 } from "@deepwrite/contracts";
 import { projectTransactionContentSha256 as sha } from "../project-transaction";
+import { nextCopyTitle } from "../copy-title";
 import type {
   StructurePlanState,
   Item,
@@ -16,6 +17,7 @@ type EntryOperation = Extract<
     action:
       | "create-unbound-entry"
       | "reorder-entry"
+      | "copy-entries"
       | "move-entries"
       | "delete-entries";
   }
@@ -26,13 +28,15 @@ export function isEntryStructureOperation(
   return [
     "create-unbound-entry",
     "reorder-entry",
+    "copy-entries",
     "move-entries",
     "delete-entries"
   ].includes(op.action);
 }
 export async function applyEntryStructureOperation(
   op: EntryOperation,
-  state: StructurePlanState
+  state: StructurePlanState,
+  operationIndex: number
 ) {
   const {
     ctx,
@@ -98,11 +102,11 @@ export async function applyEntryStructureOperation(
     ) as Library["entries"];
     summary.push(`调整「${item.manifest.title}」的条目顺序`);
   } else {
-    const source = library(op.libraryId);
+    const source = library(op.libraryId, op.action === "copy-entries");
     if (new Set(op.entryIds).size !== op.entryIds.length)
       throw new Error("条目重复。");
     let target: (Item & { manifest: Library }) | undefined;
-    if (op.action === "move-entries") {
+    if (op.action === "move-entries" || op.action === "copy-entries") {
       if (op.target.kind === "library") target = library(op.target.libraryId);
       else {
         const type =
@@ -128,25 +132,24 @@ export async function applyEntryStructureOperation(
             true
           )) as Item & { manifest: Library };
       }
-      if (target === source) throw new Error("条目已在目标位置。");
+      if (
+        op.action === "move-entries" &&
+        target === source &&
+        !op.targetStageId
+      )
+        throw new Error("条目已在目标位置。");
     }
     for (const id of op.entryIds) {
       const entry = source.manifest.entries.find((item) => item.id === id);
       if (!entry) throw new Error("条目不存在。");
       const content = await body(source, entry);
-      if (target) {
-        const stageId =
-          op.action === "move-entries"
-            ? (op.targetStageId ?? entry.stageId)
-            : entry.stageId;
+      if (target && op.action !== "delete-entries") {
+        const stageId = op.targetStageId ?? entry.stageId;
         if (
-          op.action === "move-entries" &&
           op.targetStageId &&
           target.manifest.kind !== "deepwrite.material-library"
         )
           throw new Error("只有素材条目可以调整内容阶段。");
-        if (target.manifest.entries.some((item) => item.id === id))
-          throw new Error("目标库已存在同 ID 条目。");
         if (
           target.manifest.kind === "deepwrite.material-library" &&
           target.manifest.materialKind !== "mixed" &&
@@ -154,6 +157,47 @@ export async function applyEntryStructureOperation(
             target.manifest.materialKind
         )
           throw new Error("目标库不支持该素材阶段，请选择兼容库。");
+        if (op.action === "copy-entries") {
+          const copyId = `entry-${sha(JSON.stringify([request.requestId, operationIndex, id])).slice(0, 24)}`;
+          const titles = target.manifest.entries
+            .filter((item) => item.stageId === stageId)
+            .map((item) => item.title);
+          const title = titles.includes(entry.title)
+            ? nextCopyTitle(entry.title, titles)
+            : entry.title;
+          const path = `entries/${copyId}.md`;
+          if (target.manifest.entries.some((item) => item.id === copyId))
+            throw new Error("副本 ID 已存在，请重新生成提案。");
+          target.files.set(path, {
+            action: "write",
+            path,
+            content,
+            expectedSha256: null
+          });
+          target.manifest.entries.push({
+            ...entry,
+            id: copyId,
+            title,
+            stageId,
+            path,
+            createdAt: ctx.now,
+            updatedAt: ctx.now
+          } as never);
+          summary.push(
+            `复制「${source.manifest.title} / ${entry.title}」到「${target.manifest.title} / ${title}」`
+          );
+          continue;
+        }
+        if (target === source) {
+          if (entry.stageId === stageId)
+            throw new Error(`「${entry.title}」已在目标栏目。`);
+          entry.stageId = stageId as typeof entry.stageId;
+          entry.updatedAt = ctx.now;
+          summary.push(`调整「${entry.title}」栏目为 ${stageId}`);
+          continue;
+        }
+        if (target.manifest.entries.some((item) => item.id === id))
+          throw new Error("目标库已存在同 ID 条目。");
         const path = `entries/${sha(id).slice(0, 32)}.md`;
         target.files.set(path, {
           action: "write",
@@ -161,12 +205,11 @@ export async function applyEntryStructureOperation(
           content,
           expectedSha256: target.files.get(path)?.expectedSha256 ?? null
         });
-        const beforeIndex =
-          op.action === "move-entries" && op.beforeEntryId
-            ? target.manifest.entries.findIndex(
-                (item) => item.id === op.beforeEntryId
-              )
-            : -1;
+        const beforeIndex = op.beforeEntryId
+          ? target.manifest.entries.findIndex(
+              (item) => item.id === op.beforeEntryId
+            )
+          : -1;
         target.manifest.entries.splice(
           beforeIndex < 0 ? target.manifest.entries.length : beforeIndex,
           0,

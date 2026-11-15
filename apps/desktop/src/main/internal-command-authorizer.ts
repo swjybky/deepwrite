@@ -2,6 +2,7 @@ import { chatAssistantProjectKey } from "@deepwrite/contracts";
 import type { BookIdentityRunRegistration } from "../extras/book-identity/run-registration";
 import type {
   CommandEnvelope,
+  LibraryAgentDomain,
   MaterialReadScope,
   LibraryManagementScope
 } from "@deepwrite/contracts";
@@ -18,13 +19,15 @@ export const AGENT_CORE_LONG_QUERY_COMMANDS = [
 
 export const AGENT_CORE_QUERY_COMMANDS = [
   ...AGENT_CORE_LONG_QUERY_COMMANDS,
+  "catalog.readWritingWorkspace",
   "catalog.queryMaterials",
   "catalog.queryLibraryManagement",
   "catalog.previewLibraryStructure",
   "catalog.readLibraryAgentLibrary",
-  "agentTeams.listActivePrompts",
-  "agentTeams.readActivePrompt",
-  "agentTeams.applyActivePrompt",
+  "agentTeams.listActive",
+  "agentTeams.readActiveMembers",
+  "agentTeams.previewActiveChange",
+  "agentTeams.applyActiveChange",
   "longBookDecomposition.query",
   "longBookDecomposition.submitUnit",
   "longBookDecomposition.planTopic",
@@ -45,8 +48,11 @@ export interface MainInternalCommandActiveRun {
   promptRequestId?: string;
   accepted: boolean;
   bookIdentity?: BookIdentityRunRegistration;
+  writingScope?: { bookId: string; bookType: "short" | "script" };
   materialScope?: MaterialReadScope;
-  libraryManagementScope?: LibraryManagementScope;
+  libraryManagementScope?: LibraryManagementScope & {
+    domains: readonly LibraryAgentDomain[];
+  };
   libraryAgentScope?: { domain: "material" | "skill" };
   teamManagementScope?: LibraryManagementScope;
   decompositionJobId?: string;
@@ -80,10 +86,34 @@ export function authorizeMainInternalCommand(
       "Only Agent-to-Core internal commands are authorized."
     );
   }
+  if (message.command.type === "catalog.readWritingWorkspace") {
+    const command = message.command;
+    const run = command.context.runId
+      ? activeRuns.get(command.context.runId)
+      : undefined;
+    const scope = run?.writingScope;
+    if (
+      message.target !== "core" ||
+      !run?.accepted ||
+      !scope ||
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId ||
+      command.context.sessionId !== run.sessionId ||
+      command.context.resourceId !== scope.bookId ||
+      command.payload.bookId !== scope.bookId ||
+      command.payload.bookType !== scope.bookType
+    )
+      return denied(
+        "main.writing_read_not_authorized",
+        "Writing reads require the accepted work, session and originating prompt."
+      );
+    return true;
+  }
   if (
-    message.command.type === "agentTeams.listActivePrompts" ||
-    message.command.type === "agentTeams.readActivePrompt" ||
-    message.command.type === "agentTeams.applyActivePrompt"
+    message.command.type === "agentTeams.listActive" ||
+    message.command.type === "agentTeams.readActiveMembers" ||
+    message.command.type === "agentTeams.previewActiveChange" ||
+    message.command.type === "agentTeams.applyActiveChange"
   ) {
     const command = message.command;
     const run = command.context.runId
@@ -102,7 +132,7 @@ export function authorizeMainInternalCommand(
     ) {
       return denied(
         "main.team_management_not_authorized",
-        "团队提示词管理必须属于 Main 接受的当前作品与运行。"
+        "团队管理必须属于 Main 接受的当前作品与运行。"
       );
     }
     return true;
@@ -218,6 +248,8 @@ export function authorizeMainInternalCommand(
     if (
       !run?.accepted ||
       !scope ||
+      !command.payload.domain ||
+      !scope.domains.includes(command.payload.domain) ||
       !run.promptRequestId ||
       message.parentRequestId !== run.promptRequestId ||
       command.context.sessionId !== run.sessionId ||
@@ -227,7 +259,7 @@ export function authorizeMainInternalCommand(
     ) {
       return denied(
         "main.library_management_not_authorized",
-        "Library management queries require the accepted owning work and prompt."
+        "Library management queries require an enabled domain and the accepted work and prompt."
       );
     }
     return true;

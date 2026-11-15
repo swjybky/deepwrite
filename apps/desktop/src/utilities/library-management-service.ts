@@ -9,18 +9,24 @@ import {
   type LibraryManagementQueryInput,
   type LibraryManagementQueryResult,
   type LibraryManagementScope,
+  type LibraryStructureOperation,
   type LibraryAgentDomain,
   type LibraryManagementCandidate
 } from "@deepwrite/contracts";
 import type { FolderCatalogStore } from "./folder-catalog-store";
 import type { LongWorkspaceService } from "./long-workspace-service";
+import {
+  assertManagementStructureTargets,
+  libraryAgentDocumentId,
+  runLibraryManagementRequest
+} from "./library-management-requests";
 
 /** Core-owned, live association checks. No writing-stage read filters apply here. */
 export class LibraryManagementService {
   constructor(
     private readonly catalog: Pick<
       FolderCatalogStore,
-      "indexSnapshot" | "readDocument"
+      "indexSnapshot" | "readDocument" | "previewLibraryStructure"
     >,
     private readonly long: Pick<LongWorkspaceService, "open">
   ) {}
@@ -84,18 +90,47 @@ export class LibraryManagementService {
         libraryId: library.id,
         title: library.title,
         domain,
-        readOnly
+        readOnly,
+        entryCount: library.entries.length
       })
     );
-    if (!input.libraryId) return { libraries };
-    const source = sources.find((item) => item.library.id === input.libraryId);
-    if (!source) throw new Error("目标资料库未绑定到当前作品或已不存在。");
-    return {
-      libraries,
-      workspace: await this.buildSnapshot(source, () =>
-        this.sources(input.scope)
+    if (!input.request || !input.domain) return { libraries };
+    const result = await runLibraryManagementRequest(
+      this.catalog,
+      input.domain,
+      sources,
+      input.libraryId,
+      input.request,
+      input.scope
+    );
+    const current = await this.sources(input.scope);
+    for (const source of sources.filter(
+      (item) => !input.libraryId || item.library.id === input.libraryId
+    )) {
+      const live = current.find(
+        (item) =>
+          item.domain === source.domain && item.library.id === source.library.id
+      );
+      if (
+        !live ||
+        live.library.projectRevision !== source.library.projectRevision ||
+        live.readOnly !== source.readOnly
       )
-    };
+        throw new Error("资料库绑定或版本已变化，请重新读取。");
+    }
+    return { libraries, ...result };
+  }
+
+  async assertStructureTargets(
+    scope: LibraryManagementScope,
+    domain: LibraryAgentDomain,
+    operations: LibraryStructureOperation[]
+  ) {
+    assertManagementStructureTargets(
+      domain,
+      await this.sources(scope),
+      operations
+    );
   }
 
   private async domainSources(domain: LibraryAgentDomain) {
@@ -151,14 +186,7 @@ export class LibraryManagementService {
       LIBRARY_AGENT_OVERVIEW_MAX_CHARACTERS
     );
     const documentId = (target: "entry" | "overview", entryId?: string) =>
-      [
-        "catalog",
-        ...[
-          `${domain}-${target}`,
-          library.id,
-          ...(entryId ? [entryId] : [])
-        ].map(encodeURIComponent)
-      ].join(":");
+      libraryAgentDocumentId(domain, target, library.id, entryId);
     const entries = [];
     for (const entry of library.entries.slice(0, LIBRARY_AGENT_MAX_ENTRIES)) {
       const document = await this.catalog.readDocument({

@@ -109,5 +109,8 @@ export default {
   startupAppearance: "Read appearance settings",
   startupSettings: "Read general settings",
   startupUtilities: "Start background services",
-  startupWindow: "Load main window"
+  startupWindow: "Load main window",
+  updateFilesInUse: "Other programs are still using DeepWrite",
+  installAnyway: "Install Anyway",
+  updateNotInstalled: "The Update Was Not Installed"
 };

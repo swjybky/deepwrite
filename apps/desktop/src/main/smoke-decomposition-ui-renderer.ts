@@ -74,7 +74,9 @@ export async function decompositionUiStep(
   if (!document.querySelector(".settings-page")) {
     if (!document.querySelector("#account-menu"))
       await click(".account-identity-button");
-    await click('#account-menu button[role="menuitem"]:first-child');
+    await click(
+      '#account-menu button[role="menuitem"]:not(.account-sign-in-button)'
+    );
   }
   const appearanceTab = await until(
     () =>

@@ -28,7 +28,6 @@ export interface SettingsFeatureModule {
   workspaceDirectoryPath: string | null;
   workspaceDirectoryLoading: boolean;
   permissionMode: GeneralPermissionMode;
-  autoApproveCrossStageOperations: boolean;
   autoSaveEnabled: boolean;
   versionHistoryEnabled: boolean;
   language: AppLanguage;

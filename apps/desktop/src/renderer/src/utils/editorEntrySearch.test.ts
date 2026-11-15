@@ -75,7 +75,7 @@ describe("editorEntrySearchSources", () => {
       { id: "body", title: "第一节 · 正文", content: "body content" },
       {
         id: "state",
-        title: "第一节 · 人物状态",
+        title: "第一节 · 状态",
         content: "state content"
       }
     ]);

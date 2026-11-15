@@ -1,4 +1,13 @@
 export default {
+  awaitingReview: "Awaiting review",
+  continuityCommit: "Continuity commit",
+  combinedSaveFailed:
+    "The continuity files and ledger have not been confirmed saved. Please retry.",
+  savingFilesAndLedger:
+    "Validating and saving continuity files and ledger together…",
+  reviewFilesAndLedger:
+    "Review the file changes, then save the continuity files and ledger together.",
+
   batchOfValueChaptersFinalChapterCheckpointValue:
     "Batch of {arg0} chapters · Final chapter checkpoint {arg1}",
   waitingForPrerequisiteFiles: "Waiting for prerequisite files",

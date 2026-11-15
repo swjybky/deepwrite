@@ -14,9 +14,6 @@ export default {
   autoApproval: "Approve automatically",
   autoApprovalDescription:
     "Automatically approve agent edits and save them sequentially in the background. Automatic approval can make mistakes.",
-  crossStageApproval: "Automatically approve cross-stage actions",
-  crossStageApprovalDescription:
-    "Allow main agents and subagents to work across stages without asking each time. Edit proposals still use the approval mode above.",
   general: "General",
   autoSave: "Auto-save",
   autoSaveDescription:

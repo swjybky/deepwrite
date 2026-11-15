@@ -8,6 +8,7 @@ import {
 } from "@deepwrite/contracts";
 import { createId } from "@deepwrite/shared";
 import { app, safeStorage } from "electron";
+import { join } from "node:path";
 import { createCloudBackupFeature } from "../extras/cloud-backup/create-service";
 import { createDesktopDeviceSync } from "../extras/device-sync";
 import type { ConversationSyncLease } from "../extras/device-sync/conversations/lease";
@@ -47,6 +48,7 @@ interface DesktopServiceOptions {
   /** Lets device sync hold the conversations the window has open while it writes them. */
   conversationLease: ConversationSyncLease;
   installUpdate: () => void;
+  confirmUpdateInstall: () => Promise<boolean>;
 }
 
 /** Construction has no network dependency; optional refreshes start separately. */
@@ -123,7 +125,10 @@ export function createDesktopServices(options: DesktopServiceOptions) {
       usageDataPath: userDataPath,
       ...(process.env.DEEPWRITE_SMOKE === "1" ? voiceSmokeOptions() : {})
     }),
-    updateService: new UpdateService(options.installUpdate),
+    updateService: new UpdateService(options.installUpdate, {
+      installMarkerPath: join(userDataPath, "update-install.json"),
+      confirmInstall: options.confirmUpdateInstall
+    }),
     appAlertStore: new AppAlertStore(userDataPath),
     cloudBackupService: createCloudBackupFeature(
       userDataPath,

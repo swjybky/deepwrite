@@ -145,7 +145,7 @@ export function migrateLegacyDraftRecoveries(
       }
       const stateTitle = draftCharacterStateTitle(section.title);
       if (
-        stateTitle !== diskSection.characterState.title ||
+        section.title !== diskSection.title ||
         section.characterState !== diskSection.characterState.content
       ) {
         const candidate = recoveredPhysicalDraft(

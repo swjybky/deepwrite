@@ -6,7 +6,7 @@ export default {
   close: "Close",
   deleteLabel: "Delete “",
   thisValueSTitleManuscriptAndCharacterStateWill:
-    "This {arg0}'s title, manuscript, and character state will all be deleted.",
+    "This {arg0}'s title, manuscript, and state will all be deleted.",
   thisEmptyValueWillBeRemovedFromTheManuscript:
     "This empty {arg0} will be removed from the manuscript structure.",
   clickApplyOnTheRightToSaveTheDeletion:

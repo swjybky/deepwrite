@@ -280,7 +280,18 @@ function createFixture(
       createdWorkspaceDocument(bookType, "body"),
       createdWorkspaceDocument(bookType, "character-state")
     ];
-    catalogProjection.value = projection(bookType, true);
+    const directory = projection(bookType, true);
+    const result = await createResult.promise;
+    directory.draftDirectories[0]!.sections = result.sections.map(
+      ({ section }) => ({
+        ...directory.draftDirectories[0]!.sections[0]!,
+        id: section.id,
+        title: section.title,
+        bodyDocumentId: section.body.id,
+        characterStateDocumentId: section.characterState.id
+      })
+    );
+    catalogProjection.value = directory;
     return true;
   });
   const context = {
@@ -372,6 +383,109 @@ function createFixture(
 }
 
 describe("short/script section creation followed by direct writes", () => {
+  it.each(["short", "script"] as const)(
+    "reviews %s batch text and commits all submitted files with the creation",
+    async (type) => {
+      const fixture = createFixture(type);
+      const sections = ["A", "B"].map((title) => ({
+        title,
+        wordCountRequirement: "10",
+        provisionalSectionId: "pending:section:" + title,
+        bodyContent: "Body " + title,
+        characterStateContent: "State " + title
+      }));
+      fixture.coordinator.stageAgentEditProposal(
+        mutationEvent(
+          "batch",
+          "A, B",
+          { kind: "expert-draft-section-creation", sections },
+          1
+        )
+      );
+      await vi.waitFor(() =>
+        expect(fixture.createDraftSections).toHaveBeenCalledOnce()
+      );
+      const input = fixture.createDraftSections.mock.calls[0]![0];
+      expect(input.sections).toEqual(
+        sections.map((s) => ({
+          title: s.title,
+          clientSectionId: s.provisionalSectionId,
+          wordCountRequirement: "10",
+          bodyContent: s.bodyContent,
+          stateContent: s.characterStateContent
+        }))
+      );
+      expect(
+        fixture.conversation.listEditProposals(RUN_ID)[0]?.proposedText
+      ).toContain("State B");
+      const result = createdSectionResult(input.operationId);
+      result.sections = sections.map((s) => ({
+        clientSectionId: s.provisionalSectionId,
+        section: {
+          ...result.sections[0]!.section,
+          id: s.title === "A" ? REAL_SECTION_ID : "real-B",
+          title: s.title,
+          wordCountRequirement: "10",
+          body: {
+            ...result.sections[0]!.section.body,
+            id: catalogDraftBodyDocumentId("real-" + s.title),
+            content: s.bodyContent
+          },
+          characterState: {
+            ...result.sections[0]!.section.characterState,
+            id: catalogDraftCharacterStateDocumentId("real-" + s.title),
+            content: s.characterStateContent
+          }
+        }
+      }));
+      fixture.createResult.resolve(result);
+      await fixture.coordinator.drain();
+      expect(fixture.saveDocument).not.toHaveBeenCalled();
+      expect(fixture.conversation.listEditProposals(RUN_ID)[0]).toMatchObject({
+        status: "accepted",
+        draftSectionCreationTarget: {
+          sections: [
+            { realSectionId: REAL_SECTION_ID },
+            { realSectionId: "real-B" }
+          ]
+        }
+      });
+      const change = {
+        field: "wordCountRequirement" as const,
+        before: "10",
+        after: "20"
+      };
+      fixture.coordinator.stageAgentEditProposal(
+        mutationEvent(
+          "change-length",
+          "length",
+          {
+            kind: "expert-draft-section-rename",
+            sectionId: "pending:section:A",
+            title: "A",
+            previousTitle: "A",
+            change
+          },
+          2
+        )
+      );
+      await fixture.coordinator.drain();
+      expect(fixture.saveDocument).toHaveBeenCalledWith({
+        bookId: BOOK_ID,
+        documentId: REAL_BODY_ID,
+        content: "",
+        preserveCurrentContent: true,
+        draftSectionChange: change
+      });
+      expect(
+        fixture.conversation.listEditProposals(RUN_ID).at(-1)
+      ).toMatchObject({
+        status: "accepted",
+        draftSectionRenameTarget: { sectionId: REAL_SECTION_ID, change }
+      });
+      await fixture.coordinator.dispose();
+    }
+  );
   it.each(["short", "script"] as const)(
     "%s maps provisional files and accepts stale-base body/state writes in one run",
     async (bookType) => {

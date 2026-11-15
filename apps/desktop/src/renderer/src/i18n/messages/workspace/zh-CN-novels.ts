@@ -109,10 +109,6 @@ export default {
     pendingCommit: "待提交",
     notWritten: "待编写"
   },
-  longWorldbuildingAgentContext: {
-    theWorldbuildingStageResponseDoesNotMatchTheCurrent:
-      "长篇世界观阶段读取结果与当前选择不一致。"
-  },
   longWorkspaceContinuityTree: {
     importedCheckpoint: "导入检查点",
     pendingChapters: "待处理章节",
@@ -127,9 +123,7 @@ export default {
     coreProfile: "核心档案",
     relationships: "人物关系",
     currentState: "当前状态",
-    history: "历史轨迹",
-    theCharacterStageResponseDoesNotMatchTheCurrent:
-      "长篇人物阶段读取结果与当前选择不一致。"
+    history: "历史轨迹"
   },
   longDeletionImpact: {
     deleteThisCharacterSCoreProfileAndRelationshipFiles:

@@ -1,15 +1,20 @@
 import type {
   AgentTeamRunMode,
   ExternalAgentRun,
+  ExternalRunRecovery,
   ExternalWindowTarget
 } from "@deepwrite/contracts";
+import { externalToolUsage } from "./tool-usage";
 import { watch } from "vue";
 import type { ChatMessage } from "../../types/conversation";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
 import { countPendingEditReviews } from "../../composables/agent-conversation/pending-review";
 
 const terminal = (status: ExternalAgentRun["status"]) =>
-  status === "completed" || status === "failed" || status === "stopped";
+  status === "completed" ||
+  status === "failed" ||
+  status === "stopped" ||
+  status === "interrupted";
 
 /** Keep the placeholder reference: acceptance can rename it and assign a run id. */
 export function trackExternalRun(
@@ -17,7 +22,13 @@ export function trackExternalRun(
   conversation: AgentConversationController,
   assistant: ChatMessage,
   mode?: AgentTeamRunMode,
-  target?: ExternalWindowTarget
+  target?: ExternalWindowTarget,
+  options: {
+    recovered?: boolean;
+    lastStatus?: ExternalAgentRun["status"] | undefined;
+    internalRunId?: string | undefined;
+    onIdentity?(value: ExternalRunRecovery): void;
+  } = {}
 ) {
   const sessionId = conversation.sessionId.value;
   const modeField = {
@@ -37,7 +48,8 @@ export function trackExternalRun(
     status: "running"
   };
   let finished = false;
-  let internalRunId: string | undefined;
+  let internalRunId = options.internalRunId;
+  let identityKey = "";
   let stopWatching = (): void => undefined;
 
   function refresh(): ExternalAgentRun {
@@ -69,6 +81,7 @@ export function trackExternalRun(
         runId,
         ...modeField,
         reply: replies.at(-1)?.content ?? "",
+        ...externalToolUsage(replies),
         changes: [
           ...new Set(
             replies.flatMap(({ editProposals }) =>
@@ -101,6 +114,19 @@ export function trackExternalRun(
         snapshot = { ...base, status: "running" };
       } else if (countPendingEditReviews(replies)) {
         snapshot = { ...base, status: "waiting_for_user" };
+      } else if (
+        options.recovered &&
+        options.lastStatus !== "stopped" &&
+        replies.some(
+          ({ status }) => status === "streaming" || status === "stopped"
+        )
+      ) {
+        snapshot = {
+          ...base,
+          status: "interrupted",
+          error:
+            "软件重启中断了这次运行。请先核对已保存修改，再用原 sessionId 继续未完成步骤。"
+        };
       } else if (replies.some(({ status }) => status === "stopped")) {
         snapshot = { ...base, status: "stopped" };
       } else if (error || replies.some(({ status }) => status === "error")) {
@@ -113,6 +139,23 @@ export function trackExternalRun(
         snapshot = { ...base, status: "completed" };
       }
     }
+    if (target) {
+      const identity: ExternalRunRecovery = {
+        runId,
+        sessionId,
+        assistantId: assistant.id,
+        target,
+        lastStatus: snapshot.status,
+        ...(mode ? { mode } : {}),
+        ...(internalRunId ? { internalRunId } : {})
+      };
+      const nextKey = JSON.stringify(identity);
+      if (nextKey !== identityKey) {
+        identityKey = nextKey;
+        options.onIdentity?.(identity);
+      }
+    }
+
     finished = terminal(snapshot.status);
     if (finished) stopWatching();
     return snapshot;

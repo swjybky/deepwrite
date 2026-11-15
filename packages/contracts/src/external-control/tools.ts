@@ -38,9 +38,7 @@ export const GetAppStatusResultSchema = z
     /** False while the window is missing or still loading. */
     rendererReady: z.boolean(),
     activeRunCount: z.number().int().nonnegative(),
-    permissionMode: z.string().min(1),
-    /** Must be true before a built-in agent can be started externally. */
-    crossStageAutoApprove: z.boolean()
+    permissionMode: z.string().min(1)
   })
   .strict();
 export type GetAppStatusResult = z.infer<typeof GetAppStatusResultSchema>;
@@ -238,7 +236,7 @@ export const EXTERNAL_CONTROL_TOOLS: readonly ExternalControlToolDefinition[] =
       name: "get_agent_run",
       title: "Check an agent run",
       description:
-        "Reads a run's status and latest reply. waiting_for_input means the agent asked something: answer it with answer_agent_question, asking the user if needed. waiting_for_user means the user must act in DeepWrite.",
+        "Reads status, latest reply, trace-based toolUsage (including child tools; directSucceeded and normalizedSucceeded partition successes; durationMs is cumulative tool time) and lastCompletedTool. After restart it can reopen the original target/session; interrupted means check saved changes and continue with run_agent using the same sessionId, never blindly replay the whole task. waiting_for_input means the agent asked something: answer it with answer_agent_question, asking the user if needed. waiting_for_user means the user must act in DeepWrite.",
       inputSchema: ExternalAgentRunInputSchema,
       annotations: READ_ONLY
     },

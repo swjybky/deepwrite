@@ -56,22 +56,11 @@ export async function openInApp(
   return ExternalMutationResultSchema.parse({ id: target.id });
 }
 
-/** External runs always auto-approve, so their cross-stage writes must too. */
-function assertCrossStageAllowed(context: MutationContext): void {
-  if (!context.generalSettings().autoApproveCrossStageOperations) {
-    throw new ExternalControlError(
-      "external.cross_stage_disabled",
-      "DeepWrite 关闭了“跨阶段操作自动审批”。请让用户到“设置 → 常规”打开后重试。"
-    );
-  }
-}
-
 export async function runAgent(
   context: MutationContext,
   input: ExternalRunAgentInput
 ) {
   assertWindowReady(context);
-  assertCrossStageAllowed(context);
   assertNoActiveRun(context, [input.workId ?? input.libraryId ?? ""]);
   const target = await resolveTarget(context, input);
   return parseRun(

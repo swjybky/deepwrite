@@ -1,7 +1,7 @@
 import type { MaterialQueryRunner } from "../material-query-runtime";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import {
-  SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS,
+  type PromptLocale,
   type AgentWriteApprovalMode,
   type ExpertDraftSectionSnapshot,
   type ScriptWorkspaceAgentProfile,
@@ -112,6 +112,7 @@ export type ShortWorkspaceToolDetails =
     }
   | {
       kind: "workspace-expert-draft-section-rename";
+      change?: import("@deepwrite/contracts").DraftSectionChange;
       workspaceId: string;
       stageId: "draft";
       sectionId: string;
@@ -139,12 +140,13 @@ export type ShortWorkspaceToolDetails =
 export type ScriptWorkspaceToolDetails = ShortWorkspaceToolDetails;
 
 export interface BuildShortWorkspaceToolsInput {
+  promptLocale?: PromptLocale | undefined;
   workspace: ShortWorkspaceSnapshot;
   profile: ShortWorkspaceAgentProfile;
   writeApprovalMode?: AgentWriteApprovalMode;
-  autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  writingReader?: import("./core-reader").WritingReader | undefined;
   queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
   includeAskUserQuestion?: boolean;
@@ -157,12 +159,13 @@ export interface BuildShortWorkspaceToolsInput {
 }
 
 export interface BuildScriptWorkspaceToolsInput {
+  promptLocale?: PromptLocale | undefined;
   workspace: ScriptWorkspaceSnapshot;
   profile: ScriptWorkspaceAgentProfile;
   writeApprovalMode?: AgentWriteApprovalMode;
-  autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  writingReader?: import("./core-reader").WritingReader | undefined;
   queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
   includeAskUserQuestion?: boolean;
@@ -173,6 +176,8 @@ export interface BuildScriptWorkspaceToolsInput {
 export type WritingWorkspaceType = "short" | "script";
 
 export interface WritingWorkspaceSnapshot {
+  readSource?: "core" | undefined;
+  coreFiles?: ShortWorkspaceToolSharedState["coreFiles"];
   id: ShortWorkspaceSnapshot["id"];
   title: ShortWorkspaceSnapshot["title"];
   activeStageId: ShortWorkspaceStageId;
@@ -194,13 +199,15 @@ export interface WritingWorkspaceAgentProfile {
 }
 
 export interface BuildWritingWorkspaceToolsInput {
+  promptLocale?: PromptLocale | undefined;
+  mutationToolCallId?: string;
   workspaceType: WritingWorkspaceType;
   workspace: WritingWorkspaceSnapshot;
   profile: WritingWorkspaceAgentProfile;
   writeApprovalMode?: AgentWriteApprovalMode;
-  autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
+  writingReader?: import("./core-reader").WritingReader | undefined;
   queryMaterials?: MaterialQueryRunner | undefined;
   requestUserInput?: AgentUserInputRequester;
   includeAskUserQuestion?: boolean;
@@ -212,6 +219,11 @@ export interface BuildWritingWorkspaceToolsInput {
 export type ExpertSectionMap = Map<string, ExpertDraftSectionSnapshot>;
 
 export interface ShortWorkspaceToolSharedState {
+  provisionalPlotIds?: Map<string, string>;
+  coreFiles?: Map<
+    string,
+    { length: number; characters: number; revision: string }
+  >;
   stageBodies: Map<ShortWorkspaceStageId, string>;
   stageRevisions: Map<ShortWorkspaceStageId, string>;
   characterItems: Map<
@@ -242,7 +254,6 @@ export interface ShortWorkspaceToolSharedState {
   expertSections: ExpertSectionMap;
   /** Stable directory order including provisional sections created in this run. */
   expertSectionOrder: string[];
-  pendingExpertSectionTitles: Set<string>;
   pendingSectionSeq: number;
   /**
    * Structural directory revision at run start. Section creation proposals keep
@@ -256,8 +267,6 @@ export type ScriptWorkspaceToolSharedState = ShortWorkspaceToolSharedState;
 
 export type DraftFileKind = "body" | "characterState";
 
-export const DRAFT_FILE_PARAMETER_VALUES = ["body", "character_state"] as const;
-
 export function textResult(
   text: string,
   details: ShortWorkspaceToolDetails = { kind: "none" }
@@ -265,26 +274,38 @@ export function textResult(
   return { content: [{ type: "text", text }], details };
 }
 
+export function provisionalIdHint(
+  input: BuildWritingWorkspaceToolsInput
+): string {
+  return input.promptLocale === "en-US"
+    ? "Provisional ids are valid in this run. Read kind=workspace, id=workspace for the saved ids in the next run."
+    : "临时 id 在本轮使用；下一轮请用 read（kind=workspace，id=workspace）查询保存后的 id。";
+}
+
 export function workspaceKindLabel(
   input: BuildWritingWorkspaceToolsInput
 ): string {
-  return input.workspaceType === "script" ? "剧本" : "短篇";
+  return input.workspaceType === "script"
+    ? input.promptLocale === "en-US"
+      ? "screenplay"
+      : "剧本"
+    : input.promptLocale === "en-US"
+      ? "short-fiction"
+      : "短篇";
 }
 
 export function draftUnitLabel(input: BuildWritingWorkspaceToolsInput): string {
-  return input.workspaceType === "script" ? "剧集" : "章节";
-}
-
-export function scriptBodyToolConstraint(
-  input: BuildWritingWorkspaceToolsInput
-): string {
   return input.workspaceType === "script"
-    ? `\n当 document=body 时，剧本正文必须遵守以下不可编辑格式约束：\n${SCRIPT_SCREENPLAY_FORMAT_REQUIREMENTS.trim()}\n` +
-        "写入 body 的 content 或 replacements[].new_text 不得包含 Markdown 表格、分析标题或格式讲解。"
-    : "";
+    ? input.promptLocale === "en-US"
+      ? "episode"
+      : "剧集"
+    : input.promptLocale === "en-US"
+      ? "section"
+      : "小节";
 }
 
 export function replaceText(
+  input: BuildWritingWorkspaceToolsInput,
   current: string,
   replacements: Array<{ original_text: string; new_text: string }>
 ): { next?: string; count: number; error?: string } {
@@ -293,16 +314,31 @@ export function replaceText(
   for (const replacement of replacements) {
     const original = replacement.original_text;
     if (!original) {
-      return { count, error: "original_text 不能为空。" };
+      return {
+        count,
+        error:
+          input.promptLocale === "en-US"
+            ? "original_text cannot be empty."
+            : "original_text 不能为空。"
+      };
     }
     const first = next.indexOf(original);
     if (first < 0) {
-      return { count, error: `没有找到原文片段：${original.slice(0, 80)}` };
-    }
-    if (next.indexOf(original, first + original.length) >= 0) {
       return {
         count,
-        error: `原文片段出现多次，请提供更长且唯一的上下文：${original.slice(0, 80)}`
+        error:
+          input.promptLocale === "en-US"
+            ? `Original passage not found: ${original.slice(0, 80)}`
+            : `没有找到原文片段：${original.slice(0, 80)}`
+      };
+    }
+    if (next.indexOf(original, first + 1) >= 0) {
+      return {
+        count,
+        error:
+          input.promptLocale === "en-US"
+            ? `The passage occurs more than once. Supply longer, unique context: ${original.slice(0, 80)}`
+            : `原文片段出现多次，请提供更长且唯一的上下文：${original.slice(0, 80)}`
       };
     }
     next = `${next.slice(0, first)}${replacement.new_text}${next.slice(first + original.length)}`;

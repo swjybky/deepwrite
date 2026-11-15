@@ -1,6 +1,6 @@
 export default {
-  acceptToApplyLibraryOrganization:
-    "接受后按上方清单整理资料库；移除库保留文件，删除条目可恢复。",
+  acceptSectionChange: "接受后保存这项目录修改。",
+  acceptToApplyLibraryOrganization: "接受后执行上方整理清单中的操作。",
   awaitingReview: "待审阅",
   applying: "正在应用",
   accepted: "已接受",
@@ -43,12 +43,14 @@ export default {
     "接受后将创建资料库条目并保存到本机。",
   acceptToUpdateTheLibraryEntryAndSaveIt:
     "接受后将更新资料库条目并保存到本机。",
+  acceptToChangeTheSharedPlotStructure:
+    "剧情结构由所有短篇和剧本共用，接受后其他作品也会看到这次修改。",
   acceptToCreateBlankManuscriptAndCharacterStateFiles:
-    "接受后将批量创建空白正文与人物状态文件并保存到本机。",
+    "接受后将创建目录条目，并保存随附的正文和状态。",
   acceptToRenameTheChapterAndSaveLocallyIts:
     "接受后将修改章节名称并保存到本机；正文内容保持不变。",
   acceptToPermanentlyDeleteThisChapterItsManuscriptAnd:
-    "接受后将永久删除该章节及其正文与人物状态文件。",
+    "接受后将永久删除该章节及其正文与状态文件。",
   acceptToCreateABlankWorldbuildingFileAndSave:
     "接受后将创建一个空白世界观文件并保存到本机。",
   acceptToWriteTheWorldbuildingFileAndSaveIt:

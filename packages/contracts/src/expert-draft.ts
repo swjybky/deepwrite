@@ -5,6 +5,25 @@ export const SHORT_WORKSPACE_FILE_MAX_CHARACTERS = 32 * 1024 * 1024;
 export const DraftSectionIdSchema = z.string().trim().min(1).max(120);
 export const DraftSectionTitleSchema = z.string().trim().min(1).max(240);
 
+/** Previous and requested values travel with the proposal, never with the section. */
+export const DraftSectionChangeSchema = z.discriminatedUnion("field", [
+  z
+    .object({
+      field: z.literal("wordCountRequirement"),
+      before: z.string().max(1_000),
+      after: z.string().max(1_000)
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal("afterSectionId"),
+      before: DraftSectionIdSchema.nullable(),
+      after: DraftSectionIdSchema.nullable()
+    })
+    .strict()
+]);
+export type DraftSectionChange = z.infer<typeof DraftSectionChangeSchema>;
+
 export const ExpertDraftSectionSchema = z.object({
   id: DraftSectionIdSchema,
   title: DraftSectionTitleSchema,
@@ -514,7 +533,7 @@ export function renderExpertDraftReview(draft: ExpertDraft): string {
           ? `字数要求：${section.wordCountRequirement}`
           : "",
         section.characterState
-          ? `人物状态：\n${normalizedMarkdown(section.characterState)}`
+          ? `状态：\n${normalizedMarkdown(section.characterState)}`
           : ""
       ].filter(Boolean);
       return metadata.length > 0

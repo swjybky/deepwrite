@@ -4,7 +4,6 @@ import type { WorkspaceRuntimeContext } from "@deepwrite/contracts";
 import { renderWritingWorkspaceDirectory } from "./writing-workspace-directory";
 import { promptLocaleOf } from "./prompt-locale";
 import type { AgentRunInput } from "./runtime-types";
-import { webToolNamesFor } from "./web-search/prompt";
 
 type WritingWorkspace =
   | NonNullable<WorkspaceRuntimeContext["shortWorkspace"]>
@@ -41,7 +40,8 @@ function renderReadOnlyWorkspaceContext(
 
 function readOnlyRuntimeSystemRequirements(
   input: AgentRunInput,
-  workspaceType: "short" | "script"
+  workspaceType: "short" | "script",
+  toolNames?: readonly string[]
 ): string {
   const locale = promptLocaleOf(input);
   const english = locale === "en-US";
@@ -49,12 +49,19 @@ function readOnlyRuntimeSystemRequirements(
   const workspace = script
     ? input.workspaceContext!.scriptWorkspace!
     : input.workspaceContext!.shortWorkspace!;
-  const webTools = input.webSearch
-    ? webToolNamesFor(input.webSearch.providerId, locale)
-    : undefined;
+  const webTools = toolNames
+    ?.filter((name) => name.startsWith("web_"))
+    .join(english ? ", " : "、");
   return [
-    renderWritingWorkspaceDirectory(workspace, locale),
+    renderWritingWorkspaceDirectory(workspace, locale, workspaceType),
     "",
+    ...(toolNames
+      ? [
+          english
+            ? `Available tools: ${toolNames.join(", ")}`
+            : `本轮可用工具：${toolNames.join("、")}`
+        ]
+      : []),
     renderReadOnlyWorkspaceContext(workspace, script, english),
     "",
     ...(english
@@ -65,7 +72,7 @@ function readOnlyRuntimeSystemRequirements(
               ? `; when web_search is in the tool list, you may also verify public facts with ${webTools}`
               : ""
           }. There is no create, edit or delete: you cannot change the work and must never claim to have changed it.`,
-          "A single read returns the target in full; there is no paging. kind=draft_section always needs document=body or character_state. kind=draft, id=draft, include_all_sections=true reads the whole manuscript (document defaults to body); above fifty thousand characters in total, follow the tool's hint and read section by section."
+          "A single read returns the target in full; objects over 50000 characters including whitespace require offset/limit reads. kind=draft_section always needs document=body or state. kind=draft, id=draft, include_all_sections=true reads the whole manuscript (document defaults to body); above 50000 characters including whitespace, only the directory is returned; read section by section."
         ]
       : [
           "【DeepWrite 当前工具边界（只读）】",
@@ -74,7 +81,7 @@ function readOnlyRuntimeSystemRequirements(
               ? `；工具清单列有 web_search 时，也可用 ${webTools} 查证公开资料`
               : ""
           }；没有 create、edit、delete，不能修改作品，也不得声称已经修改。`,
-          "read 一次读全目标，不分页。kind=draft_section 必须同时给出 document=body 或 character_state。kind=draft、id=draft、include_all_sections=true 可读取全部正文，不传 document 时默认 body；合计超过五万字时按工具提示优先分小节精读。"
+          "read 默认读全目标；超过 50000 字符（含空白）时用 offset、limit 分段读取。kind=draft_section 必须同时给出 document=body 或 state。kind=draft、id=draft、include_all_sections=true 可读取全部正文，不传 document 时默认 body；合计超过 50000 字符（含空白）时只返回目录，改为分小节精读。"
         ]),
     ...(script
       ? [
@@ -90,17 +97,19 @@ function readOnlyRuntimeSystemRequirements(
 
 /** Requirements for `pure-read` children: reading rules, no writing rules. */
 export function shortReadOnlyRuntimeSystemRequirements(
-  input: AgentRunInput
+  input: AgentRunInput,
+  toolNames?: readonly string[]
 ): string {
   if (!input.workspaceContext?.shortWorkspace || !input.agentProfile) return "";
-  return readOnlyRuntimeSystemRequirements(input, "short");
+  return readOnlyRuntimeSystemRequirements(input, "short", toolNames);
 }
 
 export function scriptReadOnlyRuntimeSystemRequirements(
-  input: AgentRunInput
+  input: AgentRunInput,
+  toolNames?: readonly string[]
 ): string {
   if (!input.workspaceContext?.scriptWorkspace || !input.scriptAgentProfile) {
     return "";
   }
-  return readOnlyRuntimeSystemRequirements(input, "script");
+  return readOnlyRuntimeSystemRequirements(input, "script", toolNames);
 }

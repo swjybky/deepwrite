@@ -1,11 +1,11 @@
 import {
-  AgentTeamPromptChangeSchema,
-  type AgentTeamPromptChange,
+  AgentTeamChangeSchema,
+  type AgentTeamChange,
   type AgentUserInputRequestedPayload,
   type SessionUserInputResponsePayload
 } from "@deepwrite/contracts";
 
-/** A one-use consent for the exact text shown in the window's review card. */
+/** A one-use consent for the exact change shown in the window's review card. */
 export class TeamPromptReviews {
   private readonly pending = new Map<
     string,
@@ -16,7 +16,7 @@ export class TeamPromptReviews {
   >();
 
   receive(request: AgentUserInputRequestedPayload): void {
-    if (request.source !== "agent_team_prompt" || !request.promptReview) return;
+    if (request.source !== "agent_team_prompt" || !request.teamReview) return;
     this.pending.set(request.runId, { request, accepted: false });
   }
 
@@ -41,7 +41,7 @@ export class TeamPromptReviews {
     runId: string,
     sessionId: string,
     requestId: string,
-    change: AgentTeamPromptChange
+    change: AgentTeamChange
   ): void {
     const pending = this.pending.get(runId);
     if (
@@ -49,10 +49,10 @@ export class TeamPromptReviews {
       pending.request.sessionId !== sessionId ||
       pending.request.requestId !== requestId ||
       JSON.stringify(
-        AgentTeamPromptChangeSchema.strip().parse(pending.request.promptReview)
-      ) !== JSON.stringify(AgentTeamPromptChangeSchema.strip().parse(change))
+        AgentTeamChangeSchema.strip().parse(pending.request.teamReview)
+      ) !== JSON.stringify(AgentTeamChangeSchema.strip().parse(change))
     ) {
-      throw new Error("提示词修改尚未通过对应的差异审阅，不能保存。");
+      throw new Error("团队修改尚未通过对应的差异审阅，不能保存。");
     }
     this.clear(runId);
   }

@@ -45,6 +45,22 @@ export const LongLedgerCommitIndexEntrySchema = z
     chapterCardIds: z.array(LongChapterCardIdSchema).max(100_000).optional(),
     checkpointChapterCardId: LongChapterCardIdSchema.optional(),
     committedAt: LongTimestampSchema,
+    bodyEvidence: z
+      .array(
+        z
+          .object({
+            chapterCardId: LongChapterCardIdSchema,
+            sha256: z.string().regex(/^[a-f0-9]{64}$/u)
+          })
+          .strict()
+      )
+      .min(1)
+      .max(100_000)
+      .optional(),
+    changedChapterIds: uniqueIdList(
+      LongChapterCardIdSchema,
+      "changed chapter"
+    ).optional(),
     placementIds: uniqueIdList(
       LongNarrativePlacementIdSchema,
       "placement decision"

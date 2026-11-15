@@ -139,14 +139,6 @@ export default {
       "The novel context changed. Sending was canceled.",
     theNovelWorkspaceIsNotConnectedInThisEnvironment:
       "The novel workspace is not connected in this environment.",
-    failedToReadTheCurrentWorldbuildingStage:
-      "Failed to read the current worldbuilding stage: {message}",
-    failedToReadTheCurrentWorldbuildingStagePleaseTry:
-      "Failed to read the current worldbuilding stage. Please try again.",
-    failedToReadTheCurrentCharacterStage:
-      "Failed to read the current character stage: {message}",
-    failedToReadTheCurrentCharacterStagePleaseTry:
-      "Failed to read the current character stage. Please try again.",
     theNovelContextIsTooLongOnlyATruncated:
       "The novel context is too long. Only a truncated AGENTS.md was included for this turn.",
     novelContextWasNotIncluded: "Novel context was not included: {message}",

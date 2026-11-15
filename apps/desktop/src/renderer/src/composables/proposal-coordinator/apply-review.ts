@@ -184,7 +184,8 @@ export function createApplyReview(ctx: ProposalLaneContext) {
           document.workspaceId === event.payload.workspaceId &&
           document.stageId === "character_design"
         : mutationTarget?.kind === "expert-draft-file"
-          ? document.id === mutationTarget.documentId &&
+          ? (document.id === mutationTarget.documentId ||
+              document.catalogDocumentId === mutationTarget.documentId) &&
             document.workspaceId === event.payload.workspaceId &&
             document.stageId === "draft" &&
             document.expertSectionId === mutationTarget.sectionId &&

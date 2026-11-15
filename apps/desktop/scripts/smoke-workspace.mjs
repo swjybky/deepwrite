@@ -17,7 +17,6 @@ export async function prepareSmokeWorkspace(profile) {
     JSON.stringify({
       version: 2,
       permissionMode: "auto-approve",
-      autoApproveCrossStageOperations: true,
       autoSave: true,
       language: "zh-CN",
       showInMenuBar: true

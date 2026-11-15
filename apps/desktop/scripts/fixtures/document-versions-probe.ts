@@ -159,7 +159,6 @@ createApp({
       state.settings
         ? h(GeneralSettingsPanel, {
             permissionMode: "request-approval",
-            autoApproveCrossStageOperations: false,
             autoSaveEnabled: false,
             versionHistoryEnabled: settings.value.versionHistoryEnabled,
             language: "zh-CN",

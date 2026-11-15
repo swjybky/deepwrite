@@ -1222,7 +1222,25 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       );
       if (existing?.toolCallIds.includes(event.payload.toolCallId)) return;
 
-      const proposedText = event.payload.text;
+      const proposedText = mutationTarget.sections.some(
+        (section) => section.bodyContent || section.characterStateContent
+      )
+        ? mutationTarget.sections
+            .map((section) =>
+              [
+                section.title,
+                section.wordCountRequirement &&
+                  `${t("proposalCoordinator.lengthTarget")} · ${section.wordCountRequirement}`,
+                section.bodyContent &&
+                  `${t("catalogWorkspace.manuscript")}\n${section.bodyContent}`,
+                section.characterStateContent &&
+                  `${t("catalogWorkspace.characterState")}\n${section.characterStateContent}`
+              ]
+                .filter(Boolean)
+                .join("\n")
+            )
+            .join("\n\n")
+        : event.payload.text;
       const diff = buildAgentTextDiff("", proposedText);
       const proposal: AgentEditProposal = {
         id: proposalId,
@@ -1250,6 +1268,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         createdAt: event.timestamp,
         updatedAt: event.timestamp,
         draftSectionCreationTarget: {
+          createWithContents: true,
           sections: mutationTarget.sections.map((section) => ({
             title: section.title,
             wordCountRequirement: section.wordCountRequirement,
@@ -1285,10 +1304,23 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         (candidate) => candidate.workspaceId === event.payload.workspaceId
       );
       const book = catalogBook(event.payload.workspaceId);
-      const section = directory?.sections.find(
-        (candidate) => candidate.id === mutationTarget.sectionId
+      const sectionId = resolveProvisionalExpertSectionId(
+        event.payload.runId,
+        event.payload.workspaceId,
+        mutationTarget.sectionId
       );
-      if (!directory || !book || !section) {
+      const creation =
+        mutationTarget.change &&
+        isProvisionalExpertDraftSectionId(sectionId) &&
+        findPendingDraftSectionCreationForProvisional(
+          sourceConversation,
+          event.payload.runId,
+          sectionId
+        );
+      const section = directory?.sections.find(
+        (candidate) => candidate.id === sectionId
+      );
+      if (!directory || !book || (!section && !creation)) {
         const message = t(
           "proposalCoordinator.theTargetChapterIsUnavailableRenamingWasNotSubmitted"
         );
@@ -1314,10 +1346,30 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       if (existing?.toolCallIds.includes(event.payload.toolCallId)) return;
 
       const proposedText = event.payload.text;
-      const diff = buildAgentTextDiff(
-        mutationTarget.previousTitle,
-        mutationTarget.title
-      );
+      const change = mutationTarget.change;
+      const fieldLabel =
+        change?.field === "afterSectionId"
+          ? t("proposalCoordinator.sectionPosition")
+          : t("proposalCoordinator.lengthTarget");
+      const describeValue = (value: string | null) =>
+        change?.field === "afterSectionId"
+          ? value === null
+            ? t("proposalCoordinator.firstPosition")
+            : t("proposalCoordinator.afterSection", {
+                title:
+                  directory.sections.find((item) => item.id === value)?.title ??
+                  value
+              })
+          : value || t("proposalCoordinator.unsetTarget");
+      const diff = change
+        ? buildAgentTextDiff(
+            describeValue(change.before),
+            describeValue(change.after)
+          )
+        : buildAgentTextDiff(
+            mutationTarget.previousTitle,
+            mutationTarget.title
+          );
       const proposal: AgentEditProposal = {
         id: proposalId,
         laneId: proposalId,
@@ -1328,10 +1380,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         workspaceId: event.payload.workspaceId,
         stageId: "draft",
         documentId,
-        title: t("proposalCoordinator.renameChapter", {
-          previousTitle: mutationTarget.previousTitle,
-          title: mutationTarget.title
-        }),
+        title: change
+          ? `${mutationTarget.title} · ${fieldLabel}`
+          : t("proposalCoordinator.renameChapter", {
+              previousTitle: mutationTarget.previousTitle,
+              title: mutationTarget.title
+            }),
         summary: event.payload.summary,
         status: "pending",
         baseRevision: event.payload.baseRevision,
@@ -1345,6 +1399,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         createdAt: event.timestamp,
         updatedAt: event.timestamp,
         draftSectionRenameTarget: {
+          ...(change ? { change } : {}),
           sectionId: mutationTarget.sectionId,
           previousTitle: mutationTarget.previousTitle,
           title: mutationTarget.title
@@ -1462,7 +1517,8 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           document.workspaceId === event.payload.workspaceId &&
           document.stageId === "character_design"
         : mutationTarget?.kind === "expert-draft-file"
-          ? document.id === mutationTarget.documentId &&
+          ? (document.id === mutationTarget.documentId ||
+              document.catalogDocumentId === mutationTarget.documentId) &&
             document.workspaceId === event.payload.workspaceId &&
             document.stageId === "draft" &&
             document.expertSectionId === mutationTarget.sectionId &&
@@ -2633,7 +2689,22 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           ? { afterSectionId: resolvedAfterSectionId }
           : {}),
         force: true,
+        ...(target.createWithContents
+          ? {
+              versionOrigin: conversationVersionOrigin(
+                conversation,
+                proposal.runId,
+                proposal.summary
+              )
+            }
+          : {}),
         sections: target.sections.map((section) => ({
+          ...(target.createWithContents && section.bodyContent
+            ? { bodyContent: section.bodyContent }
+            : {}),
+          ...(target.createWithContents && section.characterStateContent
+            ? { stateContent: section.characterStateContent }
+            : {}),
           clientSectionId: section.provisionalSectionId,
           title: section.title,
           ...(section.wordCountRequirement
@@ -2652,16 +2723,17 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           result.section.id
         );
       }
-      await saveCreatedDraftSectionContents(currentApi.catalog, {
-        versionOrigin: conversationVersionOrigin(
-          conversation,
-          proposal.runId,
-          proposal.summary
-        ),
-        bookId: proposal.workspaceId,
-        requested: target.sections,
-        created: created.sections
-      });
+      if (!target.createWithContents)
+        await saveCreatedDraftSectionContents(currentApi.catalog, {
+          versionOrigin: conversationVersionOrigin(
+            conversation,
+            proposal.runId,
+            proposal.summary
+          ),
+          bookId: proposal.workspaceId,
+          requested: target.sections,
+          created: created.sections
+        });
       await loadCatalogSnapshot();
       const refreshedDirectory = catalogProjection.value?.draftDirectories.find(
         (candidate) => candidate.workspaceId === proposal.workspaceId
@@ -2800,12 +2872,41 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     const directory = catalogProjection.value?.draftDirectories.find(
       (candidate) => candidate.workspaceId === proposal.workspaceId
     );
+    const resolveId = (id: string) =>
+      resolveProvisionalExpertSectionId(
+        request.runId,
+        proposal.workspaceId,
+        id
+      );
+    const sectionId = resolveId(target.sectionId);
+    const position =
+      target.change?.field === "afterSectionId" ? target.change : undefined;
+    const unresolved = [sectionId, position?.before, position?.after].find(
+      (id): id is string =>
+        Boolean(id && isProvisionalExpertDraftSectionId(resolveId(id)))
+    );
+    if (unresolved) {
+      const creation = findPendingDraftSectionCreationForProvisional(
+        conversation,
+        request.runId,
+        unresolved
+      );
+      const statusMessage = creation
+        ? t("proposalCoordinator.waitForDirectoryCreation")
+        : t("proposalCoordinator.missingDirectoryEntry");
+      conversation.updateEditProposal(request.runId, request.proposalId, {
+        status: creation ? "pending" : "conflict",
+        statusMessage
+      });
+      uiMessage.info(statusMessage);
+      return;
+    }
     const book = catalogBook(proposal.workspaceId);
     const bodyDocument = liveWorkspaceDocuments.value.find(
       (document) =>
         document.workspaceId === proposal.workspaceId &&
         document.stageId === "draft" &&
-        document.expertSectionId === target.sectionId &&
+        document.expertSectionId === sectionId &&
         document.draftFileKind === "body" &&
         document.catalogDocumentId
     );
@@ -2821,7 +2922,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       return;
     }
     const section = directory.sections.find(
-      (candidate) => candidate.id === target.sectionId
+      (candidate) => candidate.id === sectionId
     );
     if (!section) {
       const message = t(
@@ -2850,23 +2951,41 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
 
     conversation.updateEditProposal(request.runId, request.proposalId, {
       status: "accepting",
-      statusMessage: automatic
-        ? t("proposalCoordinator.automaticallyApprovingAndRenamingTheChapter")
-        : t("proposalCoordinator.renamingTheChapter")
+      statusMessage: target.change
+        ? t("proposalCoordinator.savingSectionChange")
+        : automatic
+          ? t("proposalCoordinator.automaticallyApprovingAndRenamingTheChapter")
+          : t("proposalCoordinator.renamingTheChapter")
     });
     setAgentEditWorkspaceAccepting(proposal.workspaceId, true);
     try {
       // Core reads the current file while applying the title change. The
       // renderer projection may be stale and must never be written back.
-      const saved = await currentApi.catalog.saveDocument(
-        shortAgentDirectDocumentWrite({
-          bookId: proposal.workspaceId,
-          documentId: bodyDocument.catalogDocumentId,
-          title: target.title,
-          content: "",
-          preserveCurrentContent: true
-        })
-      );
+      const change = target.change;
+      const resolved = position
+        ? {
+            ...position,
+            before: position.before && resolveId(position.before),
+            after: position.after && resolveId(position.after)
+          }
+        : change;
+      const saved = resolved
+        ? await currentApi.catalog.saveDocument({
+            bookId: proposal.workspaceId,
+            documentId: bodyDocument.catalogDocumentId,
+            content: "",
+            preserveCurrentContent: true,
+            draftSectionChange: resolved
+          })
+        : await currentApi.catalog.saveDocument(
+            shortAgentDirectDocumentWrite({
+              bookId: proposal.workspaceId,
+              documentId: bodyDocument.catalogDocumentId,
+              title: target.title,
+              content: "",
+              preserveCurrentContent: true
+            })
+          );
       applyAcceptedAgentDocumentLocally(
         {
           id: bodyDocument.id,
@@ -2885,53 +3004,71 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         expectedDocuments,
         saved.projectRevision
       );
-      const draft = editorDrafts.value[bodyDocument.id];
-      if (draft) {
-        editorDrafts.value = {
-          ...editorDrafts.value,
-          [bodyDocument.id]: {
-            ...draft,
-            title: saved.title
-          }
-        };
-      }
-      const characterStateDocument = liveWorkspaceDocuments.value.find(
-        (document) =>
-          document.workspaceId === proposal.workspaceId &&
-          document.stageId === "draft" &&
-          document.expertSectionId === target.sectionId &&
-          document.draftFileKind === "character-state"
-      );
-      const characterDraft = characterStateDocument
-        ? editorDrafts.value[characterStateDocument.id]
-        : undefined;
-      if (characterStateDocument && characterDraft) {
-        editorDrafts.value = {
-          ...editorDrafts.value,
-          [characterStateDocument.id]: {
-            ...characterDraft,
-            title: draftCharacterStateTitle(saved.title)
-          }
-        };
+      if (!resolved) {
+        const draft = editorDrafts.value[bodyDocument.id];
+        if (draft) {
+          editorDrafts.value = {
+            ...editorDrafts.value,
+            [bodyDocument.id]: {
+              ...draft,
+              title: saved.title
+            }
+          };
+        }
+        const characterStateDocument = liveWorkspaceDocuments.value.find(
+          (document) =>
+            document.workspaceId === proposal.workspaceId &&
+            document.stageId === "draft" &&
+            document.expertSectionId === sectionId &&
+            document.draftFileKind === "character-state"
+        );
+        const characterDraft = characterStateDocument
+          ? editorDrafts.value[characterStateDocument.id]
+          : undefined;
+        if (characterStateDocument && characterDraft) {
+          editorDrafts.value = {
+            ...editorDrafts.value,
+            [characterStateDocument.id]: {
+              ...characterDraft,
+              title: draftCharacterStateTitle(saved.title)
+            }
+          };
+        }
       }
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: "accepted",
         proposedText: undefined,
-        statusMessage: automatic
-          ? t("proposalCoordinator.automaticallyApprovedAndRenamedChapterTo", {
-              previousTitle: target.previousTitle,
-              title: target.title
-            })
-          : t("proposalCoordinator.renamedChapterToAndSavedItLocally", {
-              previousTitle: target.previousTitle,
-              title: target.title
-            })
+        ...(resolved
+          ? {
+              draftSectionRenameTarget: {
+                ...target,
+                sectionId,
+                change: resolved
+              }
+            }
+          : {}),
+        statusMessage: resolved
+          ? t("proposalCoordinator.sectionChangeSaved")
+          : automatic
+            ? t(
+                "proposalCoordinator.automaticallyApprovedAndRenamedChapterTo",
+                {
+                  previousTitle: target.previousTitle,
+                  title: target.title
+                }
+              )
+            : t("proposalCoordinator.renamedChapterToAndSavedItLocally", {
+                previousTitle: target.previousTitle,
+                title: target.title
+              })
       });
       if (!automatic) {
         uiMessage.success(
-          t("proposalCoordinator.chapterRenamedTo", {
-            title: target.title
-          })
+          resolved
+            ? t("proposalCoordinator.sectionChangeSaved")
+            : t("proposalCoordinator.chapterRenamedTo", {
+                title: target.title
+              })
         );
       }
     } catch (error: unknown) {
@@ -2939,7 +3076,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       const conflict = isCatalogConflict(error);
       const message = formatError(
         error,
-        t("proposalCoordinator.failedToRenameChapter")
+        target.change
+          ? t("proposalCoordinator.sectionChangeFailed")
+          : t("proposalCoordinator.failedToRenameChapter")
       );
       conversation.updateEditProposal(request.runId, request.proposalId, {
         status: conflict ? "conflict" : "error",

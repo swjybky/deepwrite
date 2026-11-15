@@ -254,8 +254,8 @@ export function toEventEnvelope(
         source: event.payload.source,
         questions: event.payload.questions,
         ...(event.payload.draw ? { draw: event.payload.draw } : {}),
-        ...(event.payload.promptReview
-          ? { promptReview: event.payload.promptReview }
+        ...(event.payload.teamReview
+          ? { teamReview: event.payload.teamReview }
           : {}),
         ...(event.payload.writeApproval
           ? { writeApproval: event.payload.writeApproval }

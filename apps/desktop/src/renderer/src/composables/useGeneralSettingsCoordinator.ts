@@ -260,11 +260,6 @@ export function useGeneralSettingsCoordinator(
     }
   }
 
-  function updateAutoApproveCrossStageOperations(enabled: boolean): void {
-    applyLocalPatch({ autoApproveCrossStageOperations: enabled });
-    queueSave();
-  }
-
   function updateAutoSave(enabled: boolean): void {
     options.autoSaveEnabled.value = enabled;
     applyLocalPatch({ autoSave: enabled });
@@ -386,7 +381,6 @@ export function useGeneralSettingsCoordinator(
       updateShowInMenuBar,
       updateTaskNotification
     },
-    updateAutoApproveCrossStageOperations,
     updateAutoSave,
     updateDefaultTextViewMode,
     updateBodyTextFormat,

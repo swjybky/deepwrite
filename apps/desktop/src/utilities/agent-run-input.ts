@@ -13,7 +13,7 @@ import type {
 import type { UtilityCommandHandlerContext } from "./runtime";
 
 function abortedError(): Error {
-  const error = new Error("Long workspace Core request was aborted.");
+  const error = new Error("Workspace Core request was aborted.");
   error.name = "AbortError";
   return error;
 }
@@ -27,6 +27,7 @@ export function createCoreCommandExecutor(
         CommandEnvelope,
         {
           type:
+            | "catalog.readWritingWorkspace"
             | "catalog.readLibraryAgentLibrary"
             | "catalog.previewLibraryStructure";
         }
@@ -102,12 +103,6 @@ export function createAgentRunInput(
     ...(payload.proposalSettlements
       ? { proposalSettlements: payload.proposalSettlements }
       : {}),
-    ...(payload.autoApproveCrossStageOperations !== undefined
-      ? {
-          autoApproveCrossStageOperations:
-            payload.autoApproveCrossStageOperations
-        }
-      : {}),
     ...(payload.thinkingLevel ? { thinkingLevel: payload.thinkingLevel } : {}),
     ...(payload.temperature !== undefined
       ? { temperature: payload.temperature }
@@ -121,6 +116,11 @@ export function createAgentRunInput(
       : {}),
     ...(payload.longAgentProfile
       ? { longAgentProfile: payload.longAgentProfile }
+      : {}),
+    ...((payload.workspaceContext?.shortWorkspace ||
+      payload.workspaceContext?.scriptWorkspace) &&
+    context
+      ? { writingCommandExecutor: createCoreCommandExecutor(context) }
       : {}),
     ...(payload.longAgentProfile && context
       ? { longCommandExecutor: createCoreCommandExecutor(context) }

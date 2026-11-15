@@ -1,3 +1,13 @@
+import {
+  queryWritingWorkspace,
+  writingFileMetrics
+} from "./folder-catalog-store/writing-read";
+import type {
+  WritingReadCommand,
+  WritingIndex,
+  WritingFile
+} from "@deepwrite/contracts";
+import { applyDraftSectionChange } from "./folder-catalog-store/draft-section-change";
 import { resolveLibraryEntryLocation } from "@deepwrite/contracts";
 import { withProjectTransactionLock } from "./project-transaction/lock";
 import { copyBookImages } from "./book-images/copy";
@@ -440,6 +450,14 @@ export class FolderCatalogStore {
   private readonly maxProjectContentBytes: number;
   private readonly maxSnapshotContentBytes: number;
   private readonly maxDraftRecoveryBytes: number;
+  // Retain only counts for the last indexed work. Each hit still validates the current file stamp.
+  private writingCounts = {
+    root: "",
+    files: new Map<
+      string,
+      { stamp: string; metrics: ReturnType<typeof writingFileMetrics> }
+    >()
+  };
   private readonly mutationScope = new AsyncLocalStorage<boolean>();
   private writeChain: Promise<void> = Promise.resolve();
 
@@ -603,6 +621,9 @@ export class FolderCatalogStore {
         {
           domain: input.domain,
           requestId: input.requestId,
+          ...(input.managementScope
+            ? { managementScope: input.managementScope }
+            : {}),
           operations: input.operations
         },
         {
@@ -771,6 +792,63 @@ export class FolderCatalogStore {
     return await this.readAfterWrites(async () => {
       const registry = await this.ensureRegistry();
       return await this.aggregateIndexSnapshot(registry);
+    });
+  }
+
+  async readWritingWorkspace(
+    { bookId, bookType, query }: WritingReadCommand["payload"],
+    runId: string
+  ): Promise<WritingIndex | WritingFile> {
+    return this.readAfterWrites(async () => {
+      const registryText = await readRequiredUtf8File(
+        this.registryPath,
+        this.maxManifestBytes,
+        "catalog registry"
+      );
+      const registry = parseRegistry(
+        parseJson(registryText, this.registryPath)
+      );
+      const registration = findRegistration(registry, bookId, "book");
+      const { projectDirectory, manifest } =
+        await this.readManifestWithoutContent(
+          registration.projectDirectory,
+          "deepwrite.book",
+          bookId
+        );
+      if (manifest.kind !== "deepwrite.book" || manifest.bookType !== bookType)
+        throw new Error("Writing workspace type mismatch.");
+      const read = (path: string) =>
+        readProjectMarkdown(projectDirectory, path, this.maxMarkdownBytes);
+      if (this.writingCounts.root !== projectDirectory)
+        this.writingCounts = { root: projectDirectory, files: new Map() };
+      return queryWritingWorkspace(
+        manifest,
+        query,
+        runId,
+        read,
+        async (path) => {
+          const actual = await secureExistingProjectPath(
+            projectDirectory,
+            path,
+            true
+          );
+          const info = await stat(actual, { bigint: true });
+          const stamp = `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
+          const cached = this.writingCounts.files.get(path);
+          if (cached?.stamp === stamp) return cached.metrics;
+          const metrics = writingFileMetrics(
+            await readRequiredUtf8File(
+              actual,
+              this.maxMarkdownBytes,
+              "Markdown file"
+            )
+          );
+          if (this.writingCounts.files.size > 8192)
+            this.writingCounts.files.clear();
+          this.writingCounts.files.set(path, { stamp, metrics });
+          return metrics;
+        }
+      );
     });
   }
 
@@ -2559,7 +2637,11 @@ export class FolderCatalogStore {
     lockHeld: boolean
   ): Promise<SaveDocumentResult> {
     const input = SaveDocumentInputSchema.parse(rawInput);
-    if (input.preserveCurrentContent && input.title === undefined) {
+    if (
+      input.preserveCurrentContent &&
+      input.title === undefined &&
+      !input.draftSectionChange
+    ) {
       throw new Error("保留正文内容时必须同时提供新标题。");
     }
     if (!input.preserveCurrentContent) {
@@ -2602,6 +2684,13 @@ export class FolderCatalogStore {
       ) {
         throw new Error("该正文小节已删除或不存在。");
       }
+      if (
+        input.draftSectionChange &&
+        (draftTarget?.kind !== "body" ||
+          !input.preserveCurrentContent ||
+          input.title !== undefined)
+      )
+        throw new Error("小节属性修改必须指定正文文档并保留原文。");
       const changesDraftSectionTitle = Boolean(
         draftTarget?.kind === "body" &&
         input.title !== undefined &&
@@ -2609,7 +2698,10 @@ export class FolderCatalogStore {
       );
       if (
         !input.force &&
-        (regularDocumentIndex >= 0 || !draftTarget || changesDraftSectionTitle)
+        (regularDocumentIndex >= 0 ||
+          !draftTarget ||
+          changesDraftSectionTitle ||
+          input.draftSectionChange)
       ) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -2693,7 +2785,8 @@ export class FolderCatalogStore {
               draft.sections.some(
                 (candidate, index) =>
                   index !== draftTarget.sectionIndex &&
-                  candidate.title === sectionTitle
+                  candidate.title.toLocaleLowerCase() ===
+                    sectionTitle.toLocaleLowerCase()
               )
             ) {
               throw new Error(
@@ -2732,6 +2825,15 @@ export class FolderCatalogStore {
               characterState: documentManifest,
               updatedAt: now
             };
+          }
+          if (input.draftSectionChange) {
+            applyDraftSectionChange(
+              draft.sections,
+              draftTarget.sectionIndex,
+              input.draftSectionChange,
+              (expected, actual) =>
+                new FolderCatalogConflictError(expected, actual)
+            );
           }
           draft.updatedAt = now;
         } else {
@@ -3100,17 +3202,17 @@ export class FolderCatalogStore {
       }
 
       const seenDraftSectionTitles = new Set(
-        manifest.draft.sections.map(({ title }) => title)
+        manifest.draft.sections.map(({ title }) => title.toLocaleLowerCase())
       );
       for (const section of createdSections) {
-        if (seenDraftSectionTitles.has(section.title)) {
+        if (seenDraftSectionTitles.has(section.title.toLocaleLowerCase())) {
           throw new Error(
             `正文目录已存在同名${
               manifest.bookType === "script" ? "剧集" : "小节"
             }“${section.title}”。`
           );
         }
-        seenDraftSectionTitles.add(section.title);
+        seenDraftSectionTitles.add(section.title.toLocaleLowerCase());
       }
 
       sections.splice(insertionIndex, 0, ...createdSections);
@@ -3140,19 +3242,42 @@ export class FolderCatalogStore {
         ].slice(-256)
       });
       const files = await Promise.all(
-        createdSections.flatMap((section) => [
+        createdSections.flatMap((section, index) => [
           secureWritableProjectPath(projectDirectory, section.body.path).then(
             (target) => ({
               target,
-              content: ""
+              content: input.sections[index]!.bodyContent ?? ""
             })
           ),
           secureWritableProjectPath(
             projectDirectory,
             section.characterState.path
-          ).then((target) => ({ target, content: "" }))
+          ).then((target) => ({
+            target,
+            content: input.sections[index]!.stateContent ?? ""
+          }))
         ])
       );
+      const batchBytes = files.reduce(
+        (sum, file) => sum + Buffer.byteLength(file.content, "utf8"),
+        0
+      );
+      if (batchBytes) {
+        const remaining =
+          this.maxProjectContentBytes -
+          Buffer.byteLength(JSON.stringify(next), "utf8") -
+          batchBytes;
+        if (remaining < 0)
+          throw new Error(
+            `项目 Markdown 总量超过 ${this.maxProjectContentBytes} 字节安全上限。`
+          );
+        await inspectProjectMarkdownMetadata(
+          projectDirectory,
+          manifest,
+          this.maxMarkdownBytes,
+          remaining
+        );
+      }
       await commitProjectFileCreations(
         files,
         join(projectDirectory, MANIFEST_FILE),
@@ -3161,6 +3286,32 @@ export class FolderCatalogStore {
         this.maxManifestBytes
       );
       await this.bumpRegistry(registry, now);
+      if (input.versionOrigin) {
+        for (const [index, section] of createdSections.entries()) {
+          const requested = input.sections[index]!;
+          for (const [doc, content] of [
+            [section.body, requested.bodyContent],
+            [section.characterState, requested.stateContent]
+          ] as const) {
+            if (content)
+              await captureDocumentVersions(
+                new DocumentVersionStore(
+                  projectDirectory,
+                  {
+                    workspace: "catalog",
+                    bookId: input.bookId,
+                    documentId: doc.id
+                  },
+                  this.maxMarkdownBytes,
+                  this.now
+                ),
+                "",
+                content,
+                input.versionOrigin
+              );
+          }
+        }
+      }
       return await hydrateDraftSectionCreationResult(
         projectDirectory,
         next,
@@ -5334,7 +5485,7 @@ function nextMarketplaceTitle(
   return `${baseTitle} (${suffix})`;
 }
 
-const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 人物状态";
+const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 状态";
 const CATALOG_TITLE_MAX_LENGTH = 256;
 
 function draftCharacterStateTitle(sectionTitle: string): string {
@@ -5461,7 +5612,9 @@ function createDraftSectionsRequestHash(
     sections: input.sections.map((section) => ({
       clientSectionId: section.clientSectionId,
       title: section.title ?? null,
-      wordCountRequirement: section.wordCountRequirement ?? null
+      wordCountRequirement: section.wordCountRequirement ?? null,
+      ...(section.bodyContent ? { bodyContent: section.bodyContent } : {}),
+      ...(section.stateContent ? { stateContent: section.stateContent } : {})
     }))
   };
   return createHash("sha256").update(JSON.stringify(intent)).digest("hex");

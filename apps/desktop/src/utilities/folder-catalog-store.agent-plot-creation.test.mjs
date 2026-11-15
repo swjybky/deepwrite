@@ -212,7 +212,7 @@ describe("agent plot creation with the metadata catalog", () => {
                 title: active.title,
                 path: active.path,
                 source: "live-editor",
-                content: active.content
+                content: ""
               }
             }
           },

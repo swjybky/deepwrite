@@ -1,6 +1,6 @@
 import type { ExternalControlStateFile } from "@deepwrite/contracts/external-control";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createBridgeConnection } from "./bridge-connection";
+import { AppUpdatingError, createBridgeConnection } from "./bridge-connection";
 import type { AppLaunch } from "./bridge-launch";
 import type { ExternalControlPaths } from "./control-paths";
 import { readExternalControlState } from "./control-state-file";
@@ -25,6 +25,7 @@ describe("bridge connection", () => {
     readState?: () => Promise<ExternalControlStateFile | undefined>;
     isProcessAlive?: (pid: number) => boolean;
     launchWaitMs?: number;
+    now?: () => number;
   }) =>
     createBridgeConnection({
       readState:
@@ -40,7 +41,8 @@ describe("bridge connection", () => {
       launchWaitMs: overrides.launchWaitMs ?? 2_000,
       ...(overrides.isProcessAlive
         ? { isProcessAlive: overrides.isProcessAlive }
-        : {})
+        : {}),
+      ...(overrides.now ? { now: overrides.now } : {})
     });
 
   beforeEach(async () => {
@@ -135,6 +137,52 @@ describe("bridge connection", () => {
         void control.sync(true);
         return { failure: () => undefined };
       }
+    });
+    await expect(bridge.call("get_app_status", {})).resolves.toBeDefined();
+    bridge.close();
+  });
+
+  it("does not reopen the app while an update installs", async () => {
+    const updating: ExternalControlStateFile = {
+      status: "updating",
+      protocolVersion: 1,
+      appVersion: "1.0.0",
+      pid: DEAD,
+      startedAt: "2026-11-14T00:00:00.000Z"
+    };
+    const launch = vi.fn<() => AppLaunch>();
+    const call = connection({
+      readState: () => Promise.resolve(updating),
+      launch,
+      now: () => Date.parse("2026-11-14T00:05:00.000Z")
+    }).call("get_app_status", {});
+
+    await expect(call).rejects.toBeInstanceOf(AppUpdatingError);
+    await expect(call).rejects.toMatchObject({
+      code: "external.app_unavailable"
+    });
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("reopens the app once an update marker has expired", async () => {
+    let launched = false;
+    const bridge = connection({
+      readState: () =>
+        launched
+          ? readExternalControlState(paths.stateFile)
+          : Promise.resolve({
+              status: "updating",
+              protocolVersion: 1,
+              appVersion: "1.0.0",
+              pid: DEAD,
+              startedAt: "2026-11-14T00:00:00.000Z"
+            }),
+      launch: () => {
+        launched = true;
+        void control.sync(true);
+        return { failure: () => undefined };
+      },
+      now: () => Date.parse("2026-11-14T00:11:00.000Z")
     });
     await expect(bridge.call("get_app_status", {})).resolves.toBeDefined();
     bridge.close();

@@ -1,6 +1,7 @@
 export default {
+  acceptSectionChange: "Accept to save the directory change.",
   acceptToApplyLibraryOrganization:
-    "Accept to apply the organization plan above. Removed libraries keep their files; deleted entries can be restored.",
+    "Accept to apply the library changes listed above.",
   awaitingReview: "Awaiting review",
   applying: "Applying",
   accepted: "Accepted",
@@ -46,12 +47,14 @@ export default {
     "Accept to create the library entry and save it locally.",
   acceptToUpdateTheLibraryEntryAndSaveIt:
     "Accept to update the library entry and save it locally.",
+  acceptToChangeTheSharedPlotStructure:
+    "The plot structure is shared by every short story and screenplay; accepting changes it for the other works too.",
   acceptToCreateBlankManuscriptAndCharacterStateFiles:
-    "Accept to create blank manuscript and character state files in bulk and save locally.",
+    "Accept to create the manuscript entries and save their body and State documents.",
   acceptToRenameTheChapterAndSaveLocallyIts:
     "Accept to rename the chapter and save locally. Its manuscript will remain unchanged.",
   acceptToPermanentlyDeleteThisChapterItsManuscriptAnd:
-    "Accept to permanently delete this chapter, its manuscript, and its character state files.",
+    "Accept to permanently delete this chapter, its manuscript, and its state files.",
   acceptToCreateABlankWorldbuildingFileAndSave:
     "Accept to create a blank worldbuilding file and save it locally.",
   acceptToWriteTheWorldbuildingFileAndSaveIt:

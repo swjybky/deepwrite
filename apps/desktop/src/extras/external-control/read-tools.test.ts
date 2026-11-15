@@ -202,7 +202,7 @@ describe("external read tools against real stores", () => {
       .filter(({ group }) => group === "draft")
       .map(({ title }) => title);
     expect(draft).toEqual(
-      expect.arrayContaining(["第一节 · 正文", "第一节 · 人物状态"])
+      expect.arrayContaining(["第一节 · 正文", "第一节 · 状态"])
     );
     expect(work.stages?.length).toBeGreaterThan(0);
     expect(JSON.stringify(work)).not.toContain("灯塔");

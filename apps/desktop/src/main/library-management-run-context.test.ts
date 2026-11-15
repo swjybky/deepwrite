@@ -32,7 +32,22 @@ describe("Main management run authority", () => {
       const request = vi.fn(async (): Promise<CommandResult> => ({
         status: "accepted",
         requestId: "query",
-        payload: { libraries: [] }
+        payload: {
+          libraries: [
+            {
+              domain: "material",
+              libraryId: "materials",
+              title: "素材",
+              readOnly: false
+            },
+            {
+              domain: "skill",
+              libraryId: "skills",
+              title: "技能",
+              readOnly: false
+            }
+          ]
+        }
       }));
       const workspace =
         bookType === "long"
@@ -50,6 +65,9 @@ describe("Main management run authority", () => {
       expect(result?.scope).toEqual({ bookId: "book", bookType });
       expect(result?.managers.map((manager) => manager.domain)).toEqual([
         "skill"
+      ]);
+      expect(result?.libraries.map((library) => library.libraryId)).toEqual([
+        "skills"
       ]);
       expect(request).toHaveBeenCalledOnce();
     }
@@ -83,7 +101,7 @@ describe("Main management run authority", () => {
       sessionId: "session",
       accepted: true,
       promptRequestId: "prompt",
-      libraryManagementScope: scope
+      libraryManagementScope: { ...scope, domains: ["skill"] }
     };
     expect(authorizeMainInternalCommand(context, new Map([["run", run]]))).toBe(
       true
@@ -92,7 +110,14 @@ describe("Main management run authority", () => {
       { accepted: false },
       { sessionId: "other" },
       { promptRequestId: "other" },
-      { libraryManagementScope: { ...scope, bookId: "other" } }
+      {
+        libraryManagementScope: {
+          ...scope,
+          bookId: "other",
+          domains: ["skill"] as const
+        }
+      },
+      { libraryManagementScope: { ...scope, domains: ["material"] as const } }
     ])
       expect(
         authorizeMainInternalCommand(

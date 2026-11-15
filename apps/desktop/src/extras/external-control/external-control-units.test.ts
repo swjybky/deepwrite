@@ -253,8 +253,7 @@ describe("tool routes", () => {
       platform: "darwin",
       rendererReady: false,
       activeRunCount: 2,
-      permissionMode: "auto-approve",
-      crossStageAutoApprove: true
+      permissionMode: "auto-approve"
     });
   });
 

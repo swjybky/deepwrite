@@ -125,6 +125,18 @@ export default {
       "An earlier continuity file proposal was rejected. This chapter’s ledger was not archived."
   },
   proposalCoordinator: {
+    waitForDirectoryCreation:
+      "Save the linked creation, then apply this directory change.",
+    missingDirectoryEntry: "A linked directory entry no longer exists.",
+    sectionPosition: "Position",
+    firstPosition: "First",
+    afterSection: "After {title}",
+    lengthTarget: "Length target",
+    unsetTarget: "Unset",
+    savingSectionChange: "Saving the directory change…",
+    sectionChangeSaved: "Directory change saved.",
+    sectionChangeFailed: "Could not save the directory change.",
+
     failedToApproveAgentEdits: "Failed to approve agent edits.",
     thePendingNewEntryIsMissingCompleteContentGenerate:
       "The pending new entry is missing complete content. Generate it again.",
@@ -180,7 +192,7 @@ export default {
     deleteCharacterEntry: "Delete character entry: {title}",
     theManuscriptDirectoryIsUnavailableChapterCreationWasNot:
       "The manuscript directory is unavailable. Chapter creation was not submitted for review.",
-    createBlankChapters: "Create {length} blank chapters",
+    createBlankChapters: "Create {length} manuscript entries",
     theTargetChapterIsUnavailableRenamingWasNotSubmitted:
       "The target chapter is unavailable. Renaming was not submitted for review.",
     renameChapter: "Rename chapter: {previousTitle} → {title}",
@@ -193,7 +205,7 @@ export default {
     theTextHasNotChangedNoSaveIsNeeded:
       "The text has not changed. No save is needed.",
     newChapter: "New chapter",
-    characterState: "{sectionTitle} · Character state",
+    characterState: "{sectionTitle} · State",
     theTargetCharacterEntryHasNotBeenCreatedOr:
       "The target character entry has not been created or is unavailable. This agent change was not submitted for review.",
     theTargetManuscriptIsNotWritableThisAgentChange:
@@ -216,18 +228,18 @@ export default {
     otherEditsToThisProjectAreBeingSavedWait:
       "Other edits to this project are being saved. Wait before accepting.",
     automaticallyApprovingAndCreatingBlankChapterFiles:
-      "Automatically approving and creating blank chapter files…",
+      "Automatically approving and creating manuscript files…",
     creatingChapterFiles: "Creating chapter files…",
     chaptersCreatedButTheNewChaptersCouldNotBe:
       "Chapters created, but the new chapters could not be located after refreshing. Retry to finish mapping the content.",
     automaticallyApprovedAndCreatedChaptersIncludingTheirSubmittedProse:
-      "Automatically approved and created {createdCount} chapters, including their submitted prose and character states.",
+      "Automatically approved and created {createdCount} chapters, including their submitted prose and state notes.",
     createdChaptersAndSavedTheirSubmittedProseAndCharacter:
-      "Created {createdCount} chapters and saved their submitted prose and character states.",
-    createdBlankChapterFiles: "Created {createdCount} blank chapter files",
-    failedToCreateBlankChapters: "Failed to create blank chapters.",
+      "Created {createdCount} chapters and saved their submitted prose and state notes.",
+    createdBlankChapterFiles: "Created {createdCount} manuscript files",
+    failedToCreateBlankChapters: "Failed to create manuscript entries.",
     theAssociatedBlankChapterCouldNotBeCreatedRelated:
-      "The associated blank chapter could not be created. Related prose writes were canceled.",
+      "The associated manuscript entry could not be created. Related prose writes were canceled.",
     chapterCreationHasNotBeenConfirmedTheProseIs:
       "Chapter creation has not been confirmed. The prose is preserved. Retry chapter creation first.",
     thePendingChapterRenameIsMissingRequiredParametersGenerate:
@@ -264,11 +276,11 @@ export default {
     deleting: "Deleting {draftUnit}…",
     noLongerExists: "{draftUnit} “{title}” no longer exists.",
     automaticallyApprovedAndDeletedAndItsManuscriptAndCharacter:
-      "Automatically approved and deleted {draftUnit} “{title}” and its manuscript and character state files.",
+      "Automatically approved and deleted {draftUnit} “{title}” and its manuscript and state files.",
     deletedAndItsManuscriptAndCharacterStateFiles:
-      "Deleted {draftUnit} “{title}” and its manuscript and character state files.",
+      "Deleted {draftUnit} “{title}” and its manuscript and state files.",
     deletedAndItsCharacterStateFile:
-      "Deleted {draftUnit} “{title}” and its character state file",
+      "Deleted {draftUnit} “{title}” and its state file",
     failedToDelete: "Failed to delete {draftUnit}.",
     theNovelPlotDesignServiceIsUnavailable:
       "The novel plot design service is unavailable.",
@@ -525,7 +537,7 @@ export default {
       "A chapter named “{duplicateTitle}” already exists in the manuscript directory. No duplicate was created.",
     theRequestedChapterInsertionPositionNoLongerExistsNo:
       "The requested chapter insertion position no longer exists. No chapter was created.",
-    creatingAnEmptyChapterFile: "Creating an empty chapter file…"
+    creatingAnEmptyChapterFile: "Creating a manuscript entry…"
   },
   longWorldbuildingLane: {
     theLongFormWorldbuildingFileServiceIsCurrentlyUnavailable:

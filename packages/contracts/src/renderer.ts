@@ -1,6 +1,9 @@
+export { ExternalRunRecoverySchema } from "./external-control/run-tools";
 export type { ExternalControlOverview } from "./external-control/commands";
 export type {
   ExternalAgentRun,
+  ExternalRunRecovery,
+  ExternalToolUsage,
   ExternalWindowRequest,
   ExternalWindowResponse,
   ExternalWindowTarget
@@ -286,6 +289,7 @@ export {
 } from "./catalog";
 export { createEnvelope } from "./envelope";
 export {
+  DraftSectionChangeSchema,
   DraftSectionTitleSchema,
   parseExpertDraftMarkdown,
   serializeExpertDraftMarkdown
@@ -348,6 +352,7 @@ export {
   LONG_FORESHADOWING_DIRECTORY_MAX_ENTRIES,
   LONG_WORLDBUILDING_DIRECTORY_MAX_CATEGORIES,
   LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS,
+  LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS_PER_CATEGORY,
   LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS,
   LONG_WORLDBUILDING_OVERVIEW_FOCUS_MAX_CHARACTERS
 } from "./long-workspace-limits";
@@ -489,6 +494,7 @@ export {
   ShortWorkspaceAgentSettingsInputSchema,
   ShortWorkspaceSnapshotSchema,
   createExpertDraftDirectoryRevision,
+  plotStructureCreationStageId,
   createShortWorkspaceContentRevision,
   isProvisionalExpertDraftSectionId,
   resolveShortWorkspaceAgentIdForStage,

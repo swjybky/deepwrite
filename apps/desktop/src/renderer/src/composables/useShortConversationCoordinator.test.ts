@@ -204,7 +204,7 @@ function createHarness(
 }
 
 describe("useShortConversationCoordinator", () => {
-  it("hydrates writing and skill documents without loading linked material bodies before a writing run", async () => {
+  it("hydrates only skill documents without loading creation or linked material bodies before a writing run", async () => {
     const test = createHarness();
     const material = workspaceDocument({
       id: "material-entry",
@@ -217,10 +217,7 @@ describe("useShortConversationCoordinator", () => {
       skill
     ]);
     await test.coordinator.sendMessage();
-    expect(test.ensureDocumentsLoaded).toHaveBeenCalledWith([
-      test.activeDocument.value,
-      skill
-    ]);
+    expect(test.ensureDocumentsLoaded).toHaveBeenCalledWith([skill]);
     expect(test.conversation.sendMessage).toHaveBeenCalledOnce();
   });
   it("keeps full Catalog context construction on the send cold path", async () => {

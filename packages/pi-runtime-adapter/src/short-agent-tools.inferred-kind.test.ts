@@ -42,8 +42,6 @@ describe.each(["short", "script"] as const)(
     it("provides an executable rename example even with a custom agent prompt", async () => {
       const tools = workspaceTools(workspaceType);
       const edit = toolByName(tools, "edit");
-      const example = edit.description.match(/edit\((\{.*?\})\)/u)?.[1];
-      if (!example) throw new Error("Missing rename tool-call example.");
       const input = {
         runId: "rename-example",
         sessionId: "rename-example",
@@ -64,12 +62,13 @@ describe.each(["short", "script"] as const)(
               workspaceContext: { scriptWorkspace: screenplayWorkspace() }
             })
       };
-      expect(buildEffectiveSystemPrompt("DeepWrite base", input)).toContain(
-        `edit(${example})`
-      );
+      const example = buildEffectiveSystemPrompt("DeepWrite base", input).match(
+        /edit\((\{.*?\})\)/u
+      )?.[1];
+      if (!example) throw new Error("Missing rename tool-call example.");
       const parameters = JSON.stringify(edit.parameters);
       expect(parameters).toContain("edit 只用 meta.title 改名时可省略");
-      expect(parameters).toContain("小节或剧集改名使用 draft_section");
+      expect(parameters).toContain("标题时使用 draft_section");
       const args = validateToolArguments(edit, {
         type: "toolCall",
         id: "example-rename",
@@ -171,25 +170,29 @@ describe.each(["short", "script"] as const)(
       });
     });
 
-    it("keeps the cross-stage confirmation for inferred section renames", async () => {
+    it("renames an inferred section from another stage without asking", async () => {
       const tools = workspaceTools(
         workspaceType,
         shortWorkspace("plot_design")
       );
-      await expect(
-        toolByName(tools, "edit").execute("cross-stage-rename", {
-          id: "section-2",
-          meta: { title: "新标题" }
-        })
-      ).rejects.toThrow("无法向用户请求跨阶段写入确认");
+      expect(
+        details(
+          await toolByName(tools, "edit").execute("cross-stage-rename", {
+            id: "section-2",
+            meta: { title: "新标题" }
+          })
+        )
+      ).toMatchObject({
+        kind: "workspace-expert-draft-section-rename",
+        sectionId: "section-2"
+      });
       const directory = resultText(
         await toolByName(tools, "read").execute("directory", {
           kind: "draft",
           id: "draft"
         })
       );
-      expect(directory).toContain("第二节");
-      expect(directory).not.toContain("新标题");
+      expect(directory).toContain("新标题");
     });
 
     it.each(["missing-section", "第二节", "plot_design", "character_design"])(
@@ -210,7 +213,9 @@ describe.each(["short", "script"] as const)(
           meta: { title: "新标题" },
           content: "不能顺便覆盖正文。"
         })
-      ).rejects.toThrow("只能选择 content、replacements 或 meta");
+      ).rejects.toThrow(
+        "只能选择 content、replacements、append、insert 或 meta"
+      );
       await expect(
         edit.execute("duplicate-title", {
           id: "section-2",
@@ -297,7 +302,22 @@ describe.each(["short", "script"] as const)(
           kind: "plot_stage",
           id: "plot_design"
         })
-      ).rejects.toThrow("不接受 document");
+      ).rejects.toThrow("不要传 document");
+    });
+
+    it("tolerates a redundant body document and mixed id separators", async () => {
+      const read = toolByName(workspaceTools(workspaceType), "read");
+      for (const request of [
+        { kind: "plot_stage", id: "plot_design", document: "body" },
+        { kind: "plot_stage", id: "plot-design" },
+        { kind: "character_overview", id: "character_design", document: "body" }
+      ])
+        expect(resultText(await read.execute("lenient", request))).toContain(
+          `id: ${request.id.replace("-", "_")}`
+        );
+      await expect(
+        read.execute("by-title", { kind: "plot_stage", id: "剧情设计" })
+      ).rejects.toThrow("「剧情设计」的 id 是 plot_design");
     });
   }
 );

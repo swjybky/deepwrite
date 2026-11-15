@@ -298,8 +298,6 @@ export async function sendMessage(
               contextSnapshot?.longWorkspace
                 ? { agentTeamMode: requestedAgentTeamMode }
                 : {}),
-              autoApproveCrossStageOperations:
-                ctx.options.autoApproveCrossStageOperations?.() === true,
               ...workspaceWebSearchPromptFields(ctx.webSearchEnabled.value),
               ...(contextSnapshot ? { workspaceContext: contextSnapshot } : {})
             }

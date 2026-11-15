@@ -149,6 +149,16 @@ async function handleCatalogCommand(
       );
     }
 
+    if (command.type === "catalog.readWritingWorkspace") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.readWritingWorkspace(
+          command.payload,
+          command.context.runId
+        )
+      };
+    }
     if (command.type === "catalog.readLibraryAgentLibrary") {
       const service = new LibraryManagementService(
         await requireCatalogStore(),
@@ -239,6 +249,17 @@ async function handleCatalogCommand(
       };
     }
     if (command.type === "catalog.applyLibraryStructure") {
+      if (command.payload.managementScope) {
+        const service = new LibraryManagementService(
+          catalogStore,
+          longWorkspaceService
+        );
+        await service.assertStructureTargets(
+          command.payload.managementScope,
+          command.payload.domain,
+          command.payload.operations
+        );
+      }
       return {
         status: "accepted",
         requestId: command.id,

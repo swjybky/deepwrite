@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { MaterialStageIdSchema } from "./catalog/kinds";
+import { LibraryManagementScopeSchema } from "./library-management-scope";
 import { EnvelopeBaseSchema } from "./envelope";
 import { AgentRuntimeRefSchema } from "./session/agent-event-identity";
 
 const Id = z.string().trim().min(1).max(512);
 const Title = z.string().trim().min(1).max(256);
 const Domain = z.enum(["material", "skill"]);
+const LibraryTarget = z
+  .object({ kind: z.literal("library"), libraryId: Id })
+  .strict();
 const LibraryType = z.enum(["short", "script", "long"]);
 const Kind = z.enum([
   "character",
@@ -23,6 +28,30 @@ const Order = {
   groupId: Id.optional()
 };
 export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("copy-entries"),
+      libraryId: Id,
+      entryIds: z.array(Id).min(1).max(128),
+      target: LibraryTarget,
+      targetStageId: MaterialStageIdSchema.optional()
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("archive-entries"),
+      libraryId: Id,
+      entryIds: z.array(Id).min(1).max(128)
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("restore-entries"),
+      libraryId: Id,
+      recoveryId: Id,
+      entryIds: z.array(Id).min(1).max(128)
+    })
+    .strict(),
   z
     .object({
       action: z.literal("create-unbound-entry"),
@@ -78,22 +107,12 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("move-entries"),
-      targetStageId: z
-        .enum([
-          "character",
-          "gimmick",
-          "pacing",
-          "intro",
-          "plot_refine",
-          "draft_excerpt",
-          "other"
-        ])
-        .optional(),
+      targetStageId: MaterialStageIdSchema.optional(),
       beforeEntryId: Id.optional(),
       libraryId: Id,
       entryIds: z.array(Id).min(1).max(128),
       target: z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("library"), libraryId: Id }).strict(),
+        LibraryTarget,
         z.object({ kind: z.literal("unbound") }).strict()
       ])
     })
@@ -122,6 +141,7 @@ export const LibraryStructureRequestSchema = z
   .object({
     domain: Domain,
     requestId: Id,
+    managementScope: LibraryManagementScopeSchema.optional(),
     operations: z.array(LibraryStructureOperationSchema).min(1).max(32)
   })
   .strict();

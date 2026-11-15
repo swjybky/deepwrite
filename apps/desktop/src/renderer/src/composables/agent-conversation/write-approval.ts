@@ -83,6 +83,7 @@ function proposalItems(
         state: status ?? "waiting",
         result: {
           ...settlement,
+          toolCallIds: proposal.toolCallIds.filter((id) => toolCallIds.has(id)),
           ...(edited
             ? {
                 edited: true,

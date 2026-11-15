@@ -268,14 +268,16 @@ describe("unified long-form list scopes", () => {
     ).rejects.toThrow("连续性只接受 volume_*、chapter_* 或 character_*");
   });
 
-  it("describes per-stage containers and forbids listing leaves", () => {
+  it("keeps container rules in the tool description and formats in parameters", () => {
     const list = toolByName(
       longTools({ executor: documentExecutor(detailedIndex()) }),
       "list"
     );
-    expect(list.description).toContain("storyplot_");
-    expect(list.description).toContain("不要传 arc_");
-    expect(JSON.stringify(list.parameters)).toContain("storyplot_");
-    expect(JSON.stringify(list.parameters)).toContain("禁止 arc_");
+    expect(list.description).toContain("world_=世界观");
+    expect(list.description).toContain(
+      "view=continuity，book_line 返回全书连续性概览"
+    );
+    expect(JSON.stringify(list.parameters)).not.toContain("storyplot_");
+    expect(JSON.stringify(list.parameters)).not.toContain("禁止 arc_");
   });
 });

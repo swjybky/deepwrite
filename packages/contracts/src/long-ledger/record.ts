@@ -45,6 +45,18 @@ export const LongLedgerCommitRecordSchema = z
     chapterCardIds: z.array(LongChapterCardIdSchema).max(100_000).optional(),
     checkpointChapterCardId: LongChapterCardIdSchema.optional(),
     committedAt: LedgerTimestampSchema,
+    bodyEvidence: z
+      .array(
+        z
+          .object({
+            chapterCardId: LongChapterCardIdSchema,
+            sha256: z.string().regex(/^[a-f0-9]{64}$/u)
+          })
+          .strict()
+      )
+      .min(1)
+      .max(100_000)
+      .optional(),
     commitMessage: LedgerCommitMessageSchema.default(""),
     chapterSummary: LongChapterSummarySchema.default(
       EMPTY_LONG_CHAPTER_SUMMARY

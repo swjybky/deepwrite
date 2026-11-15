@@ -49,7 +49,7 @@ const gatewayConfig: AgentProviderRuntimeConfig = {
 
 function writingTools(workspaceType: "short" | "script") {
   const workspace = shortWorkspace("draft", { characterList: true });
-  const input = { autoApproveCrossStageOperations: true };
+  const input = {};
   return workspaceType === "short"
     ? buildShortWorkspaceTools({ ...input, workspace, profile: shortProfile() })
     : buildScriptWorkspaceTools({
@@ -205,7 +205,6 @@ describe("long workspace overwrite permission", () => {
       index.plot.volumes[0]!.summary = beforeText;
       const tools = longTools({
         index,
-        autoApproveCrossStageOperations: true,
         executor: documentExecutor(index, {
           [index.chapters[0]!.body.id]: beforeText
         })
@@ -216,7 +215,9 @@ describe("long workspace overwrite permission", () => {
         { id: "chapter_one", document: "body" },
         { id: "volume_one" }
       ]) {
-        const before = resultText(await read.execute("read-before", target));
+        expect(resultText(await read.execute("read-before", target))).toContain(
+          beforeText
+        );
         for (const flag of [false, "true", 1]) {
           const args = { ...target, content, allow_overwrite_existing: flag };
           const params =
@@ -231,9 +232,9 @@ describe("long workspace overwrite permission", () => {
           const result = await edit.execute("blocked-overwrite", params);
           expect(resultText(result)).toContain("allow_overwrite_existing=true");
           expect(result.details).toMatchObject({ kind: "none" });
-          expect(resultText(await read.execute("read-after", target))).toBe(
-            before
-          );
+          expect(
+            resultText(await read.execute("read-after", target))
+          ).toContain("该文档自上次读取后未变化，原文仍在上文。");
         }
       }
     }

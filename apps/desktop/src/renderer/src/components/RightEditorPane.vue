@@ -781,8 +781,7 @@ onBeforeUnmount(() => {
   <aside
     class="editor-pane"
     :class="{
-      'has-section-tabs': showSectionTabs,
-      'is-script-workspace': document.workspaceType === 'script'
+      'has-section-tabs': showSectionTabs
     }"
     :data-workspace-type="document.workspaceType"
     :aria-label="t('textContent')"
@@ -854,6 +853,7 @@ onBeforeUnmount(() => {
         <button
           type="button"
           role="tab"
+          :title="t('stateDescription')"
           :aria-selected="document.draftFileKind === 'character-state'"
           :class="{ 'is-active': document.draftFileKind === 'character-state' }"
           @click="emit('selectDraftFile', 'character-state')"

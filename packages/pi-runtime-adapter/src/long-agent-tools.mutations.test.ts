@@ -101,7 +101,9 @@ describe("unified long-form tools: mutations", () => {
         meta: { category_id: "world_magic", title: "   " },
         content: "## 本源定义\n灵根来自天地循环。"
       })
-    ).rejects.toThrow("创建该对象必须提供 meta.title。");
+    ).rejects.toThrow(
+      "kind=worldbuilding_item 缺少 meta.title；可选字段：无。"
+    );
   });
 
   it("carries initial content for every Markdown-backed create kind", async () => {
@@ -368,95 +370,14 @@ describe("unified long-form tools: mutations", () => {
     });
   });
 
-  it("asks before every cross-stage create, edit, and delete mutation", async () => {
-    const index = fixtureWorldbuildingIndex();
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session_tools",
-      runId: "run_tools",
-      requestId: `request_${request.toolCallId}`,
-      answers: [{ id: "cross_stage_write", selectedOptionIds: ["cancel"] }]
-    }));
-    const tools = longTools({
-      executor: documentExecutor(index),
-      activeRoot: "character_design",
-      index,
-      requestUserInput
-    });
-
-    const created = await toolByName(tools, "create").execute("cross-create", {
-      kind: "volume",
-      meta: { title: "第二卷" }
-    });
-    const edited = await toolByName(tools, "edit").execute("cross-edit", {
-      id: "volume_one",
-      content: "第一卷新概要。",
-      summary: "修改分卷"
-    });
-    const deleted = await toolByName(tools, "delete").execute("cross-delete", {
-      id: "worlditem_memory",
-      cascade: true
-    });
-
-    expect(resultText(created)).toContain("用户取消");
-    expect(resultText(edited)).toContain("用户取消");
-    expect(resultText(deleted)).toContain("用户取消");
-    expect(requestUserInput).toHaveBeenCalledTimes(3);
-    expect(requestUserInput.mock.calls.map(([request]) => request)).toEqual([
-      expect.objectContaining({
-        toolCallId: "cross-create",
-        source: "cross_stage_write"
-      }),
-      expect.objectContaining({
-        toolCallId: "cross-edit",
-        source: "cross_stage_write"
-      }),
-      expect.objectContaining({
-        toolCallId: "cross-delete",
-        source: "cross_stage_write"
-      })
-    ]);
-  });
-
-  it("grants cross-stage access for only the current mutation", async () => {
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session_tools",
-      runId: "run_tools",
-      requestId: `request_${request.toolCallId}`,
-      answers: [
-        {
-          id: "cross_stage_write",
-          selectedOptionIds: ["continue_once"]
-        }
-      ]
-    }));
-    const tools = longTools({
-      executor: documentExecutor(fixtureIndex()),
-      activeRoot: "character_design",
-      requestUserInput
-    });
-    const create = toolByName(tools, "create");
-
-    await create.execute("create-volume-1", {
-      kind: "volume",
-      meta: { title: "第二卷" }
-    });
-    await create.execute("create-volume-2", {
-      kind: "volume",
-      meta: { title: "第三卷" }
-    });
-
-    expect(requestUserInput).toHaveBeenCalledTimes(2);
-  });
-
-  it("auto-approves cross-stage mutations without requesting user input", async () => {
+  it("creates in another stage without asking the user", async () => {
     const requestUserInput = vi.fn(async () => {
-      throw new Error("cross-stage input should have been auto-approved");
+      throw new Error("a cross-stage write must not ask the user");
     });
     const create = toolByName(
       longTools({
         executor: documentExecutor(fixtureIndex()),
         activeRoot: "character_design",
-        autoApproveCrossStageOperations: true,
         requestUserInput
       }),
       "create"
@@ -478,23 +399,11 @@ describe("unified long-form tools: mutations", () => {
 
   it("uses approval-canonical titles for cross-stage continuity proposals", async () => {
     const index = committedFixtureIndex();
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session_tools",
-      runId: "run_tools",
-      requestId: `request_${request.toolCallId}`,
-      answers: [
-        {
-          id: "cross_stage_write",
-          selectedOptionIds: ["continue_once"]
-        }
-      ]
-    }));
     const edit = toolByName(
       longTools({
         executor: documentExecutor(index),
         activeRoot: "draft",
-        index,
-        requestUserInput
+        index
       }),
       "edit"
     );
@@ -529,7 +438,6 @@ describe("unified long-form tools: mutations", () => {
       summary: "记录人物历史轨迹"
     });
 
-    expect(requestUserInput).toHaveBeenCalledTimes(4);
     expect(chapterEndState.details).toMatchObject({
       kind: "long-continuity-file-proposal",
       files: [expect.objectContaining({ title: "第一章 / 章末状态" })]

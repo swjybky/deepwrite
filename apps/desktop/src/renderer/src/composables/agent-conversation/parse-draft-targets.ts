@@ -1,3 +1,4 @@
+import { DraftSectionChangeSchema } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
 import { isRecord, nonnegativeInteger } from "./shared";
 export function parseStoredDraftSectionCreationTarget(
@@ -71,6 +72,7 @@ export function parseStoredDraftSectionCreationTarget(
   }
   return {
     sections,
+    ...(value.createWithContents === true ? { createWithContents: true } : {}),
     ...(typeof value.afterSectionId === "string"
       ? { afterSectionId: value.afterSectionId }
       : {}),
@@ -102,7 +104,10 @@ export function parseStoredDraftSectionRenameTarget(
   ) {
     return undefined;
   }
+  const change = DraftSectionChangeSchema.optional().safeParse(value.change);
+  if (!change.success) return undefined;
   return {
+    ...(change.data ? { change: change.data } : {}),
     sectionId: value.sectionId,
     previousTitle: value.previousTitle,
     title: value.title,

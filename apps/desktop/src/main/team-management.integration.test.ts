@@ -3,26 +3,37 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  AgentTeamPromptChangeSchema,
+  AgentTeamChangeSchema,
   AgentUserInputRequestedPayloadSchema,
-  BuiltinSubagentSettingsSchema,
   CommandEnvelopeSchema,
   createEnvelope,
   defaultBuiltinSubagentSettings,
-  type AgentTeamPromptChange,
+  type AgentTeamChange,
   type AgentTeamWorkspaceType,
+  type AgentTeamModelChoice,
   type CommandEnvelope,
   type LibraryManagementScope
 } from "@deepwrite/contracts";
 import { AgentTeamConfigStore } from "./agent-team-config-store";
 import {
-  listActiveTeamPrompts,
-  readActiveTeamPrompt
-} from "./agent-team-prompt-management";
+  activeTeamRevision,
+  listActiveTeams,
+  previewActiveTeamChange
+} from "./agent-team-active-management";
 import { handleTeamManagementCommand } from "./team-management-bridge";
 import { teamPromptReviews } from "./team-prompt-reviews";
 import type { MainInternalCommandActiveRun } from "./internal-command-authorizer";
 
+const models: AgentTeamModelChoice[] = [
+  {
+    id: "test-model",
+    label: "Test model",
+    kind: "llm",
+    reasoning: true,
+    thinkingLevelOptions: ["low", "high"],
+    temperatureOptions: [0.7]
+  }
+];
 const roots: string[] = [];
 afterEach(async () => {
   teamPromptReviews.clear("run");
@@ -37,7 +48,6 @@ afterEach(async () => {
     )
   );
 });
-
 async function fixture(
   workspaceType: AgentTeamWorkspaceType = "short",
   source: "bound" | "enabled" = "bound"
@@ -78,12 +88,33 @@ async function fixture(
     parentAgentId: profile.settings.teams[0]!.parentAgentId,
     memberId: "editor"
   };
-  const change: AgentTeamPromptChange = {
-    ...target,
-    previousPrompt: "保留人物动机。\n核对因果。",
-    prompt: "保留人物动机。\n逐项核对剧情因果并列出依据。",
-    summary: "明确检查步骤与输出要求"
+  const previewInput = {
+    scope,
+    teamId: profile.id,
+    baseRevision: activeTeamRevision(
+      (await store.list()).teams.find((t) => t.id === profile.id)!
+    ),
+    summary: "明确检查步骤",
+    operations: [
+      {
+        action: "update-member" as const,
+        parentAgentId: target.parentAgentId,
+        memberId: "editor",
+        promptReplacements: [
+          {
+            originalText: "核对因果。",
+            newText: "逐项核对剧情因果并列出依据。"
+          }
+        ]
+      }
+    ]
   };
+  const preview = previewActiveTeamChange(
+    await store.list(),
+    previewInput,
+    models
+  );
+  const change = AgentTeamChangeSchema.strip().parse(preview);
   const activeRuns = new Map<string, MainInternalCommandActiveRun>([
     [
       "run",
@@ -103,6 +134,7 @@ async function fixture(
       sessionId?: string;
       parentRequestId?: string;
       resourceId?: string;
+      models?: AgentTeamModelChoice[];
     } = {}
   ) {
     const envelope = CommandEnvelopeSchema.parse(
@@ -131,13 +163,11 @@ async function fixture(
       },
       activeRuns,
       () => store,
-      changed
+      changed,
+      async () => options.models ?? models
     );
   }
-  function review(
-    patch: Partial<AgentTeamPromptChange> = {},
-    selected = ["accept"]
-  ) {
+  function review(patch: Partial<AgentTeamChange> = {}, selected = ["accept"]) {
     const actual = { ...change, ...patch };
     teamPromptReviews.receive(
       AgentUserInputRequestedPayloadSchema.parse({
@@ -156,10 +186,9 @@ async function fixture(
             ]
           }
         ],
-        promptReview: {
+        teamReview: {
           ...actual,
           teamName: profile.name,
-          memberName: "提示词测试成员",
           boundBookCount: source === "bound" ? 1 : 0,
           enabledAsDefault: source === "enabled"
         },
@@ -180,6 +209,7 @@ async function fixture(
     profile,
     target,
     change,
+    previewInput,
     activeRuns,
     command,
     review,
@@ -187,7 +217,7 @@ async function fixture(
   };
 }
 
-describe("effective team prompt management", () => {
+describe("effective team management", () => {
   it.each([
     ["short", "bound"],
     ["script", "bound"],
@@ -196,289 +226,387 @@ describe("effective team prompt management", () => {
     ["script", "enabled"],
     ["long", "enabled"]
   ] as const)(
-    "reads and saves reviewed %s %s team prompts without changing other member settings",
+    "lists, reads, previews and saves %s %s team with exact consent",
     async (type, source) => {
       const f = await fixture(type, source);
-      const listed = listActiveTeamPrompts(await f.store.list(), f.scope);
-      expect(listed).toHaveLength(1);
-      expect(listed[0]!.members[0]).toMatchObject({
-        id: "editor",
-        enabled: false
+      const listed = await f.command("agentTeams.listActive", {
+        scope: f.scope
       });
-      expect(listed[0]!.enabledAsDefault).toBe(source === "enabled");
-      expect(
-        await f.command("agentTeams.listActivePrompts", { scope: f.scope })
-      ).toMatchObject({
+      expect(listed).toMatchObject({
         status: "accepted",
-        payload: [{ id: f.target.teamId }]
+        payload: {
+          teams: [
+            {
+              id: f.target.teamId,
+              enabledAsDefault: source === "enabled",
+              members: [{ id: "editor", enabled: false }]
+            }
+          ],
+          models
+        }
       });
       expect(JSON.stringify(listed)).not.toContain("保留人物动机");
       expect(
-        await f.command("agentTeams.readActivePrompt", f.target)
-      ).toMatchObject({
-        status: "accepted",
-        payload: { prompt: f.change.previousPrompt }
-      });
-      f.review();
-      expect(
-        await f.command("agentTeams.applyActivePrompt", {
-          ...f.change,
-          reviewRequestId: "review"
+        await f.command("agentTeams.readActiveMembers", {
+          scope: f.scope,
+          teamId: f.target.teamId,
+          members: [
+            { parentAgentId: f.target.parentAgentId, memberId: "editor" }
+          ]
         })
       ).toMatchObject({
         status: "accepted",
-        payload: { prompt: f.change.prompt }
+        payload: { members: [{ systemPrompt: "保留人物动机。\n核对因果。" }] }
       });
+      expect(
+        await f.command("agentTeams.previewActiveChange", f.previewInput)
+      ).toMatchObject({ status: "accepted", payload: f.change });
+      const save = () =>
+        f.command("agentTeams.applyActiveChange", {
+          ...f.change,
+          reviewRequestId: "review"
+        });
+      expect(await save()).toMatchObject({ status: "rejected" });
+      f.review();
+      expect(await save()).toMatchObject({ status: "accepted" });
       const saved = await new AgentTeamConfigStore(f.root).list();
-      const member = saved.teams.find((team) => team.id === f.target.teamId)!
-        .settings.teams[0]!.subagents[0]!;
-      expect(member).toEqual({
-        ...f.profile.settings.teams[0]!.subagents[0],
-        systemPrompt: f.change.prompt
-      });
+      expect(
+        saved.teams.find((t) => t.id === f.target.teamId)!.settings.teams[0]!
+          .subagents[0]
+      ).toEqual(f.change.members[0]!.after);
       expect(saved.bookBindings).toEqual(
         source === "bound" ? { "test-book": [f.target.teamId] } : undefined
       );
       expect(f.changed).toHaveBeenCalledExactlyOnceWith(f.target.teamId);
+      expect(await save()).toMatchObject({ status: "rejected" });
+    }
+  );
+
+  it("updates all member settings, adds/removes members and switches parallel in one review", async () => {
+    const f = await fixture();
+    const snapshot = await f.store.list();
+    const preview = previewActiveTeamChange(
+      snapshot,
+      {
+        ...f.previewInput,
+        operations: [
+          {
+            action: "update-member",
+            parentAgentId: f.target.parentAgentId,
+            memberId: "editor",
+            set: {
+              name: "新名称",
+              description: "新职责",
+              enabled: true,
+              agentMode: "pure-bare",
+              webSearchMode: "on",
+              modelMode: "custom",
+              modelId: "test-model",
+              thinkingLevel: "off",
+              temperature: 0.7,
+              draw: {
+                enabled: true,
+                count: 3,
+                selection: "auto",
+                evaluator: {
+                  modelMode: "custom",
+                  modelId: "test-model",
+                  thinkingLevel: "high"
+                }
+              }
+            }
+          },
+          {
+            action: "add-member",
+            parentAgentId: f.target.parentAgentId,
+            member: {
+              name: "新增成员",
+              description: "负责新任务",
+              systemPrompt: "完成任务"
+            }
+          },
+          { action: "set-parallel", enabled: true }
+        ]
+      },
+      models
+    );
+    const change = AgentTeamChangeSchema.strip().parse(preview);
+    f.review(change);
+    expect(
+      await f.command("agentTeams.applyActiveChange", {
+        ...change,
+        reviewRequestId: "review"
+      })
+    ).toMatchObject({ status: "accepted" });
+    const saved = (await f.store.list()).teams.find(
+      (t) => t.id === f.target.teamId
+    )!;
+    expect(saved.settings.parallelSubagents).toBe(true);
+    expect(saved.settings.teams[0]!.subagents).toEqual(
+      change.members.map((m) => m.after)
+    );
+    const removal = previewActiveTeamChange(
+      await f.store.list(),
+      {
+        ...f.previewInput,
+        baseRevision: activeTeamRevision(saved),
+        operations: [
+          {
+            action: "remove-member",
+            parentAgentId: f.target.parentAgentId,
+            memberId: "editor"
+          }
+        ]
+      },
+      models
+    );
+    f.review(AgentTeamChangeSchema.strip().parse(removal));
+    expect(
+      await f.command("agentTeams.applyActiveChange", {
+        ...AgentTeamChangeSchema.strip().parse(removal),
+        reviewRequestId: "review"
+      })
+    ).toMatchObject({ status: "accepted" });
+    expect(
+      (await f.store.list()).teams.find((t) => t.id === f.target.teamId)!
+        .settings.teams[0]!.subagents
+    ).toHaveLength(1);
+  });
+
+  it("rejects invalid models, duplicate ids and ambiguous prompt patches without changing disk", async () => {
+    const f = await fixture();
+    for (const operations of [
+      [
+        {
+          action: "update-member",
+          parentAgentId: f.target.parentAgentId,
+          memberId: "editor",
+          set: {
+            modelMode: "custom",
+            modelId: "missing",
+            thinkingLevel: "high"
+          }
+        }
+      ],
+      [
+        {
+          action: "update-member",
+          parentAgentId: f.target.parentAgentId,
+          memberId: "editor",
+          set: {
+            modelMode: "custom",
+            modelId: "test-model",
+            thinkingLevel: "off",
+            temperature: 0.6
+          }
+        }
+      ],
+      [
+        {
+          action: "update-member",
+          parentAgentId: f.target.parentAgentId,
+          memberId: "editor",
+          set: {
+            draw: {
+              enabled: true,
+              evaluator: {
+                evaluationMethod: "jev",
+                modelMode: "inherit",
+                modelId: "test-model"
+              }
+            }
+          }
+        }
+      ],
+      [
+        {
+          action: "add-member",
+          parentAgentId: f.target.parentAgentId,
+          member: {
+            id: "editor",
+            name: "其他成员",
+            description: "工作",
+            systemPrompt: "工作"
+          }
+        }
+      ],
+      [
+        {
+          action: "update-member",
+          parentAgentId: f.target.parentAgentId,
+          memberId: "editor",
+          promptReplacements: [{ originalText: "。", newText: "!" }]
+        }
+      ]
+    ]) {
       expect(
-        await f.command("agentTeams.applyActivePrompt", {
+        await f.command("agentTeams.previewActiveChange", {
+          ...f.previewInput,
+          operations
+        })
+      ).toMatchObject({ status: "rejected" });
+    }
+    expect(
+      (await f.store.list()).teams.find((t) => t.id === f.target.teamId)!
+        .settings
+    ).toEqual(f.profile.settings);
+  });
+
+  it("rejects changes to the reviewed content, rejection, skip and mixed consent", async () => {
+    const f = await fixture();
+    for (const selected of [["reject"], ["skip"], ["accept", "reject"]]) {
+      f.review({}, selected);
+      expect(
+        await f.command("agentTeams.applyActiveChange", {
           ...f.change,
           reviewRequestId: "review"
         })
       ).toMatchObject({ status: "rejected" });
     }
-  );
+    f.review();
+    const changed = structuredClone(f.change);
+    changed.members[0]!.after!.systemPrompt = "未审阅内容";
+    expect(
+      await f.command("agentTeams.applyActiveChange", {
+        ...changed,
+        reviewRequestId: "review"
+      })
+    ).toMatchObject({ status: "rejected" });
+    expect(f.changed).not.toHaveBeenCalled();
+  });
 
-  it("uses the enabled team after removing a binding and reports default and shared scope", async () => {
+  it("checks that the reviewed model is still available when saving", async () => {
     const f = await fixture();
-    await f.store.setEnabled({ teamId: f.target.teamId, enabled: true });
+    const review = previewActiveTeamChange(
+      await f.store.list(),
+      {
+        ...f.previewInput,
+        operations: [
+          {
+            action: "update-member",
+            parentAgentId: f.target.parentAgentId,
+            memberId: "editor",
+            set: {
+              modelMode: "custom",
+              modelId: "test-model",
+              thinkingLevel: "off",
+              temperature: 0.7
+            }
+          }
+        ]
+      },
+      models
+    );
+    const change = AgentTeamChangeSchema.strip().parse(review);
+    f.review(change);
+    expect(
+      await f.command(
+        "agentTeams.applyActiveChange",
+        {
+          ...change,
+          reviewRequestId: "review"
+        },
+        { models: [] }
+      )
+    ).toMatchObject({ status: "rejected" });
+    expect(
+      (await f.store.list()).teams.find((t) => t.id === f.target.teamId)!
+        .settings
+    ).toEqual(f.profile.settings);
+  });
+
+  it("rejects stale preview and serializes competing saves against one baseline", async () => {
+    const f = await fixture();
+    const results = await Promise.allSettled([
+      f.store.applyActiveChange(f.change, models),
+      f.store.applyActiveChange(f.change, models)
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "rejected"]);
+    expect(
+      await f.command("agentTeams.previewActiveChange", f.previewInput)
+    ).toMatchObject({ status: "rejected" });
+    f.review();
+    expect(
+      await f.command("agentTeams.applyActiveChange", {
+        ...f.change,
+        reviewRequestId: "review"
+      })
+    ).toMatchObject({ status: "rejected" });
+  });
+
+  it("uses bindings before defaults, preserves shared scope and rejects stale team selection", async () => {
+    const f = await fixture();
     await f.store.setBookBinding({
-      bookId: "another-book",
+      bookId: "other-book",
       workspaceType: "short",
       teamIds: [f.target.teamId]
     });
+    const added = await f.store.create({
+      workspaceType: "short",
+      name: "另一个团队"
+    });
+    const other = added.teams.find((t) => t.name === "另一个团队")!;
+    await f.store.setEnabled({ teamId: other.id, enabled: true });
+    let snapshot = await f.store.list();
+    expect(listActiveTeams(snapshot, f.scope, models).teams).toMatchObject([
+      { id: f.target.teamId, boundBookCount: 2 }
+    ]);
     expect(
-      readActiveTeamPrompt(await f.store.list(), f.target).boundBookCount
-    ).toBe(2);
+      listActiveTeams(
+        { ...snapshot, bookBindings: { [f.scope.bookId]: ["missing"] } },
+        f.scope,
+        models
+      ).teams
+    ).toEqual([]);
+    f.review();
     await f.store.setBookBinding({
       bookId: f.scope.bookId,
       workspaceType: "short",
       teamIds: []
     });
-    expect(listActiveTeamPrompts(await f.store.list(), f.scope)).toMatchObject([
-      { id: f.target.teamId, enabledAsDefault: true, boundBookCount: 1 }
-    ]);
+    snapshot = await f.store.list();
     expect(
-      await f.command("agentTeams.readActivePrompt", f.target)
-    ).toMatchObject({
-      status: "accepted",
-      payload: { enabledAsDefault: true }
-    });
-    f.review();
-    expect(
-      await f.command("agentTeams.applyActivePrompt", {
-        ...f.change,
-        reviewRequestId: "review"
-      })
-    ).toMatchObject({ status: "accepted" });
-    expect((await f.store.list()).bookBindings).toEqual({
-      "another-book": [f.target.teamId]
-    });
-  });
-
-  it("uses bound teams in preference to a different enabled team and never expands broken bindings", async () => {
-    const f = await fixture();
-    const added = await f.store.create({
-      workspaceType: "short",
-      name: "其他启用团队"
-    });
-    const other = added.teams.find((team) => team.name === "其他启用团队")!;
-    await f.store.setEnabled({ teamId: other.id, enabled: true });
-    const snapshot = await f.store.list();
-    expect(
-      listActiveTeamPrompts(snapshot, f.scope).map((team) => team.id)
-    ).toEqual([f.target.teamId]);
-    expect(
-      await f.command("agentTeams.readActivePrompt", {
-        ...f.target,
-        teamId: other.id
-      })
-    ).toMatchObject({ status: "rejected" });
-    expect(
-      listActiveTeamPrompts(
-        { ...snapshot, bookBindings: { [f.scope.bookId]: ["missing-team"] } },
-        f.scope
-      )
-    ).toEqual([]);
-  });
-
-  it("rejects reading and saving an old default team after the enabled team changes", async () => {
-    const f = await fixture("short", "enabled");
-    f.review();
-    const added = await f.store.create({
-      workspaceType: "short",
-      name: "新启用团队"
-    });
-    const other = added.teams.find((team) => team.name === "新启用团队")!;
-    await f.store.setEnabled({ teamId: other.id, enabled: true });
-    expect(
-      listActiveTeamPrompts(await f.store.list(), f.scope).map(
-        (team) => team.id
-      )
+      listActiveTeams(snapshot, f.scope, models).teams.map((t) => t.id)
     ).toEqual([other.id]);
     expect(
-      await f.command("agentTeams.readActivePrompt", f.target)
-    ).toMatchObject({ status: "rejected" });
-    expect(
-      await f.command("agentTeams.applyActivePrompt", {
+      await f.command("agentTeams.applyActiveChange", {
         ...f.change,
         reviewRequestId: "review"
       })
     ).toMatchObject({ status: "rejected" });
+    await f.store.setEnabled({ teamId: other.id, enabled: false });
     expect(
-      (await f.store.list()).teams.find((team) => team.id === f.target.teamId)!
-        .settings.teams[0]!.subagents[0]!.systemPrompt
-    ).toBe(f.change.previousPrompt);
-    expect(f.changed).not.toHaveBeenCalled();
+      await f.command("agentTeams.listActive", { scope: f.scope })
+    ).toMatchObject({ status: "accepted", payload: { teams: [] } });
   });
 
-  it("reports no effective team when no team is bound or enabled", async () => {
-    const f = await fixture("short", "enabled");
-    await f.store.setEnabled({ teamId: f.target.teamId, enabled: false });
-    expect(
-      await f.command("agentTeams.listActivePrompts", { scope: f.scope })
-    ).toMatchObject({ status: "accepted", payload: [] });
-    expect(
-      await f.command("agentTeams.readActivePrompt", f.target)
-    ).toMatchObject({ status: "rejected" });
-    f.review();
-    expect(
-      await f.command("agentTeams.applyActivePrompt", {
-        ...f.change,
-        reviewRequestId: "review"
-      })
-    ).toMatchObject({ status: "rejected" });
-  });
-
-  it("requires explicit consent for exactly the reviewed text", async () => {
-    const f = await fixture();
-    const save = (change = f.change) =>
-      f.command("agentTeams.applyActivePrompt", {
-        ...change,
-        reviewRequestId: "review"
-      });
-    expect(await save()).toMatchObject({ status: "rejected" });
-    f.review({}, ["reject"]);
-    expect(await save()).toMatchObject({ status: "rejected" });
-    f.review();
-    expect(
-      await save({ ...f.change, prompt: "未经过审阅的内容" })
-    ).toMatchObject({ status: "rejected" });
-    expect(readActiveTeamPrompt(await f.store.list(), f.target).prompt).toBe(
-      f.change.previousPrompt
-    );
-    expect(f.changed).not.toHaveBeenCalled();
-  });
-
-  it("rejects concurrent changes and serializes competing saves against the same baseline", async () => {
-    const f = await fixture();
-    const competing = { ...f.change, prompt: "人工刚保存的内容" };
-    await f.store.applyActivePrompt(competing);
-    f.review();
-    const rejected = await f.command("agentTeams.applyActivePrompt", {
-      ...f.change,
-      reviewRequestId: "review"
-    });
-    expect(rejected).toMatchObject({
-      status: "rejected",
-      error: { message: expect.stringContaining("其他操作") }
-    });
-    expect(readActiveTeamPrompt(await f.store.list(), f.target).prompt).toBe(
-      competing.prompt
-    );
-    const newBase = { ...f.change, previousPrompt: competing.prompt };
-    const results = await Promise.allSettled([
-      f.store.applyActivePrompt(newBase),
-      f.store.applyActivePrompt({ ...newBase, prompt: "第二个写入" })
-    ]);
-    expect(results.map((result) => result.status)).toEqual([
-      "fulfilled",
-      "rejected"
-    ]);
-  });
-
-  it("checks run, session, request origin, work type and the live enabled state", async () => {
+  it("checks run, session, request origin, work type and live tool enabled state", async () => {
     const f = await fixture();
     for (const options of [
-      { sessionId: "another-session" },
-      { parentRequestId: "another-parent" },
-      { resourceId: "another-book" }
-    ]) {
+      { sessionId: "other" },
+      { parentRequestId: "other" },
+      { resourceId: "other" }
+    ])
       expect(
-        await f.command("agentTeams.readActivePrompt", f.target, options)
+        await f.command(
+          "agentTeams.previewActiveChange",
+          f.previewInput,
+          options
+        )
       ).toMatchObject({ status: "rejected" });
-    }
     for (const scope of [
-      { bookId: "another-book", bookType: "short" },
+      { bookId: "other", bookType: "short" },
       { bookId: f.scope.bookId, bookType: "long" }
-    ] as LibraryManagementScope[]) {
+    ] as LibraryManagementScope[])
       expect(
-        await f.command("agentTeams.readActivePrompt", { ...f.target, scope })
+        await f.command("agentTeams.previewActiveChange", {
+          ...f.previewInput,
+          scope
+        })
       ).toMatchObject({ status: "rejected" });
-    }
-    const settings = defaultBuiltinSubagentSettings();
-    settings.team.enabled = false;
-    await f.store.saveBuiltins(settings);
+    await f.store.saveBuiltins(defaultBuiltinSubagentSettings());
     expect(
-      await f.command("agentTeams.readActivePrompt", f.target)
+      await f.command("agentTeams.listActive", { scope: f.scope })
     ).toMatchObject({ status: "rejected" });
-  });
-
-  it("adds the new manager to existing settings and rejects empty or oversized prompts", () => {
-    const defaults = defaultBuiltinSubagentSettings();
-    const migrated = BuiltinSubagentSettingsSchema.parse({
-      skill: { ...defaults.skill, enabled: false },
-      material: { ...defaults.material, description: "已有的素材调用说明" }
-    });
-    expect(migrated.team).toEqual(defaults.team);
-    expect(migrated.skill.enabled).toBe(false);
-    expect(migrated.material.description).toBe("已有的素材调用说明");
-    expect(
-      BuiltinSubagentSettingsSchema.parse({
-        ...defaults,
-        team: {
-          enabled: false,
-          description:
-            "仅在用户要求查看、管理或优化当前作品绑定团队的成员提示词时调用。先读取原提示词，修改逐项审阅，明确接受后保存。"
-        }
-      }).team
-    ).toEqual({ ...defaults.team, enabled: false });
-    expect(
-      BuiltinSubagentSettingsSchema.parse({
-        ...defaults,
-        team: {
-          enabled: true,
-          description: "我的自定义管理说明"
-        }
-      }).team.description
-    ).toBe("我的自定义管理说明");
-    expect(AgentTeamPromptChangeSchema.safeParse({}).success).toBe(false);
-    const target = {
-      scope: { bookId: "book", bookType: "short" },
-      teamId: "team",
-      parentAgentId: "short",
-      memberId: "member",
-      previousPrompt: "old",
-      summary: "summary"
-    };
-    expect(
-      AgentTeamPromptChangeSchema.safeParse({ ...target, prompt: " " }).success
-    ).toBe(false);
-    expect(
-      AgentTeamPromptChangeSchema.safeParse({
-        ...target,
-        prompt: "字".repeat(20_001)
-      }).success
-    ).toBe(false);
   });
 });

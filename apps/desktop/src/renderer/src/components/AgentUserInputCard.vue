@@ -252,10 +252,10 @@ function recommended(label: string): boolean {
 <template>
   <section
     class="agent-user-input-card"
-    :class="{ 'is-prompt-review': !!request.promptReview }"
+    :class="{ 'is-prompt-review': !!request.teamReview }"
     :aria-label="
-      request.source === 'cross_stage_write'
-        ? t('confirmOperationAcrossStages')
+      request.source === 'plot_structure_change'
+        ? t('confirmPlotStructureChange')
         : t('agentQuestion')
     "
   >
@@ -274,8 +274,8 @@ function recommended(label: string): boolean {
 
     <div class="agent-user-input-questions" @scroll.passive="hideOptionDetail">
       <AgentTeamPromptReview
-        v-if="request.promptReview"
-        :review="request.promptReview"
+        v-if="request.teamReview"
+        :review="request.teamReview"
         :request-id="request.requestId"
       />
       <fieldset

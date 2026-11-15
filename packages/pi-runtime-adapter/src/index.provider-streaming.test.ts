@@ -701,19 +701,23 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
     expect(JSON.stringify(resetMessages)).not.toContain("保留的问题");
   });
 
-  it("uses the same permanent-context transcript for creative workspace agents", async () => {
+  it("includes the current work title and user request on each screenplay and short-story turn", async () => {
     const runtime = new PiAgentRuntimeAdapter({ tokensPerSecond: 0 });
     const scriptWorkspace = screenplayWorkspace();
     const profile = scriptAgentProfile();
 
-    for (const [index, prompt] of ["先规划第一集", "继续细化开场"].entries()) {
+    const scriptTurns = [
+      { title: scriptWorkspace.title, prompt: "先规划第一集" },
+      { title: "雾港剧本（修订稿）", prompt: "继续细化开场" }
+    ];
+    for (const [index, { title, prompt }] of scriptTurns.entries()) {
       for await (const _event of runtime.start({
         runId: `run_script_history_${index}`,
         sessionId: "session_script_history",
         prompt,
         thinkingLevel: "off",
         scriptAgentProfile: profile,
-        workspaceContext: { scriptWorkspace }
+        workspaceContext: { scriptWorkspace: { ...scriptWorkspace, title } }
       })) {
         // Consume both turns before inspecting the script-agent transcript.
       }
@@ -732,18 +736,12 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
       (message) => message.role === "user"
     );
 
-    expect(userMessages).toHaveLength(2);
-    expect(String(userMessages?.[0]?.content)).toContain(
-      "【本次智能体会话固定上下文】"
-    );
-    expect(String(userMessages?.[0]?.content)).toContain(
-      "剧本作品: 《雾港剧本》"
-    );
-    expect(String(userMessages?.[0]?.content)).toContain("先规划第一集");
-    expect(String(userMessages?.[1]?.content)).toContain(
-      "【本次智能体会话固定上下文】"
-    );
-    expect(String(userMessages?.[1]?.content)).toContain("继续细化开场");
+    expect(userMessages).toHaveLength(scriptTurns.length);
+    for (const [index, { title, prompt }] of scriptTurns.entries()) {
+      const content = userMessages?.[index]?.content;
+      expect(content).toContain(`剧本作品: 《${title}》`);
+      expect(content).toContain(`【用户消息与上传附件】\n${prompt}`);
+    }
 
     const shortProfile = DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES[0]!;
     const shortWorkspace = {
@@ -775,10 +773,11 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
     expect(String(shortUserMessages?.[1]?.content)).toContain(
       "短篇作品: 《雾港短篇》"
     );
-    expect(String(shortUserMessages?.[1]?.content)).toContain("继续细化冲突");
+    expect(shortUserMessages?.[0]?.content).toContain("先规划第一节");
+    expect(shortUserMessages?.[1]?.content).toContain("继续细化冲突");
   });
 
-  it("permanently injects worldbuilding context only into the first user message", async () => {
+  it("keeps the first directory and refreshes the worldbuilding focus on later turns", async () => {
     const profile = DEFAULT_LONG_AGENT_PROFILES.find(
       ({ id }) => id === "long"
     )!;
@@ -854,7 +853,24 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
         prompt,
         thinkingLevel: "off",
         longAgentProfile: profile,
-        workspaceContext: { longWorkspace }
+        workspaceContext: {
+          longWorkspace:
+            index === 0
+              ? longWorkspace
+              : {
+                  ...longWorkspace,
+                  worldbuildingFocus: {
+                    categoryId: "world_factions",
+                    categoryTitle: "势力",
+                    format: "list",
+                    currentStage: {
+                      kind: "item",
+                      itemId: "worlditem_harbor",
+                      title: "港务会"
+                    }
+                  }
+                }
+        }
       })) {
         // Consume both turns before inspecting the cache-stable transcript.
       }
@@ -889,14 +905,12 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
       "守夜人（item_id=worlditem_watchers；顺序=1）"
     );
     expect(String(userMessages?.[0]?.content)).toContain(
-      "当前用户所处的世界观阶段: 列表型分类「势力」 / 条目「守夜人」（category_id=world_factions；item_id=worlditem_watchers）"
+      "世界观位置: 列表型分类「势力」 / 条目「守夜人」（category_id=world_factions；item_id=worlditem_watchers）"
     );
     expect(String(userMessages?.[0]?.content)).toContain(
-      "当前阶段简要信息: 仅定位当前页面，正文未注入"
+      "仅定位当前页面，正文未注入"
     );
-    expect(String(userMessages?.[0]?.content)).toContain(
-      "【当前阶段信息与要求】"
-    );
+    expect(String(userMessages?.[0]?.content)).toContain("【用户当前位置】");
     expect(String(userMessages?.[0]?.content)).toContain(
       "【长篇结构导航（发送时快照；条目正文与最新内容请通过工具读取）】"
     );
@@ -912,6 +926,16 @@ describe("DeepWrite Pi runtime adapter: provider-streaming", () => {
     );
     expect(String(userMessages?.[0]?.content)).toContain("先检查世界规则");
     expect(userMessages?.[1]?.content).toContain("再补充力量体系");
+    expect(String(userMessages?.[1]?.content)).toContain("【用户当前位置】");
+    expect(String(userMessages?.[1]?.content)).toContain(
+      "read（id=worlditem_harbor）"
+    );
+    expect(String(userMessages?.[1]?.content)).not.toContain(
+      "item_id=worlditem_watchers"
+    );
+    expect(String(userMessages?.[1]?.content)).not.toContain(
+      "【世界观条目列表"
+    );
   });
 
   it("assembles only the active library tools and keeps entry bodies out of the prompt", async () => {

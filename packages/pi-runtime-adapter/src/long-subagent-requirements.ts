@@ -1,39 +1,68 @@
+import { createLongWorkspaceNavigationSnapshot } from "@deepwrite/contracts";
+import { createLongToolContext } from "./long-agent-tools/context";
+import type { LongWorkspaceToolSharedState } from "./long-agent-tools";
 import { promptLocaleOf } from "./prompt-locale";
+import { buildLongFollowUpContextLines } from "./prompts-long";
+import {
+  buildLongReadOnlyWorkspaceRules,
+  buildLongWorkspaceRules
+} from "./prompts-long-rules";
 import type { AgentRunInput } from "./runtime-types";
-import { webToolNamesFor } from "./web-search/prompt";
+import type { BuildSpawnSubagentToolInput } from "./subagent-types";
 import { writeApprovalBoundary } from "./write-approval";
 
-/** Non-editable requirements of a team member delegated by the long-form agent. */
-export function longSubagentRequirements(input: AgentRunInput): {
-  systemPromptRequirements: string;
-  pureReadSystemPromptRequirements: string;
-} {
+export function longSubagentContext(
+  input: AgentRunInput,
+  state: LongWorkspaceToolSharedState | undefined
+): Pick<
+  BuildSpawnSubagentToolInput,
+  "systemPromptRequirements" | "pureReadSystemPromptRequirements"
+> {
   const locale = promptLocaleOf(input);
-  const webTools = input.webSearch
-    ? webToolNamesFor(input.webSearch.providerId, locale)
-    : undefined;
-  if (locale === "en-US") {
-    return {
-      systemPromptRequirements: [
-        "This is a single-level task delegated by the long-form main agent. Use only the inherited long-form query and proposal tools and the current bookId. When handing back, list the changes you submitted.",
-        writeApprovalBoundary(input.writeApprovalMode, locale)
-      ].join("\n"),
-      pureReadSystemPromptRequirements: `This is a single-level read-only task delegated by the long-form main agent. Use only read and list on the current bookId and query_linked_material_entries for materials${
-        webTools
-          ? `; when web_search is in the tool list, you may also verify public facts with ${webTools}`
-          : ""
-      }. There are no write tools: you cannot change the work and must never claim to have changed it or committed to the continuity ledger.`
-    };
-  }
+  const workspace = input.workspaceContext?.longWorkspace;
+  const context =
+    workspace && input.longAgentProfile && input.longCommandExecutor
+      ? createLongToolContext({
+          workspace,
+          profile: input.longAgentProfile,
+          sessionId: input.sessionId,
+          runId: input.runId,
+          executor: input.longCommandExecutor,
+          ...(state ? { sharedState: state } : {})
+        })
+      : undefined;
+  const directory = async (): Promise<string> => {
+    if (!workspace) return "";
+    const navigation = context
+      ? createLongWorkspaceNavigationSnapshot(
+          await context.reloadIndex(input.signal)
+        )
+      : workspace.navigation;
+    return buildLongFollowUpContextLines({ ...workspace, navigation })
+      .filter(Boolean)
+      .join("\n");
+  };
+  const delegated =
+    locale === "en-US"
+      ? "This is a single-level task delegated by the long-form main agent. Use only the inherited tools for this book. When handing back, list the changes you submitted."
+      : "这是长篇主智能体委派的单层子任务。只能使用本书继承的工具，交回结果时列出已提交的修改。";
+  const readOnly =
+    locale === "en-US"
+      ? "This is a single-level read-only task delegated by the long-form main agent. Use only the inherited query tools for this book. There are no write tools: never claim to have changed the work or committed to the continuity ledger."
+      : "这是长篇主智能体委派的单层只读子任务。只能使用本书继承的查询工具；没有写入工具，不得声称已修改作品或已提交连续性账本。";
   return {
-    systemPromptRequirements: [
-      "这是长篇主智能体委派的单层子任务。只能使用继承的长篇查询/提案工具和当前 bookId。交回结果时列出已提交的修改。",
-      writeApprovalBoundary(input.writeApprovalMode, locale)
-    ].join("\n"),
-    pureReadSystemPromptRequirements: `这是长篇主智能体委派的单层只读子任务。只能使用 read、list 读取当前 bookId 的作品，以及 query_linked_material_entries 读取素材${
-      webTools
-        ? `；工具清单列有 web_search 时，也可用 ${webTools} 查证公开资料`
-        : ""
-    }；没有任何写入工具，不能修改作品，也不得声称已修改或已提交连续性账本。`
+    systemPromptRequirements: async (toolNames) =>
+      [
+        buildLongWorkspaceRules(locale, toolNames),
+        writeApprovalBoundary(input.writeApprovalMode, locale),
+        await directory(),
+        delegated
+      ].join("\n\n"),
+    pureReadSystemPromptRequirements: async () =>
+      [
+        buildLongReadOnlyWorkspaceRules(locale),
+        await directory(),
+        readOnly
+      ].join("\n\n")
   };
 }

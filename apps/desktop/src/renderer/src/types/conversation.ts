@@ -152,6 +152,8 @@ export interface AgentEditProposal {
     expectedImpact?: LongWorkspaceImpactConfirmation;
   };
   draftSectionCreationTarget?: {
+    /** Older saved proposals create blank files before filling the two documents. */
+    createWithContents?: true;
     sections: Array<{
       title: string;
       wordCountRequirement: string;
@@ -168,6 +170,7 @@ export interface AgentEditProposal {
     acceptedDirectoryRevision?: string;
   };
   draftSectionRenameTarget?: {
+    change?: import("@deepwrite/contracts/renderer").DraftSectionChange;
     sectionId: string;
     previousTitle: string;
     title: string;

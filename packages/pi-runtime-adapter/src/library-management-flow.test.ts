@@ -12,6 +12,7 @@ import {
   createShortWorkspaceContentRevision,
   type LibraryAgentWorkspaceSnapshot
 } from "@deepwrite/contracts";
+import { libraryExecutor } from "./library-management-tools/test-support";
 import { libraryManagementParentPrompt } from "./library-management-runtime";
 import { inspectTranscript } from "./transcript.test-support";
 import { buildRunTools } from "./run-tools";
@@ -90,11 +91,7 @@ function input(
         description: "管理已确认的资料"
       }))
     },
-    libraryManagementCommandExecutor: vi.fn(async () => ({
-      status: "accepted" as const,
-      requestId: "query",
-      payload: { libraries: [], workspace: managerWorkspace }
-    }))
+    libraryManagementCommandExecutor: libraryExecutor(managerWorkspace)
   };
 }
 function provider() {
@@ -142,17 +139,11 @@ describe("creative workspace management delegation", () => {
           tools.filter((tool) => tool.name === "ask_user_question")
         ).toHaveLength(1);
         expect(new Set(tools.map((tool) => tool.name)).size).toBe(tools.length);
-        expect(
-          tools.some(
-            (tool) => tool.name === "manage_material_create_material_entry"
-          )
-        ).toBe(true);
+        expect(tools.some((tool) => tool.name === "library_write")).toBe(true);
         const spawn = tools.find((tool) => tool.name === "spawn_subagent");
         expect(Boolean(spawn)).toBe(team);
         expect(spawn?.description ?? "").not.toContain("builtin:");
-        expect(libraryManagementParentPrompt(run)).toContain(
-          "manage_material_"
-        );
+        expect(libraryManagementParentPrompt(run)).toContain("library_write");
         if (spawn) {
           faux.setResponses([fauxAssistantMessage("任务已完成")]);
           await spawn.execute("spawn", {
@@ -164,8 +155,9 @@ describe("creative workspace management delegation", () => {
               .flat()
               .some(
                 (name) =>
-                  name.startsWith("manage_") ||
-                  name.includes("agent_team_prompt")
+                  name.startsWith("library_") ||
+                  name.includes("agent_team_members") ||
+                  name.includes("agent_team_change")
               )
           ).toBe(false);
         }
@@ -173,7 +165,7 @@ describe("creative workspace management delegation", () => {
         expect(libraryManagementParentPrompt(run)).toBe("");
         expect(
           buildRunTools(run, options).some((tool) =>
-            tool.name.startsWith("manage_")
+            tool.name.startsWith("library_")
           )
         ).toBe(false);
       }

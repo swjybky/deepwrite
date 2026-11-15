@@ -19,7 +19,8 @@ function createdId(result: {
   const details = result.details;
   if (
     details.kind === "none" ||
-    details.kind === "long-ledger-commit-proposal"
+    details.kind === "long-ledger-commit-proposal" ||
+    details.kind === "long-continuity-commit-proposal"
   ) {
     throw new Error(
       `Expected a creation proposal: ${JSON.stringify(result.content)}`
@@ -47,8 +48,7 @@ function harness() {
     longTools({
       executor,
       sharedState,
-      index,
-      autoApproveCrossStageOperations: true
+      index
     });
   return { index, executor, sharedState, parent: tools(), child: tools() };
 }
@@ -116,7 +116,7 @@ describe("long workspace creation handoffs before Core saves proposals", () => {
         executor.mock.calls.filter(
           ([command]) => command.type === "long.getWorkspaceIndex"
         )
-      ).toHaveLength(2);
+      ).toHaveLength(3);
       expect(JSON.stringify(index)).toBe(original);
     }
   );

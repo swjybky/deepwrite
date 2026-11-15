@@ -264,7 +264,7 @@ export async function applyWorkspaceOperations(
  * text the agent edited. Comparing decoded text keeps a BOM or other byte
  * detail from turning into a false conflict.
  */
-function assertDocumentBaseUnchanged(
+export function assertDocumentBaseUnchanged(
   proposal: LongDocumentWriteProposal,
   diskContent: string
 ): void {

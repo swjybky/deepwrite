@@ -205,11 +205,16 @@ function pendingTargetMessage(proposal: AgentEditProposal): string | undefined {
       ? t("acceptToCreateTheLibraryEntryAndSaveIt")
       : t("acceptToUpdateTheLibraryEntryAndSaveIt");
   }
+  if (proposal.plotStructureTarget) {
+    return t("acceptToChangeTheSharedPlotStructure");
+  }
   if (proposal.draftSectionCreationTarget) {
     return t("acceptToCreateBlankManuscriptAndCharacterStateFiles");
   }
   if (proposal.draftSectionRenameTarget) {
-    return t("acceptToRenameTheChapterAndSaveLocallyIts");
+    return proposal.draftSectionRenameTarget.change
+      ? t("acceptSectionChange")
+      : t("acceptToRenameTheChapterAndSaveLocallyIts");
   }
   if (proposal.draftSectionDeletionTarget) {
     return t("acceptToPermanentlyDeleteThisChapterItsManuscriptAnd");
@@ -290,7 +295,12 @@ export function proposalStatusMessage(view: AgentEditProposalView): string {
     }
   }
   const streaming = streamingStatusMessage(view);
-  if (streaming) return streaming;
+  if (streaming) {
+    // A shared-structure change says so even while the run is paused on it.
+    return proposal.plotStructureTarget && proposal.status === "pending"
+      ? t("acceptToChangeTheSharedPlotStructure")
+      : streaming;
+  }
   const target =
     !proposal.statusMessage && proposal.status === "pending"
       ? pendingTargetMessage(proposal)

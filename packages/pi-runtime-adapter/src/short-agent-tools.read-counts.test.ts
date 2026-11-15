@@ -41,7 +41,7 @@ function snapshot(content = body) {
 }
 
 function writingTools(type: "short" | "script", workspace = snapshot()) {
-  const input = { workspace, autoApproveCrossStageOperations: true };
+  const input = { workspace };
   return type === "short"
     ? buildShortWorkspaceTools({ ...input, profile: shortProfile() })
     : buildScriptWorkspaceTools({
@@ -76,9 +76,9 @@ describe.each(["short", "script"] as const)("%s read counts", (type) => {
       await read.execute("directory", { kind: "draft", id: "draft" })
     );
     expect(text).toContain("正文总字数：9 字");
-    expect(text).toContain("人物状态总字数：7 字");
-    expect(text).toContain("字数要求=1000 字；正文字数=7；人物状态字数=7");
-    expect(text).toContain("正文字数=2；人物状态字数=0");
+    expect(text).toContain("状态总字数：7 字");
+    expect(text).toContain("字数要求=1000 字；正文字数=7；状态字数=7");
+    expect(text).toContain("正文字数=2；状态字数=0");
     expect(text).not.toContain(body);
   });
 

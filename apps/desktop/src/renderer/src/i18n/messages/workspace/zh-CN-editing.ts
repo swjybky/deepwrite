@@ -42,7 +42,7 @@ export default {
   },
   editorEntrySearch: {
     manuscript: "{title} · 正文",
-    characterState: "{title} · 人物状态",
+    characterState: "{title} · 状态",
     characterOverview: "人物概览",
     searching: "搜索中…",
     failedToSearchAllEntries: "搜索全部条目失败。",
@@ -323,8 +323,7 @@ export default {
       "当前作品缺少项目版本，无法安全删除正文结构。",
     thisNoLongerExists2: "该{value}已经不存在。",
     manuscriptSection: "正文小节",
-    deletedAndItsCharacterStateFiles:
-      "已删除“{sectionTitle}”及对应人物状态文件",
+    deletedAndItsCharacterStateFiles: "已删除“{sectionTitle}”及对应状态文件",
     couldNotDeleteThe: "删除{value}失败。"
   },
   lazyApprovalNavigationCoordinator: {

@@ -826,6 +826,12 @@ describe("catalog workspace projection", () => {
         expertSectionId: "intro"
       }
     ]);
+    // Historical manifests still carry the old display suffix.
+    expect(
+      draftDocuments.find(
+        (document) => document.draftFileKind === "character-state"
+      )?.title
+    ).toBe("导语 · 状态");
     expect(draftDocuments).toHaveLength(2);
     expect(draftDocuments.map((document) => document.draftFileKind)).toEqual([
       "body",

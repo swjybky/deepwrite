@@ -97,52 +97,33 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
             .map((item) => `- ${item.title}: ${item.content}`)
             .join("\n")}`
         : "显式附加素材: 无";
+  if (writingWorkspace && writingProfile) {
+    const english = input.promptLocale === "en-US";
+    return [
+      `${english ? "Work" : scriptWorkspace ? "剧本作品" : "短篇作品"}: 《${writingWorkspace.title}》`,
+      writingWorkspace.categories.length
+        ? `${english ? "Categories" : "作品分类"}: ${writingWorkspace.categories.join(english ? ", " : "、")}`
+        : "",
+      active
+        ? `${english ? "Current resource" : "当前资源"}: ${active.title} (${active.domain})`
+        : "",
+      english
+        ? `Available skills: ${readableSkills.map((item) => `${item.title} (${item.id})`).join(", ") || "none"}. Use load_skill for the full text.`
+        : skillContext,
+      materialContext,
+      ...materialCatalogNotes(input),
+      renderProposalSettlements(input.proposalSettlements, input.promptLocale),
+      english ? "[User message and attachments]" : "【用户消息与上传附件】",
+      buildRawUserText(input)
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
   const lines = [
     "【本次智能体会话固定上下文】",
-    isLongRun ? "" : `sessionId: ${input.sessionId}`,
-    isLongRun ? "" : `runId: ${input.runId}`,
-    writingWorkspace
-      ? `【${scriptWorkspace ? "剧本" : "短篇"}上下文（AGENTS.md）】\n${writingWorkspace.agentsMd ?? "未提供"}`
-      : "",
-    writingWorkspace
-      ? `【当前${scriptWorkspace ? "剧本" : "短篇"}情况（发送时快照）】`
-      : "",
-    writingWorkspace
-      ? `${scriptWorkspace ? "剧本" : "短篇"}作品: 《${writingWorkspace.title}》`
-      : "",
+    isLongRun || writingWorkspace ? "" : `sessionId: ${input.sessionId}`,
+    isLongRun || writingWorkspace ? "" : `runId: ${input.runId}`,
     ...(isLongRun ? buildLongFixedContextLines(longWorkspace!) : []),
-    writingWorkspace
-      ? `作品分类: ${writingWorkspace.categories.join("、") || "未分类"}`
-      : "",
-    writingWorkspace ? `当前阶段: ${writingWorkspace.activeStageId}` : "",
-    writingWorkspace
-      ? `剧情结构顺序: ${writingWorkspace.plotStages
-          .map((stage) => `${stage.title} (${stage.id})`)
-          .join(" → ")}`
-      : "",
-    writingWorkspace?.activeSectionId
-      ? `当前用户正在操作的${scriptWorkspace ? "剧集" : "小节"}: ${
-          writingWorkspace.expertDraft.sections.find(
-            (section) => section.id === writingWorkspace.activeSectionId
-          )?.title ?? "未知标题"
-        }（section_id=${writingWorkspace.activeSectionId}）`
-      : "",
-    writingWorkspace
-      ? writingWorkspace.characterStructure?.format === "list"
-        ? `人物结构: 条目样式；人物条目索引: ${
-            writingWorkspace.characterStructure.items.length
-              ? writingWorkspace.characterStructure.items
-                  .map((item) => `${item.title} (${item.id})`)
-                  .join("、")
-              : "无"
-          }`
-        : "人物结构: 文本样式（所有人物写在同一份总稿，kind=character_overview、id=character_design）"
-      : "",
-    writingWorkspace?.expertDraft.sections.length
-      ? `正文目录${scriptWorkspace ? "剧集" : "小节"}（由早到晚）: ${writingWorkspace.expertDraft.sections
-          .map((section) => `${section.title} (${section.id})`)
-          .join("、")}`
-      : "",
     writingProfile
       ? `当前智能体: ${writingProfile.label} (${writingProfile.id})`
       : longProfile

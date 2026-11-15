@@ -1,3 +1,4 @@
+import type { AgentWriteApprovalResponse } from "@deepwrite/contracts";
 import type {
   AgentMessage,
   AgentTool,
@@ -12,6 +13,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import type {
   AgentProviderRuntimeConfig,
+  PromptLocale,
   AgentRuntimeRef,
   ContextCompactionRequest,
   ContextCompactionRunSettings,
@@ -30,6 +32,7 @@ import type {
 
 /** Run identity and model settings shared by every agent domain. */
 export interface AgentRunTarget {
+  promptLocale?: PromptLocale;
   runId: string;
   sessionId: string;
   signal?: AbortSignal;
@@ -62,12 +65,19 @@ export interface AgentRunBuildContext {
    * Registers a callback for when a summary removed earlier tool output from
    * the context, so tools can forget which documents were fully read.
    */
-  onContextCompacted(listener: () => void): void;
+  onContextCompacted(
+    listener: (removedToolCallIds?: readonly string[]) => void
+  ): void;
   /**
    * Registers a callback for when the user settled a paused-for step, so
    * tools can drop their same-run view of proposals that were not saved.
    */
-  onWriteApprovalSettled(listener: () => void): void;
+  onWriteApprovalSettled(
+    listener: (
+      toolCallIds: string[],
+      response?: AgentWriteApprovalResponse
+    ) => void
+  ): void;
 }
 
 export interface AgentRunAssembly {

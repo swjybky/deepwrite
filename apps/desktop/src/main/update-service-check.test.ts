@@ -80,6 +80,11 @@ vi.mock("electron-updater", async () => {
 import { autoUpdater } from "electron-updater";
 import { UpdateService } from "./update-service";
 
+const serviceOptions = {
+  installMarkerPath: "unused-test-marker.json",
+  confirmInstall: async () => true
+};
+
 describe("UpdateService version ordering", () => {
   beforeEach(() => {
     runtime.currentVersion = "1.6.303";
@@ -94,7 +99,7 @@ describe("UpdateService version ordering", () => {
   });
 
   it("admits and downloads 1.6.4 from 1.6.303 through the real updater", async () => {
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
 
     expect(await service.check()).toMatchObject({
       status: "available",
@@ -126,7 +131,7 @@ describe("UpdateService version ordering", () => {
       try {
         Object.defineProperty(process, "platform", { value: platform });
         Object.defineProperty(process, "arch", { value: arch });
-        const service = new UpdateService(() => undefined);
+        const service = new UpdateService(() => undefined, serviceOptions);
         expect(await service.check()).toMatchObject({ status: "available" });
         expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
           provider: "generic",
@@ -144,7 +149,7 @@ describe("UpdateService version ordering", () => {
     "blocks older or equal %s before reaching the updater",
     async (version) => {
       runtime.manifestVersion = version;
-      const service = new UpdateService(() => undefined);
+      const service = new UpdateService(() => undefined, serviceOptions);
 
       expect(await service.check()).toMatchObject({
         status: "not-available",
@@ -160,7 +165,7 @@ describe("UpdateService version ordering", () => {
     async (version) => {
       runtime.currentVersion = "1.7.11";
       runtime.manifestVersion = version;
-      const service = new UpdateService(() => undefined);
+      const service = new UpdateService(() => undefined, serviceOptions);
       expect(await service.check()).toMatchObject({
         status: "not-available",
         canDownload: false
@@ -170,7 +175,7 @@ describe("UpdateService version ordering", () => {
   );
 
   it("clears native downgrade permission for a subsequent numeric upgrade", async () => {
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
     await service.check();
     expect(autoUpdater.allowDowngrade).toBe(true);
 
@@ -182,7 +187,7 @@ describe("UpdateService version ordering", () => {
 
   it("uses legacy build compatibility to enforce the minimum supported version", async () => {
     runtime.minimumSupportedVersion = "1.6.4";
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
     expect(await service.check()).toMatchObject({
       status: "available",
       mandatory: true
@@ -191,7 +196,7 @@ describe("UpdateService version ordering", () => {
 
   it("requires matching release metadata before enabling downloads", async () => {
     runtime.feedVersion = "1.6.5";
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
 
     expect(await service.check()).toMatchObject({
       status: "error",
@@ -202,7 +207,7 @@ describe("UpdateService version ordering", () => {
 
   it("keeps downloads disabled when the native updater rejects the update", async () => {
     runtime.supported = false;
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
 
     expect(await service.check()).toMatchObject({
       status: "error",
@@ -213,7 +218,7 @@ describe("UpdateService version ordering", () => {
 
   it("keeps updates disabled when the manifest is disabled", async () => {
     runtime.enabled = false;
-    const service = new UpdateService(() => undefined);
+    const service = new UpdateService(() => undefined, serviceOptions);
     expect(await service.check()).toMatchObject({ status: "not-available" });
     expect(autoUpdater.setFeedURL).not.toHaveBeenCalled();
   });

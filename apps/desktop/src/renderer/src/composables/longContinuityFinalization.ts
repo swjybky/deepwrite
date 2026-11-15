@@ -1,6 +1,8 @@
 import {
   LongCommitChapterInputSchema,
   longCommitInputChapterIds,
+  type DocumentVersionOrigin,
+  type LongWorkspaceOperationBatch,
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
 import type { LongWorkspaceRendererApi } from "../types/longWorkspace";
@@ -23,8 +25,21 @@ export function continuityFinalizationKey(
 
 export async function commitLongContinuityFinalization(
   api: LongWorkspaceRendererApi,
-  event: LongContinuityFinalizationEvent
+  event: LongContinuityFinalizationEvent,
+  versionOrigin?: DocumentVersionOrigin,
+  batch?: LongWorkspaceOperationBatch
 ): Promise<void> {
   const parsedInput = LongCommitChapterInputSchema.parse(event.payload.input);
-  await api.commitChapter(ipcSafeJson(parsedInput));
+  const input =
+    parsedInput.mode === "text_files_batch" && parsedInput.preparation
+      ? {
+          ...parsedInput,
+          preparation: {
+            ...parsedInput.preparation,
+            ...(versionOrigin ? { versionOrigin } : {}),
+            ...(batch ? { batch } : {})
+          }
+        }
+      : parsedInput;
+  await api.commitChapter(ipcSafeJson(input));
 }

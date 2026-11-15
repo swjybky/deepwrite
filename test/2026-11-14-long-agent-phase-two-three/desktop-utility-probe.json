@@ -1,0 +1,14 @@
+{
+  "runtime": "Electron Main adapter / production Core Utility",
+  "synthetic": true,
+  "rangeRead": true,
+  "rangeCannotEdit": true,
+  "repeatedRead": true,
+  "searchBusinessIds": true,
+  "mergedEventCount": 1,
+  "mergedFiles": 3,
+  "atomicCommit": true,
+  "idempotentRetry": true,
+  "staleBodyRejectsWholeBatch": true,
+  "requests": 71
+}

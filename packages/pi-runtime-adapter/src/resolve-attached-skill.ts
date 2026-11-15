@@ -129,8 +129,23 @@ function formatSkillListLine(item: LoadSkillCandidate): string {
 export function formatLoadSkillToolResult(
   rawName: string,
   result: ResolveAttachedSkillResult,
-  readable: readonly LoadSkillCandidate[]
+  readable: readonly LoadSkillCandidate[],
+  english = false
 ): string {
+  if (english) {
+    if (result.status === "found")
+      return `[Skill: ${result.skill.title}]\n\n${result.skill.content}`;
+    const message =
+      result.status === "ambiguous"
+        ? `Multiple skills match “${rawName}”. Use a full title: ${result.matches.map((item) => item.title).join(", ")}.`
+        : result.status === "out_of_scope"
+          ? `Skill “${rawName}” is outside this agent's read scope.`
+          : `No readable skill matches “${rawName}”.`;
+    return [
+      message,
+      `Readable skills: ${readable.map((item) => item.title).join(", ") || "none"}`
+    ].join("\n");
+  }
   const name =
     normalizeLoadSkillName(rawName) || String(rawName ?? "").trim() || "(空)";
   if (result.status === "found") {

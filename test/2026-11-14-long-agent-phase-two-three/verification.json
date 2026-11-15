@@ -1,0 +1,61 @@
+{
+  "phase": "two-three",
+  "verification": {
+    "command": "pnpm verify",
+    "status": "passed",
+    "testFiles": 1132,
+    "passed": 7469,
+    "skipped": 1,
+    "testDurationSeconds": 859.5,
+    "format": "passed",
+    "typecheck": "passed",
+    "eslint": "passed",
+    "rendererBoundary": "passed",
+    "i18n": "passed",
+    "build": "passed",
+    "rendererBudgets": "passed"
+  },
+  "supplementalApprovalQueue": {
+    "tests": 39,
+    "files": 6,
+    "reproducedThenFixed": [
+      "rejected_predecessor_kept_combined_card_waiting",
+      "duplicate_queued_acceptance_repeated_commit"
+    ],
+    "webTypecheck": "passed",
+    "eslint": "passed"
+  },
+  "desktopSmoke": {
+    "command": "pnpm smoke",
+    "status": "passed",
+    "electron": "42.5.0"
+  },
+  "coreUtilityProbe": {
+    "status": "passed",
+    "artifact": "desktop-utility-probe.json"
+  },
+  "visual": {
+    "status": "passed",
+    "themeSizePairs": 4,
+    "states": [
+      "previewing",
+      "submitting",
+      "error",
+      "accepted"
+    ],
+    "horizontalOverflow": false
+  },
+  "realModel": {
+    "status": "passed",
+    "modelFingerprint": "6afda537d87d3803",
+    "fixture": "synthetic-volume-three-chapters-v1",
+    "before": "phase-one-source-snapshot with a manually configured disabled-by-default writer enabled for the test",
+    "after": "phase-two-three-source with the writer template enabled for the test",
+    "trialsPerScenario": 1,
+    "scenarioCount": 4,
+    "allToolErrors": 0,
+    "firstInputTokenIncrease": 1089,
+    "note": "Provider-reported input and cache-read tokens are recorded separately. A short single-trial sample cannot establish a general token-saving percentage. The initial pre-phase-one real-model baseline was not recorded.",
+    "preflight": "Short-timeout probes were interrupted; retained before/after runs both use a 150-second idle limit and a 240-second per-scenario limit."
+  }
+}

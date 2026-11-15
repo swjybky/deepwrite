@@ -73,17 +73,10 @@ export function buildDomainLibraryAgentTools(
   ];
 }
 
-/** Shared wrapper for library pages and the work's explicitly enabled management tools. */
-export function buildIndexedLibraryTools(
+/** Library-page wrapper: one tool set per library, loaded on first use. */
+function buildIndexedLibraryTools(
   input: BuildLibraryAgentToolsInput,
   options: {
-    index?: readonly (Pick<
-      LibraryAgentReadableLibrary,
-      "libraryId" | "title" | "readOnly"
-    > &
-      Partial<LibraryAgentReadableLibrary>)[];
-    preload?: boolean;
-    requireLibraryId?: boolean;
     load: (
       id: string,
       signal?: AbortSignal
@@ -91,16 +84,19 @@ export function buildIndexedLibraryTools(
   }
 ): AgentTool[] {
   const focus = input.workspace;
-  const index = options.index ??
-    focus.readableLibraries ?? [
-      {
-        libraryId: focus.libraryId,
-        title: focus.title,
-        kind: focus.kind,
-        readOnly: focus.readOnly,
-        entryCount: focus.entries.length
-      }
-    ];
+  const index: readonly (Pick<
+    LibraryAgentReadableLibrary,
+    "libraryId" | "title" | "readOnly"
+  > &
+    Partial<LibraryAgentReadableLibrary>)[] = focus.readableLibraries ?? [
+    {
+      libraryId: focus.libraryId,
+      title: focus.title,
+      kind: focus.kind,
+      readOnly: focus.readOnly,
+      entryCount: focus.entries.length
+    }
+  ];
   const states = new Map<string, AgentTool[]>();
   const current = buildLibraryAgentTools({
     ...input,
@@ -113,7 +109,7 @@ export function buildIndexedLibraryTools(
       )
     })
   });
-  if (options.preload !== false) states.set(focus.libraryId, current);
+  states.set(focus.libraryId, current);
   async function load(id: string, signal?: AbortSignal) {
     if (!index.some((library) => library.libraryId === id))
       throw new Error("库不存在或不属于本领域。");
@@ -156,30 +152,23 @@ export function buildIndexedLibraryTools(
           Type.String({
             minLength: 1,
             maxLength: 512,
-            description: options.requireLibraryId
-              ? "目标绑定库 id，必须明确指定。"
-              : "目标库 id；缺省为当前位置。"
+            description: "目标库 id；缺省为当前位置。"
           })
         )
       },
       {
-        required: [
-          ...(schema.required?.filter((name) => name !== "library_id") ?? []),
-          ...(options.requireLibraryId ? ["library_id"] : [])
-        ]
+        required: schema.required?.filter((name) => name !== "library_id") ?? []
       }
     );
     return {
       ...tool,
       parameters,
       ...piStrictToolSampling(parameters),
-      description: `${tool.description} ${options.requireLibraryId ? "library_id 必须指定索引中的绑定库" : "library_id 缺省为当前位置，可指定本领域其它库"}，内置技能库只读${tool.name.startsWith("search_") ? "；搜索缺省范围为本轮已加载的库" : ""}。`,
+      description: `${tool.description} library_id 缺省为当前位置，可指定本领域其它库，内置技能库只读${tool.name.startsWith("search_") ? "；搜索缺省范围为本轮已加载的库" : ""}。`,
       executionMode: "sequential",
       execute: async (callId, rawParams, signal, onUpdate) => {
         const params = rawParams as Record<string, unknown>;
         try {
-          if (options.requireLibraryId && !params.library_id)
-            throw new Error("请先确定目标资料库并传入 library_id。");
           const id = String(params.library_id ?? focus.libraryId);
           const targets =
             tool.name.startsWith("search_") && !params.library_id

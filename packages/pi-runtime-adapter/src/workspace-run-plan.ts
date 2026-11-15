@@ -88,7 +88,11 @@ export function planWorkspaceRun(
       });
       return {
         systemPrompt: [
-          buildEffectiveSystemPrompt(options.basePrompt, input),
+          buildEffectiveSystemPrompt(
+            options.basePrompt,
+            input,
+            tools.map((tool) => tool.name)
+          ),
           libraryManagementParentPrompt(input),
           teamManagementParentPrompt(input),
           input.longAgentProfile && input.workspaceContext?.longWorkspace
@@ -102,18 +106,16 @@ export function planWorkspaceRun(
     },
     ...(contextPolicy ? { contextPolicy } : {}),
     rawUserMessageContent: () => buildRawUserMessage(input).content,
-    // Plot-design and draft turns also receive their latest structure
-    // snapshots; tools and the system prompt are still refreshed before every run.
+    // Writing runs refresh navigation and AGENTS.md in the system prompt.
     userMessageContent: (firstTurn) =>
-      firstTurn
+      firstTurn ||
+      (input.agentProfile && shortWorkspace) ||
+      (input.scriptAgentProfile && scriptWorkspace)
         ? buildRuntimeUserMessageContent(input)
-        : (input.agentProfile && shortWorkspace) ||
-            (input.scriptAgentProfile && scriptWorkspace)
-          ? buildRuntimeUserMessageContent(input)
-          : longAgentRefreshesDesignContextOnLaterTurns(
-                input.longAgentProfile?.id
-              ) && input.workspaceContext?.longWorkspace
-            ? buildLongFollowUpTurnUserMessageContent(input)
-            : buildFollowUpRawUserMessageContent(input)
+        : longAgentRefreshesDesignContextOnLaterTurns(
+              input.longAgentProfile?.id
+            ) && input.workspaceContext?.longWorkspace
+          ? buildLongFollowUpTurnUserMessageContent(input)
+          : buildFollowUpRawUserMessageContent(input)
   };
 }

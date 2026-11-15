@@ -155,6 +155,12 @@ export async function discardAcceptedCatalogTextEdit(
   );
 }
 
+function reverseValues<
+  T extends { before: string | null; after: string | null }
+>(change: T): T {
+  return { ...change, before: change.after, after: change.before };
+}
+
 async function discardDraftSectionRename(
   context: Context,
   proposal: AgentEditProposal
@@ -172,7 +178,7 @@ async function discardDraftSectionRename(
   if (!api || !book || !document?.catalogDocumentId) {
     throw new Error(t("theTargetChapterIsUnavailableThisRenameCannotBe"));
   }
-  if (document.title !== target.title) {
+  if (!target.change && document.title !== target.title) {
     throw new AcceptedEditDiscardConflictError(
       t("theChapterHasBeenRenamedAgainThisRenameWas")
     );
@@ -184,9 +190,17 @@ async function discardDraftSectionRename(
   const saved = await api.catalog.saveDocument({
     bookId: proposal.workspaceId,
     documentId: document.catalogDocumentId,
-    title: target.previousTitle,
-    content: document.content,
-    baseRevision: createShortWorkspaceContentRevision(document.content),
+    ...(target.change
+      ? {
+          draftSectionChange: reverseValues(target.change),
+          preserveCurrentContent: true,
+          content: ""
+        }
+      : {
+          title: target.previousTitle,
+          content: document.content,
+          baseRevision: createShortWorkspaceContentRevision(document.content)
+        }),
     ...(book.projectRevision === undefined
       ? {}
       : { baseProjectRevision: book.projectRevision })
@@ -201,6 +215,7 @@ async function discardDraftSectionRename(
     expectedDocuments,
     saved.projectRevision
   );
+  if (target.change) return;
   const drafts = context.editor.drafts.value;
   const bodyDraft = drafts[document.id];
   const stateDocument = context.editor.liveDocuments.value.find(

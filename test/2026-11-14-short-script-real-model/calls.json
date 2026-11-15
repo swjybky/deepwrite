@@ -1,0 +1,2177 @@
+{
+  "scope": "6 existing works, 18 independent test copies; normal mode; development MCP + read-only persisted trace inspection",
+  "model": "deepwrite-site/deepseek-flash",
+  "runCount": 18,
+  "toolCalls": 124,
+  "toolCounts": {
+    "read": 97,
+    "ask_user_question": 1,
+    "query_linked_material_entries": 6,
+    "create": 6,
+    "edit": 12,
+    "load_skill": 1,
+    "delete": 1
+  },
+  "firstOfKindOpportunities": {
+    "read": 18,
+    "ask_user_question": 1,
+    "query_linked_material_entries": 2,
+    "create": 6,
+    "edit": 8,
+    "load_skill": 1,
+    "delete": 1
+  },
+  "errors": [
+    {
+      "case": "A5",
+      "name": "read",
+      "status": "error",
+      "isError": true,
+      "requestedAt": "2026-11-14T14:35:59.675Z",
+      "completedAt": "2026-11-14T14:36:00.564Z",
+      "argsShape": {
+        "kind": "plot_stage",
+        "id": "plot-design"
+      },
+      "error": "不存在剧情结构 plot-design。请用 read（kind=workspace，id=workspace）查询最新 id。"
+    },
+    {
+      "case": "C5",
+      "name": "edit",
+      "status": "error",
+      "isError": true,
+      "requestedAt": "2026-11-14T14:38:50.071Z",
+      "completedAt": "2026-11-14T14:38:55.708Z",
+      "argsShape": {
+        "kind": "character_overview",
+        "id": "character_design",
+        "content": 481,
+        "document": "body"
+      },
+      "error": "character_overview 目标不接受 document 参数。",
+      "firstOfKind": true
+    }
+  ],
+  "startAttempts": 23,
+  "startNotReady": 5,
+  "allTerminal": true,
+  "runs": [
+    {
+      "sessionId": "session_b6240113",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 22593,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:34:58.764Z",
+              "completedAt": "2026-11-14T14:34:59.504Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:34:59.057Z",
+              "completedAt": "2026-11-14T14:34:59.511Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:34:59.268Z",
+              "completedAt": "2026-11-14T14:34:59.519Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.260Z",
+              "completedAt": "2026-11-14T14:35:03.732Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-4",
+                "document": "body"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.478Z",
+              "completedAt": "2026-11-14T14:35:03.740Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-4",
+                "document": "state"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "A1",
+      "i": 0,
+      "workId": "book-7e8e84d6",
+      "runId": "116931c1-d5e4-4542-8e14-faba8fd30986",
+      "prompt": {
+        "characters": 7520,
+        "sha256": "7a2782da31c434b89e52ed099f64dcc61c906bb27c3a597bb1f39d923eaf7b67",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_4eed2130",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 12259,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.064Z",
+              "completedAt": "2026-11-14T14:35:04.140Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.704Z",
+              "completedAt": "2026-11-14T14:35:04.144Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.924Z",
+              "completedAt": "2026-11-14T14:35:04.146Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:03.925Z",
+              "completedAt": "2026-11-14T14:35:04.147Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "ask_user_question",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:17.172Z",
+              "completedAt": "2026-11-14T14:39:38.756Z",
+              "argsShape": {
+                "questions": 1
+              },
+              "error": null,
+              "firstOfKind": true
+            }
+          ]
+        }
+      ],
+      "case": "A4",
+      "i": 3,
+      "workId": "book-dc91e85f",
+      "runId": "c9a298a0-3066-4733-a7ce-2aa1c48d84e9",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_de6b7c88",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 42708,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:28.566Z",
+              "completedAt": "2026-11-14T14:35:34.273Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:28.790Z",
+              "completedAt": "2026-11-14T14:35:34.278Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:37.731Z",
+              "completedAt": "2026-11-14T14:35:39.345Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:39.093Z",
+              "completedAt": "2026-11-14T14:35:39.351Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_refine"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:39.094Z",
+              "completedAt": "2026-11-14T14:35:39.355Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "intro_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:45.735Z",
+              "completedAt": "2026-11-14T14:35:46.730Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-2",
+                "document": "body"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:46.043Z",
+              "completedAt": "2026-11-14T14:35:46.738Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-2",
+                "document": "state"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:51.659Z",
+              "completedAt": "2026-11-14T14:35:52.567Z",
+              "argsShape": {
+                "id": "plot-stage-8f6f2d36",
+                "kind": "plot_stage"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:52.526Z",
+              "completedAt": "2026-11-14T14:35:52.577Z",
+              "argsShape": {
+                "id": "character_mw5181ii_1",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:10.885Z",
+              "completedAt": "2026-11-14T14:36:13.871Z",
+              "argsShape": {
+                "id": "character_mw5189j9_2",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:12.789Z",
+              "completedAt": "2026-11-14T14:36:14.147Z",
+              "argsShape": {
+                "document": "body",
+                "id": "section-1",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:03.469Z",
+              "completedAt": "2026-11-14T14:37:04.722Z",
+              "argsShape": {
+                "mode": "read",
+                "entry_id": "material:material-09860217:material-entry-66bec696"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:03.688Z",
+              "completedAt": "2026-11-14T14:37:04.724Z",
+              "argsShape": {
+                "id": "character_mw518igj_3",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:08.811Z",
+              "completedAt": "2026-11-14T14:37:09.793Z",
+              "argsShape": {
+                "entry_id": "material:material-09860217:material-entry-157ede0c",
+                "mode": "read"
+              },
+              "error": null
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:08.268Z",
+              "completedAt": "2026-11-14T14:38:25.715Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "after_id": "section-2",
+                "items": 2
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:30.951Z",
+              "completedAt": "2026-11-14T14:38:31.184Z",
+              "argsShape": {
+                "id": "workspace",
+                "kind": "workspace"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:14.819Z",
+              "completedAt": "2026-11-14T14:39:17.689Z",
+              "argsShape": {
+                "document": "body",
+                "id": "section-12",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:16.344Z",
+              "completedAt": "2026-11-14T14:39:17.695Z",
+              "argsShape": {
+                "document": "body",
+                "id": "section-13",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:16.345Z",
+              "completedAt": "2026-11-14T14:39:17.700Z",
+              "argsShape": {
+                "document": "state",
+                "id": "section-13",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:44.363Z",
+              "completedAt": "2026-11-14T14:39:48.308Z",
+              "argsShape": {
+                "id": "section-12",
+                "kind": "draft_section",
+                "document": "body",
+                "replacements": 3
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:46.468Z",
+              "completedAt": "2026-11-14T14:39:48.314Z",
+              "argsShape": {
+                "id": "section-13",
+                "kind": "draft_section",
+                "document": "body",
+                "replacements": 2
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:59.696Z",
+              "completedAt": "2026-11-14T14:40:01.986Z",
+              "argsShape": {
+                "document": "body",
+                "id": "section-12",
+                "kind": "draft_section"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "A2",
+      "i": 1,
+      "workId": "book-ba7445e7",
+      "runId": "1458a5db-5f9b-41ff-b9e6-252ab9982a71",
+      "prompt": {
+        "characters": 7652,
+        "sha256": "8ced5c2f1da370fc5761dfaef642d7a39cf2d96834df4c3e9b82dd332c4e2315",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_53fd5a8a",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 30771,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:29.145Z",
+              "completedAt": "2026-11-14T14:35:29.656Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:29.619Z",
+              "completedAt": "2026-11-14T14:35:29.661Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:32.822Z",
+              "completedAt": "2026-11-14T14:35:35.019Z",
+              "argsShape": {
+                "kind": "character",
+                "id": "character_mw510pqy_1"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:32.825Z",
+              "completedAt": "2026-11-14T14:35:35.025Z",
+              "argsShape": {
+                "kind": "character",
+                "id": "character_mw510y4n_2"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:42.803Z",
+              "completedAt": "2026-11-14T14:35:43.463Z",
+              "argsShape": {
+                "id": "plot_design",
+                "kind": "plot_stage"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:43.441Z",
+              "completedAt": "2026-11-14T14:35:43.466Z",
+              "argsShape": {
+                "id": "plot_refine",
+                "kind": "plot_stage"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:48.023Z",
+              "completedAt": "2026-11-14T14:35:49.705Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-1",
+                "document": "body"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:48.455Z",
+              "completedAt": "2026-11-14T14:35:49.711Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-1",
+                "document": "state"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:53.657Z",
+              "completedAt": "2026-11-14T14:35:54.860Z",
+              "argsShape": {
+                "id": "plot-stage-8f6f2d36",
+                "kind": "plot_stage"
+              },
+              "error": null
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:52.095Z",
+              "completedAt": "2026-11-14T14:37:03.752Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "items": 2
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:14.388Z",
+              "completedAt": "2026-11-14T14:37:14.632Z",
+              "argsShape": {
+                "id": "workspace",
+                "kind": "workspace"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "A3",
+      "i": 2,
+      "workId": "book-c1d402f2",
+      "runId": "d5a82d07-9ce1-41f2-8dd6-e9cd968e58a2",
+      "prompt": {
+        "characters": 7602,
+        "sha256": "d34b3112c982d91b4ee796612f1558065cfe55c079fd0004ebb94068dedd0c4e",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_24016a50",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 64738,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:38.775Z",
+              "completedAt": "2026-11-14T14:35:44.956Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:38.791Z",
+              "completedAt": "2026-11-14T14:35:44.966Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:38.868Z",
+              "completedAt": "2026-11-14T14:35:44.969Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:59.071Z",
+              "completedAt": "2026-11-14T14:36:00.560Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "offset": 0,
+                "limit": 20000
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "error",
+              "isError": true,
+              "requestedAt": "2026-11-14T14:35:59.675Z",
+              "completedAt": "2026-11-14T14:36:00.564Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-design"
+              },
+              "error": "不存在剧情结构 plot-design。请用 read（kind=workspace，id=workspace）查询最新 id。"
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:08.329Z",
+              "completedAt": "2026-11-14T14:36:12.304Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 20000,
+                "limit": 23000
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:10.755Z",
+              "completedAt": "2026-11-14T14:36:13.591Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 43000,
+                "limit": 23000
+              },
+              "error": null
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:52.113Z",
+              "completedAt": "2026-11-14T14:37:08.144Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "items": 2
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:11.924Z",
+              "completedAt": "2026-11-14T14:37:12.504Z",
+              "argsShape": {
+                "id": "draft",
+                "kind": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:24.290Z",
+              "completedAt": "2026-11-14T14:37:25.068Z",
+              "argsShape": {
+                "document": "body",
+                "id": "episode-2",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:24.490Z",
+              "completedAt": "2026-11-14T14:37:25.083Z",
+              "argsShape": {
+                "document": "body",
+                "id": "episode-3",
+                "kind": "draft_section"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:34.330Z",
+              "completedAt": "2026-11-14T14:37:45.142Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "episode-2",
+                "document": "body",
+                "allow_overwrite_existing": true,
+                "content": 368
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:42.139Z",
+              "completedAt": "2026-11-14T14:37:45.150Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "episode-3",
+                "document": "body",
+                "allow_overwrite_existing": true,
+                "content": 434
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "A5",
+      "i": 4,
+      "workId": "book-0fc05152",
+      "runId": "52b1a057-1f73-45fc-aa2a-2017167e8436",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_a1ea144b",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 55715,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:38.985Z",
+              "completedAt": "2026-11-14T14:35:39.663Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:39.417Z",
+              "completedAt": "2026-11-14T14:35:39.673Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:39.629Z",
+              "completedAt": "2026-11-14T14:35:39.676Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:35:44.707Z",
+              "completedAt": "2026-11-14T14:35:46.253Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "limit": 50000,
+                "offset": 0
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:26.889Z",
+              "completedAt": "2026-11-14T14:36:28.609Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 50000,
+                "limit": 20000
+              },
+              "error": null
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:20.455Z",
+              "completedAt": "2026-11-14T14:37:41.980Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "items": 2
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:46.387Z",
+              "completedAt": "2026-11-14T14:37:47.536Z",
+              "argsShape": {
+                "id": "draft",
+                "kind": "draft"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "A6",
+      "i": 5,
+      "workId": "book-1571f7f9",
+      "runId": "cc27f717-6c87-4134-854d-6aeadf6e35ba",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_1551c585",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 16257,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:18.360Z",
+              "completedAt": "2026-11-14T14:36:20.259Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:18.758Z",
+              "completedAt": "2026-11-14T14:36:20.844Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:36.747Z",
+              "completedAt": "2026-11-14T14:36:37.395Z",
+              "argsShape": {
+                "kind": "character",
+                "id": "character_mw511p21_1"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:55.915Z",
+              "completedAt": "2026-11-14T14:36:56.893Z",
+              "argsShape": {
+                "id": "character_mw511p21_1",
+                "kind": "character",
+                "replacements": 1
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:59.694Z",
+              "completedAt": "2026-11-14T14:37:00.610Z",
+              "argsShape": {
+                "id": "character_mw511p21_1",
+                "kind": "character"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "B1",
+      "i": 0,
+      "workId": "book-2c229044",
+      "runId": "62a7f5bd-06f6-47f2-8387-c13e188baa04",
+      "prompt": {
+        "characters": 7520,
+        "sha256": "7a2782da31c434b89e52ed099f64dcc61c906bb27c3a597bb1f39d923eaf7b67",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_5d5ba406",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 20350,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:21.916Z",
+              "completedAt": "2026-11-14T14:36:22.855Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:21.918Z",
+              "completedAt": "2026-11-14T14:36:22.863Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:28.566Z",
+              "completedAt": "2026-11-14T14:36:29.831Z",
+              "argsShape": {
+                "id": "character_mw5181ii_1",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:28.567Z",
+              "completedAt": "2026-11-14T14:36:29.838Z",
+              "argsShape": {
+                "id": "character_mw5189j9_2",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:29.603Z",
+              "completedAt": "2026-11-14T14:36:29.841Z",
+              "argsShape": {
+                "id": "character_mw518igj_3",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:33.829Z",
+              "completedAt": "2026-11-14T14:36:34.615Z",
+              "argsShape": {
+                "id": "character_mw5191rx_4",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:34.211Z",
+              "completedAt": "2026-11-14T14:36:34.617Z",
+              "argsShape": {
+                "id": "character_mw519vii_5",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:34.213Z",
+              "completedAt": "2026-11-14T14:36:34.619Z",
+              "argsShape": {
+                "id": "character_mw51a1e9_6",
+                "kind": "character"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:17.190Z",
+              "completedAt": "2026-11-14T14:37:19.773Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design",
+                "append": "\n**验收补充：信息差检查**\n- 沈挽棠只知署名被顶替、积蓄被动用，不知傅霆骁已另作个人担保并承诺回购；傅霆骁知道研发离不开她，却不知她已委托退出、立好遗嘱；林楚薇以为他仍能让她继续签名；徐秉钧、周劲松各持证据与发布条件，齐恪锋只知搜救核验，死讯前无人告诉他结局已定。"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:25.619Z",
+              "completedAt": "2026-11-14T14:37:26.191Z",
+              "argsShape": {
+                "id": "plot_design",
+                "kind": "plot_stage",
+                "offset": 2400
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "B2",
+      "i": 1,
+      "workId": "book-8bc730ce",
+      "runId": "c3f91c85-d946-4a8d-a60f-3960b27279a8",
+      "prompt": {
+        "characters": 7652,
+        "sha256": "8ced5c2f1da370fc5761dfaef642d7a39cf2d96834df4c3e9b82dd332c4e2315",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_851c3ecd",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 15826,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:43.819Z",
+              "completedAt": "2026-11-14T14:36:44.232Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:48.016Z",
+              "completedAt": "2026-11-14T14:36:49.287Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-1",
+                "document": "body"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:48.236Z",
+              "completedAt": "2026-11-14T14:36:49.578Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-1",
+                "document": "state"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:36:56.169Z",
+              "completedAt": "2026-11-14T14:36:57.259Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-1",
+                "document": "state",
+                "append": "\n【下一节接续提醒】\n接02：素棠被限三分钟退到门外警戒线，担保旧件仍未递出，宗亲围观嗤笑，回购只剩七天。\n"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:00.871Z",
+              "completedAt": "2026-11-14T14:37:00.905Z",
+              "argsShape": {
+                "document": "state",
+                "id": "section-1",
+                "kind": "draft_section"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "B3",
+      "i": 2,
+      "workId": "book-473d386d",
+      "runId": "1dc7e451-372a-49d7-92e2-9cf70abc26c6",
+      "prompt": {
+        "characters": 7602,
+        "sha256": "d34b3112c982d91b4ee796612f1558065cfe55c079fd0004ebb94068dedd0c4e",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_51d95841",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 16357,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:17.082Z",
+              "completedAt": "2026-11-14T14:37:19.283Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "offset": 0,
+                "limit": 4000
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:22.640Z",
+              "completedAt": "2026-11-14T14:37:22.884Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 44683,
+                "limit": 4000
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "B4",
+      "i": 3,
+      "workId": "book-c25057c7",
+      "runId": "544482cf-b02c-4aa2-8931-e4e7988ce994",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_8d3403e4",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 60235,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:17.214Z",
+              "completedAt": "2026-11-14T14:37:19.509Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:17.244Z",
+              "completedAt": "2026-11-14T14:37:19.518Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:26.527Z",
+              "completedAt": "2026-11-14T14:37:27.625Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "limit": 50000,
+                "offset": 0
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:34.808Z",
+              "completedAt": "2026-11-14T14:37:36.796Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 50000,
+                "limit": 50000
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "B5",
+      "i": 4,
+      "workId": "book-eac21db6",
+      "runId": "c7159681-d01f-4e21-82b6-831e6fb20a9f",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_82ad68c2",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 20669,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:36.138Z",
+              "completedAt": "2026-11-14T14:37:36.505Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:36.139Z",
+              "completedAt": "2026-11-14T14:37:36.516Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:38.468Z",
+              "completedAt": "2026-11-14T14:37:40.119Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 0,
+                "limit": 12000
+              },
+              "error": null
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:37:57.311Z",
+              "completedAt": "2026-11-14T14:38:02.622Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "meta": 1,
+                "content": 398,
+                "state": 104
+              },
+              "error": null,
+              "firstOfKind": true
+            }
+          ]
+        }
+      ],
+      "case": "B6",
+      "i": 5,
+      "workId": "book-99612136",
+      "runId": "98f7200d-a043-4c36-8fdd-384bd7527595",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_efc831ef",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 16866,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:20.664Z",
+              "completedAt": "2026-11-14T14:38:21.744Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:21.146Z",
+              "completedAt": "2026-11-14T14:38:21.750Z",
+              "argsShape": {
+                "kind": "character",
+                "id": "character_mw511p21_1"
+              },
+              "error": null
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:33.202Z",
+              "completedAt": "2026-11-14T14:38:34.567Z",
+              "argsShape": {
+                "mode": "search",
+                "query": "信息差"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:33.550Z",
+              "completedAt": "2026-11-14T14:38:34.873Z",
+              "argsShape": {
+                "mode": "search",
+                "query": "烫伤"
+              },
+              "error": null
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:39.709Z",
+              "completedAt": "2026-11-14T14:38:41.031Z",
+              "argsShape": {
+                "mode": "read",
+                "entry_id": "material:material-ab4bb733:material-entry-4b2db7ea"
+              },
+              "error": null
+            },
+            {
+              "name": "query_linked_material_entries",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:48.293Z",
+              "completedAt": "2026-11-14T14:38:48.889Z",
+              "argsShape": {
+                "mode": "search",
+                "query": "火葬场 婚姻 男主不爱"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "C1",
+      "i": 0,
+      "workId": "book-fdfc1ab7",
+      "runId": "3c2e2d6b-aefc-4997-952c-086b2ad92243",
+      "prompt": {
+        "characters": 7520,
+        "sha256": "7a2782da31c434b89e52ed099f64dcc61c906bb27c3a597bb1f39d923eaf7b67",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_dac37bda",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 21108,
+          "tools": [
+            {
+              "name": "load_skill",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:19.792Z",
+              "completedAt": "2026-11-14T14:38:20.660Z",
+              "argsShape": {
+                "name": "短篇智能体团队操控技能组 · 其他技能库 · 追妻文极致操作技能"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:20.010Z",
+              "completedAt": "2026-11-14T14:38:20.696Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:29.956Z",
+              "completedAt": "2026-11-14T14:38:32.202Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-2",
+                "document": "body"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:31.246Z",
+              "completedAt": "2026-11-14T14:38:32.561Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "section-2",
+                "document": "state"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:44.077Z",
+              "completedAt": "2026-11-14T14:38:45.188Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_refine"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:44.939Z",
+              "completedAt": "2026-11-14T14:38:45.196Z",
+              "argsShape": {
+                "document": "body",
+                "id": "intro",
+                "kind": "draft_section"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "C2",
+      "i": 1,
+      "workId": "book-55b8be67",
+      "runId": "28949949-3147-42df-9bfe-82df1801a4cf",
+      "prompt": {
+        "characters": 7652,
+        "sha256": "8ced5c2f1da370fc5761dfaef642d7a39cf2d96834df4c3e9b82dd332c4e2315",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_a1567f5e",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 12716,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:21.291Z",
+              "completedAt": "2026-11-14T14:38:21.553Z",
+              "argsShape": {
+                "kind": "draft",
+                "id": "draft",
+                "include_all_sections": true,
+                "document": "body"
+              },
+              "error": null,
+              "firstOfKind": true
+            }
+          ]
+        }
+      ],
+      "case": "C3",
+      "i": 2,
+      "workId": "book-a151b005",
+      "runId": "4794ac59-b85c-409b-a2d1-b4de47f59d01",
+      "prompt": {
+        "characters": 7602,
+        "sha256": "d34b3112c982d91b4ee796612f1558065cfe55c079fd0004ebb94068dedd0c4e",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_87ec5640",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 13841,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:20.093Z",
+              "completedAt": "2026-11-14T14:38:20.564Z",
+              "argsShape": {
+                "kind": "workspace",
+                "id": "workspace"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "create",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:23.237Z",
+              "completedAt": "2026-11-14T14:38:23.472Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "items": 3
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:25.197Z",
+              "completedAt": "2026-11-14T14:38:25.671Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "pending:section:2",
+                "meta": 1
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "delete",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:31.672Z",
+              "completedAt": "2026-11-14T14:38:32.170Z",
+              "argsShape": {
+                "kind": "draft_section",
+                "id": "pending:section:3"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:36.404Z",
+              "completedAt": "2026-11-14T14:38:38.346Z",
+              "argsShape": {
+                "id": "workspace",
+                "kind": "workspace"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "C4",
+      "i": 3,
+      "workId": "book-e4288b56",
+      "runId": "8981aee2-dcc8-4e76-b19c-a89a6eb62bea",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_1b2c0a99",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 26048,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:21.733Z",
+              "completedAt": "2026-11-14T14:38:22.918Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:22.212Z",
+              "completedAt": "2026-11-14T14:38:22.933Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:25.007Z",
+              "completedAt": "2026-11-14T14:38:26.467Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "offset": 0,
+                "limit": 20000
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:46.131Z",
+              "completedAt": "2026-11-14T14:38:46.587Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-bbb893b8"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:46.142Z",
+              "completedAt": "2026-11-14T14:38:46.592Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "error",
+              "isError": true,
+              "requestedAt": "2026-11-14T14:38:50.071Z",
+              "completedAt": "2026-11-14T14:38:55.708Z",
+              "argsShape": {
+                "kind": "character_overview",
+                "id": "character_design",
+                "content": 481,
+                "document": "body"
+              },
+              "error": "character_overview 目标不接受 document 参数。",
+              "firstOfKind": true
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:59.197Z",
+              "completedAt": "2026-11-14T14:39:02.743Z",
+              "argsShape": {
+                "content": 475,
+                "id": "character_design",
+                "kind": "character_overview"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "C5",
+      "i": 4,
+      "workId": "book-b2298320",
+      "runId": "c4a220bb-1397-493e-aab9-0535418c0b68",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    },
+    {
+      "sessionId": "session_2c665be2",
+      "messages": [
+        {
+          "status": "completed",
+          "runtime": {
+            "provider": "deepwrite-site",
+            "model": "deepseek-flash",
+            "mode": "provider",
+            "configId": "deepwrite-site-official-deepseek-flash"
+          },
+          "contextTokens": 52378,
+          "tools": [
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:24.252Z",
+              "completedAt": "2026-11-14T14:38:25.366Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design"
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:24.469Z",
+              "completedAt": "2026-11-14T14:38:25.371Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1"
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:27.386Z",
+              "completedAt": "2026-11-14T14:38:28.309Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "offset": 0,
+                "limit": 50000
+              },
+              "error": null
+            },
+            {
+              "name": "read",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:31.801Z",
+              "completedAt": "2026-11-14T14:38:33.779Z",
+              "argsShape": {
+                "id": "plot-stage-agent:v1:145:8fa9419e:run_1235abac:book-68:b8d4f7b3212000000acd:pending:plot-stage:1",
+                "kind": "plot_stage",
+                "offset": 50000,
+                "limit": 50000
+              },
+              "error": null
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:38:47.183Z",
+              "completedAt": "2026-11-14T14:38:56.625Z",
+              "argsShape": {
+                "kind": "plot_stage",
+                "id": "plot_design",
+                "content": 369
+              },
+              "error": null,
+              "firstOfKind": true
+            },
+            {
+              "name": "edit",
+              "status": "completed",
+              "isError": false,
+              "requestedAt": "2026-11-14T14:39:04.844Z",
+              "completedAt": "2026-11-14T14:39:07.651Z",
+              "argsShape": {
+                "allow_overwrite_existing": true,
+                "content": 293,
+                "id": "plot_design",
+                "kind": "plot_stage"
+              },
+              "error": null
+            }
+          ]
+        }
+      ],
+      "case": "C6",
+      "i": 5,
+      "workId": "book-4e868798",
+      "runId": "171c31f7-1192-4912-96e5-b8f229ce8527",
+      "prompt": {
+        "characters": 8346,
+        "sha256": "0fa3311007225147d570e9622018bfdd30fcd5a37fd982db02314fff426542ae",
+        "currentRole": true,
+        "legacySingleCreate": false,
+        "batchRule": true,
+        "rangeRule": true
+      }
+    }
+  ]
+}

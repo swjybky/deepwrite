@@ -11,6 +11,11 @@ export type LibraryDomain = LibraryAgentDomain;
 export type LibraryAgentToolDetails =
   | { kind: "none" }
   | {
+      /** Several entry/overview proposals from one work-scoped write call. */
+      kind: "library-mutation-batch";
+      items: LibraryMutationDetails[];
+    }
+  | {
       kind: "library-structure-mutation";
       plan: import("@deepwrite/contracts").LibraryStructurePlan;
     }
@@ -53,6 +58,11 @@ export type LibraryAgentToolDetails =
       baseProjectRevision?: number;
       summary: string;
     };
+
+export type LibraryMutationDetails = Extract<
+  LibraryAgentToolDetails,
+  { kind: "library-entry-mutation" | "library-overview-mutation" }
+>;
 
 export interface BuildLibraryAgentToolsInput {
   workspace: LibraryAgentWorkspaceSnapshot;

@@ -18,7 +18,7 @@ describe("new plot stage prompt context", () => {
     ["short", "missing"],
     ["script", "missing"]
   ] as const)(
-    "immediately uses the live %s plot content when its directory body is %s",
+    "keeps the %s plot stage structure without sending text when its directory body is %s",
     async (workspaceType, directoryBody) => {
       const deferred = createDeferredApi();
       const controller = useAgentConversation({ api: () => deferred.api });
@@ -60,14 +60,13 @@ describe("new plot stage prompt context", () => {
         expect(
           workspace?.stages.find((stage) => stage.stageId === stageId)
         ).toMatchObject({
-          content: active.content,
-          revision: createShortWorkspaceContentRevision(active.content)
+          title: "终局回收",
+          content: "",
+          revision: createShortWorkspaceContentRevision("")
         });
-        expect(context.activeResource).toMatchObject({
-          content: active.content.slice(0, 20_000),
-          truncated: true,
-          originalLength: active.content.length
-        });
+        expect(workspace?.readSource).toBe("core");
+        expect(context.activeResource).toMatchObject({ content: "" });
+        expect(context.activeResource?.truncated).toBeUndefined();
         expect(stale.content).toBe("");
       } finally {
         controller.dispose();
@@ -75,12 +74,11 @@ describe("new plot stage prompt context", () => {
     }
   );
 
-  it("captures the active stage before asynchronous context loading", async () => {
+  it("captures the active stage before asynchronous context loading without sending its text", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({ api: () => deferred.api });
     const documents = createShortWorkspaceDocuments();
     const active = documents.find(({ stageId }) => stageId === "plot_design")!;
-    const sentContent = active.content;
     controller.draft.value = "检查当前剧情";
     deferred.resolveAccepted(0, {
       sessionId: controller.sessionId.value,
@@ -97,12 +95,17 @@ describe("new plot stage prompt context", () => {
       const context = WorkspaceRuntimeContextSchema.parse(
         deferred.prompts[0]?.workspaceContext
       );
-      expect(context.activeResource?.content).toBe(sentContent);
+      expect(context.activeResource?.id).toBe(active.id);
+      expect(context.activeResource?.content).toBe("");
+      expect(context.shortWorkspace?.activeStageId).toBe("plot_design");
       expect(
         context.shortWorkspace?.stages.find(
           (stage) => stage.stageId === "plot_design"
-        )?.content
-      ).toBe(sentContent);
+        )
+      ).toMatchObject({
+        content: "",
+        revision: createShortWorkspaceContentRevision("")
+      });
     } finally {
       controller.dispose();
     }

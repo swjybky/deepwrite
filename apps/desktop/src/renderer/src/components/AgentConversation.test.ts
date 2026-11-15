@@ -60,11 +60,11 @@ describe("AgentConversation edit proposal placement", () => {
     );
   });
 
-  it("uses one composer card for agent questions and cross-stage confirmation", () => {
+  it("uses one composer card for agent questions and plot structure confirmation", () => {
     expect(conversationSource).toContain("<AgentUserInputCard");
     expect(conversationSource).toContain('v-if="userInputRequest"');
     expect(userInputCardSource).toContain(
-      "request.source === 'cross_stage_write'"
+      "request.source === 'plot_structure_change'"
     );
     expect(userInputCardSource).toContain("writeYourOwnAnswer");
     expect(userInputCardSource).toContain("recommended");

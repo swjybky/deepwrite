@@ -2,8 +2,7 @@ import {
   createEnvelope,
   type AgentTeamCatalogSnapshot,
   type CommandEnvelope,
-  type CommandResult,
-  type GeneralSettings
+  type CommandResult
 } from "@deepwrite/contracts";
 import type {
   ExternalControlClient,
@@ -26,7 +25,6 @@ export interface MutationContext {
   /** Main-owned resource ids; unknown runs use "*". */
   activeResourceIds?(): ReadonlySet<string>;
   rendererReady(): boolean;
-  generalSettings(): GeneralSettings;
   windowRequest(request: ExternalWindowRequest): Promise<unknown>;
   agentTeams(): Promise<AgentTeamCatalogSnapshot>;
   broadcastChange(change: ExternalControlResourceChange): void;

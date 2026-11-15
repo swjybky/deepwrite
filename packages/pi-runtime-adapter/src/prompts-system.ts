@@ -56,7 +56,8 @@ function buildSubagentAuthoringPrompt(
 
 function buildWorkspaceAgentSystemPrompt(
   basePrompt: string,
-  input: AgentRunInput
+  input: AgentRunInput,
+  toolNames?: readonly string[]
 ): string {
   if (input.workspaceContext?.subagentAuthoring) {
     return buildSubagentAuthoringPrompt(basePrompt, input);
@@ -90,25 +91,27 @@ function buildWorkspaceAgentSystemPrompt(
       writeApprovalBoundary(input.writeApprovalMode, locale)
     ].join("\n");
   }
-  return buildWritingSystemPrompt(basePrompt, input);
+  return buildWritingSystemPrompt(basePrompt, input, toolNames);
 }
 
 /**
- * Layers: ground rules → editable role prompt → non-editable workspace rules
- * and write approval → optional web search. `basePrompt` overrides the ground
+ * Layers: ground rules → editable role prompt → short/script AGENTS.md →
+ * non-editable workspace rules and write approval → optional web search. `basePrompt` overrides the ground
  * rules (tests and embedders); otherwise they follow the run's language.
  *
  * @internal Exported for workspace-type prompt regression tests.
  */
 export function buildEffectiveSystemPrompt(
   basePrompt: string | undefined,
-  input: AgentRunInput
+  input: AgentRunInput,
+  toolNames?: readonly string[]
 ): string {
   return appendWorkspaceWebSearchPrompt(
     [
       buildWorkspaceAgentSystemPrompt(
         basePrompt ?? buildDeepWriteSystemPrompt(promptLocaleOf(input)),
-        input
+        input,
+        toolNames
       ),
       "",
       bookImagePreservationRule(promptLocaleOf(input))

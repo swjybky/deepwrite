@@ -152,6 +152,7 @@ export interface LongProposalInput {
   message: string;
   contentTargets?: readonly WritingContentTarget[];
   index: Parameters<typeof preflightLongMutationProposal>[0];
+  remember?: boolean;
 }
 
 /**
@@ -189,11 +190,12 @@ export function formLongProposal(
   });
   const preflightFailure = preflightLongMutationProposal(input.index, batch);
   if (preflightFailure) return preflightFailure;
-  ctx.rememberProposal({
-    operations: input.operations,
-    changes: input.changes,
-    timestamp: input.timestamp
-  });
+  if (input.remember !== false)
+    ctx.rememberProposal({
+      operations: input.operations,
+      changes: input.changes,
+      timestamp: input.timestamp
+    });
 
   const message = appendWritingContentCounts(
     longProposalResultSummary(ctx.input, input.message),

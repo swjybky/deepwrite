@@ -17,7 +17,6 @@ import {
 } from "./structure-operations";
 import { formLongProposal } from "./proposals";
 import type { LongToolContext } from "./context";
-import { confirmCrossStageWrite, crossStageWriteCancelled } from "./user-input";
 
 export function buildDeleteTool(ctx: LongToolContext): AgentTool {
   const { writableRoots, loadIndex, reloadIndex } = ctx;
@@ -49,16 +48,6 @@ export function buildDeleteTool(ctx: LongToolContext): AgentTool {
         if (!writableRoots.has(LONG_STAGE_ROOTS[target.stage])) {
           throw new Error(`当前智能体无权写入 ${target.stage} 阶段。`);
         }
-        const decision = await confirmCrossStageWrite(ctx, {
-          toolCallId,
-          targetStage: target.stage,
-          targetTitle: target.title,
-          operationLabel: "删除",
-          signal
-        });
-        if (decision === "cancel") {
-          return crossStageWriteCancelled(ctx, target.stage);
-        }
         if (LONG_STAGE_ROOTS[target.stage] !== ctx.workspace.activeRoot) {
           index = await reloadIndex(signal);
           target = resolveLongTarget(index, {
@@ -88,16 +77,6 @@ export function buildDeleteTool(ctx: LongToolContext): AgentTool {
       let target = resolveLongEntityTarget(index, params.id);
       if (!writableRoots.has(LONG_STAGE_ROOTS[target.stage])) {
         throw new Error(`当前智能体无权写入 ${target.stage} 阶段。`);
-      }
-      const decision = await confirmCrossStageWrite(ctx, {
-        toolCallId,
-        targetStage: target.stage,
-        targetTitle: target.title,
-        operationLabel: "删除",
-        signal
-      });
-      if (decision === "cancel") {
-        return crossStageWriteCancelled(ctx, target.stage);
       }
       if (LONG_STAGE_ROOTS[target.stage] !== ctx.workspace.activeRoot) {
         index = await reloadIndex(signal);

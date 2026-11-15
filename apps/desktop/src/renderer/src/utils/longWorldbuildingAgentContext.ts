@@ -1,13 +1,9 @@
 import { createScopedTranslator } from "../i18n";
 import {
-  LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS,
   LONG_WORLDBUILDING_DIRECTORY_MAX_CATEGORIES,
   LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS,
-  LONG_WORLDBUILDING_OVERVIEW_FOCUS_MAX_CHARACTERS,
-  type LongBookId,
+  LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS_PER_CATEGORY,
   type LongFileId,
-  type LongReadDocumentInput,
-  type LongReadDocumentResult,
   type LongWorldbuildingCategory,
   type LongWorldbuildingDirectorySnapshot,
   type LongWorldbuildingFocusSnapshot
@@ -15,10 +11,6 @@ import {
 import type { LongWorkspaceSelection } from "../types/longWorkspace";
 
 const t = createScopedTranslator("workspace");
-
-type ReadLongDocument = (
-  input: LongReadDocumentInput
-) => Promise<LongReadDocumentResult>;
 
 export function buildLongWorldbuildingDirectorySnapshot(
   categories: readonly LongWorldbuildingCategory[]
@@ -41,7 +33,13 @@ export function buildLongWorldbuildingDirectorySnapshot(
         (left, right) => left.order - right.order
       );
       const items = orderedItems
-        .slice(0, remainingItemCapacity)
+        .slice(
+          0,
+          Math.min(
+            remainingItemCapacity,
+            LONG_WORLDBUILDING_DIRECTORY_MAX_ITEMS_PER_CATEGORY
+          )
+        )
         .map((item) => ({
           itemId: item.id,
           title: item.title,
@@ -62,50 +60,11 @@ export function buildLongWorldbuildingDirectorySnapshot(
   };
 }
 
-function snapshotText(
-  page: LongReadDocumentResult,
-  maximum: number
-): LongWorldbuildingFocusSnapshot["currentStage"]["text"] {
-  const characters = Array.from(page.content).slice(0, maximum);
-  const content = characters.join("");
-  return page.totalCharacters > characters.length
-    ? {
-        content,
-        truncated: true,
-        originalLength: page.totalCharacters
-      }
-    : { content };
-}
-
-async function readFocusText(
-  readDocument: ReadLongDocument,
-  bookId: LongBookId,
-  fileId: LongFileId,
-  maximum: number
-): Promise<LongWorldbuildingFocusSnapshot["currentStage"]["text"]> {
-  const page = await readDocument({
-    bookId,
-    fileId,
-    offset: 0,
-    maxCharacters: maximum
-  });
-  if (page.bookId !== bookId || page.file.id !== fileId || page.offset !== 0) {
-    throw new Error(
-      t(
-        "longWorldbuildingAgentContext.theWorldbuildingStageResponseDoesNotMatchTheCurrent"
-      )
-    );
-  }
-  return snapshotText(page, maximum);
-}
-
-export async function buildLongWorldbuildingFocusSnapshot(input: {
-  bookId: LongBookId;
+export function buildLongWorldbuildingFocusSnapshot(input: {
   selection: LongWorkspaceSelection | null;
   activeFileId: LongFileId | null;
-  readDocument: ReadLongDocument;
-}): Promise<LongWorldbuildingFocusSnapshot | undefined> {
-  const { bookId, selection, activeFileId, readDocument } = input;
+}): LongWorldbuildingFocusSnapshot | undefined {
+  const { selection, activeFileId } = input;
   if (
     selection?.root !== "worldbuilding" ||
     !selection.worldbuildingFormat ||
@@ -117,69 +76,40 @@ export async function buildLongWorldbuildingFocusSnapshot(input: {
   const activeFile = selection.files.find(
     ({ file }) => file.id === activeFileId
   );
-  if (!activeFile) return undefined;
+  const categoryId = selection.key.slice("worldbuilding:".length);
+  if (!activeFile || !categoryId.startsWith("world_")) return undefined;
 
   if (selection.worldbuildingFormat === "text") {
     return {
+      categoryId,
       categoryTitle: selection.title,
       format: "text",
+      currentStage: { kind: "text", title: selection.title }
+    };
+  }
+
+  const activeItem = selection.worldbuildingItems?.find(
+    ({ file }) => file.id === activeFileId
+  );
+  if (activeItem) {
+    return {
+      categoryId,
+      categoryTitle: selection.title,
+      format: "list",
       currentStage: {
-        kind: "text",
-        title: selection.title,
-        text: await readFocusText(
-          readDocument,
-          bookId,
-          activeFileId,
-          LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS
-        )
+        kind: "item",
+        itemId: activeItem.id,
+        title: activeItem.title
       }
     };
   }
 
   const overviewFile = selection.files.find(({ role }) => role === "overview");
-  const activeItem = selection.worldbuildingItems?.find(
-    ({ file }) => file.id === activeFileId
-  );
-  if (activeItem) {
-    const stageMaximum =
-      LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS -
-      LONG_WORLDBUILDING_OVERVIEW_FOCUS_MAX_CHARACTERS;
-    const [stageText, overviewText] = await Promise.all([
-      readFocusText(readDocument, bookId, activeItem.file.id, stageMaximum),
-      overviewFile
-        ? readFocusText(
-            readDocument,
-            bookId,
-            overviewFile.file.id,
-            LONG_WORLDBUILDING_OVERVIEW_FOCUS_MAX_CHARACTERS
-          )
-        : Promise.resolve({ content: "" })
-    ]);
-    return {
-      categoryTitle: selection.title,
-      format: "list",
-      currentStage: {
-        kind: "item",
-        title: activeItem.title,
-        text: stageText
-      },
-      overview: overviewText
-    };
-  }
-
   if (overviewFile?.file.id !== activeFileId) return undefined;
   return {
+    categoryId,
     categoryTitle: selection.title,
     format: "list",
-    currentStage: {
-      kind: "overview",
-      title: t("catalogWorkspace.overview"),
-      text: await readFocusText(
-        readDocument,
-        bookId,
-        overviewFile.file.id,
-        LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS
-      )
-    }
+    currentStage: { kind: "overview", title: t("catalogWorkspace.overview") }
   };
 }

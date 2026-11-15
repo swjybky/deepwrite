@@ -48,7 +48,9 @@ export function writingSubagentContext(
     ? scriptReadOnlyRuntimeSystemRequirements
     : shortReadOnlyRuntimeSystemRequirements;
   return {
-    systemPromptRequirements: () => standard(currentInput()),
-    pureReadSystemPromptRequirements: () => readOnly(currentInput())
+    systemPromptRequirements: (toolNames) =>
+      standard(currentInput(), toolNames),
+    pureReadSystemPromptRequirements: (toolNames) =>
+      readOnly(currentInput(), toolNames)
   };
 }

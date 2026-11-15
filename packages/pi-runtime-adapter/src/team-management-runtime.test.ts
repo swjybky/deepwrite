@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type {
-  AgentTeamPromptReadResult,
+  AgentTeamChangeReview,
   CommandResult
 } from "@deepwrite/contracts";
 import {
@@ -21,52 +21,83 @@ import { buildRunTools } from "./run-tools";
 import { shortProfile, shortWorkspace } from "./short-agent-tools.test-support";
 import type { AgentRunInput, AgentUserInputRequester } from "./runtime-types";
 
+const scope = { bookType: "short" as const, bookId: "book" };
+const baseline = "a".repeat(32);
+const member = {
+  id: "editor",
+  name: "测试成员",
+  description: "核对剧情",
+  systemPrompt: "原有职责",
+  enabled: true,
+  modelMode: "inherit" as const,
+  agentMode: "standard" as const
+};
 const target = {
   team_id: "team",
-  parent_agent_id: "short",
-  member_id: "editor"
+  members: [{ parent_agent_id: "short", member_id: "editor" }]
 };
-const before: AgentTeamPromptReadResult = {
-  scope: { bookType: "short", bookId: "book" },
+const proposal = {
+  team_id: "team",
+  summary: "明确职责",
+  operations: [
+    {
+      action: "update-member",
+      parentAgentId: "short",
+      memberId: "editor",
+      systemPrompt: "新职责"
+    }
+  ]
+};
+const review: AgentTeamChangeReview = {
+  scope,
   teamId: "team",
-  parentAgentId: "short",
-  memberId: "editor",
   teamName: "测试团队",
-  memberName: "测试成员",
-  description: "核对剧情",
+  baseRevision: baseline,
   boundBookCount: 0,
   enabledAsDefault: true,
-  prompt: "原有职责"
+  summary: "明确职责",
+  members: [
+    {
+      parentAgentId: "short",
+      memberId: "editor",
+      before: member,
+      after: { ...member, systemPrompt: "新职责" }
+    }
+  ]
 };
 function fixture(answer = "accept") {
   const executor = vi.fn(async (command): Promise<CommandResult> => ({
     status: "accepted",
     requestId: command.id,
     payload:
-      command.type === "agentTeams.listActivePrompts"
-        ? [
-            {
-              id: "team",
-              name: "测试团队",
-              boundBookCount: 0,
-              enabledAsDefault: true,
-              members: [
-                {
-                  parentAgentId: "short",
-                  id: "editor",
-                  name: "测试成员",
-                  description: "核对剧情",
-                  enabled: true
-                }
-              ]
-            }
-          ]
-        : {
-            ...before,
-            ...(command.type === "agentTeams.applyActivePrompt"
-              ? { prompt: command.payload.prompt }
-              : {})
+      command.type === "agentTeams.listActive"
+        ? {
+            teams: [
+              {
+                id: "team",
+                name: "测试团队",
+                boundBookCount: 0,
+                enabledAsDefault: true,
+                parallelSubagents: false,
+                parentAgentIds: ["short"],
+                revision: baseline,
+                members: [
+                  { ...member, systemPrompt: undefined, parentAgentId: "short" }
+                ]
+              }
+            ],
+            models: []
           }
+        : command.type === "agentTeams.readActiveMembers"
+          ? {
+              teamId: "team",
+              teamName: "测试团队",
+              revision: baseline,
+              members: [{ ...member, parentAgentId: "short" }]
+            }
+          : command.type === "agentTeams.previewActiveChange"
+            ? review
+            : { teamId: "team", revision: "b".repeat(32) }
   }));
   const request = vi.fn<AgentUserInputRequester>(async () => ({
     sessionId: "session",
@@ -77,16 +108,17 @@ function fixture(answer = "accept") {
   const input: AgentRunInput = {
     sessionId: "session",
     runId: "run",
-    prompt: "查看并优化当前生效团队的提示词",
+    prompt: "优化团队",
     writeApprovalMode: "auto-approve",
-    teamManagement: {
-      scope: before.scope,
-      description: "管理当前生效团队提示词"
-    },
+    teamManagement: { scope, description: "管理生效团队" },
     teamManagementCommandExecutor: executor
   };
-  const runtime = createTeamManagementRuntime(input, request);
-  return { input, executor, request, runtime };
+  return {
+    input,
+    executor,
+    request,
+    runtime: createTeamManagementRuntime(input, request)
+  };
 }
 function provider() {
   const faux = fauxProvider({
@@ -104,28 +136,24 @@ function provider() {
   };
 }
 
-describe("team management subagent", () => {
+describe("main-agent team management tools", () => {
   it("uses only team tools and demands a fresh read before proposing", async () => {
     const f = fixture();
     const child = f.runtime;
     expect(child.tools.map((tool) => tool.name)).toEqual([
       "list_active_agent_teams",
-      "read_agent_team_prompt",
-      "propose_agent_team_prompt"
+      "read_agent_team_members",
+      "propose_agent_team_change"
     ]);
-    await expect(
-      child.tools[2]!.execute("propose", {
-        ...target,
-        prompt: "新职责",
-        summary: "明确职责"
-      })
-    ).rejects.toThrow("先用 read_agent_team_prompt");
+    await expect(child.tools[2]!.execute("propose", proposal)).rejects.toThrow(
+      "请先"
+    );
     await child.tools[0]!.execute("list", {});
     await child.tools[1]!.execute("read", target);
     expect(f.executor.mock.calls[1]![0]).toMatchObject({
-      type: "agentTeams.readActivePrompt",
+      type: "agentTeams.readActiveMembers",
       context: { resourceId: "book", sessionId: "session", runId: "run" },
-      payload: { scope: before.scope }
+      payload: { scope }
     });
     expect(f.request).not.toHaveBeenCalled();
   });
@@ -145,21 +173,24 @@ describe("team management subagent", () => {
             resolve = done;
           })
       );
-      const pending = child.tools[2]!.execute("propose", {
-        ...target,
-        prompt: "新职责",
-        summary: "明确职责"
-      });
+      const pending = child.tools[2]!.execute("propose", proposal);
       await vi.waitFor(() => expect(resolve).toBeDefined());
       expect(f.executor.mock.calls.map(([command]) => command.type)).toEqual([
-        "agentTeams.readActivePrompt"
+        "agentTeams.readActiveMembers",
+        "agentTeams.previewActiveChange"
       ]);
       expect(f.request).toHaveBeenCalledWith(
         expect.objectContaining({
           source: "agent_team_prompt",
-          promptReview: expect.objectContaining({
-            previousPrompt: before.prompt,
-            prompt: "新职责",
+          teamReview: expect.objectContaining({
+            members: [
+              {
+                parentAgentId: "short",
+                memberId: "editor",
+                before: member,
+                after: { ...member, systemPrompt: "新职责" }
+              }
+            ],
             boundBookCount: 0
           })
         }),
@@ -174,7 +205,7 @@ describe("team management subagent", () => {
       const result = await pending;
       expect(
         f.executor.mock.calls.filter(
-          ([command]) => command.type === "agentTeams.applyActivePrompt"
+          ([command]) => command.type === "agentTeams.applyActiveChange"
         )
       ).toHaveLength(answer === "accept" ? 1 : 0);
       expect(result.content).toEqual([
@@ -196,7 +227,7 @@ describe("team management subagent", () => {
       requestId: "save",
       error: { code: "test.conflict", message: "版本冲突" }
     });
-    const args = { ...target, prompt: "新职责", summary: "明确职责" };
+    const args = proposal;
     await expect(child.tools[2]!.execute("propose", args)).rejects.toThrow(
       "版本冲突"
     );
@@ -242,21 +273,17 @@ describe("team management subagent", () => {
         teamMode
       );
       expect(
-        tools.some((tool) => tool.name === "propose_agent_team_prompt")
+        tools.some((tool) => tool.name === "propose_agent_team_change")
       ).toBe(true);
       p.faux.setResponses([
         fauxAssistantMessage(fauxToolCall("list_active_agent_teams", {}), {
           stopReason: "toolUse"
         }),
-        fauxAssistantMessage(fauxToolCall("read_agent_team_prompt", target), {
+        fauxAssistantMessage(fauxToolCall("read_agent_team_members", target), {
           stopReason: "toolUse"
         }),
         fauxAssistantMessage(
-          fauxToolCall("propose_agent_team_prompt", {
-            ...target,
-            prompt: "新职责",
-            summary: "明确职责"
-          }),
+          fauxToolCall("propose_agent_team_change", proposal),
           { stopReason: "toolUse" }
         ),
         fauxAssistantMessage("提示词已按审阅结果保存。")
@@ -273,9 +300,10 @@ describe("team management subagent", () => {
       await agent.prompt("优化当前生效团队成员提示词");
       expect(f.request).toHaveBeenCalledOnce();
       expect(f.executor.mock.calls.map(([command]) => command.type)).toEqual([
-        "agentTeams.listActivePrompts",
-        "agentTeams.readActivePrompt",
-        "agentTeams.applyActivePrompt"
+        "agentTeams.listActive",
+        "agentTeams.readActiveMembers",
+        "agentTeams.previewActiveChange",
+        "agentTeams.applyActiveChange"
       ]);
       expect(teamManagementParentPrompt(f.input)).toContain("不要求用户先绑定");
       const disabledInput = { ...f.input };

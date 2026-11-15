@@ -22,6 +22,42 @@ import {
   RequiredLedgerEvidenceNoteSchema
 } from "./common";
 import { LongLedgerCommitRecordSchema } from "./record";
+import { DocumentVersionOriginSchema } from "../document-version-origin";
+import { LongWorkspaceOperationBatchSchema } from "../long-workspace-operations";
+
+export const LongContinuityCommitPreparationSchema = z
+  .object({
+    commitId: LongLedgerCommitIdSchema,
+    versionOrigin: DocumentVersionOriginSchema.optional(),
+    batch: LongWorkspaceOperationBatchSchema,
+    bodyVersions: z
+      .array(
+        z
+          .object({
+            fileId: LongFileIdSchema,
+            expectedSha256: z.string().regex(/^[a-f0-9]{64}$/u)
+          })
+          .strict()
+      )
+      .min(1)
+      .max(100_000)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      new Set(value.bodyVersions.map(({ fileId }) => fileId)).size !==
+      value.bodyVersions.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["bodyVersions"],
+        message: "Body versions must target unique files."
+      });
+    }
+  });
+export type LongContinuityCommitPreparation = z.infer<
+  typeof LongContinuityCommitPreparationSchema
+>;
 
 export const LongChapterFileWriteSchema = z
   .object({ content: LedgerContentSchema })
@@ -175,6 +211,15 @@ export const LongTextFilesBatchCommitInputSchema = z
     bookId: LongBookIdSchema,
     chapterCardIds: z.array(LongChapterCardIdSchema).min(1).max(100_000),
     checkpointChapterCardId: LongChapterCardIdSchema,
+    preparation: LongContinuityCommitPreparationSchema.optional(),
+    review: z
+      .object({
+        commitId: LongLedgerCommitIdSchema,
+        versions:
+          LongContinuityCommitPreparationSchema.shape.bodyVersions.max(200_001)
+      })
+      .strict()
+      .optional(),
     foreshadowingBeatDecisions: z
       .record(
         LongForeshadowingBeatIdSchema,

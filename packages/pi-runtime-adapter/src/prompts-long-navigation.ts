@@ -45,9 +45,6 @@ export function renderLongPlotNavigation(
       ? `连续性记录：${counts.committedChapters} 章；最高连续记录位置为「${committedThrough.title}」(${committedThrough.id})。记录只作参考，不锁定正文或结构。`
       : `连续性记录：${counts.committedChapters} 章；尚未形成从第一章开始的连续记录区间。记录只作参考，不锁定正文或结构。`
     : "连续性记录：0 章。记录不会限制正文写作或结构调整。";
-  const continuityListHint = activeChapterCardId
-    ? `查连续性：list（stage=continuity, scope_id=${activeChapterCardId}）。连续性只接受 volume_、chapter_ 或 character_，不要对 arc_ 使用 continuity。`
-    : "查连续性：list（stage=continuity, scope_id=<volume_id|chapter_id|character_id>）。连续性只接受 volume_、chapter_ 或 character_，不要对 arc_ 使用 continuity。";
   const lines = volumes.map((volume) => {
     const arcs = navigation.arcs
       .filter((arc) => arc.volumeId === volume.id)
@@ -154,7 +151,6 @@ export function renderLongPlotNavigation(
     "全书故事线入口：book_line",
     bodyStatus,
     committedStatus,
-    continuityListHint,
     "【分卷与剧情点】",
     ...lines,
     `【章卡目录（由早到晚；共 ${orderedChapters.length} 张）】`,

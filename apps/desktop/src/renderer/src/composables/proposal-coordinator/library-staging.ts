@@ -125,10 +125,11 @@ export function createLibraryProposalStager(
     }
 
     const scopeId = `library:${event.payload.domain}:${event.payload.libraryId}`;
+    // One write call may create several entries; each has its own creation id.
     const documentId =
       event.payload.operation !== "create"
         ? event.payload.documentId
-        : `library-create:${event.payload.toolCallId}`;
+        : `library-create:${event.payload.creationId ?? event.payload.toolCallId}`;
     const proposalId = agentEditProposalId(
       event.payload.runId,
       scopeId,

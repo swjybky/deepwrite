@@ -79,6 +79,7 @@ export function manager(
     streamFn?: StreamFn;
     signal?: AbortSignal;
     model?: typeof model;
+    notifyCompacted?: (ids?: readonly string[]) => void;
   } = {}
 ) {
   const events: AgentRuntimeEvent[] = [];
@@ -112,8 +113,9 @@ export function manager(
     signal: overrides.signal ?? new AbortController().signal,
     emit: (event) => events.push(event),
     setBusy: () => {},
-    notifyCompacted: () => {
+    notifyCompacted: (ids) => {
       invalidated += 1;
+      overrides.notifyCompacted?.(ids);
     }
   });
   return { agent, guard, events, invalidated: () => invalidated };

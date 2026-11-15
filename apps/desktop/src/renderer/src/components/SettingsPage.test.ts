@@ -110,16 +110,9 @@ describe("SettingsPage", () => {
     );
   });
 
-  it("offers an independent persisted cross-stage auto-approval switch", () => {
-    expectSourceToContain(generalSettingsSource, "crossStageApproval");
-    expect(generalSettingsSource).toContain(
-      ':checked="autoApproveCrossStageOperations"'
-    );
-    expect(generalSettingsSource).toContain("crossStageApprovalDescription");
-    expect(generalSettingsSource).toContain("crossStageApprovalDescription");
-    expect(generalSettingsSource).toContain(
-      "'updateAutoApproveCrossStageOperations'"
-    );
+  it("no longer offers a cross-stage approval switch", () => {
+    expect(generalSettingsSource).not.toContain("crossStage");
+    expect(generalSettingsSource).not.toContain("CrossStage");
   });
 
   it("wires language and menu-bar controls to persisted settings", () => {

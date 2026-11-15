@@ -44,7 +44,6 @@ describe("long-form empty content writes", () => {
     const beforeText = "需要清空的旧正文。";
     const tools = longTools({
       index,
-      autoApproveCrossStageOperations: true,
       executor: documentExecutor(
         index,
         Object.fromEntries(cases.map(({ file }) => [file.id, beforeText]))

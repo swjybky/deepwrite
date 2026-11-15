@@ -1,3 +1,4 @@
+import type { PromptLocale } from "@deepwrite/contracts";
 export interface WritingContentTarget {
   title: string;
   id: string;
@@ -16,9 +17,14 @@ export function countWritingContentCharacters(content: string): number {
 
 export function writingReadContentCountLine(
   content: string,
-  truncated = false
+  truncated = false,
+  locale?: PromptLocale
 ): string {
   const count = countWritingContentCharacters(content);
+  if (locale === "en-US")
+    return truncated
+      ? `Returned characters: ${count} (truncated snapshot)`
+      : `Current character count: ${count}`;
   return truncated
     ? `已返回内容字数：${count} 字（快照已截断，非全文字数）`
     : `当前字数：${count} 字`;
@@ -26,13 +32,15 @@ export function writingReadContentCountLine(
 
 export function appendWritingContentCounts(
   message: string,
-  targets: readonly WritingContentTarget[]
+  targets: readonly WritingContentTarget[],
+  locale?: PromptLocale
 ): string {
   return [
     message,
-    ...targets.map(
-      ({ title, id, content }) =>
-        `${title}（文档标识=${id}）目标内容字数（本次提案）：${countWritingContentCharacters(content)} 字`
+    ...targets.map(({ title, id, content }) =>
+      locale === "en-US"
+        ? `${title} (document id=${id}): ${countWritingContentCharacters(content)} characters in this proposal`
+        : `${title}（文档标识=${id}）目标内容字数（本次提案）：${countWritingContentCharacters(content)} 字`
     )
   ].join("\n");
 }

@@ -1,7 +1,17 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ipcMain, ipcRenderer } from "electron";
+import { getAppAlerts } from "../preload/extras-api";
+import { registerUpdateAlertIpc } from "./ipc/update-alert-ipc";
+import type { BrowserWindow } from "electron";
+
+vi.mock("electron", () => ({
+  ipcMain: { handle: vi.fn() },
+  ipcRenderer: { invoke: vi.fn() }
+}));
+
 import { AppAlertStore } from "./app-alert-store";
 
 const temporaryRoots: string[] = [];
@@ -22,13 +32,109 @@ async function temporaryRoot(label: string): Promise<string> {
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(
-    temporaryRoots
-      .splice(0)
-      .map((root) => rm(root, { recursive: true, force: true }))
+    temporaryRoots.splice(0).map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50
+      })
+    )
   );
 });
 
 describe("AppAlertStore", () => {
+  it("preserves local history through Main routing and Preload validation", async () => {
+    const root = await temporaryRoot("deepwrite-alerts-ipc-");
+    const store = new AppAlertStore(root, {
+      fetcher: async () => Response.json(manifest(["本地历史"]))
+    });
+    const handlers = new Map<string, Parameters<typeof ipcMain.handle>[1]>();
+    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
+      handlers.set(channel, handler);
+    });
+    const sender = {};
+    registerUpdateAlertIpc({
+      getMainWindow: () =>
+        ({ webContents: sender, isDestroyed: () => false }) as BrowserWindow,
+      getUpdateService: () => undefined,
+      getAppAlertStore: () => store
+    });
+    vi.mocked(ipcRenderer.invoke).mockImplementation(async (channel) => {
+      const handler = handlers.get(channel);
+      if (!handler) throw new Error("missing handler");
+      const result = await handler({ sender } as Electron.IpcMainInvokeEvent);
+      return JSON.parse(JSON.stringify(result));
+    });
+    const snapshot = await getAppAlerts();
+    expect(snapshot.history?.[0]?.messages).toEqual(["本地历史"]);
+    expect(snapshot.history?.[0]?.revision).toBe(snapshot.desktopRevision);
+    expect(snapshot.history?.[0]?.receivedAt).toMatch(/^\d{4}-/u);
+  });
+
+  it("archives distinct desktop announcements once and restores them offline", async () => {
+    const root = await temporaryRoot("deepwrite-alerts-history-");
+    let messages = ["第一版", "补充说明"];
+    let now = Date.parse("2026-10-01T10:00:00.000Z");
+    const store = new AppAlertStore(root, {
+      configUrl: "https://example.test/ALERT.json",
+      now: () => now,
+      fetcher: async () => Response.json(manifest(messages))
+    });
+    const first = await store.getSnapshot();
+    await store.acknowledgeDesktop(first.desktopRevision);
+    now += 86_400_000;
+    expect((await store.getSnapshot()).history).toEqual(first.history);
+    messages = ["第二版"];
+    const second = await store.getSnapshot();
+    expect(second.history?.map((entry) => entry.messages)).toEqual([
+      ["第二版"],
+      ["第一版", "补充说明"]
+    ]);
+    expect(second.history?.map((entry) => entry.receivedAt)).toEqual([
+      "2026-10-02T10:00:00.000Z",
+      "2026-10-01T10:00:00.000Z"
+    ]);
+    messages = [];
+    expect((await store.getSnapshot()).history).toEqual(second.history);
+    const fetcher = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    const offline = new AppAlertStore(root, { fetcher });
+    expect((await offline.getSnapshot()).history).toEqual(second.history);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("migrates a legacy cached announcement before a new fetch replaces it", async () => {
+    const root = await temporaryRoot("deepwrite-alerts-history-migration-");
+    await mkdir(join(root, "config"), { recursive: true });
+    await writeFile(
+      join(root, "config", "app-alert-state.json"),
+      JSON.stringify({
+        version: 1,
+        fetchedAt: "2026-09-01T12:00:00.000Z",
+        manifest: manifest(["旧缓存"]),
+        history: [{ revision: "invalid", receivedAt: "invalid", messages: [] }]
+      })
+    );
+    const store = new AppAlertStore(root, {
+      now: () => Date.parse("2026-10-01T12:00:00.000Z"),
+      fetcher: async () => Response.json(manifest(["新公告"]))
+    });
+    const snapshot = await store.getSnapshot();
+    expect(snapshot.history?.map((entry) => entry.messages)).toEqual([
+      ["新公告"],
+      ["旧缓存"]
+    ]);
+    expect(snapshot.history?.[1]?.receivedAt).toBe("2026-09-01T12:00:00.000Z");
+    const offline = new AppAlertStore(root, {
+      fetcher: async () => {
+        throw new Error("offline");
+      }
+    });
+    expect((await offline.getSnapshot()).history).toEqual(snapshot.history);
+  });
+
   it("uses only the current remote documentation URL and clears missing, invalid and failed results", async () => {
     const root = await temporaryRoot("deepwrite-alerts-docs-");
     let docsUrl: unknown = " https://example.test/docs?source=app#download ";

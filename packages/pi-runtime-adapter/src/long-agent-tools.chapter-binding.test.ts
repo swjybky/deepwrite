@@ -13,8 +13,7 @@ import {
   longTools,
   resultText,
   toolByName,
-  twoWrittenChaptersIndex,
-  vi
+  twoWrittenChaptersIndex
 } from "./long-agent-tools.test-support";
 
 describe("chapter primary plot point metadata", () => {
@@ -148,25 +147,5 @@ describe("chapter primary plot point metadata", () => {
         meta: { primary_arc_id: "volume_one" }
       })
     ).toBe(false);
-  });
-
-  it("honors cross-stage cancellation before producing a binding proposal", async () => {
-    const requestUserInput = vi.fn(async () => ({
-      sessionId: "session_tools",
-      runId: "run_tools",
-      requestId: "cancel",
-      answers: [{ id: "cross_stage_write", selectedOptionIds: ["cancel"] }]
-    }));
-    const tools = longTools({
-      executor: documentExecutor(fixtureIndex()),
-      activeRoot: "draft",
-      requestUserInput
-    });
-    const result = await toolByName(tools, "edit").execute("cancel", {
-      id: "chapter_one",
-      meta: { primary_arc_id: null }
-    });
-    expect(resultText(result)).toContain("用户取消");
-    expect(result.details?.kind).toBe("none");
   });
 });

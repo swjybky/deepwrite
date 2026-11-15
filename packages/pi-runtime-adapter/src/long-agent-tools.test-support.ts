@@ -467,7 +467,6 @@ function longTools(input: {
   activeRoot?: LongWorkspaceRoot;
   activeChapterCardId?: string;
   index?: LongWorkspaceIndexSnapshot;
-  autoApproveCrossStageOperations?: boolean;
   requestUserInput?: AgentUserInputRequester;
   sharedState?: LongWorkspaceToolSharedState;
 }) {
@@ -485,8 +484,6 @@ function longTools(input: {
     sessionId: "session_tools",
     runId: "run_tools",
     executor: input.executor,
-    autoApproveCrossStageOperations:
-      input.autoApproveCrossStageOperations === true,
     ...(input.sharedState ? { sharedState: input.sharedState } : {}),
     requestUserInput:
       input.requestUserInput ??

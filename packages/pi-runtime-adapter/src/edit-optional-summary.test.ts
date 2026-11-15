@@ -59,7 +59,7 @@ describe.each(["short", "script"] as const)(
           })
         );
         expect(result.details).toMatchObject({
-          summary: expect.stringMatching(/^更新《.+人物状态》的内容$/u),
+          summary: expect.stringMatching(/^更新《.+状态》的内容$/u),
           text: "发现新的线索。"
         });
         expect(resultText(result)).not.toContain("undefined");
@@ -117,8 +117,7 @@ describe("long optional edit summary", () => {
       const index = fixtureIndex();
       const tools = longTools({
         index,
-        executor: documentExecutor(index),
-        autoApproveCrossStageOperations: true
+        executor: documentExecutor(index)
       });
       const edit = toolByName(tools, "edit");
       const result = await edit.execute(
@@ -139,8 +138,7 @@ describe("long optional edit summary", () => {
     const index = fixtureIndex();
     const tools = longTools({
       index,
-      executor: documentExecutor(index),
-      autoApproveCrossStageOperations: true
+      executor: documentExecutor(index)
     });
     const edit = toolByName(tools, "edit");
     const target = { id: "volume_one" };

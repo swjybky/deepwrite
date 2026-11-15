@@ -21,6 +21,7 @@ import {
 } from "./catalog-tools";
 import { buildListTool } from "./tool-list";
 import { buildReadTool } from "./tool-read";
+import { buildSearchTool } from "./tool-search";
 import { buildCreateTool } from "./tool-create";
 import { buildEditTool } from "./tool-edit";
 import { buildDeleteTool } from "./tool-delete";
@@ -88,6 +89,14 @@ export type LongAgentToolDetails =
       agentId: LongAgentProfile["id"];
       input: LongCommitChapterInput;
       summary: string;
+    }
+  | {
+      kind: "long-continuity-commit-proposal";
+      bookId: string;
+      agentId: LongAgentProfile["id"];
+      input: LongCommitChapterInput;
+      files: LongContinuityFileChange[];
+      summary: string;
     };
 
 export interface BuildLongWorkspaceToolsInput {
@@ -96,7 +105,6 @@ export interface BuildLongWorkspaceToolsInput {
   sessionId: string;
   runId: string;
   writeApprovalMode?: AgentWriteApprovalMode;
-  autoApproveCrossStageOperations?: boolean;
   attachedSkills?: WorkspaceRuntimeContext["attachedSkills"];
   attachedMaterials?: WorkspaceRuntimeContext["attachedMaterials"];
   queryMaterials?: MaterialQueryRunner | undefined;
@@ -105,7 +113,9 @@ export interface BuildLongWorkspaceToolsInput {
   includeAskUserQuestion?: boolean;
   sharedState?: LongWorkspaceToolSharedState;
   /** Called with a reset hook for when compaction drops earlier reads. */
-  onContextCompacted?: (listener: () => void) => void;
+  onContextCompacted?: (
+    listener: (removedToolCallIds?: readonly string[]) => void
+  ) => void;
 }
 
 /**
@@ -124,7 +134,7 @@ export function buildLongWorkspaceTools(
     tools.push(buildAskUserQuestionTool(ctx));
   }
   if (ctx.capabilities.has("query_structure")) {
-    tools.push(buildListTool(ctx), buildReadTool(ctx));
+    tools.push(buildListTool(ctx), buildReadTool(ctx), buildSearchTool(ctx));
   }
   if (ctx.writableRoots.size > 0) {
     tools.push(buildCreateTool(ctx), buildEditTool(ctx), buildDeleteTool(ctx));

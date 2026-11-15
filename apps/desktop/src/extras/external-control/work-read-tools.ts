@@ -6,6 +6,7 @@ import {
   LongReadDocumentResultSchema,
   LongWorkspaceIndexResultSchema,
   listLongWorkspaceFiles,
+  longLedgerCommitChapterIds,
   type CatalogIndexBook,
   type CatalogIndexSnapshot,
   type LongBookMetadata
@@ -107,7 +108,7 @@ export function catalogWorkDocuments(book: CatalogIndexBook) {
       },
       {
         id: section.characterState.id,
-        title: `${section.title} · 人物状态`,
+        title: `${section.title} · 状态`,
         group: "draft",
         bytes: section.characterState.contentBytes,
         updatedAt: section.characterState.updatedAt
@@ -152,6 +153,16 @@ async function getLongWork(core: CoreRequest, bookId: string) {
         updatedAt: file.updatedAt
       })
     ),
+    continuity: workspaceIndex.ledger.commits.map((commit) => ({
+      commitId: commit.id,
+      chapterCardIds: longLedgerCommitChapterIds(commit),
+      status: !commit.bodyEvidence
+        ? "unverified"
+        : commit.changedChapterIds?.length
+          ? "needs_review"
+          : "current",
+      changedChapterIds: commit.changedChapterIds ?? []
+    })),
     ...linkedLibraries(book)
   });
 }

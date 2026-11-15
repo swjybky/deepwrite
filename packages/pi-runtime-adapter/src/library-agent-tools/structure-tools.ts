@@ -12,7 +12,7 @@ import type { BuildLibraryAgentToolsInput } from "./types";
 import type { AgentRunInput } from "../runtime-types";
 
 // PI gateways require singleton enums instead of JSON Schema const literals.
-function portableSchema(value: unknown): unknown {
+export function portableSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(portableSchema);
   if (!value || typeof value !== "object") return value;
   const result: Record<string, unknown> = {};

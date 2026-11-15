@@ -21,6 +21,8 @@ import {
   requiredString
 } from "../../main/marketplace-response";
 
+import { readFeedbackDeviceModel } from "./device-model";
+
 const FEEDBACK_PATH = "/market/v1/me/feedback";
 /** Screenshots upload and download far slower than the usual small JSON. */
 const FEEDBACK_SUBMIT_TIMEOUT_MS = 60_000;
@@ -79,7 +81,8 @@ function normalizeItem(raw: unknown): FeedbackItem {
 export class FeedbackClient {
   constructor(
     private readonly requester: FeedbackRequester,
-    private readonly info: FeedbackClientInfo
+    private readonly info: FeedbackClientInfo,
+    private readonly deviceModel = readFeedbackDeviceModel
   ) {}
 
   async submit(input: FeedbackSubmitInput): Promise<FeedbackItem> {
@@ -92,7 +95,8 @@ export class FeedbackClient {
         content,
         images,
         client_version: this.info.version,
-        client_platform: this.info.platform
+        client_platform: this.info.platform,
+        client_device_model: await this.deviceModel()
       }
     });
     return parsed(() => normalizeItem(raw));

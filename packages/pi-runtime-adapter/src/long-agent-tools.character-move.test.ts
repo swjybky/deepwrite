@@ -13,8 +13,7 @@ import {
   it,
   longTools,
   resultText,
-  toolByName,
-  vi
+  toolByName
 } from "./long-agent-tools.test-support";
 
 describe("character metadata moves", () => {
@@ -200,28 +199,5 @@ describe("character metadata moves", () => {
         summary: "移动"
       })
     ).toBe(false);
-  });
-
-  it("honors cancellation before creating a cross-stage move proposal", async () => {
-    const requestUserInput = vi.fn(async () => ({
-      sessionId: "session_tools",
-      runId: "run_tools",
-      requestId: "request_cancel",
-      answers: [{ id: "cross_stage_write", selectedOptionIds: ["cancel"] }]
-    }));
-    const tools = longTools({
-      executor: documentExecutor(fixtureIndex()),
-      activeRoot: "plot_design",
-      requestUserInput
-    });
-    const result = await toolByName(tools, "edit").execute("cancel", {
-      id: "character_alice",
-      meta: { type_id: "minor_supporting" },
-      summary: "移动"
-    });
-    expect(resultText(result)).toContain("用户取消");
-    expect(result.details).not.toMatchObject({
-      kind: "long-mutation-proposal"
-    });
   });
 });

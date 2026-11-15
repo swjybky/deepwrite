@@ -1,3 +1,4 @@
+import { projectTransactionContentSha256 } from "../project-transaction";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import {
@@ -335,5 +336,16 @@ export function updateChapterBodyStatus(
   content: string
 ): void {
   const chapter = index.chapters.find(({ body }) => body.id === fileId);
-  if (chapter) chapter.bodyStatus = content.trim() ? "written" : "empty";
+  if (!chapter) return;
+  chapter.bodyStatus = content.trim() ? "written" : "empty";
+  const commit = index.ledger.commits.find(({ id }) => id === chapter.commitId);
+  const evidence = commit?.bodyEvidence?.find(
+    ({ chapterCardId }) => chapterCardId === chapter.chapterCardId
+  );
+  if (!commit || !evidence) return;
+  const changed = new Set(commit.changedChapterIds ?? []);
+  if (evidence.sha256 === projectTransactionContentSha256(content))
+    changed.delete(chapter.chapterCardId);
+  else changed.add(chapter.chapterCardId);
+  commit.changedChapterIds = [...changed];
 }

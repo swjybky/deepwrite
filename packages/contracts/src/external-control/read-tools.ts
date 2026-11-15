@@ -174,6 +174,18 @@ export const ExternalWorkDetailSchema = ExternalWorkSummarySchema.extend({
     )
     .optional(),
   documents: z.array(ExternalWorkDocumentSchema),
+  continuity: z
+    .array(
+      z
+        .object({
+          commitId: IdSchema,
+          chapterCardIds: z.array(IdSchema),
+          status: z.enum(["current", "needs_review", "unverified"]),
+          changedChapterIds: z.array(IdSchema)
+        })
+        .strict()
+    )
+    .optional(),
   linkedMaterialLibraryIds: z.array(IdSchema),
   linkedSkillLibraryIds: z.array(IdSchema)
 }).strict();

@@ -1,3 +1,4 @@
+import { proposeContinuityReview } from "./review-continuity";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import {
@@ -6,7 +7,8 @@ import {
   type LongWorkspaceFileReference,
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
-import { defineTool, textResult } from "./shared";
+import { defineTool, textResult, stableHash } from "./shared";
+import { prepareContinuityDocuments } from "./continuity-documents";
 import { stableIdParameter, strictObject } from "./schemas";
 import type { LongToolContext } from "./context";
 import { AUTO_APPROVE_PROPOSAL_SUBMITTED } from "../write-approval";
@@ -58,8 +60,30 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
     name: "propose_continuity_commit",
     label: "保存连续性记录",
     description:
-      "将同一本书中按叙事顺序连续、已有正文且尚未记录的一批章节登记为一个连续性批次。chapter_card_ids 按顺序传入；仅一章时也可用 chapter_card_id 或当前章。批次只读取全部正文作为证据，并只绑定末章的章末状态、接续包、人物状态/历史、世界观揭露与整批伏笔变化。必须逐项提交整批伏笔总览候选触点的结果和正文证据；没有候选时传空数组。",
+      "复核已有记录时传 review_commit_id（从连续性 list 获取），先完整读取批次正文和末章连续性文件并核对，需修订记录时先 edit 对应文件；复核只更新原账本正文依据、不新增账本。可通过 documents 一次提交末章的 chapter_end_state、handoff、可选 world_reveals 与 characters（character_id、current_state、history），形成一张文件差异与账本合并审批卡；正文与各连续性文件均校验版本，失败不登记。省略 documents 保留分步流程。将同一本书中按叙事顺序连续、已有正文且尚未记录的一批章节登记为一个连续性批次。chapter_card_ids 按顺序传入；仅一章时也可用 chapter_card_id 或当前章。批次只读取全部正文作为证据，并只绑定末章的章末状态、接续包、人物状态/历史、世界观揭露与整批伏笔变化。必须逐项提交整批伏笔总览候选触点的结果和正文证据；没有候选时传空数组。",
     parameters: strictObject({
+      review_commit_id: Type.Optional(
+        Type.String({
+          description:
+            "已核对的既有账本 commit_ id；与 documents、chapter_card_id(s) 互斥。"
+        })
+      ),
+      documents: Type.Optional(
+        strictObject({
+          chapter_end_state: Type.String(),
+          handoff: Type.String(),
+          world_reveals: Type.Optional(Type.String()),
+          characters: Type.Optional(
+            Type.Array(
+              strictObject({
+                character_id: stableIdParameter("character"),
+                current_state: Type.String(),
+                history: Type.String()
+              })
+            )
+          )
+        })
+      ),
       chapter_card_id: Type.Optional(stableIdParameter("chapter")),
       chapter_card_ids: Type.Optional(
         Type.Array(stableIdParameter("chapter"), {
@@ -79,7 +103,22 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
       )
     }),
     executionMode: "sequential",
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (toolCallId, params, signal) => {
+      if (params.review_commit_id) {
+        if (
+          params.documents ||
+          params.chapter_card_id ||
+          params.chapter_card_ids ||
+          params.foreshadowing_touchpoint_decisions.length
+        )
+          throw new Error("复核只需 review_commit_id、summary 和空触点数组。");
+        return proposeContinuityReview(
+          ctx,
+          params.review_commit_id,
+          params.summary,
+          signal
+        );
+      }
       if (params.chapter_card_id && params.chapter_card_ids) {
         throw new Error(
           "chapter_card_id 与 chapter_card_ids 只能选择一种传入。"
@@ -87,8 +126,13 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
       }
       const requestedCheckpoint =
         params.chapter_card_ids?.at(-1) ?? params.chapter_card_id;
-      const { index, activeChapterCardId, chapter } =
-        await loadActiveChapterMutationContext(signal, requestedCheckpoint);
+      const loaded = await loadActiveChapterMutationContext(
+        signal,
+        requestedCheckpoint
+      );
+      const activeChapterCardId = loaded.activeChapterCardId;
+      let index = loaded.index;
+      let chapter = loaded.chapter;
       const chapterCardIds = params.chapter_card_ids ?? [activeChapterCardId];
       const chapterById = new Map(
         index.chapters.map((entry) => [entry.chapterCardId, entry])
@@ -167,6 +211,44 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
           async (entry) => await readWholeDocument(entry.body, signal)
         )
       );
+      if (params.documents && !ctx.writableRoots.has("continuity_ledger"))
+        throw new Error("当前智能体无权写入连续性文件。");
+      const combined = params.documents
+        ? await prepareContinuityDocuments(
+            ctx,
+            index,
+            activeChapterCardId,
+            params.documents,
+            toolCallId,
+            summary,
+            candidates.length
+              ? params.foreshadowing_touchpoint_decisions
+                  .map(
+                    (decision) =>
+                      `${decision.foreshadowing_id} / ${decision.beat_id}：${decision.status}\n${decision.evidence.trim()}`
+                  )
+                  .join("\n\n")
+              : "",
+            signal
+          )
+        : undefined;
+      if (combined) {
+        if (
+          !combined.index ||
+          combined.result.details.kind !== "long-continuity-file-proposal"
+        )
+          return combined.result;
+        index = combined.index;
+        chapter = index.chapters.find(
+          (c) => c.chapterCardId === activeChapterCardId
+        )!;
+      }
+      const preparedFiles = new Map(
+        combined?.changes?.map((change) => [
+          change.file.id,
+          { file: change.file, content: change.afterText }
+        ]) ?? []
+      );
       const targets: Array<{
         role: LongContinuityFileRole;
         characterId: string | null;
@@ -221,7 +303,9 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
         file: LongWorkspaceFileReference;
       }> = [];
       for (const target of targets) {
-        const live = await readWholeDocument(target.file, signal);
+        const live =
+          preparedFiles.get(target.file.id) ??
+          (await readWholeDocument(target.file, signal));
         continuityFiles.push({
           role: target.role,
           characterId: target.characterId,
@@ -261,8 +345,42 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
             { status: decision.status, note: decision.evidence.trim() }
           ])
         ),
-        commitMessage: summary
+        commitMessage: summary,
+        ...(combined &&
+        combined.result.details.kind === "long-continuity-file-proposal"
+          ? {
+              preparation: {
+                commitId: `commit_${stableHash(JSON.stringify([workspace.bookId, input.sessionId, input.runId, toolCallId])).slice(0, 24)}`,
+                batch: combined.result.details.batch,
+                bodyVersions: bodies.map((body) => ({
+                  fileId: body.file.id,
+                  expectedSha256: stableHash(body.content)
+                }))
+              }
+            }
+          : {})
       });
+      if (
+        combined?.changes &&
+        combined.result.details.kind === "long-continuity-file-proposal"
+      ) {
+        ctx.rememberProposal({
+          operations: combined.result.details.batch.operations,
+          changes: combined.changes,
+          timestamp: combined.timestamp
+        });
+        return textResult(
+          "已形成连续性文件与账本的合并提案，客户端接受后将原子保存；未接受前尚未落盘。",
+          {
+            kind: "long-continuity-commit-proposal",
+            bookId: workspace.bookId,
+            agentId: profile.id,
+            input: commitInput,
+            files: combined.result.details.files,
+            summary
+          }
+        );
+      }
       const titleById = new Map(
         index.plot.chapterCards.map((card) => [card.id, card.title])
       );

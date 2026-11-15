@@ -98,6 +98,53 @@ function acceptedRun(
 }
 
 describe("Main internal command authorizer", () => {
+  it.each(["short", "script"] as const)(
+    "binds %s writing reads to the accepted prompt, session and work",
+    (bookType) => {
+      const scope = { bookType, bookId: BOOK_ID };
+      const command = CommandEnvelopeSchema.parse(
+        createEnvelope(
+          "catalog.readWritingWorkspace",
+          { ...scope, query: { mode: "index" } },
+          {
+            id: "writing-read",
+            context: {
+              runId: RUN_ID,
+              sessionId: SESSION_ID,
+              resourceId: BOOK_ID
+            }
+          }
+        )
+      );
+      const authorized = acceptedRun({ writingScope: scope });
+      expect(
+        authorizeMainInternalCommand(authorizationContext(command), authorized)
+      ).toBe(true);
+      for (const runs of [
+        acceptedRun(),
+        acceptedRun({ accepted: false, writingScope: scope }),
+        acceptedRun({ writingScope: { ...scope, bookId: "other" } }),
+        acceptedRun({ sessionId: "other", writingScope: scope }),
+        acceptedRun({
+          writingScope: {
+            ...scope,
+            bookType: bookType === "short" ? "script" : "short"
+          }
+        })
+      ]) {
+        expect(
+          authorizeMainInternalCommand(authorizationContext(command), runs)
+        ).toMatchObject({ authorized: false });
+      }
+      expect(
+        authorizeMainInternalCommand(
+          authorizationContext(command, { parentRequestId: "different" }),
+          authorized
+        )
+      ).toMatchObject({ authorized: false });
+    }
+  );
+
   it("allows only the three long queries for the exact accepted run binding", () => {
     expect(AGENT_CORE_LONG_QUERY_COMMANDS).toEqual([
       "long.getWorkspaceIndex",

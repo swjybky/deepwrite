@@ -69,9 +69,14 @@ export function hasWebFetchTool(
 
 /** The section for a tool list, or undefined when search is not mounted. */
 export function webSearchPromptFor(
-  tools: readonly Pick<AgentTool, "name">[]
+  tools: readonly Pick<AgentTool, "name">[],
+  locale?: PromptLocale
 ): string | undefined {
   if (!hasWebSearchTool(tools)) return undefined;
+  if (locale === "en-US")
+    return hasWebFetchTool(tools)
+      ? WEB_SEARCH_FETCH_PROMPT_EN
+      : WEB_SEARCH_PROMPT_EN;
   return hasWebFetchTool(tools) ? WEB_SEARCH_FETCH_PROMPT : WEB_SEARCH_PROMPT;
 }
 

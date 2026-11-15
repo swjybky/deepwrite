@@ -1,3 +1,7 @@
+import {
+  DraftSectionChangeSchema,
+  SHORT_WORKSPACE_FILE_MAX_CHARACTERS
+} from "./expert-draft";
 import { DocumentVersionOriginSchema } from "./document-version-origin";
 import {
   CatalogPreviewLibraryStructureCommandEnvelopeSchema,
@@ -631,7 +635,7 @@ function catalogDraftDirectoryFromExpertDraft(
       },
       characterState: {
         id: catalogDraftCharacterStateDocumentId(section.id),
-        title: `${section.title} · 人物状态`,
+        title: `${section.title} · 状态`,
         content: section.characterState,
         createdAt,
         updatedAt
@@ -2124,6 +2128,7 @@ export const SaveDocumentInputSchema = z.object({
   title: CatalogTitleSchema.optional(),
   content: z.string(),
   preserveCurrentContent: z.boolean().optional(),
+  draftSectionChange: DraftSectionChangeSchema.optional(),
   baseRevision: z.string().min(1).optional(),
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
@@ -2156,6 +2161,11 @@ export const CreateDraftSectionsSectionInputSchema = z
   .object({
     clientSectionId: DraftSectionIdSchema,
     title: DraftSectionTitleSchema.optional(),
+    bodyContent: z.string().max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS).optional(),
+    stateContent: z
+      .string()
+      .max(SHORT_WORKSPACE_FILE_MAX_CHARACTERS)
+      .optional(),
     wordCountRequirement: z.string().max(1_000).optional()
   })
   .strict();
@@ -2170,6 +2180,7 @@ export const CreateDraftSectionsInputSchema = z
     afterSectionId: DraftSectionIdSchema.optional(),
     baseProjectRevision: z.number().int().nonnegative().optional(),
     force: z.boolean().optional(),
+    versionOrigin: DocumentVersionOriginSchema.optional(),
     sections: z.array(CreateDraftSectionsSectionInputSchema).min(1).max(100)
   })
   .strict()

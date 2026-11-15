@@ -13,18 +13,15 @@ import {
 const t = createScopedTranslator("components.conversationToolStatus");
 
 export function workspaceToolLabel(name: string): string {
-  if (/^manage_(material|skill)_/.test(name)) {
-    const action = name.replace(/^manage_(material|skill)_/, "");
-    if (action.startsWith("list_")) return t("listScopeDetails");
-    if (action.startsWith("read_") || action.startsWith("search_"))
-      return t("readObjectContent");
-    if (action.startsWith("create_")) return t("createObject");
-    return t("writeOrEdit");
-  }
   const labels: Record<string, string> = {
+    library_list: t("listScopeDetails"),
+    library_read: t("readObjectContent"),
+    library_search: t("readObjectContent"),
+    library_write: t("writeOrEdit"),
+    library_organize: t("writeOrEdit"),
     list_active_agent_teams: t("listScopeDetails"),
-    read_agent_team_prompt: t("readObjectContent"),
-    propose_agent_team_prompt: t("writeOrEdit"),
+    read_agent_team_members: t("readObjectContent"),
+    propose_agent_team_change: t("writeOrEdit"),
     list_creation_projects: t("listWritingProjects"),
     get_creation_project_summary: t("viewProjectSummary"),
     list_material_libraries: t("listMaterialLibraries"),
@@ -177,7 +174,7 @@ export function toolKind(toolName: string): ToolKind {
   if (isWebToolName(name)) return "web";
   if (
     WRITE_TOOL_NAMES.has(name) ||
-    /(write|edit|replace|patch|save|apply|create|propose)/.test(name)
+    /(write|edit|replace|patch|save|apply|create|propose|organize)/.test(name)
   ) {
     return "write";
   }

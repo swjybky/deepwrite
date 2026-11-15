@@ -271,12 +271,27 @@ export async function handleSessionCommands(
             ...(libraryWorkspace
               ? { libraryAgentScope: { domain: libraryWorkspace.domain } }
               : {}),
+            ...(creativeWorkspace
+              ? {
+                  writingScope: {
+                    bookId: creativeWorkspace.id,
+                    bookType: creativeWorkspaceType
+                  }
+                }
+              : {}),
             promptRequestId: internalCommand.id,
             ...(teamManagement
               ? { teamManagementScope: teamManagement.scope }
               : {}),
             ...(libraryManagement
-              ? { libraryManagementScope: libraryManagement.scope }
+              ? {
+                  libraryManagementScope: {
+                    ...libraryManagement.scope,
+                    domains: libraryManagement.managers.map(
+                      ({ domain }) => domain
+                    )
+                  }
+                }
               : {}),
             ...(materialWorkspaceContext?.materialCatalog
               ? {

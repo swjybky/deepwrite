@@ -65,7 +65,9 @@ export async function i18nSmokeInRenderer(
   async function openGeneral() {
     if (!select(".settings-page")) {
       if (!select("#account-menu")) await click(".account-identity-button");
-      await click('#account-menu button[role="menuitem"]:first-child');
+      await click(
+        '#account-menu button[role="menuitem"]:not(.account-sign-in-button)'
+      );
     }
     await settingsCategory(
       document.documentElement.lang === "en-US" ? "General" : "常规"
@@ -263,6 +265,23 @@ export async function i18nSmokeInRenderer(
   ]) {
     if (!select(`[data-feature-id="${id}"]`)) more.click();
     await click(`[data-feature-id="${id}"]`);
+    if (id === "skill-marketplace" || id === "agent-team-marketplace") {
+      await until(
+        () => select(".marketplace-login-dialog .auth-form"),
+        `${id} sign-in prompt`
+      );
+      ensure(
+        select(".marketplace-login-dialog")?.getAttribute("aria-label") ===
+          "Sign in to DeepWrite",
+        `${id} English sign-in title`
+      );
+      await click(".marketplace-login-dialog .dialog-close");
+      await until(
+        () => !select(".marketplace-login-dialog"),
+        `${id} sign-in prompt closed`
+      );
+      continue;
+    }
     await until(
       () =>
         [...document.querySelectorAll("h1")].some(

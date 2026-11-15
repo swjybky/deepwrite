@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AgentRuntimeRefSchema } from "./agent-event-identity";
-import { AgentTeamPromptReviewSchema } from "../agent-team-management";
+import { AgentTeamChangeReviewSchema } from "../agent-team-management";
 import {
   PROPOSAL_SETTLEMENT_MAX_ITEMS,
   ProposalSettlementSchema
@@ -16,6 +16,8 @@ export const AGENT_USER_INPUT_MAX_OPTIONS = 5;
 
 export const AgentUserInputSourceSchema = z.enum([
   "ask_user_question",
+  "plot_structure_change",
+  /** Legacy persisted requests only; new runs never emit this source. */
   "cross_stage_write",
   "subagent_draw",
   "agent_team_prompt",
@@ -187,6 +189,10 @@ export type AgentUserInputWriteApproval = z.infer<
 
 /** Outcome of one paused-for proposal; `edited` means the user's version was saved. */
 export const AgentWriteApprovalResultSchema = ProposalSettlementSchema.extend({
+  toolCallIds: z
+    .array(z.string().min(1))
+    .max(WRITE_APPROVAL_MAX_TOOL_CALLS)
+    .optional(),
   edited: z.boolean().optional(),
   editedText: z.string().max(WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH).optional(),
   editedTextTruncated: z.boolean().optional()
@@ -217,7 +223,8 @@ export const AgentUserInputRequestedPayloadSchema = z
     questions: AgentUserInputQuestionsSchema,
     /** Present exactly when `source` is `subagent_draw`. */
     draw: AgentUserInputDrawSchema.optional(),
-    promptReview: AgentTeamPromptReviewSchema.optional(),
+    /** Present exactly when `source` is `agent_team_prompt`. */
+    teamReview: AgentTeamChangeReviewSchema.optional(),
     /** Present exactly when `source` is `write_approval`. */
     writeApproval: AgentUserInputWriteApprovalSchema.optional(),
     runtime: AgentRuntimeRefSchema
@@ -236,12 +243,12 @@ export const AgentUserInputRequestedPayloadSchema = z
     }
     if (
       (value.source === "agent_team_prompt") !==
-      (value.promptReview !== undefined)
+      (value.teamReview !== undefined)
     ) {
       context.addIssue({
         code: "custom",
-        path: ["promptReview"],
-        message: "Team prompt changes require a dedicated review request."
+        path: ["teamReview"],
+        message: "Team changes require a dedicated review request."
       });
     }
     if ((value.source === "subagent_draw") !== (value.draw !== undefined)) {

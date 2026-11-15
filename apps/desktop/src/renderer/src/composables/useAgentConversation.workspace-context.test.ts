@@ -18,11 +18,10 @@ import {
 } from "./useAgentConversation.test-support";
 
 describe("agent conversation controller: workspace-context", () => {
-  it("keeps complete short-stage files in tool context while bounding the automatic active snapshot", async () => {
+  it("sends short-stage navigation without embedding editor text", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({
       api: () => deferred.api,
-      autoApproveCrossStageOperations: () => true,
       idleTimeoutMs: 10_000
     });
     const workspaceDocuments = createShortWorkspaceDocuments();
@@ -44,21 +43,19 @@ describe("agent conversation controller: workspace-context", () => {
     });
     await sending;
 
-    expect(deferred.prompts[0]?.autoApproveCrossStageOperations).toBe(true);
     expect(deferred.prompts[0]?.agentTeamMode).toBe("team");
 
     const context = deferred.prompts[0]?.workspaceContext;
     const plotStage = context?.shortWorkspace?.stages.find(
       ({ stageId }) => stageId === "plot_design"
     );
-    expect(plotStage?.content).toContain(tail);
+    expect(plotStage?.content).toBe("");
+    expect(context?.shortWorkspace?.readSource).toBe("core");
+    expect(JSON.stringify(context)).not.toContain(tail);
     expect(plotStage?.truncated).toBeUndefined();
     expect(context?.shortWorkspace?.agentsMd).toBe("# 测试作品上下文");
-    expect(context?.activeResource).toMatchObject({
-      truncated: true,
-      originalLength: activeDocument.content.length
-    });
-    expect(context?.activeResource?.content).toHaveLength(20_000);
+    expect(context?.activeResource?.truncated).toBeUndefined();
+    expect(context?.activeResource?.content).toBe("");
     controller.dispose();
   });
 
@@ -98,7 +95,7 @@ describe("agent conversation controller: workspace-context", () => {
       activeSectionId: "episode-1",
       stages: SCRIPT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
         stageId,
-        content: `${stageId} 的剧本实时内容`
+        content: ""
       })),
       expertDraft: {
         sections: [
@@ -228,9 +225,9 @@ describe("agent conversation controller: workspace-context", () => {
             expect.objectContaining({ id: "intro" }),
             expect.objectContaining({
               id: "section-1",
-              body: expect.objectContaining({ content: "draft 的实时内容" }),
+              body: expect.objectContaining({ content: "" }),
               characterState: expect.objectContaining({
-                content: "第一节人物状态"
+                content: ""
               })
             })
           ]
@@ -243,13 +240,13 @@ describe("agent conversation controller: workspace-context", () => {
     expect(deferred.prompts[0]?.workspaceContext?.activeResource).toMatchObject(
       {
         id: "short_draft_section-1_body",
-        content: "draft 的实时内容"
+        content: ""
       }
     );
     controller.dispose();
   });
 
-  it("sends the tab-selected section body as the active physical draft file", async () => {
+  it("retains the tab-selected file identity without its body", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({
       api: () => deferred.api,
@@ -311,16 +308,16 @@ describe("agent conversation controller: workspace-context", () => {
       )?.body
     ).toMatchObject({
       documentId: "short_draft_section-2_body",
-      content: "第二节实时正文"
+      content: ""
     });
     expect(context?.activeResource).toMatchObject({
       id: "short_draft_section-2_body",
-      content: "第二节实时正文"
+      content: ""
     });
     controller.dispose();
   });
 
-  it("sends every physical draft file in full without the former 20k snapshot truncation", async () => {
+  it("sends only navigation even when every physical draft file is loaded", async () => {
     const deferred = createDeferredApi();
     const controller = useAgentConversation({
       api: () => deferred.api,
@@ -397,14 +394,17 @@ describe("agent conversation controller: workspace-context", () => {
     expect(snapshot?.expertDraft.sections.map((section) => section.id)).toEqual(
       ["section-1", "section-2", "section-3", "section-4", "section-5"]
     );
-    expect(snapshot?.expertDraft.sections[0]?.body.content).toBe(firstBody);
-    expect(snapshot?.expertDraft.sections.at(-1)?.body.content).toBe(
-      "第5节完整正文"
-    );
+    expect(
+      snapshot?.expertDraft.sections.every(
+        (section) =>
+          section.body.content === "" && section.characterState.content === ""
+      )
+    ).toBe(true);
+    expect(JSON.stringify(deferred.prompts[0])).not.toContain(firstBody);
     expect(deferred.prompts[0]?.workspaceContext?.activeResource).toMatchObject(
       {
         id: "section-5-body",
-        content: "第5节完整正文"
+        content: ""
       }
     );
     controller.dispose();

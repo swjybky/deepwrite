@@ -12,7 +12,6 @@ import {
 interface DiskGeneralSettings extends Omit<
   GeneralSettings,
   | "permissionMode"
-  | "autoApproveCrossStageOperations"
   | "taskNotification"
   | "externalControlEnabled"
   | "defaultTextViewMode"
@@ -26,7 +25,6 @@ interface DiskGeneralSettings extends Omit<
 > {
   version: 1 | 2;
   permissionMode: GeneralSettings["permissionMode"] | "full-access";
-  autoApproveCrossStageOperations?: boolean;
   taskNotification?: boolean;
   externalControlEnabled?: boolean;
   bodyTextFormats?: GeneralSettings["bodyTextFormats"];
@@ -96,8 +94,6 @@ export class GeneralSettingsStore {
           : candidate.permissionMode;
       const parsed = GeneralSettingsSchema.safeParse({
         permissionMode,
-        autoApproveCrossStageOperations:
-          candidate.autoApproveCrossStageOperations,
         autoSave: candidate.autoSave,
         language: candidate.language,
         showInMenuBar: candidate.showInMenuBar,
@@ -123,7 +119,6 @@ export class GeneralSettingsStore {
       if (candidate.version === 1) {
         // Apply the new approval defaults once; later user choices stay intact.
         settings.permissionMode = "auto-approve";
-        settings.autoApproveCrossStageOperations = true;
         await atomicWriteJson(this.settingsPath, { version: 2, ...settings });
       }
       return GeneralSettingsSnapshotSchema.parse({

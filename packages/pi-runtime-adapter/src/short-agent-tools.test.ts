@@ -31,7 +31,7 @@ describe("unified short workspace tools", () => {
     expect(names).not.toContain("delete_expert_draft_section");
     expect(names).toContain("delete");
     expect(JSON.stringify(toolByName(tools, "read").parameters)).not.toMatch(
-      /offset|max_characters|page_size/u
+      /max_characters|page_size/u
     );
     expect(JSON.stringify(toolByName(tools, "create").parameters)).toContain(
       '"required":["title"]'
@@ -40,14 +40,14 @@ describe("unified short workspace tools", () => {
       "创建一项全局剧情结构"
     );
     expect(toolByName(tools, "read").description).toContain(
-      "kind=draft_section 必须同时给出 document=body 或 character_state"
+      "kind=draft_section 必须同时给出 document=body 或 state"
     );
     expect(names).not.toContain("write");
     expect(toolByName(tools, "edit").description).toContain(
-      "kind=draft_section 修改正文或人物状态时必须同时给出 document=body 或 character_state"
+      "修改小节或剧集的正文或状态时必须指定 document"
     );
     expect(JSON.stringify(toolByName(tools, "read").parameters)).toContain(
-      "读取、写入或修改 draft_section 的正文/人物状态时必须指定"
+      "读取、写入或修改 draft_section 的正文/状态时必须指定"
     );
     expect(JSON.stringify(toolByName(tools, "read").parameters)).toContain(
       "不传 document 时默认 body"
@@ -57,16 +57,13 @@ describe("unified short workspace tools", () => {
     ).not.toContain('"document"');
   });
 
-  it("reads every target kind and asks before a cross-stage mutation", async () => {
+  it("reads every target kind and edits another stage without asking", async () => {
     const snapshot = shortWorkspace("character_design", {
       characterList: true
     });
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session-tools",
-      runId: "run-tools",
-      requestId: request.requestId ?? "cross-stage-request",
-      answers: [{ id: "cross_stage_write", selectedOptionIds: ["cancel"] }]
-    }));
+    const requestUserInput = vi.fn(async () => {
+      throw new Error("a cross-stage write must not ask the user");
+    });
     const tools = buildShortWorkspaceTools({
       workspace: snapshot,
       profile: shortProfile(),
@@ -113,7 +110,7 @@ describe("unified short workspace tools", () => {
     expect(draftDirectory).toContain("第一节");
     expect(draftDirectory).not.toContain("revision:");
     expect(
-      resultText(
+      details(
         await toolByName(tools, "edit").execute("edit-other-stage", {
           kind: "plot_stage",
           id: "plot_design",
@@ -121,82 +118,12 @@ describe("unified short workspace tools", () => {
           summary: "修改剧情"
         })
       )
-    ).toContain("用户取消");
-    expect(requestUserInput).toHaveBeenCalledTimes(1);
-    expect(requestUserInput.mock.calls[0]?.[0]).toMatchObject({
-      source: "cross_stage_write"
-    });
-  });
-
-  it("confirms every cross-stage mutation separately", async () => {
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session-tools",
-      runId: "run-tools",
-      requestId: request.requestId ?? "cross-stage-request",
-      answers: [
-        {
-          id: "cross_stage_write",
-          selectedOptionIds: ["continue_once"]
-        }
-      ]
-    }));
-    const tools = buildShortWorkspaceTools({
-      workspace: shortWorkspace("character_design"),
-      profile: shortProfile(),
-      requestUserInput
-    });
-    const read = toolByName(tools, "read");
-    await read.execute("read-plot", {
-      kind: "plot_stage",
-      id: "plot_design"
-    });
-    const edit = toolByName(tools, "edit");
-    await edit.execute("edit-plot-1", {
-      kind: "plot_stage",
-      id: "plot_design",
-      replacements: [{ original_text: "唯一片段", new_text: "第一版" }],
-      summary: "第一次跨阶段修改"
-    });
-    await edit.execute("edit-plot-2", {
-      kind: "plot_stage",
-      id: "plot_design",
-      replacements: [{ original_text: "第一版", new_text: "第二版" }],
-      summary: "第二次跨阶段修改"
-    });
-    expect(requestUserInput).toHaveBeenCalledTimes(2);
-  });
-
-  it("auto-approves cross-stage mutations without requesting user input", async () => {
-    const requestUserInput = vi.fn(async () => {
-      throw new Error("cross-stage input should have been auto-approved");
-    });
-    const tools = buildShortWorkspaceTools({
-      workspace: shortWorkspace("character_design"),
-      profile: shortProfile(),
-      autoApproveCrossStageOperations: true,
-      requestUserInput
-    });
-    const read = toolByName(tools, "read");
-    await read.execute("read-auto-approved-plot", {
-      kind: "plot_stage",
-      id: "plot_design"
-    });
-    const result = await toolByName(tools, "edit").execute(
-      "edit-auto-approved-plot",
-      {
-        kind: "plot_stage",
-        id: "plot_design",
-        replacements: [{ original_text: "唯一片段", new_text: "自动允许" }],
-        summary: "自动允许跨阶段修改"
-      }
-    );
-
-    expect(requestUserInput).not.toHaveBeenCalled();
-    expect(details(result)).toMatchObject({
+    ).toMatchObject({
       kind: "workspace-editor-mutation",
       stageId: "plot_design",
-      summary: "自动允许跨阶段修改"
+      summary: "修改剧情"
     });
+    expect(requestUserInput).not.toHaveBeenCalled();
   });
 
   it("reads whole objects and can return the complete manuscript", async () => {
@@ -223,9 +150,7 @@ describe("unified short workspace tools", () => {
         kind: "draft_section",
         id: "section-1"
       })
-    ).rejects.toThrow(
-      "读取 draft_section 必须指定 document=body 或 character_state。"
-    );
+    ).rejects.toThrow("读取 draft_section 必须指定 document=body 或 state。");
     await expect(
       toolByName(tools, "edit").execute("edit-draft-missing-document", {
         kind: "draft_section",
@@ -234,7 +159,7 @@ describe("unified short workspace tools", () => {
         summary: "修改正文"
       })
     ).rejects.toThrow(
-      "修改 draft_section 正文时必须指定 document=body 或 character_state。"
+      "修改 draft_section 正文时必须指定 document=body 或 state。"
     );
 
     const manuscript = await read.execute("read-manuscript", {
@@ -242,8 +167,8 @@ describe("unified short workspace tools", () => {
       id: "draft",
       include_all_sections: true
     });
-    expect(resultText(manuscript)).toContain("甲尾");
-    expect(resultText(manuscript)).toContain("乙尾");
+    expect(resultText(manuscript)).not.toContain("甲尾");
+    expect(resultText(manuscript)).not.toContain("乙尾");
     expect(resultText(manuscript)).toContain("超过 50000 字");
 
     const proposal = await toolByName(tools, "edit").execute("write-allowed", {

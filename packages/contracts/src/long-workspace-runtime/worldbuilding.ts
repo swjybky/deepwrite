@@ -121,13 +121,15 @@ const LongWorldbuildingFocusTextSnapshotSchema = z
 
 export const LongWorldbuildingFocusSnapshotSchema = z
   .object({
+    categoryId: LongWorldbuildingCategoryIdSchema.optional(),
     categoryTitle: z.string().trim().min(1).max(256),
     format: z.enum(["list", "text"]),
     currentStage: z
       .object({
         kind: z.enum(["item", "overview", "text"]),
+        itemId: LongWorldbuildingItemIdSchema.optional(),
         title: z.string().trim().min(1).max(256),
-        text: LongWorldbuildingFocusTextSnapshotSchema
+        text: LongWorldbuildingFocusTextSnapshotSchema.optional()
       })
       .strict(),
     overview: LongWorldbuildingFocusTextSnapshotSchema.optional()
@@ -145,12 +147,26 @@ export const LongWorldbuildingFocusSnapshotSchema = z
           "Long worldbuilding focus stage kind must match its category format."
       });
     }
-    if (value.currentStage.kind === "item" && value.overview === undefined) {
+    if (
+      value.currentStage.kind === "item" &&
+      value.currentStage.text !== undefined &&
+      value.overview === undefined
+    ) {
       context.addIssue({
         code: "custom",
         path: ["overview"],
         message:
           "A focused worldbuilding item must include its category overview."
+      });
+    }
+    if (
+      value.currentStage.kind !== "item" &&
+      value.currentStage.itemId !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["currentStage", "itemId"],
+        message: "Only a focused worldbuilding item may include an item id."
       });
     }
     if (value.format === "text" && value.overview !== undefined) {
@@ -162,7 +178,7 @@ export const LongWorldbuildingFocusSnapshotSchema = z
       });
     }
     const totalCharacters =
-      Array.from(value.currentStage.text.content).length +
+      Array.from(value.currentStage.text?.content ?? "").length +
       Array.from(value.overview?.content ?? "").length;
     if (totalCharacters > LONG_WORLDBUILDING_FOCUS_MAX_CHARACTERS) {
       context.addIssue({

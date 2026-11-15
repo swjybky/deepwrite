@@ -12,42 +12,24 @@ import {
 } from "./short-agent-tools.test-support";
 
 describe("unified short workspace delete tool", () => {
-  it("clears text-style character content without deleting its structure", async () => {
+  it("does not clear the character overview and points to edit instead", async () => {
     const workspace = shortWorkspace("character_design");
     const sharedState = createShortWorkspaceToolSharedState(workspace);
+    const before = sharedState.stageBodies.get("character_design");
     const tools = buildShortWorkspaceTools({
       workspace,
       profile: shortProfile(),
       sharedState
     });
-    const remove = toolByName(tools, "delete");
 
-    const cleared = await remove.execute("clear-character-overview", {
-      kind: "character_overview",
-      id: "character_design"
-    });
-    expect(details(cleared)).toMatchObject({
-      kind: "workspace-editor-mutation",
-      stageId: "character_design",
-      text: ""
-    });
-    expect(sharedState.stageBodies.get("character_design")).toBe("");
-    expect(workspace.characterStructure).toEqual({ format: "text" });
-    expect(
-      resultText(
-        await toolByName(tools, "read").execute("read-cleared-character", {
-          kind: "character_overview",
-          id: "character_design"
-        })
-      )
-    ).toContain("（正文为空）");
-
-    const repeated = await remove.execute("clear-character-again", {
-      kind: "character_overview",
-      id: "character_design"
-    });
-    expect(resultText(repeated)).toContain("内容已经为空");
-    expect(details(repeated)).toEqual({ kind: "none" });
+    const refused = await toolByName(tools, "delete").execute(
+      "clear-character-overview",
+      { kind: "character_overview", id: "character_design" }
+    );
+    expect(resultText(refused)).toContain("未修改");
+    expect(resultText(refused)).toContain('content=""');
+    expect(details(refused)).toEqual({ kind: "none" });
+    expect(sharedState.stageBodies.get("character_design")).toBe(before);
   });
 
   it("deletes a list-style character item and rejects mismatched addressing", async () => {
@@ -84,12 +66,14 @@ describe("unified short workspace delete tool", () => {
         id: "character-lin"
       })
     ).rejects.toThrow("不存在人物条目");
-    await expect(
-      remove.execute("clear-list-overview", {
-        kind: "character_overview",
-        id: "character_design"
-      })
-    ).rejects.toThrow("当前人物为条目样式");
+    expect(
+      resultText(
+        await remove.execute("clear-list-overview", {
+          kind: "character_overview",
+          id: "character_design"
+        })
+      )
+    ).toContain("未修改");
 
     const textTools = buildShortWorkspaceTools({
       workspace: shortWorkspace("character_design"),
@@ -103,7 +87,7 @@ describe("unified short workspace delete tool", () => {
     ).rejects.toThrow("当前人物为文本样式");
   });
 
-  it("clears plot content while preserving the configured plot stage", async () => {
+  it("does not clear plot content: the stage and its text stay untouched", async () => {
     const workspace = shortWorkspace("plot_design");
     const sharedState = createShortWorkspaceToolSharedState(workspace);
     const originalStage = sharedState.plotStages.get("plot_design");
@@ -113,28 +97,17 @@ describe("unified short workspace delete tool", () => {
       sharedState
     });
 
-    const cleared = await toolByName(tools, "delete").execute(
+    const refused = await toolByName(tools, "delete").execute(
       "clear-plot-content",
-      {
-        kind: "plot_stage",
-        id: "plot_design"
-      }
-    );
-    expect(details(cleared)).toMatchObject({
-      kind: "workspace-editor-mutation",
-      stageId: "plot_design",
-      text: ""
-    });
-    expect(sharedState.stageBodies.get("plot_design")).toBe("");
-    expect(sharedState.plotStages.get("plot_design")).toEqual(originalStage);
-    expect(sharedState.plotStageOrder).toContain("plot_design");
-
-    const repeated = await toolByName(tools, "delete").execute(
-      "clear-plot-content-again",
       { kind: "plot_stage", id: "plot_design" }
     );
-    expect(resultText(repeated)).toContain("内容已经为空");
-    expect(details(repeated)).toEqual({ kind: "none" });
+    expect(resultText(refused)).toContain("未修改");
+    expect(resultText(refused)).toContain("请用 edit");
+    expect(details(refused)).toEqual({ kind: "none" });
+    expect(sharedState.stageBodies.get("plot_design")).toBe(
+      "旧剧情的唯一片段。"
+    );
+    expect(sharedState.plotStages.get("plot_design")).toEqual(originalStage);
   });
 
   it("deletes a whole draft section but keeps the final section", async () => {
@@ -164,13 +137,13 @@ describe("unified short workspace delete tool", () => {
         id: "section-2",
         document: "body"
       })
-    ).rejects.toThrow("不存在章节");
+    ).rejects.toThrow("不存在小节");
 
     const finalSection = await remove.execute("delete-final-section", {
       kind: "draft_section",
       id: "section-1"
     });
-    expect(resultText(finalSection)).toContain("正文至少需要保留一个章节");
+    expect(resultText(finalSection)).toContain("正文至少需要保留一个小节");
     expect(details(finalSection)).toEqual({ kind: "none" });
     expect(sharedState.expertSections.has("section-1")).toBe(true);
   });
@@ -199,25 +172,6 @@ describe("unified short workspace delete tool", () => {
       })
     ).rejects.toThrow("待创建人物条目尚未落盘");
 
-    const plotTools = buildShortWorkspaceTools({
-      workspace: shortWorkspace("plot_design"),
-      profile: shortProfile()
-    });
-    const createdPlot = await toolByName(plotTools, "create").execute(
-      "create-plot",
-      {
-        kind: "plot_stage",
-        meta: { title: "临时剧情", description: "临时阶段" }
-      }
-    );
-    const plotId = resultText(createdPlot).match(/stage_id=(.+)/u)?.[1];
-    await expect(
-      toolByName(plotTools, "delete").execute("delete-pending-plot", {
-        kind: "plot_stage",
-        id: plotId!
-      })
-    ).rejects.toThrow("待创建剧情阶段尚未落盘");
-
     const draftTools = buildShortWorkspaceTools({
       workspace: shortWorkspace("draft"),
       profile: shortProfile()
@@ -235,54 +189,29 @@ describe("unified short workspace delete tool", () => {
         kind: "draft_section",
         id: sectionId!
       })
-    ).rejects.toThrow("待创建章节尚未落盘");
+    ).rejects.toThrow("待创建小节尚未落盘");
   });
 
-  it("uses cross-stage confirmation and the current approval mode", async () => {
-    const workspace = shortWorkspace("character_design");
-    const cancelledState = createShortWorkspaceToolSharedState(workspace);
-    const requestUserInput = vi.fn(async (request) => ({
-      sessionId: "session-delete",
-      runId: "run-delete",
-      requestId: request.requestId ?? "delete-confirmation",
-      answers: [{ id: "cross_stage_write", selectedOptionIds: ["cancel"] }]
-    }));
-    const cancelledTools = buildShortWorkspaceTools({
-      workspace,
+  it("deletes in another stage without asking and follows the approval mode", async () => {
+    const requestUserInput = vi.fn(async () => {
+      throw new Error("a cross-stage deletion must not ask the user");
+    });
+    const tools = buildShortWorkspaceTools({
+      workspace: shortWorkspace("character_design"),
       profile: shortProfile(),
-      sharedState: cancelledState,
+      writeApprovalMode: "auto-approve",
       requestUserInput
     });
-    const cancelled = await toolByName(cancelledTools, "delete").execute(
-      "cancel-cross-stage-delete",
-      { kind: "plot_stage", id: "plot_design" }
+    const deleted = await toolByName(tools, "delete").execute(
+      "cross-stage-delete",
+      { kind: "draft_section", id: "section-2" }
     );
-    expect(resultText(cancelled)).toContain("用户取消");
-    expect(cancelledState.stageBodies.get("plot_design")).toBe(
-      "旧剧情的唯一片段。"
-    );
-    expect(requestUserInput).toHaveBeenCalledTimes(1);
-
-    const autoRequest = vi.fn(async () => {
-      throw new Error("automatic cross-stage deletion should not ask");
-    });
-    const automaticTools = buildShortWorkspaceTools({
-      workspace,
-      profile: shortProfile(),
-      autoApproveCrossStageOperations: true,
-      writeApprovalMode: "auto-approve",
-      requestUserInput: autoRequest
-    });
-    const automatic = await toolByName(automaticTools, "delete").execute(
-      "automatic-cross-stage-delete",
-      { kind: "plot_stage", id: "plot_design" }
-    );
-    expect(autoRequest).not.toHaveBeenCalled();
-    expect(details(automatic)).toMatchObject({
-      kind: "workspace-editor-mutation",
-      text: "",
+    expect(requestUserInput).not.toHaveBeenCalled();
+    expect(details(deleted)).toMatchObject({
+      kind: "workspace-expert-draft-section-deletion",
+      sectionId: "section-2",
       summary: expect.not.stringContaining("自动保存")
     });
-    expect(resultText(automatic)).toContain("已提交自动保存，这一步已完成");
+    expect(resultText(deleted)).toContain("已提交自动保存，这一步已完成");
   });
 });

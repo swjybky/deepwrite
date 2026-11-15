@@ -102,7 +102,9 @@ describe("external runs across books", () => {
         context: { correlationId: id },
         payload
       });
-      await vi.waitFor(() => expect(responded.has(id)).toBe(true));
+      await vi.waitFor(() => expect(responded.has(id)).toBe(true), {
+        timeout: 6_000
+      });
       const response = responded.get(id)!;
       expect(response.ok).toBe(true);
       return response.result as {

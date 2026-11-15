@@ -139,7 +139,7 @@ describe("questions asked by locked subagent writes", () => {
     ).resolves.toBe("回答");
   });
 
-  it("keeps parallel short-form writes going while a cross-stage write waits", async () => {
+  it("keeps parallel short-form writes going while a plot structure change waits", async () => {
     const lock = createSubagentWriteLock();
     const answer = deferred<void>();
     const requestUserInput = vi.fn(async (request: { toolCallId: string }) => {
@@ -149,7 +149,7 @@ describe("questions asked by locked subagent writes", () => {
         runId: "run-lock",
         requestId: request.toolCallId,
         answers: [
-          { id: "cross_stage_write", selectedOptionIds: ["continue_once"] }
+          { id: "plot_structure_change", selectedOptionIds: ["allow_once"] }
         ]
       };
     });
@@ -158,7 +158,7 @@ describe("questions asked by locked subagent writes", () => {
         buildShortWorkspaceTools({
           workspace: shortWorkspace("character_design"),
           profile: shortProfile(),
-          autoApproveCrossStageOperations: false,
+          writeApprovalMode: "auto-approve",
           requestUserInput
         }),
         lock,
@@ -166,10 +166,6 @@ describe("questions asked by locked subagent writes", () => {
       );
     const plotWriter = childTools("剧情");
     const characterWriter = childTools("人物");
-    await toolByName(plotWriter, "read").execute("read-plot", {
-      kind: "plot_stage",
-      id: "plot_design"
-    });
     await toolByName(characterWriter, "read").execute("read-overview", {
       kind: "character_overview",
       id: "character_design"
@@ -178,8 +174,8 @@ describe("questions asked by locked subagent writes", () => {
     const plotEdit = toolByName(plotWriter, "edit").execute("edit-plot", {
       kind: "plot_stage",
       id: "plot_design",
-      replacements: [{ original_text: "唯一片段", new_text: "新片段" }],
-      summary: "修改剧情"
+      meta: { title: "新的剧情设计" },
+      summary: "修改剧情结构标题"
     });
     await vi.waitFor(() => expect(requestUserInput).toHaveBeenCalledTimes(1));
     const overviewEdit = toolByName(characterWriter, "edit").execute(
@@ -195,7 +191,7 @@ describe("questions asked by locked subagent writes", () => {
     expect(resultText(await overviewEdit)).not.toContain("未修改");
 
     answer.resolve();
-    expect(resultText(await plotEdit)).not.toContain("用户取消");
+    expect(resultText(await plotEdit)).not.toContain("未修改");
     expect(requestUserInput).toHaveBeenCalledTimes(1);
   });
 });

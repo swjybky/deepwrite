@@ -8,6 +8,7 @@ import {
 } from "./library-structure";
 import { CatalogCreateUnboundEntryCommandEnvelopeSchema } from "./library-organization";
 import { CatalogReorderLibraryCommandEnvelopeSchema } from "./library-organization";
+import { WritingReadCommandSchema } from "./writing-workspace-read";
 import { CatalogReadLibraryAgentLibraryCommandEnvelopeSchema } from "./library-agent";
 import {
   BookIdentityCommandSchemas,
@@ -375,6 +376,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AgentTeamsSaveBuiltinsCommandEnvelopeSchema,
   ...TeamManagementCommandSchemas,
   CatalogQueryLibraryManagementCommandEnvelopeSchema,
+  WritingReadCommandSchema,
   CatalogReadLibraryAgentLibraryCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
   AgentTeamsCreateCommandEnvelopeSchema,

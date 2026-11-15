@@ -46,9 +46,11 @@ describe("creation run admission", () => {
   it("keeps five sessions live, isolates stops, and bounds total capacity", async () => {
     const test = heldRuns();
     try {
-      const ids = Array.from({ length: 8 }, (_, i) => test.start(`book-${i}`));
+      const ids = Array.from({ length: 100 }, (_, i) =>
+        test.start(`book-${i}`)
+      );
       expect(test.registry.activeRun("book-4")).toBe(ids[4]);
-      expect(test.registry.admissionError("book-8", false)?.code).toBe(
+      expect(test.registry.admissionError("book-100", false)?.code).toBe(
         "agent.capacity_reached"
       );
       expect(test.registry.admissionError("book-0", false)?.code).toBe(

@@ -676,7 +676,7 @@ describe("agent conversation controller: failures-retries-and-timeouts", () => {
     controller.dispose();
   });
 
-  it("builds the default text stages plus the physical expert-draft directory", async () => {
+  it("builds the default text stage and expert-draft directory without sending their text", async () => {
     for (const [index, activeStageId] of SHORT_WORKSPACE_STAGE_IDS.entries()) {
       const deferred = createDeferredApi();
       const controller = useAgentConversation({
@@ -716,8 +716,8 @@ describe("agent conversation controller: failures-retries-and-timeouts", () => {
         stages: SHORT_WORKSPACE_TEXT_STAGE_IDS.map((stageId) => ({
           stageId,
           title: shortStageTitle(stageId),
-          content: `${stageId} 的实时内容`,
-          revision: createShortWorkspaceContentRevision(`${stageId} 的实时内容`)
+          content: "",
+          revision: createShortWorkspaceContentRevision("")
         })),
         expertDraft: {
           id: "draft",
@@ -738,19 +738,18 @@ describe("agent conversation controller: failures-retries-and-timeouts", () => {
               id: "section-1",
               body: expect.objectContaining({
                 documentId: "short_draft_section-1_body",
-                content: "draft 的实时内容"
+                content: ""
               }),
               characterState: expect.objectContaining({
                 documentId: "short_draft_section-1_state",
-                content: "第一节人物状态"
+                content: ""
               })
             })
           ]
         }
       });
-      expect(context?.activeResource?.content).toBe(
-        activeStageId === "draft" ? "" : `${activeStageId} 的实时内容`
-      );
+      expect(context?.shortWorkspace?.readSource).toBe("core");
+      expect(context?.activeResource?.content).toBe("");
       if (activeStageId === "draft") {
         expect(context?.activeResource?.id).toBe("draft");
         expect(context?.shortWorkspace?.activeAgentId).toBe("short");

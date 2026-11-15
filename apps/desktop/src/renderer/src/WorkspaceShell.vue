@@ -319,7 +319,6 @@ const {
   dispose: disposeGeneralSettings,
   drain: drainGeneralSettings,
   load: loadGeneralSettings,
-  updateAutoApproveCrossStageOperations,
   updateAutoSave: updateEditorAutoSave,
   updateDefaultTextViewMode,
   updateBodyTextFormat,
@@ -478,8 +477,6 @@ const conversationRuntimeRegistry = useConversationRuntimeRegistryCoordinator({
   createController: (hooks) =>
     useAgentConversation({
       api: () => window.deepwrite,
-      autoApproveCrossStageOperations: () =>
-        generalSettings.value.autoApproveCrossStageOperations,
       contextCompactionBudgetTokens: () =>
         generalSettings.value.contextCompaction.budgetTokens,
       onContextWarning: (message) => uiMessage.warning(message),
@@ -2443,9 +2440,6 @@ onBeforeUnmount(() => {
     @choose-workspace-directory="featureHost.chooseWorkspaceDirectory"
     @reset-workspace-directory="featureHost.resetWorkspaceDirectory"
     @update-permission-mode="updatePermissionMode"
-    @update-auto-approve-cross-stage-operations="
-      updateAutoApproveCrossStageOperations
-    "
     @update-auto-save="updateEditorAutoSave"
     @update-language="updateAppLanguage"
     @update-show-context-usage="updateShowContextUsage"

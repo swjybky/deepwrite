@@ -111,10 +111,10 @@ export async function createStructurePlanContext(
     )
       throw new Error("未绑定收纳区不能作为正式库管理。");
   }
-  function library(id: string): Item & { manifest: Library } {
+  function library(id: string, forRead = false): Item & { manifest: Library } {
     const item = get(id);
     if (!("entries" in item.manifest)) throw new Error("目标不是资料库。");
-    writable(item, true);
+    if (!forRead) writable(item, true);
     return item as Item & { manifest: Library };
   }
   function group(id: string): Item & { manifest: Group } {
@@ -277,7 +277,13 @@ export async function createStructurePlanContext(
       )
     ).bytes.toString("utf8");
     // Entry bodies are part of the optimistic read set, even for metadata-only operations.
-    fingerprints.push(`${item.manifest.id}/${entry.id}:${sha(text)}`);
+    const expectedSha256 = sha(text);
+    fingerprints.push(`${item.manifest.id}/${entry.id}:${expectedSha256}`);
+    item.files.set(entry.path, {
+      action: "check",
+      path: entry.path,
+      expectedSha256
+    });
     return text;
   }
   return {

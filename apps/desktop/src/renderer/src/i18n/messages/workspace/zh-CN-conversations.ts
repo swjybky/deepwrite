@@ -131,13 +131,6 @@ export default {
       "长篇上下文已切换，本次发送已取消。",
     theNovelWorkspaceIsNotConnectedInThisEnvironment:
       "当前环境未连接长篇工作区。",
-    failedToReadTheCurrentWorldbuildingStage:
-      "当前世界观阶段读取失败：{message}",
-    failedToReadTheCurrentWorldbuildingStagePleaseTry:
-      "当前世界观阶段读取失败，请重试。",
-    failedToReadTheCurrentCharacterStage: "当前人物阶段读取失败：{message}",
-    failedToReadTheCurrentCharacterStagePleaseTry:
-      "当前人物阶段读取失败，请重试。",
     theNovelContextIsTooLongOnlyATruncated:
       "长篇上下文过长，本轮只注入了截断后的 AGENTS.md。",
     novelContextWasNotIncluded: "长篇上下文未注入：{message}",

@@ -45,7 +45,7 @@ export interface RunContextManagerOptions {
   /** Marks a compaction in flight so the idle watchdog stays quiet. */
   setBusy(busy: boolean): void;
   /** Tells run tools that earlier reads left the context. */
-  notifyCompacted(): void;
+  notifyCompacted(removedToolCallIds?: readonly string[]): void;
   refreshUserContent?(): UserMessage["content"];
 }
 
@@ -353,7 +353,22 @@ export class RunContextManager {
         this.options.fixedTokens + estimateMessagesTokens(result.messages);
       this.state.adopt(staged, result.messages);
       this.state.compactedAt = Date.now();
-      this.options.notifyCompacted();
+      const originals = new Map(
+        input.messages.flatMap((message) =>
+          message.role === "toolResult"
+            ? [[message.toolCallId, message] as const]
+            : []
+        )
+      );
+      const removed = result.messages.flatMap((message) =>
+        message.role === "toolResult" &&
+        originals.get(message.toolCallId) !== message
+          ? [message.toolCallId]
+          : []
+      );
+      this.options.notifyCompacted(
+        result.outcome.level === "summary" ? undefined : removed
+      );
       this.emitOutcome(result.outcome);
       return [...(system ? [system] : []), ...result.messages];
     } catch (error: unknown) {

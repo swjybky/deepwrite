@@ -63,7 +63,7 @@ describe("external control lifecycle", () => {
     client.send(callEnvelope("call-1", "get_app_status"));
     expect(await client.nextMessage()).toMatchObject({
       status: "accepted",
-      payload: { appVersion: "1.0.0", crossStageAutoApprove: true }
+      payload: { appVersion: "1.0.0", permissionMode: "auto-approve" }
     });
     client.socket.destroy();
   });
@@ -156,6 +156,18 @@ describe("external control lifecycle", () => {
     expect(await readExternalControlState(paths.stateFile)).toBeUndefined();
     await control.sync(true);
     expect(await readExternalControlState(paths.stateFile)).toBeUndefined();
+  });
+
+  it("holds bridges back while an update installs", async () => {
+    await control.sync(true);
+    await control.stop({ updating: true });
+    expect(await readExternalControlState(paths.stateFile)).toMatchObject({
+      status: "updating",
+      pid: 4242
+    });
+    expect(await readExternalControlState(paths.stateFile)).not.toHaveProperty(
+      "token"
+    );
   });
 
   it("clears a state file left behind by a crash", async () => {

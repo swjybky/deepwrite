@@ -17,8 +17,7 @@ function harness() {
     buildShortWorkspaceTools({
       workspace,
       sharedState,
-      profile: shortProfile(),
-      autoApproveCrossStageOperations: true
+      profile: shortProfile()
     });
   const tools = build();
   const directory = async () =>

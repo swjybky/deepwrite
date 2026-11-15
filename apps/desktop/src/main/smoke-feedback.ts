@@ -1,8 +1,8 @@
 import type { BrowserWindow } from "electron";
 import type { DeepWriteApi } from "@deepwrite/contracts";
 
-/** Captures the real window through Preload and Main, then opens the lazy dialog. */
-async function feedbackSmokeInRenderer() {
+/** Captures the real window, then checks the shared sign-in prompt for feedback. */
+export async function feedbackSmokeInRenderer() {
   const api = (globalThis as unknown as { deepwrite: DeepWriteApi }).deepwrite;
   const ensure = (condition: unknown, reason: string) => {
     if (!condition) throw new Error(`Feedback smoke: ${reason}`);
@@ -28,12 +28,12 @@ async function feedbackSmokeInRenderer() {
   for (let attempt = 0; attempt < 100 && !signInRequired; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
     signInRequired = Boolean(
-      document.querySelector(".feedback-dialog .auth-form")
+      document.querySelector(".marketplace-login-dialog .auth-form")
     );
   }
   ensure(signInRequired, "a signed-out user was not asked to sign in");
   document
-    .querySelector<HTMLElement>(".feedback-dialog .dialog-close")
+    .querySelector<HTMLElement>(".marketplace-login-dialog .dialog-close")
     ?.click();
   return { status: "ok", captureBytes: capture.data.length, signInRequired };
 }

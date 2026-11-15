@@ -20,7 +20,8 @@ function clientFor(result: unknown) {
     request,
     client: new FeedbackClient(
       { request },
-      { version: "1.7.9", platform: "darwin" }
+      { version: "1.7.9", platform: "darwin" },
+      async () => "MacBookPro18,3"
     )
   };
 }
@@ -37,8 +38,26 @@ describe("FeedbackClient", () => {
         content: "保存后闪退",
         images: ["AAAA"],
         client_version: "1.7.9",
-        client_platform: "darwin"
+        client_platform: "darwin",
+        client_device_model: "MacBookPro18,3"
       }
+    });
+  });
+
+  it("submits even when the hardware model is unavailable", async () => {
+    const request = vi.fn<import("./client").FeedbackRequester["request"]>(
+      async () => wireItem
+    );
+    const client = new FeedbackClient(
+      { request },
+      { version: "1.7.9", platform: "win32" },
+      async () => ""
+    );
+    await expect(
+      client.submit({ content: "无法保存", images: [] })
+    ).resolves.toMatchObject({ id: "f1" });
+    expect(request.mock.calls[0]?.[2]).toMatchObject({
+      body: { client_device_model: "", client_version: "1.7.9" }
     });
   });
 

@@ -116,16 +116,25 @@ describe("Main document version gate", () => {
     }
   );
 
-  it.each(["catalog.saveDocument", "long.applyOperations"] as const)(
-    "strips versionOrigin from %s only while disabled",
-    (type) => {
-      const original = createEnvelope(
-        type,
-        type === "catalog.saveDocument"
+  it.each([
+    "catalog.saveDocument",
+    "catalog.createDraftSections",
+    "long.applyOperations"
+  ] as const)("strips versionOrigin from %s only while disabled", (type) => {
+    const original = createEnvelope(
+      type,
+      type === "catalog.saveDocument"
+        ? {
+            bookId: "book-a",
+            documentId: "draft",
+            content: "text",
+            versionOrigin: origin
+          }
+        : type === "catalog.createDraftSections"
           ? {
               bookId: "book-a",
-              documentId: "draft",
-              content: "text",
+              operationId: "batch",
+              sections: [{ clientSectionId: "a", bodyContent: "draft" }],
               versionOrigin: origin
             }
           : {
@@ -137,19 +146,18 @@ describe("Main document version gate", () => {
               },
               versionOrigin: origin
             },
-        { id: "write-command" }
-      ) as CommandEnvelope;
-      expect(filterVersionOrigin(original, true)).toBe(original);
-      const filtered = filterVersionOrigin(original, false);
-      expect(filtered.payload).not.toHaveProperty("versionOrigin");
-      expect(original.payload).toHaveProperty("versionOrigin", origin);
-      expect(filtered).toMatchObject({
-        id: original.id,
-        type,
-        context: original.context
-      });
-    }
-  );
+      { id: "write-command" }
+    ) as CommandEnvelope;
+    expect(filterVersionOrigin(original, true)).toBe(original);
+    const filtered = filterVersionOrigin(original, false);
+    expect(filtered.payload).not.toHaveProperty("versionOrigin");
+    expect(original.payload).toHaveProperty("versionOrigin", origin);
+    expect(filtered).toMatchObject({
+      id: original.id,
+      type,
+      context: original.context
+    });
+  });
 
   it.each(["versions.list", "versions.read", "versions.restore"] as const)(
     "rejects %s while disabled before forwarding",

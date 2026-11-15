@@ -37,6 +37,24 @@ describe("built-in management tool settings migration", () => {
     );
   });
   it.each([true, false])(
+    "refreshes tool-era descriptions while preserving enabled=%s",
+    (enabled) => {
+      const defaults = defaultBuiltinSubagentSettings();
+      for (const domain of ["material", "skill", "team"] as const) {
+        const description =
+          domain === "team"
+            ? "仅在用户要求查看、管理或优化当前作品实际生效团队的成员提示词时调用这些工具。先列出生效团队并读取原提示词，修改逐项审阅，明确接受后保存。"
+            : `仅当用户主动要求或明确确认在当前作品绑定的${domain === "skill" ? "技能库" : "素材库"}中创建、记录、优化或编辑内容时调用这些工具。普通创作、查询、引用和使用技能不触发。`;
+        expect(
+          BuiltinSubagentSettingsSchema.parse({
+            ...defaults,
+            [domain]: { enabled, description }
+          })[domain]
+        ).toEqual({ ...defaults[domain], enabled });
+      }
+    }
+  );
+  it.each([true, false])(
     "keeps custom descriptions and enabled=%s",
     (enabled) => {
       const settings = defaultBuiltinSubagentSettings();

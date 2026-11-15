@@ -14,9 +14,9 @@ export default {
   close: "关闭",
   exportScope: "导出范围提醒",
   exportsAllEpisodeManuscriptsOnlyExcludingCharacterStatePlot:
-    "仅导出“剧集”下的全部剧集正文，不包含人物状态、剧情设计和大纲等内容。当前尚未保存的编辑内容也会一并导出。",
+    "仅导出“剧集”下的全部剧集正文，不包含状态、剧情设计和大纲等内容。当前尚未保存的编辑内容也会一并导出。",
   exportsTheIntroductionAndAllManuscriptSectionsOnlyExcluding:
-    "仅导出“正文”下的导语和全部小节正文，不包含人物状态、剧情设计和大纲等内容。当前尚未保存的编辑内容也会一并导出。",
+    "仅导出“正文”下的导语和全部小节正文，不包含状态、剧情设计和大纲等内容。当前尚未保存的编辑内容也会一并导出。",
   selectExportFormat: "选择导出格式",
   fullManuscriptValueCharacters: "全文 {arg0} 字",
   countingFullManuscript: "全文字数统计中…",

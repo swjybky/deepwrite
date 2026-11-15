@@ -11,9 +11,6 @@ export default {
   autoApproval: "替我审批",
   autoApprovalDescription:
     "智能体产生写入后立即自动批准，并在后台串行保存。自动审批可能会出错。",
-  crossStageApproval: "跨阶段操作自动审批",
-  crossStageApprovalDescription:
-    "开启后，主智能体和子智能体的跨阶段操作将自动允许，不再逐笔询问；变更提案仍按上方审批方式处理。",
   general: "常规",
   autoSave: "自动保存",
   autoSaveDescription: "文稿发生变化并停止输入片刻后，自动保存到本机",

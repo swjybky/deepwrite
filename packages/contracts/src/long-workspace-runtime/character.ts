@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { LongCharacterGroupSchema } from "../long-workspace";
+import {
+  LongCharacterGroupSchema,
+  LongCharacterIdSchema
+} from "../long-workspace";
 import { LONG_CHARACTER_FOCUS_MAX_CHARACTERS } from "../long-workspace-limits";
 
 const LongCharacterFocusTextSnapshotSchema = z
@@ -43,6 +46,7 @@ const LongCharacterFocusTextSnapshotSchema = z
 
 export const LongCharacterFocusSnapshotSchema = z
   .object({
+    characterId: LongCharacterIdSchema.optional(),
     characterName: z.string().trim().min(1).max(256).optional(),
     group: LongCharacterGroupSchema.optional(),
     currentDocument: z
@@ -55,7 +59,7 @@ export const LongCharacterFocusSnapshotSchema = z
           "history"
         ]),
         title: z.string().trim().min(1).max(256),
-        text: LongCharacterFocusTextSnapshotSchema
+        text: LongCharacterFocusTextSnapshotSchema.optional()
       })
       .strict(),
     overview: LongCharacterFocusTextSnapshotSchema.optional(),
@@ -64,7 +68,11 @@ export const LongCharacterFocusSnapshotSchema = z
   .strict()
   .superRefine((value, context) => {
     if (value.currentDocument.kind === "overview") {
-      if (value.characterName !== undefined || value.group !== undefined) {
+      if (
+        value.characterId !== undefined ||
+        value.characterName !== undefined ||
+        value.group !== undefined
+      ) {
         context.addIssue({
           code: "custom",
           path: ["characterName"],
@@ -97,7 +105,10 @@ export const LongCharacterFocusSnapshotSchema = z
             "A focused character document must include the character name and group."
         });
       }
-      if (value.overview === undefined) {
+      if (
+        value.currentDocument.text !== undefined &&
+        value.overview === undefined
+      ) {
         context.addIssue({
           code: "custom",
           path: ["overview"],
@@ -107,6 +118,7 @@ export const LongCharacterFocusSnapshotSchema = z
       }
       if (
         value.currentDocument.kind !== "core_profile" &&
+        value.currentDocument.text !== undefined &&
         value.coreProfile === undefined
       ) {
         context.addIssue({
@@ -129,7 +141,7 @@ export const LongCharacterFocusSnapshotSchema = z
       }
     }
     const totalCharacters =
-      Array.from(value.currentDocument.text.content).length +
+      Array.from(value.currentDocument.text?.content ?? "").length +
       Array.from(value.overview?.content ?? "").length +
       Array.from(value.coreProfile?.content ?? "").length;
     if (totalCharacters > LONG_CHARACTER_FOCUS_MAX_CHARACTERS) {
