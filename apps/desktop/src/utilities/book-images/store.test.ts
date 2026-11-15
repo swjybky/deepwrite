@@ -12,7 +12,7 @@ import {
   unlink
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BookImageStore, sanitizeBookImageBaseName } from "./store";
 import { IMAGE_PNG } from "../../main/image/image-test-support";
@@ -75,8 +75,14 @@ describe("book image disk store", () => {
     const store = new BookImageStore(
       async () => canonical,
       async (path, flags, mode) => {
-        const handle = await open(path, flags, mode);
-        await rename(images, join(canonical, "original-images"));
+        const originalImages = join(canonical, "original-images");
+        // Windows cannot rename a directory while its image file is open.
+        await rename(images, originalImages);
+        const handle = await open(
+          join(originalImages, basename(String(path))),
+          flags,
+          mode
+        );
         await symlink(
           outside,
           images,
