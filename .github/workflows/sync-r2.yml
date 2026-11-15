@@ -1,0 +1,58 @@
+name: Sync an existing published release to R2
+
+on:
+  push:
+    branches: [main]
+    paths: [update.json]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published version matching update.json (vMAJOR.MINOR.PATCH)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-r2
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      REQUESTED_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.7.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Resolve the published version
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, appendFile } from 'node:fs/promises';
+          import { resolvePublishedTag } from './tools/download-release-assets.mjs';
+          const tag = resolvePublishedTag(JSON.parse(await readFile('update.json', 'utf8')), process.env.REQUESTED_TAG);
+          await appendFile(process.env.GITHUB_ENV, `RELEASE_TAG=${tag}\n`);
+          NODE
+      - name: Download and verify existing published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/download-release-assets.mjs "$RELEASE_TAG" release-upload
+      - name: Upload verified assets to R2
+        env:
+          DEEPWRITE_R2_PUBLISH_CONFIG: ${{ secrets.DEEPWRITE_R2_PUBLISH_CONFIG }}
+        run: node tools/publish-r2-release.mjs upload release-upload update.json
+      - name: Activate the complete update feed
+        env:
+          DEEPWRITE_R2_PUBLISH_CONFIG: ${{ secrets.DEEPWRITE_R2_PUBLISH_CONFIG }}
+        run: node tools/publish-r2-release.mjs activate release-upload update.json

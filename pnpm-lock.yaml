@@ -30,6 +30,9 @@ catalogs:
     '@vue/tsconfig':
       specifier: 0.9.1
       version: 0.9.1
+    aws4:
+      specifier: 1.13.2
+      version: 1.13.2
     electron:
       specifier: 42.5.0
       version: 42.5.0
@@ -140,6 +143,9 @@ importers:
       '@vue/tsconfig':
         specifier: 'catalog:'
         version: 0.9.1(typescript@6.0.3)(vue@3.5.39(typescript@6.0.3))
+      aws4:
+        specifier: 'catalog:'
+        version: 1.13.2
       electron:
         specifier: 'catalog:'
         version: 42.5.0

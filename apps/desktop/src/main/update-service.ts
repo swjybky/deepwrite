@@ -185,7 +185,7 @@ export class UpdateService {
       });
       const result = await autoUpdater.checkForUpdates();
       if (!result?.updateInfo) {
-        throw new Error("GitHub Release 没有返回可用的更新信息。");
+        throw new Error("更新源没有返回可用的更新信息。");
       }
       if (result.updateInfo.version !== manifest.version) {
         throw new Error(

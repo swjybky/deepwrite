@@ -19,7 +19,7 @@ extraMetadata:
 
 publish:
   provider: generic
-  url: https://github.com/swjybky/deepwrite/releases/latest/download
+  url: https://update.deepwrite.download
   channel: latest
 
 mac:
