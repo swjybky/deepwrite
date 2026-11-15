@@ -1,4 +1,13 @@
-import { mkdtemp, rm, writeFile, symlink, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  rm,
+  writeFile,
+  symlink,
+  realpath,
+  open,
+  rename
+} from "node:fs/promises";
+import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,9 +31,18 @@ vi.mock("electron", () => ({
   dialog: { showOpenDialog },
   nativeImage: { createFromBuffer }
 }));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...fs, open: vi.fn(fs.open) };
+});
 const roots: string[] = [];
 afterEach(async () => {
   vi.clearAllMocks();
+  const fs =
+    await vi.importActual<typeof import("node:fs/promises")>(
+      "node:fs/promises"
+    );
+  vi.mocked(open).mockReset().mockImplementation(fs.open);
   await Promise.all(
     roots.splice(0).map((path) =>
       rm(path, {
@@ -139,6 +157,46 @@ describe("book image import validation", () => {
     const link = join(roots.at(-1)!, "link.png");
     await symlink(valid, link);
     await expect(prepareBookImage(link, decoder())).rejects.toThrow();
+  });
+  it("rejects symlinks when the platform ignores O_NOFOLLOW", async () => {
+    const valid = await file("source.png", IMAGE_PNG);
+    const link = join(roots.at(-1)!, "link.png");
+    await symlink(valid, link);
+    const fs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises"
+      );
+    vi.mocked(open).mockImplementationOnce((path, flags, mode) =>
+      fs.open(
+        path,
+        typeof flags === "number" ? flags & ~constants.O_NOFOLLOW : flags,
+        mode
+      )
+    );
+    await expect(prepareBookImage(link, decoder())).rejects.toMatchObject({
+      code: "book_image.unsupported_format"
+    });
+  });
+  it("rejects a file replaced by a symlink while opening without O_NOFOLLOW", async () => {
+    const valid = await file("selected.png", IMAGE_PNG);
+    const original = join(roots.at(-1)!, "original.png");
+    const outside = await file("outside.png", IMAGE_PNG);
+    const fs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises"
+      );
+    vi.mocked(open).mockImplementationOnce(async (path, flags, mode) => {
+      await rename(valid, original);
+      await symlink(outside, valid);
+      return fs.open(
+        path,
+        typeof flags === "number" ? flags & ~constants.O_NOFOLLOW : flags,
+        mode
+      );
+    });
+    await expect(prepareBookImage(valid, decoder())).rejects.toMatchObject({
+      code: "book_image.unsupported_format"
+    });
   });
   it("preserves PNG bytes through 8192 pixels and converts WebP to PNG", async () => {
     const path = await file("地图.png", IMAGE_PNG);

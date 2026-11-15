@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { dialog, nativeImage, type BrowserWindow } from "electron";
 import {
@@ -25,14 +25,30 @@ export async function prepareBookImage(
   decoder: ImageDecoder = nativeImage.createFromBuffer,
   convertWebp: WebpConverter = decodeWebpToPng
 ): Promise<BookImagesWriteInput["images"][number]> {
+  const selected = await lstat(path);
+  if (!selected.isFile() || selected.isSymbolicLink())
+    throw new BookImageError(
+      "book_image.unsupported_format",
+      "请选择普通图片文件。"
+    );
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   let bytes: Buffer;
   try {
     const stat = await handle.stat();
-    if (!stat.isFile())
+    const current = await lstat(path);
+    // Windows does not enforce O_NOFOLLOW; verify both the path and opened file.
+    if (
+      !stat.isFile() ||
+      !current.isFile() ||
+      current.isSymbolicLink() ||
+      current.dev !== selected.dev ||
+      current.ino !== selected.ino ||
+      stat.dev !== selected.dev ||
+      stat.ino !== selected.ino
+    )
       throw new BookImageError(
         "book_image.unsupported_format",
-        "请选择普通图片文件。"
+        "图片文件已变化。"
       );
     if (stat.size <= 0 || stat.size > BOOK_IMAGE_MAX_BYTES)
       throw new BookImageError(
