@@ -1,4 +1,7 @@
 export default {
+  enableMoreFeatures: "Enable other features",
+  enableMoreFeaturesDescription: "Choose which features to show in settings",
+  configureMoreFeatures: "Configure more features",
   newBook: "New book",
   agentTeams: "Agent teams",
   deepWriteNavigationAndResources: "DeepWrite navigation and resources",

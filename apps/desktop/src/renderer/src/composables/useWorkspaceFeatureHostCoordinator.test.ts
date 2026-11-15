@@ -316,7 +316,7 @@ describe("useWorkspaceFeatureHostCoordinator", () => {
     authoring.resolve();
     await teamNavigation;
     expect(harness.workspaceMainView.value).toBe("marketplace");
-    expect(harness.loaders.loadAgentTeamSettings).not.toHaveBeenCalled();
+    expect(harness.loaders.loadAgentTeamSettings).toHaveBeenCalledTimes(1);
   });
 
   it("does not let a lazy feature replace an external conversation navigation", async () => {

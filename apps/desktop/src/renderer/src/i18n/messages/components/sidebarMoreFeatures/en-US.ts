@@ -1,4 +1,7 @@
 export default {
+  marketplace: "Skills and teams",
+  discoverSkillsAndTeams:
+    "Discover, install, and publish skills and agent teams",
   chat: "Chat",
   openStandaloneChatAssistant: "Open standalone chat assistant",
   revisionAnalysis: "Revision analysis",

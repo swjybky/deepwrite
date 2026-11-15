@@ -100,12 +100,14 @@ export interface LongBookAnalysisFeatureModule {
 
 export interface MarketplaceFeatureModule {
   kind: "marketplace";
+  catalog: AgentTeamCatalogSnapshot | null;
   catalogSnapshot: CatalogSnapshot | null;
   session: MarketplaceSession | null;
 }
 
 export interface AgentTeamMarketplaceFeatureModule {
   kind: "agent-team-marketplace";
+  catalogSnapshot: CatalogSnapshot | null;
   catalog: AgentTeamCatalogSnapshot | null;
   session: MarketplaceSession | null;
 }

@@ -1,4 +1,6 @@
 export default {
+  marketplace: "技能和团队广场",
+  discoverSkillsAndTeams: "发现、安装与发布技能和智能体团队",
   chat: "聊天",
   openStandaloneChatAssistant: "打开独立聊天助手",
   revisionAnalysis: "修改分析",

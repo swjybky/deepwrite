@@ -1,7 +1,6 @@
 export default {
   primaryPlotPoint: "主剧情点",
   unlinked: "未关联剧情点",
-  change: "修改",
   changeBinding: "修改章卡关联剧情点",
   choosePlotPoint: "选择章卡的主剧情点",
   sameVolumeHint: "选择本卷的主剧情点，或选择“未关联剧情点”解除关联。",

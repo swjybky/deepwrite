@@ -23,6 +23,16 @@ export const moreFeatures: Array<{
     icon: "message"
   },
   {
+    id: "skill-marketplace",
+    get label() {
+      return t("marketplace");
+    },
+    get description() {
+      return t("discoverSkillsAndTeams");
+    },
+    icon: "globe"
+  },
+  {
     id: "short-book-analysis",
     get label() {
       return t("shortStoryAnalysis");
@@ -41,6 +51,16 @@ export const moreFeatures: Array<{
       return t("extractNovelPlotCharactersAndStyleInBatches");
     },
     icon: "book"
+  },
+  {
+    id: "device-sync",
+    get label() {
+      return t("deviceSync");
+    },
+    get description() {
+      return t("continueWritingUsingYourOwnCloudDrive");
+    },
+    icon: "archive"
   },
   {
     id: "long-book-decomposition",
@@ -93,36 +113,6 @@ export const moreFeatures: Array<{
     icon: "image"
   },
   {
-    id: "agent-team-marketplace",
-    get label() {
-      return t("agentTeamMarketplace");
-    },
-    get description() {
-      return t("discoverInstallAndPublishWholeAgentTeams");
-    },
-    icon: "brain"
-  },
-  {
-    id: "skill-marketplace",
-    get label() {
-      return t("skillMarketplace");
-    },
-    get description() {
-      return t("discoverInstallAndPublishWritingSkills");
-    },
-    icon: "globe"
-  },
-  {
-    id: "device-sync",
-    get label() {
-      return t("deviceSync");
-    },
-    get description() {
-      return t("continueWritingUsingYourOwnCloudDrive");
-    },
-    icon: "archive"
-  },
-  {
     id: "cloud-backup",
     get label() {
       return t("cloudBackup");
@@ -149,8 +139,26 @@ const featureById = new Map(
 );
 
 export function configuredMoreFeatures(settings: MoreFeaturesSettings) {
-  return settings.map((preference) => ({
-    ...preference,
-    feature: featureById.get(preference.id)!
-  }));
+  const marketplaceVisible = settings.some(
+    ({ id, visible }) =>
+      (id === "skill-marketplace" || id === "agent-team-marketplace") && visible
+  );
+  let marketplaceAdded = false;
+  return settings.flatMap((preference) => {
+    if (
+      preference.id === "skill-marketplace" ||
+      preference.id === "agent-team-marketplace"
+    ) {
+      if (marketplaceAdded) return [];
+      marketplaceAdded = true;
+      return [
+        {
+          id: "skill-marketplace" as const,
+          visible: marketplaceVisible,
+          feature: featureById.get("skill-marketplace")!
+        }
+      ];
+    }
+    return [{ ...preference, feature: featureById.get(preference.id)! }];
+  });
 }

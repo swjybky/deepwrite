@@ -1,7 +1,6 @@
 export default {
   primaryPlotPoint: "Primary plot point",
   unlinked: "No linked plot point",
-  change: "Change",
   changeBinding: "Change chapter plot point",
   choosePlotPoint: "Choose the chapter's primary plot point",
   sameVolumeHint:

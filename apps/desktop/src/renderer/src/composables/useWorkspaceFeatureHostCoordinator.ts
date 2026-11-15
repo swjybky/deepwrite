@@ -257,6 +257,9 @@ export function useWorkspaceFeatureHostCoordinator(
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
     options.view.workspaceMain.value = "marketplace";
+    if (options.api() && !settingsStore.agentTeamLoaded) {
+      issueBackground(options.loaders.loadAgentTeamSettings);
+    }
     if (options.api() && !options.catalogSnapshot.value) {
       issueBackground(options.loaders.loadCatalogSnapshot);
     }
@@ -266,6 +269,9 @@ export function useWorkspaceFeatureHostCoordinator(
     const generation = beginNavigation();
     if (!(await canApplyNavigation(generation))) return;
     options.view.workspaceMain.value = "agent-team-marketplace";
+    if (options.api() && !options.catalogSnapshot.value) {
+      issueBackground(options.loaders.loadCatalogSnapshot);
+    }
     if (options.api() && !settingsStore.agentTeamLoaded) {
       issueBackground(options.loaders.loadAgentTeamSettings);
     }

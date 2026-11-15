@@ -36,8 +36,7 @@ import {
   RevisionAnalysisPage,
   StyleComparisonPage,
   SettingsPage,
-  SkillMarketplacePage,
-  AgentTeamMarketplacePage,
+  MarketplacePage,
   ZhuqueDetectionPage,
   WorkspaceDirectoryFeature
 } from "./lazyAppComponents";
@@ -397,9 +396,11 @@ const emit = defineEmits<{
   </WorkspaceFeatureFrame>
 
   <main
-    v-else-if="module.kind === 'marketplace'"
+    v-else-if="
+      module.kind === 'marketplace' || module.kind === 'agent-team-marketplace'
+    "
     class="marketplace-main-view"
-    :aria-label="t('skillMarketplace')"
+    :aria-label="t('marketplace')"
   >
     <button
       v-if="leftCollapsed"
@@ -410,32 +411,14 @@ const emit = defineEmits<{
     >
       <AppIcon name="panel-left" :size="18" />
     </button>
-    <SkillMarketplacePage
-      active
+    <MarketplacePage
+      :initial-tab="
+        module.kind === 'agent-team-marketplace' ? 'teams' : 'skills'
+      "
       :catalog-snapshot="module.catalogSnapshot"
-      :initial-session="module.session"
-      @refresh-catalog="emit('refreshCatalog')"
-      @session-change="emit('marketplaceSessionChange', $event)"
-    />
-  </main>
-
-  <main
-    v-else-if="module.kind === 'agent-team-marketplace'"
-    class="marketplace-main-view"
-    :aria-label="t('agentTeamMarketplace')"
-  >
-    <button
-      v-if="leftCollapsed"
-      class="icon-button marketplace-expand-sidebar"
-      type="button"
-      :aria-label="t('expandSidebar')"
-      @click="emit('expandLeft')"
-    >
-      <AppIcon name="panel-left" :size="18" />
-    </button>
-    <AgentTeamMarketplacePage
       :catalog="module.catalog"
       :initial-session="module.session"
+      @refresh-catalog="emit('refreshCatalog')"
       @session-change="emit('marketplaceSessionChange', $event)"
       @catalog-change="emit('agentTeamCatalogChange', $event)"
     />

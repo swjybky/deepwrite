@@ -16,6 +16,7 @@ export const loadLongBookAnalysisPage = async () =>
 export const loadLongWorkspaceModule = () =>
   import("./LongWorkspaceModule.vue");
 export const loadSettingsPage = () => import("./SettingsPage.vue");
+export const loadMarketplacePage = () => import("./MarketplacePage.vue");
 export const loadSkillMarketplacePage = () =>
   import("./SkillMarketplacePage.vue");
 export const loadAgentTeamMarketplacePage = () =>

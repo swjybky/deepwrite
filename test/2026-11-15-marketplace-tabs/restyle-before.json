@@ -1,0 +1,53 @@
+{
+  "samples": [
+    {
+      "theme": "light",
+      "size": 14,
+      "tab": "skills",
+      "height": 58
+    },
+    {
+      "theme": "light",
+      "size": 14,
+      "tab": "teams",
+      "height": 58
+    },
+    {
+      "theme": "dark",
+      "size": 14,
+      "tab": "skills",
+      "height": 58
+    },
+    {
+      "theme": "dark",
+      "size": 14,
+      "tab": "teams",
+      "height": 58
+    },
+    {
+      "theme": "light",
+      "size": 24,
+      "tab": "skills",
+      "height": 71.5
+    },
+    {
+      "theme": "light",
+      "size": 24,
+      "tab": "teams",
+      "height": 71.5
+    },
+    {
+      "theme": "dark",
+      "size": 24,
+      "tab": "skills",
+      "height": 71.5
+    },
+    {
+      "theme": "dark",
+      "size": 24,
+      "tab": "teams",
+      "height": 71.5
+    }
+  ],
+  "keyboard": true
+}

@@ -79,7 +79,7 @@ describe("LeftSidebar account controls", () => {
     expect(moreFeaturesSource).not.toContain("短篇学习仿写");
     expect(moreFeaturesSource).not.toContain('"imitation"');
     expect(source).not.toContain("imitation");
-    expect(source).toContain("feature.id === props.activePrimaryFeature");
+    expect(source).toContain("feature.id === activeMoreFeature");
     expectSourceToContain(
       source,
       "feature.id === 'long-book-analysis' && props.longBookAnalysisRunning"
@@ -87,7 +87,7 @@ describe("LeftSidebar account controls", () => {
   });
 
   it("includes marketplace features without the runtime settings entry", () => {
-    expectSourceToContain(source, "skillMarketplace");
+    expectSourceToContain(source, "marketplace");
     expect(source).toContain('emit("openMarketplace")');
     expectSourceToContain(source, "cloudBackup");
     expect(source).toContain('emit("openCloudBackup")');

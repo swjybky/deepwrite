@@ -4,20 +4,29 @@ import {
   createDefaultGeneralSettings
 } from "./general-settings";
 import {
-  MORE_FEATURE_IDS,
   MoreFeaturesSettingsSchema,
   createDefaultMoreFeaturesSettings
 } from "./more-features-settings";
 
 describe("more features settings", () => {
-  it("shows every feature in the existing sidebar order by default, including older settings", () => {
+  it("shows only the six default features in order, including older settings", () => {
     const { moreFeatures: _, ...legacy } = createDefaultGeneralSettings();
-    expect(GeneralSettingsSchema.parse(legacy).moreFeatures).toEqual(
-      MORE_FEATURE_IDS.map((id) => ({ id, visible: true }))
-    );
+    const defaults = createDefaultMoreFeaturesSettings();
+    expect(GeneralSettingsSchema.parse(legacy).moreFeatures).toEqual(defaults);
+    expect(
+      defaults.filter(({ visible }) => visible).map(({ id }) => id)
+    ).toEqual([
+      "chat-assistant",
+      "skill-marketplace",
+      "agent-team-marketplace",
+      "short-book-analysis",
+      "long-book-analysis",
+      "device-sync"
+    ]);
+    expect(MoreFeaturesSettingsSchema.parse(defaults)).toEqual(defaults);
   });
 
-  it("preserves configured order and hidden features and appends missing features as visible", () => {
+  it("preserves configured order and hidden features and appends missing features with their defaults", () => {
     const preferences = [
       { id: "device-sync", visible: false },
       { id: "book-identity", visible: true }

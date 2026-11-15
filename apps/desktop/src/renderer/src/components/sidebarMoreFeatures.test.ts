@@ -6,8 +6,10 @@ import {
 import { configuredMoreFeatures, moreFeatures } from "./sidebarMoreFeatures";
 
 describe("sidebar more features configuration", () => {
-  it("covers every configurable feature in the original sidebar order", () => {
-    expect(moreFeatures.map(({ id }) => id)).toEqual(MORE_FEATURE_IDS);
+  it("covers every configurable feature in the default settings order", () => {
+    expect(moreFeatures.map(({ id }) => id)).toEqual(
+      MORE_FEATURE_IDS.filter((id) => id !== "agent-team-marketplace")
+    );
   });
 
   it("retains hidden entries for settings and projects the chosen order for navigation", () => {
@@ -25,6 +27,26 @@ describe("sidebar more features configuration", () => {
       configured
         .filter(({ visible }) => visible)
         .map(({ feature }) => feature.id)
-    ).toEqual(preferences.filter(({ visible }) => visible).map(({ id }) => id));
+    ).toEqual(
+      preferences
+        .filter(({ visible, id }) => visible && id !== "agent-team-marketplace")
+        .map(({ id }) => id)
+    );
+  });
+  it("merges legacy marketplace visibility into one entry at the first marketplace position", () => {
+    for (const skillVisible of [false, true]) {
+      for (const teamVisible of [false, true]) {
+        const configured = configuredMoreFeatures([
+          { id: "agent-team-marketplace", visible: teamVisible },
+          { id: "chat-assistant", visible: true },
+          { id: "skill-marketplace", visible: skillVisible }
+        ]);
+        expect(configured.map(({ id }) => id)).toEqual([
+          "skill-marketplace",
+          "chat-assistant"
+        ]);
+        expect(configured[0]?.visible).toBe(skillVisible || teamVisible);
+      }
+    }
   });
 });

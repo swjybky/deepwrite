@@ -44,6 +44,9 @@ export const LongWorkspaceModule = lazyFeature(
 export const SettingsPage = lazyFeature((features) =>
   features.loadSettingsPage()
 );
+export const MarketplacePage = lazyFeature((features) =>
+  features.loadMarketplacePage()
+);
 export const SkillMarketplacePage = lazyFeature((features) =>
   features.loadSkillMarketplacePage()
 );

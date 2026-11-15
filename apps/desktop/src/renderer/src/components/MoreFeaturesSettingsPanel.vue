@@ -16,17 +16,20 @@ function setVisible(id: MoreFeatureId, visible: boolean): void {
   emit(
     "update",
     props.settings.map((entry) =>
-      entry.id === id ? { ...entry, visible } : entry
+      entry.id === id ||
+      (id === "skill-marketplace" && entry.id === "agent-team-marketplace")
+        ? { ...entry, visible }
+        : entry
     )
   );
 }
 
 function moveFeature(index: number, direction: -1 | 1): void {
   const target = index + direction;
-  if (target < 0 || target >= props.settings.length) return;
-  const next = [...props.settings];
+  if (target < 0 || target >= features.value.length) return;
+  const next = features.value.map(({ id, visible }) => ({ id, visible }));
   [next[index], next[target]] = [next[target]!, next[index]!];
-  emit("update", next);
+  emit("update", [...next, { id: "agent-team-marketplace", visible: false }]);
 }
 </script>
 

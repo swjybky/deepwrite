@@ -162,7 +162,7 @@ describe("SkillMarketplacePage", () => {
   it("is reachable from More Features and mounted as a workspace page", () => {
     expect(sidebarSource).toContain('id: "skill-marketplace"');
     expect(sidebarSource).toContain('emit("openMarketplace")');
-    expect(featureModulesSource).toContain("<SkillMarketplacePage");
+    expect(featureModulesSource).toContain("<MarketplacePage");
     expect(appSource).toContain(
       '@open-marketplace="featureHost.openMarketplace"'
     );

@@ -1,4 +1,7 @@
 export default {
+  marketplace: "技能和团队广场",
+  skills: "技能",
+  teams: "团队",
   agentTeams: "智能体团队",
   workspaceFolder: "工作目录",
   revisionAnalysis: "修改分析",

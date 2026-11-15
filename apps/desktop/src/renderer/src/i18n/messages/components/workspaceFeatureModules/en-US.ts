@@ -1,4 +1,7 @@
 export default {
+  marketplace: "Skills and teams",
+  skills: "Skills",
+  teams: "Teams",
   agentTeams: "Agent teams",
   workspaceFolder: "Workspace folder",
   revisionAnalysis: "Revision analysis",

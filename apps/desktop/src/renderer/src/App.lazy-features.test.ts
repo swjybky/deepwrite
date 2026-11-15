@@ -56,8 +56,9 @@ describe("App lazy feature mounting", () => {
     expect(featureHostSource).toContain(
       "const workspaceFeatureModule = computed"
     );
-    expect(featureModulesSource).toContain(
-      "v-else-if=\"module.kind === 'marketplace'\""
+    expectSourceToContain(
+      featureModulesSource,
+      "v-else-if=\"module.kind === 'marketplace' || module.kind === 'agent-team-marketplace'\""
     );
     expect(featureModulesSource).toContain(
       "v-else-if=\"module.kind === 'cloud-backup'\""

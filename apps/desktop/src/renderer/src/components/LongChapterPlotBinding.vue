@@ -9,21 +9,16 @@ import type { LongStructureMutationCompletion } from "../types/longWorkspace";
 import { useLongChapterPlotBinding } from "../composables/useLongChapterPlotBinding";
 import { createScopedTranslator } from "../i18n";
 import { uiMessage } from "../ui-feedback";
-import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
 import LongImpactConfirmationDetails from "./LongImpactConfirmationDetails.vue";
 
 const t = createScopedTranslator("components.longChapterPlotBinding");
-const props = withDefaults(
-  defineProps<{
-    bookId: string;
-    chapterCardId: string;
-    snapshot: LongWorkspaceIndexSnapshot;
-    locked?: boolean;
-    showTrigger?: boolean;
-  }>(),
-  { showTrigger: true }
-);
+const props = defineProps<{
+  bookId: string;
+  chapterCardId: string;
+  snapshot: LongWorkspaceIndexSnapshot;
+  locked?: boolean;
+}>();
 const emit = defineEmits<{
   previewMutation: [
     batch: LongWorkspaceOperationBatch,
@@ -46,19 +41,9 @@ const binding = useLongChapterPlotBinding({
 });
 const { chapter, open, primaryArcId, previewPending, pending, prepared } =
   binding;
-const trigger = ref<HTMLButtonElement | null>(null);
 const dialog = ref<HTMLElement | null>(null);
 const selector = ref<InstanceType<typeof PopupSelect> | null>(null);
 let returnFocusElement: HTMLElement | null = null;
-const currentChapter = computed(() =>
-  props.snapshot.plot.chapterCards.find(({ id }) => id === props.chapterCardId)
-);
-const currentLabel = computed(
-  () =>
-    props.snapshot.plot.arcs.find(
-      ({ id }) => id === currentChapter.value?.primaryArcId
-    )?.title ?? t("unlinked")
-);
 const originalLabel = computed(
   () =>
     props.snapshot.plot.arcs.find(
@@ -90,7 +75,7 @@ function edit(chapterCardId = props.chapterCardId): void {
   returnFocusElement =
     document.activeElement instanceof HTMLElement
       ? document.activeElement
-      : trigger.value;
+      : null;
   binding.edit();
 }
 
@@ -124,20 +109,6 @@ defineExpose({ edit });
 </script>
 
 <template>
-  <div v-if="currentChapter" class="chapter-plot-binding">
-    <span>{{ t("primaryPlotPoint") }}</span>
-    <strong :title="currentLabel">{{ currentLabel }}</strong>
-    <button
-      v-if="showTrigger"
-      ref="trigger"
-      type="button"
-      :disabled="locked"
-      @click="edit()"
-    >
-      <AppIcon name="edit" :size="13" />
-      {{ t("change") }}
-    </button>
-  </div>
   <Teleport to="body">
     <div
       v-if="open"
@@ -212,37 +183,6 @@ defineExpose({ edit });
 </template>
 
 <style scoped>
-.chapter-plot-binding {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
-  padding: 0.45rem 1rem;
-  border-bottom: 1px solid var(--theme-line-soft);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-.chapter-plot-binding > span,
-.chapter-plot-binding button {
-  flex: 0 0 auto;
-}
-.chapter-plot-binding strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chapter-plot-binding button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.55rem;
-  border: 1px solid var(--theme-line);
-  border-radius: 0.4rem;
-  background: var(--surface-raised);
-}
 .binding-overlay {
   z-index: 2400;
   padding: 1rem;

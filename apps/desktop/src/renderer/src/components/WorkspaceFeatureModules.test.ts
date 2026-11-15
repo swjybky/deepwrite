@@ -23,7 +23,7 @@ describe("WorkspaceFeatureModules boundary", () => {
     expect(source).toContain("<WorkspaceDirectoryFeature");
     expect(source).not.toContain("<ModelSettingsFeature");
     expect(source).not.toContain("LearningImitation");
-    expect(source).toContain("<SkillMarketplacePage");
+    expect(source).toContain("<MarketplacePage");
     expect(source).toContain("<CloudBackupPage");
     expect(source).toContain("<ZhuqueDetectionPage");
     expect(source).not.toContain("v-show");

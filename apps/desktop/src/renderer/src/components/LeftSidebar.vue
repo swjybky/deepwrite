@@ -67,7 +67,7 @@ const emit = defineEmits<{
   openCloudBackup: [];
   openDeviceSync: [];
   openZhuqueDetection: [];
-  openSettings: [];
+  openSettings: [category?: string];
   marketplaceSessionChange: [session: MarketplaceSession];
   marketplaceSignedOut: [session: MarketplaceSession];
   selectResource: [node: ResourceTreeNode];
@@ -100,6 +100,11 @@ const emit = defineEmits<{
 
 const sidebarScrollbar = createTransientScrollbarController();
 const sidebarScroll = ref<HTMLElement | null>(null);
+const activeMoreFeature = computed(() =>
+  props.activePrimaryFeature === "agent-team-marketplace"
+    ? "skill-marketplace"
+    : props.activePrimaryFeature
+);
 const selectionActive = computed(
   () => props.activePrimaryFeature === undefined
 );
@@ -324,12 +329,12 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
             v-for="feature in visibleMoreFeatures"
             :key="feature.id"
             class="more-feature-row"
-            :class="{ 'is-active': feature.id === props.activePrimaryFeature }"
+            :class="{ 'is-active': feature.id === activeMoreFeature }"
             type="button"
             :data-feature-id="feature.id"
             :title="feature.description"
             :aria-current="
-              feature.id === props.activePrimaryFeature ? 'page' : undefined
+              feature.id === activeMoreFeature ? 'page' : undefined
             "
             @click="activateMoreFeature(feature.id)"
           >
@@ -368,6 +373,22 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
               "
             >
               <i aria-hidden="true" />{{ t("inBackground") }}
+            </span>
+          </button>
+          <button
+            class="more-feature-row"
+            type="button"
+            data-more-features-settings
+            :aria-label="t('configureMoreFeatures')"
+            :title="t('configureMoreFeatures')"
+            @click="emit('openSettings', 'more-features')"
+          >
+            <span class="more-feature-icon"
+              ><AppIcon name="more" :size="15"
+            /></span>
+            <span class="more-feature-copy">
+              <strong>{{ t("enableMoreFeatures") }}</strong>
+              <small>{{ t("enableMoreFeaturesDescription") }}</small>
             </span>
           </button>
         </div>

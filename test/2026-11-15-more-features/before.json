@@ -1,0 +1,89 @@
+{
+  "samples": [
+    {
+      "scheme": "light",
+      "size": 14,
+      "width": 1200,
+      "height": 900,
+      "ids": [
+        "chat-assistant",
+        "short-book-analysis",
+        "long-book-analysis",
+        "long-book-decomposition",
+        "long-material-pack",
+        "revision-analysis",
+        "style-comparison",
+        "book-identity",
+        "agent-team-marketplace",
+        "skill-marketplace",
+        "device-sync",
+        "cloud-backup",
+        "zhuque-detection"
+      ]
+    },
+    {
+      "scheme": "dark",
+      "size": 14,
+      "width": 1200,
+      "height": 900,
+      "ids": [
+        "chat-assistant",
+        "short-book-analysis",
+        "long-book-analysis",
+        "long-book-decomposition",
+        "long-material-pack",
+        "revision-analysis",
+        "style-comparison",
+        "book-identity",
+        "agent-team-marketplace",
+        "skill-marketplace",
+        "device-sync",
+        "cloud-backup",
+        "zhuque-detection"
+      ]
+    },
+    {
+      "scheme": "light",
+      "size": 24,
+      "width": 1000,
+      "height": 680,
+      "ids": [
+        "chat-assistant",
+        "short-book-analysis",
+        "long-book-analysis",
+        "long-book-decomposition",
+        "long-material-pack",
+        "revision-analysis",
+        "style-comparison",
+        "book-identity",
+        "agent-team-marketplace",
+        "skill-marketplace",
+        "device-sync",
+        "cloud-backup",
+        "zhuque-detection"
+      ]
+    },
+    {
+      "scheme": "dark",
+      "size": 24,
+      "width": 1000,
+      "height": 680,
+      "ids": [
+        "chat-assistant",
+        "short-book-analysis",
+        "long-book-analysis",
+        "long-book-decomposition",
+        "long-material-pack",
+        "revision-analysis",
+        "style-comparison",
+        "book-identity",
+        "agent-team-marketplace",
+        "skill-marketplace",
+        "device-sync",
+        "cloud-backup",
+        "zhuque-detection"
+      ]
+    }
+  ],
+  "interactions": null
+}

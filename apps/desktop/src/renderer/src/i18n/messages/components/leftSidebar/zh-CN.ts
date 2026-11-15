@@ -1,4 +1,7 @@
 export default {
+  enableMoreFeatures: "启用其他功能",
+  enableMoreFeaturesDescription: "前往设置，自由选择需要的功能",
+  configureMoreFeatures: "配置更多功能",
   newBook: "新建书籍",
   agentTeams: "智能体团队",
   deepWriteNavigationAndResources: "DeepWrite 导航与资源树",

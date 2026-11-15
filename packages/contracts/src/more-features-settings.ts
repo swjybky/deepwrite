@@ -1,18 +1,18 @@
 import { z } from "zod";
 
-/** The default sidebar order; newly introduced features are appended for existing users. */
+/** Newly introduced features are appended for existing users. */
 export const MORE_FEATURE_IDS = [
   "chat-assistant",
+  "skill-marketplace",
+  "agent-team-marketplace",
   "short-book-analysis",
   "long-book-analysis",
+  "device-sync",
   "long-book-decomposition",
   "long-material-pack",
   "revision-analysis",
   "style-comparison",
   "book-identity",
-  "agent-team-marketplace",
-  "skill-marketplace",
-  "device-sync",
   "cloud-backup",
   "zhuque-detection"
 ] as const;
@@ -28,7 +28,16 @@ export type MoreFeaturePreference = z.infer<typeof MoreFeaturePreferenceSchema>;
 export type MoreFeaturesSettings = MoreFeaturePreference[];
 
 export function createDefaultMoreFeaturesSettings(): MoreFeaturesSettings {
-  return MORE_FEATURE_IDS.map((id) => ({ id, visible: true }));
+  return MORE_FEATURE_IDS.map((id) => ({
+    id,
+    visible:
+      id === "chat-assistant" ||
+      id === "skill-marketplace" ||
+      id === "agent-team-marketplace" ||
+      id === "short-book-analysis" ||
+      id === "long-book-analysis" ||
+      id === "device-sync"
+  }));
 }
 
 export const MoreFeaturesSettingsSchema = z

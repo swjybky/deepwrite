@@ -82,12 +82,14 @@ export function buildWorkspaceFeatureModule(
     case "marketplace":
       return {
         kind: "marketplace",
+        catalog: settingsStore.agentTeamCatalog,
         catalogSnapshot: options.catalogSnapshot.value,
         session: marketplaceSession
       };
     case "agent-team-marketplace":
       return {
         kind: "agent-team-marketplace",
+        catalogSnapshot: options.catalogSnapshot.value,
         catalog: settingsStore.agentTeamCatalog,
         session: marketplaceSession
       };

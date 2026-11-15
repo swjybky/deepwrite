@@ -46,6 +46,7 @@ import { longBodyTextKind } from "../utils/bodyTextTarget";
 import EditorSearchHighlight from "./EditorSearchHighlight.vue";
 import LongCharacterNavigation from "./LongCharacterNavigation.vue";
 import LongChapterPlotBinding from "./LongChapterPlotBinding.vue";
+import LongChapterPlotChip from "./LongChapterPlotChip.vue";
 import LongContinuityLedgerNavigation from "./LongContinuityLedgerNavigation.vue";
 import LongEditorFooterMeta from "./LongEditorFooterMeta.vue";
 import LongEditorDeleteDialogs from "./LongEditorDeleteDialogs.vue";
@@ -1644,7 +1645,6 @@ onBeforeUnmount(() => {
     v-long-press-reorder="entryReorder"
     class="long-workspace-editor"
     :class="{
-      'has-chapter-binding': showChapterPlotBinding,
       'has-navigation-tabs':
         currentUsesTopCharacterTabs ||
         currentUsesTopPlotTabs ||
@@ -2051,7 +2051,6 @@ onBeforeUnmount(() => {
         :chapter-card-id="currentChapterCard.id"
         :snapshot="workspaceIndex"
         :locked="locked"
-        :show-trigger="!currentUsesRightChapterCardList"
         @preview-mutation="forwardPreviewMutation"
         @mutation="forwardForeshadowingMutation"
       />
@@ -2392,7 +2391,22 @@ onBeforeUnmount(() => {
           @editor-element-change="setEditorInputElement"
           @preview-element-change="setDocumentPreviewElement"
           @editor-scroll="handleEditorScroll"
-        />
+        >
+          <template
+            v-if="
+              showChapterPlotBinding && workspaceIndex && currentChapterCard
+            "
+            #title-aside
+          >
+            <LongChapterPlotChip
+              :chapter-card-id="currentChapterCard.id"
+              :snapshot="workspaceIndex"
+              :editable="!currentUsesRightChapterCardList"
+              :disabled="locked"
+              @edit="editChapterPlotBinding(currentChapterCard.id)"
+            />
+          </template>
+        </LongManuscriptEditor>
         <div
           v-else-if="
             currentState?.loaded ||
@@ -2437,50 +2451,62 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <template v-else>
-            <input
-              v-if="
-                currentIsWorldbuildingList &&
-                !currentWorldbuildingListState.error &&
-                currentWorldbuildingItem
-              "
-              :value="currentWorldbuildingItem.title"
-              class="long-document-title-input"
-              :readonly="currentReadOnly || locked || isDocumentContentBusy"
-              maxlength="256"
-              autocomplete="off"
-              :aria-label="t('worldbuildingEntryName')"
-              @change="
-                updateWorldbuildingItemTitle(
-                  currentWorldbuildingItem.id,
-                  $event
-                )
-              "
-            />
-            <input
-              v-else-if="currentIsCharacterDocument"
-              v-model="characterNameDraft"
-              class="long-document-title-input"
-              :readonly="locked || characterNameSaving"
-              maxlength="256"
-              autocomplete="off"
-              :aria-label="t('characterName')"
-              @change="saveCharacterName"
-              @keydown="handleCharacterNameKeydown"
-            />
-            <input
-              v-else-if="currentStructureTitleTarget"
-              v-model="structureTitleDraft"
-              class="long-document-title-input"
-              :readonly="currentStructureTitleReadOnly"
-              maxlength="256"
-              autocomplete="off"
-              :aria-label="currentStructureTitleTarget.inputLabel"
-              @change="saveStructureTitle"
-              @keydown="handleStructureTitleKeydown"
-            />
-            <h1 v-else class="long-document-title">
-              {{ currentDocumentTitle }}
-            </h1>
+            <div class="long-document-heading">
+              <input
+                v-if="
+                  currentIsWorldbuildingList &&
+                  !currentWorldbuildingListState.error &&
+                  currentWorldbuildingItem
+                "
+                :value="currentWorldbuildingItem.title"
+                class="long-document-title-input"
+                :readonly="currentReadOnly || locked || isDocumentContentBusy"
+                maxlength="256"
+                autocomplete="off"
+                :aria-label="t('worldbuildingEntryName')"
+                @change="
+                  updateWorldbuildingItemTitle(
+                    currentWorldbuildingItem.id,
+                    $event
+                  )
+                "
+              />
+              <input
+                v-else-if="currentIsCharacterDocument"
+                v-model="characterNameDraft"
+                class="long-document-title-input"
+                :readonly="locked || characterNameSaving"
+                maxlength="256"
+                autocomplete="off"
+                :aria-label="t('characterName')"
+                @change="saveCharacterName"
+                @keydown="handleCharacterNameKeydown"
+              />
+              <input
+                v-else-if="currentStructureTitleTarget"
+                v-model="structureTitleDraft"
+                class="long-document-title-input"
+                :readonly="currentStructureTitleReadOnly"
+                maxlength="256"
+                autocomplete="off"
+                :aria-label="currentStructureTitleTarget.inputLabel"
+                @change="saveStructureTitle"
+                @keydown="handleStructureTitleKeydown"
+              />
+              <h1 v-else class="long-document-title">
+                {{ currentDocumentTitle }}
+              </h1>
+              <LongChapterPlotChip
+                v-if="
+                  showChapterPlotBinding && workspaceIndex && currentChapterCard
+                "
+                :chapter-card-id="currentChapterCard.id"
+                :snapshot="workspaceIndex"
+                :editable="!currentUsesRightChapterCardList"
+                :disabled="locked"
+                @edit="editChapterPlotBinding(currentChapterCard.id)"
+              />
+            </div>
             <EditorSearchHighlight
               v-if="viewMode === 'edit'"
               :content="currentVisibleContent"
@@ -2895,18 +2921,6 @@ onBeforeUnmount(() => {
     minmax(0, 1fr) minmax(36px, auto);
 }
 
-.long-workspace-editor.has-chapter-binding {
-  grid-template-rows:
-    minmax(40px, auto) auto
-    minmax(0, 1fr) minmax(36px, auto);
-}
-
-.long-workspace-editor.has-navigation-tabs.has-chapter-binding {
-  grid-template-rows:
-    minmax(42px, auto) minmax(40px, auto) auto
-    minmax(0, 1fr) minmax(36px, auto);
-}
-
 .long-editor-toolbar {
   position: relative;
   z-index: 2;
@@ -3111,6 +3125,25 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.28;
   letter-spacing: -0.025em;
+}
+
+.long-document-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 8px 0 13px;
+}
+
+.long-document-heading > .long-document-title-input,
+.long-document-heading > .long-document-title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.long-document-heading
+  > :not(.long-document-title-input, .long-document-title) {
+  margin-right: var(--long-document-inline-padding);
 }
 
 .long-document-title {
@@ -3334,6 +3367,16 @@ onBeforeUnmount(() => {
   .long-editor-writing-surface {
     --long-document-inline-padding: clamp(14px, 4cqw, 20px);
     padding-top: 18px;
+  }
+
+  .long-document-heading {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .long-document-heading
+    > :not(.long-document-title-input, .long-document-title) {
+    margin-left: var(--long-document-inline-padding);
   }
 
   .long-document-title-input,

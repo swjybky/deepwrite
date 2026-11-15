@@ -78,21 +78,24 @@ function updateTitle(event: Event): void {
     :class="{ 'is-readonly': readOnly }"
     :aria-label="t('chapterManuscriptEditor')"
   >
-    <input
-      v-if="titleEditable"
-      :value="titleDraft"
-      class="long-document-title-input"
-      :readonly="titleReadOnly"
-      maxlength="256"
-      autocomplete="off"
-      :aria-label="t('chapterCardTitle')"
-      @input="updateTitle"
-      @change="emit('titleChange', $event)"
-      @keydown="emit('titleKeydown', $event)"
-    />
-    <h1 v-else class="long-document-title">
-      {{ title }}
-    </h1>
+    <div class="long-document-heading">
+      <input
+        v-if="titleEditable"
+        :value="titleDraft"
+        class="long-document-title-input"
+        :readonly="titleReadOnly"
+        maxlength="256"
+        autocomplete="off"
+        :aria-label="t('chapterCardTitle')"
+        @input="updateTitle"
+        @change="emit('titleChange', $event)"
+        @keydown="emit('titleKeydown', $event)"
+      />
+      <h1 v-else class="long-document-title">
+        {{ title }}
+      </h1>
+      <slot name="title-aside" />
+    </div>
 
     <EditorSearchHighlight
       v-if="viewMode === 'edit'"
@@ -178,6 +181,25 @@ function updateTitle(event: Event): void {
   letter-spacing: -0.025em;
 }
 
+.long-document-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 8px 0 13px;
+}
+
+.long-document-heading > .long-document-title-input,
+.long-document-heading > .long-document-title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.long-document-heading
+  > :not(.long-document-title-input, .long-document-title) {
+  margin-right: var(--long-document-inline-padding);
+}
+
 .long-document-title {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -237,6 +259,16 @@ function updateTitle(event: Event): void {
   .long-editor-writing-surface {
     --long-document-inline-padding: clamp(14px, 4cqw, 20px);
     padding-top: 18px;
+  }
+
+  .long-document-heading {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .long-document-heading
+    > :not(.long-document-title-input, .long-document-title) {
+    margin-left: var(--long-document-inline-padding);
   }
 
   .long-document-title-input,
