@@ -766,7 +766,9 @@ function createBookProjection(book: Book): {
   stageNodes.set("draft", {
     id: draftDirectoryId,
     get label() {
-      return book.draft.title;
+      return book.draft.title === "正文"
+        ? t("catalogWorkspace.manuscript")
+        : book.draft.title;
     },
     icon: "folder",
     catalogNodeType: "category",
