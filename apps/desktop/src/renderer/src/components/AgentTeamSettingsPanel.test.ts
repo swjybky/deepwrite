@@ -42,7 +42,7 @@ describe("AgentTeamSettingsPanel", () => {
     );
     expect(source).toContain("@click=\"activeWorkspaceType = 'long'\"");
     expect(source).toContain(':settings="longSettings"');
-    expect(source.match(/role="tab"/g)?.length).toBe(3);
+    expect(source.match(/role="tab"/g)?.length).toBe(5);
     expect(source).toContain(
       "const activeSkills = computed(() => props.skills ?? [])"
     );

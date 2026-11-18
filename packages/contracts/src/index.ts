@@ -1,7 +1,15 @@
 export {
   BUILTIN_AGENT_METADATA,
-  DEFAULT_LONG_AGENT_WELCOME_SHORTCUTS
+  DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS,
+  DEFAULT_LONG_AGENT_WELCOME_SHORTCUTS,
+  DEFAULT_MYSTERY_AGENT_WELCOME_SHORTCUTS
 } from "./builtin-agent-metadata";
+export * from "./academic-agent-settings";
+export * from "./academic-agent-defaults";
+export * from "./academic-agent-team";
+export * from "./academic-agent-team-defaults";
+export * from "./academic-manuscript-export";
+export * from "./academic-workspace-runtime";
 export * from "./book-templates";
 export { loadBookTemplateDraftSchema } from "./load-book-template-schema";
 export * from "./appearance";
@@ -114,3 +122,5 @@ export * from "./library-structure";
 export * from "./document-versions";
 
 export * from "./book-images";
+
+export * from "./mystery";

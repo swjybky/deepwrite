@@ -8,6 +8,8 @@ import type {
 import type { LibraryManagementCommandExecutor } from "./library-management-runtime";
 import type { TeamManagementCommandExecutor } from "./team-management-runtime";
 import type {
+  AcademicAgentProfile,
+  AcademicWorkspaceMutationPayload,
   AgentContextCompactionPayload,
   AgentEvaluationSnapshot,
   AgentProviderRuntimeConfig,
@@ -32,6 +34,7 @@ import type {
   SteeringAttachmentSummary,
   LibraryAgentProfile,
   LongAgentProfile,
+  MysteryAgentProfile,
   ScriptWorkspaceAgentProfile,
   SessionConversationHistoryMessage,
   ShortAgentSubagentDefinition,
@@ -44,6 +47,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { AgentTurnRetryPolicyOptions } from "./agent-turn-retry";
 import type { LongCommandExecutor } from "./long-agent-tools";
+import type { MysteryCommandExecutor } from "./mystery";
 import type { MaterialCommandExecutor } from "./material-query-runtime";
 import type { ShortWorkspaceToolDetails } from "./short-agent-tools";
 import type { AgentToolExecutionHooks } from "./subagent-runtime";
@@ -74,6 +78,8 @@ export interface AgentRunInput {
   agentProfile?: ShortWorkspaceAgentProfile;
   scriptAgentProfile?: ScriptWorkspaceAgentProfile;
   longAgentProfile?: LongAgentProfile;
+  academicAgentProfile?: AcademicAgentProfile;
+  mysteryAgentProfile?: MysteryAgentProfile;
   subagentDefinitions?: ShortAgentSubagentDefinition[];
   subagentRuntimeConfigs?: Readonly<Record<string, AgentProviderRuntimeConfig>>;
   /** The enabled team runs independent delegated tasks concurrently. */
@@ -94,6 +100,7 @@ export interface AgentRunInput {
     signal?: AbortSignal
   ) => Promise<import("@deepwrite/contracts").CommandResult>;
   longCommandExecutor?: LongCommandExecutor;
+  mysteryCommandExecutor?: MysteryCommandExecutor;
   materialCommandExecutor?: MaterialCommandExecutor;
   signal?: AbortSignal;
 }
@@ -419,6 +426,12 @@ export type AgentRuntimeEvent =
       };
     }
   | {
+      type: "academic.workspace_mutation";
+      runId: string;
+      sessionId: string;
+      payload: Omit<AcademicWorkspaceMutationPayload, "sessionId" | "runId">;
+    }
+  | {
       type: "workspace.stage_selection";
       runId: string;
       sessionId: string;
@@ -495,6 +508,21 @@ export type AgentRuntimeEvent =
         batch: import("@deepwrite/contracts").LongWorkspaceOperationBatch;
         file: import("@deepwrite/contracts").LongChapterBodyChange;
         summary: string;
+        runtime: AgentRuntimeRef;
+      };
+    }
+  | {
+      type: "mystery.mutation_proposal";
+      runId: string;
+      sessionId: string;
+      payload: {
+        toolCallId: string;
+        bookId: string;
+        agentId: import("@deepwrite/contracts").MysteryAgentId;
+        summary: string;
+        batch: import("@deepwrite/contracts").MysteryOperationBatch;
+        fileChanges: import("@deepwrite/contracts").MysteryFileChange[];
+        structureChanges: string[];
         runtime: AgentRuntimeRef;
       };
     }

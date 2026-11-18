@@ -14,7 +14,9 @@ import {
   watch
 } from "vue";
 import { createScopedTranslator } from "../i18n";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import { uiMessage } from "../ui-feedback";
+import { academicAgentT } from "./academic/academicAgentLabels";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
 
@@ -45,7 +47,9 @@ const workspaceType = ref<AgentTeamWorkspaceType>("short");
 const workspaceTypeOptions = computed<PopupSelectOption[]>(() => [
   { value: "short", label: t("shortStory") },
   { value: "script", label: t("screenplay") },
-  { value: "long", label: t("novel") }
+  { value: "long", label: t("novel") },
+  { value: "academic", label: academicAgentT("tabLabel") },
+  { value: "mystery", label: mysteryLabels("murderMystery") }
 ]);
 const hasNameField = computed(
   () => props.mode === "create" || props.mode === "rename"

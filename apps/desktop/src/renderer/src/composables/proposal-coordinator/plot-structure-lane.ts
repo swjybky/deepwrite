@@ -51,7 +51,7 @@ export function createPlotStructureProposalLane(input: PlotStructureLaneInput) {
     const target = event.payload.mutationTarget;
     if (target?.kind !== "plot-structure") return false;
     const book = input.catalogBook(event.payload.workspaceId);
-    if (!book) {
+    if (!book || book.bookType === "academic") {
       const message = t(
         "plotStructureLane.theTargetProjectIsNoLongerAvailableThePlot"
       );

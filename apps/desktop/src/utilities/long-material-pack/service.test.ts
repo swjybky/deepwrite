@@ -42,7 +42,7 @@ describe("long book → material pack (Core)", { timeout: 60_000 }, () => {
     )!;
     expect(group.title).toBe("《铜铃记》仿写素材");
     const libraries = snapshot.materials.filter(({ id }) =>
-      Object.values(group.members).includes(id)
+      group.memberIds.includes(id)
     );
     expect(libraries.map(({ title }) => title).sort()).toEqual(
       [

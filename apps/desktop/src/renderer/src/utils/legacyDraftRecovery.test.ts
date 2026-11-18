@@ -111,6 +111,9 @@ function fixture(): CatalogSnapshot {
 
 function currentCombinedRevision(snapshot = fixture()): string {
   const book = snapshot.books[0]!;
+  if (book.bookType === "academic") {
+    throw new Error("Expected creative book fixture");
+  }
   return createShortWorkspaceContentRevision(
     serializeExpertDraftMarkdown({
       sections: book.draft.sections.map((section) => ({
@@ -260,7 +263,11 @@ describe("legacy combined draft recovery migration", () => {
     const snapshot = fixture();
     const projection = metadataProjection(snapshot);
     const legacyKey = legacyBookDraftRecoveryKey("book-1");
-    const diskSections = snapshot.books[0]!.draft.sections.map((section) => ({
+    const firstBook = snapshot.books[0]!;
+    if (firstBook.bookType === "academic") {
+      throw new Error("Expected creative book fixture");
+    }
+    const diskSections = firstBook.draft.sections.map((section) => ({
       id: section.id,
       title: section.title,
       wordCountRequirement: section.wordCountRequirement,

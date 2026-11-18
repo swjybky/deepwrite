@@ -58,6 +58,9 @@ export async function mutateCharacterStructure(
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持人物结构操作。");
+    }
     const now = store.now();
     const mutation = input.mutation;
     const overviewIndex = manifest.documents.findIndex(

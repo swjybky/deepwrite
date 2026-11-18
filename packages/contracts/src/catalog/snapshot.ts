@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CatalogIndexAcademicBookSchema } from "../academic-book";
 
 import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
 import {
@@ -168,6 +169,7 @@ export const CatalogSnapshotSchema = z
           message: "Book documents cannot contain duplicate ids."
         });
       }
+      if (book.bookType === "academic") continue;
       for (const [stageIndex, stage] of book.plotStages.entries()) {
         if (!globalIds.has(stage.id)) {
           context.addIssue({
@@ -245,7 +247,8 @@ const CatalogIndexScriptBookSchema = CurrentScriptBookSchema.extend({
 
 export const CatalogIndexBookSchema = z.discriminatedUnion("bookType", [
   CatalogIndexShortBookSchema,
-  CatalogIndexScriptBookSchema
+  CatalogIndexScriptBookSchema,
+  CatalogIndexAcademicBookSchema
 ]);
 export type CatalogIndexBook = z.infer<typeof CatalogIndexBookSchema>;
 

@@ -1,5 +1,8 @@
 import { createScopedTranslator } from "../i18n";
+import { academicTreeT } from "./academic/academicTreeLabels";
+import { academicAgentT } from "./academic/academicAgentLabels";
 import type {
+  AcademicAgentId,
   BuiltInReasoningLevel,
   SubagentAgentMode,
   SubagentWebSearchMode,
@@ -9,10 +12,20 @@ import type {
 const t = createScopedTranslator("components.agentTeamSettingsMeta");
 
 export interface ParentAgentMeta {
-  id: WorkspaceAgentId;
+  id: WorkspaceAgentId | AcademicAgentId;
   label: string;
   description: string;
 }
+
+export const ACADEMIC_PARENT_AGENT = {
+  id: "academic",
+  get label() {
+    return academicTreeT("academicAgent");
+  },
+  get description() {
+    return academicAgentT("parentAgentDesc");
+  }
+} as const satisfies ParentAgentMeta;
 
 export const SHORT_PARENT_AGENT = {
   id: "short",

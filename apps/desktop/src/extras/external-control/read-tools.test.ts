@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { FolderCatalogStore } from "../../utilities/folder-catalog-store";
 import { LongWorkspaceService } from "../../utilities/long-workspace-service";
+import { MysteryWorkspaceService } from "../../utilities/mystery-store";
 import type { CoreRequest } from "./core-client";
 import { searchText } from "./search-text";
 import {
@@ -67,6 +68,7 @@ describe("external read tools against real stores", () => {
   let shortId: string;
   let bodyId: string;
   let longId: string;
+  let mysteryId: string;
   let materialId: string;
   let materialEntryId: string;
   let skillId: string;
@@ -84,6 +86,7 @@ describe("external read tools against real stores", () => {
     const userDataPath = join(root, "user-data");
     const store = new FolderCatalogStore({ userDataPath });
     const long = new LongWorkspaceService({ userDataPath });
+    const mystery = new MysteryWorkspaceService({ userDataPath });
     const books = join(root, "books");
 
     const short = await store.createShortBook(
@@ -107,6 +110,22 @@ describe("external read tools against real stores", () => {
       genre: "科幻"
     });
     longId = created.book.id;
+
+    const mysteryBook = await mystery.createAtPath(books, {
+      title: "雾钟山庄",
+      genre: "硬核推理",
+      boardSpec: {
+        playerCount: 4,
+        actCountTarget: 2,
+        narrativePerson: "second"
+      }
+    });
+    mysteryId = mysteryBook.book.id;
+    await mystery.writeDocument({
+      bookId: mysteryId,
+      target: { kind: "truth_doc", docId: "core_truth" },
+      content: `暴风雪山庄的钟声在零点敲响。${"雾".repeat(40)}凶手利用密室钟摆停表制造了不在场证明。`
+    });
 
     const material = await store.createLibrary({
       domain: "material",
@@ -161,6 +180,14 @@ describe("external read tools against real stores", () => {
           return long.readDocument(command.payload);
         case "long.search":
           return long.search(command.payload);
+        case "mystery.list":
+          return mystery.list();
+        case "mystery.getWorkspaceIndex":
+          return mystery.getWorkspaceIndex(command.payload.bookId);
+        case "mystery.readDocument":
+          return mystery.readDocument(command.payload);
+        case "mystery.readAgentsMd":
+          return mystery.readAgentsMd(command.payload);
         default:
           throw new Error(`unexpected command ${command.type}`);
       }
@@ -187,13 +214,14 @@ describe("external read tools against real stores", () => {
 
   it("lists every kind of work and filters by type", async () => {
     const all = await call<Listing>("list_works");
-    expect(all.works.map(({ title }) => title).sort()).toEqual([
-      "长夜行",
-      "雾港来信"
-    ]);
+    expect(all.works.map(({ title }) => title).sort()).toEqual(
+      ["长夜行", "雾港来信", "雾钟山庄"].sort()
+    );
     expect(all.unavailableWorkIds).toEqual([]);
     const long = await call<Listing>("list_works", { type: "long" });
     expect(long.works.map(({ id }) => id)).toEqual([longId]);
+    const mysteryOnly = await call<Listing>("list_works", { type: "mystery" });
+    expect(mysteryOnly.works.map(({ id }) => id)).toEqual([mysteryId]);
   });
 
   it("describes a short work without its text", async () => {
@@ -414,11 +442,55 @@ describe("external read tools against real stores", () => {
     expect(detail.team.settings).toMatchObject({ marker: "team-a-settings" });
   });
 
+  it("describes a mystery work and reads/searches documents without leaking full text", async () => {
+    const work = await call<WorkDetail>("get_work", { workId: mysteryId });
+    expect(work.stages?.map(({ id }) => id)).toEqual([
+      "truth",
+      "characters",
+      "scripts",
+      "clues",
+      "dm"
+    ]);
+    expect(work.documents.some(({ id }) => id === "truth_doc:core_truth")).toBe(
+      true
+    );
+    expect(work.documents.some(({ id }) => id === "dm_manual")).toBe(true);
+    expect(JSON.stringify(work)).not.toContain("密室钟摆停表");
+
+    const page = await call<Page>("read_document", {
+      workId: mysteryId,
+      documentId: "truth_doc:core_truth",
+      maxCharacters: 7
+    });
+    expect(page.content).toBe("暴风雪山庄的钟");
+    expect(page.nextOffset).toBe(7);
+    expect(page.revision).toMatch(/^v1:/u);
+
+    const hits = await call<Hits>("search_text", {
+      workId: mysteryId,
+      query: "密室钟摆停表"
+    });
+    expect(hits.hits).toHaveLength(1);
+    expect(hits.hits[0]?.documentId).toBe("truth_doc:core_truth");
+    const matched = await call<Page>("read_document", {
+      workId: mysteryId,
+      documentId: hits.hits[0]?.documentId,
+      offset: hits.hits[0]?.offset,
+      maxCharacters: 6
+    });
+    expect(matched.content).toBe("密室钟摆停表");
+
+    await expect(
+      call("read_document", { workId: mysteryId, documentId: "missing" })
+    ).rejects.toMatchObject({ code: "external.invalid_input" });
+  });
+
   it("exposes no local paths in what it returns", async () => {
     const outputs = await Promise.all([
       call("list_works"),
       call("get_work", { workId: shortId }),
       call("get_work", { workId: longId }),
+      call("get_work", { workId: mysteryId }),
       call("list_libraries"),
       call("get_library", { libraryId: materialId })
     ]);

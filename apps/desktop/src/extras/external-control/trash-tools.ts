@@ -3,7 +3,10 @@ import {
   CatalogLibraryEntrySchema,
   CatalogOpenProjectResultSchema,
   LongOpenBookResultSchema,
-  SaveDocumentResultSchema
+  MutateAcademicManuscriptResultSchema,
+  MysteryOpenBookResultSchema,
+  SaveDocumentResultSchema,
+  createAcademicSectionDocumentId
 } from "@deepwrite/contracts";
 import {
   ExternalListTrashResultSchema,
@@ -25,6 +28,7 @@ import {
   writeTeamSettings
 } from "./team-write-tools";
 import { trashExpiry } from "./trash-store";
+import { readCatalogIndex } from "./work-read-tools";
 
 const FOLDER_MISSING =
   "这个项目的文件夹已不在原位置，无法恢复。请让用户确认文件夹是否被移动。";
@@ -47,6 +51,53 @@ async function restoreSection(
   record: Extract<ExternalTrashRecord, { kind: "section" }>
 ): Promise<ExternalMutationResult> {
   const { bookId, title, body, characterState } = record;
+  const index = await readCatalogIndex(context.core);
+  const targetBook = index.books.find(({ id }) => id === bookId);
+  const isAcademic =
+    record.bookType === "academic" ||
+    targetBook?.bookType === "academic" ||
+    record.brief !== undefined ||
+    record.state !== undefined;
+
+  if (isAcademic) {
+    const validChapterId =
+      record.chapterId &&
+      targetBook?.bookType === "academic" &&
+      targetBook.manuscript.chapters.some((ch) => ch.id === record.chapterId)
+        ? record.chapterId
+        : undefined;
+    const created = await runCommand(
+      context,
+      "catalog.mutateAcademicManuscript",
+      {
+        bookId,
+        ...(targetBook?.projectRevision !== undefined
+          ? { baseProjectRevision: targetBook.projectRevision }
+          : {}),
+        mutation: {
+          type: "create-section",
+          title,
+          ...(validChapterId ? { chapterId: validChapterId } : {}),
+          ...(record.wordCountRequirement
+            ? { wordCountRequirement: record.wordCountRequirement }
+            : {}),
+          briefContent: record.brief ?? "",
+          bodyContent: body,
+          stateContent: record.state ?? characterState
+        }
+      },
+      MutateAcademicManuscriptResultSchema
+    );
+    const restoredSection = created.book.manuscript.sections.find(
+      ({ id }) => id === created.sectionId
+    );
+    const bodyDocId =
+      restoredSection?.body.id ??
+      createAcademicSectionDocumentId(created.sectionId ?? "", "body");
+    context.broadcastChange({ domain: "work", resourceId: bookId });
+    return { id: bodyDocId, title: restoredSection?.title ?? title };
+  }
+
   const created = await runCommand(
     context,
     "catalog.createDraftSection",
@@ -118,6 +169,14 @@ async function restoreProject(
       "long.openAtPath",
       { projectDirectory },
       LongOpenBookResultSchema,
+      FOLDER_MISSING
+    );
+  } else if (domain === "mystery") {
+    await readCore(
+      context.core,
+      "mystery.openAtPath",
+      { projectDirectory },
+      MysteryOpenBookResultSchema,
       FOLDER_MISSING
     );
   } else {

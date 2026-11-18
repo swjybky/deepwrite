@@ -18,34 +18,56 @@ export function assertBookLibraryReferences(
       .filter((item) => !item.isUnbound)
       .map((skill) => [skill.id, skill])
   );
-  for (const [kind, materialIds] of Object.entries(
-    book.linkedMaterialIdsByKind ?? {}
-  )) {
+  for (const materialIds of Object.values(book.linkedMaterialIdsByKind ?? {})) {
     for (const materialId of materialIds ?? []) {
-      const material = materials.get(materialId);
-      if (!material) {
+      if (!materials.has(materialId)) {
         throw new Error(
           `书籍「${book.title}」关联了不存在的素材库：${materialId}`
         );
       }
-      if (material.materialKind !== "mixed" && material.materialKind !== kind) {
-        throw new Error(`素材库「${material.title}」不能关联到 ${kind} 分类。`);
-      }
     }
   }
-  for (const [kind, skillIds] of Object.entries(
-    book.linkedSkillIdsByKind ?? {}
-  )) {
+  for (const skillIds of Object.values(book.linkedSkillIdsByKind ?? {})) {
     for (const skillId of skillIds ?? []) {
-      const skill = skills.get(skillId);
-      if (!skill) {
+      if (!skills.has(skillId)) {
         throw new Error(
           `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
         );
       }
-      if (skill.skillKind !== kind) {
-        throw new Error(`技能库「${skill.title}」不能绑定到 ${kind} 分类。`);
-      }
+    }
+  }
+}
+
+export function assertAcademicBookLibraryReferences(
+  book: {
+    title: string;
+    linkedMaterialIds?: readonly string[] | undefined;
+    linkedSkillIds?: readonly string[] | undefined;
+  },
+  snapshot: Pick<CatalogSnapshot, "materials" | "skills">
+): void {
+  const materials = new Map(
+    snapshot.materials
+      .filter((item) => !item.isUnbound)
+      .map((material) => [material.id, material])
+  );
+  const skills = new Map(
+    snapshot.skills
+      .filter((item) => !item.isUnbound)
+      .map((skill) => [skill.id, skill])
+  );
+  for (const materialId of book.linkedMaterialIds ?? []) {
+    if (!materials.has(materialId)) {
+      throw new Error(
+        `学术作品「${book.title}」关联了不存在的素材库：${materialId}`
+      );
+    }
+  }
+  for (const skillId of book.linkedSkillIds ?? []) {
+    if (!skills.has(skillId)) {
+      throw new Error(
+        `学术作品「${book.title}」绑定了不存在的技能库：${skillId}`
+      );
     }
   }
 }

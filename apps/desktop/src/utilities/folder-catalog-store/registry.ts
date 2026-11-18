@@ -233,7 +233,9 @@ export async function ensureRegistry(
     const base = emptyRegistry(snapshot.updatedAt);
     base.creativePlotStages = mergeCreativePlotStageDefinitions(
       snapshot.creativePlotStages,
-      snapshot.books.flatMap((book) => book.plotStages)
+      snapshot.books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      )
     );
     const { registry: next, createdProjectDirectories } =
       await writeMissingSnapshotProjects(store, base, snapshot);

@@ -80,7 +80,9 @@ function createHarness(options: HarnessOptions = {}) {
   const resourceDocuments = new Map<string, WorkspaceDocument>();
   const selectedNodes: string[] = [];
   const selectedExpertSections: Array<[string, string]> = [];
-  const selectedDraftFiles: Array<[string, "body" | "character-state"]> = [];
+  const selectedDraftFiles: Array<
+    [string, import("../types/workspace").DraftFileKind]
+  > = [];
   const infoMessages: string[] = [];
   const longSelections: LongWorkspaceSelection[] = [];
   let selectedResourceId = "";

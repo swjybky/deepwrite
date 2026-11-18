@@ -11,6 +11,8 @@ export function usageModuleForPrompt(
   if (context.shortWorkspace) return "short-writing";
   if (context.scriptWorkspace) return "script-writing";
   if (context.longWorkspace) return "long-writing";
+  if (context.academicWorkspace) return "academic-writing";
+  if (context.mysteryWorkspace) return "mystery-writing";
   if (context.libraryWorkspace) {
     return context.libraryWorkspace.domain === "skill"
       ? "skill-library"

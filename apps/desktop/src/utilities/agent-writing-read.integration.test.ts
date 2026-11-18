@@ -102,7 +102,9 @@ describe("authorized Agent-to-Core writing reads", () => {
             requests.push(
               command.payload.query.mode === "index"
                 ? "index"
-                : command.payload.query.documentId
+                : command.payload.query.mode === "file"
+                  ? command.payload.query.documentId
+                  : command.payload.query.query
             );
             return {
               status: "accepted",

@@ -29,6 +29,7 @@ export interface EditorFindReplaceOptions {
   ) => void;
   undo: () => void;
   redo: () => void;
+  save?: () => void;
   isComposing?: () => boolean;
 }
 
@@ -265,6 +266,17 @@ export function useEditorFindReplace(options: EditorFindReplaceOptions) {
     if (key === "escape" && findPanelOpen.value) {
       event.preventDefault();
       closeFindPanel();
+      return;
+    }
+    if (
+      modifier &&
+      !event.altKey &&
+      !event.shiftKey &&
+      key === "s" &&
+      options.save
+    ) {
+      event.preventDefault();
+      if (!options.readOnly()) options.save();
       return;
     }
     if (modifier && key === "z") {

@@ -93,7 +93,9 @@ describe("PlotStructureDialog", () => {
 
   it("unmounts the parent dialog while exactly one child dialog is active", () => {
     expect(controllerSource).toContain("const activeSubdialog = computed");
-    expect(source).toContain('v-if="open && book && !activeSubdialog"');
+    expect(source).toContain(
+      "v-if=\"open && book && book.bookType !== 'academic' && !activeSubdialog\""
+    );
     expect(source).toContain("activeSubdialog === 'character-format'");
     expect(source).toContain("activeSubdialog === 'form'");
     expect(source).toContain("activeSubdialog === 'delete'");

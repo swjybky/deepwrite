@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import type {
-  MaterialKind,
-  MaterialStageId,
-  SkillKind
-} from "@deepwrite/contracts";
+import type { MaterialStageId, SkillKind } from "@deepwrite/contracts";
 import { createScopedTranslator } from "../i18n";
 import {
   useLibraryProjectDialog,
   type LibraryProjectDialogProps,
   type LibraryProjectDialogEvents
 } from "../composables/useLibraryProjectDialog";
+import { sharingT } from "./librarySharingLabels";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
 
@@ -17,15 +14,21 @@ const t = createScopedTranslator("components.libraryProjectDialog");
 const props = defineProps<LibraryProjectDialogProps>();
 const emit = defineEmits<LibraryProjectDialogEvents>();
 const {
+  LIBRARY_CUSTOM_TAG_MAX_LENGTH,
   destination,
   entryDestinations,
   title,
   stageId,
   libraryKind,
+  libraryTagChoice,
+  customTagDraft,
+  isCustomTagSelected,
   titleInput,
+  customTagInput,
   domainLabel,
   heading,
   libraryKindOptions,
+  libraryTagOptions,
   stageOptions,
   showEntryStageField,
   requestClose,
@@ -100,8 +103,8 @@ const {
                 })
               }}</span>
               <PopupSelect
-                :model-value="libraryKind"
-                :options="libraryKindOptions"
+                :model-value="libraryTagChoice"
+                :options="libraryTagOptions"
                 :accessible-label="
                   t('valueLibraryCategory', {
                     arg0: domainLabel
@@ -110,9 +113,19 @@ const {
                 size="large"
                 :disabled="submitting"
                 :menu-min-width="220"
-                @update:model-value="
-                  libraryKind = String($event) as MaterialKind | SkillKind
-                "
+                @update:model-value="libraryTagChoice = String($event)"
+              />
+            </label>
+            <label v-if="isCustomTagSelected" class="book-resource-name-field">
+              <span>{{ sharingT("customTagLabel") }}</span>
+              <input
+                ref="customTagInput"
+                v-model="customTagDraft"
+                type="text"
+                :maxlength="LIBRARY_CUSTOM_TAG_MAX_LENGTH"
+                autocomplete="off"
+                :placeholder="sharingT('customTagPlaceholder')"
+                :disabled="submitting"
               />
             </label>
             <p class="book-resource-help">
@@ -156,6 +169,45 @@ const {
                 :disabled="submitting"
               />
             </label>
+            <template v-if="operation === 'rename-library'">
+              <label
+                class="book-resource-name-field catalog-resource-stage-field"
+              >
+                <span>{{
+                  t("libraryCategoryMessage", {
+                    arg0: domainLabel ?? ""
+                  })
+                }}</span>
+                <PopupSelect
+                  :model-value="libraryTagChoice"
+                  :options="libraryTagOptions"
+                  :accessible-label="
+                    t('valueLibraryCategory', {
+                      arg0: domainLabel
+                    })
+                  "
+                  size="large"
+                  :disabled="submitting"
+                  :menu-min-width="220"
+                  @update:model-value="libraryTagChoice = String($event)"
+                />
+              </label>
+              <label
+                v-if="isCustomTagSelected"
+                class="book-resource-name-field"
+              >
+                <span>{{ sharingT("customTagLabel") }}</span>
+                <input
+                  ref="customTagInput"
+                  v-model="customTagDraft"
+                  type="text"
+                  :maxlength="LIBRARY_CUSTOM_TAG_MAX_LENGTH"
+                  autocomplete="off"
+                  :placeholder="sharingT('customTagPlaceholder')"
+                  :disabled="submitting"
+                />
+              </label>
+            </template>
             <template v-if="operation === 'create-entry' && !libraryId">
               <label class="book-resource-name-field">
                 <span>{{ t("destinationLibrary") }}</span>
@@ -175,12 +227,15 @@ const {
                   t("libraryCategoryMessage", { arg0: domainLabel })
                 }}</span>
                 <PopupSelect
-                  v-model="libraryKind"
+                  :model-value="libraryKind"
                   :options="libraryKindOptions"
                   size="large"
                   :disabled="submitting"
                   :accessible-label="
                     t('valueLibraryCategory', { arg0: domainLabel })
+                  "
+                  @update:model-value="
+                    libraryKind = String($event) as SkillKind
                   "
                 />
               </label>

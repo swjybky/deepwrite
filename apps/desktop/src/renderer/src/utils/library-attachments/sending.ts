@@ -8,8 +8,19 @@ export function withoutMaterialBodies<T extends { domain: string }>(
 }
 
 export function withoutMaterialBindings<
-  T extends { linkedMaterialIdsByKind: LinkedMaterialIdsByKind }
+  T extends
+    | {
+        bookType?: "short" | "script" | "long";
+        linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
+      }
+    | { bookType: "academic"; linkedMaterialIds: readonly string[] }
 >(book: T): T {
+  if ("bookType" in book && book.bookType === "academic") {
+    return {
+      ...book,
+      linkedMaterialIds: []
+    };
+  }
   return {
     ...book,
     linkedMaterialIdsByKind: {

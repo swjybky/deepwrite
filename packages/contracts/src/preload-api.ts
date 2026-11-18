@@ -85,6 +85,10 @@ import type {
   GeneralSettingsSnapshot
 } from "./general-settings";
 import type {
+  ExportAcademicManuscriptInput,
+  ExportAcademicManuscriptResult
+} from "./academic-manuscript-export";
+import type {
   ExportShortManuscriptInput,
   ExportShortManuscriptResult
 } from "./short-manuscript-export";
@@ -123,6 +127,18 @@ import type {
   UpdateLibraryInput,
   CreateScriptBookInput,
   CreateShortBookInput,
+  CreateAcademicBookInput,
+  CreateAcademicReferenceCardInput,
+  CreateAcademicReferenceCardResult,
+  CreativeBook,
+  UpdateAcademicReferenceCardInput,
+  UpdateAcademicReferenceCardResult,
+  DeleteAcademicReferenceCardInput,
+  DeleteAcademicReferenceCardResult,
+  MutateAcademicFrameworkInput,
+  MutateAcademicManuscriptInput,
+  MutateAcademicManuscriptResult,
+  AcademicBook,
   DeleteCatalogProjectInput,
   DeleteCatalogProjectResult,
   DuplicateCatalogProjectInput,
@@ -154,6 +170,11 @@ import type {
   UpdateLibraryGroupInput
 } from "./catalog";
 
+import type {
+  AcademicAgentId,
+  AcademicAgentSettings,
+  AcademicAgentSettingsInput
+} from "./academic-agent-settings";
 import type {
   LongAgentSettings,
   LongAgentSettingsInput
@@ -337,6 +358,9 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     saveDraftRecovery(drafts: CatalogDraftRecovery): Promise<void>;
     createShortBook(input: CreateShortBookInput): Promise<ShortBook | null>;
     createScriptBook(input: CreateScriptBookInput): Promise<ScriptBook | null>;
+    createAcademicBook(
+      input: CreateAcademicBookInput
+    ): Promise<AcademicBook | null>;
     createLibrary(input: CreateLibraryInput): Promise<CatalogLibrary | null>;
     updateLibrary(input: UpdateLibraryInput): Promise<CatalogLibrary>;
     createLibraryGroup(
@@ -348,8 +372,23 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     updateBook(input: UpdateBookInput): Promise<Book>;
     mutateCharacterStructure(
       input: MutateCharacterStructureInput
-    ): Promise<Book>;
-    mutatePlotStructure(input: MutatePlotStructureInput): Promise<Book>;
+    ): Promise<CreativeBook>;
+    mutatePlotStructure(input: MutatePlotStructureInput): Promise<CreativeBook>;
+    mutateAcademicFramework(
+      input: MutateAcademicFrameworkInput
+    ): Promise<AcademicBook>;
+    createAcademicReferenceCard(
+      input: CreateAcademicReferenceCardInput
+    ): Promise<CreateAcademicReferenceCardResult>;
+    updateAcademicReferenceCard(
+      input: UpdateAcademicReferenceCardInput
+    ): Promise<UpdateAcademicReferenceCardResult>;
+    deleteAcademicReferenceCard(
+      input: DeleteAcademicReferenceCardInput
+    ): Promise<DeleteAcademicReferenceCardResult>;
+    mutateAcademicManuscript(
+      input: MutateAcademicManuscriptInput
+    ): Promise<MutateAcademicManuscriptResult>;
     updateLibraryGroup(
       input: UpdateLibraryGroupInput
     ): Promise<CatalogLibraryGroup>;
@@ -432,6 +471,11 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     save(settings: LongAgentSettingsInput): Promise<LongAgentSettings>;
     reset(agentId?: LongAgentId): Promise<LongAgentSettings>;
   };
+  academicAgents: {
+    list(): Promise<AcademicAgentSettings>;
+    save(settings: AcademicAgentSettingsInput): Promise<AcademicAgentSettings>;
+    reset(agentId?: AcademicAgentId): Promise<AcademicAgentSettings>;
+  };
   agentTeams: {
     saveBuiltins(
       input: BuiltinSubagentSettings
@@ -507,6 +551,9 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     openNotificationSettings(): Promise<void>;
   };
   manuscript: {
+    exportAcademic(
+      input: ExportAcademicManuscriptInput
+    ): Promise<ExportAcademicManuscriptResult>;
     exportLong(
       input: ExportLongManuscriptInput
     ): Promise<ExportLongManuscriptResult>;
@@ -514,6 +561,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
       input: ExportShortManuscriptInput
     ): Promise<ExportShortManuscriptResult>;
   };
+  mystery?: import("./mystery").MysteryPreloadApi;
   events: {
     subscribe(listener: (event: SystemEventEnvelope) => void): () => void;
   };

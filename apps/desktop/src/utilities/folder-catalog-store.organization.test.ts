@@ -132,7 +132,7 @@ describe("library organization", () => {
           action: "create-group",
           ref: "group",
           title: "写作方法",
-          members: { general: "new" }
+          memberIds: ["new"]
         }
       ]
     });
@@ -336,7 +336,7 @@ describe("library organization", () => {
       await store.createLibraryGroup({
         domain: "skill",
         name: "组",
-        members: { general: a.id }
+        memberIds: [a.id]
       })
     ).resource;
     const plan = await store.previewLibraryStructure({

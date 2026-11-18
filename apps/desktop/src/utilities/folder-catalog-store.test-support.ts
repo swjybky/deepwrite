@@ -19,10 +19,12 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CatalogSnapshotSchema,
+  CreativeBookSchema,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
   createShortWorkspaceContentRevision,
-  type CatalogSnapshot
+  type CatalogSnapshot,
+  type CreativeBook
 } from "@deepwrite/contracts";
 import {
   assertLegacyBookMigrationSourcesUnchanged,
@@ -49,7 +51,9 @@ function tickingClock(): () => string {
   return () => new Date(Date.UTC(2026, 6, 19, 10, 0, tick++)).toISOString();
 }
 
-function catalogFixture(): CatalogSnapshot {
+function catalogFixture(): Omit<CatalogSnapshot, "books"> & {
+  books: CreativeBook[];
+} {
   return CatalogSnapshotSchema.parse({
     schemaVersion: 1,
     revision: 17,
@@ -160,7 +164,11 @@ function catalogFixture(): CatalogSnapshot {
         updatedAt: timestamp
       }
     ]
-  });
+  }) as Omit<CatalogSnapshot, "books"> & { books: CreativeBook[] };
+}
+
+function asCreativeBook(book: unknown): CreativeBook {
+  return CreativeBookSchema.parse(book);
 }
 
 afterEach(async () => {
@@ -183,6 +191,7 @@ export {
   FolderCatalogStore,
   access,
   afterEach,
+  asCreativeBook,
   assertLegacyBookMigrationSourcesUnchanged,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,

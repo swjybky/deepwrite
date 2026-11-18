@@ -47,6 +47,8 @@ export default {
   installAgentTeam: "Import Agent Team",
   exportDocx: "Export Manuscript as DOCX",
   wordDocument: "Word Document",
+  exportMarkdown: "Export Manuscript as Markdown",
+  markdownDocument: "Markdown Document",
   exportTxt: "Export Manuscript as TXT",
   textDocument: "Plain Text Document",
   exportEpub: "Export Manuscript as EPUB",

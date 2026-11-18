@@ -1,7 +1,7 @@
 import {
   CommandEnvelopeSchema,
   createEnvelope,
-  type ChatAssistantProjectRef,
+  type BookImageBookRef,
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
@@ -14,7 +14,7 @@ export async function bookImageCore(
   core: BookImageCore,
   type: "bookImages.write" | "bookImages.resolve",
   payload: unknown,
-  book: ChatAssistantProjectRef
+  book: BookImageBookRef
 ): Promise<unknown> {
   const id = createId("cmd_book_image_core");
   const result = await core(

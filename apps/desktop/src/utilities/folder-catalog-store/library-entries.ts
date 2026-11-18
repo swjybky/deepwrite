@@ -453,29 +453,7 @@ export async function moveLibraryEntry(
     ) {
       const materialEntry =
         sourceEntry as MaterialLibraryProjectManifest["entries"][number];
-      const allowed: Record<string, readonly string[]> = {
-        character: ["character"],
-        gimmick: ["gimmick"],
-        plot: ["pacing", "intro", "plot_refine"],
-        draft: ["draft_excerpt"],
-        other: ["other"],
-        mixed: [materialEntry.stageId]
-      };
-      const selectedTargetStage = input.targetStageId ?? materialEntry.stageId;
-      targetStageId = selectedTargetStage;
-      if (
-        sourceManifest.materialKind !== targetManifest.materialKind &&
-        input.targetStageId === undefined
-      ) {
-        throw new Error("移动到不同素材分类时，请选择目标内容阶段。");
-      }
-      if (
-        !(allowed[targetManifest.materialKind] ?? []).includes(
-          selectedTargetStage
-        )
-      ) {
-        throw new Error("目标素材库分类不支持该素材条目的内容阶段。");
-      }
+      targetStageId = input.targetStageId ?? materialEntry.stageId;
     } else if (input.targetStageId !== undefined) {
       throw new Error("只有素材条目可以调整内容阶段。");
     }
@@ -812,7 +790,6 @@ export async function installMarketplaceSkillContent(
     const now = store.now();
     const usedLibraryTitles = snapshot.skills.map(({ title }) => title);
     const plans: DuplicateProjectWritePlan[] = [];
-    const members: SkillLibraryGroup["members"] = {};
     const libraryIds: string[] = [];
     const kindLabels: Record<
       MarketplaceInstallPackage["buckets"][number]["kind"],
@@ -863,7 +840,6 @@ export async function installMarketplaceSkillContent(
         updatedAt: now
       });
       libraryIds.push(library.id);
-      members[bucket.kind] = library.id;
       plans.push({
         domain: "skill-library",
         parentDirectory: store.defaultProjectParents["skill-library"],
@@ -879,7 +855,7 @@ export async function installMarketplaceSkillContent(
           input.title,
           snapshot.skillGroups.map(({ title }) => title)
         ),
-        members,
+        memberIds: libraryIds,
         marketplaceSource: {
           contentType: input.source.contentType,
           contentId: input.source.contentId,

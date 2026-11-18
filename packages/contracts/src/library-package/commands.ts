@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { CatalogLibrarySchema, LibraryTypeSchema } from "../catalog";
+import {
+  CatalogLibrarySchema,
+  LibraryCustomTagSchema,
+  LibraryTypeSchema
+} from "../catalog";
 import { CatalogIdSchema, CatalogTitleSchema } from "../catalog/kinds";
 import { EnvelopeBaseSchema } from "../envelope";
 import {
@@ -58,7 +62,7 @@ export const LibraryPackageExportSourceSchema = z.object({
       })
     )
     .min(1)
-    .max(8)
+    .max(LIBRARY_PACKAGE_MAX_LIBRARIES)
 });
 
 export const ChooseLibraryPackageSourceInputSchema = z
@@ -77,6 +81,7 @@ export const LibraryPackagePreviewLibrarySchema = z.object({
   key: KeySchema,
   title: CatalogTitleSchema,
   kind: z.string().min(1).max(40),
+  customTag: LibraryCustomTagSchema.optional(),
   kindEditable: z.boolean(),
   libraryType: LibraryTypeSchema,
   entryCount: CountSchema,
@@ -154,7 +159,8 @@ export const LibraryPackageImportChoicesSchema = z
             key: KeySchema,
             include: z.boolean(),
             title: CatalogTitleSchema,
-            kind: z.string().min(1).max(40).optional()
+            kind: z.string().min(1).max(40).optional(),
+            customTag: LibraryCustomTagSchema.nullable().optional()
           })
           .strict()
       )

@@ -21,7 +21,8 @@ export type ChatAssistantMode = z.infer<typeof ChatAssistantModeSchema>;
 export const ChatAssistantProjectTypeSchema = z.enum([
   "short",
   "script",
-  "long"
+  "long",
+  "academic"
 ]);
 export type ChatAssistantProjectType = z.infer<
   typeof ChatAssistantProjectTypeSchema

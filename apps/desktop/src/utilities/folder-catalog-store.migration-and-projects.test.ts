@@ -5,6 +5,7 @@ import {
   FolderCatalogConflictError,
   FolderCatalogStore,
   access,
+  asCreativeBook,
   assertLegacyBookMigrationSourcesUnchanged,
   catalogDraftBodyDocumentId,
   catalogFixture,
@@ -205,7 +206,7 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       )
     ).toMatchObject({
       kind: "deepwrite.material-group",
-      members: { character: "material-existing" }
+      memberIds: ["material-existing"]
     });
     const skillGroupProject = registry.projects.find(
       ({ id }) => id === "skill-group-existing"
@@ -219,7 +220,7 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       )
     ).toMatchObject({
       kind: "deepwrite.skill-group",
-      members: { general: "skill-existing" }
+      memberIds: ["skill-existing"]
     });
 
     const reloaded = await new FolderCatalogStore({
@@ -298,11 +299,15 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       }).indexSnapshot();
       expect(() => CatalogSnapshotSchema.parse(index)).not.toThrow();
       expect(index.projectDiagnostics).toBeUndefined();
+      const indexedBook = index.books[0]!;
+      if (indexedBook.bookType === "academic") {
+        throw new Error("Expected creative book index");
+      }
+      expect(indexedBook.documents.every(({ content }) => content === "")).toBe(
+        true
+      );
       expect(
-        index.books[0]!.documents.every(({ content }) => content === "")
-      ).toBe(true);
-      expect(
-        index.books[0]!.draft.sections.every(
+        indexedBook.draft.sections.every(
           ({ body, characterState }) =>
             body.content === "" && characterState.content === ""
         )
@@ -331,13 +336,17 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       });
       for (const file of markdownFiles) {
         const indexedDocument = [
-          ...index.books.flatMap((book) => [
-            ...book.documents,
-            ...book.draft.sections.flatMap((section) => [
-              section.body,
-              section.characterState
-            ])
-          ]),
+          ...index.books.flatMap((book) =>
+            book.bookType === "academic"
+              ? []
+              : [
+                  ...book.documents,
+                  ...book.draft.sections.flatMap((section) => [
+                    section.body,
+                    section.characterState
+                  ])
+                ]
+          ),
           ...index.materials.flatMap((library) => library.entries),
           ...index.skills.flatMap((library) => library.entries)
         ].find(({ id }) => id === file.id);
@@ -552,8 +561,9 @@ describe("FolderCatalogStore: migration-and-projects", () => {
 
     const reopened = await store.openBookProject(first.projectDirectory);
     expect(
-      reopened.resource.draft.sections.find(({ id }) => id === "section-1")
-        ?.body.content
+      asCreativeBook(reopened.resource).draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("新的正文");
     expect((await store.snapshot()).books).toHaveLength(2);
   });
@@ -623,9 +633,11 @@ describe("FolderCatalogStore: migration-and-projects", () => {
     });
     expect(moved.plotStages.at(-2)?.id).toBe(stage.id);
     expect(
-      (await store.snapshot()).books
-        .find(({ id }) => id === secondBook.resource.id)
-        ?.plotStages.at(-2)?.id
+      asCreativeBook(
+        (await store.snapshot()).books.find(
+          ({ id }) => id === secondBook.resource.id
+        )
+      ).plotStages.at(-2)?.id
     ).toBe(stage.id);
     const afterMove = await store.createShortBook(
       { title: "沿用剧情结构顺序", genre: "其他" },
@@ -918,9 +930,9 @@ describe("FolderCatalogStore: migration-and-projects", () => {
         mutation: { type: "setFormat", format: "text" }
       })
     ).rejects.toThrow(/byte limit|大小|上限/u);
-    const unchanged = (await store.snapshot()).books.find(
-      ({ id }) => id === opened.resource.id
-    )!;
+    const unchanged = asCreativeBook(
+      (await store.snapshot()).books.find(({ id }) => id === opened.resource.id)
+    );
     expect(unchanged.characterStructure.format).toBe("list");
     expect(unchanged.documents.find(({ id }) => id === firstId)?.content).toBe(
       "alpha"
@@ -994,7 +1006,8 @@ describe("FolderCatalogStore: migration-and-projects", () => {
     });
     const snapshot = await restarted.snapshot();
     expect(snapshot.books).toHaveLength(2);
-    for (const book of snapshot.books) {
+    for (const rawBook of snapshot.books) {
+      const book = asCreativeBook(rawBook);
       expect(book.projectRevision).toBe(1);
       expect(book.plotStages.map(({ id }) => id)).toEqual([
         "worldbuilding",
@@ -1134,8 +1147,9 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       created.projectDirectory,
       false
     );
-    expect(reopened.resource.bookType).toBe("script");
-    expect(reopened.resource.draft.sections.map(({ title }) => title)).toEqual([
+    const reopenedBook = asCreativeBook(reopened.resource);
+    expect(reopenedBook.bookType).toBe("script");
+    expect(reopenedBook.draft.sections.map(({ title }) => title)).toEqual([
       "第一集",
       "第二集"
     ]);

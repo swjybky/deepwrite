@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { IconName } from "../types/workspace";
 import { createScopedTranslator } from "../i18n";
 import { defineAsyncComponent, inject, ref, shallowRef } from "vue";
 import {
@@ -11,7 +12,12 @@ const t = createScopedTranslator("components.composerContextBar");
 const ComposerContextMenu = defineAsyncComponent(
   () => import("./ComposerContextMenu.vue")
 );
-defineProps<{ bookTitle: string; stageLabel: string; responding: boolean }>();
+defineProps<{
+  bookTitle: string;
+  stageLabel: string;
+  stageIcon?: IconName | undefined;
+  responding: boolean;
+}>();
 const source = inject(COMPOSER_CONTEXT_NAVIGATION, null);
 const navigation = shallowRef<ComposerContextNavigation | null>(null);
 const loading = ref(false);
@@ -80,7 +86,10 @@ async function select(id: string): Promise<void> {
       "
       @click="show(kind, $event)"
     >
-      <AppIcon :name="kind === 'book' ? 'book' : 'wand'" :size="16" />
+      <AppIcon
+        :name="kind === 'book' ? 'book' : (stageIcon ?? 'wand')"
+        :size="16"
+      />
       <strong>{{ kind === "book" ? bookTitle : stageLabel }}</strong>
       <AppIcon class="context-chevron" name="chevron" :size="12" />
     </button>

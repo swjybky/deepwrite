@@ -3,6 +3,8 @@ import {
   SHORT_WORKSPACE_FILE_MAX_CHARACTERS
 } from "../expert-draft";
 import { DocumentVersionOriginSchema } from "../document-version-origin";
+import { AcademicCitationStyleSchema } from "../academic-citation-style";
+import { AcademicBookSubtypeSchema } from "../academic-book";
 import { z } from "zod";
 
 import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
@@ -16,16 +18,22 @@ import {
   CatalogLibraryProjectDomainSchema,
   CatalogProjectDomainSchema,
   CatalogTitleSchema,
+  LibraryCustomTagSchema,
+  LibraryGroupMemberIdsSchema,
   LibraryTypeSchema,
   LinkedMaterialIdsByKindInputSchema,
   LinkedSkillIdsByKindInputSchema,
+  MATERIAL_GROUP_LEGACY_SLOTS,
   MaterialKindSchema,
+  MaterialLibraryKindSchema,
   MaterialStageIdSchema,
+  SKILL_GROUP_LEGACY_SLOTS,
   ScriptBookGenreSchema,
   ShortBookGenreSchema,
   SkillKindSchema,
   SkillStageIdSchema,
   TimestampSchema,
+  migrateLegacyGroupMembers,
   uniqueIds
 } from "./kinds";
 import {
@@ -169,9 +177,23 @@ export const UpdateBookInputSchema = z
     force: z.boolean().optional(),
     title: CatalogTitleSchema.optional(),
     genre: ShortBookGenreSchema.optional(),
+    subtype: AcademicBookSubtypeSchema.optional(),
+    citationStyle: AcademicCitationStyleSchema.optional(),
     status: z.enum(["editing", "completed"]).optional(),
     linkedMaterialIdsByKind: LinkedMaterialIdsByKindInputSchema.optional(),
-    linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional()
+    linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional(),
+    linkedMaterialIds: z
+      .array(CatalogIdSchema)
+      .refine(uniqueIds, {
+        message: "Catalog id lists cannot contain duplicates."
+      })
+      .optional(),
+    linkedSkillIds: z
+      .array(CatalogIdSchema)
+      .refine(uniqueIds, {
+        message: "Catalog id lists cannot contain duplicates."
+      })
+      .optional()
   })
   .refine(
     ({
@@ -466,6 +488,7 @@ const CreateMaterialLibraryInputSchema = z.object({
   domain: z.literal("material"),
   name: CatalogTitleSchema,
   materialKind: MaterialKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   libraryType: LibraryTypeSchema.optional()
 });
 
@@ -473,6 +496,7 @@ const CreateSkillLibraryInputSchema = z.object({
   domain: z.literal("skill"),
   name: CatalogTitleSchema,
   skillKind: SkillKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   libraryType: LibraryTypeSchema.optional()
 });
 
@@ -488,13 +512,21 @@ export const UpdateLibraryInputSchema = z
     libraryId: CatalogIdSchema,
     title: CatalogTitleSchema.optional(),
     overview: z.string().optional(),
+    customTag: LibraryCustomTagSchema.nullable().optional(),
+    materialKind: MaterialLibraryKindSchema.optional(),
+    skillKind: SkillKindSchema.optional(),
     baseProjectRevision: z.number().int().nonnegative().optional(),
     force: z.boolean().optional()
   })
   .refine(
-    (value) => value.title !== undefined || value.overview !== undefined,
+    (value) =>
+      value.title !== undefined ||
+      value.overview !== undefined ||
+      value.customTag !== undefined ||
+      value.materialKind !== undefined ||
+      value.skillKind !== undefined,
     {
-      message: "Library updates must include a title or overview."
+      message: "Library updates must include a title, overview, or tag."
     }
   );
 export type UpdateLibraryInput = z.infer<typeof UpdateLibraryInputSchema>;
@@ -512,22 +544,35 @@ export type CreateLibraryAtPathInput = z.infer<
   typeof CreateLibraryAtPathInputSchema
 >;
 
+function migrateGroupMutationInput(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const domain = (value as Record<string, unknown>).domain;
+  return migrateLegacyGroupMembers(
+    domain === "skill" ? SKILL_GROUP_LEGACY_SLOTS : MATERIAL_GROUP_LEGACY_SLOTS
+  )(value);
+}
+
 const CreateMaterialLibraryGroupInputSchema = z.object({
   domain: z.literal("material"),
   name: CatalogTitleSchema,
-  members: MaterialLibraryGroupSchema.shape.members
+  memberIds: LibraryGroupMemberIdsSchema
 });
 
 const CreateSkillLibraryGroupInputSchema = z.object({
   domain: z.literal("skill"),
   name: CatalogTitleSchema,
-  members: SkillLibraryGroupSchema.shape.members
+  memberIds: LibraryGroupMemberIdsSchema
 });
 
-export const CreateLibraryGroupInputSchema = z.discriminatedUnion("domain", [
-  CreateMaterialLibraryGroupInputSchema,
-  CreateSkillLibraryGroupInputSchema
-]);
+export const CreateLibraryGroupInputSchema = z.preprocess(
+  migrateGroupMutationInput,
+  z.discriminatedUnion("domain", [
+    CreateMaterialLibraryGroupInputSchema,
+    CreateSkillLibraryGroupInputSchema
+  ])
+);
 export type CreateLibraryGroupInput = z.infer<
   typeof CreateLibraryGroupInputSchema
 >;
@@ -536,7 +581,7 @@ const UpdateMaterialLibraryGroupInputSchema = z.object({
   domain: z.literal("material"),
   groupId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
-  members: MaterialLibraryGroupSchema.shape.members,
+  memberIds: LibraryGroupMemberIdsSchema,
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
 });
@@ -545,15 +590,18 @@ const UpdateSkillLibraryGroupInputSchema = z.object({
   domain: z.literal("skill"),
   groupId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
-  members: SkillLibraryGroupSchema.shape.members,
+  memberIds: LibraryGroupMemberIdsSchema,
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
 });
 
-export const UpdateLibraryGroupInputSchema = z.discriminatedUnion("domain", [
-  UpdateMaterialLibraryGroupInputSchema,
-  UpdateSkillLibraryGroupInputSchema
-]);
+export const UpdateLibraryGroupInputSchema = z.preprocess(
+  migrateGroupMutationInput,
+  z.discriminatedUnion("domain", [
+    UpdateMaterialLibraryGroupInputSchema,
+    UpdateSkillLibraryGroupInputSchema
+  ])
+);
 export type UpdateLibraryGroupInput = z.infer<
   typeof UpdateLibraryGroupInputSchema
 >;

@@ -3,8 +3,9 @@ import type {
   LibraryAgentSettings,
   WorkspaceAgentSettings
 } from "@deepwrite/contracts";
+import { createPinia, setActivePinia } from "pinia";
 import { computed, ref, shallowRef } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentConversationController } from "./useAgentConversation";
 import {
   useShortConversationCoordinator,
@@ -204,6 +205,10 @@ function createHarness(
 }
 
 describe("useShortConversationCoordinator", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   it("hydrates only skill documents without loading creation or linked material bodies before a writing run", async () => {
     const test = createHarness();
     const material = workspaceDocument({

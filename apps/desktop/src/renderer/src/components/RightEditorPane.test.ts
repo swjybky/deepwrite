@@ -27,11 +27,9 @@ describe("RightEditorPane expert draft navigation", () => {
   it("loads the consolidated editor layout without stale header rows", () => {
     expect(editorStyles.match(/\.editor-pane\s*\{/g)).toHaveLength(1);
     expect(editorStyles).toContain(
-      "grid-template-rows: 40px minmax(0, 1fr) 36px;"
+      "grid-template-rows: minmax(40px, auto) minmax(0, 1fr) minmax(36px, auto);"
     );
-    expect(editorStyles).toContain(
-      "grid-template-rows: 42px 40px minmax(0, 1fr) 36px;"
-    );
+    expect(editorStyles).toContain("minmax(42px, auto) minmax(40px, auto)");
     expect(editorStyles).not.toContain(
       'html[data-platform="darwin"] .editor-pane'
     );
@@ -139,22 +137,17 @@ describe("RightEditorPane expert draft navigation", () => {
     expect(persistenceSource).toContain("normalizedPayload");
   });
 
-  it("renders independently managed section tabs before the active section editor", () => {
-    const tabsStart = source.indexOf('class="section-tabs-bar"');
-    const editorStart = source.indexOf('class="editor-document"', tabsStart);
-
-    expect(tabsStart).toBeGreaterThan(-1);
-    expect(source).toContain(':aria-label="resolvedSectionTabsLabel"');
-    expect(source).toContain("manuscript");
-    expect(source).toContain("episode");
-    expect(source).toContain("emit('selectSection', section.id)");
-    expect(source).toContain('v-if="canCreateSection"');
-    expect(source).toContain(':aria-label="resolvedCreateSectionLabel"');
-    expect(source).toContain("emit('createSection')");
-    expect(source).toContain('v-if="showDeleteSection"');
-    expect(source).toContain('class="section-tabs-remove"');
-    expect(source).toContain("emit('deleteSection')");
-    expect(editorStart).toBeGreaterThan(tabsStart);
+  it("shows related files in a separate row without duplicate section navigation", () => {
+    expect(editorSource).not.toContain('class="section-tabs-bar"');
+    expect(editorSource).toContain('class="editor-file-tabs-bar"');
+    expect(editorSource.indexOf('class="draft-file-tabs"')).toBeLessThan(
+      editorSource.indexOf('class="editor-toolbar"')
+    );
+    expect(editorSource).toContain("emit('selectDraftFile', 'body')");
+    expect(editorSource).toContain("emit('selectDraftFile', 'state')");
+    expect(editorSource).toContain(
+      "emit('selectDraftFile', 'character-state')"
+    );
   });
 
   it("remembers the scroll position of every section instead of reusing the previous section position", () => {

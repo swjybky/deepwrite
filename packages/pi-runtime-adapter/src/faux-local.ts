@@ -12,16 +12,19 @@ export function buildLocalThinking(input: AgentRunInput): string {
   if (
     (
       input.workspaceContext?.shortWorkspace ??
-      input.workspaceContext?.scriptWorkspace
+      input.workspaceContext?.scriptWorkspace ??
+      input.workspaceContext?.academicWorkspace
     )?.readSource === "core"
   )
     return input.promptLocale === "en-US"
       ? `Checking the selected work and current target: ${title}.`
       : `正在核对作品目录与当前目标《${title}》。`;
   const selectedProfile =
+    input.academicAgentProfile ??
     input.scriptAgentProfile ??
     input.agentProfile ??
     input.longAgentProfile ??
+    input.mysteryAgentProfile ??
     input.libraryAgentProfile;
   const agent = selectedProfile ? `，由「${selectedProfile.label}」处理` : "";
   return `正在读取发送瞬间的创作上下文快照，确认当前工作对象为《${title}》${agent}，并区分用户要求、作品事实与参考信息。`;
@@ -33,7 +36,8 @@ export function buildLocalWritingResponse(input: AgentRunInput): string {
   if (
     (
       input.workspaceContext?.shortWorkspace ??
-      input.workspaceContext?.scriptWorkspace
+      input.workspaceContext?.scriptWorkspace ??
+      input.workspaceContext?.academicWorkspace
     )?.readSource === "core"
   )
     return input.promptLocale === "en-US"
@@ -67,7 +71,12 @@ export function buildLocalWritingResponse(input: AgentRunInput): string {
         ? `- 当前已选择「${input.libraryAgentProfile.label}」，并且装配当前资料库读写工具与按需 load_skill。`
         : input.longAgentProfile
           ? `- 当前已按长篇根节点选择「${input.longAgentProfile.label}」智能体；结构与正文只会通过长篇专用工具按需读取。`
-          : "",
+          : input.academicAgentProfile
+            ? `- 当前已选择「${input.academicAgentProfile.label}」智能体；学术目录、文献卡与正文将通过学术工作台工具按需读取。`
+            : input.mysteryAgentProfile &&
+                input.workspaceContext?.mysteryWorkspace
+              ? `- 当前已选择剧本杀「${input.mysteryAgentProfile.label}」智能体，正在创作《${input.workspaceContext.mysteryWorkspace.title}》，多视角正文与上帝真相将通过剧本杀工具按需读取与提案审阅。`
+              : "",
     "",
     "下一切片接入真实模型配置后，可以在保持同一协议的前提下生成正式续写、润色和一致性检查结果。"
   ]

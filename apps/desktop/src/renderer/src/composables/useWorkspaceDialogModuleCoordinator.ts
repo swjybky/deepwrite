@@ -337,6 +337,8 @@ export function useWorkspaceDialogModuleCoordinator(
           bookTitle: summary.title,
           materials: snapshot?.materials ?? [],
           skills: snapshot?.skills ?? [],
+          materialGroups: snapshot?.materialGroups ?? [],
+          skillGroups: snapshot?.skillGroups ?? [],
           linkedMaterialIdsByKind: summary.linkedMaterialIdsByKind,
           linkedSkillIdsByKind: summary.linkedSkillIdsByKind,
           linkedResourceStageScopes: summary.linkedResourceStageScopes ?? {
@@ -404,7 +406,7 @@ export function useWorkspaceDialogModuleCoordinator(
     }
 
     const shortExportTarget = options.shortLifecycle.exportTarget.value;
-    if (shortExportTarget) {
+    if (shortExportTarget && shortExportTarget.workspaceType !== "academic") {
       return {
         kind: "export-short",
         bookTitle: shortExportTarget.label,
@@ -449,6 +451,12 @@ export function useWorkspaceDialogModuleCoordinator(
           : {}),
         ...(libraryProject.materialKind
           ? { materialKind: libraryProject.materialKind }
+          : {}),
+        ...(libraryProject.skillKind
+          ? { skillKind: libraryProject.skillKind }
+          : {}),
+        ...(libraryProject.customTag
+          ? { customTag: libraryProject.customTag }
           : {}),
         ...(libraryProject.entryId ? { entryId: libraryProject.entryId } : {}),
         ...(libraryProject.entryTitle

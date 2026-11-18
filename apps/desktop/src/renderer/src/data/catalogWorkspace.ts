@@ -1,4 +1,5 @@
 import { orderLibraryNodes } from "./libraryOrganizationProjection";
+import { academicTreeT } from "../components/academic/academicTreeLabels";
 import { plotStageLabel } from "../i18n/plotStageLabels";
 import { createScopedTranslator } from "../i18n";
 import { MATERIAL_STAGE_KINDS } from "@deepwrite/contracts/renderer";
@@ -9,6 +10,7 @@ import {
   type CatalogDraftSection,
   type CatalogSnapshot,
   type Book,
+  type CreativeBook,
   type MaterialKind,
   type MaterialLibrary,
   type MaterialLibraryKind,
@@ -148,6 +150,9 @@ const LIBRARY_TYPE_LABELS = {
   },
   get script() {
     return t("catalogWorkspace.screenplay");
+  },
+  get academic() {
+    return academicTreeT("academicWork");
   }
 } as const;
 
@@ -178,14 +183,17 @@ export interface DraftSectionProjection {
   id: string;
   title: string;
   wordCountRequirement: string;
+  chapterId?: string;
+  briefDocumentId?: string;
   bodyDocumentId: string;
+  stateDocumentId?: string;
   characterStateDocumentId: string;
 }
 
 export interface DraftDirectoryProjection {
   id: string;
   workspaceId: string;
-  workspaceType: "short" | "script";
+  workspaceType: "short" | "script" | "academic";
   title: string;
   sections: DraftSectionProjection[];
 }
@@ -245,9 +253,17 @@ export function resolveDraftSectionResourceId(
   directoryNode: ResourceTreeNode | undefined,
   sectionId: string
 ): string | undefined {
-  return directoryNode?.children?.find(
-    (child) => child.expertSectionId === sectionId
-  )?.id;
+  const visit = (
+    nodes: readonly ResourceTreeNode[] | undefined
+  ): string | undefined => {
+    for (const child of nodes ?? []) {
+      if (child.expertSectionId === sectionId) return child.id;
+      const nested = visit(child.children);
+      if (nested) return nested;
+    }
+    return undefined;
+  };
+  return visit(directoryNode?.children);
 }
 
 export function resolveDraftSectionProjection(
@@ -341,6 +357,20 @@ function createCatalogWorkspaceProjectionIndex(
           node.id
         );
       }
+      if (node.briefDocumentId) {
+        setIndexValueIfAbsent(
+          resourceIdByDocumentId,
+          node.briefDocumentId,
+          node.id
+        );
+      }
+      if (node.stateDocumentId) {
+        setIndexValueIfAbsent(
+          resourceIdByDocumentId,
+          node.stateDocumentId,
+          node.id
+        );
+      }
       if (node.characterStateDocumentId) {
         setIndexValueIfAbsent(
           resourceIdByDocumentId,
@@ -348,11 +378,20 @@ function createCatalogWorkspaceProjectionIndex(
           node.id
         );
       }
+      const firstNestedTarget = (
+        children: readonly ResourceTreeNode[] | undefined
+      ): string | undefined => {
+        for (const child of children ?? []) {
+          if (child.targetDocumentId) return child.targetDocumentId;
+          const nested = firstNestedTarget(child.children);
+          if (nested) return nested;
+        }
+        return undefined;
+      };
       const targetDocumentId =
         node.targetDocumentId ??
-        (node.stageCategoryId === "draft"
-          ? node.children?.find((child) => child.targetDocumentId)
-              ?.targetDocumentId
+        (node.stageCategoryId === "draft" || node.academicChapterItem
+          ? firstNestedTarget(node.children)
           : undefined) ??
         node.id;
       setIndexValueIfAbsent(
@@ -481,13 +520,13 @@ function uniqueIds(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
-function linkedMaterialLibraryIds(book: Book): string[] {
+function linkedMaterialLibraryIds(book: CreativeBook): string[] {
   return uniqueIds(
     MATERIAL_KINDS.flatMap((kind) => book.linkedMaterialIdsByKind[kind])
   );
 }
 
-function linkedSkillLibraryIds(book: Book): string[] {
+function linkedSkillLibraryIds(book: CreativeBook): string[] {
   return uniqueIds(
     SKILL_KINDS.flatMap((kind) => book.linkedSkillIdsByKind[kind])
   );
@@ -511,10 +550,10 @@ function inferWorkspaceStageId(
 }
 
 function createBookDocument(
-  book: Book,
+  book: CreativeBook,
   document: CatalogDocument,
   stageId: ShortWorkspaceStageId | undefined,
-  plotStage: Book["plotStages"][number] | undefined,
+  plotStage: CreativeBook["plotStages"][number] | undefined,
   plotStageIndex: number,
   characterItem?: { id: string; title: string; order: number }
 ): WorkspaceDocument {
@@ -607,7 +646,7 @@ function createBookDocument(
 }
 
 function createDraftFileDocument(
-  book: Book,
+  book: CreativeBook,
   section: CatalogDraftSection,
   sectionOrder: number,
   fileKind: "body" | "character-state"
@@ -662,11 +701,45 @@ function createDraftFileDocument(
   };
 }
 
+type AcademicBookProjector = (
+  book: Extract<Book, { bookType: "academic" }>
+) => {
+  node: ResourceTreeNode;
+  documents: WorkspaceDocument[];
+  draftDirectory: DraftDirectoryProjection;
+};
+
+let registeredAcademicBookProjector: AcademicBookProjector | null = null;
+let academicBookProjectorLoad: Promise<AcademicBookProjector> | null = null;
+
+export function registerAcademicBookProjector(
+  projector: AcademicBookProjector
+): void {
+  registeredAcademicBookProjector = projector;
+}
+
+export async function ensureAcademicBookProjectorLoaded(): Promise<void> {
+  if (registeredAcademicBookProjector) return;
+  academicBookProjectorLoad ??= import("./academicBookProjection").then(
+    (mod) => {
+      registeredAcademicBookProjector = mod.createAcademicBookProjection;
+      return mod.createAcademicBookProjection;
+    }
+  );
+  await academicBookProjectorLoad;
+}
+
 function createBookProjection(book: Book): {
   node: ResourceTreeNode;
   documents: WorkspaceDocument[];
   draftDirectory: DraftDirectoryProjection;
 } {
+  if (book.bookType === "academic") {
+    if (!registeredAcademicBookProjector) {
+      throw new Error("Academic book projection module has not been loaded.");
+    }
+    return registeredAcademicBookProjector(book);
+  }
   const enabledPlotStages = book.plotStages.filter((stage) => stage.enabled);
   const enabledPlotStageById = new Map(
     enabledPlotStages.map((stage) => [stage.id, stage] as const)
@@ -924,6 +997,7 @@ function createMaterialLibraryNode(library: MaterialLibrary): ResourceTreeNode {
       ? {}
       : { projectRevision: library.projectRevision }),
     materialKind: library.materialKind,
+    ...(library.customTag ? { customTag: library.customTag } : {}),
     workspaceType: library.materialType,
     ...(library.parentGenre.trim()
       ? { parentGenre: library.parentGenre.trim() }
@@ -990,7 +1064,7 @@ function createMaterialDocuments(
       return [
         typeLabel(),
         ...genreParts,
-        MATERIAL_KIND_LABELS[library.materialKind]
+        library.customTag ?? MATERIAL_KIND_LABELS[library.materialKind]
       ].join(" · ");
     },
     get path() {
@@ -1021,14 +1095,16 @@ function createMaterialDocuments(
           return entry.title;
         },
         get eyebrow() {
-          return [typeLabel(), ...genreParts, MATERIAL_KIND_LABELS[kind]].join(
-            " · "
-          );
+          return [
+            typeLabel(),
+            ...genreParts,
+            library.customTag ?? MATERIAL_KIND_LABELS[kind]
+          ].join(" · ");
         },
         get path() {
           return [
             library.title,
-            MATERIAL_KIND_LABELS[kind],
+            library.customTag ?? MATERIAL_KIND_LABELS[kind],
             ...genreParts,
             MATERIAL_STAGE_LABELS[entry.stageId],
             entry.title
@@ -1081,6 +1157,17 @@ function missingLibraryNode(
   };
 }
 
+function materialLibraryCategoryTag(library: MaterialLibrary): string {
+  if (library.customTag) return library.customTag;
+  return library.materialKind === "mixed"
+    ? t("catalogWorkspace.mixed")
+    : MATERIAL_TREE_KIND_LABELS[library.materialKind];
+}
+
+function skillLibraryCategoryTag(library: SkillLibrary): string {
+  return library.customTag ?? SKILL_KIND_TAG_LABELS[library.skillKind];
+}
+
 function createMaterialGroupNodes(
   snapshot: CatalogSnapshot
 ): ResourceTreeNode[] {
@@ -1089,24 +1176,27 @@ function createMaterialGroupNodes(
   );
   return snapshot.materialGroups.map((group) => {
     const seenLibraryIds = new Set<string>();
-    const memberNodes = MATERIAL_KINDS.flatMap<ResourceTreeNode>((kind) => {
-      const libraryId = group.members[kind];
-      if (!libraryId || seenLibraryIds.has(libraryId)) {
-        return [];
-      }
-      seenLibraryIds.add(libraryId);
-      const library = librariesById.get(libraryId);
-      const node = library
-        ? createMaterialLibraryNode(library)
-        : missingLibraryNode("material", libraryId);
-      return [
-        {
-          ...node,
-          categoryTag: MATERIAL_TREE_KIND_LABELS[kind],
-          groupId: group.id
+    const memberNodes = group.memberIds.flatMap<ResourceTreeNode>(
+      (libraryId) => {
+        if (!libraryId || seenLibraryIds.has(libraryId)) {
+          return [];
         }
-      ];
-    });
+        seenLibraryIds.add(libraryId);
+        const library = librariesById.get(libraryId);
+        const node = library
+          ? createMaterialLibraryNode(library)
+          : missingLibraryNode("material", libraryId);
+        return [
+          {
+            ...node,
+            ...(library
+              ? { categoryTag: materialLibraryCategoryTag(library) }
+              : {}),
+            groupId: group.id
+          }
+        ];
+      }
+    );
     return {
       id: catalogNodeId("material-group", group.id),
       get label() {
@@ -1134,6 +1224,7 @@ function createSkillLibraryNode(library: SkillLibrary): ResourceTreeNode {
     libraryId: library.id,
     readOnly: library.isBuiltin,
     skillKind: library.skillKind,
+    ...(library.customTag ? { customTag: library.customTag } : {}),
     workspaceType: library.skillType,
     children: [
       {
@@ -1184,7 +1275,7 @@ function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
         });
       },
       get eyebrow() {
-        return `${typeLabel()} · ${SKILL_KIND_LABELS[library.skillKind]}`;
+        return `${typeLabel()} · ${library.customTag ?? SKILL_KIND_LABELS[library.skillKind]}`;
       },
       get path() {
         return [library.title, t("catalogWorkspace.libraryDescription")];
@@ -1207,12 +1298,12 @@ function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
         return entry.title;
       },
       get eyebrow() {
-        return `${typeLabel()} · ${SKILL_KIND_LABELS[library.skillKind]}`;
+        return `${typeLabel()} · ${library.customTag ?? SKILL_KIND_LABELS[library.skillKind]}`;
       },
       get path() {
         return [
           library.title,
-          SKILL_KIND_LABELS[library.skillKind],
+          library.customTag ?? SKILL_KIND_LABELS[library.skillKind],
           SKILL_STAGE_LABELS[entry.stageId],
           entry.title
         ];
@@ -1237,19 +1328,28 @@ function createSkillGroupNodes(snapshot: CatalogSnapshot): ResourceTreeNode[] {
     snapshot.skills.map((library) => [library.id, library])
   );
   return snapshot.skillGroups.map((group) => {
-    const memberNodes = SKILL_KINDS.flatMap<ResourceTreeNode>((kind) => {
-      const libraryId = group.members[kind];
-      if (!libraryId) {
-        return [];
+    const seenLibraryIds = new Set<string>();
+    const memberNodes = group.memberIds.flatMap<ResourceTreeNode>(
+      (libraryId) => {
+        if (!libraryId || seenLibraryIds.has(libraryId)) {
+          return [];
+        }
+        seenLibraryIds.add(libraryId);
+        const library = librariesById.get(libraryId);
+        const node = library
+          ? createSkillLibraryNode(library)
+          : missingLibraryNode("skill", libraryId);
+        return [
+          {
+            ...node,
+            ...(library
+              ? { categoryTag: skillLibraryCategoryTag(library) }
+              : {}),
+            groupId: group.id
+          }
+        ];
       }
-      const library = librariesById.get(libraryId);
-      const node = library
-        ? createSkillLibraryNode(library)
-        : missingLibraryNode("skill", libraryId);
-      return [
-        { ...node, categoryTag: SKILL_KIND_TAG_LABELS[kind], groupId: group.id }
-      ];
-    });
+    );
     return {
       id: catalogNodeId("skill-group", group.id),
       get label() {
@@ -1277,11 +1377,7 @@ export function projectCatalogWorkspace(
   const bookProjections = snapshot.books.map(createBookProjection);
   const materialGroupNodes = createMaterialGroupNodes(snapshot);
   const groupedMaterialLibraryIds = new Set(
-    snapshot.materialGroups.flatMap((group) =>
-      Object.values(group.members).filter((libraryId): libraryId is string =>
-        Boolean(libraryId)
-      )
-    )
+    snapshot.materialGroups.flatMap((group) => group.memberIds.filter(Boolean))
   );
   const materialKindNodes = snapshot.materials
     .filter(
@@ -1290,18 +1386,11 @@ export function projectCatalogWorkspace(
     )
     .map((library) => ({
       ...createMaterialLibraryNode(library),
-      categoryTag:
-        library.materialKind === "mixed"
-          ? t("catalogWorkspace.mixed")
-          : MATERIAL_TREE_KIND_LABELS[library.materialKind]
+      categoryTag: materialLibraryCategoryTag(library)
     }));
   const skillGroupNodes = createSkillGroupNodes(snapshot);
   const groupedSkillLibraryIds = new Set(
-    snapshot.skillGroups.flatMap((group) =>
-      Object.values(group.members).filter((libraryId): libraryId is string =>
-        Boolean(libraryId)
-      )
-    )
+    snapshot.skillGroups.flatMap((group) => group.memberIds.filter(Boolean))
   );
   const diagnosticBookNodes: ResourceTreeNode[] = (
     snapshot.projectDiagnostics ?? []
@@ -1374,7 +1463,7 @@ export function projectCatalogWorkspace(
     )
     .map((library) => ({
       ...createSkillLibraryNode(library),
-      categoryTag: SKILL_KIND_TAG_LABELS[library.skillKind]
+      categoryTag: skillLibraryCategoryTag(library)
     }));
 
   const unboundNodes = (domain: "material" | "skill"): ResourceTreeNode[] => {

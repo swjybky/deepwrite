@@ -32,7 +32,12 @@ export interface MutationContext {
   client: ExternalControlClient;
 }
 
-const STALE_CODES = new Set(["catalog.conflict", "long.document_conflict"]);
+const STALE_CODES = new Set([
+  "catalog.conflict",
+  "long.document_conflict",
+  "mystery.conflict",
+  "mystery.document_changed"
+]);
 const GENERIC_REFUSAL = "DeepWrite 拒绝了这次操作。请确认目标和参数后重试。";
 
 /** A running agent's proposals would lose their base if text moved under it. */
@@ -59,6 +64,12 @@ function mappedFailure(code: string, message: string): ExternalControlError {
     return new ExternalControlError(
       "external.stale_revision",
       "内容已被修改，这次写入没有生效。请重新读取后，基于最新内容再写一次。"
+    );
+  }
+  if (code === "mystery.not_found") {
+    return new ExternalControlError(
+      "external.not_found",
+      message && !/[/\\]/u.test(message) ? message : GENERIC_REFUSAL
     );
   }
   if (code === "ipc.invalid_command") {

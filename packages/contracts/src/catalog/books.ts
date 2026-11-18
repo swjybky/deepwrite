@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  CurrentAcademicBookSchema,
+  validateAcademicBookState
+} from "../academic-book";
 
 import {
   BOOK_CHARACTER_OVERVIEW_DOCUMENT_ID,
@@ -236,6 +240,13 @@ export function migrateLegacyCharacterOverviewTitle(value: unknown): unknown {
 }
 
 function migrateBook(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === "object" &&
+    (value as { bookType?: unknown }).bookType === "academic"
+  ) {
+    return value;
+  }
   return migrateLegacyCharacterOverviewTitle(
     migrateMissingCharacterStructure(
       migrateBookPlotStageEnabled(
@@ -358,15 +369,23 @@ export const ScriptBookSchema = z
   });
 export type ScriptBook = z.infer<typeof ScriptBookSchema>;
 
+export const CreativeBookSchema = z.union([ShortBookSchema, ScriptBookSchema]);
+export type CreativeBook = z.infer<typeof CreativeBookSchema>;
+
 export const CurrentBookSchema = z.discriminatedUnion("bookType", [
   CurrentShortBookSchema,
-  CurrentScriptBookSchema
+  CurrentScriptBookSchema,
+  CurrentAcademicBookSchema
 ]);
 
 /** Current books are discriminated by `bookType`; legacy short books migrate first. */
 export const BookSchema = z
   .preprocess(migrateBook, CurrentBookSchema)
   .superRefine((book, context) => {
+    if (book.bookType === "academic") {
+      validateAcademicBookState(book, context);
+      return;
+    }
     validateUniqueBookDocumentIds(book, context);
     validateCharacterStructureDocuments(book, context);
     validatePlotStageDocuments(book, context);

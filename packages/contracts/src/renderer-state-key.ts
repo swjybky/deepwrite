@@ -53,5 +53,7 @@ export function bookConversationLogicalKey(syncKey: string): string | null {
   if (syncKey.startsWith("book:")) return `${syncKey.slice(5)}:chat`;
   if (syncKey.startsWith("long-book:"))
     return `long:${encodeURIComponent(syncKey.slice(10))}:chat`;
+  if (syncKey.startsWith("mystery-book:"))
+    return `mystery:${encodeURIComponent(syncKey.slice(13))}:chat`;
   return null;
 }

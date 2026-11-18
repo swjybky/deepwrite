@@ -14,6 +14,8 @@ export const MODEL_USAGE_MODULES = [
   "short-writing",
   "script-writing",
   "long-writing",
+  "academic-writing",
+  "mystery-writing",
   "skill-library",
   "material-library",
   // Retired feature; kept so historical usage records still parse.

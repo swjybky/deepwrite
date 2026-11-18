@@ -6,10 +6,10 @@ import {
   BOOK_IMAGE_MAX_BYTES,
   BookImagePathSchema,
   BookImagesWriteInputSchema,
+  type BookImageBookRef,
   type BookImagesWriteInput,
   type BookImagesResolveResult,
-  type BookImageReference,
-  type ChatAssistantProjectRef
+  type BookImageReference
 } from "@deepwrite/contracts";
 
 export async function assertImageDirectory(
@@ -53,7 +53,7 @@ export function sanitizeBookImageBaseName(value: string): string {
 export class BookImageStore {
   constructor(
     private readonly resolveProject: (
-      book: ChatAssistantProjectRef
+      book: BookImageBookRef
     ) => Promise<string>,
     private readonly openImage: typeof open = open
   ) {}
@@ -153,7 +153,7 @@ export class BookImageStore {
   }
 
   async resolve(
-    book: ChatAssistantProjectRef,
+    book: BookImageBookRef,
     reference: string
   ): Promise<BookImagesResolveResult> {
     const relative = BookImagePathSchema.parse(reference);

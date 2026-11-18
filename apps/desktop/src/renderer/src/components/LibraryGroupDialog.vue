@@ -11,21 +11,20 @@ import {
 } from "vue";
 import type {
   CreateLibraryGroupInput,
-  MaterialKind,
   MaterialLibrary,
   MaterialLibraryGroup,
-  SkillKind,
   SkillLibrary,
   SkillLibraryGroup,
   UpdateLibraryGroupInput
 } from "@deepwrite/contracts";
-import { MATERIAL_KINDS, SKILL_KINDS } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
-import PopupSelect from "./PopupSelect.vue";
+import {
+  formatMaterialTagBadge,
+  formatSkillTagBadge,
+  sharingT
+} from "./librarySharingLabels";
 
 const t = createScopedTranslator("components.libraryGroupDialog");
-
-const CREATE_DEFAULT_LIBRARY_VALUE = "__create_default_library__";
 
 type LibraryDomain = "material" | "skill";
 
@@ -45,169 +44,130 @@ const emit = defineEmits<{
   submit: [payload: CreateLibraryGroupInput | UpdateLibraryGroupInput];
 }>();
 
-const MATERIAL_LABELS = {
-  get character() {
-    return t("characterMaterialLibrary");
-  },
-  get gimmick() {
-    return t("ideaMaterialLibrary");
-  },
-  get plot() {
-    return t("plotMaterialLibrary");
-  },
-  get draft() {
-    return t("manuscriptMaterialLibrary");
-  },
-  get other() {
-    return t("otherMaterialLibrary");
-  }
-} as const;
-const SKILL_LABELS = {
-  get general() {
-    return t("generalSkillLibrary");
-  },
-  get plot() {
-    return t("plotDesignSkillLibrary");
-  },
-  get style() {
-    return t("writingStyleSkillLibrary");
-  },
-  get other() {
-    return t("otherSkillLibrary");
-  }
-} as const;
-
 const title = ref("");
 const titleInput = ref<HTMLInputElement | null>(null);
-const selections = ref<Record<string, string>>({});
+const searchQuery = ref("");
+const quickCreateName = ref("");
+const selectedMemberIds = ref<string[]>([]);
+const locallyCreatedLibraries = ref<Array<MaterialLibrary | SkillLibrary>>([]);
 const resolving = ref(false);
+
 const editing = computed(() => Boolean(props.group));
 const domainLabel = computed(() =>
   props.domain === "material" ? t("material") : t("skill")
 );
 const busy = computed(() => Boolean(props.submitting) || resolving.value);
+
 const unavailableLibraryIds = computed(() => {
   const groups =
     props.domain === "material" ? props.materialGroups : props.skillGroups;
   return new Set(
     groups
       .filter((group) => group.id !== props.group?.id)
-      .flatMap((group) => Object.values(group.members))
-      .filter((libraryId): libraryId is string => Boolean(libraryId))
+      .flatMap((group) => group.memberIds)
+      .filter(Boolean)
   );
 });
-function selectedInAnotherRow(kind: string, libraryId: string): boolean {
-  if (!libraryId || libraryId === CREATE_DEFAULT_LIBRARY_VALUE) return false;
-  return Object.entries(selections.value).some(
-    ([selectedKind, selectedLibraryId]) =>
-      selectedKind !== kind && selectedLibraryId === libraryId
-  );
+
+interface GroupCandidateItem {
+  id: string;
+  title: string;
+  tag: string;
+  entryCount: number;
 }
-const rows = computed(() =>
-  props.domain === "material"
-    ? MATERIAL_KINDS.map((kind) => ({
-        kind,
-        label: MATERIAL_LABELS[kind],
-        options: [
-          { value: "", label: t("none") },
-          {
-            value: CREATE_DEFAULT_LIBRARY_VALUE,
-            label: t("createDefaultLibrary"),
-            description: t("createANewValueAndLinkItToThis", {
-              arg0: MATERIAL_LABELS[kind]
-            })
-          },
-          ...props.materials
-            .filter(
-              (library) =>
-                !library.isUnbound &&
-                (library.materialKind === kind ||
-                  library.materialKind === "mixed") &&
-                !unavailableLibraryIds.value.has(library.id) &&
-                !selectedInAnotherRow(kind, library.id)
-            )
-            .map((library) => ({ value: library.id, label: library.title }))
-        ]
-      }))
-    : SKILL_KINDS.map((kind) => ({
-        kind,
-        label: SKILL_LABELS[kind],
-        options: [
-          { value: "", label: t("none") },
-          {
-            value: CREATE_DEFAULT_LIBRARY_VALUE,
-            label: t("createDefaultLibrary"),
-            description: t("createANewValueAndLinkItToThis", {
-              arg0: SKILL_LABELS[kind]
-            })
-          },
-          ...props.skills
-            .filter(
-              (library) =>
-                !library.isUnbound &&
-                library.skillKind === kind &&
-                !unavailableLibraryIds.value.has(library.id) &&
-                !selectedInAnotherRow(kind, library.id)
-            )
-            .map((library) => ({ value: library.id, label: library.title }))
-        ]
-      }))
-);
+
+const candidateLibraries = computed<GroupCandidateItem[]>(() => {
+  const baseLibraries: ReadonlyArray<MaterialLibrary | SkillLibrary> =
+    props.domain === "material" ? props.materials : props.skills;
+  const merged = new Map<string, MaterialLibrary | SkillLibrary>();
+  for (const library of baseLibraries) {
+    merged.set(library.id, library);
+  }
+  for (const library of locallyCreatedLibraries.value) {
+    if (!merged.has(library.id)) {
+      merged.set(library.id, library);
+    }
+  }
+  return [...merged.values()]
+    .filter(
+      (library) =>
+        !library.isUnbound && !unavailableLibraryIds.value.has(library.id)
+    )
+    .map((library) => ({
+      id: library.id,
+      title: library.title,
+      tag:
+        "materialKind" in library
+          ? formatMaterialTagBadge(library)
+          : formatSkillTagBadge(library),
+      entryCount: library.entries.length
+    }));
+});
+
+const filteredLibraries = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase();
+  if (!query) return candidateLibraries.value;
+  return candidateLibraries.value.filter(
+    (item) =>
+      item.title.toLocaleLowerCase().includes(query) ||
+      item.tag.toLocaleLowerCase().includes(query)
+  );
+});
+
+const selectedSet = computed(() => new Set(selectedMemberIds.value));
+
+function toggleMember(libraryId: string): void {
+  if (busy.value) return;
+  if (selectedSet.value.has(libraryId)) {
+    selectedMemberIds.value = selectedMemberIds.value.filter(
+      (id) => id !== libraryId
+    );
+  } else {
+    selectedMemberIds.value = [...selectedMemberIds.value, libraryId];
+  }
+}
+
+async function quickCreateLibrary(): Promise<void> {
+  if (busy.value) return;
+  const api = window.deepwrite;
+  if (!api) {
+    uiMessage.error(t("theDesktopBridgeIsNotReadyTryAgainShortly"));
+    return;
+  }
+  const fallbackTitle = `${title.value.trim() || t("group")} · ${domainLabel.value}`;
+  const name = quickCreateName.value.trim() || fallbackTitle;
+  resolving.value = true;
+  try {
+    const created =
+      props.domain === "material"
+        ? await api.catalog.createLibrary({
+            domain: "material",
+            name,
+            materialKind: "other"
+          })
+        : await api.catalog.createLibrary({
+            domain: "skill",
+            name,
+            skillKind: "general"
+          });
+    if (!created) return;
+    locallyCreatedLibraries.value = [...locallyCreatedLibraries.value, created];
+    if (!selectedMemberIds.value.includes(created.id)) {
+      selectedMemberIds.value = [...selectedMemberIds.value, created.id];
+    }
+    quickCreateName.value = "";
+  } catch (error: unknown) {
+    uiMessage.error(formatError(error, t("couldNotCreateTheDefaultLibrary")));
+  } finally {
+    resolving.value = false;
+  }
+}
 
 function requestClose(): void {
   if (!busy.value) emit("close");
 }
 
-function defaultLibraryName(kind: string): string {
-  const kindLabel =
-    props.domain === "material"
-      ? MATERIAL_LABELS[kind as MaterialKind]
-      : SKILL_LABELS[kind as SkillKind];
-  const groupTitle = title.value.trim() || t("group");
-  return `${groupTitle} · ${kindLabel}`;
-}
-
-async function resolveMemberSelections(
-  kinds: readonly string[]
-): Promise<Record<string, string> | null> {
-  const api = window.deepwrite;
-  if (!api) {
-    uiMessage.error(t("theDesktopBridgeIsNotReadyTryAgainShortly"));
-    return null;
-  }
-  const resolved: Record<string, string> = {};
-  for (const kind of kinds) {
-    const selected = selections.value[kind];
-    if (!selected) continue;
-    if (selected !== CREATE_DEFAULT_LIBRARY_VALUE) {
-      resolved[kind] = selected;
-      continue;
-    }
-    const created =
-      props.domain === "material"
-        ? await api.catalog.createLibrary({
-            domain: "material",
-            name: defaultLibraryName(kind),
-            materialKind: kind as MaterialKind
-          })
-        : await api.catalog.createLibrary({
-            domain: "skill",
-            name: defaultLibraryName(kind),
-            skillKind: kind as SkillKind
-          });
-    if (!created) {
-      uiMessage.info(
-        t("defaultLibraryCreationWasCanceledTheGroupOperationDid")
-      );
-      return null;
-    }
-    resolved[kind] = created.id;
-    selections.value[kind] = created.id;
-  }
-  return resolved;
-}
-
-async function submit(): Promise<void> {
+function submit(): void {
   if (busy.value) return;
   const name = title.value.trim();
   if (!name) {
@@ -215,48 +175,38 @@ async function submit(): Promise<void> {
     titleInput.value?.focus();
     return;
   }
-
-  resolving.value = true;
-  try {
-    if (props.domain === "material") {
-      const members = await resolveMemberSelections(MATERIAL_KINDS);
-      if (!members) return;
-      emit(
-        "submit",
-        props.group
-          ? {
-              domain: "material",
-              groupId: props.group.id,
-              title: name,
-              members,
-              ...(props.group.projectRevision === undefined
-                ? {}
-                : { baseProjectRevision: props.group.projectRevision })
-            }
-          : { domain: "material", name, members }
-      );
-    } else {
-      const members = await resolveMemberSelections(SKILL_KINDS);
-      if (!members) return;
-      emit(
-        "submit",
-        props.group
-          ? {
-              domain: "skill",
-              groupId: props.group.id,
-              title: name,
-              members,
-              ...(props.group.projectRevision === undefined
-                ? {}
-                : { baseProjectRevision: props.group.projectRevision })
-            }
-          : { domain: "skill", name, members }
-      );
-    }
-  } catch (error: unknown) {
-    uiMessage.error(formatError(error, t("couldNotCreateTheDefaultLibrary")));
-  } finally {
-    resolving.value = false;
+  const validIds = new Set(candidateLibraries.value.map((item) => item.id));
+  const memberIds = selectedMemberIds.value.filter((id) => validIds.has(id));
+  const baseRevision =
+    props.group?.projectRevision === undefined
+      ? {}
+      : { baseProjectRevision: props.group.projectRevision };
+  if (props.domain === "material") {
+    emit(
+      "submit",
+      props.group
+        ? {
+            domain: "material",
+            groupId: props.group.id,
+            title: name,
+            memberIds,
+            ...baseRevision
+          }
+        : { domain: "material", name, memberIds }
+    );
+  } else {
+    emit(
+      "submit",
+      props.group
+        ? {
+            domain: "skill",
+            groupId: props.group.id,
+            title: name,
+            memberIds,
+            ...baseRevision
+          }
+        : { domain: "skill", name, memberIds }
+    );
   }
 }
 
@@ -269,13 +219,10 @@ watch(
   ([open]) => {
     if (!open) return;
     title.value = props.group?.title ?? "";
-    selections.value = props.group
-      ? (Object.fromEntries(
-          Object.entries(props.group.members).filter(([, libraryId]) =>
-            Boolean(libraryId)
-          )
-        ) as Record<string, string>)
-      : {};
+    searchQuery.value = "";
+    quickCreateName.value = "";
+    locallyCreatedLibraries.value = [];
+    selectedMemberIds.value = props.group ? [...props.group.memberIds] : [];
     resolving.value = false;
     void nextTick(() => titleInput.value?.focus());
   },
@@ -331,11 +278,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               }}
             </template>
             <template v-else>
-              {{
-                t("chooseAtMostOneExistingLibraryPerMessage", {
-                  arg0: domainLabel ?? ""
-                })
-              }}
+              {{ sharingT("groupMultiSelectHint") }}
             </template>
           </p>
           <label class="book-resource-name-field">
@@ -351,7 +294,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             />
           </label>
 
-          <fieldset class="library-group-members">
+          <fieldset class="library-group-members lib-picker-stack">
             <legend>
               {{
                 t("selectLibrariesMessage", {
@@ -359,22 +302,88 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 })
               }}
             </legend>
-            <label
-              v-for="row in rows"
-              :key="row.kind"
-              class="library-group-member-row"
-            >
-              <span>{{ row.label }}</span>
-              <PopupSelect
-                :model-value="selections[row.kind] ?? ''"
-                :options="row.options"
-                :accessible-label="row.label"
-                size="large"
+
+            <div class="lib-picker-toolbar is-search-only">
+              <input
+                v-model="searchQuery"
+                class="lib-picker-search-input"
+                type="search"
+                autocomplete="off"
+                :placeholder="sharingT('searchLibrariesPlaceholder')"
+                :aria-label="sharingT('searchLibrariesPlaceholder')"
                 :disabled="busy"
-                :menu-min-width="250"
-                @update:model-value="selections[row.kind] = String($event)"
               />
-            </label>
+              <span class="lib-picker-count">
+                {{
+                  sharingT("selectedCount", { count: selectedMemberIds.length })
+                }}
+              </span>
+            </div>
+
+            <div
+              v-if="filteredLibraries.length"
+              class="lib-picker-list"
+              role="group"
+              :aria-label="
+                t('selectLibrariesMessage', { arg0: domainLabel ?? '' })
+              "
+            >
+              <label
+                v-for="item in filteredLibraries"
+                :key="item.id"
+                class="lib-picker-row"
+                :class="{ 'is-checked': selectedSet.has(item.id) }"
+              >
+                <span class="lib-picker-row-main">
+                  <input
+                    type="checkbox"
+                    :checked="selectedSet.has(item.id)"
+                    :disabled="busy"
+                    @change="toggleMember(item.id)"
+                  />
+                  <span class="lib-picker-row-title">{{ item.title }}</span>
+                </span>
+                <span class="lib-picker-row-meta">
+                  <span class="lib-picker-tag-badge">{{ item.tag }}</span>
+                  <span class="lib-picker-entry-count">{{
+                    sharingT("entryCount", { count: item.entryCount })
+                  }}</span>
+                </span>
+              </label>
+            </div>
+            <p v-else class="lib-picker-empty">
+              {{
+                candidateLibraries.length === 0
+                  ? sharingT("noLibrariesAvailable")
+                  : sharingT("noMatchingLibraries")
+              }}
+            </p>
+
+            <div class="lib-picker-quick-create">
+              <input
+                v-model="quickCreateName"
+                class="lib-picker-search-input"
+                type="text"
+                maxlength="80"
+                autocomplete="off"
+                :placeholder="sharingT('quickCreateLibraryPlaceholder')"
+                :aria-label="sharingT('quickCreateLibraryPlaceholder')"
+                :disabled="busy"
+                @keydown.enter.prevent="quickCreateLibrary"
+              />
+              <button
+                class="dialog-secondary-button"
+                type="button"
+                :disabled="busy"
+                @click="quickCreateLibrary"
+              >
+                {{
+                  resolving
+                    ? sharingT("quickCreatingButton")
+                    : sharingT("quickCreateButton")
+                }}
+              </button>
+            </div>
           </fieldset>
 
           <div class="dialog-actions">
@@ -393,7 +402,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             >
               {{
                 resolving
-                  ? t("creatingDefaultLibrary")
+                  ? sharingT("quickCreatingButton")
                   : submitting
                     ? editing
                       ? t("saving")
@@ -409,3 +418,6 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
     </div>
   </Teleport>
 </template>
+
+<style scoped src="./library-project-dialog.css"></style>
+<style scoped src="./library-sharing-picker.css"></style>

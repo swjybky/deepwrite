@@ -9,6 +9,11 @@ import { withLongBookAnalysisSources } from "./long-book-analysis-sources";
 import { withShortBookAnalysisSources } from "./short-book-analysis-sources";
 import { handleLongCoreCommand } from "./long-core-commands";
 import { LongDocumentConflictError } from "./long-project-store/types";
+import {
+  MysteryDocumentConflictError,
+  MysteryWorkspaceService,
+  handleMysteryCoreCommand
+} from "./mystery-store";
 import { legacyDataRootsFromEnvironment } from "./legacy-data-roots";
 import { withDeviceSyncCommands } from "./device-sync-core";
 import { createCoreConversationRuntime } from "./core-conversation-runtime";
@@ -39,9 +44,15 @@ import {
   CatalogInstallMarketplaceSkillContentResultSchema,
   RemoveLibraryEntryResultSchema,
   MoveLibraryEntryResultSchema,
+  AcademicBookSchema,
+  CreateAcademicReferenceCardResultSchema,
+  UpdateAcademicReferenceCardResultSchema,
+  DeleteAcademicReferenceCardResultSchema,
+  MutateAcademicManuscriptResultSchema,
   ScriptBookSchema,
   ShortBookSchema,
   LongWorkspaceOperationError,
+  MysteryWorkspaceOperationError,
   UnregisterCatalogProjectResultSchema,
   WriteWritingContextResultSchema,
   type CommandEnvelope,
@@ -50,6 +61,7 @@ import {
 import { existsSync } from "node:fs";
 import { CatalogStore } from "./catalog-store";
 import {
+  FolderCatalogAcademicCiteKeyConflictError,
   FolderCatalogConflictError,
   FolderCatalogStore
 } from "./folder-catalog-store";
@@ -73,6 +85,9 @@ const draftRecoveryStore = new FolderCatalogStore({
   userDataPath: resolvedUserDataPath
 });
 const longWorkspaceService = new LongWorkspaceService({
+  userDataPath: resolvedUserDataPath
+});
+const mysteryWorkspaceService = new MysteryWorkspaceService({
   userDataPath: resolvedUserDataPath
 });
 const conversationRuntime = createCoreConversationRuntime(
@@ -115,6 +130,11 @@ async function handleCatalogCommand(
       command
     );
     if (longResult) return longResult;
+    const mysteryResult = await handleMysteryCoreCommand(
+      mysteryWorkspaceService,
+      command
+    );
+    if (mysteryResult) return mysteryResult;
     if (command.type === "catalog.loadDraftRecovery") {
       return {
         status: "accepted",
@@ -141,7 +161,8 @@ async function handleCatalogCommand(
     ) {
       await new LibraryManagementService(
         catalogStore,
-        longWorkspaceService
+        longWorkspaceService,
+        mysteryWorkspaceService
       ).assertWritable(
         command.payload.managementScope,
         command.payload.domain,
@@ -162,7 +183,8 @@ async function handleCatalogCommand(
     if (command.type === "catalog.readLibraryAgentLibrary") {
       const service = new LibraryManagementService(
         await requireCatalogStore(),
-        longWorkspaceService
+        longWorkspaceService,
+        mysteryWorkspaceService
       );
       return {
         status: "accepted",
@@ -173,7 +195,8 @@ async function handleCatalogCommand(
     if (command.type === "catalog.queryLibraryManagement") {
       const service = new LibraryManagementService(
         await requireCatalogStore(),
-        longWorkspaceService
+        longWorkspaceService,
+        mysteryWorkspaceService
       );
       return {
         status: "accepted",
@@ -184,7 +207,8 @@ async function handleCatalogCommand(
     if (command.type === "catalog.queryMaterials") {
       materialQueryService ??= new MaterialQueryService(
         catalogStore,
-        longWorkspaceService
+        longWorkspaceService,
+        mysteryWorkspaceService
       );
       return {
         status: "accepted",
@@ -201,7 +225,11 @@ async function handleCatalogCommand(
           projectDirectory:
             source === "long"
               ? await longWorkspaceService.resolveProjectDirectory(projectId)
-              : await catalogStore.projectDirectory(projectId)
+              : source === "mystery"
+                ? await mysteryWorkspaceService.catalog.resolveProjectDirectory(
+                    projectId
+                  )
+                : await catalogStore.projectDirectory(projectId)
         })
       };
     }
@@ -303,6 +331,14 @@ async function handleCatalogCommand(
         payload: ScriptBookSchema.parse(created.resource)
       };
     }
+    if (command.type === "catalog.createAcademicBook") {
+      const created = await catalogStore.createAcademicBook(command.payload);
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicBookSchema.parse(created.resource)
+      };
+    }
     if (command.type === "catalog.createShortBookAtPath") {
       const created = await catalogStore.createShortBook(
         command.payload.input,
@@ -323,6 +359,17 @@ async function handleCatalogCommand(
         status: "accepted",
         requestId: command.id,
         payload: ScriptBookSchema.parse(created.resource)
+      };
+    }
+    if (command.type === "catalog.createAcademicBookAtPath") {
+      const created = await catalogStore.createAcademicBook(
+        command.payload.input,
+        command.payload.parentDirectory
+      );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicBookSchema.parse(created.resource)
       };
     }
     if (command.type === "catalog.createLibraryAtPath") {
@@ -397,6 +444,51 @@ async function handleCatalogCommand(
         requestId: command.id,
         payload: BookSchema.parse(
           await catalogStore.mutateCharacterStructure(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.mutateAcademicFramework") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicBookSchema.parse(
+          await catalogStore.mutateAcademicFramework(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.createAcademicReferenceCard") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: CreateAcademicReferenceCardResultSchema.parse(
+          await catalogStore.createAcademicReferenceCard(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.updateAcademicReferenceCard") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: UpdateAcademicReferenceCardResultSchema.parse(
+          await catalogStore.updateAcademicReferenceCard(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.deleteAcademicReferenceCard") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: DeleteAcademicReferenceCardResultSchema.parse(
+          await catalogStore.deleteAcademicReferenceCard(command.payload)
+        )
+      };
+    }
+    if (command.type === "catalog.mutateAcademicManuscript") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: MutateAcademicManuscriptResultSchema.parse(
+          await catalogStore.mutateAcademicManuscript(command.payload)
         )
       };
     }
@@ -591,6 +683,34 @@ async function handleCatalogCommand(
         error: { code: "long.document_conflict", message: error.message }
       };
     }
+    if (error instanceof FolderCatalogAcademicCiteKeyConflictError) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: error.code,
+          message: error.message,
+          details: { citeKey: error.citeKey }
+        }
+      };
+    }
+    if (error instanceof MysteryWorkspaceOperationError) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: `mystery.${error.code}`,
+          message: error.message
+        }
+      };
+    }
+    if (error instanceof MysteryDocumentConflictError) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: { code: "mystery.conflict", message: error.message }
+      };
+    }
     if (error instanceof FolderCatalogConflictError) {
       return {
         status: "rejected",
@@ -649,11 +769,13 @@ bootUtility("core", {
                     withShortBookAnalysisSources(handleCatalogCommand)
                   )
                 )
-              )
+              ),
+              mysteryWorkspaceService
             )
           )
         )
       )
-    )
+    ),
+    mysteryWorkspaceService
   )
 });

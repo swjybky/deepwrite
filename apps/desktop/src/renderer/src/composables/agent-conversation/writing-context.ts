@@ -1,4 +1,5 @@
 import { createScopedTranslator } from "../../i18n";
+import { academicTreeT } from "../../components/academic/academicTreeLabels";
 import type { DeepWriteApi, WorkspaceType } from "@deepwrite/contracts";
 
 const t = createScopedTranslator("workspace");
@@ -6,13 +7,15 @@ const t = createScopedTranslator("workspace");
 export async function loadWritingContextForPrompt(
   catalog: DeepWriteApi["catalog"],
   bookId: string,
-  workspaceType: WorkspaceType,
+  workspaceType: WorkspaceType | "academic",
   warn?: (message: string) => void
 ): Promise<string | undefined> {
   const label =
-    workspaceType === "script"
-      ? t("catalogWorkspace.screenplay")
-      : t("catalogWorkspace.shortStory");
+    workspaceType === "academic"
+      ? academicTreeT("academicWork")
+      : workspaceType === "script"
+        ? t("catalogWorkspace.screenplay")
+        : t("catalogWorkspace.shortStory");
   try {
     const result = await catalog.readWritingContext({ bookId });
     if (result.truncated) {

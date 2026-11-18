@@ -1,5 +1,6 @@
 import { handleAgentTeamCommands } from "./agent-team-commands";
 import {
+  AcademicAgentSettingsSchema,
   GeneralSettingsSnapshotSchema,
   LibraryAgentSettingsSchema,
   LongAgentSettingsSchema,
@@ -261,6 +262,79 @@ export async function handleSettingsCommands(
             error instanceof Error
               ? error.message
               : "恢复长篇智能体默认设置失败。",
+          details: safeErrorDetails(error)
+        }
+      };
+    }
+  }
+
+  if (command.type === "academicAgents.list") {
+    try {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicAgentSettingsSchema.parse(
+          await ctx.requireAcademicAgentConfigStore().list()
+        )
+      };
+    } catch (error: unknown) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: "academic_agents.list_failed",
+          message:
+            error instanceof Error ? error.message : "加载学术智能体设置失败。",
+          details: safeErrorDetails(error)
+        }
+      };
+    }
+  }
+
+  if (command.type === "academicAgents.save") {
+    try {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicAgentSettingsSchema.parse(
+          await ctx.requireAcademicAgentConfigStore().save(command.payload)
+        )
+      };
+    } catch (error: unknown) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: "academic_agents.save_failed",
+          message:
+            error instanceof Error ? error.message : "保存学术智能体设置失败。",
+          details: safeErrorDetails(error)
+        }
+      };
+    }
+  }
+
+  if (command.type === "academicAgents.reset") {
+    try {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: AcademicAgentSettingsSchema.parse(
+          await ctx
+            .requireAcademicAgentConfigStore()
+            .reset(command.payload.agentId)
+        )
+      };
+    } catch (error: unknown) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code: "academic_agents.reset_failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : "恢复学术智能体默认设置失败。",
           details: safeErrorDetails(error)
         }
       };

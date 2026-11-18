@@ -1,6 +1,6 @@
 ---
 name: deepwrite
-description: Operate the user's DeepWrite writing app through its MCP tools. Use when the user wants to read, write, organize or generate work in DeepWrite, including short stories, scripts, long-form novels, material libraries, skill libraries and agent teams.
+description: Operate the user's DeepWrite writing app through its MCP tools. Use when the user wants to read, write, organize or generate work in DeepWrite, including short stories, scripts, long-form novels, academic works, murder mysteries (剧本杀), material libraries, skill libraries and agent teams.
 ---
 
 # DeepWrite
@@ -16,7 +16,22 @@ DeepWrite is a desktop writing app. These tools operate the user's running copy.
 ## Choose how to do the work
 
 - **Do it yourself** with `write_document`, `write_entry` and the `manage_*` tools when the change is specific and you already know the text.
-- **Hand it to DeepWrite's agent** with `run_agent` for creative work that should use the user's models, agent team and project context, such as drafting a chapter. Adding, moving or deleting long-form chapters can only be done this way, because `manage_document` covers short and script works only.
+- **Hand it to DeepWrite's agent** with `run_agent` for creative or academic drafting that should use the user's models, agent team and project context. Adding, moving or deleting long-form chapters or murder-mystery stages/roles/acts/clue rounds can only be done this way (or in the workspace), because `manage_document` covers short, script and academic works only.
+
+## Academic works (`type: "academic"`)
+
+- `list_works` and `get_work` return `type: "academic"` with `subtype` (`empirical_paper`, `humanities_paper`, `literature_review`, `thesis_dissertation`, `proposal_grant`, `tech_report_article`) and `citationStyle` (`gbt7714`, `apa`, `ieee`, `latex`, `none`), plus per-work `stages` (`frameworkStages`), optional `chapters`, `linkedMaterialLibraryIds` and `linkedSkillLibraryIds`.
+- `manage_work` (`action: "create"`, `type: "academic"`) creates an academic work with optional `subtype` (default `"empirical_paper"`) and `citationStyle` (default `"gbt7714"`).
+- Documents in `get_work.documents` are ordered in three layers:
+  1. **Foundation (`group: "foundation"` and `"reference_card"`)**: fixed `thesis_overview` (`研究立意与核心贡献`), fixed `terminology` (`术语与符号表`), and verified literature/evidence cards (`academic-card:<cardId>`).
+  2. **Argument framework (`group: "framework"`)**: per-book `frameworkStages` documents (independent per academic work; never shared globally).
+  3. **Manuscript (`group: "manuscript"`)**: each section exposes three documents — `写作指引` (`academic-section:<id>:brief`), `正文` (`academic-section:<id>:body`) and `节末状态` (`academic-section:<id>:state`). Only `正文` (`body`) is exported to readers; `写作指引` holds the section takeaway/citation plan and `节末状态` records newly introduced notation, citations and cross-section promises.
+- Do not fabricate unverified bibliographic entries, DOIs or experimental figures in academic works; use explicit `[待补引用: ...]` / `[待补数据: ...]` placeholders when verified cards or linked materials are missing.
+- `manage_document` supports `create` (with optional `chapterId` or `documentId` for placement), `rename`, `move`, `duplicate` and recoverable `delete` of academic manuscript sections, preserving all three section documents (`brief`, `body`, `state`) and `chapterId` across `restore_trash_item`.
+
+## Murder-mystery works (`type: "mystery"`)
+
+- Murder-mystery (`mystery`) works organize documents across 5 stages (`truth`, `characters`, `scripts`, `clues`, `dm`); always get exact `documentId` keys from `get_work` (such as `truth_doc:core_truth`, `role:role_1:profile`, `player_act:role_1:act_1:body`, `clue_round:round_1`, `dm_manual`, `agents_md`).
 
 ## Writing rules
 

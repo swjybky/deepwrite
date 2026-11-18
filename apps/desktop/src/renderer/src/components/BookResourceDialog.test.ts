@@ -5,13 +5,13 @@ import lifecycleSource from "../composables/useShortBookLifecycleCoordinator.ts?
 import dialogSource from "./BookResourceDialog.vue?raw";
 
 describe("BookResourceDialog binding editor", () => {
-  it("matches the create-book binding layout and supports category or group selection", () => {
+  it("matches the create-book binding layout and supports library or group selection", () => {
     expect(dialogSource).toContain("create-short-binding-panel");
-    expect(dialogSource).toContain("create-short-binding-modes");
-    expect(dialogSource).toContain("create-short-kind-grid");
-    expect(dialogSource).toContain("create-short-group-picker");
-    expect(dialogSource).toContain("chooseByCategory");
-    expect(dialogSource).toContain("selectGroup");
+    expect(dialogSource).toContain("lib-picker-groups");
+    expect(dialogSource).toContain("lib-picker-toolbar");
+    expect(dialogSource).toContain("lib-picker-list");
+    expect(dialogSource).toContain("<PopupSelect");
+    expect(dialogSource).toContain("toggleGroup");
   });
 
   it("submits categorized bindings without flattening away their purpose", () => {

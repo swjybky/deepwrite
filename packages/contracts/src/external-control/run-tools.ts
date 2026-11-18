@@ -94,6 +94,14 @@ export const ExternalToolUsageSchema = ToolCountsSchema.extend({
 }).strict();
 export type ExternalToolUsage = z.infer<typeof ExternalToolUsageSchema>;
 
+export const ExternalWindowTargetSchema = z
+  .object({
+    kind: z.enum(["short", "script", "long", "academic", "mystery", "library"]),
+    id: IdSchema
+  })
+  .strict();
+export type ExternalWindowTarget = z.infer<typeof ExternalWindowTargetSchema>;
+
 export const ExternalRunRecoverySchema = z
   .object({
     runId: IdSchema,
@@ -101,12 +109,7 @@ export const ExternalRunRecoverySchema = z
     assistantId: IdSchema,
     lastStatus: ExternalAgentRunStatusSchema.optional(),
     internalRunId: IdSchema.optional(),
-    target: z
-      .object({
-        kind: z.enum(["short", "script", "long", "library"]),
-        id: IdSchema
-      })
-      .strict(),
+    target: ExternalWindowTargetSchema,
     mode: ExternalAgentModeSchema.optional()
   })
   .strict();
@@ -145,14 +148,6 @@ export const ExternalAgentRunSchema = z
   })
   .strict();
 export type ExternalAgentRun = z.infer<typeof ExternalAgentRunSchema>;
-
-export const ExternalWindowTargetSchema = z
-  .object({
-    kind: z.enum(["short", "script", "long", "library"]),
-    id: IdSchema
-  })
-  .strict();
-export type ExternalWindowTarget = z.infer<typeof ExternalWindowTargetSchema>;
 
 /** What Main may ask the window to do; each case has one bridge handler. */
 export const ExternalWindowRequestSchema = z.discriminatedUnion("action", [

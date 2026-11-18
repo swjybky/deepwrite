@@ -10,7 +10,9 @@ export type {
 } from "./external-control/run-tools";
 export {
   BUILTIN_AGENT_METADATA,
-  DEFAULT_LONG_AGENT_WELCOME_SHORTCUTS
+  DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS,
+  DEFAULT_LONG_AGENT_WELCOME_SHORTCUTS,
+  DEFAULT_MYSTERY_AGENT_WELCOME_SHORTCUTS
 } from "./builtin-agent-metadata";
 export { ErrorPayloadSchema } from "./error-payload";
 /**
@@ -55,6 +57,37 @@ export {
 } from "./storage-settings";
 export type * from "./body-text-format";
 export type * from "./library-agent";
+export type * from "./academic-agent-settings";
+export type * from "./academic-agent-team";
+export type * from "./academic-manuscript-export";
+export type * from "./academic-workspace-runtime";
+export {
+  ACADEMIC_AGENT_IDS,
+  AcademicAgentSettingsInputSchema
+} from "./academic-agent-settings";
+export {
+  ACADEMIC_AGENT_SUBAGENT_MAX_COUNT,
+  AcademicAgentTeamSettingsInputSchema
+} from "./academic-agent-team";
+export {
+  ACADEMIC_BATCH_CREATE_MAX_ITEMS,
+  ACADEMIC_CHAPTER_TITLE_MAX_LENGTH,
+  ACADEMIC_FRAMEWORK_STAGE_DESCRIPTION_MAX_LENGTH,
+  ACADEMIC_FRAMEWORK_STAGE_TITLE_MAX_LENGTH,
+  ACADEMIC_REFERENCE_CARD_TITLE_MAX_LENGTH,
+  ACADEMIC_SECTION_TITLE_MAX_LENGTH,
+  ACADEMIC_SECTION_WORD_COUNT_MAX_LENGTH,
+  AcademicWorkspaceRuntimeContextSchema,
+  PROVISIONAL_ACADEMIC_CARD_ID_PREFIX,
+  PROVISIONAL_ACADEMIC_CHAPTER_ID_PREFIX,
+  PROVISIONAL_ACADEMIC_SECTION_ID_PREFIX,
+  PROVISIONAL_ACADEMIC_STAGE_ID_PREFIX,
+  isProvisionalAcademicCardId,
+  isProvisionalAcademicChapterId,
+  isProvisionalAcademicSectionId,
+  isProvisionalAcademicStageId
+} from "./academic-workspace-runtime";
+export { AcademicMutationTargetSchema } from "./session/academic-proposals";
 export type * from "./long-agent-settings";
 export type * from "./long-agent-team";
 export type * from "./long-book-analysis";
@@ -265,27 +298,67 @@ export {
   FEEDBACK_MAX_IMAGES
 } from "./feedback";
 export {
+  ACADEMIC_BOOK_SUBTYPES,
+  ACADEMIC_CITATION_STYLES,
+  ACADEMIC_CITE_KEY_MAX_LENGTH,
+  ACADEMIC_FOUNDATION_DOCUMENT_IDS,
+  ACADEMIC_FRAMEWORK_STAGE_MAX_COUNT,
+  ACADEMIC_MAX_CHAPTERS,
+  ACADEMIC_MAX_REFERENCE_CARDS,
+  ACADEMIC_MAX_SECTIONS,
+  ACADEMIC_REFERENCE_CARD_TYPES,
+  ACADEMIC_SECTION_FILE_KINDS,
+  ACADEMIC_TERMINOLOGY_DOCUMENT_ID,
+  ACADEMIC_TERMINOLOGY_TITLE,
+  ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
+  ACADEMIC_THESIS_OVERVIEW_TITLE,
+  AcademicBookSubtypeSchema,
+  AcademicCitationStyleSchema,
+  AcademicCiteKeySchema,
+  AcademicReferenceCardTypeSchema,
+  AcademicSectionFileKindSchema,
   CATALOG_LIBRARY_ENTRY_MAX_CHARACTERS,
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,
   CATALOG_PROJECT_MAX_CONTENT_ITEMS,
   CatalogIndexSnapshotSchema,
   CatalogSnapshotSchema,
   CharacterStructureMutationSchema,
+  DEFAULT_ACADEMIC_FRAMEWORK_STAGES,
+  LIBRARY_CUSTOM_TAG_MAX_LENGTH,
+  LibraryCustomTagSchema,
   MATERIAL_KINDS,
+  MATERIAL_PRESET_TAGS,
+  MATERIAL_STAGE_IDS,
   MaterialStageIdSchema,
   SCRIPT_BOOK_GENRES,
   SHORT_BOOK_GENRES,
   SKILL_KINDS,
+  SKILL_PRESET_TAGS,
+  SKILL_STAGE_IDS,
   ScriptBookGenreSchema,
   ShortBookGenreSchema,
   SkillStageIdSchema,
+  academicCitationStyleRequirements,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
+  createAcademicCardDocumentId,
+  createAcademicSectionDocumentId,
   createCatalogDraftDirectory,
+  createDefaultAcademicFrameworkStages,
   createDefaultBookPlotStages,
   createDefaultCreativePlotStages,
+  enabledAcademicFrameworkStages,
+  extractLegacyGroupMemberIds,
+  flattenMaterialIdsByKind,
+  flattenSkillIdsByKind,
+  getAcademicSubtypePreset,
+  isBuiltinAcademicFrameworkStageId,
   isBuiltinCreativePlotStageId,
-  parseCatalogDraftDocumentId
+  materialIdsToByKind,
+  parseAcademicCardDocumentId,
+  parseAcademicSectionDocumentId,
+  parseCatalogDraftDocumentId,
+  skillIdsToByKind
 } from "./catalog";
 export { createEnvelope } from "./envelope";
 export {
@@ -587,5 +660,54 @@ export * from "./library-organization";
 export * from "./library-structure";
 
 export type * from "./document-versions";
+export type * from "./writing-context";
 
 export * from "./book-images";
+
+export type * from "./mystery";
+export { getDefaultMysteryAgentProfile } from "./mystery/agent-defaults";
+export {
+  MYSTERY_AGENT_IDS,
+  MysteryAgentSettingsInputSchema
+} from "./mystery/agent-settings";
+export { MysteryAgentTeamSettingsSchema } from "./mystery/agent-team";
+export {
+  MYSTERY_BOOK_GENRES,
+  MYSTERY_BUILTIN_TRUTH_DOC_IDS,
+  MYSTERY_BUILTIN_TRUTH_DOC_TITLES,
+  MYSTERY_MAX_ACTS,
+  MYSTERY_MAX_CLUE_ROUNDS,
+  MYSTERY_MAX_ROLES,
+  MYSTERY_MAX_TRUTH_DOCS,
+  MYSTERY_NARRATIVE_PERSONS,
+  MYSTERY_STAGES,
+  MysteryBoardSpecSchema,
+  MysteryBookGenreSchema,
+  MysteryBookIdSchema,
+  MysteryNarrativePersonSchema,
+  buildEmptyMysteryWorkspaceIndex,
+  createDefaultMysteryTruthDocuments,
+  isMysteryPlayerVisibleTarget,
+  mysteryCharCount,
+  mysteryDocumentRelativePath,
+  mysteryDocumentTargetKey,
+  mysteryStageForTarget,
+  mysteryTextRevision
+} from "./mystery/manifest";
+export {
+  MYSTERY_EXPORT_FORMATS,
+  MYSTERY_PLAYER_SCRIPT_LAYOUTS,
+  MysteryExportBundleInputSchema,
+  MysteryOperationBatchSchema,
+  mysteryDocumentTitle,
+  mysteryDocumentExistsInManifest,
+  previewMysteryWorkspaceOperations
+} from "./mystery/operations";
+export {
+  MysteryFileChangeSchema,
+  MysteryMutationProposalPayloadSchema
+} from "./mystery/proposals";
+export {
+  MysteryWorkspaceFocusSchema,
+  MysteryWorkspaceRuntimeContextSchema
+} from "./mystery/runtime-context";

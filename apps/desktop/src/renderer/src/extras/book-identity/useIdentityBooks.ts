@@ -1,4 +1,8 @@
 import { genreLabel } from "../../components/catalogLabels";
+import {
+  academicSubtypeLabel,
+  academicTreeT
+} from "../../components/academic/academicTreeLabels";
 import { identityApi } from "./book-identity-utils";
 import { computed, ref, watch } from "vue";
 import {
@@ -45,12 +49,16 @@ export function useIdentityBooks() {
       books.value = [
         ...catalog.books.map((b) => {
           const book = { projectType: b.bookType, projectId: b.id };
+          const description =
+            b.bookType === "academic"
+              ? `${academicTreeT("academicWork")} · ${academicSubtypeLabel(b.subtype)} · ${t(b.status)} · ${t("sections", { count: b.manuscript.sections.length })}`
+              : `${t(b.bookType)} · ${genreLabel(b.genre)} · ${t(b.status)} · ${t("sections", { count: b.draft.sections.length })}`;
           return {
             key: chatAssistantProjectKey(book),
             title: b.title,
             book,
             updatedAt: b.updatedAt,
-            description: `${t(b.bookType)} · ${genreLabel(b.genre)} · ${t(b.status)} · ${t("sections", { count: b.draft.sections.length })}`
+            description
           };
         }),
         ...longs.books.map((b) => {

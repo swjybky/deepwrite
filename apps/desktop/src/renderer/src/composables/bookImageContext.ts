@@ -1,9 +1,9 @@
-import type { ChatAssistantProjectRef } from "@deepwrite/contracts";
+import type { BookImageBookRef } from "@deepwrite/contracts";
 import { BookImagePathSchema } from "@deepwrite/contracts/renderer";
 import { computed, inject, provide, type InjectionKey, type Ref } from "vue";
 
 export interface BookImageContext {
-  book: ChatAssistantProjectRef;
+  book: BookImageBookRef;
 }
 
 const bookImageContextKey: InjectionKey<

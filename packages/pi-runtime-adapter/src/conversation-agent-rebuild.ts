@@ -9,6 +9,8 @@ interface CachedConversationAgent {
 export function conversationAgentKey(input: AgentRunInput): string {
   const libraryWorkspace = input.workspaceContext?.libraryWorkspace;
   const longWorkspace = input.workspaceContext?.longWorkspace;
+  const academicWorkspace = input.workspaceContext?.academicWorkspace;
+  const mysteryWorkspace = input.workspaceContext?.mysteryWorkspace;
   const subagentAuthoring = input.workspaceContext?.subagentAuthoring;
   return `${input.sessionId}:${
     subagentAuthoring
@@ -17,9 +19,13 @@ export function conversationAgentKey(input: AgentRunInput): string {
         ? `library:${input.libraryAgentProfile.domain}`
         : input.scriptAgentProfile
           ? `script:${input.scriptAgentProfile.id}`
-          : input.longAgentProfile && longWorkspace
-            ? `long:${input.longAgentProfile.id}:${longWorkspace.bookId}`
-            : (input.agentProfile?.id ?? "default")
+          : input.academicAgentProfile && academicWorkspace
+            ? `academic:${input.academicAgentProfile.id}:${academicWorkspace.id}`
+            : input.longAgentProfile && longWorkspace
+              ? `long:${input.longAgentProfile.id}:${longWorkspace.bookId}`
+              : input.mysteryAgentProfile && mysteryWorkspace
+                ? `mystery:${input.mysteryAgentProfile.id}:${mysteryWorkspace.bookId}`
+                : (input.agentProfile?.id ?? "default")
   }`;
 }
 

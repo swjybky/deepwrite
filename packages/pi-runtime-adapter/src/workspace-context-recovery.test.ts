@@ -32,12 +32,27 @@ const attachedSkills = [
 ];
 
 describe("writing-specific source recovery", () => {
-  it("rehydrates only permitted current skill bodies within budget", async () => {
+  it("rehydrates all currently bound skill bodies across kinds within budget and skips unbound skills", async () => {
     const agentProfile = structuredClone(
       DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES[0]!
     );
     agentProfile.readAccess.skill = ["general"];
     const result = await rehydrateWorkspaceContext(
+      {
+        runId: "run",
+        sessionId: "session",
+        prompt: "写作",
+        agentProfile,
+        workspaceContext: { attachedSkills: [attachedSkills[0]!] }
+      },
+      "short-plot",
+      refs,
+      500
+    );
+    expect(result).toContain("使用具体动作表达心理");
+    expect(result).not.toContain("不应恢复的内容");
+
+    const crossKind = await rehydrateWorkspaceContext(
       {
         runId: "run",
         sessionId: "session",
@@ -49,8 +64,8 @@ describe("writing-specific source recovery", () => {
       refs,
       500
     );
-    expect(result).toContain("使用具体动作表达心理");
-    expect(result).not.toContain("不应恢复的内容");
+    expect(crossKind).toContain("使用具体动作表达心理");
+    expect(crossKind).toContain("不应恢复的内容");
     const tiny = await rehydrateWorkspaceContext(
       {
         runId: "run",

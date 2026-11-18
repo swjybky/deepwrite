@@ -4,9 +4,10 @@ import { computed, ref, watch } from "vue";
 import {
   WRITING_CONTEXT_MAX_CHARACTERS,
   writingContextCharacterCount,
-  type WorkspaceType
+  type WritingContextWorkspaceType
 } from "@deepwrite/contracts/renderer";
 import { uiMessage } from "../ui-feedback";
+import { academicTreeT } from "./academic/academicTreeLabels";
 
 const t = createScopedTranslator("components.writingContextPanel");
 
@@ -19,7 +20,7 @@ const props = defineProps<{
   content: string | null;
   loading: boolean;
   pending: boolean;
-  workspaceType: WorkspaceType;
+  workspaceType: WritingContextWorkspaceType;
 }>();
 
 const emit = defineEmits<{
@@ -31,9 +32,11 @@ const saved = ref("");
 const count = computed(() => writingContextCharacterCount(draft.value));
 const dirty = computed(() => draft.value !== saved.value);
 const label = computed(() =>
-  props.workspaceType === "script"
-    ? t("screenplayContext")
-    : t("shortStoryContext")
+  props.workspaceType === "academic"
+    ? academicTreeT("academicContext")
+    : props.workspaceType === "script"
+      ? t("screenplayContext")
+      : t("shortStoryContext")
 );
 
 watch(

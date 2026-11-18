@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AcademicAgentTeamSettingsInputSchema } from "./academic-agent-team";
 import { WorkspaceAgentTeamSettingsInputSchema } from "./agent-team";
 import {
   AgentTeamProfileIdSchema,
@@ -18,6 +19,9 @@ export const AgentTeamImportProfileSchema = z.discriminatedUnion(
     }),
     AgentTeamProfileSchema.options[2].extend({
       id: AgentTeamProfileIdSchema.optional()
+    }),
+    AgentTeamProfileSchema.options[3].extend({
+      id: AgentTeamProfileIdSchema.optional()
     })
   ]
 );
@@ -27,6 +31,7 @@ export const AgentTeamImportSettingsSchema = z.discriminatedUnion(
   "workspaceType",
   [
     ...WorkspaceAgentTeamSettingsInputSchema.options,
-    LongAgentTeamSettingsSchema
+    LongAgentTeamSettingsSchema,
+    AcademicAgentTeamSettingsInputSchema
   ]
 );

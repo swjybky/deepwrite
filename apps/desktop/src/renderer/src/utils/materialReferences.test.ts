@@ -7,8 +7,8 @@ import {
   CatalogSnapshotSchema,
   createDefaultCreativePlotStages,
   getDefaultLongAgentProfile,
-  type Book,
   type CatalogIndexSnapshot,
+  type CreativeBook,
   type LongBookSummary,
   type MaterialKind,
   type MaterialStageId
@@ -95,11 +95,11 @@ function fixture() {
         updatedAt: NOW
       }
     ]
-  }).books[0]!;
+  }).books[0] as CreativeBook;
   return { snapshot, book };
 }
 
-function longSummary(book: Book): LongBookSummary {
+function longSummary(book: CreativeBook): LongBookSummary {
   return {
     schemaVersion: 1,
     kind: "deepwrite.long-book",
@@ -198,7 +198,7 @@ const referenceBuilders = [
     name: "short",
     build: (
       snapshot: CatalogIndexSnapshot,
-      book: Book,
+      book: CreativeBook,
       kinds: MaterialKind[]
     ) => creationMaterialReferences(snapshot, book, kinds)
   },
@@ -206,7 +206,7 @@ const referenceBuilders = [
     name: "script",
     build: (
       snapshot: CatalogIndexSnapshot,
-      book: Book,
+      book: CreativeBook,
       kinds: MaterialKind[]
     ) =>
       creationMaterialReferences(
@@ -219,7 +219,7 @@ const referenceBuilders = [
     name: "long",
     build: (
       snapshot: CatalogIndexSnapshot,
-      book: Book,
+      book: CreativeBook,
       kinds: MaterialKind[]
     ) => {
       const profile = getDefaultLongAgentProfile("long");
@@ -281,7 +281,7 @@ describe.each(referenceBuilders)("$name material references", ({ build }) => {
     }
   });
 
-  it("includes every bound kind from a mixed library beyond attachment capacity", () => {
+  it("includes every non-empty entry from a bound library beyond attachment capacity", () => {
     const { snapshot, book } = fixture();
     const references = build(snapshot, book, [
       "character",
@@ -289,7 +289,7 @@ describe.each(referenceBuilders)("$name material references", ({ build }) => {
       "draft",
       "other"
     ]);
-    expect(references).toHaveLength(ATTACHED_CONTEXT_MAX_ITEMS + 8);
+    expect(references).toHaveLength(ATTACHED_CONTEXT_MAX_ITEMS + 9);
     expect(references.map(({ label }) => label)).toContain(
       "综合素材 · character-69"
     );
@@ -304,13 +304,30 @@ describe.each(referenceBuilders)("$name material references", ({ build }) => {
     );
   });
 
-  it("keeps the binding and profile read restrictions while skipping empty entries", () => {
+  it("includes all non-empty bound entries across buckets while skipping empty entries", () => {
     const { snapshot, book } = fixture();
+    const labels = build(snapshot, book, ["plot", "draft", "other"]).map(
+      ({ label }) => label
+    );
+    expect(labels).toContain("综合素材 · plot-entry");
+    expect(labels).toContain("综合素材 · draft-entry");
+    expect(labels).toContain("综合素材 · character-0");
+    expect(labels).not.toContain("综合素材 · empty-entry");
     expect(
-      build(snapshot, book, ["plot", "draft", "other"]).map(
-        ({ label }) => label
+      build(
+        snapshot,
+        {
+          ...book,
+          linkedMaterialIdsByKind: {
+            character: [],
+            gimmick: [],
+            plot: [],
+            draft: [],
+            other: []
+          }
+        },
+        []
       )
-    ).toEqual(["综合素材 · plot-entry", "综合素材 · draft-entry"]);
-    expect(build(snapshot, book, [])).toEqual([]);
+    ).toEqual([]);
   });
 });

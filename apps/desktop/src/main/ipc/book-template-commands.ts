@@ -45,7 +45,9 @@ export async function handleBookTemplateCommands(
           createEnvelope(
             workspaceType === "short"
               ? "catalog.createShortBook"
-              : "catalog.createScriptBook",
+              : workspaceType === "script"
+                ? "catalog.createScriptBook"
+                : "catalog.createAcademicBook",
             { ...configuration, title: command.payload.title },
             { id: command.id, context: command.context }
           )

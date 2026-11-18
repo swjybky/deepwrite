@@ -29,7 +29,8 @@ export function preparePromptContext(
   const creative =
     activeDocument?.domain === "creation" &&
     (activeDocument.workspaceType === "short" ||
-      activeDocument.workspaceType === "script");
+      activeDocument.workspaceType === "script" ||
+      activeDocument.workspaceType === "academic");
   const originalLength = creative ? 0 : (activeDocument?.content.length ?? 0);
   const snapshotContent = creative
     ? ""
@@ -79,12 +80,57 @@ export function preparePromptContext(
     !contextOverride &&
     contextSnapshot &&
     activeDocument &&
+    activeDocument.workspaceType === "academic" &&
+    activeDocument.workspaceId &&
+    activeDocument.workspaceTitle
+  ) {
+    const academicWorkspaceId = activeDocument.workspaceId;
+    const documentSnapshots = workspaceDocuments.map((document) => ({
+      ...document
+    }));
+    const academicBook = attachments.academicBook;
+    return (async () => {
+      const [
+        { buildAcademicWorkspaceContext },
+        { loadWritingContextForPrompt }
+      ] = await Promise.all([
+        import("./academicConversationRuntime"),
+        import("./writing-context")
+      ]);
+      if (ctx.epoch !== sendEpoch || ctx.sessionId.value !== sendSessionId)
+        return;
+      const agentsMd = await loadWritingContextForPrompt(
+        api.catalog,
+        academicWorkspaceId,
+        "academic",
+        ctx.options.onContextWarning
+      );
+      if (ctx.epoch !== sendEpoch || ctx.sessionId.value !== sendSessionId)
+        return;
+      const academicContext = buildAcademicWorkspaceContext(
+        activeDocument,
+        documentSnapshots,
+        academicBook,
+        agentsMd
+      );
+      if (academicContext) {
+        Object.assign(contextSnapshot, academicContext);
+      }
+      return { contextSnapshot };
+    })();
+  }
+  if (
+    !contextOverride &&
+    contextSnapshot &&
+    activeDocument &&
     (activeDocument.workspaceType === "short" ||
       activeDocument.workspaceType === "script") &&
     activeDocument.workspaceId &&
     activeDocument.workspaceTitle &&
     activeDocument.stageId
   ) {
+    const creativeWorkspaceType = activeDocument.workspaceType;
+    const creativeWorkspaceId = activeDocument.workspaceId;
     const documentSnapshots = workspaceDocuments.map((document) => ({
       ...document
     }));
@@ -100,8 +146,8 @@ export function preparePromptContext(
       if (creativeContext) {
         const agentsMd = await loadWritingContextForPrompt(
           api.catalog,
-          activeDocument.workspaceId!,
-          activeDocument.workspaceType!,
+          creativeWorkspaceId,
+          creativeWorkspaceType,
           ctx.options.onContextWarning
         );
         if (ctx.epoch !== sendEpoch || ctx.sessionId.value !== sendSessionId)

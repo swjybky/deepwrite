@@ -100,6 +100,7 @@ export function libraryKindName(
   library: CatalogLibrary,
   locale: LibraryPackageLocale
 ): string {
+  if (library.customTag) return library.customTag;
   return "materialKind" in library
     ? MATERIAL_KIND_NAMES[library.materialKind][locale]
     : SKILL_KIND_NAMES[library.skillKind][locale];
@@ -184,7 +185,9 @@ export function renderGroupReadme(
   ];
   members.forEach((member, index) => {
     const label = member.title
-      ? `${member.kindName} · ${member.title}`
+      ? member.kindName
+        ? `${member.kindName} · ${member.title}`
+        : member.title
       : member.kindName;
     lines.push(
       member.directory

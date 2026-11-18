@@ -260,8 +260,6 @@ const visibleMineItems = computed(() =>
       !("source_group_id" in item.metadata)
   )
 );
-const SKILL_GROUP_KIND_ORDER = ["general", "plot", "style", "other"] as const;
-
 const installTargetLibraryOptions = computed<PopupSelectOption[]>(() => {
   const preview = installPreview.value;
   const bucket = preview?.buckets[0];
@@ -272,7 +270,7 @@ const installTargetLibraryOptions = computed<PopupSelectOption[]>(() => {
       value: library.id,
       label: library.title,
       description: t("valueValueValueSkills", {
-        arg0: KIND_LABELS[library.skillKind],
+        arg0: library.customTag ?? KIND_LABELS[library.skillKind],
         arg2: library.entries.length
       })
     }));
@@ -285,7 +283,7 @@ const localSkillEntryOptions = computed<PopupSelectOption[]>(() =>
       library.entries.map((entry) => ({
         value: `${library.id}\u0000${entry.id}`,
         label: entry.title,
-        description: `${library.title} · ${KIND_LABELS[library.skillKind]}`
+        description: `${library.title} · ${library.customTag ?? KIND_LABELS[library.skillKind]}`
       }))
     )
 );
@@ -297,7 +295,7 @@ const localSkillLibraryOptions = computed<PopupSelectOption[]>(() =>
       value: library.id,
       label: library.title,
       description: t("valueValueValueSkills", {
-        arg0: KIND_LABELS[library.skillKind],
+        arg0: library.customTag ?? KIND_LABELS[library.skillKind],
         arg2: library.entries.length
       })
     }))
@@ -307,9 +305,7 @@ function localLibrariesForGroup(groupId: string) {
   const snapshot = props.catalogSnapshot;
   const group = snapshot?.skillGroups.find(({ id }) => id === groupId);
   if (!snapshot || !group) return [];
-  return SKILL_GROUP_KIND_ORDER.flatMap((kind) => {
-    const libraryId = group.members[kind];
-    if (!libraryId) return [];
+  return group.memberIds.flatMap((libraryId) => {
     const library = snapshot.skills.find(({ id }) => id === libraryId);
     return library && !library.isBuiltin && library.entries.length > 0
       ? [library]
@@ -319,11 +315,8 @@ function localLibrariesForGroup(groupId: string) {
 
 const localSkillGroupOptions = computed<PopupSelectOption[]>(() =>
   (props.catalogSnapshot?.skillGroups ?? []).flatMap((group) => {
-    const memberIds = SKILL_GROUP_KIND_ORDER.flatMap((kind) =>
-      group.members[kind] ? [group.members[kind]] : []
-    );
     const libraries = localLibrariesForGroup(group.id);
-    if (libraries.length === 0 || libraries.length !== memberIds.length)
+    if (libraries.length === 0 || libraries.length !== group.memberIds.length)
       return [];
     return [
       {

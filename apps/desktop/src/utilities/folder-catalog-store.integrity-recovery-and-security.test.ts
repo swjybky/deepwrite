@@ -2,6 +2,7 @@ import {
   FolderCatalogConflictError,
   FolderCatalogStore,
   access,
+  asCreativeBook,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
   catalogFixture,
@@ -508,7 +509,7 @@ describe("FolderCatalogStore: integrity-recovery-and-security", () => {
       })
     ).rejects.toBeInstanceOf(FolderCatalogConflictError);
     expect(
-      (await store.snapshot()).books[0]?.draft.sections.find(
+      asCreativeBook((await store.snapshot()).books[0]).draft.sections.find(
         ({ id }) => id === "section-1"
       )?.body.content
     ).toBe("磁盘上的新内容");
@@ -604,8 +605,9 @@ describe("FolderCatalogStore: integrity-recovery-and-security", () => {
     expect(
       opened.resource.documents.find(({ id }) => id === "notes")
     ).toMatchObject({ id: "notes", content: "同名普通文档" });
-    expect(opened.resource.plotStages).toHaveLength(6);
-    const openedSection = opened.resource.draft.sections.find(
+    const openedBook = asCreativeBook(opened.resource);
+    expect(openedBook.plotStages).toHaveLength(6);
+    const openedSection = openedBook.draft.sections.find(
       ({ id }) => id === "section-1"
     );
     expect(openedSection).toMatchObject({
@@ -663,9 +665,9 @@ describe("FolderCatalogStore: integrity-recovery-and-security", () => {
       createShortWorkspaceContentRevision("最初由 Cursor 写下的正文");
     await writeFile(migratedBodyPath, "Cursor 在应用外更新的正文", "utf8");
     expect(
-      (await restartedStore.snapshot()).books[0]?.draft.sections.find(
-        ({ id }) => id === "section-1"
-      )?.body.content
+      asCreativeBook(
+        (await restartedStore.snapshot()).books[0]
+      ).draft.sections.find(({ id }) => id === "section-1")?.body.content
     ).toBe("Cursor 在应用外更新的正文");
     await expect(
       restartedStore.saveDocument({

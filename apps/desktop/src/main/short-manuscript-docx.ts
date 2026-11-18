@@ -42,14 +42,11 @@ function wordImageParagraph(
   return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${width}" cy="${height}"/><wp:docPr id="${id}" name="Image ${id}" descr="${xmlEscape(alt)}"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="Image ${id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>${caption}`;
 }
 
-export function buildDocx(
-  input: ExportShortManuscriptInput,
+export function buildDocxDocument(
+  title: string,
+  sections: ReadonlyArray<{ title: string; content: string }>,
   assets: ManuscriptImageAssets = new Map()
 ): Buffer {
-  const validated = ExportShortManuscriptInputSchema.parse({
-    ...input,
-    format: "docx"
-  });
   const images = new Map(
     [...assets].map(([path, asset], index) => [
       path,
@@ -62,8 +59,8 @@ export function buildDocx(
   );
   let drawingId = 0;
   const body = [
-    wordParagraph(validated.title, "Title"),
-    ...validated.sections.flatMap((section) => [
+    wordParagraph(title, "Title"),
+    ...sections.flatMap((section) => [
       wordParagraph(section.title, "Heading1"),
       // Use paragraph formatting instead of source blank lines or indentation.
       ...normalizeText(section.content)
@@ -130,7 +127,7 @@ export function buildDocx(
       name: "docProps/core.xml",
       data: Buffer.from(
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xmlEscape(validated.title)}</dc:title><dc:creator>DeepWrite</dc:creator><cp:lastModifiedBy>DeepWrite</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:modified></cp:coreProperties>`,
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xmlEscape(title)}</dc:title><dc:creator>DeepWrite</dc:creator><cp:lastModifiedBy>DeepWrite</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${timestamp}</dcterms:modified></cp:coreProperties>`,
         "utf8"
       )
     },
@@ -143,4 +140,15 @@ export function buildDocx(
       )
     }
   ]);
+}
+
+export function buildDocx(
+  input: ExportShortManuscriptInput,
+  assets: ManuscriptImageAssets = new Map()
+): Buffer {
+  const validated = ExportShortManuscriptInputSchema.parse({
+    ...input,
+    format: "docx"
+  });
+  return buildDocxDocument(validated.title, validated.sections, assets);
 }

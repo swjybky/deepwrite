@@ -1,6 +1,7 @@
 import { lstat, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  DEFAULT_ACADEMIC_WRITING_CONTEXT,
   DEFAULT_SCRIPT_WRITING_CONTEXT,
   DEFAULT_SHORT_WRITING_CONTEXT,
   WRITING_CONTEXT_MAX_CHARACTERS,
@@ -19,7 +20,14 @@ import {
 
 const MAX_WRITING_CONTEXT_BYTES = WRITING_CONTEXT_MAX_CHARACTERS * 4 + 4;
 
-export function defaultWritingContext(workspaceType: WorkspaceType): string {
+export type WritingContextBookType = WorkspaceType | "academic";
+
+export function defaultWritingContext(
+  workspaceType: WritingContextBookType
+): string {
+  if (workspaceType === "academic") {
+    return DEFAULT_ACADEMIC_WRITING_CONTEXT;
+  }
   return workspaceType === "script"
     ? DEFAULT_SCRIPT_WRITING_CONTEXT
     : DEFAULT_SHORT_WRITING_CONTEXT;
@@ -64,7 +72,7 @@ async function secureWritingContextTarget(
 
 export async function readOrCreateWritingContext(
   rawProjectDirectory: string,
-  workspaceType: WorkspaceType
+  workspaceType: WritingContextBookType
 ): Promise<{ content: string; truncated: boolean }> {
   const projectDirectory = await secureProjectRoot(rawProjectDirectory);
   const existing = await readExistingWritingContext(projectDirectory);
@@ -105,7 +113,7 @@ export async function writeWritingContextFile(
 
 export async function initializeWritingContextFile(
   rawProjectDirectory: string,
-  workspaceType: WorkspaceType
+  workspaceType: WritingContextBookType
 ): Promise<void> {
   await writeWritingContextFile(
     rawProjectDirectory,

@@ -5,6 +5,7 @@ import {
   SHORT_AGENT_SUBAGENT_NAME_MAX_LENGTH,
   SHORT_AGENT_SUBAGENT_SYSTEM_PROMPT_MAX_LENGTH
 } from "./agent-team";
+import { AcademicAgentIdSchema } from "./academic-agent-settings";
 import { LongAgentIdSchema } from "./long-workspace";
 import { WorkspaceAgentIdSchema } from "./workspace";
 
@@ -51,7 +52,8 @@ export const SUBAGENT_AUTHORING_OUTPUT_MODE_LABELS: Record<
 
 export const SubagentAuthoringParentAgentIdSchema = z.union([
   WorkspaceAgentIdSchema,
-  LongAgentIdSchema
+  LongAgentIdSchema,
+  AcademicAgentIdSchema
 ]);
 export type SubagentAuthoringParentAgentId = z.infer<
   typeof SubagentAuthoringParentAgentIdSchema

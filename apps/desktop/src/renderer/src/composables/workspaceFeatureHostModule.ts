@@ -104,6 +104,24 @@ export function buildWorkspaceFeatureModule(
       return { kind: "cloud-backup" };
     case "zhuque-detection":
       return { kind: "zhuque-detection" };
+    case "mystery-workspace": {
+      const bookId = options.view.activeMysteryBookId.value;
+      const resolveConversation = options.actions.resolveConversation;
+      if (!bookId || !resolveConversation) return null;
+      return {
+        kind: "mystery-workspace",
+        bookId,
+        catalogSnapshot: options.catalogSnapshot.value,
+        resolveConversation,
+        autoSaveEnabled: settingsStore.editorAutoSaveEnabled,
+        defaultTextViewMode: settingsStore.generalSettings.defaultTextViewMode,
+        paneLayout: settingsStore.generalSettings.workspacePaneLayout,
+        runtimeAvailable: Boolean(options.api()),
+        ...(options.actions.onMysteryBookRemoved
+          ? { onBookRemoved: options.actions.onMysteryBookRemoved }
+          : {})
+      };
+    }
     case "conversation":
     case "long-workspace":
       return null;

@@ -1,4 +1,4 @@
-import { LibraryTypeSchema } from "../catalog";
+import { LibraryCustomTagSchema, LibraryTypeSchema } from "../catalog";
 import { CATALOG_PROJECT_MAX_CONTENT_ITEMS } from "../catalog/kinds";
 import {
   LIBRARY_PACKAGE_FORMAT_VERSION,
@@ -175,6 +175,7 @@ function recognizePackage(
     const declaredKind =
       domain === "material" ? library.materialKind : library.skillKind;
     const libraryType = LibraryTypeSchema.safeParse(library.libraryType);
+    const customTag = LibraryCustomTagSchema.safeParse(library.customTag);
     return {
       key: library.key,
       title:
@@ -188,6 +189,7 @@ function recognizePackage(
             domain,
             entries.map(({ stageHint }) => stageHint)
           ),
+      ...(customTag.success ? { customTag: customTag.data } : {}),
       kindEditable: false,
       libraryType: libraryType.success ? libraryType.data : "short",
       parentGenre: domain === "material" ? (library.parentGenre ?? "") : "",
@@ -207,6 +209,8 @@ function recognizePackage(
             cleanTitle(rootName) ??
             LIBRARY_PACKAGE_FALLBACK_TITLES.group,
           suggested: true,
+          memberKeys:
+            manifest.group.memberKeys ?? Object.values(manifest.group.members),
           slots: manifest.group.members
         }
       : null,

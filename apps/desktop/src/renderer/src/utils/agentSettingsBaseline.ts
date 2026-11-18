@@ -1,4 +1,6 @@
 import type {
+  AcademicAgentSettings,
+  AcademicAgentSettingsInput,
   LibraryAgentSettings,
   LibraryAgentSettingsInput,
   LongAgentSettings,
@@ -75,6 +77,38 @@ export function withLongAgentBaseline(
               systemPrompt,
               welcomeShortcuts,
               readAccess
+            })
+          )
+        )
+      }
+    : input;
+}
+
+export function withAcademicAgentBaseline(
+  input: AcademicAgentSettingsInput,
+  settings: AcademicAgentSettings | null
+): AcademicAgentSettingsInput {
+  return settings
+    ? {
+        ...input,
+        baseAgents: cloneBaseline(
+          settings.agents.map(
+            ({
+              id,
+              systemPrompt,
+              welcomeShortcuts,
+              modelMode,
+              modelId,
+              thinkingLevel,
+              temperature
+            }) => ({
+              id,
+              systemPrompt,
+              welcomeShortcuts,
+              modelMode: modelMode ?? "inherit",
+              ...(modelId ? { modelId } : {}),
+              ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+              ...(temperature !== undefined ? { temperature } : {})
             })
           )
         )

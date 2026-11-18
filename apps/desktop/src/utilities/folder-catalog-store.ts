@@ -3,9 +3,11 @@ import {
   writingFileMetrics
 } from "./folder-catalog-store/writing-read";
 import type {
+  AcademicWritingIndex,
   WritingReadCommand,
   WritingIndex,
-  WritingFile
+  WritingFile,
+  WritingSearchResult
 } from "@deepwrite/contracts";
 import { applyDraftSectionChange } from "./folder-catalog-store/draft-section-change";
 import { resolveLibraryEntryLocation } from "@deepwrite/contracts";
@@ -49,7 +51,22 @@ import {
 } from "./folder-catalog-store/managed-entry";
 import { registerCatalogProject } from "./folder-catalog-store/project-registration";
 import { deleteRegisteredProject } from "./folder-catalog-store/project-deletion";
-import { assertBookLibraryReferences } from "./folder-catalog-store/book-library-references";
+import {
+  assertAcademicBookLibraryReferences,
+  assertBookLibraryReferences
+} from "./folder-catalog-store/book-library-references";
+import {
+  academicManifestContentItems,
+  executeCreateAcademicReferenceCard,
+  executeDeleteAcademicReferenceCard,
+  executeMutateAcademicFramework,
+  executeMutateAcademicManuscript,
+  executeUpdateAcademicReferenceCard,
+  saveAcademicDocumentWithLock,
+  scrubAcademicBookLibraryBindings,
+  type AcademicMutationDriver
+} from "./folder-catalog-store/academic-mutations";
+export { FolderCatalogAcademicCiteKeyConflictError } from "./folder-catalog-store/academic-mutations";
 import {
   CATALOG_PROJECT_DOMAINS,
   type FolderCatalogProjectDomain,
@@ -62,6 +79,7 @@ export {
 } from "./folder-catalog-store/registry-types";
 import {
   DEFAULT_SHORT_DOCUMENTS,
+  createInitialAcademicBook,
   createNewShortBook,
   createNewScriptBook,
   assertCreationPlotStages,
@@ -87,12 +105,16 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
+  AcademicBookSchema,
   BookProjectManifestSchema,
+  CreativeBookSchema,
+  type CreativeBook,
   BookSchema,
   BOOK_CHARACTER_OVERVIEW_DOCUMENT_ID,
   CATALOG_DRAFT_DIRECTORY_ID,
   CATALOG_PROJECT_MAX_CONTENT_ITEMS,
   CatalogDraftSectionSchema,
+  CreateAcademicBookInputSchema,
   CreateDraftSectionsInputSchema,
   CreateDraftSectionsResultSchema,
   CatalogDraftRecoverySchema,
@@ -110,6 +132,7 @@ import {
   CreateLibraryGroupInputSchema,
   CreateScriptBookInputSchema,
   CreateShortBookInputSchema,
+  CurrentAcademicBookProjectManifestSchema,
   CurrentBookProjectManifestSchema,
   DeleteDraftSectionInputSchema,
   MoveDraftSectionInputSchema,
@@ -151,6 +174,9 @@ import {
   createShortWorkspaceContentRevision,
   isBuiltinCreativePlotStageId,
   migrateCatalogDraftDocument,
+  type AcademicBook,
+  type AcademicReferenceCardManifest,
+  type AcademicManuscriptSectionManifest,
   type BookProjectDraftSectionManifest,
   type BookProjectDocumentManifest,
   type BookProjectManifest,
@@ -164,6 +190,9 @@ import {
   type CatalogProjectDiagnostic,
   type CatalogDraftRecovery,
   type CatalogSnapshot,
+  type CreateAcademicBookInput,
+  type CreateAcademicReferenceCardInput,
+  type CreateAcademicReferenceCardResult,
   type CreateLibraryInput,
   type UpdateLibraryInput,
   type CreateLibraryGroupInput,
@@ -173,7 +202,10 @@ import {
   type CreateDraftSectionsInput,
   type CreateDraftSectionsResult,
   type CreativePlotStage,
+  type CurrentAcademicBookProjectManifest,
   type CurrentBookProjectManifest,
+  type DeleteAcademicReferenceCardInput,
+  type DeleteAcademicReferenceCardResult,
   type DeleteDraftSectionInput,
   type DeleteDraftSectionResult,
   type DeleteCatalogProjectInput,
@@ -197,6 +229,9 @@ import {
   type CatalogInstallMarketplaceSkillContentResult,
   type ImportLibraryEntriesInput,
   type ImportLibraryEntriesResult,
+  type MutateAcademicFrameworkInput,
+  type MutateAcademicManuscriptInput,
+  type MutateAcademicManuscriptResult,
   type MutateCharacterStructureInput,
   type MutatePlotStructureInput,
   type ReadWritingContextInput,
@@ -213,6 +248,8 @@ import {
   type SkillLibraryGroup,
   type SkillEntry,
   type SkillStageId,
+  type UpdateAcademicReferenceCardInput,
+  type UpdateAcademicReferenceCardResult,
   type UpdateBookInput,
   type UpdateLibraryGroupInput,
   type WriteWritingContextInput,
@@ -310,6 +347,11 @@ export interface CreateShortBookAtDirectoryInput {
 export interface CreateScriptBookAtDirectoryInput {
   parentDirectory?: string;
   input: CreateScriptBookInput;
+}
+
+export interface CreateAcademicBookAtDirectoryInput {
+  parentDirectory?: string;
+  input: CreateAcademicBookInput;
 }
 
 export type FolderCatalogLibraryDomain = "material" | "skill";
@@ -738,11 +780,9 @@ export class FolderCatalogStore {
         ? groups.find(({ id }) => id === input.groupId)
         : undefined;
       if (input.groupId && !group) throw new Error("分组不存在。");
-      const grouped = new Set(
-        groups.flatMap((item) => Object.values(item.members))
-      );
+      const grouped = new Set(groups.flatMap((item) => item.memberIds));
       const available = group
-        ? Object.values(group.members).filter((id): id is string => !!id)
+        ? [...group.memberIds]
         : [
             ...groups.map(({ id }) => id),
             ...libraries
@@ -798,7 +838,9 @@ export class FolderCatalogStore {
   async readWritingWorkspace(
     { bookId, bookType, query }: WritingReadCommand["payload"],
     runId: string
-  ): Promise<WritingIndex | WritingFile> {
+  ): Promise<
+    WritingIndex | AcademicWritingIndex | WritingFile | WritingSearchResult
+  > {
     return this.readAfterWrites(async () => {
       const registryText = await readRequiredUtf8File(
         this.registryPath,
@@ -1012,7 +1054,9 @@ export class FolderCatalogStore {
       base.creativePlotStages = mergeCreativePlotStageDefinitions(
         base.creativePlotStages,
         snapshot.creativePlotStages,
-        snapshot.books.flatMap((book) => book.plotStages)
+        snapshot.books.flatMap((book) =>
+          book.bookType === "academic" ? [] : book.plotStages
+        )
       );
       const { registry: next, createdProjectDirectories } =
         await this.writeMissingSnapshotProjects(base, snapshot);
@@ -1039,7 +1083,9 @@ export class FolderCatalogStore {
       const mergedStages = mergeCreativePlotStageDefinitions(
         current.creativePlotStages,
         snapshot.creativePlotStages,
-        snapshot.books.flatMap((book) => book.plotStages)
+        snapshot.books.flatMap((book) =>
+          book.bookType === "academic" ? [] : book.plotStages
+        )
       );
       const stagesChanged = !sameCreativePlotStageDefinitions(
         current.creativePlotStages,
@@ -1119,7 +1165,54 @@ export class FolderCatalogStore {
     );
   }
 
-  private async createBookProject<Resource extends Book>(
+  async createAcademicBook(
+    rawInput: CreateAcademicBookInput,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<AcademicBook>>;
+  async createAcademicBook(
+    rawInput: CreateAcademicBookAtDirectoryInput
+  ): Promise<OpenFolderCatalogProjectResult<AcademicBook>>;
+  async createAcademicBook(
+    rawInput: CreateAcademicBookInput | CreateAcademicBookAtDirectoryInput,
+    parentDirectory?: string
+  ): Promise<OpenFolderCatalogProjectResult<AcademicBook>> {
+    const wrapped = "input" in rawInput;
+    const input = CreateAcademicBookInputSchema.parse(
+      wrapped ? rawInput.input : rawInput
+    );
+    const parent =
+      (wrapped ? rawInput.parentDirectory : parentDirectory)?.trim() ||
+      this.defaultProjectParents.book;
+    return await this.mutate(async () => {
+      const now = this.now();
+      const registry = await this.ensureRegistry();
+      const snapshot = await this.aggregateSnapshot(registry);
+      const book = createInitialAcademicBook(input, now);
+      assertAcademicBookLibraryReferences(book, snapshot);
+      const projectDirectory = await this.writeNewResourceProject(
+        "book",
+        parent,
+        book
+      );
+      try {
+        await this.registerProject(registry, {
+          id: book.id,
+          domain: "book",
+          projectDirectory,
+          registeredAt: now
+        });
+      } catch (error: unknown) {
+        await cleanupNewProjectDirectories([projectDirectory]);
+        throw error;
+      }
+      return (await this.readProject(
+        projectDirectory,
+        "book"
+      )) as OpenFolderCatalogProjectResult<AcademicBook>;
+    });
+  }
+
+  private async createBookProject<Resource extends ShortBook | ScriptBook>(
     parentDirectory: string,
     createBook: (now: string) => Resource,
     defaultPlotStageIds?: readonly string[]
@@ -1188,6 +1281,9 @@ export class FolderCatalogStore {
               title: input.name,
               materialType: input.libraryType ?? "short",
               materialKind: rawInput.unbound ? "mixed" : input.materialKind,
+              ...(rawInput.unbound || !input.customTag
+                ? {}
+                : { customTag: input.customTag }),
               parentGenre: "",
               subGenre: "",
               overview: "",
@@ -1200,6 +1296,7 @@ export class FolderCatalogStore {
               title: input.name,
               skillType: input.libraryType ?? "short",
               skillKind: input.skillKind,
+              ...(input.customTag ? { customTag: input.customTag } : {}),
               overview: "",
               isBuiltin: false,
               entries: [],
@@ -1268,19 +1365,27 @@ export class FolderCatalogStore {
         throw new Error("内置技能库不能修改。");
       }
       const now = this.now();
+      const nextCustomTag =
+        input.customTag === undefined ? manifest.customTag : input.customTag;
+      const { customTag: _prevCustomTag, ...manifestWithoutCustomTag } =
+        manifest;
       const next =
         manifest.kind === "deepwrite.material-library"
           ? MaterialLibraryProjectManifestSchema.parse({
-              ...manifest,
+              ...manifestWithoutCustomTag,
               title: input.title ?? manifest.title,
               overview: input.overview ?? manifest.overview,
+              materialKind: input.materialKind ?? manifest.materialKind,
+              ...(nextCustomTag ? { customTag: nextCustomTag } : {}),
               revision: manifest.revision + 1,
               updatedAt: now
             })
           : SkillLibraryProjectManifestSchema.parse({
-              ...manifest,
+              ...manifestWithoutCustomTag,
               title: input.title ?? manifest.title,
               overview: input.overview ?? manifest.overview,
+              skillKind: input.skillKind ?? manifest.skillKind,
+              ...(nextCustomTag ? { customTag: nextCustomTag } : {}),
               revision: manifest.revision + 1,
               updatedAt: now
             });
@@ -1313,23 +1418,16 @@ export class FolderCatalogStore {
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const snapshot = await this.aggregateSnapshot(registry);
+      assertUniqueGroupMembers(input.memberIds);
       if (input.domain === "material") {
-        assertUniqueGroupMembers(Object.values(input.members));
         const libraries = new Map(
           snapshot.materials.map((library) => [library.id, library])
         );
-        for (const [kind, libraryId] of Object.entries(input.members)) {
-          if (!libraryId) continue;
+        for (const libraryId of input.memberIds) {
           const library = libraries.get(libraryId);
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建素材分组引用了不存在的素材库：${libraryId}`);
-          }
-          if (
-            library.materialKind !== "mixed" &&
-            library.materialKind !== kind
-          ) {
-            throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
           }
           assertLibraryNotInAnotherGroup(
             snapshot.materialGroups,
@@ -1338,19 +1436,14 @@ export class FolderCatalogStore {
           );
         }
       } else {
-        assertUniqueGroupMembers(Object.values(input.members));
         const libraries = new Map(
           snapshot.skills.map((library) => [library.id, library])
         );
-        for (const [kind, libraryId] of Object.entries(input.members)) {
-          if (!libraryId) continue;
+        for (const libraryId of input.memberIds) {
           const library = libraries.get(libraryId);
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建技能分组引用了不存在的技能库：${libraryId}`);
-          }
-          if (library.skillKind !== kind) {
-            throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
           }
           assertLibraryNotInAnotherGroup(
             snapshot.skillGroups,
@@ -1366,14 +1459,14 @@ export class FolderCatalogStore {
           ? {
               id: rawInput.id ?? createCatalogId("material-group"),
               title: input.name,
-              members: { ...input.members },
+              memberIds: [...input.memberIds],
               createdAt: now,
               updatedAt: now
             }
           : {
               id: createCatalogId("skill-group"),
               title: input.name,
-              members: { ...input.members },
+              memberIds: [...input.memberIds],
               createdAt: now,
               updatedAt: now
             };
@@ -1482,18 +1575,20 @@ export class FolderCatalogStore {
           input.target.id
         )
       ).resource as MaterialLibraryGroup | SkillLibraryGroup;
-      const slots =
-        input.domain === "material"
-          ? ["character", "plot", "gimmick", "draft", "other"]
-          : ["general", "plot", "style", "other"];
       const members: LibraryPackageExportSource["members"][number][] = [];
-      for (const slot of slots) {
-        const id = (group.members as Record<string, string | undefined>)[slot];
-        if (!id) continue;
+      for (const id of group.memberIds) {
         try {
-          members.push({ slot, library: await readLibrary(id) });
+          const library = await readLibrary(id);
+          const slot = library.customTag
+            ? null
+            : "materialKind" in library
+              ? library.materialKind === "mixed"
+                ? "other"
+                : library.materialKind
+              : library.skillKind;
+          members.push({ slot, library });
         } catch {
-          members.push({ slot, library: null });
+          members.push({ slot: null, library: null });
         }
       }
       if (!members.some(({ library }) => library)) {
@@ -1560,7 +1655,10 @@ export class FolderCatalogStore {
           projectDirectory: opened.projectDirectory,
           registeredAt: this.now()
         },
-        opened.domain === "book" ? (opened.resource as Book).plotStages : []
+        opened.domain === "book" &&
+          (opened.resource as Book).bookType !== "academic"
+          ? ((opened.resource as ShortBook | ScriptBook).plotStages ?? [])
+          : []
       );
       return opened;
     });
@@ -1620,6 +1718,42 @@ export class FolderCatalogStore {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
       const now = this.now();
+      if (manifest.bookType === "academic") {
+        const validated = CurrentAcademicBookProjectManifestSchema.parse({
+          ...manifest,
+          revision: manifest.revision + 1,
+          title: input.title ?? manifest.title,
+          subtype: input.subtype ?? manifest.subtype,
+          citationStyle: input.citationStyle ?? manifest.citationStyle,
+          status: input.status ?? manifest.status,
+          linkedMaterialIds:
+            input.linkedMaterialIds === undefined
+              ? manifest.linkedMaterialIds
+              : [...input.linkedMaterialIds],
+          linkedSkillIds:
+            input.linkedSkillIds === undefined
+              ? manifest.linkedSkillIds
+              : [...input.linkedSkillIds],
+          updatedAt: now
+        });
+        const snapshot = await this.aggregateSnapshot(registry);
+        assertAcademicBookLibraryReferences(
+          {
+            title: validated.title,
+            linkedMaterialIds: input.linkedMaterialIds,
+            linkedSkillIds: input.linkedSkillIds
+          },
+          snapshot
+        );
+        await atomicWriteJson(
+          join(opened.projectDirectory, MANIFEST_FILE),
+          validated,
+          this.maxManifestBytes
+        );
+        await this.bumpRegistry(registry, now);
+        return (await this.readProject(opened.projectDirectory, "book"))
+          .resource as Book;
+      }
       const next = {
         ...manifest,
         revision: manifest.revision + 1,
@@ -1666,7 +1800,9 @@ export class FolderCatalogStore {
     });
   }
 
-  async mutatePlotStructure(rawInput: MutatePlotStructureInput): Promise<Book> {
+  async mutatePlotStructure(
+    rawInput: MutatePlotStructureInput
+  ): Promise<CreativeBook> {
     const input = MutatePlotStructureInputSchema.parse(rawInput);
     if (input.baseProjectRevision !== undefined) {
       assertProjectRevision(input.baseProjectRevision);
@@ -1681,6 +1817,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术论证框架接口管理阶段。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -1720,8 +1859,10 @@ export class FolderCatalogStore {
         ]);
         await this.applyGlobalPlotStageOrder(registry, now);
         await this.bumpRegistry(registry, now);
-        return (await this.readProject(projectDirectory, "book", input.bookId))
-          .resource as Book;
+        return CreativeBookSchema.parse(
+          (await this.readProject(projectDirectory, "book", input.bookId))
+            .resource
+        );
       }
 
       if (mutation.type === "setEnabled") {
@@ -1756,8 +1897,10 @@ export class FolderCatalogStore {
           this.maxManifestBytes
         );
         await this.bumpRegistry(registry, now);
-        return (await this.readProject(projectDirectory, "book", input.bookId))
-          .resource as Book;
+        return CreativeBookSchema.parse(
+          (await this.readProject(projectDirectory, "book", input.bookId))
+            .resource
+        );
       }
 
       const globalStages = registry.creativePlotStages.map((stage) => ({
@@ -1811,9 +1954,10 @@ export class FolderCatalogStore {
                 "剧情结构创建记录与本次创建意图不一致，无法安全重放。"
               );
             }
-            return (
-              await this.readProject(projectDirectory, "book", input.bookId)
-            ).resource as Book;
+            return CreativeBookSchema.parse(
+              (await this.readProject(projectDirectory, "book", input.bookId))
+                .resource
+            );
           }
           if (existingStage || existingDocument) {
             throw new Error("剧情结构创建记录不完整，无法安全重放本次创建。");
@@ -1825,9 +1969,10 @@ export class FolderCatalogStore {
             now
           );
           await this.bumpRegistry(registry, now);
-          return (
-            await this.readProject(projectDirectory, "book", input.bookId)
-          ).resource as Book;
+          return CreativeBookSchema.parse(
+            (await this.readProject(projectDirectory, "book", input.bookId))
+              .resource
+          );
         }
         if (globalStages.length >= 32) {
           throw new Error("剧情结构最多支持 32 项。");
@@ -1897,14 +2042,16 @@ export class FolderCatalogStore {
       }
 
       await this.bumpRegistry(registry, now);
-      return (await this.readProject(projectDirectory, "book", input.bookId))
-        .resource as Book;
+      return CreativeBookSchema.parse(
+        (await this.readProject(projectDirectory, "book", input.bookId))
+          .resource
+      );
     });
   }
 
   async mutateCharacterStructure(
     rawInput: MutateCharacterStructureInput
-  ): Promise<Book> {
+  ): Promise<CreativeBook> {
     const input = MutateCharacterStructureInputSchema.parse(rawInput);
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
@@ -1916,6 +2063,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术论证框架接口管理阶段。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -1936,9 +2086,10 @@ export class FolderCatalogStore {
 
       if (mutation.type === "setFormat") {
         if (mutation.format === manifest.characterStructure.format) {
-          return (
-            await this.readProject(projectDirectory, "book", input.bookId)
-          ).resource as Book;
+          return CreativeBookSchema.parse(
+            (await this.readProject(projectDirectory, "book", input.bookId))
+              .resource
+          );
         }
         if (mutation.format === "list") {
           const original = await readRequiredUtf8File(
@@ -2101,9 +2252,10 @@ export class FolderCatalogStore {
               ({ id }) => id === existingItem.id
             );
             if (input.force && existingItem.title === title && hasDocument) {
-              return (
-                await this.readProject(projectDirectory, "book", input.bookId)
-              ).resource as Book;
+              return CreativeBookSchema.parse(
+                (await this.readProject(projectDirectory, "book", input.bookId))
+                  .resource
+              );
             }
             throw new Error("人物条目标识已存在。");
           }
@@ -2227,8 +2379,126 @@ export class FolderCatalogStore {
         }
       }
       await this.bumpRegistry(registry, now);
-      return (await this.readProject(projectDirectory, "book", input.bookId))
-        .resource as Book;
+      return CreativeBookSchema.parse(
+        (await this.readProject(projectDirectory, "book", input.bookId))
+          .resource
+      );
+    });
+  }
+
+  private academicMutationDriver(): AcademicMutationDriver {
+    return {
+      now: this.now,
+      maxMarkdownBytes: this.maxMarkdownBytes,
+      maxManifestBytes: this.maxManifestBytes,
+      assertBaseRevision,
+      createConflictError: (expected, actual) =>
+        new FolderCatalogConflictError(expected, actual),
+      readAcademicBook: async (projectDirectory, bookId) =>
+        AcademicBookSchema.parse(
+          (await this.readProject(projectDirectory, "book", bookId)).resource
+        ),
+      bumpRegistry: (registry, now) => this.bumpRegistry(registry, now)
+    };
+  }
+
+  private async readAcademicBookContext(bookId: string): Promise<{
+    registry: FolderCatalogRegistry;
+    projectDirectory: string;
+    manifest: CurrentAcademicBookProjectManifest;
+  }> {
+    const registry = await this.ensureRegistry();
+    const registration = findRegistration(registry, bookId, "book");
+    const projectDirectory = await secureProjectRoot(
+      registration.projectDirectory
+    );
+    const manifest = await this.readCurrentBookManifest(
+      projectDirectory,
+      bookId
+    );
+    if (manifest.bookType !== "academic") {
+      throw new Error("当前作品不是学术作品。");
+    }
+    return { registry, projectDirectory, manifest };
+  }
+
+  async mutateAcademicFramework(
+    rawInput: MutateAcademicFrameworkInput
+  ): Promise<AcademicBook> {
+    return await this.mutate(async () => {
+      const { registry, projectDirectory, manifest } =
+        await this.readAcademicBookContext(rawInput.bookId);
+      return await executeMutateAcademicFramework({
+        projectDirectory,
+        manifest,
+        rawInput,
+        registry,
+        driver: this.academicMutationDriver()
+      });
+    });
+  }
+
+  async createAcademicReferenceCard(
+    rawInput: CreateAcademicReferenceCardInput
+  ): Promise<CreateAcademicReferenceCardResult> {
+    return await this.mutate(async () => {
+      const { registry, projectDirectory, manifest } =
+        await this.readAcademicBookContext(rawInput.bookId);
+      return await executeCreateAcademicReferenceCard({
+        projectDirectory,
+        manifest,
+        rawInput,
+        registry,
+        driver: this.academicMutationDriver()
+      });
+    });
+  }
+
+  async updateAcademicReferenceCard(
+    rawInput: UpdateAcademicReferenceCardInput
+  ): Promise<UpdateAcademicReferenceCardResult> {
+    return await this.mutate(async () => {
+      const { registry, projectDirectory, manifest } =
+        await this.readAcademicBookContext(rawInput.bookId);
+      return await executeUpdateAcademicReferenceCard({
+        projectDirectory,
+        manifest,
+        rawInput,
+        registry,
+        driver: this.academicMutationDriver()
+      });
+    });
+  }
+
+  async deleteAcademicReferenceCard(
+    rawInput: DeleteAcademicReferenceCardInput
+  ): Promise<DeleteAcademicReferenceCardResult> {
+    return await this.mutate(async () => {
+      const { registry, projectDirectory, manifest } =
+        await this.readAcademicBookContext(rawInput.bookId);
+      return await executeDeleteAcademicReferenceCard({
+        projectDirectory,
+        manifest,
+        rawInput,
+        registry,
+        driver: this.academicMutationDriver()
+      });
+    });
+  }
+
+  async mutateAcademicManuscript(
+    rawInput: MutateAcademicManuscriptInput
+  ): Promise<MutateAcademicManuscriptResult> {
+    return await this.mutate(async () => {
+      const { registry, projectDirectory, manifest } =
+        await this.readAcademicBookContext(rawInput.bookId);
+      return await executeMutateAcademicManuscript({
+        projectDirectory,
+        manifest,
+        rawInput,
+        registry,
+        driver: this.academicMutationDriver()
+      });
     });
   }
 
@@ -2248,6 +2518,7 @@ export class FolderCatalogStore {
         projectDirectory,
         registration.id
       );
+      if (manifest.bookType === "academic") continue;
       if (manifest.plotStages.some(({ id }) => id === definition.id)) {
         continue;
       }
@@ -2315,6 +2586,7 @@ export class FolderCatalogStore {
         projectDirectory,
         registration.id
       );
+      if (manifest.bookType === "academic") continue;
       const stageIndex = manifest.plotStages.findIndex(
         ({ id }) => id === definition.id
       );
@@ -2370,6 +2642,7 @@ export class FolderCatalogStore {
         projectDirectory,
         registration.id
       );
+      if (manifest.bookType === "academic") continue;
       const plotStages = [...manifest.plotStages].sort(
         (left, right) =>
           (order.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
@@ -2411,6 +2684,7 @@ export class FolderCatalogStore {
         projectDirectory,
         registration.id
       );
+      if (manifest.bookType === "academic") continue;
       const stageIndex = manifest.plotStages.findIndex(
         ({ id }) => id === stageId
       );
@@ -2514,23 +2788,16 @@ export class FolderCatalogStore {
       }
 
       const snapshot = await this.aggregateSnapshot(registry);
-      assertUniqueGroupMembers(Object.values(input.members));
+      assertUniqueGroupMembers(input.memberIds);
       if (input.domain === "material") {
         const libraries = new Map(
           snapshot.materials.map((library) => [library.id, library])
         );
-        for (const [kind, libraryId] of Object.entries(input.members)) {
-          if (!libraryId) continue;
+        for (const libraryId of input.memberIds) {
           const library = libraries.get(libraryId);
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`素材分组引用了不存在的素材库：${libraryId}`);
-          }
-          if (
-            library.materialKind !== "mixed" &&
-            library.materialKind !== kind
-          ) {
-            throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
           }
           assertLibraryNotInAnotherGroup(
             snapshot.materialGroups,
@@ -2543,15 +2810,11 @@ export class FolderCatalogStore {
         const libraries = new Map(
           snapshot.skills.map((library) => [library.id, library])
         );
-        for (const [kind, libraryId] of Object.entries(input.members)) {
-          if (!libraryId) continue;
+        for (const libraryId of input.memberIds) {
           const library = libraries.get(libraryId);
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`技能分组引用了不存在的技能库：${libraryId}`);
-          }
-          if (library.skillKind !== kind) {
-            throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
           }
           assertLibraryNotInAnotherGroup(
             snapshot.skillGroups,
@@ -2567,7 +2830,7 @@ export class FolderCatalogStore {
         ...manifest,
         revision: manifest.revision + 1,
         title: input.title ?? manifest.title,
-        members: { ...input.members },
+        memberIds: [...input.memberIds],
         updatedAt: now
       };
       const validated =
@@ -2665,6 +2928,15 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        return await saveAcademicDocumentWithLock({
+          projectDirectory,
+          manifest,
+          input,
+          registry,
+          driver: this.academicMutationDriver()
+        });
+      }
       const now = this.now();
       const regularDocumentIndex = manifest.documents.findIndex(
         ({ id }) => id === input.documentId
@@ -2943,6 +3215,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术论证框架接口管理阶段。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -3089,6 +3364,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术正文目录接口管理小节。");
+      }
       const requestHash = createDraftSectionsRequestHash(input);
       const existingOperation = manifest.draftSectionCreationOperations?.find(
         ({ operationId }) => operationId === input.operationId
@@ -3241,6 +3519,9 @@ export class FolderCatalogStore {
           }
         ].slice(-256)
       });
+      if (next.bookType === "academic") {
+        throw new Error("学术作品不支持短篇/剧本小节创建接口。");
+      }
       const files = await Promise.all(
         createdSections.flatMap((section, index) => [
           secureWritableProjectPath(projectDirectory, section.body.path).then(
@@ -3337,6 +3618,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术论证框架接口管理阶段。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -3409,6 +3693,9 @@ export class FolderCatalogStore {
         projectDirectory,
         input.bookId
       );
+      if (manifest.bookType === "academic") {
+        throw new Error("学术作品请使用学术论证框架接口管理阶段。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -3957,30 +4244,7 @@ export class FolderCatalogStore {
       ) {
         const materialEntry =
           sourceEntry as MaterialLibraryProjectManifest["entries"][number];
-        const allowed: Record<string, readonly string[]> = {
-          character: ["character"],
-          gimmick: ["gimmick"],
-          plot: ["pacing", "intro", "plot_refine"],
-          draft: ["draft_excerpt"],
-          other: ["other"],
-          mixed: [materialEntry.stageId]
-        };
-        const selectedTargetStage =
-          input.targetStageId ?? materialEntry.stageId;
-        targetStageId = selectedTargetStage;
-        if (
-          sourceManifest.materialKind !== targetManifest.materialKind &&
-          input.targetStageId === undefined
-        ) {
-          throw new Error("移动到不同素材分类时，请选择目标内容阶段。");
-        }
-        if (
-          !(allowed[targetManifest.materialKind] ?? []).includes(
-            selectedTargetStage
-          )
-        ) {
-          throw new Error("目标素材库分类不支持该素材条目的内容阶段。");
-        }
+        targetStageId = input.targetStageId ?? materialEntry.stageId;
       } else if (input.targetStageId !== undefined) {
         throw new Error("只有素材条目可以调整内容阶段。");
       }
@@ -4083,12 +4347,33 @@ export class FolderCatalogStore {
       const unregistered = projects.length !== registry.projects.length;
       if (unregistered) {
         const now = this.now();
-        await this.writeRegistry({
+        const nextRegistry = {
           ...registry,
           revision: registry.revision + 1,
           updatedAt: now,
           projects
-        });
+        };
+        await this.writeRegistry(nextRegistry);
+        if (
+          registryDomain === "material-library" ||
+          registryDomain === "skill-library"
+        ) {
+          await scrubAcademicBookLibraryBindings({
+            registry: nextRegistry,
+            removedMaterialIds:
+              registryDomain === "material-library"
+                ? new Set([projectId])
+                : new Set(),
+            removedSkillIds:
+              registryDomain === "skill-library"
+                ? new Set([projectId])
+                : new Set(),
+            readBookManifest: (dir, id) =>
+              this.readCurrentBookManifest(dir, id),
+            maxManifestBytes: this.maxManifestBytes,
+            now
+          });
+        }
       }
       return { projectId, domain, unregistered };
     });
@@ -4105,13 +4390,33 @@ export class FolderCatalogStore {
         )
       )
         throw new Error("未绑定收纳区不能删除。");
-      return await deleteRegisteredProject(registry, rawInput, {
+      const result = await deleteRegisteredProject(registry, rawInput, {
         now: this.now,
         readProject: (directory, domain, id) =>
           this.readProject(directory, domain, id),
         assertBaseRevision,
         writeRegistry: (next) => this.writeRegistry(next)
       });
+      if (result.deleted && result.domain !== "book") {
+        const updatedRegistry = await this.ensureRegistry();
+        const removedIds = new Set<string>([
+          ...(result.domain === "material" || result.domain === "skill"
+            ? [result.projectId]
+            : []),
+          ...(result.deletedMemberLibraryIds ?? [])
+        ]);
+        const isMaterialDomain =
+          result.domain === "material" || result.domain === "material-group";
+        await scrubAcademicBookLibraryBindings({
+          registry: updatedRegistry,
+          removedMaterialIds: isMaterialDomain ? removedIds : new Set(),
+          removedSkillIds: isMaterialDomain ? new Set() : removedIds,
+          readBookManifest: (dir, id) => this.readCurrentBookManifest(dir, id),
+          maxManifestBytes: this.maxManifestBytes,
+          now: this.now()
+        });
+      }
+      return result;
     });
   }
 
@@ -4185,8 +4490,8 @@ export class FolderCatalogStore {
           "material-group"
         );
         const copiedBySourceId = new Map<string, MaterialLibrary>();
-        const members: MaterialLibraryGroup["members"] = {};
-        for (const [kind, libraryId] of Object.entries(source.members)) {
+        const memberIds: string[] = [];
+        for (const libraryId of source.memberIds) {
           if (!libraryId) continue;
           let copied = copiedBySourceId.get(libraryId);
           if (!copied) {
@@ -4212,7 +4517,7 @@ export class FolderCatalogStore {
               resource: copied
             });
           }
-          members[kind as keyof MaterialLibraryGroup["members"]] = copied.id;
+          memberIds.push(copied.id);
         }
         const title = nextCopyTitle(
           source.title,
@@ -4221,7 +4526,7 @@ export class FolderCatalogStore {
         primaryResource = MaterialLibraryGroupSchema.parse({
           id: createCatalogId("material-group"),
           title,
-          members,
+          memberIds,
           createdAt: now,
           updatedAt: now
         });
@@ -4241,8 +4546,8 @@ export class FolderCatalogStore {
           "skill-group"
         );
         const copiedBySourceId = new Map<string, SkillLibrary>();
-        const members: SkillLibraryGroup["members"] = {};
-        for (const [kind, libraryId] of Object.entries(source.members)) {
+        const memberIds: string[] = [];
+        for (const libraryId of source.memberIds) {
           if (!libraryId) continue;
           let copied = copiedBySourceId.get(libraryId);
           if (!copied) {
@@ -4268,7 +4573,7 @@ export class FolderCatalogStore {
               resource: copied
             });
           }
-          members[kind as keyof SkillLibraryGroup["members"]] = copied.id;
+          memberIds.push(copied.id);
         }
         const title = nextCopyTitle(
           source.title,
@@ -4277,7 +4582,7 @@ export class FolderCatalogStore {
         primaryResource = SkillLibraryGroupSchema.parse({
           id: createCatalogId("skill-group"),
           title,
-          members,
+          memberIds,
           createdAt: now,
           updatedAt: now
         });
@@ -4480,7 +4785,6 @@ export class FolderCatalogStore {
       const now = this.now();
       const usedLibraryTitles = snapshot.skills.map(({ title }) => title);
       const plans: DuplicateProjectWritePlan[] = [];
-      const members: SkillLibraryGroup["members"] = {};
       const libraryIds: string[] = [];
       const kindLabels: Record<
         MarketplaceInstallPackage["buckets"][number]["kind"],
@@ -4534,7 +4838,6 @@ export class FolderCatalogStore {
           updatedAt: now
         });
         libraryIds.push(library.id);
-        members[bucket.kind] = library.id;
         plans.push({
           domain: "skill-library",
           parentDirectory: this.defaultProjectParents["skill-library"],
@@ -4550,7 +4853,7 @@ export class FolderCatalogStore {
             input.title,
             snapshot.skillGroups.map(({ title }) => title)
           ),
-          members,
+          memberIds: libraryIds,
           marketplaceSource: {
             contentType: input.source.contentType,
             contentId: input.source.contentId,
@@ -4652,7 +4955,9 @@ export class FolderCatalogStore {
       const base = emptyRegistry(snapshot.updatedAt);
       base.creativePlotStages = mergeCreativePlotStageDefinitions(
         snapshot.creativePlotStages,
-        snapshot.books.flatMap((book) => book.plotStages)
+        snapshot.books.flatMap((book) =>
+          book.bookType === "academic" ? [] : book.plotStages
+        )
       );
       const { registry: next, createdProjectDirectories } =
         await this.writeMissingSnapshotProjects(base, snapshot);
@@ -5157,12 +5462,15 @@ export class FolderCatalogStore {
     }
     const creativePlotStages = await persistCreativePlotStageDefinitions(
       registry,
-      books.flatMap((book) => book.plotStages),
+      books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      ),
       (next) => this.writeRegistry(next)
     );
     const now = this.now();
     for (let index = 0; index < books.length; index += 1) {
       const book = books[index]!;
+      if (book.bookType === "academic") continue;
       const missing = creativePlotStages.filter(
         (stage) =>
           !book.plotStages.some((candidate) => candidate.id === stage.id)
@@ -5176,6 +5484,7 @@ export class FolderCatalogStore {
         projectDirectory,
         book.id
       );
+      if (manifest.bookType === "academic") continue;
       let plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
       let documents = manifest.documents.map((document) => ({ ...document }));
       const usedPaths = new Set(
@@ -5350,7 +5659,9 @@ export class FolderCatalogStore {
 
     const creativePlotStages = await persistCreativePlotStageDefinitions(
       registry,
-      books.flatMap((book) => book.plotStages),
+      books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      ),
       (next) => this.writeRegistry(next)
     );
     return CatalogIndexSnapshotSchema.parse({
@@ -5495,7 +5806,10 @@ function draftCharacterStateTitle(sectionTitle: string): string {
 }
 
 function findDraftDocumentManifest(
-  draft: FolderCurrentBookProjectManifest["draft"],
+  draft: Extract<
+    FolderCurrentBookProjectManifest,
+    { bookType: "short" | "script" }
+  >["draft"],
   documentId: string
 ): { sectionIndex: number; kind: "body" | "characterState" } | undefined {
   for (const [sectionIndex, section] of draft.sections.entries()) {
@@ -5521,6 +5835,26 @@ function findManifestDocument(
     }
   | undefined {
   if (manifest.kind === "deepwrite.book") {
+    if (manifest.bookType === "academic") {
+      if (manifest.foundation.thesisOverview.id === documentId) {
+        return manifest.foundation.thesisOverview;
+      }
+      if (manifest.foundation.terminology.id === documentId) {
+        return manifest.foundation.terminology;
+      }
+      const card = manifest.foundation.cards.find(
+        (item) => item.document.id === documentId
+      );
+      if (card) return card.document;
+      const stageDoc = manifest.documents.find(({ id }) => id === documentId);
+      if (stageDoc) return stageDoc;
+      for (const section of manifest.manuscript.sections) {
+        if (section.brief.id === documentId) return section.brief;
+        if (section.body.id === documentId) return section.body;
+        if (section.state.id === documentId) return section.state;
+      }
+      return undefined;
+    }
     const document = manifest.documents.find(({ id }) => id === documentId);
     if (document) return document;
     if (manifest.schemaVersion === 1) return undefined;
@@ -5622,7 +5956,10 @@ function createDraftSectionsRequestHash(
 
 async function hydrateDraftSectionCreationResult(
   projectDirectory: string,
-  manifest: FolderCurrentBookProjectManifest,
+  manifest: Extract<
+    FolderCurrentBookProjectManifest,
+    { bookType: "short" | "script" }
+  >,
   operationId: string,
   operationSections: ReadonlyArray<{
     clientSectionId: string;
@@ -5886,6 +6223,9 @@ function manifestContentItems(
   manifest: FolderCatalogProjectManifest
 ): Array<{ id: string; path: string }> {
   if (manifest.kind === "deepwrite.book") {
+    if (manifest.bookType === "academic") {
+      return academicManifestContentItems(manifest);
+    }
     return manifest.schemaVersion !== 1
       ? [
           ...manifest.documents,
@@ -6014,12 +6354,14 @@ function assertBaseRevision(
   }
 }
 
-function assertUniqueGroupMembers(libraryIds: Array<string | undefined>): void {
+function assertUniqueGroupMembers(
+  libraryIds: ReadonlyArray<string | undefined>
+): void {
   const selected = libraryIds.filter((libraryId): libraryId is string =>
     Boolean(libraryId)
   );
   if (new Set(selected).size !== selected.length) {
-    throw new Error("同一个资料库不能在一个分组中绑定到多个分类。");
+    throw new Error("同一个资料库不能在一个分组中重复添加。");
   }
 }
 
@@ -6027,7 +6369,7 @@ function assertLibraryNotInAnotherGroup(
   groups: ReadonlyArray<{
     id: string;
     title: string;
-    members: Record<string, string | undefined>;
+    memberIds: readonly string[];
   }>,
   libraryId: string,
   domainLabel: "素材" | "技能",
@@ -6035,8 +6377,7 @@ function assertLibraryNotInAnotherGroup(
 ): void {
   const existing = groups.find(
     (group) =>
-      group.id !== currentGroupId &&
-      Object.values(group.members).includes(libraryId)
+      group.id !== currentGroupId && group.memberIds.includes(libraryId)
   );
   if (existing) {
     throw new Error(
@@ -6459,6 +6800,162 @@ async function writeResourceContents(
     case "book": {
       const book = resource as Book;
       const used = new Set<string>();
+      if (book.bookType === "academic") {
+        const writeDoc = async (
+          dir: string,
+          stem: string,
+          doc: Book["documents"][number]
+        ): Promise<BookProjectDocumentManifest> => {
+          assertTextByteLength(
+            doc.content,
+            maxMarkdownBytes,
+            "Markdown content"
+          );
+          const path = await uniqueRelativeMarkdownPath(
+            projectDirectory,
+            dir,
+            stem,
+            used
+          );
+          used.add(portableContentPathKey(path));
+          await atomicWriteText(join(projectDirectory, path), doc.content);
+          return {
+            id: doc.id,
+            title: doc.title,
+            path,
+            createdAt: doc.createdAt,
+            updatedAt: doc.updatedAt
+          };
+        };
+        const thesisOverview = await writeDoc(
+          "foundation",
+          "thesis-overview",
+          book.foundation.thesisOverview
+        );
+        const terminology = await writeDoc(
+          "foundation",
+          "terminology",
+          book.foundation.terminology
+        );
+        const cards: AcademicReferenceCardManifest[] = [];
+        for (const card of book.foundation.cards) {
+          const doc = await writeDoc(
+            "foundation/cards",
+            card.id,
+            card.document
+          );
+          cards.push({
+            id: card.id,
+            citeKey: card.citeKey,
+            cardType: card.cardType,
+            title: card.title,
+            document: doc,
+            createdAt: card.createdAt,
+            updatedAt: card.updatedAt
+          });
+        }
+        const documents: BookProjectDocumentManifest[] = [];
+        for (const document of book.documents) {
+          documents.push(await writeDoc("framework", document.id, document));
+        }
+        const sections: AcademicManuscriptSectionManifest[] = [];
+        for (const section of book.manuscript.sections) {
+          for (const kind of ["brief", "body", "state"] as const) {
+            assertTextByteLength(
+              section[kind].content,
+              maxMarkdownBytes,
+              `Academic section ${kind} Markdown content`
+            );
+          }
+          const briefPath = await uniqueRelativeMarkdownPathWithSuffix(
+            projectDirectory,
+            "manuscript/sections",
+            section.id,
+            ".brief.md",
+            used
+          );
+          used.add(portableContentPathKey(briefPath));
+          const bodyPath = await uniqueRelativeMarkdownPathWithSuffix(
+            projectDirectory,
+            "manuscript/sections",
+            section.id,
+            ".body.md",
+            used
+          );
+          used.add(portableContentPathKey(bodyPath));
+          const statePath = await uniqueRelativeMarkdownPathWithSuffix(
+            projectDirectory,
+            "manuscript/sections",
+            section.id,
+            ".state.md",
+            used
+          );
+          used.add(portableContentPathKey(statePath));
+          await atomicWriteText(
+            join(projectDirectory, briefPath),
+            section.brief.content
+          );
+          await atomicWriteText(
+            join(projectDirectory, bodyPath),
+            section.body.content
+          );
+          await atomicWriteText(
+            join(projectDirectory, statePath),
+            section.state.content
+          );
+          sections.push({
+            id: section.id,
+            ...(section.chapterId ? { chapterId: section.chapterId } : {}),
+            title: section.title,
+            wordCountRequirement: section.wordCountRequirement,
+            brief: {
+              id: section.brief.id,
+              title: section.brief.title,
+              path: briefPath,
+              createdAt: section.brief.createdAt,
+              updatedAt: section.brief.updatedAt
+            },
+            body: {
+              id: section.body.id,
+              title: section.body.title,
+              path: bodyPath,
+              createdAt: section.body.createdAt,
+              updatedAt: section.body.updatedAt
+            },
+            state: {
+              id: section.state.id,
+              title: section.state.title,
+              path: statePath,
+              createdAt: section.state.createdAt,
+              updatedAt: section.state.updatedAt
+            },
+            createdAt: section.createdAt,
+            updatedAt: section.updatedAt
+          });
+        }
+        return CurrentAcademicBookProjectManifestSchema.parse({
+          ...common,
+          schemaVersion: 4,
+          kind: kindForDomain(domain),
+          bookType: "academic",
+          subtype: book.subtype,
+          citationStyle: book.citationStyle,
+          status: book.status,
+          linkedMaterialIds: book.linkedMaterialIds,
+          linkedSkillIds: book.linkedSkillIds,
+          foundation: {
+            thesisOverview,
+            terminology,
+            cards
+          },
+          frameworkStages: book.frameworkStages,
+          documents,
+          manuscript: {
+            chapters: book.manuscript.chapters,
+            sections
+          }
+        });
+      }
       const documents: BookProjectDocumentManifest[] = [];
       for (const document of book.documents) {
         assertTextByteLength(
@@ -6593,6 +7090,7 @@ async function writeResourceContents(
         kind: kindForDomain(domain),
         materialType: material.materialType,
         materialKind: material.materialKind,
+        ...(material.customTag ? { customTag: material.customTag } : {}),
         parentGenre: material.parentGenre,
         subGenre: material.subGenre,
         overview: material.overview,
@@ -6643,6 +7141,7 @@ async function writeResourceContents(
         kind: kindForDomain(domain),
         skillType: skill.skillType,
         skillKind: skill.skillKind,
+        ...(skill.customTag ? { customTag: skill.customTag } : {}),
         overview: skill.overview,
         isBuiltin: skill.isBuiltin,
         ...(skill.marketplaceSource
@@ -6656,7 +7155,7 @@ async function writeResourceContents(
       return FolderMaterialGroupProjectManifestSchema.parse({
         ...common,
         kind: kindForDomain(domain),
-        members: group.members
+        memberIds: group.memberIds
       });
     }
     case "skill-group": {
@@ -6664,7 +7163,7 @@ async function writeResourceContents(
       return FolderSkillGroupProjectManifestSchema.parse({
         ...common,
         kind: kindForDomain(domain),
-        members: group.members,
+        memberIds: group.memberIds,
         ...(group.marketplaceSource
           ? { marketplaceSource: group.marketplaceSource }
           : {})
@@ -6688,6 +7187,59 @@ function indexBookFromManifest(
   manifest: FolderBookProjectManifest,
   contentMetadataById: ReadonlyMap<string, CatalogContentMetadata>
 ): CatalogIndexSnapshot["books"][number] {
+  if (manifest.bookType === "academic") {
+    const toIndexDoc = (doc: BookProjectDocumentManifest) => ({
+      id: doc.id,
+      title: doc.title,
+      content: "" as const,
+      ...(contentMetadataById.get(doc.id) ??
+        emptyContentMetadata(doc.updatedAt)),
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt
+    });
+    return CatalogIndexBookSchema.parse({
+      id: manifest.id,
+      title: manifest.title,
+      bookType: "academic",
+      subtype: manifest.subtype,
+      citationStyle: manifest.citationStyle,
+      status: manifest.status,
+      linkedMaterialIds: manifest.linkedMaterialIds,
+      linkedSkillIds: manifest.linkedSkillIds,
+      projectRevision: manifest.revision,
+      foundation: {
+        thesisOverview: toIndexDoc(manifest.foundation.thesisOverview),
+        terminology: toIndexDoc(manifest.foundation.terminology),
+        cards: manifest.foundation.cards.map((card) => ({
+          id: card.id,
+          citeKey: card.citeKey,
+          cardType: card.cardType,
+          title: card.title,
+          document: toIndexDoc(card.document),
+          createdAt: card.createdAt,
+          updatedAt: card.updatedAt
+        }))
+      },
+      frameworkStages: manifest.frameworkStages,
+      documents: manifest.documents.map(toIndexDoc),
+      manuscript: {
+        chapters: manifest.manuscript.chapters,
+        sections: manifest.manuscript.sections.map((section) => ({
+          id: section.id,
+          ...(section.chapterId ? { chapterId: section.chapterId } : {}),
+          title: section.title,
+          wordCountRequirement: section.wordCountRequirement,
+          brief: toIndexDoc(section.brief),
+          body: toIndexDoc(section.body),
+          state: toIndexDoc(section.state),
+          createdAt: section.createdAt,
+          updatedAt: section.updatedAt
+        }))
+      },
+      createdAt: manifest.createdAt,
+      updatedAt: manifest.updatedAt
+    });
+  }
   const bookInput = {
     id: manifest.id,
     title: manifest.title,
@@ -6756,6 +7308,9 @@ function indexBookFromManifest(
   const legacyDraftMetadata = legacyDraft
     ? contentMetadataById.get(legacyDraft.id)
     : undefined;
+  if (book.bookType === "academic") {
+    throw new Error("Unexpected academic book in creative book indexer.");
+  }
   return CatalogIndexBookSchema.parse({
     ...book,
     documents: book.documents.map((document) => ({
@@ -6804,6 +7359,7 @@ function indexResourceFromManifest(
         title: manifest.title,
         materialType: manifest.materialType,
         materialKind: manifest.materialKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         parentGenre: manifest.parentGenre,
         subGenre: manifest.subGenre,
         overview: "",
@@ -6832,6 +7388,7 @@ function indexResourceFromManifest(
         title: manifest.title,
         skillType: manifest.skillType,
         skillKind: manifest.skillKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         overview: "",
         overviewContentBytes: Buffer.byteLength(manifest.overview, "utf8"),
         overviewContentStamp: manifestContentStamp(
@@ -6872,7 +7429,7 @@ function indexResourceFromManifest(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         projectRevision: manifest.revision,
         createdAt: manifest.createdAt,
         updatedAt: manifest.updatedAt
@@ -6881,7 +7438,7 @@ function indexResourceFromManifest(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         ...(manifest.marketplaceSource
           ? { marketplaceSource: manifest.marketplaceSource }
           : {}),
@@ -6902,6 +7459,70 @@ async function hydrateResource(
     case "deepwrite.book": {
       if (manifest.schemaVersion !== 4) {
         throw new Error("书籍项目未完成正文目录迁移。");
+      }
+      if (manifest.bookType === "academic") {
+        const items = academicManifestContentItems(manifest);
+        const contents = await readProjectMarkdownContents(
+          projectDirectory,
+          items,
+          maxMarkdownBytes,
+          maxProjectContentBytes
+        );
+        let cursor = 0;
+        const nextDoc = (doc: BookProjectDocumentManifest) => ({
+          id: doc.id,
+          title: doc.title,
+          content: contents[cursor++]!,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
+        });
+        const thesisOverview = nextDoc(manifest.foundation.thesisOverview);
+        const terminology = nextDoc(manifest.foundation.terminology);
+        const cards = manifest.foundation.cards.map((card) => ({
+          id: card.id,
+          citeKey: card.citeKey,
+          cardType: card.cardType,
+          title: card.title,
+          document: nextDoc(card.document),
+          createdAt: card.createdAt,
+          updatedAt: card.updatedAt
+        }));
+        const documents = manifest.documents.map(nextDoc);
+        const sections = manifest.manuscript.sections.map((section) => ({
+          id: section.id,
+          ...(section.chapterId ? { chapterId: section.chapterId } : {}),
+          title: section.title,
+          wordCountRequirement: section.wordCountRequirement,
+          brief: nextDoc(section.brief),
+          body: nextDoc(section.body),
+          state: nextDoc(section.state),
+          createdAt: section.createdAt,
+          updatedAt: section.updatedAt
+        }));
+        return AcademicBookSchema.parse({
+          id: manifest.id,
+          title: manifest.title,
+          bookType: "academic",
+          subtype: manifest.subtype,
+          citationStyle: manifest.citationStyle,
+          status: manifest.status,
+          linkedMaterialIds: manifest.linkedMaterialIds,
+          linkedSkillIds: manifest.linkedSkillIds,
+          projectRevision: manifest.revision,
+          foundation: {
+            thesisOverview,
+            terminology,
+            cards
+          },
+          frameworkStages: manifest.frameworkStages,
+          documents,
+          manuscript: {
+            chapters: manifest.manuscript.chapters,
+            sections
+          },
+          createdAt: manifest.createdAt,
+          updatedAt: manifest.updatedAt
+        });
       }
       const draftFiles = manifest.draft.sections.flatMap((section) => [
         section.body,
@@ -6975,6 +7596,7 @@ async function hydrateResource(
         title: manifest.title,
         materialType: manifest.materialType,
         materialKind: manifest.materialKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         parentGenre: manifest.parentGenre,
         subGenre: manifest.subGenre,
         overview: manifest.overview,
@@ -7003,6 +7625,7 @@ async function hydrateResource(
         title: manifest.title,
         skillType: manifest.skillType,
         skillKind: manifest.skillKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         overview: manifest.overview,
         isBuiltin: manifest.isBuiltin,
         ...(manifest.marketplaceSource
@@ -7037,7 +7660,7 @@ async function hydrateResource(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         projectRevision: manifest.revision,
         createdAt: manifest.createdAt,
         updatedAt: manifest.updatedAt
@@ -7046,7 +7669,7 @@ async function hydrateResource(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         ...(manifest.marketplaceSource
           ? { marketplaceSource: manifest.marketplaceSource }
           : {}),
@@ -7096,6 +7719,24 @@ function resourceContentByteLength(resource: FolderCatalogResource): number {
       (total, document) => total + Buffer.byteLength(document.content, "utf8"),
       0
     );
+    if (resource.bookType === "academic") {
+      const foundationBytes =
+        Buffer.byteLength(resource.foundation.thesisOverview.content, "utf8") +
+        Buffer.byteLength(resource.foundation.terminology.content, "utf8") +
+        resource.foundation.cards.reduce(
+          (sum, card) => sum + Buffer.byteLength(card.document.content, "utf8"),
+          0
+        );
+      const manuscriptBytes = resource.manuscript.sections.reduce(
+        (sum, section) =>
+          sum +
+          Buffer.byteLength(section.brief.content, "utf8") +
+          Buffer.byteLength(section.body.content, "utf8") +
+          Buffer.byteLength(section.state.content, "utf8"),
+        0
+      );
+      return metadataBytes + foundationBytes + documentBytes + manuscriptBytes;
+    }
     const draftBytes = resource.draft.sections.reduce(
       (total, section) =>
         total +

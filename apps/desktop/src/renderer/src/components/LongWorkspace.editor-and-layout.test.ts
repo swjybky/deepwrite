@@ -315,16 +315,14 @@ describe("long-form renderer vertical slice: editor-and-layout", () => {
     expect(creationSource).toContain("async function createCreativeBook(");
     expect(creationSubmitSource).toContain("withShortBookDefaultPlotStages(");
     expect(workspaceTypeSource).toContain(
-      'workspaceType?: "short" | "script" | "long";'
+      'workspaceType?: "short" | "script" | "long" | "academic" | "mystery";'
     );
     const workspaceDocumentSource =
       workspaceTypeSource.split("export interface WorkspaceDocument")[1] ?? "";
     expect(workspaceDocumentSource).toContain(
-      'workspaceType?: "short" | "script";'
+      'workspaceType?: "short" | "script" | "academic" | "mystery";'
     );
-    expect(workspaceDocumentSource).not.toContain(
-      'workspaceType?: "short" | "script" | "long";'
-    );
+    expect(workspaceDocumentSource).not.toMatch(/workspaceType\?:[^;]*"long"/u);
   });
 
   it("keeps the first long-form entry on a stable two-column shell", () => {

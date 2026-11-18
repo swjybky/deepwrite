@@ -9,7 +9,7 @@ const MaterialQueryKindSchema = MaterialKindSchema;
 export const MaterialReadScopeSchema = z
   .object({
     bookId: z.string().min(1).max(512),
-    bookType: z.enum(["short", "script", "long"]),
+    bookType: z.enum(["short", "script", "long", "academic", "mystery"]),
     stageId: z.string().min(1).max(120),
     kinds: z.array(MaterialQueryKindSchema).max(5)
   })

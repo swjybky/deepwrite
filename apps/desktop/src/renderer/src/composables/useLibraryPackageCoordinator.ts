@@ -77,9 +77,7 @@ export function useLibraryPackageCoordinator(context: LibraryPackageContext) {
       payload.domain === "material"
         ? snapshot?.materialGroups.find(({ id }) => id === payload.node.groupId)
         : snapshot?.skillGroups.find(({ id }) => id === payload.node.groupId);
-    return new Set(
-      Object.values(group?.members ?? {}).filter((id): id is string => !!id)
-    );
+    return new Set(group?.memberIds ?? []);
   }
 
   async function exportPackage(

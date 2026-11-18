@@ -12,6 +12,10 @@ import {
 } from "../folder-catalog-store";
 import { LongDocumentConflictError } from "../long-project-store/types";
 import type { LongWorkspaceService } from "../long-workspace-service";
+import {
+  MysteryDocumentConflictError,
+  type MysteryWorkspaceService
+} from "../mystery-store";
 import { ProjectTransactionConflictError } from "../project-transaction";
 import type { UtilityRuntimeOptions } from "../runtime";
 import { DocumentVersionError } from "./version-errors";
@@ -60,7 +64,8 @@ async function restoreVersion<T>(
 export async function executeDocumentVersionCommand(
   command: DocumentVersionCommandEnvelope,
   catalog: () => Promise<FolderCatalogStore>,
-  longs: LongWorkspaceService
+  longs: LongWorkspaceService,
+  mysteries?: MysteryWorkspaceService
 ): Promise<unknown> {
   const target = command.payload.target;
   if (target.workspace === "catalog") {
@@ -93,6 +98,55 @@ export async function executeDocumentVersionCommand(
         });
       }
     );
+  }
+  if (target.workspace === "mystery") {
+    if (!mysteries)
+      throw new DocumentVersionError(
+        "version.unavailable",
+        "当前运行上下文不支持剧本杀文档历史版本。"
+      );
+    const directory = await mysteries.catalog.resolveProjectDirectory(
+      target.bookId
+    );
+    const result = await mysteries.store.withDocumentVersions(
+      directory,
+      target.bookId,
+      target.target,
+      async (versions, content, save) => {
+        if (command.type === "versions.list")
+          return ListDocumentVersionsResultSchema.parse({
+            versions: await versions.list(),
+            current: documentVersionCurrent(content)
+          });
+        if (command.type === "versions.read")
+          return ReadDocumentVersionResultSchema.parse(
+            await versions.read(command.payload.versionId)
+          );
+        const restored = await restoreVersion(
+          command.payload,
+          versions,
+          content,
+          (restoredContent, afterCommit) =>
+            save(
+              restoredContent,
+              command.payload.expectedCurrentSha256,
+              afterCommit
+            )
+        );
+        return RestoreDocumentVersionResultSchema.parse({
+          workspace: "mystery",
+          ...restored
+        });
+      }
+    );
+    if (command.type === "versions.restore") {
+      const restored = RestoreDocumentVersionResultSchema.parse(result);
+      if (restored.workspace === "mystery")
+        await mysteries.catalog
+          .updateSummary(target.bookId, restored.document.summary)
+          .catch(() => undefined);
+    }
+    return result;
   }
   const directory = await longs.catalog.resolveProjectDirectory(target.bookId);
   const result = await longs.store.withDocumentVersions(
@@ -139,7 +193,8 @@ export async function executeDocumentVersionCommand(
 export function withDocumentVersionCommands(
   catalog: () => Promise<FolderCatalogStore>,
   longs: LongWorkspaceService,
-  handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>
+  handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>,
+  mysteries?: MysteryWorkspaceService
 ): NonNullable<UtilityRuntimeOptions["commandHandler"]> {
   return async (command, emitEvent, context) => {
     if (
@@ -152,12 +207,18 @@ export function withDocumentVersionCommands(
       return {
         status: "accepted",
         requestId: command.id,
-        payload: await executeDocumentVersionCommand(command, catalog, longs)
+        payload: await executeDocumentVersionCommand(
+          command,
+          catalog,
+          longs,
+          mysteries
+        )
       };
     } catch (error) {
       const conflict =
         error instanceof FolderCatalogConflictError ||
         error instanceof LongDocumentConflictError ||
+        error instanceof MysteryDocumentConflictError ||
         error instanceof ProjectTransactionConflictError;
       return {
         status: "rejected",

@@ -12,11 +12,22 @@ import type { PortableToolSchemaProfile } from "./portable-tool-schema";
 import { createLibraryManagementRuntime } from "./library-management-runtime";
 import { createTeamManagementRuntime } from "./team-management-runtime";
 import { createMaterialQueryRunner } from "./material-query-runtime";
+import {
+  buildAcademicWorkspaceTools,
+  createAcademicWorkspaceToolSharedState,
+  createAcademicWritingReader,
+  settleAcademicMutations
+} from "./academic-agent-tools";
 import { buildDomainLibraryAgentTools } from "./library-agent-tools/domain-tools";
 import {
   buildLongWorkspaceTools,
   createLongWorkspaceToolSharedState
 } from "./long-agent-tools";
+import {
+  buildMysteryWorkspaceTools,
+  createMysteryWorkspaceToolSharedState,
+  mysterySubagentContext
+} from "./mystery";
 import {
   buildScriptWorkspaceTools,
   buildShortWorkspaceTools,
@@ -28,6 +39,7 @@ import { buildSubagentMaterialContext } from "./prompts-material";
 import { buildSpawnSubagentTool } from "./subagent-runtime";
 import { workspaceContextPolicy } from "./workspace-context-policy";
 import { longSubagentContext } from "./long-subagent-requirements";
+import { academicSubagentContext } from "./prompts-academic";
 import { writingSubagentContext } from "./writing-subagent-context";
 import { buildProviderRuntime, toPiThinkingLevel } from "./provider-runtime";
 import { mainWebSearchSession, withWebSearchTool } from "./web-search/mount";
@@ -80,6 +92,8 @@ export function buildRunTools(
     shortWorkspace,
     scriptWorkspace,
     longWorkspace,
+    academicWorkspace,
+    mysteryWorkspace,
     libraryWorkspace,
     subagentAuthoring
   } = input.workspaceContext ?? {};
@@ -104,11 +118,29 @@ export function buildRunTools(
     longWorkspace && input.longAgentProfile
       ? createLongWorkspaceToolSharedState()
       : undefined;
+  const academicToolSharedState =
+    academicWorkspace && input.academicAgentProfile
+      ? createAcademicWorkspaceToolSharedState(academicWorkspace)
+      : undefined;
+  const mysteryToolSharedState =
+    mysteryWorkspace && input.mysteryAgentProfile
+      ? createMysteryWorkspaceToolSharedState()
+      : undefined;
   // Every proposal of a paused-for step is settled once the user answered:
   // saved ones are in Core now, the rest must not stay visible to reads.
   if (longToolSharedState) {
     options.onWriteApprovalSettled?.(() =>
       longToolSharedState.proposalOverlay.clear()
+    );
+  }
+  if (academicToolSharedState) {
+    options.onWriteApprovalSettled?.((ids, response) =>
+      settleAcademicMutations(academicToolSharedState, ids, response)
+    );
+  }
+  if (mysteryToolSharedState) {
+    options.onWriteApprovalSettled?.(() =>
+      mysteryToolSharedState.proposalOverlay.clear()
     );
   }
   if (writingToolSharedState) {
@@ -192,6 +224,75 @@ export function buildRunTools(
       buildLongToolSet(includeAskUserQuestion, onContextCompacted),
       search
     );
+  const buildAcademicToolSet = (
+    includeAskUserQuestion = true,
+    onContextCompacted = options.onContextCompacted
+  ): AgentTool[] =>
+    academicWorkspace && input.academicAgentProfile
+      ? buildAcademicWorkspaceTools({
+          promptLocale: input.promptLocale,
+          writingReader: createAcademicWritingReader(
+            input,
+            academicWorkspace.id
+          ),
+          workspace: academicWorkspace,
+          profile: input.academicAgentProfile,
+          writeApprovalMode: input.writeApprovalMode ?? "request-approval",
+          attachedSkills: input.workspaceContext?.attachedSkills,
+          attachedMaterials: input.workspaceContext?.attachedMaterials,
+          queryMaterials: createMaterialQueryRunner(input),
+          requestUserInput,
+          includeAskUserQuestion,
+          ...(onContextCompacted ? { onContextCompacted } : {}),
+          ...(academicToolSharedState
+            ? { sharedState: academicToolSharedState }
+            : {})
+        })
+      : [];
+  const buildAcademicTools = (
+    includeAskUserQuestion: boolean,
+    onContextCompacted: Parameters<typeof buildAcademicToolSet>[1],
+    search: WebSearchSession | undefined
+  ): AgentTool[] =>
+    withWebSearchTool(
+      buildAcademicToolSet(includeAskUserQuestion, onContextCompacted),
+      search
+    );
+  const buildMysteryToolSet = (
+    includeAskUserQuestion = true,
+    onContextCompacted = options.onContextCompacted
+  ): AgentTool[] =>
+    mysteryWorkspace && input.mysteryAgentProfile
+      ? buildMysteryWorkspaceTools({
+          promptLocale: input.promptLocale,
+          workspace: mysteryWorkspace,
+          profile: input.mysteryAgentProfile,
+          sessionId: input.sessionId,
+          runId: input.runId,
+          writeApprovalMode: input.writeApprovalMode ?? "request-approval",
+          attachedSkills: input.workspaceContext?.attachedSkills,
+          attachedMaterials: input.workspaceContext?.attachedMaterials,
+          queryMaterials: createMaterialQueryRunner(input),
+          ...(input.mysteryCommandExecutor
+            ? { executor: input.mysteryCommandExecutor }
+            : {}),
+          requestUserInput,
+          includeAskUserQuestion,
+          ...(onContextCompacted ? { onContextCompacted } : {}),
+          ...(mysteryToolSharedState
+            ? { sharedState: mysteryToolSharedState }
+            : {})
+        })
+      : [];
+  const buildMysteryTools = (
+    includeAskUserQuestion: boolean,
+    onContextCompacted: Parameters<typeof buildMysteryToolSet>[1],
+    search: WebSearchSession | undefined
+  ): AgentTool[] =>
+    withWebSearchTool(
+      buildMysteryToolSet(includeAskUserQuestion, onContextCompacted),
+      search
+    );
   const management = createLibraryManagementRuntime(input);
   options.onWriteApprovalSettled?.(() => management.reset?.());
   const teamManagement = createTeamManagementRuntime(input, requestUserInput);
@@ -215,14 +316,20 @@ export function buildRunTools(
         )
       : longWorkspace && input.longAgentProfile
         ? buildLongTools(true, options.onContextCompacted, mainWebSearch)
-        : (scriptWorkspace && input.scriptAgentProfile) ||
-            (shortWorkspace && input.agentProfile)
-          ? buildWritingTools(options.onContextCompacted, mainWebSearch)
-          : [];
+        : academicWorkspace && input.academicAgentProfile
+          ? buildAcademicTools(true, options.onContextCompacted, mainWebSearch)
+          : mysteryWorkspace && input.mysteryAgentProfile
+            ? buildMysteryTools(true, options.onContextCompacted, mainWebSearch)
+            : (scriptWorkspace && input.scriptAgentProfile) ||
+                (shortWorkspace && input.agentProfile)
+              ? buildWritingTools(options.onContextCompacted, mainWebSearch)
+              : [];
   if (
     ((scriptWorkspace && input.scriptAgentProfile) ||
       (shortWorkspace && input.agentProfile) ||
-      (longWorkspace && input.longAgentProfile)) &&
+      (longWorkspace && input.longAgentProfile) ||
+      (academicWorkspace && input.academicAgentProfile) ||
+      (mysteryWorkspace && input.mysteryAgentProfile)) &&
     !subagentAuthoring
   ) {
     tools = [...tools, ...management.tools, ...teamManagement.tools];
@@ -274,13 +381,21 @@ export function buildRunTools(
       buildChildTools:
         longWorkspace && input.longAgentProfile
           ? (listener) => buildLongTools(false, listener, webSearch)
-          : (listener) => buildWritingTools(listener, webSearch),
+          : academicWorkspace && input.academicAgentProfile
+            ? (listener) => buildAcademicTools(false, listener, webSearch)
+            : mysteryWorkspace && input.mysteryAgentProfile
+              ? (listener) => buildMysteryTools(false, listener, webSearch)
+              : (listener) => buildWritingTools(listener, webSearch),
       mainWebSearch: input.webSearchEnabled === true,
       ...(scriptWorkspace || shortWorkspace
         ? writingSubagentContext(input, writingToolSharedState)
         : longWorkspace
           ? longSubagentContext(input, longToolSharedState)
-          : {}),
+          : academicWorkspace
+            ? academicSubagentContext(input, academicToolSharedState)
+            : mysteryWorkspace
+              ? mysterySubagentContext(input)
+              : {}),
       toolExecutionHooks: options.toolExecutionHooks,
       ...(options.retryPolicy ? { retryPolicy: options.retryPolicy } : {}),
       ...(options.subagentTimeoutMs === undefined

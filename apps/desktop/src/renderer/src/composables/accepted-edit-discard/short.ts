@@ -247,7 +247,12 @@ async function discardCharacterStructureEdit(
   const target = proposal.characterStructureTarget!;
   const api = context.api();
   const book = context.catalog.catalogBook(proposal.workspaceId);
-  if (!api || !book || book.characterStructure.format !== "list") {
+  if (
+    !api ||
+    !book ||
+    book.bookType === "academic" ||
+    book.characterStructure.format !== "list"
+  ) {
     throw new Error(t("theCharacterStructureIsUnavailableThisEditCannotBe"));
   }
   const mutation = target.mutation;
@@ -313,6 +318,7 @@ async function discardPlotStructureEdit(
     mutation.type !== "update" ||
     !api ||
     !book ||
+    book.bookType === "academic" ||
     book.projectRevision === undefined
   ) {
     throw new Error(t("thePlotStructureIsUnavailableThisEditCannotBe"));

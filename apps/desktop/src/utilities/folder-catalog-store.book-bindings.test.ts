@@ -2,6 +2,7 @@ import type { UpdateBookInput } from "@deepwrite/contracts";
 import {
   FolderCatalogConflictError,
   FolderCatalogStore,
+  asCreativeBook,
   catalogFixture,
   describe,
   expect,
@@ -40,13 +41,13 @@ describe("FolderCatalogStore book binding recovery", () => {
         domain: "material",
         projectId: "material-existing"
       });
-      const book = (await store.snapshot()).books[0]!;
+      const book = asCreativeBook((await store.snapshot()).books[0]);
       const input = {
         bookId: book.id,
         baseProjectRevision: book.projectRevision,
         linkedSkillIdsByKind: { general: ["skill-existing"] }
       };
-      const updated = await store.updateBook(input);
+      const updated = asCreativeBook(await store.updateBook(input));
       expect(updated.linkedSkillIdsByKind.general).toEqual(["skill-existing"]);
       expect(updated.linkedMaterialIdsByKind).toEqual(
         book.linkedMaterialIdsByKind
@@ -54,7 +55,8 @@ describe("FolderCatalogStore book binding recovery", () => {
       expect(updated.projectRevision).toBe(book.projectRevision! + 1);
       const restarted = new FolderCatalogStore({ userDataPath });
       expect(
-        (await restarted.snapshot()).books[0]!.linkedSkillIdsByKind
+        asCreativeBook((await restarted.snapshot()).books[0])
+          .linkedSkillIdsByKind
       ).toEqual(updated.linkedSkillIdsByKind);
       await expect(restarted.updateBook(input)).rejects.toBeInstanceOf(
         FolderCatalogConflictError
@@ -79,12 +81,14 @@ describe("FolderCatalogStore book binding recovery", () => {
           projectId: "material-group-existing"
         });
       }
-      const book = (await store.snapshot()).books[0]!;
-      const updated = await store.updateBook({
-        bookId: book.id,
-        baseProjectRevision: book.projectRevision,
-        linkedSkillIdsByKind: { general: ["skill-existing"] }
-      });
+      const book = asCreativeBook((await store.snapshot()).books[0]);
+      const updated = asCreativeBook(
+        await store.updateBook({
+          bookId: book.id,
+          baseProjectRevision: book.projectRevision,
+          linkedSkillIdsByKind: { general: ["skill-existing"] }
+        })
+      );
       expect(updated.linkedSkillIdsByKind.general).toEqual(["skill-existing"]);
       expect(updated.linkedMaterialIdsByKind).toEqual(
         book.linkedMaterialIdsByKind
@@ -95,21 +99,25 @@ describe("FolderCatalogStore book binding recovery", () => {
   it("updates material bindings and book metadata despite deleted skill bindings", async () => {
     const { store } = await fixture();
     await store.deleteProject({ domain: "skill", projectId: "skill-existing" });
-    const book = (await store.snapshot()).books[0]!;
-    const updated = await store.updateBook({
-      bookId: book.id,
-      baseProjectRevision: book.projectRevision,
-      linkedMaterialIdsByKind: { character: ["material-existing"] }
-    });
+    const book = asCreativeBook((await store.snapshot()).books[0]);
+    const updated = asCreativeBook(
+      await store.updateBook({
+        bookId: book.id,
+        baseProjectRevision: book.projectRevision,
+        linkedMaterialIdsByKind: { character: ["material-existing"] }
+      })
+    );
     expect(updated.linkedMaterialIdsByKind.character).toEqual([
       "material-existing"
     ]);
     expect(updated.linkedSkillIdsByKind).toEqual(book.linkedSkillIdsByKind);
-    const renamed = await store.updateBook({
-      bookId: book.id,
-      baseProjectRevision: updated.projectRevision,
-      title: "删除资料库后仍可重命名"
-    });
+    const renamed = asCreativeBook(
+      await store.updateBook({
+        bookId: book.id,
+        baseProjectRevision: updated.projectRevision,
+        title: "删除资料库后仍可重命名"
+      })
+    );
     expect(renamed.title).toBe("删除资料库后仍可重命名");
     expect(renamed.linkedSkillIdsByKind).toEqual(book.linkedSkillIdsByKind);
   });
@@ -133,34 +141,51 @@ describe("FolderCatalogStore book binding recovery", () => {
       skillKind: "general",
       parentDirectory: root
     });
-    const book = (await store.snapshot()).books[0]!;
-    const reboundMaterial = await store.updateBook({
-      bookId: book.id,
-      baseProjectRevision: book.projectRevision,
-      linkedMaterialIdsByKind: { character: [material.resource.id] }
-    });
+    const book = asCreativeBook((await store.snapshot()).books[0]);
+    const reboundMaterial = asCreativeBook(
+      await store.updateBook({
+        bookId: book.id,
+        baseProjectRevision: book.projectRevision,
+        linkedMaterialIdsByKind: { character: [material.resource.id] }
+      })
+    );
     expect(reboundMaterial.linkedMaterialIdsByKind.character).toEqual([
       material.resource.id
     ]);
     expect(reboundMaterial.linkedSkillIdsByKind).toEqual(
       book.linkedSkillIdsByKind
     );
-    const updated = await store.updateBook({
-      bookId: book.id,
-      baseProjectRevision: reboundMaterial.projectRevision,
-      linkedSkillIdsByKind: { general: [skill.resource.id] }
-    });
+    const updated = asCreativeBook(
+      await store.updateBook({
+        bookId: book.id,
+        baseProjectRevision: reboundMaterial.projectRevision,
+        linkedSkillIdsByKind: { general: [skill.resource.id] }
+      })
+    );
     expect(updated.linkedMaterialIdsByKind).toEqual(
       reboundMaterial.linkedMaterialIdsByKind
     );
     expect(updated.linkedSkillIdsByKind.general).toEqual([skill.resource.id]);
   });
 
+  it("accepts cross-kind library bindings across material and skill buckets", async () => {
+    const { store } = await fixture();
+    const book = asCreativeBook((await store.snapshot()).books[0]);
+    const updated = asCreativeBook(
+      await store.updateBook({
+        bookId: book.id,
+        baseProjectRevision: book.projectRevision,
+        linkedMaterialIdsByKind: { plot: ["material-existing"] },
+        linkedSkillIdsByKind: { other: ["skill-existing"] }
+      })
+    );
+    expect(updated.linkedMaterialIdsByKind.plot).toEqual(["material-existing"]);
+    expect(updated.linkedSkillIdsByKind.other).toEqual(["skill-existing"]);
+  });
+
   it.each([
     { linkedMaterialIdsByKind: { character: ["missing-material"] } },
-    { linkedSkillIdsByKind: { general: ["missing-skill"] } },
-    { linkedMaterialIdsByKind: { plot: ["material-existing"] } },
-    { linkedSkillIdsByKind: { other: ["skill-existing"] } }
+    { linkedSkillIdsByKind: { general: ["missing-skill"] } }
   ] satisfies Array<Partial<UpdateBookInput>>)(
     "rejects invalid newly submitted bindings without changing durable data: %j",
     async (patch) => {

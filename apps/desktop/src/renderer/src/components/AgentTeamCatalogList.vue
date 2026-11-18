@@ -7,6 +7,8 @@ import type {
 import { agentTeamBoundBookCount } from "@deepwrite/contracts/renderer";
 import { computed, ref } from "vue";
 import { createScopedTranslator } from "../i18n";
+import { academicAgentT } from "./academic/academicAgentLabels";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import AgentTeamBindingGuide from "./AgentTeamBindingGuide.vue";
 import AgentTeamSwitch from "./AgentTeamSwitch.vue";
 import AppIcon from "./AppIcon.vue";
@@ -34,7 +36,13 @@ const emit = defineEmits<{
   delete: [team: AgentTeamProfile];
 }>();
 
-const WORKSPACE_TYPES = ["short", "script", "long"] as const;
+const WORKSPACE_TYPES = [
+  "short",
+  "script",
+  "long",
+  "academic",
+  "mystery"
+] as const;
 type TypeFilter = AgentTeamWorkspaceType | "all";
 
 const typeFilter = ref<TypeFilter>("all");
@@ -66,7 +74,11 @@ function workspaceTypeLabel(type: AgentTeamWorkspaceType): string {
     ? t("shortStory")
     : type === "script"
       ? t("screenplay")
-      : t("novel");
+      : type === "long"
+        ? t("novel")
+        : type === "academic"
+          ? academicAgentT("tabLabel")
+          : mysteryLabels("murderMystery");
 }
 
 function isEnabled(team: AgentTeamProfile): boolean {

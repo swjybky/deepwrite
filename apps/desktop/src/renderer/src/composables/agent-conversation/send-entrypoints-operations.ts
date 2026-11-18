@@ -1,6 +1,7 @@
 import type {
   ExtrasChatTask,
   LongWorkspaceRuntimeContext,
+  MysteryWorkspaceRuntimeContext,
   UserPromptAttachment,
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
@@ -29,6 +30,22 @@ export interface SendEntrypointsOperations {
   resendLongMessage(
     request: ConversationMessageRewriteRequest,
     context: LongWorkspaceRuntimeContext,
+    attachments?: Pick<
+      WorkspaceRuntimeContext,
+      "attachedSkills" | "attachedMaterials"
+    >
+  ): Promise<boolean>;
+  sendMysteryMessage(
+    context: MysteryWorkspaceRuntimeContext,
+    attachments?: Pick<
+      WorkspaceRuntimeContext,
+      "attachedSkills" | "attachedMaterials"
+    >,
+    promptAttachments?: UserPromptAttachment[]
+  ): Promise<void>;
+  resendMysteryMessage(
+    request: ConversationMessageRewriteRequest,
+    context: MysteryWorkspaceRuntimeContext,
     attachments?: Pick<
       WorkspaceRuntimeContext,
       "attachedSkills" | "attachedMaterials"

@@ -1,4 +1,7 @@
-import { LibraryStructurePlanSchema } from "@deepwrite/contracts/renderer";
+import {
+  AcademicMutationTargetSchema,
+  LibraryStructurePlanSchema
+} from "@deepwrite/contracts/renderer";
 import type {
   AgentApprovalMode,
   AgentEditProposal,
@@ -108,6 +111,20 @@ export function parseStoredEditProposal(
     value.longPlotDesignTarget
   );
   const longDraftTarget = parseStoredLongDraftTarget(value.longDraftTarget);
+  const academicMutationTarget =
+    value.stageId === "academic"
+      ? AcademicMutationTargetSchema.safeParse(value.academicMutationTarget)
+          .data
+      : undefined;
+  const academicBaseProjectRevision =
+    academicMutationTarget &&
+    nonnegativeInteger(value.academicBaseProjectRevision)
+      ? value.academicBaseProjectRevision
+      : undefined;
+  const missingAcademicTarget =
+    value.stageId === "academic" &&
+    !academicMutationTarget &&
+    ["pending", "accepting", "error"].includes(String(value.status));
   const isLongFormProposal = Boolean(
     longWorldbuildingTarget ||
     longCharacterTarget ||
@@ -182,11 +199,13 @@ export function parseStoredEditProposal(
   const discardSnapshot = parseStoredDiscardSnapshot(value.discardSnapshot);
   const discardState = parseStoredDiscardState(value.discardState);
   const staleBase = parseStoredStaleBase(value.staleBase);
-  const statusMessage = isLongFormProposal
-    ? value.status === "conflict"
-      ? undefined
-      : normalizeStoredLongProposalStatusMessage(value.statusMessage)
-    : (value.statusMessage as string | undefined);
+  const statusMessage = missingAcademicTarget
+    ? "缺少原始学术提案，请基于最新内容重新生成。"
+    : isLongFormProposal
+      ? value.status === "conflict"
+        ? undefined
+        : normalizeStoredLongProposalStatusMessage(value.statusMessage)
+      : (value.statusMessage as string | undefined);
   if (
     !isLongFormProposal &&
     ((value.discardSnapshot !== undefined && !discardSnapshot) ||
@@ -218,9 +237,10 @@ export function parseStoredEditProposal(
     documentId: value.documentId,
     title: value.title,
     summary: value.summary,
-    status:
-      value.status === "accepting" ||
-      (isLongFormProposal && value.status === "conflict")
+    status: missingAcademicTarget
+      ? "conflict"
+      : value.status === "accepting" ||
+          (isLongFormProposal && value.status === "conflict")
         ? "pending"
         : (value.status as AgentEditProposal["status"]),
     ...(!isLongFormProposal && typeof value.baseRevision === "string"
@@ -258,6 +278,10 @@ export function parseStoredEditProposal(
         }
       : {}),
     ...(libraryStructureTarget ? { libraryStructureTarget } : {}),
+    ...(academicMutationTarget ? { academicMutationTarget } : {}),
+    ...(academicBaseProjectRevision === undefined
+      ? {}
+      : { academicBaseProjectRevision }),
     ...(libraryTarget ? { libraryTarget } : {}),
     ...(longWorldbuildingTarget ? { longWorldbuildingTarget } : {}),
     ...(longCharacterTarget ? { longCharacterTarget } : {}),

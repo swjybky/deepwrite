@@ -1,8 +1,11 @@
 import {
   activeSubagentDraw,
+  type AcademicAgentId,
   type AgentProviderRuntimeConfig,
   type AgentTeamRunMode,
   type AgentTeamWorkspaceType,
+  type LongAgentId,
+  type MysteryAgentId,
   type ShortAgentSubagentDefinition,
   type WorkspaceAgentId
 } from "@deepwrite/contracts";
@@ -14,7 +17,8 @@ const missingTeamModelMessage =
 
 export interface AgentTeamRunTarget {
   workspaceType: AgentTeamWorkspaceType;
-  parentAgentId: WorkspaceAgentId | "long";
+  parentAgentId:
+    WorkspaceAgentId | LongAgentId | "long" | AcademicAgentId | MysteryAgentId;
   /** The book being written; a book's team binding outranks the enabled team. */
   bookId?: string;
 }
@@ -22,7 +26,12 @@ export interface AgentTeamRunTarget {
 export interface AgentTeamRunModeDependencies {
   resolveDefinitions(
     workspaceType: AgentTeamWorkspaceType,
-    parentAgentId: WorkspaceAgentId | "long",
+    parentAgentId:
+      | WorkspaceAgentId
+      | LongAgentId
+      | "long"
+      | AcademicAgentId
+      | MysteryAgentId,
     bookId?: string
   ): Promise<ShortAgentSubagentDefinition[]>;
   resolveModel(
@@ -49,7 +58,9 @@ export async function resolveAgentTeamRuntime(
     return { subagentRuntimeConfigs: {} };
   }
   if (!target) {
-    throw new Error("团队模式仅适用于短篇、剧本或长篇创作智能体。");
+    throw new Error(
+      "团队模式仅适用于短篇、剧本、长篇、学术或剧本杀创作智能体。"
+    );
   }
 
   const subagentDefinitions = await dependencies.resolveDefinitions(

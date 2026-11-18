@@ -1,4 +1,5 @@
 import {
+  asCreativeBook,
   describe,
   expect,
   it,
@@ -41,9 +42,9 @@ describe("template book creation", () => {
         : store.createScriptBook(input, parent));
       const restarted = new FolderCatalogStore({ userDataPath });
       const snapshot = await restarted.snapshot();
-      const book = snapshot.books.find(
-        (item) => item.id === opened.resource.id
-      )!;
+      const book = asCreativeBook(
+        snapshot.books.find((item) => item.id === opened.resource.id)
+      );
       expect(book.bookType).toBe(workspaceType);
       expect(book.characterStructure).toEqual({ format: "list", items: [] });
       expect(

@@ -12,6 +12,7 @@ import type {
   LongWorkspaceRuntimeContext,
   ModelConfig,
   ModelSettings,
+  MysteryWorkspaceRuntimeContext,
   SystemEventEnvelope,
   ThinkingLevel,
   UserPromptAttachment,
@@ -232,6 +233,22 @@ export interface AgentConversationController {
       "attachedSkills" | "attachedMaterials"
     >
   ): Promise<boolean>;
+  sendMysteryMessage(
+    context: MysteryWorkspaceRuntimeContext,
+    attachments?: Pick<
+      WorkspaceRuntimeContext,
+      "attachedSkills" | "attachedMaterials"
+    >,
+    promptAttachments?: UserPromptAttachment[]
+  ): Promise<void>;
+  resendMysteryMessage(
+    request: ConversationMessageRewriteRequest,
+    context: MysteryWorkspaceRuntimeContext,
+    attachments?: Pick<
+      WorkspaceRuntimeContext,
+      "attachedSkills" | "attachedMaterials"
+    >
+  ): Promise<boolean>;
   stopGeneration(): Promise<boolean>;
   cancelPendingGeneration(): boolean;
   newConversation(): void;
@@ -267,4 +284,6 @@ export interface AgentConversationController {
 export type WorkspaceContextAttachments = Pick<
   WorkspaceRuntimeContext,
   "attachedSkills" | "attachedMaterials" | "libraryWorkspace"
->;
+> & {
+  academicBook?: import("@deepwrite/contracts").AcademicBook;
+};

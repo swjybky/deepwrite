@@ -287,6 +287,18 @@ export function toEventEnvelope(
     );
   }
 
+  if (event.type === "academic.workspace_mutation") {
+    return createEnvelope(
+      "academic.workspace_mutation",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        ...event.payload
+      },
+      { id: createId("evt"), context }
+    );
+  }
+
   if (
     event.type === "long.mutation_proposal" ||
     event.type === "long.worldbuilding_file_proposal" ||
@@ -296,6 +308,25 @@ export function toEventEnvelope(
     event.type === "long.ledger_commit_proposal"
   )
     return longProposalEventEnvelope(event, correlationId);
+
+  if (event.type === "mystery.mutation_proposal") {
+    return createEnvelope(
+      "mystery.mutation_proposal",
+      {
+        sessionId: event.sessionId,
+        runId: event.runId,
+        toolCallId: event.payload.toolCallId,
+        bookId: event.payload.bookId,
+        agentId: event.payload.agentId,
+        summary: event.payload.summary,
+        batch: event.payload.batch,
+        fileChanges: event.payload.fileChanges,
+        structureChanges: event.payload.structureChanges,
+        runtime: event.payload.runtime
+      },
+      { id: createId("evt"), context }
+    );
+  }
 
   if (event.type === "library.structure_proposal") {
     return createEnvelope(

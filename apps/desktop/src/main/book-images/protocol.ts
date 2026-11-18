@@ -7,7 +7,7 @@ import {
   BOOK_IMAGE_MAX_BYTES,
   BookImagesResolveInputSchema,
   BookImagesResolveResultSchema,
-  type ChatAssistantProjectRef,
+  type BookImageBookRef,
   type BookImagesResolveResult
 } from "@deepwrite/contracts";
 import { bookImageCore, type BookImageCore } from "./core-client";
@@ -30,7 +30,7 @@ export function registerBookImageScheme(
   ]);
 }
 export type BookImageAssetResolver = (
-  book: ChatAssistantProjectRef,
+  book: BookImageBookRef,
   path: string
 ) => Promise<BookImagesResolveResult>;
 export function createBookImageProtocolHandler(

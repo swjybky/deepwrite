@@ -13,7 +13,8 @@ import type {
   LazySubagentAuthoringController
 } from "./useLazyFeatureControllers";
 
-export type ActiveFeature = WorkspaceMainView | "settings" | "long-workspace";
+export type ActiveFeature =
+  WorkspaceMainView | "settings" | "long-workspace" | "mystery-workspace";
 
 export interface WorkspaceFeatureHostNotifications {
   error(message: string): void;
@@ -39,6 +40,7 @@ export interface WorkspaceFeatureHostCoordinatorOptions {
     settingsInitialCategory: Ref<string>;
     workspaceMain: Ref<WorkspaceMainView>;
     activeLongBookId: Readonly<Ref<string | null>>;
+    activeMysteryBookId: Readonly<Ref<string | null>>;
   };
   settingsStore: ReturnType<typeof useSettingsStore>;
   catalogSnapshot: Readonly<Ref<CatalogSnapshot | null>>;
@@ -67,9 +69,15 @@ export interface WorkspaceFeatureHostCoordinatorOptions {
   };
   actions: {
     prepareDeviceSync?(): Promise<boolean>;
-    saveActiveLongEditorBeforeLeaving(): Promise<boolean>;
+    saveActiveEditorBeforeLeaving(): Promise<boolean>;
     newShortConversation(): void;
     newLongConversation(): void;
+    newMysteryConversation?(): void;
+    resolveConversation?: (
+      key: string,
+      scope: string
+    ) => import("./useAgentConversation").AgentConversationController;
+    onMysteryBookRemoved?: () => void;
   };
   loaders: {
     loadSyncLongBooks?(): Promise<unknown>;
@@ -88,6 +96,7 @@ export interface WorkspaceFeatureHostCoordinatorOptions {
 
 export interface WorkspaceFeatureHostCoordinator {
   isLongWorkspaceActive: ComputedRef<boolean>;
+  isMysteryWorkspaceActive: ComputedRef<boolean>;
   activeFeature: ComputedRef<ActiveFeature>;
   workspaceFeatureModule: ComputedRef<WorkspaceFeatureModule | null>;
   marketplaceDisplayName: Ref<string | undefined>;

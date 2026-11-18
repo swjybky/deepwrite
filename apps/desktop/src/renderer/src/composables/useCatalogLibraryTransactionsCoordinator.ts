@@ -15,6 +15,7 @@ import {
   type DeepWriteApi,
   type MaterialLibraryKind,
   type MaterialStageId,
+  type SkillKind,
   type SkillStageId,
   type UpdateLibraryGroupInput
 } from "@deepwrite/contracts";
@@ -47,6 +48,8 @@ export interface LibraryProjectDialogState {
   entryTitle?: string;
   documentId?: string;
   materialKind?: MaterialLibraryKind;
+  skillKind?: SkillKind;
+  customTag?: string;
   workspaceType?: "short" | "script" | "long";
 }
 
@@ -77,24 +80,26 @@ export interface PendingLibraryEntryMove extends CatalogLibraryEntryDragPayload 
   initialStageId: MaterialStageId;
 }
 
+const ALL_MATERIAL_STAGE_IDS: readonly MaterialStageId[] = [
+  "gimmick",
+  "character",
+  "pacing",
+  "intro",
+  "plot_refine",
+  "draft_excerpt",
+  "other"
+];
+
 export const MATERIAL_KIND_ALLOWED_STAGES: Record<
   MaterialLibraryKind,
   readonly MaterialStageId[]
 > = {
-  character: ["character"],
-  gimmick: ["gimmick"],
-  plot: ["pacing", "intro", "plot_refine"],
-  draft: ["draft_excerpt"],
-  other: ["other"],
-  mixed: [
-    "gimmick",
-    "character",
-    "pacing",
-    "intro",
-    "plot_refine",
-    "draft_excerpt",
-    "other"
-  ]
+  character: ALL_MATERIAL_STAGE_IDS,
+  gimmick: ALL_MATERIAL_STAGE_IDS,
+  plot: ALL_MATERIAL_STAGE_IDS,
+  draft: ALL_MATERIAL_STAGE_IDS,
+  other: ALL_MATERIAL_STAGE_IDS,
+  mixed: ALL_MATERIAL_STAGE_IDS
 };
 
 export interface CatalogLibraryTransactionNotifications {
@@ -397,6 +402,9 @@ export function useCatalogLibraryTransactionsCoordinator(
     domain: "material" | "skill";
     libraryId: string;
     title: string;
+    materialKind?: MaterialLibraryKind;
+    skillKind?: SkillKind;
+    customTag?: string | null;
   }): Promise<void> {
     const api = context.api();
     if (!api || catalogMutationPending.value) return;
@@ -547,33 +555,21 @@ export function useCatalogLibraryTransactionsCoordinator(
       return;
     }
     if (
-      payload.domain !== "material" ||
-      payload.sourceLibraryId === payload.targetLibraryId
+      payload.domain === "material" &&
+      payload.sourceLibraryId !== payload.targetLibraryId &&
+      "materialKind" in source
     ) {
-      void moveCatalogLibraryEntry(payload);
-      return;
+      const entry = source.entries.find(({ id }) => id === payload.entryId);
+      if (!entry) {
+        uiMessage.error(
+          t(
+            "catalogLibraryTransactionsCoordinator.theMaterialEntryToMoveNoLongerExistsRefresh"
+          )
+        );
+        return;
+      }
     }
-    if (!("materialKind" in source) || !("materialKind" in target)) return;
-    const entry = source.entries.find(({ id }) => id === payload.entryId);
-    if (!entry) {
-      uiMessage.error(
-        t(
-          "catalogLibraryTransactionsCoordinator.theMaterialEntryToMoveNoLongerExistsRefresh"
-        )
-      );
-      return;
-    }
-    if (source.materialKind === target.materialKind) {
-      void moveCatalogLibraryEntry(payload);
-      return;
-    }
-    pendingLibraryEntryMove.value = {
-      ...payload,
-      entryTitle: entry.title,
-      targetLibraryTitle: target.title,
-      targetMaterialKind: target.materialKind,
-      initialStageId: entry.stageId
-    };
+    void moveCatalogLibraryEntry(payload);
   }
 
   function confirmCatalogLibraryEntryMove(
@@ -928,7 +924,7 @@ export function useCatalogLibraryTransactionsCoordinator(
         payload.domain === "material"
           ? snapshot.value?.materialGroups.find(({ id }) => id === projectId)
           : snapshot.value?.skillGroups.find(({ id }) => id === projectId);
-      for (const libraryId of Object.values(group?.members ?? {})) {
+      for (const libraryId of group?.memberIds ?? []) {
         if (libraryId) sourceLibraryIds.add(libraryId);
       }
     } else {
@@ -1038,11 +1034,27 @@ export function useCatalogLibraryTransactionsCoordinator(
       return;
     }
     if (payload.action === "rename-library") {
+      const targetLibrary = context.findLibrary(payload.domain, libraryId);
       libraryProjectDialog.value = {
         operation: "rename-library",
         domain: payload.domain,
         libraryId,
-        libraryTitle: payload.node.label
+        libraryTitle: payload.node.label,
+        ...(targetLibrary && "materialKind" in targetLibrary
+          ? { materialKind: targetLibrary.materialKind }
+          : payload.node.materialKind
+            ? { materialKind: payload.node.materialKind }
+            : {}),
+        ...(targetLibrary && "skillKind" in targetLibrary
+          ? { skillKind: targetLibrary.skillKind }
+          : payload.node.skillKind
+            ? { skillKind: payload.node.skillKind }
+            : {}),
+        ...(targetLibrary?.customTag
+          ? { customTag: targetLibrary.customTag }
+          : payload.node.customTag
+            ? { customTag: payload.node.customTag }
+            : {})
       };
       return;
     }
@@ -1075,7 +1087,9 @@ export function useCatalogLibraryTransactionsCoordinator(
         domain: payload.domain,
         libraryId,
         libraryTitle: payload.node.label,
-        ...(payload.node.workspaceType
+        ...(payload.node.workspaceType &&
+        payload.node.workspaceType !== "academic" &&
+        payload.node.workspaceType !== "mystery"
           ? { workspaceType: payload.node.workspaceType }
           : {}),
         ...(payload.domain === "material" && payload.node.materialKind
@@ -1121,7 +1135,9 @@ export function useCatalogLibraryTransactionsCoordinator(
       entryId: payload.node.catalogEntryId,
       entryTitle: payload.node.label,
       documentId: payload.node.id,
-      ...(payload.node.workspaceType
+      ...(payload.node.workspaceType &&
+      payload.node.workspaceType !== "academic" &&
+      payload.node.workspaceType !== "mystery"
         ? { workspaceType: payload.node.workspaceType }
         : {})
     };

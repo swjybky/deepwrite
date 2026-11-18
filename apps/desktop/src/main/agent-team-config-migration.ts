@@ -5,7 +5,6 @@ import {
   LongAgentTeamSettingsInputSchema,
   type AgentTeamCatalogSnapshot,
   type AgentTeamProfileSaveInput,
-  type AgentTeamWorkspaceType,
   type LongAgentTeamSettings
 } from "@deepwrite/contracts";
 import { invalidAgentTeamConfig } from "./agent-team-config-error";
@@ -24,7 +23,7 @@ export {
 export { invalidAgentTeamConfig } from "./agent-team-config-error";
 export { createAgentTeamProfile } from "./agent-team-profile-factory";
 
-export const AGENT_TEAM_CATALOG_DISK_VERSION = 5 as const;
+export const AGENT_TEAM_CATALOG_DISK_VERSION = 6 as const;
 
 export interface AgentTeamDiskCatalog extends AgentTeamCatalogSnapshot {
   version: typeof AGENT_TEAM_CATALOG_DISK_VERSION;
@@ -172,12 +171,18 @@ export async function createCatalogFromLegacyFiles(
       ...(scriptRaw === undefined ? {} : { script: scriptProfiles[0]!.id }),
       ...(longRaw === undefined ? {} : { long: longProfiles[0]!.id })
     },
-    teams: [...shortProfiles, ...scriptProfiles, ...longProfiles]
+    teams: [
+      ...shortProfiles,
+      ...scriptProfiles,
+      ...longProfiles,
+      createAgentTeamProfile("academic"),
+      createAgentTeamProfile("mystery")
+    ]
   });
 }
 
 function catalogFromStandaloneSettings(
-  workspaceType: Exclude<AgentTeamWorkspaceType, "long">,
+  workspaceType: "short" | "script",
   settings: readonly AgentTeamProfileSaveInput["settings"][]
 ): AgentTeamCatalogSnapshot {
   const migratedProfiles = settings.map((candidate, index) =>
@@ -199,7 +204,13 @@ function catalogFromStandaloneSettings(
       : [createAgentTeamProfile("script")];
   return AgentTeamCatalogSnapshotSchema.parse({
     enabledTeamIds: { [workspaceType]: migratedProfiles[0]!.id },
-    teams: [...shortProfiles, ...scriptProfiles, createAgentTeamProfile("long")]
+    teams: [
+      ...shortProfiles,
+      ...scriptProfiles,
+      createAgentTeamProfile("long"),
+      createAgentTeamProfile("academic"),
+      createAgentTeamProfile("mystery")
+    ]
   });
 }
 
@@ -217,7 +228,13 @@ function catalogFromLongSettings(
   );
   return AgentTeamCatalogSnapshotSchema.parse({
     enabledTeamIds: { long: longProfiles[0]!.id },
-    teams: [short, script, ...longProfiles]
+    teams: [
+      short,
+      script,
+      ...longProfiles,
+      createAgentTeamProfile("academic"),
+      createAgentTeamProfile("mystery")
+    ]
   });
 }
 

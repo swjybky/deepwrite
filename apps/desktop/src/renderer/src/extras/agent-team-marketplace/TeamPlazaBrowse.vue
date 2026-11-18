@@ -21,7 +21,7 @@ const props = defineProps<{ plaza: TeamPlazaController }>();
 
 const workspaceTypeOptions = computed<PopupSelectOption[]>(() => [
   { value: "", label: t("allWorkspaceTypes") },
-  ...(["short", "script", "long"] as const).map((value) => ({
+  ...(["short", "script", "long", "academic"] as const).map((value) => ({
     value,
     label: workspaceTypeLabel(value)
   }))

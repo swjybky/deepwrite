@@ -8,21 +8,7 @@ export function buildWorkspaceMaterialContext(input: AgentRunInput): string {
   const materials = context?.materialCatalog
     ? materialCatalogEntries(context.materialCatalog)
     : (context?.attachedMaterials ?? []);
-  const profile = input.scriptAgentProfile ?? input.agentProfile;
-  const readable = profile
-    ? materials.filter(
-        (item) =>
-          item.kind !== undefined &&
-          profile.readAccess.material.includes(item.kind)
-      )
-    : input.longAgentProfile
-      ? materials.filter(
-          (item) =>
-            item.kind !== undefined &&
-            input.longAgentProfile!.readAccess.materialKinds.includes(item.kind)
-        )
-      : materials;
-  return buildMaterialCatalogPrompt(readable, input.promptLocale === "en-US");
+  return buildMaterialCatalogPrompt(materials, input.promptLocale === "en-US");
 }
 
 export function buildSubagentMaterialContext(input: AgentRunInput): string {

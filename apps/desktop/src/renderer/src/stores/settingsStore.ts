@@ -3,6 +3,7 @@ import { createScopedTranslator } from "../i18n";
 import { ref, shallowRef, type Ref } from "vue";
 import { defineStore } from "pinia";
 import type {
+  AcademicAgentSettings,
   CloudBackupStatus,
   AgentTeamCatalogSnapshot,
   GeneralSettings,
@@ -15,6 +16,10 @@ import type {
   WorkspaceAgentSettings,
   WorkspaceDirectorySettings
 } from "@deepwrite/contracts";
+import {
+  BUILTIN_AGENT_METADATA,
+  DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS
+} from "@deepwrite/contracts/renderer";
 import {
   DEFAULT_LIBRARY_AGENT_PROFILES,
   DEFAULT_LONG_AGENT_SETTINGS,
@@ -30,6 +35,7 @@ export type SettingsLoadDomain =
   | "models"
   | "workspaceAgents"
   | "longAgents"
+  | "academicAgents"
   | "agentTeams"
   | "libraryAgents"
   | "workspaceDirectory"
@@ -40,6 +46,7 @@ export interface SettingsDomainValueMap {
   models: ModelSettings;
   workspaceAgents: WorkspaceAgentSettings[];
   longAgents: LongAgentSettings;
+  academicAgents: AcademicAgentSettings;
   agentTeams: AgentTeamCatalogSnapshot;
   libraryAgents: LibraryAgentSettings;
   workspaceDirectory: WorkspaceDirectorySettings;
@@ -71,6 +78,28 @@ function cloneDefaultLibraryAgentSettings(): LibraryAgentSettings {
         skills: agent.readAccess.skills.map((skill) => ({ ...skill }))
       }
     }))
+  };
+}
+
+function cloneDefaultAcademicAgentSettings(): AcademicAgentSettings {
+  return {
+    workspaceType: "academic",
+    agents: [
+      {
+        workspaceType: "academic",
+        id: "academic",
+        label: BUILTIN_AGENT_METADATA.academic.label,
+        description: BUILTIN_AGENT_METADATA.academic.description,
+        systemPrompt: "你是 DeepWrite 的学术主创智能体。",
+        welcomeShortcuts: [...DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS] as [
+          string,
+          string,
+          string
+        ],
+        modelMode: "inherit",
+        builtin: true
+      }
+    ]
   };
 }
 
@@ -129,6 +158,14 @@ export const useSettingsStore = defineStore("settings", () => {
   const longAgentLoaded = ref(false);
   const longAgentLoadError = ref<string | null>(null);
 
+  const academicAgentSettings = shallowRef<AcademicAgentSettings>(
+    cloneDefaultAcademicAgentSettings()
+  );
+  const academicAgentLoading = ref(false);
+  const academicAgentSaving = ref(false);
+  const academicAgentLoaded = ref(false);
+  const academicAgentLoadError = ref<string | null>(null);
+
   const agentTeamCatalog = shallowRef<AgentTeamCatalogSnapshot | null>(null);
   const agentTeamLoading = ref(false);
   const agentTeamSaving = ref(false);
@@ -177,6 +214,11 @@ export const useSettingsStore = defineStore("settings", () => {
       loading: longAgentLoading,
       error: longAgentLoadError
     },
+    academicAgents: {
+      loaded: academicAgentLoaded,
+      loading: academicAgentLoading,
+      error: academicAgentLoadError
+    },
     agentTeams: {
       loaded: agentTeamLoaded,
       loading: agentTeamLoading,
@@ -205,6 +247,7 @@ export const useSettingsStore = defineStore("settings", () => {
     models: 0,
     workspaceAgents: 0,
     longAgents: 0,
+    academicAgents: 0,
     agentTeams: 0,
     libraryAgents: 0,
     workspaceDirectory: 0,
@@ -223,6 +266,8 @@ export const useSettingsStore = defineStore("settings", () => {
         return workspaceAgentSettings.value as SettingsDomainValueMap[Domain];
       case "longAgents":
         return longAgentSettings.value as SettingsDomainValueMap[Domain];
+      case "academicAgents":
+        return academicAgentSettings.value as SettingsDomainValueMap[Domain];
       case "agentTeams":
         return agentTeamCatalog.value as SettingsDomainValueMap[Domain];
       case "libraryAgents":
@@ -254,6 +299,10 @@ export const useSettingsStore = defineStore("settings", () => {
         break;
       case "longAgents":
         longAgentSettings.value = value as SettingsDomainValueMap["longAgents"];
+        break;
+      case "academicAgents":
+        academicAgentSettings.value =
+          value as SettingsDomainValueMap["academicAgents"];
         break;
       case "agentTeams":
         agentTeamCatalog.value = value as SettingsDomainValueMap["agentTeams"];
@@ -354,6 +403,12 @@ export const useSettingsStore = defineStore("settings", () => {
     return ensureLoaded("longAgents", loader);
   }
 
+  function ensureAcademicAgentsLoaded(
+    loader: SettingsLoader<"academicAgents">
+  ) {
+    return ensureLoaded("academicAgents", loader);
+  }
+
   function ensureAgentTeamsLoaded(loader: SettingsLoader<"agentTeams">) {
     return ensureLoaded("agentTeams", loader);
   }
@@ -409,6 +464,11 @@ export const useSettingsStore = defineStore("settings", () => {
     longAgentSaving,
     longAgentLoaded,
     longAgentLoadError,
+    academicAgentSettings,
+    academicAgentLoading,
+    academicAgentSaving,
+    academicAgentLoaded,
+    academicAgentLoadError,
     agentTeamCatalog,
     agentTeamLoading,
     agentTeamSaving,
@@ -433,6 +493,7 @@ export const useSettingsStore = defineStore("settings", () => {
     ensureModelsLoaded,
     ensureWorkspaceAgentsLoaded,
     ensureLongAgentsLoaded,
+    ensureAcademicAgentsLoaded,
     ensureAgentTeamsLoaded,
     ensureLibraryAgentsLoaded,
     ensureWorkspaceDirectoryLoaded,

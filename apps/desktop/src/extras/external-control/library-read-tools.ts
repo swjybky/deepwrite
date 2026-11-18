@@ -55,15 +55,13 @@ function skillSummaries(index: CatalogIndexSnapshot) {
 
 function groupSummary(
   domain: "material" | "skill",
-  group: { id: string; title: string; members: Record<string, unknown> }
+  group: { id: string; title: string; memberIds: readonly string[] }
 ) {
   return {
     id: group.id,
     domain,
     title: group.title,
-    libraryIds: Object.values(group.members).filter(
-      (id): id is string => typeof id === "string"
-    )
+    libraryIds: [...group.memberIds]
   };
 }
 

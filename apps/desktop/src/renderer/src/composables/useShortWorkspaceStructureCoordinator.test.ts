@@ -6,6 +6,7 @@ import type {
   DraftDirectoryProjection
 } from "../data/catalogWorkspace";
 import type {
+  DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
   ResourceTreeSection,
@@ -151,9 +152,7 @@ function createHarness(options: HarnessOptions = {}) {
   const selectedExpertSectionIds = ref<Record<string, string>>({
     [directory.id]: directory.sections[0]?.id ?? ""
   });
-  const selectedDraftFileKinds = ref<
-    Record<string, "body" | "character-state">
-  >({
+  const selectedDraftFileKinds = ref<Record<string, DraftFileKind>>({
     [directory.id]: "body"
   });
   const mutationPending = ref(false);

@@ -17,8 +17,16 @@ export const AGENT_CORE_LONG_QUERY_COMMANDS = [
   "long.search"
 ] as const satisfies readonly CommandEnvelope["type"][];
 
+export const AGENT_CORE_MYSTERY_QUERY_COMMANDS = [
+  "mystery.getWorkspaceIndex",
+  "mystery.readDocument",
+  "mystery.search",
+  "mystery.previewOperations"
+] as const satisfies readonly CommandEnvelope["type"][];
+
 export const AGENT_CORE_QUERY_COMMANDS = [
   ...AGENT_CORE_LONG_QUERY_COMMANDS,
+  ...AGENT_CORE_MYSTERY_QUERY_COMMANDS,
   "catalog.readWritingWorkspace",
   "catalog.queryMaterials",
   "catalog.queryLibraryManagement",
@@ -37,6 +45,9 @@ export const AGENT_CORE_QUERY_COMMANDS = [
 const LONG_QUERY_COMMAND_TYPES = new Set<string>(
   AGENT_CORE_LONG_QUERY_COMMANDS
 );
+const MYSTERY_QUERY_COMMAND_TYPES = new Set<string>(
+  AGENT_CORE_MYSTERY_QUERY_COMMANDS
+);
 
 export interface MainInternalCommandActiveRun {
   sessionId: string;
@@ -44,11 +55,13 @@ export interface MainInternalCommandActiveRun {
   externalResourceIds?: string[];
   /** Present only for a long-form run accepted from Main's session.prompt. */
   resourceId?: string;
+  /** Present only for a mystery-workspace run accepted from Main's session.prompt. */
+  mysteryResourceId?: string;
   /** Main->Agent transport request that created the accepted run. */
   promptRequestId?: string;
   accepted: boolean;
   bookIdentity?: BookIdentityRunRegistration;
-  writingScope?: { bookId: string; bookType: "short" | "script" };
+  writingScope?: { bookId: string; bookType: "short" | "script" | "academic" };
   materialScope?: MaterialReadScope;
   libraryManagementScope?: LibraryManagementScope & {
     domains: readonly LibraryAgentDomain[];
@@ -296,6 +309,73 @@ export function authorizeMainInternalCommand(
       return denied(
         "main.material_scope_mismatch",
         "Material queries cannot expand the accepted book, stage or kinds."
+      );
+    }
+    return true;
+  }
+  if (
+    message.target === "core" &&
+    MYSTERY_QUERY_COMMAND_TYPES.has(message.command.type)
+  ) {
+    const command = message.command;
+    if (
+      command.type !== "mystery.getWorkspaceIndex" &&
+      command.type !== "mystery.readDocument" &&
+      command.type !== "mystery.search" &&
+      command.type !== "mystery.previewOperations"
+    ) {
+      return denied(
+        "main.command_not_mystery_query",
+        "Only murder-mystery read and preview commands are authorized."
+      );
+    }
+    const runId = command.context.runId;
+    const sessionId = command.context.sessionId;
+    const resourceId = command.context.resourceId;
+    if (!runId || !sessionId || !resourceId) {
+      return denied(
+        "main.missing_command_context",
+        "Mystery internal commands require sessionId, runId and resourceId."
+      );
+    }
+    const run = activeRuns.get(runId);
+    if (!run || !run.accepted) {
+      return denied(
+        "main.run_not_accepted",
+        "The mystery agent run is not active and accepted."
+      );
+    }
+    if (!run.mysteryResourceId) {
+      return denied(
+        "main.run_not_mystery",
+        "The active run is not bound to a mystery workspace."
+      );
+    }
+    if (run.sessionId !== sessionId) {
+      return denied(
+        "main.session_mismatch",
+        "The internal command session does not match its active run."
+      );
+    }
+    if (run.mysteryResourceId !== resourceId) {
+      return denied(
+        "main.resource_mismatch",
+        "The internal command resource does not match its active run."
+      );
+    }
+    if (command.payload.bookId !== resourceId) {
+      return denied(
+        "main.book_mismatch",
+        "The internal command book does not match its bound resource."
+      );
+    }
+    if (
+      !run.promptRequestId ||
+      message.parentRequestId !== run.promptRequestId
+    ) {
+      return denied(
+        "main.parent_request_mismatch",
+        "The internal command is not attached to the prompt that created its run."
       );
     }
     return true;

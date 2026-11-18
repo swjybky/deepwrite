@@ -23,3 +23,7 @@ export interface ComposerContextNavigationLoader {
   available: Readonly<Ref<boolean>>;
   load(): Promise<ComposerContextNavigation | null>;
 }
+
+export const OPEN_WORKSPACE_RESOURCE: InjectionKey<
+  (id: string) => Promise<boolean>
+> = Symbol("open-workspace-resource");

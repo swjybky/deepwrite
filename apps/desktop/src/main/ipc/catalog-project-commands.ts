@@ -1,5 +1,6 @@
 import { nativeText } from "../native-i18n";
 import {
+  AcademicBookSchema,
   CatalogLibrarySchema,
   CatalogLibraryGroupSchema,
   CatalogOpenProjectResultSchema,
@@ -29,6 +30,7 @@ export async function handleCatalogProjectCommands(
   if (
     command.type === "catalog.createShortBook" ||
     command.type === "catalog.createScriptBook" ||
+    command.type === "catalog.createAcademicBook" ||
     command.type === "catalog.createLibrary" ||
     command.type === "catalog.createLibraryGroup" ||
     command.type === "catalog.openProject"
@@ -45,7 +47,8 @@ export async function handleCatalogProjectCommands(
 
       const domain =
         command.type === "catalog.createShortBook" ||
-        command.type === "catalog.createScriptBook"
+        command.type === "catalog.createScriptBook" ||
+        command.type === "catalog.createAcademicBook"
           ? "book"
           : command.payload.domain;
       const defaultPath =
@@ -56,6 +59,7 @@ export async function handleCatalogProjectCommands(
       if (
         command.type === "catalog.createShortBook" ||
         command.type === "catalog.createScriptBook" ||
+        command.type === "catalog.createAcademicBook" ||
         command.type === "catalog.createLibrary" ||
         command.type === "catalog.createLibraryGroup"
       ) {
@@ -102,32 +106,41 @@ export async function handleCatalogProjectCommands(
                 },
                 { id: command.id, context: command.context }
               )
-            : command.type === "catalog.createLibrary"
+            : command.type === "catalog.createAcademicBook"
               ? createEnvelope(
-                  "catalog.createLibraryAtPath",
+                  "catalog.createAcademicBookAtPath",
                   {
-                    ...command.payload,
-                    parentDirectory: selectedPath
+                    parentDirectory: selectedPath,
+                    input: command.payload
                   },
                   { id: command.id, context: command.context }
                 )
-              : command.type === "catalog.createLibraryGroup"
+              : command.type === "catalog.createLibrary"
                 ? createEnvelope(
-                    "catalog.createLibraryGroupAtPath",
+                    "catalog.createLibraryAtPath",
                     {
-                      parentDirectory: selectedPath,
-                      input: command.payload
+                      ...command.payload,
+                      parentDirectory: selectedPath
                     },
                     { id: command.id, context: command.context }
                   )
-                : createEnvelope(
-                    "catalog.openProjectAtPath",
-                    {
-                      projectDirectory: selectedPath,
-                      domain: command.payload.domain
-                    },
-                    { id: command.id, context: command.context }
-                  )
+                : command.type === "catalog.createLibraryGroup"
+                  ? createEnvelope(
+                      "catalog.createLibraryGroupAtPath",
+                      {
+                        parentDirectory: selectedPath,
+                        input: command.payload
+                      },
+                      { id: command.id, context: command.context }
+                    )
+                  : createEnvelope(
+                      "catalog.openProjectAtPath",
+                      {
+                        projectDirectory: selectedPath,
+                        domain: command.payload.domain
+                      },
+                      { id: command.id, context: command.context }
+                    )
       );
 
       const result = await ctx.supervisor.requestCommand(
@@ -143,11 +156,13 @@ export async function handleCatalogProjectCommands(
           ? ShortBookSchema.parse(result.payload)
           : command.type === "catalog.createScriptBook"
             ? ScriptBookSchema.parse(result.payload)
-            : command.type === "catalog.createLibrary"
-              ? CatalogLibrarySchema.parse(result.payload)
-              : command.type === "catalog.createLibraryGroup"
-                ? CatalogLibraryGroupSchema.parse(result.payload)
-                : CatalogOpenProjectResultSchema.parse(result.payload);
+            : command.type === "catalog.createAcademicBook"
+              ? AcademicBookSchema.parse(result.payload)
+              : command.type === "catalog.createLibrary"
+                ? CatalogLibrarySchema.parse(result.payload)
+                : command.type === "catalog.createLibraryGroup"
+                  ? CatalogLibraryGroupSchema.parse(result.payload)
+                  : CatalogOpenProjectResultSchema.parse(result.payload);
       return { status: "accepted", requestId: command.id, payload };
     } catch (error: unknown) {
       return {

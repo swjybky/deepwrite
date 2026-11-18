@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import { agentTeamBoundBookCount } from "@deepwrite/contracts/renderer";
 import {
+  type AcademicAgentTeamSettings,
   type AgentTeamCatalogSnapshot,
   type AgentTeamProfile,
   type AgentTeamProfileSaveInput,
   type AgentTeamWorkspaceType,
   type LongAgentTeamSettings,
   type ModelConfig,
+  type MysteryAgentTeamSettings,
   type SkillLibrary,
   type SubagentAuthoringDraft,
   type SubagentAuthoringRuntimeContext,
   type WorkspaceAgentTeamSettings
 } from "@deepwrite/contracts";
 import { computed, ref, watch } from "vue";
+import { academicAgentT } from "./academic/academicAgentLabels";
 import AgentTeamCatalogDialogs, {
   type AgentTeamDialogMode
 } from "./AgentTeamCatalogDialogs.vue";
@@ -69,13 +73,23 @@ const selectedTeam = computed(
     props.catalog?.teams.find((team) => team.id === selectedTeamId.value) ??
     null
 );
-const editorSettings = computed<WorkspaceAgentTeamSettings[]>(() =>
-  selectedTeam.value && selectedTeam.value.workspaceType !== "long"
+const editorSettings = computed<
+  (WorkspaceAgentTeamSettings | AcademicAgentTeamSettings)[]
+>(() =>
+  selectedTeam.value &&
+  (selectedTeam.value.workspaceType === "short" ||
+    selectedTeam.value.workspaceType === "script" ||
+    selectedTeam.value.workspaceType === "academic")
     ? [selectedTeam.value.settings]
     : []
 );
 const editorLongSettings = computed<LongAgentTeamSettings | null>(() =>
   selectedTeam.value?.workspaceType === "long"
+    ? selectedTeam.value.settings
+    : null
+);
+const editorMysterySettings = computed<MysteryAgentTeamSettings | null>(() =>
+  selectedTeam.value?.workspaceType === "mystery"
     ? selectedTeam.value.settings
     : null
 );
@@ -125,7 +139,11 @@ function workspaceTypeLabel(workspaceType: AgentTeamWorkspaceType): string {
     ? t("shortStory")
     : workspaceType === "script"
       ? t("screenplay")
-      : t("novel");
+      : workspaceType === "long"
+        ? t("novel")
+        : workspaceType === "academic"
+          ? academicAgentT("tabLabel")
+          : mysteryLabels("murderMystery");
 }
 
 function isEnabled(team: AgentTeamProfile): boolean {
@@ -212,6 +230,7 @@ function discardAndLeave(): void {
       :workspace-type="selectedTeam.workspaceType"
       :settings="editorSettings"
       :long-settings="editorLongSettings"
+      :mystery-settings="editorMysterySettings"
       :models="models"
       :skills="skills ?? []"
       :preferred-model-id="preferredModelId ?? null"
@@ -229,6 +248,9 @@ function discardAndLeave(): void {
       @retry="emit('retry')"
       @save="emit('save', { teamId: selectedTeam.id, settings: $event })"
       @save-long="emit('save', { teamId: selectedTeam.id, settings: $event })"
+      @save-mystery="
+        emit('save', { teamId: selectedTeam.id, settings: $event })
+      "
       @dirty-change="editorDirty = $event"
       @authoring-generate="emit('authoringGenerate', $event)"
       @authoring-stop="emit('authoringStop')"

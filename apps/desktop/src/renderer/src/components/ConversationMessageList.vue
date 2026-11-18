@@ -118,7 +118,7 @@ const { handleConversationContextMenu } = useConversationSelectionInsertion({
     @scroll.passive="handleConversationScroll"
     @contextmenu="handleConversationContextMenu"
   >
-    <slot v-if="messages.length === 0" name="empty">
+    <slot v-if="messages.length === 0 && !$slots.review" name="empty">
       <div v-if="welcomeContent" class="conversation-empty">
         <div class="conversation-empty-heading">
           <AppIcon class="empty-agent-mark" name="logo" :size="36" />
@@ -181,6 +181,7 @@ const { handleConversationContextMenu } = useConversationSelectionInsertion({
         />
       </div>
     </div>
+    <slot name="review" />
   </section>
 </template>
 

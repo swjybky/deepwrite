@@ -92,7 +92,7 @@ export const EXTERNAL_CONTROL_TOOLS: readonly ExternalControlToolDefinition[] =
       name: "list_works",
       title: "List works",
       description:
-        "Lists the user's short stories, scripts and long-form novels in DeepWrite's creative workspace.",
+        "Lists the user's short stories, scripts, long-form novels, academic works and murder-mystery works in DeepWrite's creative workspace.",
       inputSchema: ExternalListWorksInputSchema,
       annotations: READ_ONLY
     },
@@ -162,9 +162,9 @@ export const EXTERNAL_CONTROL_TOOLS: readonly ExternalControlToolDefinition[] =
     },
     {
       name: "manage_document",
-      title: "Manage draft sections",
+      title: "Manage manuscript sections",
       description:
-        "Creates, renames, moves, duplicates or deletes draft sections of a short or script work. Takes effect immediately. Delete keeps a copy that restore_trash_item brings back. Long-form chapters are not supported.",
+        "Creates, renames, moves, duplicates or deletes manuscript sections of a short, script or academic work. Takes effect immediately. Delete keeps a copy that restore_trash_item brings back. Long-form and murder-mystery structures are not supported.",
       inputSchema: ExternalManageDocumentInputSchema,
       annotations: WRITE
     },

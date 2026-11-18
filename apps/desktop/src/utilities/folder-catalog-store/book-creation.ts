@@ -1,15 +1,24 @@
 import { mergeCreativePlotStageDefinitions } from "./plot-stage-definitions";
 import {
+  ACADEMIC_TERMINOLOGY_DOCUMENT_ID,
+  ACADEMIC_TERMINOLOGY_TITLE,
+  ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
+  ACADEMIC_THESIS_OVERVIEW_TITLE,
+  AcademicBookSchema,
+  createAcademicSectionDocumentId,
   createCatalogDraftDirectory,
+  createDefaultAcademicFrameworkStages,
   createDefaultCreativePlotStages,
   DEFAULT_NEW_BOOK_ENABLED_PLOT_STAGE_IDS,
+  getAcademicSubtypePreset,
+  type AcademicBook,
   type BookPlotStage,
   createDefaultBookCharacterStructure,
   createDefaultBookPlotStages,
   createScriptCatalogDraftDirectory,
   ScriptBookSchema,
   ShortBookSchema,
-  type Book,
+  type CreateAcademicBookInput,
   type CreateScriptBookInput,
   type CreateShortBookInput,
   type ScriptBook,
@@ -41,7 +50,7 @@ export function linkedMaterialIdsFromInput(
   value:
     | CreateShortBookInput["linkedMaterialIdsByKind"]
     | CreateScriptBookInput["linkedMaterialIdsByKind"]
-): Book["linkedMaterialIdsByKind"] {
+): ShortBook["linkedMaterialIdsByKind"] {
   return {
     character: [...(value?.character ?? [])],
     gimmick: [...(value?.gimmick ?? [])],
@@ -55,7 +64,7 @@ export function linkedSkillIdsFromInput(
   value:
     | CreateShortBookInput["linkedSkillIdsByKind"]
     | CreateScriptBookInput["linkedSkillIdsByKind"]
-): Book["linkedSkillIdsByKind"] {
+): ShortBook["linkedSkillIdsByKind"] {
   return {
     general: [...(value?.general ?? [])],
     plot: [...(value?.plot ?? [])],
@@ -132,6 +141,92 @@ export function createNewScriptBook(
     updatedAt: now
   });
 }
+export function createInitialAcademicBook(
+  input: CreateAcademicBookInput,
+  now: string
+): AcademicBook {
+  const preset = getAcademicSubtypePreset(input.subtype, input.citationStyle);
+  const citationStyle = input.citationStyle ?? preset.defaultCitationStyle;
+  const frameworkStages = createDefaultAcademicFrameworkStages({
+    subtype: input.subtype,
+    enabledStageIds: input.defaultFrameworkStageIds
+  });
+  return AcademicBookSchema.parse({
+    id: createCatalogId("book"),
+    title: input.title,
+    bookType: "academic",
+    subtype: input.subtype,
+    citationStyle,
+    status: "editing",
+    linkedMaterialIds: [...(input.linkedMaterialIds ?? [])],
+    linkedSkillIds: [...(input.linkedSkillIds ?? [])],
+    foundation: {
+      thesisOverview: {
+        id: ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
+        title: ACADEMIC_THESIS_OVERVIEW_TITLE,
+        content: "",
+        createdAt: now,
+        updatedAt: now
+      },
+      terminology: {
+        id: ACADEMIC_TERMINOLOGY_DOCUMENT_ID,
+        title: ACADEMIC_TERMINOLOGY_TITLE,
+        content: "",
+        createdAt: now,
+        updatedAt: now
+      },
+      cards: []
+    },
+    frameworkStages,
+    documents: frameworkStages.map((stage) => ({
+      id: stage.id,
+      title: stage.title,
+      content: "",
+      createdAt: now,
+      updatedAt: now
+    })),
+    manuscript: {
+      chapters: preset.chapters.map((chapter) => ({
+        id: chapter.id,
+        title: chapter.title,
+        createdAt: now,
+        updatedAt: now
+      })),
+      sections: preset.sections.map((section) => ({
+        id: section.id,
+        ...(section.chapterId ? { chapterId: section.chapterId } : {}),
+        title: section.title,
+        wordCountRequirement: section.wordCountRequirement ?? "",
+        brief: {
+          id: createAcademicSectionDocumentId(section.id, "brief"),
+          title: `${section.title} · 写作指引`,
+          content: "",
+          createdAt: now,
+          updatedAt: now
+        },
+        body: {
+          id: createAcademicSectionDocumentId(section.id, "body"),
+          title: section.title,
+          content: "",
+          createdAt: now,
+          updatedAt: now
+        },
+        state: {
+          id: createAcademicSectionDocumentId(section.id, "state"),
+          title: `${section.title} · 节末状态`,
+          content: "",
+          createdAt: now,
+          updatedAt: now
+        },
+        createdAt: now,
+        updatedAt: now
+      }))
+    },
+    createdAt: now,
+    updatedAt: now
+  });
+}
+
 export function assertCreationPlotStages(
   ids: readonly string[] | undefined,
   stages: readonly CreativePlotStage[]
@@ -140,7 +235,9 @@ export function assertCreationPlotStages(
     throw new Error("模板中的剧情阶段已失效，请编辑模板后重试。");
 }
 
-export function applyGlobalPlotStagesToNewBook<Resource extends Book>(
+export function applyGlobalPlotStagesToNewBook<
+  Resource extends ShortBook | ScriptBook
+>(
   book: Resource,
   globalStages: readonly CreativePlotStage[],
   defaultPlotStageIds?: readonly string[]

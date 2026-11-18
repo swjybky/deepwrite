@@ -11,6 +11,7 @@ import {
   isBuiltinAgentSystemPrompt,
   localizeAgentSystemPrompt
 } from "./builtin-agent-prompts";
+import { AcademicAgentConfigStore } from "./academic-agent-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
 import {
   LONG_AGENT_SETTINGS_DISK_VERSION,
@@ -105,10 +106,20 @@ describe("built-in agent prompts follow the app language", () => {
     const workspace = new WorkspaceAgentConfigStore(root);
     const library = new LibraryAgentConfigStore(root);
     const long = new LongAgentConfigStore(root);
+    const academic = new AcademicAgentConfigStore(root);
     // Saving the Chinese defaults stores them as written.
     await workspace.save({
       ...(await workspace.list("short")),
       agents: (await workspace.list("short")).agents
+    });
+    await academic.save({
+      workspaceType: "academic",
+      agents: (await academic.list()).agents.map((agent) => ({
+        id: agent.id,
+        systemPrompt: agent.systemPrompt,
+        welcomeShortcuts: agent.welcomeShortcuts,
+        modelMode: agent.modelMode
+      }))
     });
 
     setNativeLanguage("en-US", "zh-CN");
@@ -118,6 +129,9 @@ describe("built-in agent prompts follow the app language", () => {
     expect((await workspace.resolve("script", "script")).systemPrompt).toBe(
       BUILTIN_AGENT_SYSTEM_PROMPTS.script["en-US"]
     );
+    expect((await academic.resolve("academic")).systemPrompt).toBe(
+      BUILTIN_AGENT_SYSTEM_PROMPTS.academic["en-US"]
+    );
     expect((await library.resolve("material")).systemPrompt).toBe(
       BUILTIN_AGENT_SYSTEM_PROMPTS.material["en-US"]
     );
@@ -126,14 +140,34 @@ describe("built-in agent prompts follow the app language", () => {
     );
     expect((await long.resolve("long")).systemPrompt).toBe(custom);
 
+    const customAcademic = "我的学术提示词：聚焦实证经济学因果推断。";
+    await academic.save({
+      workspaceType: "academic",
+      agents: [
+        {
+          id: "academic",
+          systemPrompt: customAcademic,
+          welcomeShortcuts: (await academic.list()).agents[0]!.welcomeShortcuts,
+          modelMode: "inherit"
+        }
+      ]
+    });
+    expect((await academic.resolve("academic")).systemPrompt).toBe(
+      customAcademic
+    );
+
     setNativeLanguage("auto", "zh-Hans-CN");
     expect((await workspace.resolve("short", "short")).systemPrompt).toBe(
       BUILTIN_AGENT_SYSTEM_PROMPTS.short["zh-CN"]
     );
     await long.reset("long");
+    await academic.reset("academic");
     setNativeLanguage("auto", "en-US");
     expect((await long.resolve("long")).systemPrompt).toBe(
       BUILTIN_AGENT_SYSTEM_PROMPTS.long["en-US"]
+    );
+    expect((await academic.resolve("academic")).systemPrompt).toBe(
+      BUILTIN_AGENT_SYSTEM_PROMPTS.academic["en-US"]
     );
   });
 });

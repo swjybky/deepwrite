@@ -55,6 +55,10 @@ export type IconName =
   | "wand";
 
 import type {
+  MysteryDocumentTarget,
+  AcademicBookSubtype,
+  AcademicCitationStyle,
+  AcademicReferenceCardType,
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   LongCharacterGroup,
@@ -65,6 +69,20 @@ import type {
   SkillKind
 } from "@deepwrite/contracts";
 import type { LongWorkspaceSelection } from "./longWorkspace";
+
+export type DraftFileKind = "brief" | "body" | "state" | "character-state";
+export type AcademicZoneId = "foundation" | "framework" | "manuscript";
+export type AcademicDocumentKind =
+  | "thesis_overview"
+  | "terminology"
+  | "reference_card"
+  | "framework_stage"
+  | "section";
+export type AcademicTreeCollectionKind =
+  | "reference-cards"
+  | "framework-stages"
+  | "manuscript-root"
+  | "manuscript-chapter";
 
 export type ResourceDomain = "creation" | "skill" | "material";
 
@@ -185,6 +203,9 @@ export interface ResourceTreeNode {
   characterDirectory?: boolean;
   /** Identifies the virtual draft directory represented by this navigation node. */
   draftDirectoryId?: string;
+  /** The paired brief/state editor documents for an academic manuscript section node. */
+  briefDocumentId?: string;
+  stateDocumentId?: string;
   /** The paired character-state editor document for a draft section node. */
   characterStateDocumentId?: string;
   categoryTag?: string;
@@ -200,9 +221,54 @@ export interface ResourceTreeNode {
   boundMaterialLibraryIdsByKind?: LinkedMaterialIdsByKind;
   projectRevision?: number;
   /** Explicitly carries the owning creative workspace type for type-specific UI. */
-  workspaceType?: "short" | "script" | "long";
+  workspaceType?: "short" | "script" | "long" | "academic" | "mystery";
+  academicSubtype?: AcademicBookSubtype;
+  citationStyle?: AcademicCitationStyle;
+  academicZone?: AcademicZoneId;
+  academicCollection?: {
+    kind: AcademicTreeCollectionKind;
+    bookId: string;
+    chapterId?: string;
+    chapterTitle?: string;
+  };
+  academicCardItem?: {
+    bookId: string;
+    cardId: string;
+    citeKey: string;
+    cardType: AcademicReferenceCardType;
+    title: string;
+  };
+  academicChapterItem?: {
+    bookId: string;
+    chapterId: string;
+    title: string;
+    moveUpDisabled: boolean;
+    moveDownDisabled: boolean;
+  };
+  academicSectionItem?: {
+    bookId: string;
+    sectionId: string;
+    title: string;
+    wordCountRequirement: string;
+    chapterId?: string;
+    moveUpDisabled: boolean;
+    moveDownDisabled: boolean;
+    deletable: boolean;
+  };
   /** Long books use a separate store and intentionally do not inherit short-book actions. */
   longBookId?: string;
+  /** Mystery books use a dedicated 5-stage workspace store. */
+  mysteryBookId?: string;
+  mysteryTarget?: MysteryDocumentTarget;
+  mysteryCollection?: "truth_doc" | "role" | "act" | "clue_round";
+  mysteryItem?: {
+    kind: "truth_doc" | "role" | "act" | "clue_round";
+    id: string;
+    title: string;
+    tag?: string | undefined;
+    moveUpDisabled: boolean;
+    deleteDisabled: boolean;
+  };
   /** Long-form navigation nodes reuse the standard resource tree styling. */
   longWorkspaceSelection?: LongWorkspaceSelection;
   /** Identifies one of the fixed long-form character folders. */
@@ -219,11 +285,18 @@ export interface ResourceTreeNode {
     deletable: boolean;
   };
   catalogNodeType?:
-    "book" | "long-book" | "library" | "group" | "category" | "document";
+    | "book"
+    | "long-book"
+    | "mystery-book"
+    | "library"
+    | "group"
+    | "category"
+    | "document";
   libraryId?: string;
   groupId?: string;
   materialKind?: MaterialLibraryKind;
   skillKind?: SkillKind;
+  customTag?: string;
   stageCategoryId?: string;
   catalogEntryId?: string;
   parentGenre?: string;
@@ -247,7 +320,7 @@ export interface WorkspaceDocument {
   readOnly?: boolean;
   format?: "正文" | "设定" | "技能" | "素材" | "账本";
   workspaceId?: string;
-  workspaceType?: "short" | "script";
+  workspaceType?: "short" | "script" | "academic" | "mystery";
   workspaceTitle?: string;
   workspaceCategories?: string[];
   stageId?: ShortWorkspaceStageId;
@@ -261,7 +334,16 @@ export interface WorkspaceDocument {
   expertSectionOrder?: number;
   expertWordCountRequirement?: string;
   draftDirectoryId?: string;
-  draftFileKind?: "body" | "character-state";
+  draftFileKind?: DraftFileKind;
+  academicZone?: AcademicZoneId;
+  academicDocKind?: AcademicDocumentKind;
+  academicSubtype?: AcademicBookSubtype;
+  citationStyle?: AcademicCitationStyle;
+  academicCardId?: string;
+  academicCiteKey?: string;
+  academicCardType?: AcademicReferenceCardType;
+  academicChapterId?: string;
+  academicChapterTitle?: string;
   catalogDocumentId?: string;
   catalogEntryId?: string;
   /** Identifies a fixed library manifest field projected as an editor document. */

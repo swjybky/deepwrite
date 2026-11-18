@@ -3,6 +3,7 @@ import {
   FolderCatalogConflictError,
   FolderCatalogStore,
   access,
+  asCreativeBook,
   catalogFixture,
   cp,
   createShortWorkspaceContentRevision,
@@ -207,7 +208,7 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
       expect.objectContaining({
         id: imported.groupId,
         title: "都市素材组",
-        members: { character: libraries[0]!.id, other: libraries[1]!.id }
+        memberIds: [libraries[0]!.id, libraries[1]!.id]
       })
     ]);
 
@@ -280,7 +281,7 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
     source.books[0]!.id = "shared-id";
     source.materials[0]!.id = "shared-id";
     source.books[0]!.linkedMaterialIdsByKind.character = ["shared-id"];
-    source.materialGroups[0]!.members.character = "shared-id";
+    source.materialGroups[0]!.memberIds = ["shared-id"];
     const store = new FolderCatalogStore({
       userDataPath: join(root, "user-data")
     });
@@ -354,7 +355,7 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
     )!.body.path;
     await writeFile(join(bookDirectory, bodyPath), "Cursor 外部修改", "utf8");
     expect(
-      (await store.snapshot()).books[0]?.draft.sections.find(
+      asCreativeBook((await store.snapshot()).books[0]).draft.sections.find(
         ({ id }) => id === "section-1"
       )?.body.content
     ).toBe("Cursor 外部修改");
@@ -674,7 +675,7 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
     );
   });
 
-  it("creates persistent material and skill groups with optional members", async () => {
+  it("creates persistent material and skill groups with free cross-tag members and custom tags", async () => {
     const root = await makeTemporaryRoot("deepwrite-folder-library-groups-");
     const userDataPath = join(root, "user-data");
     const libraryParent = join(root, "libraries");
@@ -684,53 +685,67 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
       domain: "material",
       name: "剧情素材库",
       materialKind: "plot",
+      customTag: "文献",
       parentDirectory: libraryParent
     });
     const replacementMaterial = await store.createLibrary({
       domain: "material",
       name: "替换剧情素材库",
       materialKind: "plot",
+      customTag: "文献",
       parentDirectory: libraryParent
     });
     const skill = await store.createLibrary({
       domain: "skill",
       name: "通用技能库",
       skillKind: "general",
+      customTag: "论证",
       parentDirectory: libraryParent
     });
+    expect(material.resource.customTag).toBe("文献");
+    expect(skill.resource.customTag).toBe("论证");
+
+    const clearedSkill = await store.updateLibrary({
+      domain: "skill",
+      libraryId: skill.resource.id,
+      customTag: null,
+      baseProjectRevision: 0
+    });
+    expect(clearedSkill.customTag).toBeUndefined();
 
     const emptyMaterialGroup = await store.createLibraryGroup({
       domain: "material",
       name: "待整理素材",
-      members: {},
+      memberIds: [],
       parentDirectory: groupParent
     });
     const skillGroup = await store.createLibraryGroup({
       domain: "skill",
       name: "短篇技能组",
-      members: { general: skill.resource.id },
+      memberIds: [skill.resource.id],
       parentDirectory: groupParent
     });
     const materialGroup = await store.createLibraryGroup({
       domain: "material",
-      name: "短篇素材组",
-      members: { plot: material.resource.id },
+      name: "多文献素材组",
+      memberIds: [material.resource.id, replacementMaterial.resource.id],
       parentDirectory: groupParent
     });
 
     expect(emptyMaterialGroup).toMatchObject({
       domain: "material-group",
-      resource: { title: "待整理素材", members: {}, projectRevision: 0 }
+      resource: { title: "待整理素材", memberIds: [], projectRevision: 0 }
     });
     expect(emptyMaterialGroup.resource.id).toMatch(
       /^material-group-[0-9a-f]{8}$/
     );
     expect(skillGroup.resource.id).toMatch(/^skill-group-[0-9a-f]{8}$/);
     expect(materialGroup.resource.id).toMatch(/^material-group-[0-9a-f]{8}$/);
-    expect(skillGroup.resource.members).toEqual({ general: skill.resource.id });
-    expect(materialGroup.resource.members).toEqual({
-      plot: material.resource.id
-    });
+    expect(skillGroup.resource.memberIds).toEqual([skill.resource.id]);
+    expect(materialGroup.resource.memberIds).toEqual([
+      material.resource.id,
+      replacementMaterial.resource.id
+    ]);
     await expect(
       access(join(skillGroup.projectDirectory, "deepwrite.json"))
     ).resolves.toBeUndefined();
@@ -738,37 +753,37 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
     const restarted = await new FolderCatalogStore({ userDataPath }).snapshot();
     expect(restarted.materialGroups).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: "待整理素材", members: {} }),
+        expect.objectContaining({ title: "待整理素材", memberIds: [] }),
         expect.objectContaining({
-          title: "短篇素材组",
-          members: { plot: material.resource.id }
+          title: "多文献素材组",
+          memberIds: [material.resource.id, replacementMaterial.resource.id]
         })
       ])
     );
     expect(restarted.skillGroups).toEqual([
       expect.objectContaining({
         title: "短篇技能组",
-        members: { general: skill.resource.id }
+        memberIds: [skill.resource.id]
       })
     ]);
     const updatedMaterialGroup = await store.updateLibraryGroup({
       domain: "material",
       groupId: materialGroup.resource.id,
       title: "已重命名素材组",
-      members: { plot: replacementMaterial.resource.id },
+      memberIds: [replacementMaterial.resource.id],
       baseProjectRevision: 0
     });
     expect(updatedMaterialGroup).toMatchObject({
       id: materialGroup.resource.id,
       title: "已重命名素材组",
-      members: { plot: replacementMaterial.resource.id },
+      memberIds: [replacementMaterial.resource.id],
       projectRevision: 1
     });
     await expect(
       store.updateLibraryGroup({
         domain: "material",
         groupId: materialGroup.resource.id,
-        members: { plot: material.resource.id },
+        memberIds: [material.resource.id],
         baseProjectRevision: 0
       })
     ).rejects.toThrow(/当前版本 1/u);
@@ -776,17 +791,9 @@ describe("FolderCatalogStore: libraries-and-registration", () => {
       store.createLibraryGroup({
         domain: "skill",
         name: "重复技能组",
-        members: { general: skill.resource.id },
+        memberIds: [skill.resource.id],
         parentDirectory: groupParent
       })
     ).rejects.toThrow(/已经属于分组/u);
-    await expect(
-      store.createLibraryGroup({
-        domain: "skill",
-        name: "无效分组",
-        members: { plot: skill.resource.id },
-        parentDirectory: groupParent
-      })
-    ).rejects.toThrow(/不能放入plot分类/u);
   });
 });

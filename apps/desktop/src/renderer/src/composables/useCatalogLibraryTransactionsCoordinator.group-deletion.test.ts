@@ -107,7 +107,7 @@ describe("catalog group deletion", () => {
         {
           id: "group-a",
           title: "待删除分组",
-          members: {},
+          memberIds: [],
           projectRevision: 4,
           createdAt: NOW,
           updatedAt: NOW

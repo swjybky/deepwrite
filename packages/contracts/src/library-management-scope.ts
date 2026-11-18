@@ -4,7 +4,7 @@ import { z } from "zod";
 export const LibraryManagementScopeSchema = z
   .object({
     bookId: z.string().trim().min(1).max(512),
-    bookType: z.enum(["short", "script", "long"])
+    bookType: z.enum(["short", "script", "long", "academic", "mystery"])
   })
   .strict();
 export type LibraryManagementScope = z.infer<

@@ -2,9 +2,11 @@
 import { createScopedTranslator } from "../i18n";
 import { computed, watch } from "vue";
 import type {
+  AcademicAgentId,
   AgentTeamRunMode,
   AgentTeamWorkspaceType,
   LongAgentId,
+  MysteryAgentId,
   WorkspaceAgentId
 } from "@deepwrite/contracts";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -17,7 +19,8 @@ const t = createScopedTranslator("components.agentTeamModeSelect");
 const props = defineProps<{
   modelValue: AgentTeamRunMode;
   workspaceType: AgentTeamWorkspaceType;
-  parentAgentId: WorkspaceAgentId | LongAgentId;
+  parentAgentId:
+    WorkspaceAgentId | LongAgentId | AcademicAgentId | MysteryAgentId;
   bookId?: string | undefined;
 }>();
 

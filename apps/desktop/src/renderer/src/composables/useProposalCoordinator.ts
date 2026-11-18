@@ -3,6 +3,7 @@ import {
   stageLibraryStructureProposal as stageLibraryStructure,
   acceptLibraryStructureProposal
 } from "./proposal-coordinator/library-structure";
+import { createAcademicProposalLane } from "./proposal-coordinator/academic-proposal-lane";
 import { longRestorePatch } from "./proposal-coordinator/long-restore";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
@@ -37,7 +38,11 @@ import {
   replaceLongBookSummary,
   resolveLongWorkspaceApi
 } from "../types/longWorkspace";
-import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
+import type {
+  DraftFileKind,
+  EditorDraftState,
+  WorkspaceDocument
+} from "../types/workspace";
 import {
   agentEditProposalGenerationId,
   agentEditProposalId,
@@ -157,7 +162,7 @@ export interface ProposalCoordinatorContext {
     documents: ShallowRef<WorkspaceDocument[]>;
     drafts: Ref<Record<string, EditorDraftState>>;
     liveDocuments: ComputedRef<WorkspaceDocument[]>;
-    selectedDraftFileKinds: Ref<Record<string, "body" | "character-state">>;
+    selectedDraftFileKinds: Ref<Record<string, DraftFileKind>>;
     selectedExpertSectionIds: Ref<Record<string, string>>;
     acceptingWorkspaceIds: Ref<Set<string>>;
     savingDocumentIds: Ref<Set<string>>;
@@ -306,6 +311,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     /** Accept the user's rewrite of the proposed text instead. */
     editedText?: string;
   }
+
+  const academicProposalLane = createAcademicProposalLane(context, {
+    queueAgentEdit: (...args) => queueAgentEdit(...args)
+  });
 
   const plotStructureProposalLane = createPlotStructureProposalLane({
     api,
@@ -749,6 +758,20 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
   ): number {
     const proposal = conversation.getEditProposal(runId, proposalId);
     if (!proposal) return 2;
+    if (proposal.academicMutationTarget) {
+      const t = proposal.academicMutationTarget;
+      if (t.kind === "chapter-mutation" && t.mutation.type === "create")
+        return 0;
+      if (
+        t.kind === "reference-card-create" ||
+        (t.kind === "framework-stage-mutation" &&
+          t.mutation.type === "create") ||
+        (t.kind === "section-mutation" && t.mutation.type === "create")
+      ) {
+        return 1;
+      }
+      return 2;
+    }
     if (proposal.longWorldbuildingTarget?.file.operation === "create") return 0;
     if (
       proposal.longCharacterTarget?.files.every(
@@ -843,6 +866,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
 
   function canReviewAgentEditDuringRun(proposal: AgentEditProposal): boolean {
     return (
+      Boolean(proposal.academicMutationTarget) ||
       Boolean(proposal.libraryTarget) ||
       Boolean(proposal.longWorldbuildingTarget) ||
       Boolean(proposal.longCharacterTarget) ||
@@ -1060,7 +1084,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
     if (mutationTarget?.kind === "character-structure") {
       const book = catalogBook(event.payload.workspaceId);
-      if (!book || book.characterStructure.format !== "list") {
+      if (
+        !book ||
+        book.bookType === "academic" ||
+        book.characterStructure.format !== "list"
+      ) {
         const message = t(
           "proposalCoordinator.theCurrentCharacterStructureIsNotListBasedThis"
         );
@@ -4158,6 +4186,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           )
         );
       }
+      if (proposal.academicMutationTarget) {
+        academicProposalLane.handleAcademicProposalRejected(
+          conversation,
+          proposal
+        );
+      }
       blockLaterAgentEditGenerations(conversation, proposal);
       uiMessage.info(
         proposal.longPlotDesignTarget
@@ -4223,6 +4257,13 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
     }
 
+    if (proposal.academicMutationTarget) {
+      await academicProposalLane.acceptAcademicWorkspaceProposal(
+        conversation,
+        proposal
+      );
+      return;
+    }
     if (proposal.libraryStructureTarget) {
       await acceptLibraryStructureProposal(context, conversation, proposal);
       return;
@@ -5087,6 +5128,13 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     stageAgentEditProposal: (
       ...args: Parameters<typeof stageAgentEditProposal>
     ) => invokeWhileActive(() => stageAgentEditProposal(...args)),
+    stageAcademicWorkspaceProposal: (
+      event: import("@deepwrite/contracts").AcademicWorkspaceMutationEventEnvelope
+    ) => {
+      if (!proposalQueue.isDisposed()) {
+        academicProposalLane.stageAcademicWorkspaceProposal(event);
+      }
+    },
     stageLibraryStructureProposal: (
       event: import("@deepwrite/contracts").LibraryStructureProposalEventEnvelope
     ) => {

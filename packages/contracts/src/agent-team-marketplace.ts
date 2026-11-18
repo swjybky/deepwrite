@@ -13,6 +13,7 @@ import {
   AgentTeamWorkspaceTypeSchema,
   type AgentTeamProfile
 } from "./agent-team-catalog";
+import { AcademicAgentTeamSettingsSchema } from "./academic-agent-team";
 import { LongAgentTeamSettingsSchema } from "./long-agent-team";
 import {
   MarketplaceLikeResultSchema,
@@ -37,7 +38,8 @@ export const AgentTeamMarketplaceSettingsSchema = z.discriminatedUnion(
   [
     AgentTeamSettingsSchema,
     ScriptAgentTeamSettingsSchema,
-    LongAgentTeamSettingsSchema
+    LongAgentTeamSettingsSchema,
+    AcademicAgentTeamSettingsSchema
   ]
 );
 export type AgentTeamMarketplaceSettings = z.infer<

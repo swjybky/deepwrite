@@ -69,6 +69,7 @@ export function migrateLegacyDraftRecoveries(
   const documentsById = projection.index.workspaceDocumentById;
 
   for (const book of snapshot.books) {
+    if (book.bookType === "academic") continue;
     const legacyKey = legacyBookDraftRecoveryKey(book.id);
     const legacy = nextDrafts[legacyKey];
     if (!legacy?.dirty) continue;

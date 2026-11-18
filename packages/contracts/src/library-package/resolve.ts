@@ -8,7 +8,10 @@ import {
   type SkillStageId
 } from "../catalog";
 import { MATERIAL_STAGE_KINDS } from "../material-stages";
-import type { LibraryPackageDomain } from "./manifest";
+import {
+  LIBRARY_PACKAGE_MAX_LIBRARIES,
+  type LibraryPackageDomain
+} from "./manifest";
 
 export const LIBRARY_PACKAGE_MATERIAL_KINDS = [
   "character",
@@ -50,7 +53,7 @@ export function kindFromStageHints(
   return kinds.size === 1 && only ? (only as MaterialLibraryKind) : "mixed";
 }
 
-/** A stage the library kind accepts: the hint when allowed, else its default. */
+/** A stage for the entry: preserves any valid stage hint, else kind default. */
 export function resolveLibraryPackageStage(
   domain: LibraryPackageDomain,
   kind: string,
@@ -62,11 +65,7 @@ export function resolveLibraryPackageStage(
     }
     return kind === "plot" ? "plot_design" : "draft";
   }
-  if (
-    hint &&
-    (MATERIAL_STAGE_IDS as readonly string[]).includes(hint) &&
-    (kind === "mixed" || MATERIAL_STAGE_KINDS[hint as MaterialStageId] === kind)
-  ) {
+  if (hint && (MATERIAL_STAGE_IDS as readonly string[]).includes(hint)) {
     return hint as MaterialStageId;
   }
   switch (kind) {
@@ -86,8 +85,8 @@ export function resolveLibraryPackageStage(
 export type LibraryPackageGroupProblem = "empty" | "tooMany" | "duplicateKind";
 
 /**
- * Places libraries into group slots: one library per kind, general material
- * libraries fill the free slots. `preferred` keeps an exported package's slots.
+ * Validates that selected libraries can form a group and produces display/order
+ * slot keys. Groups accept any combination of tags and kinds up to the package limit.
  */
 export function assignLibraryPackageGroup(
   domain: LibraryPackageDomain,
@@ -97,35 +96,40 @@ export function assignLibraryPackageGroup(
   const slotNames: readonly string[] =
     domain === "material" ? MATERIAL_SLOTS : SKILL_KINDS;
   if (kinds.length === 0) return { problem: "empty" };
-  if (kinds.length > slotNames.length) return { problem: "tooMany" };
-  const fits = (kind: string, slot: string) =>
-    slotNames.includes(slot) &&
-    (kind === slot || (domain === "material" && kind === "mixed"));
-  const slots: (string | undefined)[] = kinds.map(() => undefined);
+  if (kinds.length > LIBRARY_PACKAGE_MAX_LIBRARIES)
+    return { problem: "tooMany" };
+  const slots: string[] = [];
   const used = new Set<string>();
   kinds.forEach((kind, index) => {
-    const slot = preferred[index];
-    if (slot && fits(kind, slot) && !used.has(slot)) {
-      slots[index] = slot;
-      used.add(slot);
+    const pref = preferred[index];
+    if (pref && !used.has(pref)) {
+      slots.push(pref);
+      used.add(pref);
+      return;
     }
+    if (slotNames.includes(kind) && !used.has(kind)) {
+      slots.push(kind);
+      used.add(kind);
+      return;
+    }
+    if (domain === "material" && kind === "mixed") {
+      const free = MIXED_SLOT_ORDER.find((slot) => !used.has(slot));
+      if (free) {
+        slots.push(free);
+        used.add(free);
+        return;
+      }
+    }
+    let candidate = `${kind || "member"}-${index + 1}`;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${kind || "member"}-${index + 1}-${suffix}`;
+      suffix += 1;
+    }
+    slots.push(candidate);
+    used.add(candidate);
   });
-  for (const [index, kind] of kinds.entries()) {
-    if (slots[index] || kind === "mixed") continue;
-    if (!slotNames.includes(kind) || used.has(kind)) {
-      return { problem: "duplicateKind" };
-    }
-    slots[index] = kind;
-    used.add(kind);
-  }
-  for (const [index, kind] of kinds.entries()) {
-    if (slots[index] || kind !== "mixed") continue;
-    const free = MIXED_SLOT_ORDER.find((slot) => !used.has(slot));
-    if (!free) return { problem: "tooMany" };
-    slots[index] = free;
-    used.add(free);
-  }
-  return { slots: slots as string[] };
+  return { slots };
 }
 
 const TITLE_MAX_LENGTH = 256;

@@ -11,13 +11,21 @@ import {
 import type {
   CreateLibraryInput,
   CreateLibraryEntryInput,
-  MaterialKind,
   MaterialLibraryKind,
   MaterialStageId,
   SkillKind
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
 import * as options from "../components/libraryProjectDialogOptions";
+import {
+  CUSTOM_TAG_SELECT_VALUE,
+  LIBRARY_CUSTOM_TAG_MAX_LENGTH,
+  buildLibraryTagSelectOptions,
+  initialTagSelectionFromLibrary,
+  resolveMaterialTagSelection,
+  resolveSkillTagSelection,
+  sharingT
+} from "../components/librarySharingLabels";
 
 const t = createScopedTranslator("components.libraryProjectDialog");
 
@@ -40,6 +48,8 @@ export interface LibraryProjectDialogProps {
   libraryId?: string | undefined;
   libraryTitle?: string | undefined;
   materialKind?: MaterialLibraryKind | undefined;
+  skillKind?: SkillKind | undefined;
+  customTag?: string | undefined;
   entryId?: string | undefined;
   entryTitle?: string | undefined;
   workspaceType?: "short" | "script" | "long" | undefined;
@@ -51,7 +61,14 @@ export type LibraryProjectDialogEvents = {
   createLibrary: [payload: CreateLibraryInput];
   createEntry: [payload: CreateLibraryEntryDraft];
   renameLibrary: [
-    payload: { domain: LibraryDomain; libraryId: string; title: string }
+    payload: {
+      domain: LibraryDomain;
+      libraryId: string;
+      title: string;
+      materialKind?: MaterialLibraryKind;
+      skillKind?: SkillKind;
+      customTag?: string | null;
+    }
   ];
   renameEntry: [
     payload: {
@@ -96,8 +113,15 @@ export function useLibraryProjectDialog(
   ]);
   const title = ref("");
   const stageId = ref<MaterialStageId>("other");
-  const libraryKind = ref<MaterialKind | SkillKind>("character");
+  const libraryKind = ref<SkillKind>("general");
+  const libraryTagChoice = ref("preset:文献");
+  const customTagDraft = ref("");
   const titleInput = ref<HTMLInputElement | null>(null);
+  const customTagInput = ref<HTMLInputElement | null>(null);
+
+  const isCustomTagSelected = computed(
+    () => libraryTagChoice.value === CUSTOM_TAG_SELECT_VALUE
+  );
   const domainLabel = computed(() =>
     props.domain === "material" ? t("material") : t("skill")
   );
@@ -122,6 +146,12 @@ export function useLibraryProjectDialog(
   const libraryKindOptions = computed(() =>
     options.libraryKindOptions(props.domain)
   );
+  const libraryTagOptions = computed(() =>
+    buildLibraryTagSelectOptions(
+      props.domain,
+      props.operation === "rename-library" && props.materialKind === "mixed"
+    )
+  );
   const stageOptions = computed(() => {
     const destinationKind = catalog.snapshot?.materials.find(
       (library) => library.id === (props.libraryId ?? destination.value)
@@ -130,13 +160,13 @@ export function useLibraryProjectDialog(
       destinationKind ?? props.materialKind ?? "mixed"
     );
   });
-  watch(entryDestinations, (options) => {
-    if (!options.some((option) => option.value === destination.value))
+  watch(entryDestinations, (opts) => {
+    if (!opts.some((option) => option.value === destination.value))
       destination.value = "";
   });
-  watch(stageOptions, (options) => {
-    if (!options.some((option) => option.value === stageId.value))
-      stageId.value = (options[0]?.value as MaterialStageId) ?? "other";
+  watch(stageOptions, (opts) => {
+    if (!opts.some((option) => option.value === stageId.value))
+      stageId.value = (opts[0]?.value as MaterialStageId) ?? "other";
   });
   const showEntryStageField = computed(
     () => props.operation === "create-entry" && props.domain === "material"
@@ -163,7 +193,8 @@ export function useLibraryProjectDialog(
     const normalizedTitle = title.value.trim();
     if (!normalizedTitle) {
       uiMessage.warning(
-        props.operation === "create-library"
+        props.operation === "create-library" ||
+          props.operation === "rename-library"
           ? t("enterALibraryName")
           : t("enterAnEntryName")
       );
@@ -172,16 +203,36 @@ export function useLibraryProjectDialog(
     }
     if (props.operation === "create-library") {
       if (props.domain === "material") {
+        const resolved = resolveMaterialTagSelection(
+          libraryTagChoice.value,
+          customTagDraft.value
+        );
+        if (!resolved) {
+          uiMessage.warning(sharingT("enterCustomTagWarning"));
+          customTagInput.value?.focus();
+          return;
+        }
         emit("createLibrary", {
           domain: "material",
           name: normalizedTitle,
-          materialKind: libraryKind.value as MaterialKind
+          materialKind: resolved.materialKind,
+          ...(resolved.customTag ? { customTag: resolved.customTag } : {})
         });
       } else {
+        const resolved = resolveSkillTagSelection(
+          libraryTagChoice.value,
+          customTagDraft.value
+        );
+        if (!resolved) {
+          uiMessage.warning(sharingT("enterCustomTagWarning"));
+          customTagInput.value?.focus();
+          return;
+        }
         emit("createLibrary", {
           domain: "skill",
           name: normalizedTitle,
-          skillKind: libraryKind.value as SkillKind
+          skillKind: resolved.skillKind,
+          ...(resolved.customTag ? { customTag: resolved.customTag } : {})
         });
       }
       return;
@@ -191,11 +242,55 @@ export function useLibraryProjectDialog(
         uiMessage.error(t("libraryToRenameNotFound"));
         return;
       }
-      emit("renameLibrary", {
-        domain: props.domain,
-        libraryId: props.libraryId,
-        title: normalizedTitle
-      });
+      if (props.domain === "material") {
+        const resolved = resolveMaterialTagSelection(
+          libraryTagChoice.value,
+          customTagDraft.value,
+          props.materialKind ?? "other"
+        );
+        if (!resolved) {
+          uiMessage.warning(sharingT("enterCustomTagWarning"));
+          customTagInput.value?.focus();
+          return;
+        }
+        const nextKind: MaterialLibraryKind = resolved.preserveMixed
+          ? "mixed"
+          : resolved.materialKind;
+        const initialCustomTag = props.customTag?.trim() || null;
+        const kindChanged =
+          props.materialKind !== undefined && nextKind !== props.materialKind;
+        const tagChanged = resolved.customTag !== initialCustomTag;
+        emit("renameLibrary", {
+          domain: "material",
+          libraryId: props.libraryId,
+          title: normalizedTitle,
+          ...(kindChanged ? { materialKind: nextKind } : {}),
+          ...(tagChanged ? { customTag: resolved.customTag } : {})
+        });
+      } else {
+        const resolved = resolveSkillTagSelection(
+          libraryTagChoice.value,
+          customTagDraft.value,
+          props.skillKind ?? "general"
+        );
+        if (!resolved) {
+          uiMessage.warning(sharingT("enterCustomTagWarning"));
+          customTagInput.value?.focus();
+          return;
+        }
+        const initialCustomTag = props.customTag?.trim() || null;
+        const kindChanged =
+          props.skillKind !== undefined &&
+          resolved.skillKind !== props.skillKind;
+        const tagChanged = resolved.customTag !== initialCustomTag;
+        emit("renameLibrary", {
+          domain: "skill",
+          libraryId: props.libraryId,
+          title: normalizedTitle,
+          ...(kindChanged ? { skillKind: resolved.skillKind } : {}),
+          ...(tagChanged ? { customTag: resolved.customTag } : {})
+        });
+      }
       return;
     }
     if (props.operation === "rename-entry") {
@@ -218,9 +313,7 @@ export function useLibraryProjectDialog(
         domain: props.domain,
         title: normalizedTitle,
         stageId: props.domain === "material" ? stageId.value : "draft",
-        ...(props.domain === "skill"
-          ? { skillKind: libraryKind.value as SkillKind }
-          : {})
+        ...(props.domain === "skill" ? { skillKind: libraryKind.value } : {})
       });
       return;
     }
@@ -251,7 +344,9 @@ export function useLibraryProjectDialog(
         props.operation,
         props.domain,
         props.libraryId,
-        props.materialKind
+        props.materialKind,
+        props.skillKind,
+        props.customTag
       ] as const,
     ([open]) => {
       if (!open) return;
@@ -262,7 +357,37 @@ export function useLibraryProjectDialog(
           : props.operation === "rename-entry"
             ? (props.entryTitle ?? "")
             : "";
-      libraryKind.value = props.domain === "material" ? "character" : "general";
+      libraryKind.value = "general";
+      if (props.operation === "rename-library") {
+        const currentLibrary =
+          props.domain === "material"
+            ? catalog.snapshot?.materials.find(
+                (item) => item.id === props.libraryId
+              )
+            : catalog.snapshot?.skills.find(
+                (item) => item.id === props.libraryId
+              );
+        const initial = initialTagSelectionFromLibrary({
+          domain: props.domain,
+          materialKind:
+            props.materialKind ??
+            (currentLibrary && "materialKind" in currentLibrary
+              ? currentLibrary.materialKind
+              : undefined),
+          skillKind:
+            props.skillKind ??
+            (currentLibrary && "skillKind" in currentLibrary
+              ? currentLibrary.skillKind
+              : undefined),
+          customTag: props.customTag ?? currentLibrary?.customTag
+        });
+        libraryTagChoice.value = initial.choice;
+        customTagDraft.value = initial.customDraft;
+      } else {
+        libraryTagChoice.value =
+          props.domain === "material" ? "preset:文献" : "general";
+        customTagDraft.value = "";
+      }
       stageId.value =
         (stageOptions.value[0]?.value as MaterialStageId | undefined) ??
         "other";
@@ -277,15 +402,21 @@ export function useLibraryProjectDialog(
   onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
   return {
+    LIBRARY_CUSTOM_TAG_MAX_LENGTH,
     destination,
     entryDestinations,
     title,
     stageId,
     libraryKind,
+    libraryTagChoice,
+    customTagDraft,
+    isCustomTagSelected,
     titleInput,
+    customTagInput,
     domainLabel,
     heading,
     libraryKindOptions,
+    libraryTagOptions,
     stageOptions,
     showEntryStageField,
     requestClose,

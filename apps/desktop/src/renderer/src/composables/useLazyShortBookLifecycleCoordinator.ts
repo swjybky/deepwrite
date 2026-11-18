@@ -9,6 +9,11 @@ import {
   type ShallowRef
 } from "vue";
 import { SHORT_MANUSCRIPT_PREVIEW_KEY } from "./shortManuscriptPreviewContext";
+import {
+  openAcademicFrameworkDialog,
+  openExportAcademicManuscriptDialog,
+  registerAcademicLifecyclePort
+} from "../stores/academicWorkspaceDialog";
 import type {
   BookResourceDialogMode,
   ResourceTreeNode
@@ -125,7 +130,12 @@ function createTarget(
     requestId,
     bookId: node.id,
     label: node.label,
-    workspaceType: node.workspaceType === "script" ? "script" : "short",
+    workspaceType:
+      node.workspaceType === "academic"
+        ? "academic"
+        : node.workspaceType === "script"
+          ? "script"
+          : "short",
     projectRevision: node.projectRevision,
     unavailable: node.unavailable === true,
     node: snapshotNode(node),
@@ -158,6 +168,25 @@ export function useLazyShortBookLifecycleCoordinator(
     ...options,
     state
   };
+  const unregisterAcademicPort = registerAcademicLifecyclePort({
+    api: () => options.catalog.api(),
+    manuscriptApi: () => options.manuscript.api(),
+    book: (bookId) => options.catalog.book(bookId),
+    refresh: () => options.catalog.refresh(),
+    prepareBookMutation: (bookId) =>
+      options.preparation.prepareBookMutation(bookId),
+    ensureDocumentsLoaded: (docs) =>
+      options.manuscript.ensureDocumentsLoaded(docs),
+    documents: state.documents,
+    drafts: state.drafts,
+    selectedResourceId: state.selectedResourceId,
+    activeCreationResourceId: state.activeCreationResourceId,
+    selectedExpertSectionIds: state.selectedExpertSectionIds,
+    selectedDraftFileKinds: state.selectedDraftFileKinds,
+    catalogMutationPending: state.catalogMutationPending,
+    manuscriptExportPending: state.manuscriptExportPending,
+    notifications: options.notifications
+  });
 
   if (getCurrentInstance()) {
     provide(SHORT_MANUSCRIPT_PREVIEW_KEY, {
@@ -261,6 +290,13 @@ export function useLazyShortBookLifecycleCoordinator(
     }
     if (mode === "manage-structure") {
       bookDialogMode.value = null;
+      if (target.workspaceType === "academic") {
+        activeBook.value = null;
+        if (!target.unavailable) {
+          openAcademicFrameworkDialog(target.bookId, "stages");
+        }
+        return Promise.resolve();
+      }
       activeBook.value = target;
       return invoke((loaded) => loaded.manageStructure(target), requestId);
     }
@@ -278,6 +314,15 @@ export function useLazyShortBookLifecycleCoordinator(
 
   function openBookExportDialog(book: ResourceTreeNode): void {
     if (disposed) return;
+    if (book.workspaceType === "academic") {
+      bookDialogMode.value = null;
+      activeBook.value = null;
+      exportBookTarget.value = null;
+      if (!book.unavailable) {
+        openExportAcademicManuscriptDialog(book.id, book.label);
+      }
+      return;
+    }
     const requestId = nextIntent();
     bookDialogMode.value = null;
     activeBook.value = null;
@@ -347,6 +392,7 @@ export function useLazyShortBookLifecycleCoordinator(
     if (disposePromise) return disposePromise;
     if (disposed) return;
     disposed = true;
+    unregisterAcademicPort();
     nextIntent();
     bookDialogMode.value = null;
     activeBook.value = null;

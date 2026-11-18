@@ -2,6 +2,7 @@ import type { CatalogIndexSnapshot } from "@deepwrite/contracts";
 import { defineStore } from "pinia";
 import { computed, onScopeDispose, ref, shallowRef } from "vue";
 import {
+  ensureAcademicBookProjectorLoaded,
   projectCatalogWorkspace,
   type CatalogWorkspaceProjection,
   type DraftDirectoryProjection
@@ -180,6 +181,9 @@ export const useCatalogIndexStore = defineStore("catalogIndex", () => {
     const requestSnapshotGeneration = snapshotGeneration;
     const request = (async () => {
       const firstSnapshot = await loader();
+      if (firstSnapshot.books.some((book) => book.bookType === "academic")) {
+        await ensureAcademicBookProjectorLoaded();
+      }
       assertSnapshotRequestActive(
         requestLifecycleGeneration,
         requestSnapshotGeneration
@@ -189,6 +193,11 @@ export const useCatalogIndexStore = defineStore("catalogIndex", () => {
       if (snapshotTrailingRefreshRequested) {
         snapshotTrailingRefreshRequested = false;
         const trailingSnapshot = await loader();
+        if (
+          trailingSnapshot.books.some((book) => book.bookType === "academic")
+        ) {
+          await ensureAcademicBookProjectorLoaded();
+        }
         assertSnapshotRequestActive(
           requestLifecycleGeneration,
           requestSnapshotGeneration

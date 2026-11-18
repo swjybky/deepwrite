@@ -67,11 +67,19 @@ describe("useLibraryPackageImportForm", () => {
       true,
       false
     ]);
-    expect(form.groupProblem.value).toBe("duplicateKind");
-    expect(form.groupEnabled.value).toBe(false);
+    expect(form.groupProblem.value).toBeNull();
+    expect(form.groupEnabled.value).toBe(true);
     expect(form.plannedTitles.value.get("lib-2")).toBe("剧情 (2)");
 
-    form.updateRow("lib-3", { kind: "gimmick" });
+    form.updateRow("lib-1", { include: false });
+    form.updateRow("lib-2", { include: false });
+    form.updateRow("lib-3", { include: false });
+    expect(form.groupProblem.value).toBe("empty");
+    expect(form.groupEnabled.value).toBe(false);
+
+    form.updateRow("lib-1", { include: true });
+    form.updateRow("lib-2", { include: true });
+    form.updateRow("lib-3", { include: true, kind: "gimmick" });
     expect(form.groupProblem.value).toBeNull();
     expect(form.groupEnabled.value).toBe(true);
 

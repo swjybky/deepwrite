@@ -4,7 +4,7 @@ import { EnvelopeBaseSchema } from "../envelope";
 /** Main asks Core where a project lives before taking it off the list. */
 export const ExternalControlLocateProjectInputSchema = z
   .object({
-    source: z.enum(["catalog", "long"]),
+    source: z.enum(["catalog", "long", "mystery"]),
     projectId: z.string().trim().min(1).max(512)
   })
   .strict();

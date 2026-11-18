@@ -116,7 +116,9 @@ export async function persistPlotStructure(
           candidate.catalogDocumentId === saved.id
       );
     if (
-      !refreshed?.plotStages.some(({ id }) => id === createdStageId) ||
+      !refreshed ||
+      refreshed.bookType === "academic" ||
+      !refreshed.plotStages.some(({ id }) => id === createdStageId) ||
       !refreshed.documents.some(({ id }) => id === saved.id) ||
       !document
     ) {

@@ -5,25 +5,31 @@ import {
   nextTick,
   onBeforeUnmount,
   onMounted,
-  reactive,
   ref,
   watch
 } from "vue";
-import type {
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  LongLinkedResourceStageScopes,
-  MaterialKind,
-  MaterialLibrary,
-  SkillKind,
-  SkillLibrary
-} from "@deepwrite/contracts";
+import {
+  flattenMaterialIdsByKind,
+  flattenSkillIdsByKind,
+  materialIdsToByKind,
+  skillIdsToByKind,
+  type LinkedMaterialIdsByKind,
+  type LinkedSkillIdsByKind,
+  type LongLinkedResourceStageScopes,
+  type MaterialKind,
+  type MaterialLibrary,
+  type MaterialLibraryGroup,
+  type SkillKind,
+  type SkillLibrary,
+  type SkillLibraryGroup
+} from "@deepwrite/contracts/renderer";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
 import {
-  LONG_MATERIAL_BINDING_KINDS,
-  LONG_SKILL_BINDING_KINDS
-} from "./longBookBindingOptions";
+  formatMaterialTagBadge,
+  formatSkillTagBadge,
+  sharingT
+} from "./librarySharingLabels";
 
 const t = createScopedTranslator("components.longBookBindingsDialog");
 
@@ -35,6 +41,8 @@ const props = withDefaults(
     bookTitle: string;
     materials?: readonly MaterialLibrary[];
     skills?: readonly SkillLibrary[];
+    materialGroups?: readonly MaterialLibraryGroup[];
+    skillGroups?: readonly SkillLibraryGroup[];
     linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
     linkedSkillIdsByKind: LinkedSkillIdsByKind;
     linkedResourceStageScopes: LongLinkedResourceStageScopes;
@@ -43,6 +51,8 @@ const props = withDefaults(
   {
     materials: () => [],
     skills: () => [],
+    materialGroups: () => [],
+    skillGroups: () => [],
     submitting: false
   }
 );
@@ -58,35 +68,10 @@ const emit = defineEmits<{
   ];
 }>();
 
-const materialKinds = LONG_MATERIAL_BINDING_KINDS;
-const skillKinds = LONG_SKILL_BINDING_KINDS;
-
-const selectedMaterials = reactive<Record<MaterialKind, string[]>>({
-  character: [],
-  gimmick: [],
-  plot: [],
-  draft: [],
-  other: []
-});
-const selectedSkills = reactive<Record<SkillKind, string[]>>({
-  general: [],
-  plot: [],
-  style: [],
-  other: []
-});
-const materialCandidates = reactive<Record<MaterialKind, string>>({
-  character: "",
-  gimmick: "",
-  plot: "",
-  draft: "",
-  other: ""
-});
-const skillCandidates = reactive<Record<SkillKind, string>>({
-  general: "",
-  plot: "",
-  style: "",
-  other: ""
-});
+const selectedMaterialIds = ref<string[]>([]);
+const selectedSkillIds = ref<string[]>([]);
+const searchQuery = ref("");
+const tagFilter = ref("");
 const dialog = ref<HTMLElement | null>(null);
 
 const title = computed(() =>
@@ -101,109 +86,155 @@ const description = computed(() =>
     : t("linkedMaterialsCanBeLoadedAtAnyStageLink")
 );
 
-function materialOptions(kind: MaterialKind): Array<{
-  value: string;
-  label: string;
-}> {
-  const selected = new Set(selectedMaterials[kind]);
+const availableMaterials = computed(() =>
+  props.materials.filter((library) => !library.isUnbound)
+);
+const availableSkills = computed(() =>
+  props.skills.filter((library) => !library.isUnbound)
+);
+const materialById = computed(
+  () =>
+    new Map(availableMaterials.value.map((item) => [item.id, item] as const))
+);
+const skillById = computed(
+  () => new Map(availableSkills.value.map((item) => [item.id, item] as const))
+);
+
+const activeItems = computed(() => {
+  if (props.mode === "skill") {
+    return availableSkills.value.map((library) => ({
+      id: library.id,
+      title: library.isBuiltin
+        ? t("valueOfficial", { arg0: library.title })
+        : library.title,
+      tag: formatSkillTagBadge(library),
+      entryCount: library.entries.length
+    }));
+  }
+  return availableMaterials.value.map((library) => ({
+    id: library.id,
+    title: library.title,
+    tag: formatMaterialTagBadge(library),
+    entryCount: library.entries.length
+  }));
+});
+
+const tagFilterOptions = computed(() => {
+  const tags = [...new Set(activeItems.value.map((item) => item.tag))];
   return [
-    {
-      value: "",
-      label: t("addAMaterialLibrary")
-    },
-    ...props.materials
-      .filter(
-        (library) =>
-          (library.materialKind === kind || library.materialKind === "mixed") &&
-          !selected.has(library.id)
-      )
-      .map((library) => ({
-        value: library.id,
-        label: library.title
-      }))
+    { value: "", label: sharingT("allTags") },
+    ...tags.map((tag) => ({ value: tag, label: tag }))
   ];
+});
+
+const filteredItems = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase();
+  const tag = tagFilter.value;
+  return activeItems.value.filter(
+    (item) =>
+      (!tag || item.tag === tag) &&
+      (!query ||
+        item.title.toLocaleLowerCase().includes(query) ||
+        item.tag.toLocaleLowerCase().includes(query))
+  );
+});
+
+const selectedIds = computed(() =>
+  props.mode === "skill" ? selectedSkillIds.value : selectedMaterialIds.value
+);
+const selectedSet = computed(() => new Set(selectedIds.value));
+
+const missingIds = computed(() =>
+  props.mode === "skill"
+    ? selectedSkillIds.value.filter((id) => !skillById.value.has(id))
+    : selectedMaterialIds.value.filter((id) => !materialById.value.has(id))
+);
+
+function validGroupMemberIds(
+  group: MaterialLibraryGroup | SkillLibraryGroup
+): string[] {
+  return props.mode === "skill"
+    ? group.memberIds.filter((id) => skillById.value.has(id))
+    : group.memberIds.filter((id) => materialById.value.has(id));
 }
 
-function skillOptions(kind: SkillKind): Array<{
-  value: string;
-  label: string;
-}> {
-  const selected = new Set(selectedSkills[kind]);
-  return [
-    {
-      value: "",
-      label: t("addASkillLibrary")
-    },
-    ...props.skills
-      .filter(
-        (library) => library.skillKind === kind && !selected.has(library.id)
-      )
-      .map((library) => ({
-        value: library.id,
-        label: library.isBuiltin
-          ? t("valueOfficial", {
-              arg0: library.title
-            })
-          : library.title
-      }))
-  ];
+const availableGroups = computed(() => {
+  const groups =
+    props.mode === "skill" ? props.skillGroups : props.materialGroups;
+  return groups.filter((group) => validGroupMemberIds(group).length > 0);
+});
+
+function isGroupSelected(
+  group: MaterialLibraryGroup | SkillLibraryGroup
+): boolean {
+  const ids = validGroupMemberIds(group);
+  return ids.length > 0 && ids.every((id) => selectedSet.value.has(id));
+}
+
+function toggleGroup(groupId: string): void {
+  const group = availableGroups.value.find((item) => item.id === groupId);
+  if (!group) return;
+  const ids = validGroupMemberIds(group);
+  if (!ids.length) return;
+  const target =
+    props.mode === "skill" ? selectedSkillIds : selectedMaterialIds;
+  if (isGroupSelected(group)) {
+    const remove = new Set(ids);
+    target.value = target.value.filter((id) => !remove.has(id));
+  } else {
+    target.value = [...new Set([...target.value, ...ids])];
+  }
+}
+
+function toggleLibrary(id: string): void {
+  const target =
+    props.mode === "skill" ? selectedSkillIds : selectedMaterialIds;
+  if (target.value.includes(id)) {
+    target.value = target.value.filter((candidate) => candidate !== id);
+  } else {
+    target.value = [...target.value, id];
+  }
 }
 
 function reset(): void {
-  for (const { id } of materialKinds) {
-    selectedMaterials[id] = [...props.linkedMaterialIdsByKind[id]];
-    materialCandidates[id] = "";
-  }
-  for (const { id } of skillKinds) {
-    selectedSkills[id] = [...props.linkedSkillIdsByKind[id]];
-    skillCandidates[id] = "";
-  }
+  searchQuery.value = "";
+  tagFilter.value = "";
+  selectedMaterialIds.value = flattenMaterialIdsByKind(
+    props.linkedMaterialIdsByKind
+  );
+  selectedSkillIds.value = flattenSkillIdsByKind(props.linkedSkillIdsByKind);
 }
 
 function selectedMaterialLinks(): LinkedMaterialIdsByKind {
-  return Object.fromEntries(
-    materialKinds.map(({ id }) => [id, [...selectedMaterials[id]]])
-  ) as LinkedMaterialIdsByKind;
+  const validIds = selectedMaterialIds.value.filter((id) =>
+    materialById.value.has(id)
+  );
+  const links = materialIdsToByKind(validIds, availableMaterials.value);
+  for (const id of selectedMaterialIds.value) {
+    if (materialById.value.has(id)) continue;
+    const originKind = (
+      ["character", "gimmick", "plot", "draft", "other"] as MaterialKind[]
+    ).find((kind) => props.linkedMaterialIdsByKind[kind].includes(id));
+    const bucket = originKind ?? "other";
+    if (!links[bucket].includes(id)) links[bucket].push(id);
+  }
+  return links;
 }
 
 function selectedSkillLinks(): LinkedSkillIdsByKind {
-  return Object.fromEntries(
-    skillKinds.map(({ id }) => [id, [...selectedSkills[id]]])
-  ) as LinkedSkillIdsByKind;
-}
-
-function addMaterial(kind: MaterialKind, value: unknown): void {
-  const id = String(value ?? "").trim();
-  materialCandidates[kind] = "";
-  if (!id || selectedMaterials[kind].includes(id)) return;
-  selectedMaterials[kind] = [...selectedMaterials[kind], id];
-}
-
-function addSkill(kind: SkillKind, value: unknown): void {
-  const id = String(value ?? "").trim();
-  skillCandidates[kind] = "";
-  if (!id || selectedSkills[kind].includes(id)) return;
-  selectedSkills[kind] = [...selectedSkills[kind], id];
-}
-
-function materialLabel(id: string): string {
-  return (
-    props.materials.find((candidate) => candidate.id === id)?.title ??
-    t("valueMissingFromCatalog", { arg0: id })
+  const validIds = selectedSkillIds.value.filter((id) =>
+    skillById.value.has(id)
   );
-}
-
-function skillLabel(id: string): string {
-  const library = props.skills.find((candidate) => candidate.id === id);
-  if (!library)
-    return t("valueMissingFromCatalog", {
-      arg0: id
-    });
-  return library.isBuiltin
-    ? t("valueOfficial", {
-        arg0: library.title
-      })
-    : library.title;
+  const links = skillIdsToByKind(validIds, availableSkills.value);
+  for (const id of selectedSkillIds.value) {
+    if (skillById.value.has(id)) continue;
+    const originKind = (
+      ["general", "plot", "style", "other"] as SkillKind[]
+    ).find((kind) => props.linkedSkillIdsByKind[kind].includes(id));
+    const bucket = originKind ?? "other";
+    if (!links[bucket].includes(id)) links[bucket].push(id);
+  }
+  return links;
 }
 
 function requestClose(): void {
@@ -267,7 +298,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
           @submit.prevent="submit"
         >
           <section
-            class="create-short-binding-panel"
+            class="create-short-binding-panel lib-picker-stack"
             :aria-labelledby="`long-binding-heading-${mode}`"
           >
             <div class="create-short-binding-heading">
@@ -283,123 +314,109 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               </div>
             </div>
 
-            <div v-if="mode === 'material'" class="create-short-kind-grid">
-              <div
-                v-for="kind in materialKinds"
-                :key="kind.id"
-                class="create-short-kind-field long-binding-kind-field"
-              >
-                <span>
-                  <strong>{{ kind.label }}</strong>
-                  <small>{{ kind.description }}</small>
-                </span>
-                <div
-                  v-if="selectedMaterials[kind.id].length"
-                  class="long-binding-chips"
+            <div v-if="availableGroups.length" class="lib-picker-groups">
+              <span class="lib-picker-groups-label">{{
+                sharingT("quickSelectGroups")
+              }}</span>
+              <div class="lib-picker-group-chips">
+                <button
+                  v-for="group in availableGroups"
+                  :key="group.id"
+                  class="lib-picker-group-chip"
+                  :class="{ 'is-active': isGroupSelected(group) }"
+                  type="button"
+                  :disabled="submitting"
+                  @click="toggleGroup(group.id)"
                 >
-                  <span
-                    v-for="id in selectedMaterials[kind.id]"
-                    :key="id"
-                    class="long-binding-chip"
-                  >
-                    {{ materialLabel(id) }}
-                    <button
-                      type="button"
-                      :aria-label="
-                        t('unlinkValueValue', {
-                          arg0: kind.label,
-                          arg1: materialLabel(id)
-                        })
-                      "
-                      :disabled="submitting"
-                      @click="
-                        selectedMaterials[kind.id] = selectedMaterials[
-                          kind.id
-                        ].filter((candidate) => candidate !== id)
-                      "
-                    >
-                      ×
-                    </button>
-                  </span>
-                </div>
-                <small v-else class="long-binding-empty">{{
-                  t("noLinks")
-                }}</small>
-                <PopupSelect
-                  :model-value="materialCandidates[kind.id]"
-                  :options="materialOptions(kind.id)"
-                  :accessible-label="
-                    t('addValue', {
-                      arg0: kind.label
+                  <span>{{ group.title }}</span>
+                  <span class="lib-picker-group-count">{{
+                    sharingT("groupMemberCount", {
+                      count: validGroupMemberIds(group).length
                     })
-                  "
-                  size="large"
-                  :disabled="submitting || materialOptions(kind.id).length <= 1"
-                  :menu-min-width="260"
-                  :menu-z-index="230"
-                  @update:model-value="addMaterial(kind.id, $event)"
-                />
+                  }}</span>
+                </button>
               </div>
             </div>
 
-            <div v-else class="create-short-kind-grid">
-              <div
-                v-for="kind in skillKinds"
-                :key="kind.id"
-                class="create-short-kind-field long-binding-kind-field"
+            <div v-if="missingIds.length" class="lib-picker-missing-list">
+              <span
+                v-for="id in missingIds"
+                :key="id"
+                class="lib-picker-missing-chip"
               >
-                <span>
-                  <strong>{{ kind.label }}</strong>
-                  <small>{{ kind.description }}</small>
-                </span>
-                <div
-                  v-if="selectedSkills[kind.id].length"
-                  class="long-binding-chips"
+                {{ t("valueMissingFromCatalog", { arg0: id }) }}
+                <button
+                  type="button"
+                  :aria-label="sharingT('removeMissingBinding', { id })"
+                  :disabled="submitting"
+                  @click="toggleLibrary(id)"
                 >
-                  <span
-                    v-for="id in selectedSkills[kind.id]"
-                    :key="id"
-                    class="long-binding-chip"
-                  >
-                    {{ skillLabel(id) }}
-                    <button
-                      type="button"
-                      :aria-label="
-                        t('unlinkValueValue', {
-                          arg0: kind.label,
-                          arg1: skillLabel(id)
-                        })
-                      "
-                      :disabled="submitting"
-                      @click="
-                        selectedSkills[kind.id] = selectedSkills[
-                          kind.id
-                        ].filter((candidate) => candidate !== id)
-                      "
-                    >
-                      ×
-                    </button>
-                  </span>
-                </div>
-                <small v-else class="long-binding-empty">{{
-                  t("notLinked")
-                }}</small>
-                <PopupSelect
-                  :model-value="skillCandidates[kind.id]"
-                  :options="skillOptions(kind.id)"
-                  :accessible-label="
-                    t('addValue', {
-                      arg0: kind.label
-                    })
-                  "
-                  size="large"
-                  :disabled="submitting || skillOptions(kind.id).length <= 1"
-                  :menu-min-width="260"
-                  :menu-z-index="230"
-                  @update:model-value="addSkill(kind.id, $event)"
-                />
-              </div>
+                  ×
+                </button>
+              </span>
             </div>
+
+            <div class="lib-picker-toolbar">
+              <input
+                v-model="searchQuery"
+                class="lib-picker-search-input"
+                type="search"
+                autocomplete="off"
+                :placeholder="sharingT('searchLibrariesPlaceholder')"
+                :aria-label="sharingT('searchLibrariesPlaceholder')"
+                :disabled="submitting"
+              />
+              <PopupSelect
+                :model-value="tagFilter"
+                :options="tagFilterOptions"
+                :accessible-label="sharingT('filterByTag')"
+                size="large"
+                :disabled="submitting"
+                :menu-min-width="160"
+                :menu-z-index="230"
+                @update:model-value="tagFilter = String($event)"
+              />
+            </div>
+
+            <div
+              v-if="filteredItems.length"
+              class="lib-picker-list"
+              role="group"
+              :aria-label="heading"
+            >
+              <label
+                v-for="item in filteredItems"
+                :key="item.id"
+                class="lib-picker-row"
+                :class="{ 'is-checked': selectedSet.has(item.id) }"
+              >
+                <span class="lib-picker-row-main">
+                  <input
+                    type="checkbox"
+                    :checked="selectedSet.has(item.id)"
+                    :disabled="submitting"
+                    @change="toggleLibrary(item.id)"
+                  />
+                  <span class="lib-picker-row-title">{{ item.title }}</span>
+                </span>
+                <span class="lib-picker-row-meta">
+                  <span class="lib-picker-tag-badge">{{ item.tag }}</span>
+                  <span class="lib-picker-entry-count">{{
+                    sharingT("entryCount", { count: item.entryCount })
+                  }}</span>
+                </span>
+              </label>
+            </div>
+            <p v-else class="lib-picker-empty">
+              {{
+                activeItems.length === 0
+                  ? sharingT("noLibrariesAvailable")
+                  : sharingT("noMatchingLibraries")
+              }}
+            </p>
+            <span class="lib-picker-count">
+              {{ sharingT("selectedCount", { count: selectedIds.length }) }}
+            </span>
             <p class="create-short-stable-hint">
               {{
                 t("existingLinksToLibrariesTemporarilyMissingFromTheCatalog")
@@ -431,3 +448,4 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 </template>
 
 <style scoped src="./long-book-bindings-dialog.css"></style>
+<style scoped src="./library-sharing-picker.css"></style>

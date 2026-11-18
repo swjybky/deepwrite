@@ -16,7 +16,8 @@ export function useShortManuscriptCharacterCount(
   const loading = ref(false);
   const pendingDocuments = computed(() => {
     const currentBook = book.value;
-    if (!currentBook || !source) return [];
+    if (!currentBook || currentBook.bookType === "academic" || !source)
+      return [];
     const bodyIds = new Set(
       currentBook.draft.sections.map((section) => section.body.id)
     );
@@ -56,7 +57,13 @@ export function useShortManuscriptCharacterCount(
   );
 
   const characterCount = computed(() => {
-    if (!book.value || !source || pendingDocuments.value.length) return null;
+    if (
+      !book.value ||
+      book.value.bookType === "academic" ||
+      !source ||
+      pendingDocuments.value.length
+    )
+      return null;
     const manuscript = createShortManuscriptExportInput(
       book.value,
       source.documents.value,

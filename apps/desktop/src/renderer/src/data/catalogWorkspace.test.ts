@@ -4,7 +4,8 @@ import {
   CatalogSnapshotSchema,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
-  type CatalogSnapshot
+  type CatalogSnapshot,
+  type CreativeBook
 } from "@deepwrite/contracts";
 import type { ResourceTreeNode } from "../types/workspace";
 import {
@@ -22,7 +23,11 @@ import {
 
 const NOW = "2026-07-18T08:00:00.000Z";
 
-function fixture(): CatalogSnapshot {
+type CreativeCatalogFixture = Omit<CatalogSnapshot, "books"> & {
+  books: CreativeBook[];
+};
+
+function fixture(): CreativeCatalogFixture {
   return CatalogSnapshotSchema.parse({
     schemaVersion: 1,
     revision: 7,
@@ -268,7 +273,7 @@ function fixture(): CatalogSnapshot {
         updatedAt: NOW
       }
     ]
-  });
+  }) as CreativeCatalogFixture;
 }
 
 function flattenNodes(nodes: readonly ResourceTreeNode[]): ResourceTreeNode[] {
@@ -863,9 +868,9 @@ describe("catalog workspace projection", () => {
       "已丢失的素材库（missing-material）"
     ]);
     expect(materialGroup?.children?.map((node) => node.categoryTag)).toEqual([
-      "人设",
+      "综合",
       "剧情",
-      "正文"
+      undefined
     ]);
 
     const plotCategory = materialSection.nodes.find(
@@ -989,7 +994,7 @@ describe("catalog workspace projection", () => {
     ]);
     expect(skillGroup?.children?.map((node) => node.categoryTag)).toEqual([
       "通用",
-      "文风"
+      undefined
     ]);
 
     const generalKind = skillSection.nodes.find(

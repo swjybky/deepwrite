@@ -15,6 +15,8 @@ export const loadLongBookAnalysisPage = async () =>
   (await import("../extras/long-book-analysis/loader")).loadPage();
 export const loadLongWorkspaceModule = () =>
   import("./LongWorkspaceModule.vue");
+export const loadMysteryWorkspaceModule = () =>
+  import("../features/mystery/MysteryWorkspaceModule.vue");
 export const loadSettingsPage = () => import("./SettingsPage.vue");
 export const loadMarketplacePage = () => import("./MarketplacePage.vue");
 export const loadSkillMarketplacePage = () =>
@@ -101,3 +103,7 @@ export const loadBookIdentityPage = () =>
   import("../extras/book-identity/BookIdentityPage.vue");
 export const loadLongMaterialPackPage = () =>
   import("../extras/long-material-pack/LongMaterialPackPage.vue");
+export const loadAcademicWorkspaceDialogs = () =>
+  import("./academic/AcademicWorkspaceDialogs.vue");
+export const loadAcademicReferenceCardBar = () =>
+  import("./academic/AcademicReferenceCardBar.vue");

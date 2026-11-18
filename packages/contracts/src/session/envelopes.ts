@@ -67,6 +67,14 @@ import {
   type LongWorldbuildingFileProposalPayload
 } from "./long-proposals";
 import {
+  AcademicWorkspaceMutationPayloadSchema,
+  type AcademicWorkspaceMutationPayload
+} from "./academic-proposals";
+import {
+  MysteryMutationProposalPayloadSchema,
+  type MysteryMutationProposalPayload
+} from "../mystery/proposals";
+import {
   AgentUserInputRequestedPayloadSchema,
   type AgentUserInputRequestedPayload
 } from "./user-input";
@@ -214,6 +222,18 @@ export const LongLedgerCommitProposalEventEnvelopeSchema =
     payload: LongLedgerCommitProposalPayloadSchema
   }).superRefine(validateAgentEventContext);
 
+export const AcademicWorkspaceMutationEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("academic.workspace_mutation"),
+    payload: AcademicWorkspaceMutationPayloadSchema
+  }).superRefine(validateAgentEventContext);
+
+export const MysteryMutationProposalEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("mystery.mutation_proposal"),
+    payload: MysteryMutationProposalPayloadSchema
+  }).superRefine(validateAgentEventContext);
+
 export const LibraryEditorMutationEventEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("library.editor_mutation"),
@@ -353,6 +373,14 @@ export type LongChapterWriteProposalEventEnvelope = Envelope<
 export type LongLedgerCommitProposalEventEnvelope = Envelope<
   LongLedgerCommitProposalPayload,
   "long.ledger_commit_proposal"
+>;
+export type AcademicWorkspaceMutationEventEnvelope = Envelope<
+  AcademicWorkspaceMutationPayload,
+  "academic.workspace_mutation"
+>;
+export type MysteryMutationProposalEventEnvelope = Envelope<
+  MysteryMutationProposalPayload,
+  "mystery.mutation_proposal"
 >;
 export type LibraryEditorMutationEventEnvelope = Envelope<
   LibraryEditorMutationPayload,

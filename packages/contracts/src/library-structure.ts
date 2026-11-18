@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { MaterialStageIdSchema } from "./catalog/kinds";
+import {
+  LibraryCustomTagSchema,
+  MATERIAL_GROUP_LEGACY_SLOTS,
+  MaterialStageIdSchema,
+  extractLegacyGroupMemberIds
+} from "./catalog/kinds";
 import { LibraryManagementScopeSchema } from "./library-management-scope";
 import { EnvelopeBaseSchema } from "./envelope";
 import { AgentRuntimeRefSchema } from "./session/agent-event-identity";
@@ -28,6 +33,38 @@ const Order = {
   groupId: Id.optional()
 };
 
+function migrateLegacyStructureOperation(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.action !== "create-group" && record.action !== "set-members") {
+    return value;
+  }
+  if (Array.isArray(record.memberIds)) {
+    if ("members" in record) {
+      const { members: _members, ...rest } = record;
+      return rest;
+    }
+    return value;
+  }
+  if (
+    record.members !== null &&
+    typeof record.members === "object" &&
+    !Array.isArray(record.members)
+  ) {
+    const { members, ...rest } = record;
+    return {
+      ...rest,
+      memberIds: extractLegacyGroupMemberIds(
+        members,
+        MATERIAL_GROUP_LEGACY_SLOTS
+      )
+    };
+  }
+  return value;
+}
+
 const DeleteGroupOperationSchema = z.strictObject({
   action: z.literal("delete-group"),
   id: Id,
@@ -46,7 +83,7 @@ export const DeleteGroupToolOperationSchema = DeleteGroupOperationSchema.omit({
     includeLibraries: deletion_scope === "group_and_libraries"
   }));
 
-export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
+const LibraryStructureOperationUnionSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("copy-entries"),
@@ -88,11 +125,17 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
       ref: Id,
       title: Title,
       kind: Kind,
+      customTag: LibraryCustomTagSchema.optional(),
       libraryType: LibraryType.optional()
     })
     .strict(),
   z
-    .object({ action: z.literal("rename-library"), id: Id, title: Title })
+    .object({
+      action: z.literal("rename-library"),
+      id: Id,
+      title: Title,
+      customTag: LibraryCustomTagSchema.nullable().optional()
+    })
     .strict(),
   z.object({ action: z.literal("reorder-library"), ...Order }).strict(),
   z.object({ action: z.literal("delete-library"), id: Id }).strict(),
@@ -101,7 +144,7 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
       action: z.literal("create-group"),
       ref: Id,
       title: Title,
-      members: z.partialRecord(Kind, Id)
+      memberIds: z.array(Id).max(512)
     })
     .strict(),
   z
@@ -111,7 +154,7 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
     .object({
       action: z.literal("set-members"),
       id: Id,
-      members: z.partialRecord(Kind, Id)
+      memberIds: z.array(Id).max(512)
     })
     .strict(),
   z.object({ action: z.literal("reorder-group"), ...Order }).strict(),
@@ -147,6 +190,10 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
     })
     .strict()
 ]);
+export const LibraryStructureOperationSchema = z.preprocess(
+  migrateLegacyStructureOperation,
+  LibraryStructureOperationUnionSchema
+);
 export type LibraryStructureOperation = z.infer<
   typeof LibraryStructureOperationSchema
 >;
@@ -202,7 +249,7 @@ export type LibraryStructureProposalEventEnvelope = z.infer<
 export function libraryStructureOperationJsonSchema(
   actions: readonly LibraryStructureOperation["action"][]
 ) {
-  const options = LibraryStructureOperationSchema.options
+  const options = LibraryStructureOperationUnionSchema.options
     .filter((schema) => actions.includes(schema.shape.action.value))
     .map((schema) =>
       schema === DeleteGroupOperationSchema

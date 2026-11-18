@@ -268,6 +268,11 @@ describe("library attachments", () => {
         content: "十年一次逆潮。"
       }),
       expect.objectContaining({
+        title: "综合素材 · 人物条目",
+        kind: "character",
+        content: "人物素材正文"
+      }),
+      expect.objectContaining({
         title: "综合素材 · 剧情条目",
         kind: "plot",
         content: "剧情素材正文"
@@ -321,7 +326,6 @@ describe("library attachments", () => {
     ).toBe(false);
     expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
       "library-not-found",
-      "library-kind-mismatch",
       "library-not-found"
     ]);
 

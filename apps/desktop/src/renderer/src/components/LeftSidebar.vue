@@ -21,8 +21,15 @@ import type {
 } from "@deepwrite/contracts";
 import { createDefaultMoreFeaturesSettings } from "@deepwrite/contracts/renderer";
 import AppIcon from "./AppIcon.vue";
-import { BookAgentTeamDialog } from "./lazyAppComponents";
+import {
+  AcademicWorkspaceDialogs,
+  BookAgentTeamDialog
+} from "./lazyAppComponents";
 import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog";
+import {
+  academicDialogTarget,
+  useAcademicDialogHostClaim
+} from "../stores/academicWorkspaceDialog";
 import SidebarResourceList from "./SidebarResourceList.vue";
 import SidebarProfileMenu from "./SidebarProfileMenu.vue";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
@@ -99,6 +106,7 @@ const emit = defineEmits<{
 }>();
 
 const sidebarScrollbar = createTransientScrollbarController();
+const ownsAcademicDialogHost = useAcademicDialogHostClaim();
 const sidebarScroll = ref<HTMLElement | null>(null);
 const activeMoreFeature = computed(() =>
   props.activePrimaryFeature === "agent-team-marketplace"
@@ -437,5 +445,8 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
       @marketplace-signed-out="emit('marketplaceSignedOut', $event)"
     />
     <BookAgentTeamDialog v-if="bookAgentTeamBindingTarget" />
+    <AcademicWorkspaceDialogs
+      v-if="ownsAcademicDialogHost && academicDialogTarget"
+    />
   </aside>
 </template>

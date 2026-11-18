@@ -26,7 +26,7 @@ export function identityUserMessage(task: IdentityTask): string {
         id: book.id,
         title: book.title,
         bookType: book.bookType,
-        genre: book.genre,
+        genre: book.bookType === "academic" ? book.subtype : book.genre,
         status: book.status,
         ...(book.bookType === "long" ? { navigation: book.navigation } : {})
       },

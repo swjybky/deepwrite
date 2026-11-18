@@ -23,6 +23,9 @@ function task(
   const raw = structuredClone(
     (long ? longProjectRuntime() : shortProjectRuntime()).projectBook
   );
+  if (raw.bookType === "academic") {
+    throw new Error("Unexpected academic fixture");
+  }
   raw.linkedMaterialIdsByKind = {
     character: [],
     gimmick: [],

@@ -5,6 +5,11 @@ import { DocumentVersionOriginSchema } from "./document-version-origin";
 import { EnvelopeBaseSchema } from "./envelope";
 import { LongBookIdSchema, LongFileIdSchema } from "./long-workspace";
 import { LongWriteDocumentResultSchema } from "./long-workspace-api";
+import {
+  MysteryBookIdSchema,
+  MysteryDocumentTargetSchema,
+  MysteryWriteDocumentResultSchema
+} from "./mystery";
 
 export { DocumentVersionOriginSchema } from "./document-version-origin";
 export type { DocumentVersionOrigin } from "./document-version-origin";
@@ -23,6 +28,14 @@ export const DocumentVersionTargetSchema = z.discriminatedUnion("workspace", [
       workspace: z.literal("long"),
       bookId: LongBookIdSchema,
       fileId: LongFileIdSchema
+    })
+    .strict(),
+  z
+    .object({
+      workspace: z.literal("mystery"),
+      bookId: MysteryBookIdSchema,
+      targetKey: z.string().min(1).max(512),
+      target: MysteryDocumentTargetSchema
     })
     .strict()
 ]);
@@ -147,6 +160,13 @@ export const RestoreDocumentVersionResultSchema = z.discriminatedUnion(
         ...restoreResultShape,
         workspace: z.literal("long"),
         document: LongWriteDocumentResultSchema
+      })
+      .strict(),
+    z
+      .object({
+        ...restoreResultShape,
+        workspace: z.literal("mystery"),
+        document: MysteryWriteDocumentResultSchema
       })
       .strict()
   ]

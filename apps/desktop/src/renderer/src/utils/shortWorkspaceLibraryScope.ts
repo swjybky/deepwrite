@@ -11,6 +11,9 @@ export function scopeBookLibrariesToReadAccess(
   book: Book,
   readAccess: ShortAgentReadAccess
 ): Book {
+  if (book.bookType === "academic") {
+    return book;
+  }
   const allowedMaterials = new Set(readAccess.material);
   const allowedSkills = new Set(readAccess.skill);
   const linkedMaterialIdsByKind = Object.fromEntries(

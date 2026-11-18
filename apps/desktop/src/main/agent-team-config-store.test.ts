@@ -10,8 +10,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  DEFAULT_ACADEMIC_AGENT_TEAM_SETTINGS,
   DEFAULT_AGENT_TEAM_SETTINGS,
   DEFAULT_LONG_AGENT_TEAM_SETTINGS,
+  DEFAULT_MYSTERY_AGENT_TEAM_SETTINGS,
   DEFAULT_SCRIPT_AGENT_TEAM_SETTINGS,
   type AgentTeamCatalogSnapshot,
   type AgentTeamProfile
@@ -49,12 +51,12 @@ afterEach(async () => {
 });
 
 describe("AgentTeamConfigStore", () => {
-  it("creates three blank disabled default profiles and persists version five", async () => {
+  it("creates five disabled default profiles (including academic and mystery teams) and persists version six", async () => {
     const root = await temporaryRoot();
     const snapshot = await new AgentTeamConfigStore(root).list();
 
     expect(snapshot.enabledTeamIds).toEqual({});
-    expect(snapshot.teams).toHaveLength(3);
+    expect(snapshot.teams).toHaveLength(5);
     expect(profileOfType(snapshot, "short")).toMatchObject({
       name: "默认短篇团队",
       settings: DEFAULT_AGENT_TEAM_SETTINGS
@@ -67,11 +69,83 @@ describe("AgentTeamConfigStore", () => {
       name: "默认长篇团队",
       settings: DEFAULT_LONG_AGENT_TEAM_SETTINGS
     });
+    const academicTeam = profileOfType(snapshot, "academic");
+    expect(academicTeam).toMatchObject({
+      name: "默认学术团队",
+      settings: DEFAULT_ACADEMIC_AGENT_TEAM_SETTINGS
+    });
+    const academicSubagents = academicTeam.settings.teams[0]!.subagents;
+    expect(academicSubagents.map((member) => member.id)).toEqual([
+      "literature_curator",
+      "section_drafter",
+      "peer_reviewer",
+      "citation_auditor",
+      "academic_polisher"
+    ]);
+    expect(academicSubagents.every((member) => member.enabled === false)).toBe(
+      true
+    );
+    expect(
+      academicSubagents.every((member) => member.modelMode === "inherit")
+    ).toBe(true);
+    expect(profileOfType(snapshot, "mystery")).toMatchObject({
+      name: "默认剧本杀团队",
+      settings: DEFAULT_MYSTERY_AGENT_TEAM_SETTINGS
+    });
     expect(
       JSON.parse(
         await readFile(join(root, "config", "agent-team-profiles.json"), "utf8")
       )
-    ).toMatchObject({ version: 5, enabledTeamIds: {} });
+    ).toMatchObject({ version: 6, enabledTeamIds: {} });
+  });
+
+  it("smoothly upgrades a version 5 catalog by appending 默认学术团队 and 默认剧本杀团队 without altering existing teams or enabledTeamIds", async () => {
+    const root = await temporaryRoot();
+    const config = join(root, "config");
+    await mkdir(config, { recursive: true });
+    const v5Payload = {
+      version: 5,
+      enabledTeamIds: { short: "team_short_existing" },
+      teams: [
+        {
+          id: "team_short_existing",
+          name: "我的短篇团",
+          workspaceType: "short",
+          settings: DEFAULT_AGENT_TEAM_SETTINGS
+        },
+        {
+          id: "team_script_existing",
+          name: "我的剧本团",
+          workspaceType: "script",
+          settings: DEFAULT_SCRIPT_AGENT_TEAM_SETTINGS
+        },
+        {
+          id: "team_long_existing",
+          name: "我的长篇团",
+          workspaceType: "long",
+          settings: DEFAULT_LONG_AGENT_TEAM_SETTINGS
+        }
+      ]
+    };
+    await writeFile(
+      join(config, "agent-team-profiles.json"),
+      JSON.stringify(v5Payload, null, 2)
+    );
+
+    const snapshot = await new AgentTeamConfigStore(root).list();
+    expect(snapshot.enabledTeamIds).toEqual({ short: "team_short_existing" });
+    expect(snapshot.teams.slice(0, 3)).toMatchObject(v5Payload.teams);
+    expect(snapshot.teams).toHaveLength(5);
+    const academic = profileOfType(snapshot, "academic");
+    expect(academic.name).toBe("默认学术团队");
+    expect(
+      academic.settings.teams[0]!.subagents.every((m) => m.enabled === false)
+    ).toBe(true);
+    expect(profileOfType(snapshot, "mystery").name).toBe("默认剧本杀团队");
+    const disk = JSON.parse(
+      await readFile(join(config, "agent-team-profiles.json"), "utf8")
+    );
+    expect(disk.version).toBe(6);
   });
 
   it("migrates each legacy type into its own enabled team without deleting sources", async () => {
@@ -180,7 +254,9 @@ describe("AgentTeamConfigStore", () => {
     expect(snapshot.teams.map((team) => team.name)).toEqual([
       "默认短篇团队",
       "默认剧本团队",
-      "默认长篇团队"
+      "默认长篇团队",
+      "默认学术团队",
+      "默认剧本杀团队"
     ]);
     expect(snapshot.enabledTeamIds).toEqual({
       short: profileOfType(snapshot, "short").id,
@@ -241,7 +317,67 @@ describe("AgentTeamConfigStore", () => {
       JSON.parse(
         await readFile(join(config, "agent-team-profiles.json"), "utf8")
       ).version
-    ).toBe(5);
+    ).toBe(6);
+  });
+
+  it("auto-seeds a disabled mystery team when upgrading a v5 three-team catalog without recreating after deletion", async () => {
+    const root = await temporaryRoot();
+    const config = join(root, "config");
+    await mkdir(config);
+    await writeFile(
+      join(config, "agent-team-profiles.json"),
+      JSON.stringify({
+        version: 5,
+        enabledTeamIds: { short: "team_short_1" },
+        teams: [
+          {
+            id: "team_short_1",
+            name: "默认短篇团队",
+            workspaceType: "short",
+            settings: DEFAULT_AGENT_TEAM_SETTINGS
+          },
+          {
+            id: "team_script_1",
+            name: "默认剧本团队",
+            workspaceType: "script",
+            settings: DEFAULT_SCRIPT_AGENT_TEAM_SETTINGS
+          },
+          {
+            id: "team_long_1",
+            name: "默认长篇团队",
+            workspaceType: "long",
+            settings: DEFAULT_LONG_AGENT_TEAM_SETTINGS
+          }
+        ]
+      })
+    );
+
+    const store = new AgentTeamConfigStore(root);
+    const upgraded = await store.list();
+    const mysteryTeam = profileOfType(upgraded, "mystery");
+    expect(mysteryTeam.name).toBe("默认剧本杀团队");
+    expect(upgraded.enabledTeamIds).toEqual({ short: "team_short_1" });
+    expect(await store.resolve("mystery", "mystery")).toEqual([]);
+
+    await store.setEnabled({ teamId: mysteryTeam.id, enabled: true });
+    const resolved = await store.resolve("mystery", "mystery");
+    expect(resolved).toEqual([]);
+
+    const editedSettings = structuredClone(mysteryTeam.settings);
+    editedSettings.teams[0]!.subagents[0]!.enabled = true;
+    await store.save({ teamId: mysteryTeam.id, settings: editedSettings });
+    const activeMembers = await store.resolve("mystery", "mystery");
+    expect(activeMembers.map((m) => m.id)).toContain("role_script_writer");
+
+    await store.setEnabled({ teamId: mysteryTeam.id, enabled: false });
+    const afterDelete = await store.delete({ teamId: mysteryTeam.id });
+    expect(afterDelete.teams.some((t) => t.workspaceType === "mystery")).toBe(
+      false
+    );
+    const reloaded = await store.list();
+    expect(reloaded.teams.some((t) => t.workspaceType === "mystery")).toBe(
+      false
+    );
   });
 
   it("accepts recognizable separate legacy files with unknown versions", async () => {

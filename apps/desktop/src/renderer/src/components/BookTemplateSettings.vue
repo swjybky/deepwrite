@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { genreLabel } from "./catalogLabels";
+import {
+  academicCitationStyleLabel,
+  academicSubtypeLabel
+} from "./academic/academicTreeLabels";
 import { createScopedTranslator } from "../i18n";
 import { computed, ref } from "vue";
 import type { BookTemplate, SaveBookTemplateInput } from "@deepwrite/contracts";
@@ -8,7 +12,7 @@ import { useBookTemplates } from "../composables/useBookTemplates";
 
 const t = createScopedTranslator("components.bookTemplateSettings");
 const props = defineProps<{
-  workspaceType: "short" | "script";
+  workspaceType: "short" | "script" | "academic";
   defaultStageIds: readonly string[];
   disabled: boolean;
 }>();
@@ -60,7 +64,11 @@ async function deleteTemplate() {
       <li v-for="item in items" :key="item.id">
         <div>
           <strong>{{ item.configuration.name }}</strong
-          ><small
+          ><small v-if="item.configuration.workspaceType === 'academic'">
+            {{ academicSubtypeLabel(item.configuration.subtype) }} ·
+            {{ academicCitationStyleLabel(item.configuration.citationStyle) }}
+          </small>
+          <small v-else
             >{{ genreLabel(item.configuration.genre) }} ·
             {{
               item.configuration.characterFormat === "text"

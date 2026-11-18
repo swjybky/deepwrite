@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import {
+  ACADEMIC_FRAMEWORK_STAGE_MAX_COUNT,
+  AcademicBookSubtypeSchema,
+  AcademicCitationStyleSchema,
+  AcademicFrameworkStageIdSchema,
   BookCharacterFormatSchema,
   CreativePlotStageIdSchema,
   CREATIVE_PLOT_STAGE_MAX_COUNT
@@ -29,21 +33,59 @@ const shape = {
   /** Absent when the template leaves the team choice to the default. */
   linkedAgentTeamIds: LinkedAgentTeamIdsSchema.min(1).optional()
 };
+const UniqueTemplateIdListSchema = z
+  .array(CatalogIdSchema)
+  .refine((ids) => new Set(ids).size === ids.length, "资料库 ID 不能重复");
+
+export const AcademicBookTemplateDraftSchema = z
+  .object({
+    name: CatalogTitleSchema,
+    workspaceType: z.literal("academic"),
+    subtype: AcademicBookSubtypeSchema,
+    citationStyle: AcademicCitationStyleSchema,
+    defaultFrameworkStageIds: z
+      .array(AcademicFrameworkStageIdSchema)
+      .min(1)
+      .max(ACADEMIC_FRAMEWORK_STAGE_MAX_COUNT)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "论证框架阶段不能重复"
+      ),
+    linkedMaterialIds: UniqueTemplateIdListSchema,
+    linkedSkillIds: UniqueTemplateIdListSchema,
+    linkedAgentTeamIds: LinkedAgentTeamIdsSchema.min(1).optional()
+  })
+  .strict();
+export type AcademicBookTemplateDraft = z.infer<
+  typeof AcademicBookTemplateDraftSchema
+>;
+
+export const ShortBookTemplateDraftSchema = z
+  .object({
+    ...shape,
+    workspaceType: z.literal("short"),
+    genre: ShortBookGenreSchema
+  })
+  .strict();
+export type ShortBookTemplateDraft = z.infer<
+  typeof ShortBookTemplateDraftSchema
+>;
+
+export const ScriptBookTemplateDraftSchema = z
+  .object({
+    ...shape,
+    workspaceType: z.literal("script"),
+    genre: ScriptBookGenreSchema
+  })
+  .strict();
+export type ScriptBookTemplateDraft = z.infer<
+  typeof ScriptBookTemplateDraftSchema
+>;
+
 export const BookTemplateDraftSchema = z.discriminatedUnion("workspaceType", [
-  z
-    .object({
-      ...shape,
-      workspaceType: z.literal("short"),
-      genre: ShortBookGenreSchema
-    })
-    .strict(),
-  z
-    .object({
-      ...shape,
-      workspaceType: z.literal("script"),
-      genre: ScriptBookGenreSchema
-    })
-    .strict()
+  ShortBookTemplateDraftSchema,
+  ScriptBookTemplateDraftSchema,
+  AcademicBookTemplateDraftSchema
 ]);
 export const BookTemplateSchema = z
   .object({ id: CatalogIdSchema, configuration: BookTemplateDraftSchema })

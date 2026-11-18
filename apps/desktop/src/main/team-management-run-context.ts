@@ -10,11 +10,27 @@ export async function prepareTeamManagementRunContext(
 ): Promise<TeamManagementRuntimeContext | undefined> {
   const scope = workspace?.longWorkspace
     ? { bookType: "long" as const, bookId: workspace.longWorkspace.bookId }
-    : workspace?.scriptWorkspace
-      ? { bookType: "script" as const, bookId: workspace.scriptWorkspace.id }
-      : workspace?.shortWorkspace
-        ? { bookType: "short" as const, bookId: workspace.shortWorkspace.id }
-        : undefined;
+    : workspace?.academicWorkspace
+      ? {
+          bookType: "academic" as const,
+          bookId: workspace.academicWorkspace.id
+        }
+      : workspace?.mysteryWorkspace
+        ? {
+            bookType: "mystery" as const,
+            bookId: workspace.mysteryWorkspace.bookId
+          }
+        : workspace?.scriptWorkspace
+          ? {
+              bookType: "script" as const,
+              bookId: workspace.scriptWorkspace.id
+            }
+          : workspace?.shortWorkspace
+            ? {
+                bookType: "short" as const,
+                bookId: workspace.shortWorkspace.id
+              }
+            : undefined;
   if (!scope) return undefined;
   const { team } = (await teams.list()).builtinSubagents;
   return team.enabled ? { scope, description: team.description } : undefined;

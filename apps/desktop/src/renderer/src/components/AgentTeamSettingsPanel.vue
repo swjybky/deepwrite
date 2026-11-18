@@ -1,25 +1,35 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
 import {
+  ACADEMIC_AGENT_IDS,
+  ACADEMIC_AGENT_SUBAGENT_MAX_COUNT,
+  AcademicAgentTeamSettingsInputSchema,
   WorkspaceAgentTeamSettingsInputSchema,
   SHORT_AGENT_SUBAGENT_MAX_COUNT,
   SHORT_AGENT_SUBAGENT_NAME_MAX_LENGTH,
   SCRIPT_AGENT_SUBAGENT_MAX_COUNT,
   SCRIPT_WORKSPACE_AGENT_IDS,
   SHORT_WORKSPACE_AGENT_IDS,
+  type AcademicAgentId,
+  type AcademicAgentTeamSettings,
+  type AcademicAgentTeamSettingsInput,
+  type AgentTeamWorkspaceType,
   type WorkspaceAgentTeamSettings,
   type WorkspaceAgentTeamSettingsInput,
   type ModelConfig,
   type LongAgentTeamSettings,
   type LongAgentTeamSettingsInput,
+  type MysteryAgentTeamSettings,
   type ShortAgentSubagentDefinition,
   type WorkspaceAgentId,
   type SkillLibrary,
   type SubagentAuthoringDraft,
   type SubagentAuthoringRuntimeContext
-} from "@deepwrite/contracts";
-import { computed, ref, watch } from "vue";
+} from "@deepwrite/contracts/renderer";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import { uiMessage } from "../ui-feedback";
+import { academicAgentT } from "./academic/academicAgentLabels";
 import AgentTeamParallelSwitch from "./AgentTeamParallelSwitch.vue";
 import AgentTeamSaveBar from "./AgentTeamSaveBar.vue";
 import AgentTeamSubagentCard from "./AgentTeamSubagentCard.vue";
@@ -27,7 +37,12 @@ import AgentTeamSubagentEditor from "./AgentTeamSubagentEditor.vue";
 import AgentTeamSubagentSection from "./AgentTeamSubagentSection.vue";
 import LoadSubagentFromSkillDialog from "./LoadSubagentFromSkillDialog.vue";
 import LongAgentTeamSettingsPanel from "./LongAgentTeamSettingsPanel.vue";
+
+const MysteryAgentTeamSettingsPanel = defineAsyncComponent(
+  () => import("../features/mystery/MysteryAgentTeamSettingsPanel.vue")
+);
 import {
+  ACADEMIC_PARENT_AGENT,
   SCRIPT_PARENT_AGENTS,
   SHORT_PARENT_AGENT
 } from "./agentTeamSettingsMeta";
@@ -43,9 +58,10 @@ import { useSubagentModelConfig } from "./useSubagentModelConfig";
 const t = createScopedTranslator("components.agentTeamSettingsPanel");
 
 const props = defineProps<{
-  workspaceType?: "short" | "script" | "long";
-  settings: readonly WorkspaceAgentTeamSettings[];
+  workspaceType?: AgentTeamWorkspaceType;
+  settings: readonly (WorkspaceAgentTeamSettings | AcademicAgentTeamSettings)[];
   longSettings: LongAgentTeamSettings | null;
+  mysterySettings?: MysteryAgentTeamSettings | null | undefined;
   models: readonly ModelConfig[];
   skills?: readonly SkillLibrary[];
   preferredModelId?: string | null | undefined;
@@ -64,8 +80,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: [];
-  save: [settings: WorkspaceAgentTeamSettingsInput];
+  save: [
+    settings: WorkspaceAgentTeamSettingsInput | AcademicAgentTeamSettingsInput
+  ];
   saveLong: [settings: LongAgentTeamSettingsInput];
+  saveMystery: [settings: MysteryAgentTeamSettings];
   dirtyChange: [dirty: boolean];
   authoringGenerate: [
     payload: {
@@ -79,12 +98,14 @@ const emit = defineEmits<{
 
 const loadFromSkillOpen = ref(false);
 
-const activeParentAgentId = ref<WorkspaceAgentId>(SHORT_PARENT_AGENT.id);
-const activeWorkspaceType = ref<"short" | "script" | "long">(
+type ParentId = WorkspaceAgentId | AcademicAgentId;
+
+const activeParentAgentId = ref<ParentId>(SHORT_PARENT_AGENT.id);
+const activeWorkspaceType = ref<AgentTeamWorkspaceType>(
   props.workspaceType ?? "short"
 );
 type EditableTeam = {
-  parentAgentId: WorkspaceAgentId;
+  parentAgentId: ParentId;
   subagents: ShortAgentSubagentDefinition[];
 };
 const draftTeams = ref<EditableTeam[]>([]);
@@ -106,17 +127,22 @@ const activeParentMeta = computed(
 const visibleParentAgents = computed(() =>
   activeWorkspaceType.value === "script"
     ? SCRIPT_PARENT_AGENTS
-    : [SHORT_PARENT_AGENT]
+    : activeWorkspaceType.value === "academic"
+      ? [ACADEMIC_PARENT_AGENT]
+      : [SHORT_PARENT_AGENT]
 );
 
 const activeSubagentLimit = computed(() =>
   activeWorkspaceType.value === "script"
     ? SCRIPT_AGENT_SUBAGENT_MAX_COUNT
-    : SHORT_AGENT_SUBAGENT_MAX_COUNT
+    : activeWorkspaceType.value === "academic"
+      ? ACADEMIC_AGENT_SUBAGENT_MAX_COUNT
+      : SHORT_AGENT_SUBAGENT_MAX_COUNT
 );
 
 const activeSettings = computed(() =>
-  activeWorkspaceType.value === "long"
+  activeWorkspaceType.value === "long" ||
+  activeWorkspaceType.value === "mystery"
     ? undefined
     : props.settings.find(
         (settings) => settings.workspaceType === activeWorkspaceType.value
@@ -153,6 +179,8 @@ watch(
       activeWorkspaceType.value = workspaceType;
       if (workspaceType === "short") {
         activeParentAgentId.value = SHORT_PARENT_AGENT.id;
+      } else if (workspaceType === "academic") {
+        activeParentAgentId.value = ACADEMIC_PARENT_AGENT.id;
       }
     }
   }
@@ -166,7 +194,9 @@ const dirty = computed(
     baselineSignature.value
 );
 
-function cloneTeams(settings: WorkspaceAgentTeamSettings): EditableTeam[] {
+function cloneTeams(
+  settings: WorkspaceAgentTeamSettings | AcademicAgentTeamSettings
+): EditableTeam[] {
   return settings.teams.map((team) => ({
     parentAgentId: team.parentAgentId,
     subagents: team.subagents.map((subagent) => ({
@@ -233,7 +263,9 @@ watch(
 watch(
   () => [dirty.value, activeWorkspaceType.value] as const,
   ([value, workspaceType]) => {
-    if (workspaceType !== "long") emit("dirtyChange", value);
+    if (workspaceType !== "long" && workspaceType !== "mystery") {
+      emit("dirtyChange", value);
+    }
   },
   { immediate: true }
 );
@@ -242,7 +274,7 @@ function discardChanges(): void {
   syncDraft(true);
 }
 
-function selectParentAgent(parentAgentId: WorkspaceAgentId): void {
+function selectParentAgent(parentAgentId: ParentId): void {
   activeParentAgentId.value = parentAgentId;
   editingSubagentId.value = null;
 }
@@ -364,12 +396,20 @@ function toggleSubagent(
 }
 
 function saveSettings(): void {
-  if (formDisabled.value || activeWorkspaceType.value === "long") return;
+  if (
+    formDisabled.value ||
+    activeWorkspaceType.value === "long" ||
+    activeWorkspaceType.value === "mystery"
+  ) {
+    return;
+  }
   const workspaceType = activeWorkspaceType.value;
   const parentAgentIds =
     workspaceType === "script"
       ? SCRIPT_WORKSPACE_AGENT_IDS
-      : SHORT_WORKSPACE_AGENT_IDS;
+      : workspaceType === "academic"
+        ? ACADEMIC_AGENT_IDS
+        : SHORT_WORKSPACE_AGENT_IDS;
   const teams = parentAgentIds.map((parentAgentId) => {
     const team = draftTeams.value.find(
       (candidate) => candidate.parentAgentId === parentAgentId
@@ -401,12 +441,22 @@ function saveSettings(): void {
       }))
     };
   });
-  const message = validateAgentTeamDraft(
-    teams as WorkspaceAgentTeamSettingsInput["teams"],
-    props.models
-  );
+  const message = validateAgentTeamDraft(teams, props.models);
   if (message) {
     uiMessage.warning(message);
+    return;
+  }
+  if (workspaceType === "academic") {
+    const parsed = AcademicAgentTeamSettingsInputSchema.safeParse({
+      workspaceType: "academic",
+      parallelSubagents: draftParallelSubagents.value,
+      teams
+    });
+    if (!parsed.success) {
+      uiMessage.warning(t("agentTeamConfigurationIsIncomplete"));
+      return;
+    }
+    emit("save", parsed.data);
     return;
   }
   const parsed = WorkspaceAgentTeamSettingsInputSchema.safeParse({
@@ -421,9 +471,8 @@ function saveSettings(): void {
   emit("save", parsed.data);
 }
 
-// The template is kept in a separate file to keep this editor maintainable.
-// Exposing its bindings also gives static analysis an explicit cross-file boundary.
 defineExpose({
+  academicAgentT,
   AgentTeamParallelSwitch,
   AgentTeamSaveBar,
   AgentTeamSubagentCard,
@@ -432,6 +481,8 @@ defineExpose({
   draftParallelSubagents,
   LoadSubagentFromSkillDialog,
   LongAgentTeamSettingsPanel,
+  MysteryAgentTeamSettingsPanel,
+  mysteryLabels,
   activeParentMeta,
   activeSubagentLimit,
   visibleParentAgents,

@@ -11,15 +11,22 @@ import {
   handleDocumentVersionCommands
 } from "./ipc/document-version-commands";
 import {
+  AcademicAgentSettingsSchema,
+  AcademicBookSchema,
+  CreateAcademicReferenceCardResultSchema,
+  DeleteAcademicReferenceCardResultSchema,
   LibraryOrganizationSchema,
   CreateUnboundEntryResultSchema,
   LibraryStructurePlanSchema,
-  LibraryStructureResultSchema
+  LibraryStructureResultSchema,
+  MutateAcademicManuscriptResultSchema,
+  UpdateAcademicReferenceCardResultSchema
 } from "@deepwrite/contracts";
 import { nativeMessages, nativeText, setNativeLanguage } from "./native-i18n";
 import { handleSessionCommands } from "./ipc/session-commands";
 import { handleBookTemplateCommands } from "./ipc/book-template-commands";
 import { handleCatalogProjectCommands } from "./ipc/catalog-project-commands";
+import { handleMysteryCommands } from "./ipc/mystery-commands";
 import type { ExtrasAgentService } from "../extras/agents";
 import { isDecompositionFauxSmokeModel } from "./smoke-decomposition-model";
 import { isBookIdentityFauxSmokeModel } from "./smoke-book-identity-model";
@@ -111,6 +118,7 @@ import {
   DeleteDraftSectionResultSchema,
   MoveDraftSectionResultSchema,
   DuplicateCatalogProjectResultSchema,
+  ExportAcademicManuscriptResultSchema,
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptResultSchema,
   ExternalLibrarySelectionResultSchema,
@@ -202,9 +210,12 @@ import { applyNetworkProxyPreference } from "./network-proxy-preference";
 import { listRemoteModels } from "./list-remote-models";
 import { ModelUsageStore } from "./model-usage-store";
 import { SoftwareTokenUsageReporter } from "./software-token-usage-reporter";
+import { AcademicAgentConfigStore } from "./academic-agent-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
 import { LongAgentConfigStore } from "./long-agent-config-store";
+import { MysteryAgentConfigStore } from "./mystery-agent-config-store";
 import { applyNativeAppearanceChrome } from "./native-appearance-chrome";
+import { exportAcademicManuscript } from "./academic-manuscript-export";
 import { exportShortManuscript } from "./short-manuscript-export";
 import { exportLongManuscript } from "./long-manuscript-export";
 import { UtilityCommandTimeoutError, UtilitySupervisor } from "./supervisor";
@@ -320,6 +331,8 @@ let coverRenderService: CoverRenderService | undefined;
 let extrasAgentService: ExtrasAgentService;
 let libraryAgentConfigStore: LibraryAgentConfigStore | undefined;
 let longAgentConfigStore: LongAgentConfigStore | undefined;
+let academicAgentConfigStore: AcademicAgentConfigStore | undefined;
+let mysteryAgentConfigStore: MysteryAgentConfigStore | undefined;
 let cachedAppearanceSettings: AppearanceSettings =
   createDefaultAppearanceSettings();
 let cachedGeneralSettings: GeneralSettings = createDefaultGeneralSettings();
@@ -498,12 +511,14 @@ type AgentEventEnvelope = Extract<
       | "tool.execution_completed"
       | "extras_agent.output_updated"
       | "subagent_authoring.draft_updated"
+      | "academic.workspace_mutation"
       | "library.editor_mutation"
       | "workspace.editor_mutation"
       | "workspace.stage_selection"
       | "long.mutation_proposal"
       | "long.chapter_write_proposal"
       | "long.ledger_commit_proposal"
+      | "mystery.mutation_proposal"
       | "subagent.planned"
       | "subagent.started"
       | "subagent.activity"
@@ -530,12 +545,14 @@ function isAgentEvent(event: SystemEventEnvelope): event is AgentEventEnvelope {
     event.type === "tool.execution_completed" ||
     event.type === "extras_agent.output_updated" ||
     event.type === "subagent_authoring.draft_updated" ||
+    event.type === "academic.workspace_mutation" ||
     event.type === "library.editor_mutation" ||
     event.type === "workspace.editor_mutation" ||
     event.type === "workspace.stage_selection" ||
     event.type === "long.mutation_proposal" ||
     event.type === "long.chapter_write_proposal" ||
     event.type === "long.ledger_commit_proposal" ||
+    event.type === "mystery.mutation_proposal" ||
     event.type === "subagent.planned" ||
     event.type === "subagent.started" ||
     event.type === "subagent.activity" ||
@@ -1014,6 +1031,20 @@ function requireLongAgentConfigStore(): LongAgentConfigStore {
   return longAgentConfigStore;
 }
 
+function requireAcademicAgentConfigStore(): AcademicAgentConfigStore {
+  if (!academicAgentConfigStore) {
+    throw new Error("学术智能体设置存储尚未初始化。");
+  }
+  return academicAgentConfigStore;
+}
+
+function requireMysteryAgentConfigStore(): MysteryAgentConfigStore {
+  if (!mysteryAgentConfigStore) {
+    throw new Error("剧本杀智能体设置存储尚未初始化。");
+  }
+  return mysteryAgentConfigStore;
+}
+
 function requireWorkspaceDirectoryStore(): WorkspaceDirectoryStore {
   if (!workspaceDirectoryStore) {
     throw new Error("工作目录配置存储尚未初始化。");
@@ -1365,6 +1396,7 @@ function registerIpc(): void {
         command.type === "agentTeams.applyActiveChange" ||
         command.type === "catalog.createShortBookAtPath" ||
         command.type === "catalog.createScriptBookAtPath" ||
+        command.type === "catalog.createAcademicBookAtPath" ||
         command.type === "long.createBookAtPath" ||
         command.type === "long.previewLegacySyncAtPath" ||
         command.type === "long.applyLegacySyncAtPath" ||
@@ -1372,6 +1404,8 @@ function registerIpc(): void {
         command.type === "long.previewContinuationImportAtPath" ||
         command.type === "long.importContinuationAtPath" ||
         command.type === "long.openAtPath" ||
+        command.type === "mystery.createBookAtPath" ||
+        command.type === "mystery.openAtPath" ||
         command.type === "catalog.createLibraryAtPath" ||
         command.type === "catalog.createLibraryGroupAtPath" ||
         command.type === "catalog.openProjectAtPath" ||
@@ -1494,6 +1528,38 @@ function registerIpc(): void {
                   : "manuscript.export_failed",
               message:
                 error instanceof Error ? error.message : "导出长篇失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "manuscript.exportAcademic") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: ExportAcademicManuscriptResultSchema.parse(
+              await exportAcademicManuscript(
+                mainWindow,
+                command.payload,
+                createBookImageExportLoader((coreCommand) =>
+                  supervisor.requestCommand("core", coreCommand, 0)
+                )
+              )
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code:
+                error instanceof BookImageError
+                  ? error.code
+                  : "manuscript.export_failed",
+              message:
+                error instanceof Error ? error.message : "导出学术稿件失败。",
               details: safeErrorDetails(error)
             }
           };
@@ -2287,6 +2353,11 @@ function registerIpc(): void {
         command.type === "catalog.updateBook" ||
         command.type === "catalog.mutateCharacterStructure" ||
         command.type === "catalog.mutatePlotStructure" ||
+        command.type === "catalog.mutateAcademicFramework" ||
+        command.type === "catalog.createAcademicReferenceCard" ||
+        command.type === "catalog.updateAcademicReferenceCard" ||
+        command.type === "catalog.deleteAcademicReferenceCard" ||
+        command.type === "catalog.mutateAcademicManuscript" ||
         command.type === "catalog.updateLibraryGroup" ||
         command.type === "catalog.updateLibrary" ||
         command.type === "catalog.deleteBook" ||
@@ -2402,6 +2473,29 @@ function registerIpc(): void {
             case "catalog.mutateCharacterStructure":
             case "catalog.mutatePlotStructure":
               payload = BookSchema.parse(result.payload);
+              break;
+            case "catalog.mutateAcademicFramework":
+              payload = AcademicBookSchema.parse(result.payload);
+              break;
+            case "catalog.createAcademicReferenceCard":
+              payload = CreateAcademicReferenceCardResultSchema.parse(
+                result.payload
+              );
+              break;
+            case "catalog.updateAcademicReferenceCard":
+              payload = UpdateAcademicReferenceCardResultSchema.parse(
+                result.payload
+              );
+              break;
+            case "catalog.deleteAcademicReferenceCard":
+              payload = DeleteAcademicReferenceCardResultSchema.parse(
+                result.payload
+              );
+              break;
+            case "catalog.mutateAcademicManuscript":
+              payload = MutateAcademicManuscriptResultSchema.parse(
+                result.payload
+              );
               break;
             case "catalog.updateLibraryGroup":
               payload = CatalogLibraryGroupSchema.parse(result.payload);
@@ -2607,6 +2701,83 @@ function registerIpc(): void {
         }
       }
 
+      if (command.type === "academicAgents.list") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AcademicAgentSettingsSchema.parse(
+              await requireAcademicAgentConfigStore().list()
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "academic_agents.list_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "加载学术智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "academicAgents.save") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AcademicAgentSettingsSchema.parse(
+              await requireAcademicAgentConfigStore().save(command.payload)
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "academic_agents.save_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "保存学术智能体设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
+      if (command.type === "academicAgents.reset") {
+        try {
+          return {
+            status: "accepted",
+            requestId: command.id,
+            payload: AcademicAgentSettingsSchema.parse(
+              await requireAcademicAgentConfigStore().reset(
+                command.payload.agentId
+              )
+            )
+          };
+        } catch (error: unknown) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "academic_agents.reset_failed",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "恢复学术智能体默认设置失败。",
+              details: safeErrorDetails(error)
+            }
+          };
+        }
+      }
+
       if (command.type === "libraryAgents.list") {
         try {
           return {
@@ -2684,6 +2855,19 @@ function registerIpc(): void {
         }
       }
 
+      const mysteryResult = await handleMysteryCommands(
+        {
+          getMainWindow: () => mainWindow ?? undefined,
+          supervisor,
+          dialog,
+          requireSelectedWorkspaceDirectory,
+          requireMysteryAgentConfigStore,
+          forgetBookTeamBinding
+        },
+        command
+      );
+      if (mysteryResult) return mysteryResult;
+
       const sessionResult = await handleSessionCommands(
         {
           activeRuns,
@@ -2693,6 +2877,8 @@ function registerIpc(): void {
           requireModelConfigStore,
           requireWorkspaceAgentConfigStore,
           requireLongAgentConfigStore,
+          requireAcademicAgentConfigStore,
+          requireMysteryAgentConfigStore,
           requireAgentTeamConfigStore,
           requireLibraryAgentConfigStore,
           requireGeneralSettingsStore,
@@ -2796,6 +2982,8 @@ if (!hasSingleInstanceLock) {
       agentTeamConfigStore,
       libraryAgentConfigStore,
       longAgentConfigStore,
+      academicAgentConfigStore,
+      mysteryAgentConfigStore,
       extrasAgentService,
       workspaceDirectoryStore,
       appearanceService,

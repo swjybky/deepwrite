@@ -21,6 +21,10 @@ import {
 } from "../../utilities/folder-catalog-store";
 import { LongDocumentConflictError } from "../../utilities/long-project-store/types";
 import { LongWorkspaceService } from "../../utilities/long-workspace-service";
+import {
+  MysteryDocumentConflictError,
+  MysteryWorkspaceService
+} from "../../utilities/mystery-store";
 import { AgentTeamConfigStore } from "../../main/agent-team-config-store";
 import type { ExternalWindowRequest } from "@deepwrite/contracts/external-control";
 import { createExternalControl } from "./index";
@@ -51,6 +55,7 @@ describe("external write tools against real stores", () => {
   let root: string;
   let store: FolderCatalogStore;
   let long: LongWorkspaceService;
+  let mystery: MysteryWorkspaceService;
   let teams: AgentTeamConfigStore;
   let state: ExternalControlAppState;
   let bookId: string;
@@ -135,7 +140,11 @@ describe("external write tools against real stores", () => {
           projectDirectory:
             command.payload.source === "long"
               ? await long.resolveProjectDirectory(command.payload.projectId)
-              : await store.projectDirectory(command.payload.projectId)
+              : command.payload.source === "mystery"
+                ? await mystery.catalog.resolveProjectDirectory(
+                    command.payload.projectId
+                  )
+                : await store.projectDirectory(command.payload.projectId)
         };
       case "long.list":
         return long.list();
@@ -153,6 +162,28 @@ describe("external write tools against real stores", () => {
         return long.unregister(command.payload);
       case "long.openAtPath":
         return long.openAtPath(command.payload.projectDirectory);
+      case "mystery.list":
+        return mystery.list();
+      case "mystery.getWorkspaceIndex":
+        return mystery.getWorkspaceIndex(command.payload.bookId);
+      case "mystery.readDocument":
+        return mystery.readDocument(command.payload);
+      case "mystery.writeDocument":
+        return mystery.writeDocument(command.payload);
+      case "mystery.readAgentsMd":
+        return mystery.readAgentsMd(command.payload);
+      case "mystery.writeAgentsMd":
+        return mystery.writeAgentsMd(command.payload);
+      case "mystery.createBook":
+        return mystery.createAtPath(parent, command.payload);
+      case "mystery.rename":
+        return mystery.rename(command.payload.bookId, command.payload.title);
+      case "mystery.duplicateBook":
+        return mystery.duplicateBook(command.payload.bookId);
+      case "mystery.unregister":
+        return mystery.unregister(command.payload);
+      case "mystery.openAtPath":
+        return mystery.openAtPath(command.payload.projectDirectory);
       case "agentTeams.create":
         return teams.create(command.payload);
       case "agentTeams.rename":
@@ -185,7 +216,9 @@ describe("external write tools against real stores", () => {
               ? "catalog.conflict"
               : error instanceof LongDocumentConflictError
                 ? "long.document_conflict"
-                : "core.failed",
+                : error instanceof MysteryDocumentConflictError
+                  ? "mystery.conflict"
+                  : "core.failed",
           message: error instanceof Error ? error.message : "failed"
         }
       };
@@ -197,6 +230,7 @@ describe("external write tools against real stores", () => {
     const userDataPath = join(root, "user-data");
     store = new FolderCatalogStore({ userDataPath });
     long = new LongWorkspaceService({ userDataPath });
+    mystery = new MysteryWorkspaceService({ userDataPath });
     teams = new AgentTeamConfigStore(userDataPath);
     trash = createTrashStore({ directory: () => join(root, "trash") });
     state = {
@@ -714,6 +748,70 @@ describe("external write tools against real stores", () => {
     await expect(
       call<Detail>("get_work", { workId: created.id })
     ).resolves.toMatchObject({ title: "待删长篇" });
+  });
+
+  it("writes, renames, duplicates, deletes and restores a mystery work", async () => {
+    await expect(
+      call("manage_work", {
+        action: "create",
+        type: "mystery",
+        title: "错误题材",
+        genre: "不存在题材"
+      })
+    ).rejects.toMatchObject({ code: "external.invalid_input" });
+
+    const created = await call("manage_work", {
+      action: "create",
+      type: "mystery",
+      title: "雪夜孤馆",
+      genre: "硬核推理"
+    });
+    const before = await call<Page>("read_document", {
+      workId: created.id,
+      documentId: "truth_doc:core_truth"
+    });
+    const written = await call("write_document", {
+      workId: created.id,
+      documentId: "truth_doc:core_truth",
+      content: "真凶在钟楼顶层设下冰块延迟装置。",
+      baseRevision: before.revision
+    });
+    expect(written.revision).toBeDefined();
+    await expect(
+      call("write_document", {
+        workId: created.id,
+        documentId: "truth_doc:core_truth",
+        content: "陈旧覆盖",
+        baseRevision: before.revision
+      })
+    ).rejects.toMatchObject({ code: "external.stale_revision" });
+
+    await expect(
+      call("manage_document", { action: "create", workId: created.id })
+    ).rejects.toMatchObject({ code: "external.invalid_input" });
+
+    await call("manage_work", {
+      action: "rename",
+      workId: created.id,
+      title: "雪夜孤馆改"
+    });
+    const copy = await call("manage_work", {
+      action: "duplicate",
+      workId: created.id
+    });
+    expect(copy.id).toMatch(/^mys_/u);
+
+    const deleted = await call("manage_work", {
+      action: "delete",
+      workId: created.id
+    });
+    await expect(
+      call("get_work", { workId: created.id })
+    ).rejects.toMatchObject({ code: "external.not_found" });
+    await call("restore_trash_item", { trashId: deleted.trashId });
+    await expect(
+      call<Detail>("get_work", { workId: created.id })
+    ).resolves.toMatchObject({ title: "雪夜孤馆改" });
   });
 
   it("explains when a work's folder can no longer be restored", async () => {

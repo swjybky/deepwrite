@@ -30,6 +30,11 @@ export function createShortManuscriptExportInput(
       .map((document) => [document.catalogDocumentId!, document] as const)
   );
 
+  if (book.bookType === "academic") {
+    throw new Error(
+      "Academic manuscript export is not supported by short export."
+    );
+  }
   return {
     book: { projectType: book.bookType, projectId: book.id },
     title: book.title,

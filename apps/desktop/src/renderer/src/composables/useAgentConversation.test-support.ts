@@ -6,6 +6,10 @@ import { defaultBuiltinSubagentSettings } from "@deepwrite/contracts/renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
 import {
+  BUILTIN_AGENT_METADATA,
+  DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS
+} from "@deepwrite/contracts/renderer";
+import {
   DEFAULT_AGENT_TEAM_SETTINGS,
   DEFAULT_LIBRARY_AGENT_SETTINGS,
   DEFAULT_LONG_AGENT_SETTINGS,
@@ -558,6 +562,12 @@ function createDeferredApi(): {
       }
     },
     catalog: {
+      createAcademicBook: vi.fn(),
+      mutateAcademicFramework: vi.fn(),
+      createAcademicReferenceCard: vi.fn(),
+      updateAcademicReferenceCard: vi.fn(),
+      deleteAcademicReferenceCard: vi.fn(),
+      mutateAcademicManuscript: vi.fn(),
       createUnboundEntry: vi.fn(),
       reorderLibrary: vi.fn(),
       previewLibraryStructure: vi.fn(),
@@ -797,6 +807,33 @@ function createDeferredApi(): {
         return structuredClone(DEFAULT_LIBRARY_AGENT_SETTINGS);
       }
     },
+    academicAgents: {
+      async list() {
+        return {
+          workspaceType: "academic" as const,
+          agents: [
+            {
+              workspaceType: "academic" as const,
+              id: "academic" as const,
+              label: BUILTIN_AGENT_METADATA.academic.label,
+              description: BUILTIN_AGENT_METADATA.academic.description,
+              systemPrompt: "你是 DeepWrite 的学术主创智能体。",
+              welcomeShortcuts: [
+                ...DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS
+              ] as [string, string, string],
+              modelMode: "inherit" as const,
+              builtin: true as const
+            }
+          ]
+        };
+      },
+      async save() {
+        return this.list();
+      },
+      async reset() {
+        return this.list();
+      }
+    },
     ...createBookAnalysisTestApi(),
     externalControl: {
       respond: vi.fn(async () => undefined)
@@ -842,6 +879,11 @@ function createDeferredApi(): {
     },
     generalSettings: createGeneralSettingsTestApi(),
     manuscript: {
+      async exportAcademic() {
+        throw new Error(
+          "Academic manuscript export is not used by conversation tests."
+        );
+      },
       async exportLong() {
         throw new Error(
           "Long manuscript export is not used by conversation tests."

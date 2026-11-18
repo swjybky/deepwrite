@@ -86,7 +86,7 @@ function harness(
         {
           id: "group-1",
           title: "都市素材组",
-          members: { character: "material-1", plot: "material-2" },
+          memberIds: ["material-1", "material-2"],
           createdAt: "2026-10-09T08:00:00.000Z",
           updatedAt: "2026-10-09T08:00:00.000Z"
         }

@@ -1,0 +1,234 @@
+.lib-picker-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lib-picker-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lib-picker-groups-label {
+  font-size: 0.857rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.lib-picker-group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lib-picker-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.857rem;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.lib-picker-group-chip:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.lib-picker-group-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.lib-picker-group-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lib-picker-group-count {
+  font-size: 0.786rem;
+  color: var(--text-tertiary);
+}
+
+.lib-picker-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 180px);
+  gap: 10px;
+  align-items: center;
+}
+
+.lib-picker-toolbar.is-search-only {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.lib-picker-search-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 10px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.929rem;
+}
+
+.lib-picker-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.lib-picker-count {
+  font-size: 0.857rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.lib-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.lib-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.lib-picker-row:hover {
+  background: var(--surface-hover);
+}
+
+.lib-picker-row.is-checked {
+  border-color: var(--theme-line);
+  background: var(--surface-selected);
+}
+
+.lib-picker-row-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.lib-picker-row-main input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.lib-picker-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.929rem;
+  font-weight: 500;
+}
+
+.lib-picker-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lib-picker-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.786rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.lib-picker-entry-count {
+  font-size: 0.786rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.lib-picker-empty {
+  margin: 0;
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 0.857rem;
+  color: var(--text-tertiary);
+}
+
+.lib-picker-missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lib-picker-missing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px dashed var(--theme-line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 0.857rem;
+}
+
+.lib-picker-missing-chip button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.lib-picker-quick-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 560px) {
+  .lib-picker-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

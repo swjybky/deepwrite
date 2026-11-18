@@ -12,7 +12,15 @@ import type {
   EditorTextReference
 } from "../types/conversation";
 import type { AgentConversationController } from "../composables/useAgentConversation";
-import { AgentConversation } from "./lazyAppComponents";
+import type { DraftFileKind } from "../types/workspace";
+import {
+  AcademicWorkspaceDialogs,
+  AgentConversation
+} from "./lazyAppComponents";
+import {
+  academicDialogTarget,
+  useAcademicDialogHostClaim
+} from "../stores/academicWorkspaceDialog";
 import RightEditorPane from "./RightEditorPane.vue";
 import type { EditorCompositionChange } from "../composables/useEditorComposition";
 
@@ -137,12 +145,14 @@ const emit = defineEmits<{
   selectSection: [sectionId: string];
   createSection: [];
   deleteSection: [];
-  selectDraftFile: [fileKind: "body" | "character-state"];
+  selectDraftFile: [fileKind: DraftFileKind];
   selectEntrySearchResult: [documentId: string];
   prepareEntrySearch: [];
   resizeStart: [event: PointerEvent];
   resizeKeydown: [event: KeyboardEvent];
 }>();
+
+const ownsAcademicDialogHost = useAcademicDialogHostClaim();
 </script>
 
 <template>
@@ -228,5 +238,8 @@ const emit = defineEmits<{
     tabindex="0"
     @pointerdown="emit('resizeStart', $event)"
     @keydown="emit('resizeKeydown', $event)"
+  />
+  <AcademicWorkspaceDialogs
+    v-if="ownsAcademicDialogHost && academicDialogTarget"
   />
 </template>

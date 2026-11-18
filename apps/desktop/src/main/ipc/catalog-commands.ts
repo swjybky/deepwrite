@@ -6,6 +6,7 @@ import { CreateUnboundEntryResultSchema } from "@deepwrite/contracts";
 import { LibraryOrganizationSchema } from "@deepwrite/contracts";
 import { nativeText } from "../native-i18n";
 import {
+  AcademicBookSchema,
   BookSchema,
   CatalogDraftRecoverySaveResultSchema,
   CatalogDraftRecoverySchema,
@@ -18,7 +19,9 @@ import {
   CatalogReadDocumentResultSchema,
   CatalogSnapshotSchema,
   CommandEnvelopeSchema,
+  CreateAcademicReferenceCardResultSchema,
   CreateDraftSectionsResultSchema,
+  DeleteAcademicReferenceCardResultSchema,
   DeleteBookResultSchema,
   DeleteCatalogProjectResultSchema,
   DeleteDraftSectionResultSchema,
@@ -27,12 +30,14 @@ import {
   ImportLibraryEntriesResultSchema,
   MoveDraftSectionResultSchema,
   MoveLibraryEntryResultSchema,
+  MutateAcademicManuscriptResultSchema,
   RemoveLibraryEntryResultSchema,
   ReadWritingContextResultSchema,
   SaveDocumentResultSchema,
   ScriptBookSchema,
   ShortBookSchema,
   UnregisterCatalogProjectResultSchema,
+  UpdateAcademicReferenceCardResultSchema,
   WriteWritingContextResultSchema,
   createEnvelope,
   type CommandEnvelope,
@@ -53,6 +58,7 @@ export async function handleCatalogCommands(
   if (
     command.type === "catalog.createShortBook" ||
     command.type === "catalog.createScriptBook" ||
+    command.type === "catalog.createAcademicBook" ||
     command.type === "catalog.createLibrary" ||
     command.type === "catalog.createLibraryGroup" ||
     command.type === "catalog.openProject"
@@ -69,7 +75,8 @@ export async function handleCatalogCommands(
 
       const domain =
         command.type === "catalog.createShortBook" ||
-        command.type === "catalog.createScriptBook"
+        command.type === "catalog.createScriptBook" ||
+        command.type === "catalog.createAcademicBook"
           ? "book"
           : command.payload.domain;
       const defaultPath =
@@ -80,6 +87,7 @@ export async function handleCatalogCommands(
       if (
         command.type === "catalog.createShortBook" ||
         command.type === "catalog.createScriptBook" ||
+        command.type === "catalog.createAcademicBook" ||
         command.type === "catalog.createLibrary" ||
         command.type === "catalog.createLibraryGroup"
       ) {
@@ -126,32 +134,41 @@ export async function handleCatalogCommands(
                 },
                 { id: command.id, context: command.context }
               )
-            : command.type === "catalog.createLibrary"
+            : command.type === "catalog.createAcademicBook"
               ? createEnvelope(
-                  "catalog.createLibraryAtPath",
+                  "catalog.createAcademicBookAtPath",
                   {
-                    ...command.payload,
-                    parentDirectory: selectedPath
+                    parentDirectory: selectedPath,
+                    input: command.payload
                   },
                   { id: command.id, context: command.context }
                 )
-              : command.type === "catalog.createLibraryGroup"
+              : command.type === "catalog.createLibrary"
                 ? createEnvelope(
-                    "catalog.createLibraryGroupAtPath",
+                    "catalog.createLibraryAtPath",
                     {
-                      parentDirectory: selectedPath,
-                      input: command.payload
+                      ...command.payload,
+                      parentDirectory: selectedPath
                     },
                     { id: command.id, context: command.context }
                   )
-                : createEnvelope(
-                    "catalog.openProjectAtPath",
-                    {
-                      projectDirectory: selectedPath,
-                      domain: command.payload.domain
-                    },
-                    { id: command.id, context: command.context }
-                  )
+                : command.type === "catalog.createLibraryGroup"
+                  ? createEnvelope(
+                      "catalog.createLibraryGroupAtPath",
+                      {
+                        parentDirectory: selectedPath,
+                        input: command.payload
+                      },
+                      { id: command.id, context: command.context }
+                    )
+                  : createEnvelope(
+                      "catalog.openProjectAtPath",
+                      {
+                        projectDirectory: selectedPath,
+                        domain: command.payload.domain
+                      },
+                      { id: command.id, context: command.context }
+                    )
       );
 
       const result = await ctx.supervisor.requestCommand(
@@ -167,11 +184,13 @@ export async function handleCatalogCommands(
           ? ShortBookSchema.parse(result.payload)
           : command.type === "catalog.createScriptBook"
             ? ScriptBookSchema.parse(result.payload)
-            : command.type === "catalog.createLibrary"
-              ? CatalogLibrarySchema.parse(result.payload)
-              : command.type === "catalog.createLibraryGroup"
-                ? CatalogLibraryGroupSchema.parse(result.payload)
-                : CatalogOpenProjectResultSchema.parse(result.payload);
+            : command.type === "catalog.createAcademicBook"
+              ? AcademicBookSchema.parse(result.payload)
+              : command.type === "catalog.createLibrary"
+                ? CatalogLibrarySchema.parse(result.payload)
+                : command.type === "catalog.createLibraryGroup"
+                  ? CatalogLibraryGroupSchema.parse(result.payload)
+                  : CatalogOpenProjectResultSchema.parse(result.payload);
       return { status: "accepted", requestId: command.id, payload };
     } catch (error: unknown) {
       return {
@@ -266,6 +285,11 @@ export async function handleCatalogCommands(
     command.type === "catalog.updateBook" ||
     command.type === "catalog.mutateCharacterStructure" ||
     command.type === "catalog.mutatePlotStructure" ||
+    command.type === "catalog.mutateAcademicFramework" ||
+    command.type === "catalog.createAcademicReferenceCard" ||
+    command.type === "catalog.updateAcademicReferenceCard" ||
+    command.type === "catalog.deleteAcademicReferenceCard" ||
+    command.type === "catalog.mutateAcademicManuscript" ||
     command.type === "catalog.updateLibraryGroup" ||
     command.type === "catalog.updateLibrary" ||
     command.type === "catalog.deleteBook" ||
@@ -374,6 +398,27 @@ export async function handleCatalogCommands(
         case "catalog.mutateCharacterStructure":
         case "catalog.mutatePlotStructure":
           payload = BookSchema.parse(result.payload);
+          break;
+        case "catalog.mutateAcademicFramework":
+          payload = AcademicBookSchema.parse(result.payload);
+          break;
+        case "catalog.createAcademicReferenceCard":
+          payload = CreateAcademicReferenceCardResultSchema.parse(
+            result.payload
+          );
+          break;
+        case "catalog.updateAcademicReferenceCard":
+          payload = UpdateAcademicReferenceCardResultSchema.parse(
+            result.payload
+          );
+          break;
+        case "catalog.deleteAcademicReferenceCard":
+          payload = DeleteAcademicReferenceCardResultSchema.parse(
+            result.payload
+          );
+          break;
+        case "catalog.mutateAcademicManuscript":
+          payload = MutateAcademicManuscriptResultSchema.parse(result.payload);
           break;
         case "catalog.updateLibraryGroup":
           payload = CatalogLibraryGroupSchema.parse(result.payload);

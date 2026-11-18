@@ -28,7 +28,13 @@ function harness(workspaceType: "short" | "script" = "short") {
     },
     materialLibraries: [
       { id: "material-plot", label: "剧情素材", materialKind: "plot" },
-      { id: "material-mixed", label: "综合素材", materialKind: "mixed" }
+      { id: "material-mixed", label: "综合素材", materialKind: "mixed" },
+      {
+        id: "material-lit",
+        label: "文献库",
+        materialKind: "other",
+        customTag: "文献"
+      }
     ],
     skillLibraries: [
       { id: "skill-style", label: "文风技能", skillKind: "style" },
@@ -44,16 +50,15 @@ function harness(workspaceType: "short" | "script" = "short") {
   return { props, bindings };
 }
 
-describe("book resource bindings after library deletion", () => {
+describe("book resource bindings after library deletion and free sharing", () => {
   it.each(["short", "script"] as const)(
     "clears unavailable selections while preserving valid %s book bindings",
     (workspaceType) => {
       const { props, bindings } = harness(workspaceType);
-      expect(bindings.selectedMaterialIds.character).toBe("");
-      expect(bindings.selectedSkillIds.general).toBe("");
-      expect(bindings.selectedMaterialIds.plot).toBe("material-plot");
-      expect(bindings.selectedSkillIds.style).toBe("skill-style");
-      // Opening the editor must not mutate the persisted book snapshot.
+      expect(bindings.selectedMaterialLibraryIds.value).toEqual([
+        "material-plot"
+      ]);
+      expect(bindings.selectedSkillLibraryIds.value).toEqual(["skill-style"]);
       expect(props.book?.boundMaterialLibraryIdsByKind?.character).toEqual([
         "deleted-material"
       ]);
@@ -63,25 +68,30 @@ describe("book resource bindings after library deletion", () => {
     }
   );
 
-  it("drops deleted selections while the dialog is open and keeps other edits", async () => {
+  it("drops deleted selections while the dialog is open and keeps other multi-selections", async () => {
     const { props, bindings } = harness();
-    bindings.selectedSkillIds.other = "skill-other";
-    bindings.selectedMaterialIds.character = "material-mixed";
+    bindings.selectedSkillLibraryIds.value = ["skill-style", "skill-other"];
+    bindings.selectedMaterialLibraryIds.value = [
+      "material-plot",
+      "material-mixed",
+      "material-lit"
+    ];
     props.skillLibraries = props.skillLibraries.filter(
       ({ id }) => id !== "skill-style"
     );
     props.materialLibraries.splice(0, 1);
     await nextTick();
-    expect(bindings.selectedSkillIds.style).toBe("");
-    expect(bindings.selectedMaterialIds.plot).toBe("");
-    expect(bindings.selectedSkillIds.other).toBe("skill-other");
-    expect(bindings.selectedMaterialIds.character).toBe("material-mixed");
+    expect(bindings.selectedSkillLibraryIds.value).toEqual(["skill-other"]);
+    expect(bindings.selectedMaterialLibraryIds.value).toEqual([
+      "material-mixed",
+      "material-lit"
+    ]);
   });
 
-  it("filters invalid categories at submission even before watchers flush", () => {
+  it("filters deleted libraries at submission even before watchers flush", () => {
     const { props, bindings } = harness();
-    bindings.selectedMaterialIds.character = "material-mixed";
-    bindings.selectedSkillIds.other = "skill-other";
+    bindings.selectedMaterialLibraryIds.value = ["material-mixed"];
+    bindings.selectedSkillLibraryIds.value = ["skill-other"];
     props.materialLibraries = [];
     props.skillLibraries = [];
     expect(bindings.selectedMaterialLinks()).toEqual({
@@ -99,18 +109,20 @@ describe("book resource bindings after library deletion", () => {
     });
   });
 
-  it("allows rebinding after clearing deleted references and rejects mismatched kinds", () => {
+  it("supports multi-selecting multiple libraries of the same or custom tags", () => {
     const { bindings } = harness();
-    bindings.selectedMaterialIds.character = "material-mixed";
-    bindings.selectedMaterialIds.other = "material-plot";
-    bindings.selectedSkillIds.other = "skill-other";
-    bindings.selectedSkillIds.general = "skill-style";
+    bindings.selectedMaterialLibraryIds.value = [
+      "material-mixed",
+      "material-plot",
+      "material-lit"
+    ];
+    bindings.selectedSkillLibraryIds.value = ["skill-style", "skill-other"];
     expect(bindings.selectedMaterialLinks()).toEqual({
-      character: ["material-mixed"],
+      character: [],
       gimmick: [],
       plot: ["material-plot"],
       draft: [],
-      other: []
+      other: ["material-mixed", "material-lit"]
     });
     expect(bindings.selectedSkillLinks()).toEqual({
       general: [],
@@ -131,21 +143,27 @@ describe("book resource bindings after library deletion", () => {
     });
     bindings.resetBindingDraft();
     await nextTick();
-    expect(bindings.selectedMaterialIds.plot).toBe("material-plot");
-    expect(bindings.selectedSkillIds.style).toBe("skill-style");
+    expect(bindings.selectedMaterialLibraryIds.value).toEqual([
+      "deleted-material",
+      "material-plot"
+    ]);
+    expect(bindings.selectedSkillLibraryIds.value).toEqual([
+      "deleted-skill",
+      "skill-style"
+    ]);
     Object.assign(props, {
       loading: false,
       materialLibraries: materials,
       skillLibraries: skills
     });
     await nextTick();
-    expect(bindings.selectedMaterialIds.character).toBe("");
-    expect(bindings.selectedSkillIds.general).toBe("");
-    expect(bindings.selectedMaterialIds.plot).toBe("material-plot");
-    expect(bindings.selectedSkillIds.style).toBe("skill-style");
+    expect(bindings.selectedMaterialLibraryIds.value).toEqual([
+      "material-plot"
+    ]);
+    expect(bindings.selectedSkillLibraryIds.value).toEqual(["skill-style"]);
   });
 
-  it("clears a selected group when all of its member libraries disappear", async () => {
+  it("toggles groups on and off and hides groups whose member libraries disappear", async () => {
     const { props, bindings } = harness();
     props.skillGroups = [
       {
@@ -154,19 +172,19 @@ describe("book resource bindings after library deletion", () => {
         projectRevision: 0,
         createdAt: "2026-07-19T01:02:03.000Z",
         updatedAt: "2026-07-19T01:02:03.000Z",
-        members: { style: "skill-style" }
+        memberIds: ["skill-style", "skill-other"]
       }
     ];
-    bindings.bindingMode.value = "group";
-    bindings.selectedGroupId.value = "skill-group";
-    expect(
-      bindings.skillGroupLinks(bindings.selectedSkillGroup.value).style
-    ).toEqual(["skill-style"]);
+    bindings.selectedSkillLibraryIds.value = [];
+    bindings.toggleGroup("skill-group");
+    expect(bindings.selectedSkillLinks()).toEqual({
+      general: [],
+      plot: [],
+      style: ["skill-style"],
+      other: ["skill-other"]
+    });
     props.skillLibraries = [];
     await nextTick();
-    expect(bindings.selectedGroupId.value).toBe("");
-    expect(
-      bindings.skillGroupLinks(bindings.selectedSkillGroup.value).style
-    ).toEqual([]);
+    expect(bindings.availableGroups.value).toEqual([]);
   });
 });

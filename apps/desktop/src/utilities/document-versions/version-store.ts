@@ -44,7 +44,12 @@ export function documentVersionCurrent(
 }
 
 export function documentVersionKey(target: DocumentVersionTarget): string {
-  const id = target.workspace === "catalog" ? target.documentId : target.fileId;
+  const id =
+    target.workspace === "catalog"
+      ? target.documentId
+      : target.workspace === "mystery"
+        ? target.targetKey
+        : target.fileId;
   return createHash("sha256")
     .update(`${target.workspace}:${id}`)
     .digest("hex")

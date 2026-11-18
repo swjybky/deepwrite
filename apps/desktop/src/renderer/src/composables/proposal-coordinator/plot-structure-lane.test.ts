@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import {
   createEnvelope,
-  type Book,
+  type CreativeBook,
   type DeepWriteApi,
   type WorkspaceEditorMutationEventEnvelope
 } from "@deepwrite/contracts";
@@ -16,7 +16,7 @@ const BOOK_ID = "book-plot-direct";
 
 function fixtureBook(
   projectRevision: number | undefined,
-  plotStages: Book["plotStages"] = [
+  plotStages: CreativeBook["plotStages"] = [
     {
       id: "plot-opening",
       title: "开端",
@@ -24,7 +24,7 @@ function fixtureBook(
       enabled: true
     }
   ]
-): Book {
+): CreativeBook {
   return {
     id: BOOK_ID,
     title: "剧情结构直写测试",
@@ -51,7 +51,7 @@ function fixtureBook(
     ...(projectRevision === undefined ? {} : { projectRevision }),
     createdAt: NOW,
     updatedAt: NOW
-  } as unknown as Book;
+  } as unknown as CreativeBook;
 }
 
 function createPlotEvent(title = "终局"): WorkspaceEditorMutationEventEnvelope {
@@ -165,7 +165,7 @@ function createConversation() {
   return { controller, proposals };
 }
 
-function createHarness(initialBook: Book, workspaceAccepting = false) {
+function createHarness(initialBook: CreativeBook, workspaceAccepting = false) {
   let book = structuredClone(initialBook);
   let persistedBook = structuredClone(initialBook);
   let accepting = workspaceAccepting;
@@ -282,7 +282,7 @@ function createHarness(initialBook: Book, workspaceAccepting = false) {
     mutatePlotStructure,
     saveDocument,
     loadCatalogSnapshot,
-    setBook(next: Book) {
+    setBook(next: CreativeBook) {
       book = structuredClone(next);
       persistedBook = structuredClone(next);
     },

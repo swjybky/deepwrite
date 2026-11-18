@@ -27,8 +27,10 @@ import { imageSmokeOptions } from "./image/image-smoke-transport";
 import { CoverRenderService } from "../extras/book-identity/cover-render-service";
 import { voiceSmokeOptions } from "./smoke-voice-transport";
 import { modelSmokeOptions } from "./smoke-model-config";
+import { AcademicAgentConfigStore } from "./academic-agent-config-store";
 import { LibraryAgentConfigStore } from "./library-agent-config-store";
 import { LongAgentConfigStore } from "./long-agent-config-store";
+import { MysteryAgentConfigStore } from "./mystery-agent-config-store";
 import { MarketplaceClient } from "./marketplace-client";
 import { ModelConfigStore } from "./model-config-store";
 import { ModelUsageStore } from "./model-usage-store";
@@ -117,6 +119,8 @@ export function createDesktopServices(options: DesktopServiceOptions) {
     agentTeamConfigStore,
     libraryAgentConfigStore: new LibraryAgentConfigStore(configurationPath),
     longAgentConfigStore: new LongAgentConfigStore(configurationPath),
+    academicAgentConfigStore: new AcademicAgentConfigStore(configurationPath),
+    mysteryAgentConfigStore: new MysteryAgentConfigStore(configurationPath),
     extrasAgentService: createExtrasAgentService(configurationPath),
     workspaceDirectoryStore,
     appearanceService: new AppearanceService(configurationPath),

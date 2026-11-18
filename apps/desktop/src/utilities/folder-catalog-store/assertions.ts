@@ -2,7 +2,9 @@ import type {
   Book,
   CatalogSnapshot,
   CreateScriptBookInput,
-  CreateShortBookInput
+  CreateShortBookInput,
+  ScriptBook,
+  ShortBook
 } from "@deepwrite/contracts";
 import {
   CATALOG_PROJECT_DOMAINS,
@@ -16,41 +18,56 @@ import {
 } from "./types";
 
 export function assertBookLibraryReferences(
-  book: Pick<
-    Book,
-    "title" | "bookType" | "linkedMaterialIdsByKind" | "linkedSkillIdsByKind"
-  >,
+  book:
+    | Pick<
+        ShortBook | ScriptBook,
+        | "title"
+        | "bookType"
+        | "linkedMaterialIdsByKind"
+        | "linkedSkillIdsByKind"
+      >
+    | (Pick<Book, "title" | "bookType"> & {
+        linkedMaterialIds: readonly string[];
+        linkedSkillIds: readonly string[];
+      }),
   snapshot: Pick<CatalogSnapshot, "materials" | "skills">
 ): void {
   const materials = new Map(
     snapshot.materials.map((material) => [material.id, material])
   );
   const skills = new Map(snapshot.skills.map((skill) => [skill.id, skill]));
-  for (const [kind, materialIds] of Object.entries(
-    book.linkedMaterialIdsByKind
-  )) {
-    for (const materialId of materialIds) {
-      const material = materials.get(materialId);
-      if (!material) {
+  if ("linkedMaterialIds" in book) {
+    for (const materialId of book.linkedMaterialIds) {
+      if (!materials.has(materialId)) {
         throw new Error(
           `书籍「${book.title}」关联了不存在的素材库：${materialId}`
         );
       }
-      if (material.materialKind !== "mixed" && material.materialKind !== kind) {
-        throw new Error(`素材库「${material.title}」不能关联到 ${kind} 分类。`);
-      }
     }
-  }
-  for (const [kind, skillIds] of Object.entries(book.linkedSkillIdsByKind)) {
-    for (const skillId of skillIds) {
-      const skill = skills.get(skillId);
-      if (!skill) {
+    for (const skillId of book.linkedSkillIds) {
+      if (!skills.has(skillId)) {
         throw new Error(
           `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
         );
       }
-      if (skill.skillKind !== kind) {
-        throw new Error(`技能库「${skill.title}」不能绑定到 ${kind} 分类。`);
+    }
+    return;
+  }
+  for (const materialIds of Object.values(book.linkedMaterialIdsByKind)) {
+    for (const materialId of materialIds) {
+      if (!materials.has(materialId)) {
+        throw new Error(
+          `书籍「${book.title}」关联了不存在的素材库：${materialId}`
+        );
+      }
+    }
+  }
+  for (const skillIds of Object.values(book.linkedSkillIdsByKind)) {
+    for (const skillId of skillIds) {
+      if (!skills.has(skillId)) {
+        throw new Error(
+          `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
+        );
       }
     }
   }
@@ -66,13 +83,13 @@ export function assertBaseRevision(
 }
 
 export function assertUniqueGroupMembers(
-  libraryIds: Array<string | undefined>
+  libraryIds: ReadonlyArray<string | undefined>
 ): void {
   const selected = libraryIds.filter((libraryId): libraryId is string =>
     Boolean(libraryId)
   );
   if (new Set(selected).size !== selected.length) {
-    throw new Error("同一个资料库不能在一个分组中绑定到多个分类。");
+    throw new Error("同一个资料库不能在一个分组中重复添加。");
   }
 }
 
@@ -80,7 +97,7 @@ export function assertLibraryNotInAnotherGroup(
   groups: ReadonlyArray<{
     id: string;
     title: string;
-    members: Record<string, string | undefined>;
+    memberIds: readonly string[];
   }>,
   libraryId: string,
   domainLabel: "素材" | "技能",
@@ -88,8 +105,7 @@ export function assertLibraryNotInAnotherGroup(
 ): void {
   const existing = groups.find(
     (group) =>
-      group.id !== currentGroupId &&
-      Object.values(group.members).includes(libraryId)
+      group.id !== currentGroupId && group.memberIds.includes(libraryId)
   );
   if (existing) {
     throw new Error(

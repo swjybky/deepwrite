@@ -146,6 +146,7 @@ describe("useProposalCoordinator extraction boundary", () => {
       "reviewAgentEdit",
       "reviewLongAgentEdit",
       "scheduleQueuedAgentEdits",
+      "stageAcademicWorkspaceProposal",
       "stageAgentEditProposal",
       "stageLibraryEditProposal",
       "stageLongCharacterEditProposal",

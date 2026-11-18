@@ -15,14 +15,22 @@ import {
 import {
   CATALOG_LIBRARY_ENTRY_MAX_CHARACTERS,
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,
+  type BodyTextKind,
   type TextViewMode
 } from "@deepwrite/contracts";
 import type {
   EditorTextReference,
   EditorTextReferenceNavigation
 } from "../types/conversation";
-import type { EditorEntrySearchSource } from "../types/editorEntrySearch";
-import type { EditorDraftState, WorkspaceDocument } from "../types/workspace";
+import type {
+  EditorEntrySearchSource,
+  EditorEntrySearchResult
+} from "../types/editorEntrySearch";
+import type {
+  DraftFileKind,
+  EditorDraftState,
+  WorkspaceDocument
+} from "../types/workspace";
 import { resolveEditorTextReferenceRange } from "../utils/editorTextReferences";
 import {
   editorScrollMemoryKey,
@@ -35,7 +43,6 @@ import {
   type TextHistoryRestoreResult,
   type TextSelectionRange
 } from "../utils/boundedTextHistory";
-import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
 import {
   resolveWorkspaceDocumentTitle,
   workspaceDocumentHasFixedTitle
@@ -59,7 +66,10 @@ import { revealTextareaOffset } from "../utils/textareaMirror";
 import { richMarkdownEditorAt } from "../utils/richMarkdownBridge";
 import AppIcon from "./AppIcon.vue";
 import EditorTextTools from "./EditorTextTools.vue";
-import { useEditorDocumentVersions } from "../composables/useEditorDocumentVersions";
+import {
+  useEditorDocumentVersions,
+  type EditorDocumentVersionPort
+} from "../composables/useEditorDocumentVersions";
 import { CATALOG_DOCUMENT_VERSION_PORT } from "../composables/catalogDocumentVersionPort";
 import { useBodyTextFormatting } from "../composables/useBodyTextFormatting";
 import { catalogBodyTextKind } from "../utils/bodyTextTarget";
@@ -79,6 +89,8 @@ import {
 } from "../composables/bookImageContext";
 import { useBookImageInsertion } from "../composables/useBookImageInsertion";
 import PreviewOutlinePopover from "./PreviewOutlinePopover.vue";
+import { AcademicReferenceCardBar } from "./lazyAppComponents";
+import { academicTreeT } from "./academic/academicTreeLabels";
 
 const t = createScopedTranslator("components.rightEditorPane");
 
@@ -113,7 +125,10 @@ const props = defineProps<{
   deleteSectionLabel?: string | undefined;
   rightPane?: boolean;
   rightPaneCollapsed?: boolean;
-  entrySearchItems: readonly EditorEntrySearchSource[];
+  entrySearchItems?: readonly EditorEntrySearchSource[] | undefined;
+  bodyFormatKind?: BodyTextKind | undefined;
+  searchEntries?(query: string): Promise<readonly EditorEntrySearchResult[]>;
+  versioning?: EditorDocumentVersionPort | undefined;
 }>();
 
 const emit = defineEmits<{
@@ -127,7 +142,7 @@ const emit = defineEmits<{
   selectSection: [sectionId: string];
   createSection: [];
   deleteSection: [];
-  selectDraftFile: [fileKind: "body" | "character-state"];
+  selectDraftFile: [fileKind: DraftFileKind];
   selectEntrySearchResult: [documentId: string];
   prepareEntrySearch: [];
 }>();
@@ -215,10 +230,15 @@ const {
     ),
   undo,
   redo,
+  save: () => {
+    if (dirty.value && !props.manualSaving) save();
+  },
   isComposing: () => editorComposition.isComposing.value
 });
 const entrySearch = useEditorEntrySearch({
-  search: (query) => searchLocalEditorEntries(props.entrySearchItems, query),
+  search: (query) =>
+    props.searchEntries?.(query) ??
+    searchLocalEditorEntries(props.entrySearchItems ?? [], query),
   navigate: ({ id }) => emit("selectEntrySearchResult", id)
 });
 const {
@@ -329,31 +349,40 @@ const {
   dialogProps: versionDialogProps
 } = useEditorDocumentVersions({
   target: () =>
-    props.document.domain === "creation" &&
-    props.document.workspaceId &&
-    props.document.catalogDocumentId
-      ? {
-          workspace: "catalog",
-          bookId: props.document.workspaceId,
-          documentId: props.document.catalogDocumentId
-        }
-      : null,
+    props.versioning
+      ? props.versioning.target
+      : props.document.domain === "creation" &&
+          props.document.workspaceId &&
+          props.document.catalogDocumentId
+        ? {
+            workspace: "catalog",
+            bookId: props.document.workspaceId,
+            documentId: props.document.catalogDocumentId
+          }
+        : null,
   content: () => content.value,
   title: () => title.value,
   unsaved: () => dirty.value || Boolean(props.saving),
   autoSave: () => Boolean(props.autoSaveEnabled),
-  locked: () => props.locked,
+  locked: () => props.locked || Boolean(props.versioning?.busy),
   restoreDisabledReason: () =>
     props.document.readOnly
       ? translate("components.longWorkspaceEditor.readOnlyContent")
       : "",
   prepareRestore: () =>
-    catalogVersions?.prepare({
-      id: props.document.id,
-      title: title.value,
-      content: content.value
-    }) ?? Promise.resolve(false),
+    props.versioning
+      ? props.versioning.prepareRestore()
+      : (catalogVersions?.prepare({
+          id: props.document.id,
+          title: title.value,
+          content: content.value
+        }) ?? Promise.resolve(false)),
   async applyRestore(result) {
+    if (props.versioning) {
+      await props.versioning.applyRestore(result);
+      resetEditorHistory();
+      return;
+    }
     if (result.workspace !== "catalog") return;
     await catalogVersions?.apply(props.document.id, result.document);
     content.value = result.document.content;
@@ -399,7 +428,6 @@ const characterCount = computed(() =>
     ? content.value.length
     : nonWhitespaceCharacterCount.value
 );
-const showSectionTabs = computed(() => Boolean(props.sectionTabs?.length));
 const showDraftFileTabs = computed(() => Boolean(props.document.draftFileKind));
 const editorReadOnly = computed(() => props.document.readOnly || props.locked);
 const resolveImage = useBookImageResolver();
@@ -454,19 +482,6 @@ const canRedo = computed(() => {
 const draftUnitLabel = computed(() =>
   props.document.workspaceType === "script" ? t("episode") : t("section")
 );
-const resolvedSectionTabsLabel = computed(
-  () =>
-    props.sectionTabsLabel ??
-    t("manuscriptValue", {
-      arg0: draftUnitLabel.value
-    })
-);
-const resolvedCreateSectionLabel = computed(
-  () => props.createSectionLabel ?? t("addASectionAtTheEndOfTheManuscript")
-);
-const resolvedDeleteSectionLabel = computed(
-  () => props.deleteSectionLabel ?? t("deleteCurrentEntry")
-);
 
 function markDirty(): void {
   if (
@@ -488,7 +503,7 @@ const {
   disabled: bodyFormatDisabled,
   format: formatBody
 } = useBodyTextFormatting({
-  kind: () => catalogBodyTextKind(props.document),
+  kind: () => props.bodyFormatKind ?? catalogBodyTextKind(props.document),
   content: () => content.value,
   disabled: () =>
     editorReadOnly.value ||
@@ -722,6 +737,14 @@ function selectViewMode(view: EditorScrollView): void {
   void restoreDocumentScroll(activeScrollMemoryKey.value, view);
 }
 
+function handleAcademicExport(): void {
+  const bookId = props.document.workspaceId;
+  if (!bookId) return;
+  void import("../stores/academicWorkspaceDialog").then((m) =>
+    m.openExportAcademicManuscriptDialog(bookId, props.document.workspaceTitle)
+  );
+}
+
 watch(
   () => props.defaultViewMode,
   (mode) => selectViewMode(mode)
@@ -781,148 +804,154 @@ onBeforeUnmount(() => {
   <aside
     class="editor-pane"
     :class="{
-      'has-section-tabs': showSectionTabs
+      'has-file-tabs': showDraftFileTabs || $slots['related-files']
     }"
     :data-workspace-type="document.workspaceType"
     :aria-label="t('textContent')"
   >
     <nav
-      v-if="showSectionTabs"
-      class="section-tabs-bar"
-      :aria-label="resolvedSectionTabsLabel"
+      v-if="showDraftFileTabs || $slots['related-files']"
+      class="editor-file-tabs-bar"
     >
       <div
-        class="section-tabs-scroll"
+        class="draft-file-tabs"
         role="tablist"
-        @wheel="handleHorizontalOverflowWheel"
+        :aria-label="
+          $slots['related-files']
+            ? document.title
+            : t('valueFile', { arg0: draftUnitLabel })
+        "
       >
-        <button
-          v-for="section in sectionTabs ?? []"
-          :key="section.id"
-          class="section-tab"
-          :class="{ 'is-active': section.id === activeSectionId }"
-          type="button"
-          role="tab"
-          :aria-selected="section.id === activeSectionId"
-          :title="section.title"
-          @click="emit('selectSection', section.id)"
-        >
-          {{ section.title }}
-        </button>
+        <slot v-if="$slots['related-files']" name="related-files" />
+        <template v-else-if="document.workspaceType === 'academic'">
+          <button
+            type="button"
+            role="tab"
+            :title="academicTreeT('briefHint')"
+            :aria-selected="document.draftFileKind === 'brief'"
+            :class="{ 'is-active': document.draftFileKind === 'brief' }"
+            @click="emit('selectDraftFile', 'brief')"
+          >
+            {{ academicTreeT("tabBrief") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="document.draftFileKind === 'body'"
+            :class="{ 'is-active': document.draftFileKind === 'body' }"
+            @click="emit('selectDraftFile', 'body')"
+          >
+            {{ academicTreeT("tabBody") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :title="academicTreeT('stateHint')"
+            :aria-selected="document.draftFileKind === 'state'"
+            :class="{ 'is-active': document.draftFileKind === 'state' }"
+            @click="emit('selectDraftFile', 'state')"
+          >
+            {{ academicTreeT("tabState") }}
+          </button>
+        </template>
+        <template v-else>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="document.draftFileKind === 'body'"
+            :class="{ 'is-active': document.draftFileKind === 'body' }"
+            @click="emit('selectDraftFile', 'body')"
+          >
+            {{ t("manuscript") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :title="t('stateDescription')"
+            :aria-selected="document.draftFileKind === 'character-state'"
+            :class="{
+              'is-active': document.draftFileKind === 'character-state'
+            }"
+            @click="emit('selectDraftFile', 'character-state')"
+          >
+            {{ t("characterState") }}
+          </button>
+        </template>
       </div>
-      <button
-        v-if="canCreateSection"
-        class="section-tabs-add"
-        type="button"
-        :aria-label="resolvedCreateSectionLabel"
-        :title="resolvedCreateSectionLabel"
-        :disabled="locked"
-        @click="emit('createSection')"
-      >
-        <AppIcon name="plus" :size="16" />
-      </button>
-      <button
-        v-if="showDeleteSection"
-        class="section-tabs-remove"
-        type="button"
-        :aria-label="resolvedDeleteSectionLabel"
-        :title="resolvedDeleteSectionLabel"
-        :disabled="locked || !canDeleteSection"
-        @click="emit('deleteSection')"
-      >
-        <AppIcon name="minus" :size="16" />
-      </button>
     </nav>
 
     <div class="editor-toolbar">
-      <div
-        v-if="showDraftFileTabs"
-        class="draft-file-tabs"
-        role="tablist"
-        :aria-label="t('valueFile', { arg0: draftUnitLabel })"
-      >
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="document.draftFileKind === 'body'"
-          :class="{ 'is-active': document.draftFileKind === 'body' }"
-          @click="emit('selectDraftFile', 'body')"
+      <div class="editor-toolbar-actions">
+        <slot name="toolbar-start" />
+        <div class="view-tabs" role="tablist" :aria-label="t('textView')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="viewMode === 'edit'"
+            :class="{ 'is-active': viewMode === 'edit' }"
+            @click="selectViewMode('edit')"
+          >
+            {{ t("edit") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="viewMode === 'preview'"
+            :class="{ 'is-active': viewMode === 'preview' }"
+            @click="selectViewMode('preview')"
+          >
+            {{ t("preview") }}
+          </button>
+        </div>
+        <span class="toolbar-separator" />
+        <div
+          class="editor-text-tools"
+          role="group"
+          :aria-label="t('textActions')"
         >
-          {{ t("manuscript") }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :title="t('stateDescription')"
-          :aria-selected="document.draftFileKind === 'character-state'"
-          :class="{ 'is-active': document.draftFileKind === 'character-state' }"
-          @click="emit('selectDraftFile', 'character-state')"
-        >
-          {{ t("characterState") }}
-        </button>
-      </div>
-      <span v-if="showDraftFileTabs" class="toolbar-separator" />
-      <div class="view-tabs" role="tablist" :aria-label="t('textView')">
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="viewMode === 'edit'"
-          :class="{ 'is-active': viewMode === 'edit' }"
-          @click="selectViewMode('edit')"
-        >
-          {{ t("edit") }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="viewMode === 'preview'"
-          :class="{ 'is-active': viewMode === 'preview' }"
-          @click="selectViewMode('preview')"
-        >
-          {{ t("preview") }}
-        </button>
-      </div>
-      <span class="toolbar-separator" />
-      <div
-        class="editor-text-tools"
-        role="group"
-        :aria-label="t('textActions')"
-      >
-        <EditorTextTools
-          :can-undo="canUndo"
-          :can-redo="canRedo"
-          :find-panel-open="findPanelOpen"
-          :find-panel-mode="findPanelMode"
-          :version-visible="versionVisible"
-          :format-visible="bodyFormatVisible"
-          :format-disabled="bodyFormatDisabled || formatAllPending"
-          :format-label="
-            document.workspaceType === 'short' ||
-            document.workspaceType === 'script'
-              ? t('formatAllManuscriptBodies')
-              : undefined
-          "
-          @undo="undo"
-          @redo="redo"
-          @toggle-find="toggleFindPanel"
-          @format="handleFormatBody"
-          @versions="versionOpen = true"
-        />
-        <PreviewOutlinePopover
-          v-if="viewMode === 'preview'"
-          icon-only
-          :content="content"
-          :preview-element="documentPreview"
-          :document-key="activeScrollMemoryKey"
-        />
-      </div>
+          <EditorTextTools
+            :can-undo="canUndo"
+            :can-redo="canRedo"
+            :find-panel-open="findPanelOpen"
+            :find-panel-mode="findPanelMode"
+            :version-visible="versionVisible"
+            :format-visible="bodyFormatVisible"
+            :format-disabled="bodyFormatDisabled || formatAllPending"
+            :format-label="
+              document.workspaceType === 'short' ||
+              document.workspaceType === 'script'
+                ? t('formatAllManuscriptBodies')
+                : undefined
+            "
+            :export-visible="
+              document.workspaceType === 'academic' &&
+              Boolean(document.workspaceId)
+            "
+            :export-disabled="locked"
+            :export-label="academicTreeT('exportManuscript')"
+            @undo="undo"
+            @redo="redo"
+            @toggle-find="toggleFindPanel"
+            @format="handleFormatBody"
+            @versions="versionOpen = true"
+            @export="handleAcademicExport"
+          />
+          <PreviewOutlinePopover
+            v-if="viewMode === 'preview'"
+            icon-only
+            :content="content"
+            :preview-element="documentPreview"
+            :document-key="activeScrollMemoryKey"
+          />
+        </div>
 
-      <EditorPaneToggle
-        :right-pane="rightPane"
-        :right-pane-collapsed="rightPaneCollapsed"
-        @collapse="emit('collapse')"
-        @toggle-right="emit('toggleRight')"
-      />
+        <EditorPaneToggle
+          :right-pane="rightPane"
+          :right-pane-collapsed="rightPaneCollapsed"
+          @collapse="emit('collapse')"
+          @toggle-right="emit('toggleRight')"
+        />
+      </div>
 
       <EditorFindReplacePanel
         v-if="findPanelOpen"
@@ -949,6 +978,12 @@ onBeforeUnmount(() => {
       />
     </div>
 
+    <AcademicReferenceCardBar
+      v-if="document.academicDocKind === 'reference_card'"
+      :document="document"
+      :locked="locked"
+    />
+
     <div
       class="editor-document"
       :class="{
@@ -966,15 +1001,17 @@ onBeforeUnmount(() => {
         @change="applyLibraryMetadata"
       />
 
-      <input
-        v-model="title"
-        class="document-title-input"
-        :readonly="isTitleReadOnly"
-        :aria-label="t('documentTitle')"
-        @input="markDirty"
-        @compositionstart="editorComposition.start"
-        @compositionend="handleTitleCompositionEnd"
-      />
+      <slot name="document-heading">
+        <input
+          v-model="title"
+          class="document-title-input"
+          :readonly="isTitleReadOnly"
+          :aria-label="t('documentTitle')"
+          @input="markDirty"
+          @compositionstart="editorComposition.start"
+          @compositionend="handleTitleCompositionEnd"
+        />
+      </slot>
 
       <EditorSearchHighlight
         v-if="viewMode === 'edit'"

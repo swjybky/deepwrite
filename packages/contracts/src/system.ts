@@ -91,7 +91,9 @@ import {
   LongLedgerCommitProposalEventEnvelopeSchema,
   LongMutationProposalEventEnvelopeSchema,
   LongWorldbuildingFileProposalEventEnvelopeSchema,
+  MysteryMutationProposalEventEnvelopeSchema,
   SubagentAuthoringDraftUpdatedEventEnvelopeSchema,
+  AcademicWorkspaceMutationEventEnvelopeSchema,
   LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
@@ -123,7 +125,9 @@ import {
   type LongLedgerCommitProposalEventEnvelope,
   type LongMutationProposalEventEnvelope,
   type LongWorldbuildingFileProposalEventEnvelope,
+  type MysteryMutationProposalEventEnvelope,
   type SubagentAuthoringDraftUpdatedEventEnvelope,
+  type AcademicWorkspaceMutationEventEnvelope,
   type LibraryEditorMutationEventEnvelope,
   type WorkspaceEditorMutationEventEnvelope,
   type WorkspaceStageSelectionEventEnvelope,
@@ -172,6 +176,11 @@ import {
   LibraryAgentsSaveCommandEnvelopeSchema
 } from "./library-agent";
 import {
+  AcademicAgentsListCommandEnvelopeSchema,
+  AcademicAgentsResetCommandEnvelopeSchema,
+  AcademicAgentsSaveCommandEnvelopeSchema
+} from "./academic-agent-settings";
+import {
   LongAgentsListCommandEnvelopeSchema,
   LongAgentsResetCommandEnvelopeSchema,
   LongAgentsSaveCommandEnvelopeSchema
@@ -189,6 +198,8 @@ import {
   CatalogCreateDraftSectionsCommandEnvelopeSchema,
   CatalogCreateScriptBookAtPathCommandEnvelopeSchema,
   CatalogCreateScriptBookCommandEnvelopeSchema,
+  CatalogCreateAcademicBookAtPathCommandEnvelopeSchema,
+  CatalogCreateAcademicBookCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateShortBookCommandEnvelopeSchema,
   CatalogDeleteBookCommandEnvelopeSchema,
@@ -210,6 +221,11 @@ import {
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogMutateCharacterStructureCommandEnvelopeSchema,
   CatalogMutatePlotStructureCommandEnvelopeSchema,
+  CatalogMutateAcademicFrameworkCommandEnvelopeSchema,
+  CatalogCreateAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogUpdateAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogDeleteAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogMutateAcademicManuscriptCommandEnvelopeSchema,
   CatalogUpdateLibraryGroupCommandEnvelopeSchema,
   CatalogUnregisterProjectCommandEnvelopeSchema
 } from "./catalog";
@@ -229,6 +245,7 @@ import {
   GeneralSettingsOpenNotificationSettingsCommandEnvelopeSchema,
   GeneralSettingsSaveCommandEnvelopeSchema
 } from "./general-settings";
+import { ExportAcademicManuscriptCommandEnvelopeSchema } from "./academic-manuscript-export";
 import { ExportShortManuscriptCommandEnvelopeSchema } from "./short-manuscript-export";
 import { ExportLongManuscriptCommandEnvelopeSchema } from "./long-manuscript-export";
 import { CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema } from "./marketplace";
@@ -241,6 +258,12 @@ import {
   RendererStateFlushRequestedEventEnvelopeSchema
 } from "./renderer-state";
 import { LongWorkspaceCommandSchemas } from "./long-workspace-commands";
+import {
+  MysteryAgentsListCommandEnvelopeSchema,
+  MysteryAgentsResetCommandEnvelopeSchema,
+  MysteryAgentsSaveCommandEnvelopeSchema,
+  MysteryCommandSchemas
+} from "./mystery";
 import {
   ExternalControlSettingsCommandSchemas,
   ExternalControlLocateProjectCommandEnvelopeSchema,
@@ -312,18 +335,25 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogSaveDraftRecoveryCommandEnvelopeSchema,
   CatalogCreateShortBookCommandEnvelopeSchema,
   CatalogCreateScriptBookCommandEnvelopeSchema,
+  CatalogCreateAcademicBookCommandEnvelopeSchema,
   CatalogCreateLibraryCommandEnvelopeSchema,
   CatalogUpdateLibraryCommandEnvelopeSchema,
   CatalogCreateLibraryGroupCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
   CatalogCreateShortBookAtPathCommandEnvelopeSchema,
   CatalogCreateScriptBookAtPathCommandEnvelopeSchema,
+  CatalogCreateAcademicBookAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogMutateCharacterStructureCommandEnvelopeSchema,
   CatalogMutatePlotStructureCommandEnvelopeSchema,
+  CatalogMutateAcademicFrameworkCommandEnvelopeSchema,
+  CatalogCreateAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogUpdateAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogDeleteAcademicReferenceCardCommandEnvelopeSchema,
+  CatalogMutateAcademicManuscriptCommandEnvelopeSchema,
   CatalogUpdateLibraryGroupCommandEnvelopeSchema,
   CatalogDeleteBookCommandEnvelopeSchema,
   CatalogCreateDraftSectionCommandEnvelopeSchema,
@@ -343,6 +373,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema,
   ...LongWorkspaceCommandSchemas,
+  ...MysteryCommandSchemas,
   SessionPromptCommandEnvelopeSchema,
   SessionAbortCommandEnvelopeSchema,
   SessionUserInputResponseCommandEnvelopeSchema,
@@ -362,6 +393,12 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   LongAgentsListCommandEnvelopeSchema,
   LongAgentsSaveCommandEnvelopeSchema,
   LongAgentsResetCommandEnvelopeSchema,
+  AcademicAgentsListCommandEnvelopeSchema,
+  AcademicAgentsSaveCommandEnvelopeSchema,
+  AcademicAgentsResetCommandEnvelopeSchema,
+  MysteryAgentsListCommandEnvelopeSchema,
+  MysteryAgentsSaveCommandEnvelopeSchema,
+  MysteryAgentsResetCommandEnvelopeSchema,
   LibraryAgentsListCommandEnvelopeSchema,
   LibraryAgentsSaveCommandEnvelopeSchema,
   LibraryAgentsResetCommandEnvelopeSchema,
@@ -397,6 +434,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   GeneralSettingsListCommandEnvelopeSchema,
   GeneralSettingsSaveCommandEnvelopeSchema,
   GeneralSettingsOpenNotificationSettingsCommandEnvelopeSchema,
+  ExportAcademicManuscriptCommandEnvelopeSchema,
   ExportLongManuscriptCommandEnvelopeSchema,
   ExportShortManuscriptCommandEnvelopeSchema,
   AgentPromptCommandEnvelopeSchema,
@@ -502,7 +540,9 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   LongContinuityFileProposalEventEnvelopeSchema,
   LongChapterWriteProposalEventEnvelopeSchema,
   LongLedgerCommitProposalEventEnvelopeSchema,
+  MysteryMutationProposalEventEnvelopeSchema,
   LibraryStructureProposalEventEnvelopeSchema,
+  AcademicWorkspaceMutationEventEnvelopeSchema,
   LibraryEditorMutationEventEnvelopeSchema,
   WorkspaceEditorMutationEventEnvelopeSchema,
   WorkspaceStageSelectionEventEnvelopeSchema,
@@ -567,7 +607,9 @@ export type SystemEventEnvelope =
   | LongContinuityFileProposalEventEnvelope
   | LongChapterWriteProposalEventEnvelope
   | LongLedgerCommitProposalEventEnvelope
+  | MysteryMutationProposalEventEnvelope
   | LibraryStructureProposalEventEnvelope
+  | AcademicWorkspaceMutationEventEnvelope
   | LibraryEditorMutationEventEnvelope
   | WorkspaceEditorMutationEventEnvelope
   | WorkspaceStageSelectionEventEnvelope

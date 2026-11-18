@@ -165,6 +165,14 @@ export function bindConversationOperations(
     undefined,
     ctx
   );
+  ctx.sendMysteryMessage = sendEntrypoints.sendMysteryMessage.bind(
+    undefined,
+    ctx
+  );
+  ctx.resendMysteryMessage = sendEntrypoints.resendMysteryMessage.bind(
+    undefined,
+    ctx
+  );
   ctx.cancelPendingGeneration = sessionLifecycle.cancelPendingGeneration.bind(
     undefined,
     ctx

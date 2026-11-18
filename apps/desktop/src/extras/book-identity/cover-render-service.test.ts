@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   BookIdentityRecordSchema,
-  BookSchema,
+  CreativeBookSchema,
   createCatalogDraftDirectory,
   createDefaultCreativePlotStages,
   imageModelCapability,
@@ -119,7 +119,7 @@ function titleSnapshot(
         }
       ]
     };
-  const raw = BookSchema.parse({
+  const raw = CreativeBookSchema.parse({
     ...shared,
     documents: [],
     draft: createCatalogDraftDirectory(now)

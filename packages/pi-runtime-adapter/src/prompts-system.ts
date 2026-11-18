@@ -6,6 +6,8 @@ import {
   libraryAgentHeader
 } from "./prompts-library";
 import { buildLongWorkspaceRules } from "./prompts-long-rules";
+import { buildAcademicSystemPrompt } from "./prompts-academic";
+import { buildMysteryWorkspaceRules } from "./mystery";
 import { buildWritingSystemPrompt } from "./prompts-writing";
 import { promptLocaleOf } from "./prompt-locale";
 import type { AgentRunInput } from "./runtime-types";
@@ -87,6 +89,29 @@ function buildWorkspaceAgentSystemPrompt(
       longProfile.systemPrompt.trim(),
       "",
       buildLongWorkspaceRules(locale),
+      "",
+      writeApprovalBoundary(input.writeApprovalMode, locale)
+    ].join("\n");
+  }
+  if (input.academicAgentProfile && input.workspaceContext?.academicWorkspace) {
+    return buildAcademicSystemPrompt(basePrompt, input, toolNames);
+  }
+  const mysteryWorkspace = input.workspaceContext?.mysteryWorkspace;
+  const mysteryProfile = input.mysteryAgentProfile;
+  if (mysteryProfile && mysteryWorkspace) {
+    return [
+      basePrompt,
+      "",
+      locale === "en-US"
+        ? `[Current murder-mystery agent: ${mysteryProfile.label}]`
+        : `【当前剧本杀智能体：${mysteryProfile.label}】`,
+      mysteryProfile.systemPrompt.trim(),
+      "",
+      buildMysteryWorkspaceRules(
+        locale,
+        mysteryWorkspace.workspaceIndex.boardSpec.narrativePerson,
+        toolNames
+      ),
       "",
       writeApprovalBoundary(input.writeApprovalMode, locale)
     ].join("\n");

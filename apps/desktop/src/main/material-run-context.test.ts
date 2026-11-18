@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES,
+  MATERIAL_KINDS,
   type CommandEnvelope,
   type MaterialCatalogEntry,
   type MaterialReadScope
@@ -40,7 +41,7 @@ const entry: MaterialCatalogEntry = {
 
 describe("Main-owned material queries", () => {
   it.each(["character_design", "plot_design", "draft", "custom-stage"])(
-    "keeps profile material kinds in short and script stage %s",
+    "grants full cross-type material read scope in short and script stage %s",
     (activeStageId) => {
       const workspace = fixtureWorkspace(activeStageId);
       for (const bookType of ["short", "script"] as const) {
@@ -59,7 +60,7 @@ describe("Main-owned material queries", () => {
               };
         expect(
           resolveMaterialReadScope({ workspaceContext, agentProfile })?.kinds
-        ).toEqual(agentProfile.readAccess.material);
+        ).toEqual(MATERIAL_KINDS);
       }
     }
   );

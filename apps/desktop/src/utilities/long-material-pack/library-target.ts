@@ -116,6 +116,7 @@ export async function prepareLongMaterialTarget(
       });
     snapshot = await catalog.indexSnapshot();
   }
+  const targetMemberIds = LONG_MATERIAL_KINDS.map((kind) => libraryIds[kind]);
   let group = snapshot.materialGroups.find(({ id }) => id === groupId);
   if (!group) {
     const path = join(input.paths.groups, groupId);
@@ -128,20 +129,18 @@ export async function prepareLongMaterialTarget(
           input.groupTitle,
           snapshot.materialGroups.map(({ title }) => title)
         ),
-        members: libraryIds,
+        memberIds: targetMemberIds,
         parentDirectory: input.paths.groups
       });
     snapshot = await catalog.indexSnapshot();
     group = snapshot.materialGroups.find(({ id }) => id === groupId);
   }
   if (!group) throw new Error("素材分组创建失败，请重试。");
-  if (
-    LONG_MATERIAL_KINDS.some((kind) => group.members[kind] !== libraryIds[kind])
-  ) {
+  if (targetMemberIds.some((id) => !group.memberIds.includes(id))) {
     await catalog.updateLibraryGroup({
       domain: "material",
       groupId,
-      members: { ...group.members, ...libraryIds }
+      memberIds: [...new Set([...group.memberIds, ...targetMemberIds])]
     });
     snapshot = await catalog.indexSnapshot();
   }

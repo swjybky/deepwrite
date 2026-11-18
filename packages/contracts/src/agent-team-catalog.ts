@@ -14,14 +14,25 @@ import {
   AgentTeamProfileIdSchema,
   LinkedAgentTeamIdsSchema
 } from "./agent-team-book-binding";
+import {
+  AcademicAgentTeamSettingsInputSchema,
+  AcademicAgentTeamSettingsSchema
+} from "./academic-agent-team";
 import { EnvelopeBaseSchema } from "./envelope";
 import { LongAgentTeamSettingsSchema } from "./long-agent-team";
+import { MysteryAgentTeamSettingsSchema } from "./mystery/agent-team";
 
 export { AgentTeamProfileIdSchema };
 
 export const AGENT_TEAM_PROFILE_NAME_MAX_LENGTH = 80;
 
-export const AgentTeamWorkspaceTypeSchema = z.enum(["short", "script", "long"]);
+export const AgentTeamWorkspaceTypeSchema = z.enum([
+  "short",
+  "script",
+  "long",
+  "academic",
+  "mystery"
+]);
 export type AgentTeamWorkspaceType = z.infer<
   typeof AgentTeamWorkspaceTypeSchema
 >;
@@ -63,6 +74,14 @@ export const AgentTeamProfileSchema = z.discriminatedUnion("workspaceType", [
   AgentTeamProfileBaseSchema.extend({
     workspaceType: z.literal("long"),
     settings: LongAgentTeamSettingsSchema
+  }).strict(),
+  AgentTeamProfileBaseSchema.extend({
+    workspaceType: z.literal("academic"),
+    settings: AcademicAgentTeamSettingsSchema
+  }).strict(),
+  AgentTeamProfileBaseSchema.extend({
+    workspaceType: z.literal("mystery"),
+    settings: MysteryAgentTeamSettingsSchema
   }).strict()
 ]);
 export type AgentTeamProfile = z.infer<typeof AgentTeamProfileSchema>;
@@ -71,7 +90,9 @@ export const EnabledAgentTeamIdsSchema = z
   .object({
     short: AgentTeamProfileIdSchema.optional(),
     script: AgentTeamProfileIdSchema.optional(),
-    long: AgentTeamProfileIdSchema.optional()
+    long: AgentTeamProfileIdSchema.optional(),
+    academic: AgentTeamProfileIdSchema.optional(),
+    mystery: AgentTeamProfileIdSchema.optional()
   })
   .strict();
 export type EnabledAgentTeamIds = z.infer<typeof EnabledAgentTeamIdsSchema>;
@@ -197,7 +218,9 @@ export const AgentTeamProfileSaveInputSchema = z
     teamId: AgentTeamProfileIdSchema,
     settings: z.discriminatedUnion("workspaceType", [
       ...WorkspaceAgentTeamSettingsInputSchema.options,
-      LongAgentTeamSettingsSchema
+      LongAgentTeamSettingsSchema,
+      AcademicAgentTeamSettingsInputSchema,
+      MysteryAgentTeamSettingsSchema
     ])
   })
   .strict();

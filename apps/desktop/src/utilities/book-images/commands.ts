@@ -1,6 +1,7 @@
 import { BookImagesResolveInputSchema } from "@deepwrite/contracts";
 import type { FolderCatalogStore } from "../folder-catalog-store";
 import type { LongWorkspaceService } from "../long-workspace-service";
+import type { MysteryWorkspaceService } from "../mystery-store";
 import type { UtilityRuntimeOptions } from "../runtime";
 import { createBookProjectResolver } from "../book-project-resolver";
 import { BookImageStore } from "./store";
@@ -8,10 +9,11 @@ import { BookImageStore } from "./store";
 export function withBookImageCommands(
   requireCatalog: () => Promise<FolderCatalogStore>,
   longs: LongWorkspaceService,
-  handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>
+  handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>,
+  mysteries?: MysteryWorkspaceService
 ): NonNullable<UtilityRuntimeOptions["commandHandler"]> {
   const store = new BookImageStore(
-    createBookProjectResolver(requireCatalog, longs)
+    createBookProjectResolver(requireCatalog, longs, mysteries)
   );
   return async (command, emitEvent, context) => {
     if (

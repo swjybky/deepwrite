@@ -131,7 +131,8 @@ function createHarness(overrides: HarnessOverrides = {}) {
       current: currentView,
       settingsInitialCategory,
       workspaceMain: workspaceMainView,
-      activeLongBookId
+      activeLongBookId,
+      activeMysteryBookId: ref<string | null>(null)
     },
     settingsStore,
     catalogSnapshot,
@@ -154,7 +155,7 @@ function createHarness(overrides: HarnessOverrides = {}) {
       }
     },
     actions: {
-      saveActiveLongEditorBeforeLeaving: saveBeforeLeaving,
+      saveActiveEditorBeforeLeaving: saveBeforeLeaving,
       newShortConversation,
       newLongConversation
     },

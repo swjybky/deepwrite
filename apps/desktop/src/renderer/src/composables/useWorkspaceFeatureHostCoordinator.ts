@@ -56,12 +56,20 @@ export function useWorkspaceFeatureHostCoordinator(
       options.view.workspaceMain.value === "conversation" &&
       options.view.activeLongBookId.value !== null
   );
+  const isMysteryWorkspaceActive = computed(
+    () =>
+      options.view.workspaceMain.value === "conversation" &&
+      !isLongWorkspaceActive.value &&
+      options.view.activeMysteryBookId.value !== null
+  );
   const activeFeature = computed<ActiveFeature>(() =>
     options.view.current.value === "settings"
       ? "settings"
       : isLongWorkspaceActive.value
         ? "long-workspace"
-        : options.view.workspaceMain.value
+        : isMysteryWorkspaceActive.value
+          ? "mystery-workspace"
+          : options.view.workspaceMain.value
   );
 
   const workspaceFeatureModule = computed(() =>
@@ -100,7 +108,7 @@ export function useWorkspaceFeatureHostCoordinator(
   }
 
   async function canApplyNavigation(generation: number): Promise<boolean> {
-    const saved = await options.actions.saveActiveLongEditorBeforeLeaving();
+    const saved = await options.actions.saveActiveEditorBeforeLeaving();
     return saved && navigationIsCurrent(generation);
   }
 
@@ -109,6 +117,10 @@ export function useWorkspaceFeatureHostCoordinator(
     if (!active) return;
     if (options.view.activeLongBookId.value !== null) {
       options.actions.newLongConversation();
+      return;
+    }
+    if (options.view.activeMysteryBookId.value !== null) {
+      options.actions.newMysteryConversation?.();
       return;
     }
     options.actions.newShortConversation();
@@ -358,6 +370,14 @@ export function useWorkspaceFeatureHostCoordinator(
       ]);
       return;
     }
+    if (feature === "mystery-workspace") {
+      await Promise.all([
+        options.loaders.loadModelSettings(),
+        options.loaders.loadAgentTeamSettings(),
+        options.loaders.loadCatalogSnapshot()
+      ]);
+      return;
+    }
   }
 
   function dispose(): void {
@@ -372,6 +392,7 @@ export function useWorkspaceFeatureHostCoordinator(
 
   return {
     isLongWorkspaceActive,
+    isMysteryWorkspaceActive,
     activeFeature,
     workspaceFeatureModule,
     marketplaceDisplayName,

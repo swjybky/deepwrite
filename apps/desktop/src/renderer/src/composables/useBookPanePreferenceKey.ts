@@ -8,8 +8,16 @@ export function useBookPanePreferenceKey(options: {
   document: Readonly<Ref<RightPaneBookDocument>>;
   longWorkspaceActive: Readonly<Ref<boolean>>;
   longBookId: Readonly<Ref<string | null>>;
+  mysteryBookId?: Readonly<Ref<string | null>> | undefined;
 }) {
   return computed(() => {
+    if (options.mysteryBookId?.value) {
+      return rightPanePreferenceKey({
+        domain: "creation",
+        workspaceType: "mystery",
+        workspaceId: options.mysteryBookId.value
+      });
+    }
     if (options.longWorkspaceActive.value) {
       return rightPanePreferenceKey({
         domain: "creation",

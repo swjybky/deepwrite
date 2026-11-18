@@ -13,6 +13,7 @@ import {
 import { materialOverviewCandidates } from "./material-query-overviews";
 import type { FolderCatalogStore } from "./folder-catalog-store";
 import type { LongWorkspaceService } from "./long-workspace-service";
+import type { MysteryWorkspaceService } from "./mystery-store";
 import {
   scopedMaterialCandidates,
   type MaterialCandidate
@@ -36,7 +37,8 @@ export class MaterialQueryService {
       FolderCatalogStore,
       "indexSnapshot" | "readDocument"
     >,
-    private readonly long: Pick<LongWorkspaceService, "open">
+    private readonly long: Pick<LongWorkspaceService, "open">,
+    private readonly mystery?: Pick<MysteryWorkspaceService, "open">
   ) {}
 
   private async candidates(
@@ -48,7 +50,17 @@ export class MaterialQueryService {
       scope.bookType === "long"
         ? (await this.long.open({ bookId: scope.bookId })).summary
         : undefined;
-    return scopedMaterialCandidates(index, scope, longBook, notices);
+    const mysteryBook =
+      scope.bookType === "mystery"
+        ? (await this.mystery?.open({ bookId: scope.bookId }))?.summary
+        : undefined;
+    return scopedMaterialCandidates(
+      index,
+      scope,
+      longBook,
+      notices,
+      mysteryBook
+    );
   }
 
   private cache(

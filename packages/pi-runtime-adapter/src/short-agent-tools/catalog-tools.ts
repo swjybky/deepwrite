@@ -18,7 +18,7 @@ import { textResult, type BuildWritingWorkspaceToolsInput } from "./shared";
 export function buildQueryLinkedMaterialEntriesTool(
   input: BuildWritingWorkspaceToolsInput
 ): AgentTool {
-  const allowedKinds = input.profile.readAccess.material;
+  const allowedKinds = SHORT_MATERIAL_KINDS;
   return defineTool({
     name: "query_linked_material_entries",
     label:
@@ -39,18 +39,14 @@ export function buildQueryLinkedMaterialEntriesTool(
       query: Type.Optional(Type.String({ maxLength: 300 })),
       entry_id: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
       entry_name: Type.Optional(Type.String({ maxLength: 512 })),
-      material_kind: Type.Optional(
-        literalUnion(allowedKinds.length ? allowedKinds : SHORT_MATERIAL_KINDS)
-      )
+      material_kind: Type.Optional(literalUnion(SHORT_MATERIAL_KINDS))
     }),
     execute: async (_toolCallId, params, signal) => {
       if (input.queryMaterials)
         return textResult(
           await input.queryMaterials(params, allowedKinds, signal)
         );
-      const items = (input.attachedMaterials ?? []).filter(
-        (item) => item.kind !== undefined && allowedKinds.includes(item.kind)
-      );
+      const items = input.attachedMaterials ?? [];
       return textResult(
         queryAttachedMaterials(items, params, input.promptLocale === "en-US")
       );
@@ -61,7 +57,6 @@ export function buildQueryLinkedMaterialEntriesTool(
 export function buildLoadSkillTool(
   input: BuildWritingWorkspaceToolsInput
 ): AgentTool {
-  const allowedKinds = input.profile.readAccess.skill;
   return defineTool({
     name: "load_skill",
     label: input.promptLocale === "en-US" ? "Load skill" : "加载技能",
@@ -83,15 +78,13 @@ export function buildLoadSkillTool(
     execute: async (_toolCallId, params) => {
       const name = String(params.name ?? "");
       const attached = input.attachedSkills ?? [];
-      const isReadable = (item: LoadSkillCandidate): boolean =>
-        item.kind !== undefined &&
-        (allowedKinds as readonly string[]).includes(item.kind);
+      const isReadable = (_item: LoadSkillCandidate): boolean => true;
       const result = resolveAttachedSkill(name, attached, isReadable);
       return textResult(
         formatLoadSkillToolResult(
           name,
           result,
-          attached.filter(isReadable),
+          attached,
           input.promptLocale === "en-US"
         )
       );

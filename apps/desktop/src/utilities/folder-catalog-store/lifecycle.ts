@@ -126,7 +126,7 @@ export function linkedMaterialIdsFromInput(
   value:
     | CreateShortBookInput["linkedMaterialIdsByKind"]
     | CreateScriptBookInput["linkedMaterialIdsByKind"]
-): Book["linkedMaterialIdsByKind"] {
+): ShortBook["linkedMaterialIdsByKind"] {
   return {
     character: [...(value?.character ?? [])],
     gimmick: [...(value?.gimmick ?? [])],
@@ -140,7 +140,7 @@ export function linkedSkillIdsFromInput(
   value:
     | CreateShortBookInput["linkedSkillIdsByKind"]
     | CreateScriptBookInput["linkedSkillIdsByKind"]
-): Book["linkedSkillIdsByKind"] {
+): ShortBook["linkedSkillIdsByKind"] {
   return {
     general: [...(value?.general ?? [])],
     plot: [...(value?.plot ?? [])],
@@ -348,6 +348,7 @@ export async function createLibrary(
             title: input.name,
             materialType: input.libraryType ?? "short",
             materialKind: input.materialKind,
+            ...(input.customTag ? { customTag: input.customTag } : {}),
             parentGenre: "",
             subGenre: "",
             overview: "",
@@ -360,6 +361,7 @@ export async function createLibrary(
             title: input.name,
             skillType: input.libraryType ?? "short",
             skillKind: input.skillKind,
+            ...(input.customTag ? { customTag: input.customTag } : {}),
             overview: "",
             isBuiltin: false,
             entries: [],
@@ -421,19 +423,26 @@ export async function updateLibrary(
       throw new Error("内置技能库不能修改。");
     }
     const now = store.now();
+    const nextCustomTag =
+      input.customTag === undefined ? manifest.customTag : input.customTag;
+    const { customTag: _prevCustomTag, ...manifestWithoutCustomTag } = manifest;
     const next =
       manifest.kind === "deepwrite.material-library"
         ? MaterialLibraryProjectManifestSchema.parse({
-            ...manifest,
+            ...manifestWithoutCustomTag,
             title: input.title ?? manifest.title,
             overview: input.overview ?? manifest.overview,
+            materialKind: input.materialKind ?? manifest.materialKind,
+            ...(nextCustomTag ? { customTag: nextCustomTag } : {}),
             revision: manifest.revision + 1,
             updatedAt: now
           })
         : SkillLibraryProjectManifestSchema.parse({
-            ...manifest,
+            ...manifestWithoutCustomTag,
             title: input.title ?? manifest.title,
             overview: input.overview ?? manifest.overview,
+            skillKind: input.skillKind ?? manifest.skillKind,
+            ...(nextCustomTag ? { customTag: nextCustomTag } : {}),
             revision: manifest.revision + 1,
             updatedAt: now
           });
@@ -468,19 +477,15 @@ export async function createLibraryGroup(
   return await mutate(store, async () => {
     const registry = await ensureRegistry(store);
     const snapshot = await aggregateSnapshot(store, registry);
+    assertUniqueGroupMembers(input.memberIds);
     if (input.domain === "material") {
-      assertUniqueGroupMembers(Object.values(input.members));
       const libraries = new Map(
         snapshot.materials.map((library) => [library.id, library])
       );
-      for (const [kind, libraryId] of Object.entries(input.members)) {
-        if (!libraryId) continue;
+      for (const libraryId of input.memberIds) {
         const library = libraries.get(libraryId);
         if (!library) {
           throw new Error(`新建素材分组引用了不存在的素材库：${libraryId}`);
-        }
-        if (library.materialKind !== "mixed" && library.materialKind !== kind) {
-          throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
         }
         assertLibraryNotInAnotherGroup(
           snapshot.materialGroups,
@@ -489,18 +494,13 @@ export async function createLibraryGroup(
         );
       }
     } else {
-      assertUniqueGroupMembers(Object.values(input.members));
       const libraries = new Map(
         snapshot.skills.map((library) => [library.id, library])
       );
-      for (const [kind, libraryId] of Object.entries(input.members)) {
-        if (!libraryId) continue;
+      for (const libraryId of input.memberIds) {
         const library = libraries.get(libraryId);
         if (!library) {
           throw new Error(`新建技能分组引用了不存在的技能库：${libraryId}`);
-        }
-        if (library.skillKind !== kind) {
-          throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
         }
         assertLibraryNotInAnotherGroup(snapshot.skillGroups, libraryId, "技能");
       }
@@ -512,14 +512,14 @@ export async function createLibraryGroup(
         ? {
             id: createCatalogId("material-group"),
             title: input.name,
-            members: { ...input.members },
+            memberIds: [...input.memberIds],
             createdAt: now,
             updatedAt: now
           }
         : {
             id: createCatalogId("skill-group"),
             title: input.name,
-            members: { ...input.members },
+            memberIds: [...input.memberIds],
             createdAt: now,
             updatedAt: now
           };
@@ -689,33 +689,54 @@ export async function updateBook(
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
     const now = store.now();
-    const next = {
-      ...manifest,
-      revision: manifest.revision + 1,
-      title: input.title ?? manifest.title,
-      genre: input.genre ?? manifest.genre,
-      status: input.status ?? manifest.status,
-      linkedMaterialIdsByKind:
-        input.linkedMaterialIdsByKind === undefined
-          ? manifest.linkedMaterialIdsByKind
-          : {
-              character: [...(input.linkedMaterialIdsByKind.character ?? [])],
-              gimmick: [...(input.linkedMaterialIdsByKind.gimmick ?? [])],
-              plot: [...(input.linkedMaterialIdsByKind.plot ?? [])],
-              draft: [...(input.linkedMaterialIdsByKind.draft ?? [])],
-              other: [...(input.linkedMaterialIdsByKind.other ?? [])]
-            },
-      linkedSkillIdsByKind:
-        input.linkedSkillIdsByKind === undefined
-          ? manifest.linkedSkillIdsByKind
-          : {
-              general: [...(input.linkedSkillIdsByKind.general ?? [])],
-              plot: [...(input.linkedSkillIdsByKind.plot ?? [])],
-              style: [...(input.linkedSkillIdsByKind.style ?? [])],
-              other: [...(input.linkedSkillIdsByKind.other ?? [])]
-            },
-      updatedAt: now
-    } satisfies FolderCurrentBookProjectManifest;
+    const next =
+      manifest.bookType === "academic"
+        ? ({
+            ...manifest,
+            revision: manifest.revision + 1,
+            title: input.title ?? manifest.title,
+            subtype: input.subtype ?? manifest.subtype,
+            citationStyle: input.citationStyle ?? manifest.citationStyle,
+            status: input.status ?? manifest.status,
+            linkedMaterialIds:
+              input.linkedMaterialIds === undefined
+                ? manifest.linkedMaterialIds
+                : [...new Set(input.linkedMaterialIds)],
+            linkedSkillIds:
+              input.linkedSkillIds === undefined
+                ? manifest.linkedSkillIds
+                : [...new Set(input.linkedSkillIds)],
+            updatedAt: now
+          } satisfies FolderCurrentBookProjectManifest)
+        : ({
+            ...manifest,
+            revision: manifest.revision + 1,
+            title: input.title ?? manifest.title,
+            genre: input.genre ?? manifest.genre,
+            status: input.status ?? manifest.status,
+            linkedMaterialIdsByKind:
+              input.linkedMaterialIdsByKind === undefined
+                ? manifest.linkedMaterialIdsByKind
+                : {
+                    character: [
+                      ...(input.linkedMaterialIdsByKind.character ?? [])
+                    ],
+                    gimmick: [...(input.linkedMaterialIdsByKind.gimmick ?? [])],
+                    plot: [...(input.linkedMaterialIdsByKind.plot ?? [])],
+                    draft: [...(input.linkedMaterialIdsByKind.draft ?? [])],
+                    other: [...(input.linkedMaterialIdsByKind.other ?? [])]
+                  },
+            linkedSkillIdsByKind:
+              input.linkedSkillIdsByKind === undefined
+                ? manifest.linkedSkillIdsByKind
+                : {
+                    general: [...(input.linkedSkillIdsByKind.general ?? [])],
+                    plot: [...(input.linkedSkillIdsByKind.plot ?? [])],
+                    style: [...(input.linkedSkillIdsByKind.style ?? [])],
+                    other: [...(input.linkedSkillIdsByKind.other ?? [])]
+                  },
+            updatedAt: now
+          } satisfies FolderCurrentBookProjectManifest);
     const validated = FolderCurrentBookProjectManifestSchema.parse(next);
     const snapshot = await aggregateSnapshot(store, registry);
     assertBookLibraryReferences(validated, snapshot);
@@ -763,19 +784,15 @@ export async function updateLibraryGroup(
     }
 
     const snapshot = await aggregateSnapshot(store, registry);
-    assertUniqueGroupMembers(Object.values(input.members));
+    assertUniqueGroupMembers(input.memberIds);
     if (input.domain === "material") {
       const libraries = new Map(
         snapshot.materials.map((library) => [library.id, library])
       );
-      for (const [kind, libraryId] of Object.entries(input.members)) {
-        if (!libraryId) continue;
+      for (const libraryId of input.memberIds) {
         const library = libraries.get(libraryId);
         if (!library) {
           throw new Error(`素材分组引用了不存在的素材库：${libraryId}`);
-        }
-        if (library.materialKind !== "mixed" && library.materialKind !== kind) {
-          throw new Error(`素材库“${library.title}”不能放入${kind}分类。`);
         }
         assertLibraryNotInAnotherGroup(
           snapshot.materialGroups,
@@ -788,14 +805,10 @@ export async function updateLibraryGroup(
       const libraries = new Map(
         snapshot.skills.map((library) => [library.id, library])
       );
-      for (const [kind, libraryId] of Object.entries(input.members)) {
-        if (!libraryId) continue;
+      for (const libraryId of input.memberIds) {
         const library = libraries.get(libraryId);
         if (!library) {
           throw new Error(`技能分组引用了不存在的技能库：${libraryId}`);
-        }
-        if (library.skillKind !== kind) {
-          throw new Error(`技能库“${library.title}”不能放入${kind}分类。`);
         }
         assertLibraryNotInAnotherGroup(
           snapshot.skillGroups,
@@ -811,7 +824,7 @@ export async function updateLibraryGroup(
       ...manifest,
       revision: manifest.revision + 1,
       title: input.title ?? manifest.title,
-      members: { ...input.members },
+      memberIds: [...input.memberIds],
       updatedAt: now
     };
     const validated =
@@ -940,8 +953,8 @@ export async function duplicateProject(
         "material-group"
       );
       const copiedBySourceId = new Map<string, MaterialLibrary>();
-      const members: MaterialLibraryGroup["members"] = {};
-      for (const [kind, libraryId] of Object.entries(source.members)) {
+      const memberIds: string[] = [];
+      for (const libraryId of source.memberIds) {
         if (!libraryId) continue;
         let copied = copiedBySourceId.get(libraryId);
         if (!copied) {
@@ -965,7 +978,7 @@ export async function duplicateProject(
             resource: copied
           });
         }
-        members[kind as keyof MaterialLibraryGroup["members"]] = copied.id;
+        memberIds.push(copied.id);
       }
       const title = nextCopyTitle(
         source.title,
@@ -974,7 +987,7 @@ export async function duplicateProject(
       primaryResource = MaterialLibraryGroupSchema.parse({
         id: createCatalogId("material-group"),
         title,
-        members,
+        memberIds,
         createdAt: now,
         updatedAt: now
       });
@@ -994,8 +1007,8 @@ export async function duplicateProject(
         "skill-group"
       );
       const copiedBySourceId = new Map<string, SkillLibrary>();
-      const members: SkillLibraryGroup["members"] = {};
-      for (const [kind, libraryId] of Object.entries(source.members)) {
+      const memberIds: string[] = [];
+      for (const libraryId of source.memberIds) {
         if (!libraryId) continue;
         let copied = copiedBySourceId.get(libraryId);
         if (!copied) {
@@ -1021,7 +1034,7 @@ export async function duplicateProject(
             resource: copied
           });
         }
-        members[kind as keyof SkillLibraryGroup["members"]] = copied.id;
+        memberIds.push(copied.id);
       }
       const title = nextCopyTitle(
         source.title,
@@ -1030,7 +1043,7 @@ export async function duplicateProject(
       primaryResource = SkillLibraryGroupSchema.parse({
         id: createCatalogId("skill-group"),
         title,
-        members,
+        memberIds,
         createdAt: now,
         updatedAt: now
       });

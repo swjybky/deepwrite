@@ -7,6 +7,7 @@ import {
 import { ref, shallowRef } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import type {
+  DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
   WorkspaceDocument
@@ -73,6 +74,9 @@ function fixtureBook(
 }
 
 function fixtureDocument(book: Book): WorkspaceDocument {
+  if (book.bookType === "academic") {
+    throw new Error("Expected creative book fixture");
+  }
   const section = book.draft.sections[0]!;
   return {
     id: "body-1",
@@ -169,9 +173,7 @@ function createHarness(options: HarnessOptions = {}) {
     "draft-directory-1": "section-1",
     untouched: "other"
   });
-  const selectedDraftFileKinds = ref<
-    Record<string, "body" | "character-state">
-  >({
+  const selectedDraftFileKinds = ref<Record<string, DraftFileKind>>({
     "draft-directory-1": "body",
     untouched: "character-state"
   });

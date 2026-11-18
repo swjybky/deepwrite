@@ -6,6 +6,7 @@ import type {
 import type {
   AgentRunInput,
   LongCommandExecutor,
+  MysteryCommandExecutor,
   LibraryManagementCommandExecutor,
   MaterialCommandExecutor,
   TeamManagementCommandExecutor
@@ -33,6 +34,7 @@ export function createCoreCommandExecutor(
         }
       >
     | Parameters<LongCommandExecutor>[0]
+    | Parameters<MysteryCommandExecutor>[0]
     | Parameters<MaterialCommandExecutor>[0]
     | Parameters<LibraryManagementCommandExecutor>[0]
     | Parameters<TeamManagementCommandExecutor>[0],
@@ -117,13 +119,23 @@ export function createAgentRunInput(
     ...(payload.longAgentProfile
       ? { longAgentProfile: payload.longAgentProfile }
       : {}),
+    ...(payload.academicAgentProfile
+      ? { academicAgentProfile: payload.academicAgentProfile }
+      : {}),
+    ...(payload.mysteryAgentProfile
+      ? { mysteryAgentProfile: payload.mysteryAgentProfile }
+      : {}),
     ...((payload.workspaceContext?.shortWorkspace ||
-      payload.workspaceContext?.scriptWorkspace) &&
+      payload.workspaceContext?.scriptWorkspace ||
+      payload.workspaceContext?.academicWorkspace) &&
     context
       ? { writingCommandExecutor: createCoreCommandExecutor(context) }
       : {}),
     ...(payload.longAgentProfile && context
       ? { longCommandExecutor: createCoreCommandExecutor(context) }
+      : {}),
+    ...(payload.mysteryAgentProfile && context
+      ? { mysteryCommandExecutor: createCoreCommandExecutor(context) }
       : {}),
     ...(payload.workspaceContext?.materialCatalog && context
       ? { materialCommandExecutor: createCoreCommandExecutor(context) }

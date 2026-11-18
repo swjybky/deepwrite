@@ -86,13 +86,42 @@ const mutationCompactor: ToolCompactor = {
     const next: JsonObject = { ...args };
     for (const key of [
       "content",
+      "brief",
+      "body",
       "state",
       "character_state",
-      "document_content"
+      "document_content",
+      "append"
     ]) {
       const stubbed = stubProse(args[key], key === "content" ? "正文" : key);
       if (stubbed !== undefined && stubbed !== args[key]) {
         next[key] = stubbed;
+        changed = true;
+      }
+    }
+    if (Array.isArray(args.items)) {
+      let itemsChanged = false;
+      const stubbedItems = args.items.map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          return item;
+        }
+        let itemChanged = false;
+        const nextItem: JsonObject = { ...(item as JsonObject) };
+        for (const key of ["content", "brief", "body", "state"]) {
+          const stubbed = stubProse(
+            nextItem[key],
+            key === "content" ? "正文" : key
+          );
+          if (stubbed !== undefined && stubbed !== nextItem[key]) {
+            nextItem[key] = stubbed;
+            itemChanged = true;
+          }
+        }
+        if (itemChanged) itemsChanged = true;
+        return itemChanged ? nextItem : item;
+      });
+      if (itemsChanged) {
+        next.items = stubbedItems;
         changed = true;
       }
     }
@@ -228,8 +257,11 @@ export function workspaceContextTask(input: AgentRunInput): ContextTaskKind {
       : "library-material";
   }
   if (context?.subagentAuthoring) return "subagent-authoring";
+  if (input.academicAgentProfile && context?.academicWorkspace)
+    return "academic";
   if (input.scriptAgentProfile && context?.scriptWorkspace) return "script";
   if (input.longAgentProfile && context?.longWorkspace) return "long";
+  if (input.mysteryAgentProfile && context?.mysteryWorkspace) return "mystery";
   const short = context?.shortWorkspace;
   if (input.agentProfile && short) {
     if (short.activeStageId === "character_design") return "short-character";

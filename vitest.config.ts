@@ -19,8 +19,11 @@ const scaleTest =
 // In-memory unit tests keep the normal timeout and parallel scheduling.
 const diskIntegrationTests = [
   "apps/desktop/src/utilities/book-images/*.test.ts",
+  "apps/desktop/src/utilities/mystery-store/*.integration.test.ts",
   "apps/desktop/src/main/book-images/*.test.ts",
+  "apps/desktop/src/main/academic-manuscript-export.test.ts",
   "apps/desktop/src/main/short-manuscript-export.integration.test.ts",
+  "apps/desktop/src/main/mystery-bundle-export.integration.test.ts",
   "apps/desktop/src/utilities/document-versions/*.integration.test.ts",
   "apps/desktop/src/extras/cloud-backup/catalog-reader.test.ts",
   "tools/i18n-resources.test.mjs",
@@ -45,6 +48,7 @@ const diskIntegrationTests = [
   "apps/desktop/src/extras/external-control/client-approval.test.ts",
   "apps/desktop/src/extras/external-control/control-lifecycle.test.ts",
   "apps/desktop/src/extras/external-control/control-server.test.ts",
+  "apps/desktop/src/extras/external-control/academic-control.test.ts",
   "apps/desktop/src/extras/external-control/read-tools.test.ts",
   "apps/desktop/src/extras/external-control/write-tools.test.ts",
   "apps/desktop/src/main/*-config-store*.test.ts",

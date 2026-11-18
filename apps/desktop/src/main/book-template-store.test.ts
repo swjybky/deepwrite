@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { BookTemplateDraftSchema } from "@deepwrite/contracts";
+import { ShortBookTemplateDraftSchema } from "@deepwrite/contracts";
 import { BookTemplateStore } from "./book-template-store";
 const roots: string[] = [];
 async function setup() {
@@ -15,7 +15,7 @@ afterEach(async () => {
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
   );
 });
-const configuration = BookTemplateDraftSchema.parse({
+const configuration = ShortBookTemplateDraftSchema.parse({
   name: "默认模板",
   workspaceType: "short",
   genre: "其他",

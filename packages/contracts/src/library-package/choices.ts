@@ -66,6 +66,7 @@ export function previewLibraryPackage(
         key: library.key,
         title: library.title,
         kind: library.kind,
+        ...(library.customTag ? { customTag: library.customTag } : {}),
         kindEditable: library.kindEditable,
         libraryType: library.libraryType,
         entryCount: library.entries.length,
@@ -85,6 +86,7 @@ export function previewLibraryPackage(
 export interface LibraryPackageResolvedLibrary {
   title: string;
   kind: string;
+  customTag?: string;
   libraryType: LibraryPackagePlanLibrary["libraryType"];
   parentGenre: string;
   subGenre: string;
@@ -94,8 +96,8 @@ export interface LibraryPackageResolvedLibrary {
 
 export interface LibraryPackageResolvedImport {
   domain: LibraryPackageDomain;
-  /** `slots[i]` is the group slot of `libraries[i]`. */
-  group: { title: string; slots: string[] } | null;
+  /** `slots[i]` is the compatibility slot key of `libraries[i]`; `memberOrder` orders group members. */
+  group: { title: string; slots: string[]; memberOrder?: number[] } | null;
   libraries: LibraryPackageResolvedLibrary[];
 }
 
@@ -120,9 +122,14 @@ export function resolveLibraryPackageImport(
       library.kindEditable && isLibraryPackageKind(plan.domain, choice.kind)
         ? choice.kind
         : library.kind;
+    const customTag =
+      choice.customTag === null
+        ? undefined
+        : choice.customTag?.trim() || library.customTag;
     return {
       title: choice.title.trim() || library.title,
       kind,
+      ...(customTag ? { customTag } : {}),
       libraryType: library.libraryType,
       parentGenre: library.parentGenre,
       subGenre: library.subGenre,
@@ -145,13 +152,24 @@ export function resolveLibraryPackageImport(
     included.map(({ key }) => slotsByKey.get(key))
   );
   if ("problem" in assignment) {
-    throw new Error("这些库不能组成一个分组：分组里每种类型只能有一个库。");
+    throw new Error("这些库不能组成一个分组。");
   }
+  const indexByKey = new Map(included.map(({ key }, index) => [key, index]));
+  const memberOrder: number[] = [];
+  for (const key of plan.group?.memberKeys ?? []) {
+    const index = indexByKey.get(key);
+    if (index !== undefined && !memberOrder.includes(index)) {
+      memberOrder.push(index);
+    }
+  }
+  included.forEach((_, index) => {
+    if (!memberOrder.includes(index)) memberOrder.push(index);
+  });
   const title =
     choices.groupTitle?.trim() || plan.group?.title || libraries[0]!.title;
   return {
     domain: plan.domain,
-    group: { title, slots: assignment.slots },
+    group: { title, slots: assignment.slots, memberOrder },
     libraries
   };
 }

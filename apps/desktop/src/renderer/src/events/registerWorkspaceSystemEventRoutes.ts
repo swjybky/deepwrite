@@ -42,7 +42,13 @@ export interface WorkspaceSystemEventRouteDependencies {
     event: EventOf<"long.chapter_write_proposal">
   ): void;
   handleLongWorkspaceProposal(event: SystemEventEnvelope): Promise<unknown>;
+  handleMysteryMutationProposal?(
+    event: EventOf<"mystery.mutation_proposal">
+  ): Promise<unknown> | void;
   stageAgentEditProposal(event: EventOf<"workspace.editor_mutation">): void;
+  stageAcademicWorkspaceProposal?(
+    event: EventOf<"academic.workspace_mutation">
+  ): void;
   stageLibraryStructureProposal?(
     event: EventOf<"library.structure_proposal">
   ): void;
@@ -91,6 +97,12 @@ export function registerWorkspaceSystemEventRoutes(
         dependencies.stageLongCharacterEditProposal(event);
       } else if (event.type === "long.chapter_write_proposal") {
         dependencies.stageLongDraftEditProposal(event);
+      } else if (event.type === "mystery.mutation_proposal") {
+        void Promise.resolve(
+          dependencies.handleMysteryMutationProposal?.(event)
+        ).catch((error) => {
+          dependencies.onAsyncError(error, event);
+        });
       } else {
         void dependencies.handleLongWorkspaceProposal(event).catch((error) => {
           dependencies.onAsyncError(error, event);
@@ -99,6 +111,9 @@ export function registerWorkspaceSystemEventRoutes(
     }),
     center.subscribe("workspace.editor_mutation", (event) => {
       dependencies.stageAgentEditProposal(event);
+    }),
+    center.subscribe("academic.workspace_mutation", (event) => {
+      dependencies.stageAcademicWorkspaceProposal?.(event);
     }),
     center.subscribe("library.structure_proposal", (event) => {
       dependencies.stageLibraryStructureProposal?.(event);
@@ -143,5 +158,33 @@ export function registerWorkspaceSystemEventRoutes(
     for (let index = disposers.length - 1; index >= 0; index -= 1) {
       disposers[index]?.();
     }
+  };
+}
+
+export function startNativeWorkspaceSystemEvents(
+  center: SystemEventCenter,
+  dependencies: Omit<WorkspaceSystemEventRouteDependencies, "onAsyncError"> &
+    Partial<Pick<WorkspaceSystemEventRouteDependencies, "onAsyncError">>
+): () => void {
+  const removeRoutes = registerWorkspaceSystemEventRoutes(center, {
+    ...dependencies,
+    onAsyncError:
+      dependencies.onAsyncError ??
+      ((error) => {
+        console.error(
+          "DeepWrite long workspace proposal event could not be handled:",
+          error
+        );
+      })
+  });
+  const removeNative = window.deepwrite?.events.subscribe((event) => {
+    center.publish(event);
+  });
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    removeNative?.();
+    removeRoutes();
   };
 }

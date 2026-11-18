@@ -13,6 +13,7 @@ import type {
   DraftDirectoryProjection
 } from "../data/catalogWorkspace";
 import type {
+  DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
   ResourceTreeSection,
@@ -21,10 +22,12 @@ import type {
 import { agentRunScopeForDocument } from "../utils/agentRunPreferences";
 import { copyBookAgentTeamBinding } from "./useBookAgentTeamBinding";
 import { suggestedDraftSectionTitle } from "../utils/draftFileTitles";
+import {
+  openCreateAcademicSectionDialog,
+  openDeleteAcademicSectionDialog
+} from "../stores/academicWorkspaceDialog";
 
 const t = createScopedTranslator("workspace");
-
-type DraftFileKind = "body" | "character-state";
 
 export interface ShortStructureMutationCompletion {
   succeed(): void;
@@ -388,6 +391,7 @@ export function useShortWorkspaceStructureCoordinator(
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
+        authoritativeBook.bookType === "academic" ||
         authoritativeBook.projectRevision === undefined
       ) {
         if (canPublish(context)) {
@@ -444,6 +448,7 @@ export function useShortWorkspaceStructureCoordinator(
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
+        authoritativeBook.bookType === "academic" ||
         authoritativeBook.projectRevision === undefined
       ) {
         if (canPublish(context)) {
@@ -730,6 +735,7 @@ export function useShortWorkspaceStructureCoordinator(
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
+        authoritativeBook.bookType === "academic" ||
         authoritativeBook.projectRevision === undefined
       ) {
         if (canPublish(context)) {
@@ -768,12 +774,14 @@ export function useShortWorkspaceStructureCoordinator(
         ) {
           const refreshed = catalog.findBook(bookId);
           const fallbackStage =
-            refreshed?.plotStages[
-              Math.min(
-                Math.max(0, deletedIndex),
-                refreshed.plotStages.length - 1
-              )
-            ];
+            refreshed && refreshed.bookType !== "academic"
+              ? refreshed.plotStages[
+                  Math.min(
+                    Math.max(0, deletedIndex),
+                    refreshed.plotStages.length - 1
+                  )
+                ]
+              : undefined;
           const fallbackDocument = fallbackStage
             ? state.documents.value.find(
                 (document) =>
@@ -844,6 +852,10 @@ export function useShortWorkspaceStructureCoordinator(
     const directory = resources.draftDirectoryForResourceId(draftNode.id);
     const source = resources.documentForResourceId(draftNode.id);
     if (!directory) return;
+    if (directory.workspaceType === "academic") {
+      openCreateAcademicSectionDialog(directory.workspaceId);
+      return;
+    }
     if (
       (source?.workspaceType !== "short" &&
         source?.workspaceType !== "script") ||
@@ -971,6 +983,7 @@ export function useShortWorkspaceStructureCoordinator(
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
+        authoritativeBook.bookType === "academic" ||
         authoritativeBook.projectRevision === undefined
       ) {
         if (canPublish(context)) {
@@ -1048,7 +1061,20 @@ export function useShortWorkspaceStructureCoordinator(
     const directory = resources.draftDirectoryForResourceId(
       state.selectedResourceId.value
     );
-    if (!directory || directory.workspaceType !== "short") return;
+    if (!directory) return;
+    if (directory.workspaceType === "academic") {
+      const currentSectionId = resources.activeExpertSectionId.value;
+      const currentSection = directory.sections.find(
+        (candidate) => candidate.id === currentSectionId
+      );
+      openCreateAcademicSectionDialog(
+        directory.workspaceId,
+        currentSection?.chapterId,
+        currentSection?.id
+      );
+      return;
+    }
+    if (directory.workspaceType !== "short") return;
     const draftNode = resources.resourceNode(directory.id);
     if (!draftNode) {
       notifications.info(
@@ -1120,6 +1146,7 @@ export function useShortWorkspaceStructureCoordinator(
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
+        authoritativeBook.bookType === "academic" ||
         authoritativeBook.projectRevision === undefined
       ) {
         if (canPublish(context)) {
@@ -1191,7 +1218,23 @@ export function useShortWorkspaceStructureCoordinator(
     const directory = resources.draftDirectoryForResourceId(
       state.selectedResourceId.value
     );
-    if (!directory || directory.workspaceType !== "short") return;
+    if (!directory) return;
+    if (directory.workspaceType === "academic") {
+      const sectionId = resources.activeExpertSectionId.value;
+      const section = directory.sections.find(
+        (candidate) => candidate.id === sectionId
+      );
+      if (!section) return;
+      openDeleteAcademicSectionDialog({
+        bookId: directory.workspaceId,
+        sectionId: section.id,
+        title: section.title,
+        wordCountRequirement: section.wordCountRequirement,
+        ...(section.chapterId ? { chapterId: section.chapterId } : {})
+      });
+      return;
+    }
+    if (directory.workspaceType !== "short") return;
     const sectionId = resources.activeExpertSectionId.value;
     if (!sectionId) {
       notifications.warning(
@@ -1251,6 +1294,16 @@ export function useShortWorkspaceStructureCoordinator(
           "shortWorkspaceStructureCoordinator.theCurrentProjectIsBeingUpdatedPleaseWait"
         )
       );
+      return;
+    }
+    if (directory.workspaceType === "academic") {
+      openDeleteAcademicSectionDialog({
+        bookId: directory.workspaceId,
+        sectionId: section.id,
+        title: section.title,
+        wordCountRequirement: section.wordCountRequirement,
+        ...(section.chapterId ? { chapterId: section.chapterId } : {})
+      });
       return;
     }
     const body = resources.draftFileDocument(directory, section.id, "body");

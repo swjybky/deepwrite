@@ -96,7 +96,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
     expect(harness.refreshCatalog).toHaveBeenCalledOnce();
   });
 
-  it("asks for a compatible stage before moving material entries across kinds", async () => {
+  it("moves material entries directly across libraries without forcing stage conversion", async () => {
     const source = materialLibrary("source", "character", [
       {
         id: "entry-a",
@@ -118,31 +118,21 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
       entryId: "entry-a"
     });
 
-    expect(harness.coordinator.pendingLibraryEntryMove.value).toMatchObject({
-      entryTitle: "人物",
-      targetLibraryTitle: target.title,
-      targetMaterialKind: "plot",
-      initialStageId: "character"
-    });
-    expect(harness.apiMocks.moveLibraryEntry).not.toHaveBeenCalled();
-
-    harness.coordinator.confirmCatalogLibraryEntryMove("intro");
+    expect(harness.coordinator.pendingLibraryEntryMove.value).toBeNull();
     await vi.waitFor(() => {
       expect(harness.apiMocks.moveLibraryEntry).toHaveBeenCalledWith(
         expect.objectContaining({
           sourceLibraryId: source.id,
           targetLibraryId: target.id,
           entryId: "entry-a",
-          targetStageId: "intro",
           sourceBaseProjectRevision: 1,
           targetBaseProjectRevision: 1
         })
       );
     });
-    expect(harness.coordinator.pendingLibraryEntryMove.value).toBeNull();
   });
 
-  it("pastes dirty content across legacy writing types and converts the material stage", async () => {
+  it("pastes dirty content across legacy writing types while preserving the material stage", async () => {
     const source = materialLibrary("source", "character", [
       {
         id: "entry-a",
@@ -202,7 +192,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
         libraryId: target.id,
         title: "草稿人物",
         content: "dirty body",
-        stageId: "pacing",
+        stageId: "character",
         baseProjectRevision: 3
       });
     });
@@ -343,7 +333,7 @@ describe("useCatalogLibraryTransactionsCoordinator", () => {
       domain: "material",
       groupId: "group-a",
       title: "分组",
-      members: {},
+      memberIds: [],
       baseProjectRevision: 1
     });
 

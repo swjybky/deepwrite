@@ -78,14 +78,7 @@ function findOwningGroup(
   const groups =
     domain === "material" ? snapshot.materialGroups : snapshot.skillGroups;
   for (const group of groups) {
-    const memberIds = [
-      ...new Set(
-        Object.values(group.members).filter(
-          (value): value is string =>
-            typeof value === "string" && value.length > 0
-        )
-      )
-    ];
+    const memberIds = [...new Set(group.memberIds.filter(Boolean))];
     if (!memberIds.includes(libraryId)) continue;
     return {
       groupId: group.id,
@@ -130,6 +123,7 @@ function resolveReadableLibraries(
       libraryId: library.id,
       title: library.title,
       kind,
+      ...(library.customTag ? { customTag: library.customTag } : {}),
       readOnly: "isBuiltin" in library && library.isBuiltin,
       entryCount: library.entries.length,
       groupTitle: findOwningGroup(snapshot, domain, library.id)?.groupTitle
@@ -350,12 +344,11 @@ export function buildLibraryAgentWorkspaceContext(
     ).map((group) => ({
       id: group.id,
       title: group.title,
-      members: Object.fromEntries(
-        Object.entries(group.members).filter((entry) => entry[1] !== undefined)
-      ) as Record<string, string>
+      memberIds: [...group.memberIds]
     })),
     libraryId: library.id,
     title: library.title,
+    ...(library.customTag ? { customTag: library.customTag } : {}),
     overviewDocumentId:
       liveOverview?.id ?? overviewDocumentId(domain, library.id),
     overview: overviewSnapshot.content,

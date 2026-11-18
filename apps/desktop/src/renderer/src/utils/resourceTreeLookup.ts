@@ -1,5 +1,13 @@
 import type { ResourceTreeNode, ResourceTreeSection } from "../types/workspace";
 
+export function isWorkspaceBookNode(node: ResourceTreeNode): boolean {
+  return (
+    node.catalogNodeType === "book" ||
+    node.catalogNodeType === "long-book" ||
+    node.catalogNodeType === "mystery-book"
+  );
+}
+
 export function resourceTreeContainsResource(
   nodes: readonly ResourceTreeNode[],
   resourceId: string
@@ -15,6 +23,17 @@ export interface ResourceTreeLookup {
   nodeById: ReadonlyMap<string, ResourceTreeNode>;
   resourceIdByDocumentId: ReadonlyMap<string, string>;
   targetDocumentIdByResourceId: ReadonlyMap<string, string>;
+}
+
+function firstNestedTargetDocumentId(
+  nodes: readonly ResourceTreeNode[] | undefined
+): string | undefined {
+  for (const child of nodes ?? []) {
+    if (child.targetDocumentId) return child.targetDocumentId;
+    const nested = firstNestedTargetDocumentId(child.children);
+    if (nested) return nested;
+  }
+  return undefined;
 }
 
 /** Builds lookup tables for the final visible tree, including virtual nodes. */
@@ -34,6 +53,8 @@ export function createResourceTreeLookup(
     }
     for (const documentId of [
       node.targetDocumentId,
+      node.briefDocumentId,
+      node.stateDocumentId,
       node.characterStateDocumentId
     ]) {
       if (documentId && !resourceIdByDocumentId.has(documentId)) {
@@ -42,9 +63,8 @@ export function createResourceTreeLookup(
     }
     const targetDocumentId =
       node.targetDocumentId ??
-      (node.stageCategoryId === "draft"
-        ? node.children?.find((child) => child.targetDocumentId)
-            ?.targetDocumentId
+      (node.stageCategoryId === "draft" || node.academicChapterItem
+        ? firstNestedTargetDocumentId(node.children)
         : undefined) ??
       node.id;
     targetDocumentIdByResourceId.set(node.id, targetDocumentId);

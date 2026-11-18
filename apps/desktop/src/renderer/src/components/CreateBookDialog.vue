@@ -10,24 +10,45 @@ import {
   watch
 } from "vue";
 import {
+  ACADEMIC_BOOK_SUBTYPES,
+  ACADEMIC_CITATION_STYLES,
+  DEFAULT_ACADEMIC_FRAMEWORK_STAGES,
   LONG_BOOK_GENRES,
+  MYSTERY_BOOK_GENRES,
   SCRIPT_BOOK_GENRES,
   SHORT_BOOK_GENRES,
   LongBookGenreSchema,
+  MysteryBookGenreSchema,
   ScriptBookGenreSchema,
-  ShortBookGenreSchema
-} from "@deepwrite/contracts";
+  ShortBookGenreSchema,
+  getAcademicSubtypePreset,
+  type AcademicBookSubtype,
+  type AcademicCitationStyle
+} from "@deepwrite/contracts/renderer";
 import type {
   LinkedMaterialIdsByKind,
   LinkedSkillIdsByKind,
   MaterialLibrary,
   MaterialLibraryGroup,
+  MysteryNarrativePerson,
   SkillLibrary,
   SkillLibraryGroup
 } from "@deepwrite/contracts";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import { uiMessage } from "../ui-feedback";
 import BookAgentTeamBindings from "./BookAgentTeamBindings.vue";
 import BookLibraryBindings from "./BookLibraryBindings.vue";
+import PopupSelect, { type PopupSelectValue } from "./PopupSelect.vue";
+import {
+  academicCitationStyleDescription,
+  academicSubtypeDescription,
+  academicT
+} from "./academic/academicLabels";
+import {
+  academicCitationStyleLabel,
+  academicFrameworkStageLabel,
+  academicSubtypeLabel
+} from "./academic/academicTreeLabels";
 import type { CreateCreativeBookPayload } from "./WorkspaceDialogLayer.types";
 
 const t = createScopedTranslator("components.createBookDialog");
@@ -58,8 +79,24 @@ const emit = defineEmits<{
 }>();
 
 const title = ref("");
-const workspaceType = ref<"short" | "script" | "long">("short");
+const workspaceType = ref<"short" | "script" | "long" | "academic" | "mystery">(
+  "short"
+);
 const genre = ref<string>("世情");
+const academicSubtype = ref<AcademicBookSubtype>("empirical_paper");
+const academicCitationStyle = ref<AcademicCitationStyle>(
+  getAcademicSubtypePreset("empirical_paper").defaultCitationStyle
+);
+const academicStageIds = ref<string[]>([
+  ...getAcademicSubtypePreset("empirical_paper").enabledStageIds
+]);
+const mysteryPlayerCount = ref(6);
+const mysteryActCountTarget = ref(4);
+const mysteryNarrativePerson = ref<MysteryNarrativePerson>("second");
+const mysteryNarrativeOptions = computed(() => [
+  { value: "second", label: mysteryLabels("secondPerson") },
+  { value: "first", label: mysteryLabels("firstPerson") }
+]);
 const workspaceTypeOptions = [
   {
     value: "short",
@@ -87,19 +124,48 @@ const workspaceTypeOptions = [
     get description() {
       return t("worldbuildingCharactersPlotManuscriptAndContinuity");
     }
+  },
+  {
+    value: "academic",
+    get label() {
+      return academicT("academicWriting");
+    },
+    get description() {
+      return academicT("academicWritingDesc");
+    }
+  },
+  {
+    value: "mystery",
+    get label() {
+      return mysteryLabels("murderMystery");
+    },
+    get description() {
+      return mysteryLabels("mysteryTypeDescription");
+    }
   }
 ] as const;
+const academicCitationOptions = computed(() =>
+  ACADEMIC_CITATION_STYLES.map((style) => ({
+    value: style,
+    label: academicCitationStyleLabel(style),
+    description: academicCitationStyleDescription(style)
+  }))
+);
 const genreOptions = computed<readonly string[]>(() =>
   workspaceType.value === "long"
     ? LONG_BOOK_GENRES
-    : workspaceType.value === "script"
-      ? SCRIPT_BOOK_GENRES
-      : SHORT_BOOK_GENRES
+    : workspaceType.value === "mystery"
+      ? MYSTERY_BOOK_GENRES
+      : workspaceType.value === "script"
+        ? SCRIPT_BOOK_GENRES
+        : SHORT_BOOK_GENRES
 );
 const titleInput = ref<HTMLInputElement | null>(null);
 const bindings = ref<{
   linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
   linkedSkillIdsByKind: LinkedSkillIdsByKind;
+  linkedMaterialIds: string[];
+  linkedSkillIds: string[];
 }>();
 const agentTeamIds = ref<string[]>([]);
 function workspaceTypeLabel(): string {
@@ -109,10 +175,49 @@ function workspaceTypeLabel(): string {
   );
 }
 
+function applyAcademicSubtypePreset(subtype: AcademicBookSubtype): void {
+  const preset = getAcademicSubtypePreset(subtype);
+  academicSubtype.value = subtype;
+  academicCitationStyle.value = preset.defaultCitationStyle;
+  academicStageIds.value = [...preset.enabledStageIds];
+}
+
+function selectAcademicCitationStyle(value: PopupSelectValue): void {
+  if (ACADEMIC_CITATION_STYLES.includes(value as AcademicCitationStyle)) {
+    academicCitationStyle.value = value as AcademicCitationStyle;
+  }
+}
+
+function selectMysteryNarrativePerson(value: PopupSelectValue): void {
+  if (value === "first" || value === "second") {
+    mysteryNarrativePerson.value = value;
+  }
+}
+
+function toggleAcademicStage(stageId: string, checked: boolean): void {
+  const current = new Set(academicStageIds.value);
+  if (checked) {
+    current.add(stageId);
+  } else {
+    if (current.size <= 1) {
+      uiMessage.warning(academicT("keepAtLeastOneFrameworkStage"));
+      return;
+    }
+    current.delete(stageId);
+  }
+  academicStageIds.value = DEFAULT_ACADEMIC_FRAMEWORK_STAGES.map(
+    (stage) => stage.id
+  ).filter((id) => current.has(id));
+}
+
 function resetDraft(): void {
   title.value = "";
   workspaceType.value = "short";
   genre.value = "世情";
+  applyAcademicSubtypePreset("empirical_paper");
+  mysteryPlayerCount.value = 6;
+  mysteryActCountTarget.value = 4;
+  mysteryNarrativePerson.value = "second";
   bindings.value = undefined;
   agentTeamIds.value = [];
 }
@@ -133,6 +238,23 @@ function submit(): void {
   const teamChoice = agentTeamIds.value.length
     ? { linkedAgentTeamIds: agentTeamIds.value }
     : {};
+  if (workspaceType.value === "academic") {
+    if (!academicStageIds.value.length) {
+      uiMessage.warning(academicT("keepAtLeastOneFrameworkStage"));
+      return;
+    }
+    emit("submit", {
+      workspaceType: "academic",
+      title: normalizedTitle,
+      subtype: academicSubtype.value,
+      citationStyle: academicCitationStyle.value,
+      defaultFrameworkStageIds: [...academicStageIds.value],
+      linkedMaterialIds: bindings.value?.linkedMaterialIds ?? [],
+      linkedSkillIds: bindings.value?.linkedSkillIds ?? [],
+      ...teamChoice
+    });
+    return;
+  }
   if (workspaceType.value === "long") {
     if (Array.from(normalizedTitle).length > 256) {
       uiMessage.warning(t("novelTitlesCannotExceed256Characters"));
@@ -145,6 +267,34 @@ function submit(): void {
       genre: LongBookGenreSchema.parse(genre.value),
       linkedMaterialIdsByKind,
       linkedSkillIdsByKind,
+      ...teamChoice
+    });
+    return;
+  }
+  if (workspaceType.value === "mystery") {
+    const linkedMaterialIds = bindings.value?.linkedMaterialIds ?? [
+      ...new Set(Object.values(linkedMaterialIdsByKind ?? {}).flat())
+    ];
+    const linkedSkillIds = bindings.value?.linkedSkillIds ?? [
+      ...new Set(Object.values(linkedSkillIdsByKind ?? {}).flat())
+    ];
+    emit("submit", {
+      workspaceType: "mystery",
+      title: normalizedTitle,
+      genre: MysteryBookGenreSchema.parse(genre.value),
+      boardSpec: {
+        playerCount: Math.min(
+          16,
+          Math.max(2, Math.round(mysteryPlayerCount.value || 6))
+        ),
+        actCountTarget: Math.min(
+          12,
+          Math.max(1, Math.round(mysteryActCountTarget.value || 4))
+        ),
+        narrativePerson: mysteryNarrativePerson.value
+      },
+      linkedMaterialIds,
+      linkedSkillIds,
       ...teamChoice
     });
     return;
@@ -214,11 +364,15 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               {{
                 t("newMessage", {
                   arg0:
-                    (workspaceType === "long"
-                      ? t("novelLabel")
-                      : workspaceType === "script"
-                        ? t("screenplay")
-                        : t("shortStoryLabel")) ?? ""
+                    (workspaceType === "academic"
+                      ? academicT("academicBookNoun")
+                      : workspaceType === "long"
+                        ? t("novelLabel")
+                        : workspaceType === "mystery"
+                          ? mysteryLabels("murderMystery")
+                          : workspaceType === "script"
+                            ? t("screenplay")
+                            : t("shortStoryLabel")) ?? ""
                 })
               }}
             </h2>
@@ -283,28 +437,99 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 ref="titleInput"
                 v-model="title"
                 type="text"
-                :maxlength="workspaceType === 'long' ? 256 : 80"
+                :maxlength="
+                  workspaceType === 'long'
+                    ? 256
+                    : workspaceType === 'academic'
+                      ? 120
+                      : 80
+                "
                 autocomplete="off"
                 :placeholder="
-                  workspaceType === 'long'
-                    ? t('enterANovelTitle')
-                    : t('enterABookTitle')
+                  workspaceType === 'academic'
+                    ? academicT('academicTitlePlaceholder')
+                    : workspaceType === 'long'
+                      ? t('enterANovelTitle')
+                      : workspaceType === 'mystery'
+                        ? mysteryLabels('enterMysteryTitle')
+                        : t('enterABookTitle')
                 "
                 :disabled="submitting"
               />
             </label>
 
-            <fieldset class="create-short-genre-field">
+            <template v-if="workspaceType === 'academic'">
+              <fieldset class="create-short-genre-field">
+                <legend>{{ academicT("subtypeLabel") }}</legend>
+                <div class="academic-subtype-grid">
+                  <button
+                    v-for="option in ACADEMIC_BOOK_SUBTYPES"
+                    :key="option"
+                    type="button"
+                    class="academic-subtype-card"
+                    :class="{ 'is-selected': academicSubtype === option }"
+                    :disabled="submitting"
+                    @click="applyAcademicSubtypePreset(option)"
+                  >
+                    <strong>{{ academicSubtypeLabel(option) }}</strong>
+                    <small>{{ academicSubtypeDescription(option) }}</small>
+                  </button>
+                </div>
+              </fieldset>
+
+              <label class="create-short-book-field">
+                <span>{{ academicT("citationStyleLabel") }}</span>
+                <PopupSelect
+                  :model-value="academicCitationStyle"
+                  :options="academicCitationOptions"
+                  :accessible-label="academicT('citationStyleLabel')"
+                  :disabled="submitting"
+                  :menu-z-index="2300"
+                  @update:model-value="selectAcademicCitationStyle"
+                />
+                <small class="academic-create-hint">
+                  {{ academicCitationStyleDescription(academicCitationStyle) }}
+                </small>
+              </label>
+
+              <fieldset class="create-short-genre-field">
+                <legend>{{ academicT("frameworkStagesEnabledLabel") }}</legend>
+                <div class="academic-stage-checks">
+                  <label
+                    v-for="stage in DEFAULT_ACADEMIC_FRAMEWORK_STAGES"
+                    :key="stage.id"
+                    class="academic-stage-check"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="academicStageIds.includes(stage.id)"
+                      :disabled="submitting"
+                      @change="
+                        toggleAcademicStage(
+                          stage.id,
+                          ($event.target as HTMLInputElement).checked
+                        )
+                      "
+                    />
+                    <span>{{ academicFrameworkStageLabel(stage) }}</span>
+                  </label>
+                </div>
+              </fieldset>
+            </template>
+
+            <fieldset v-else class="create-short-genre-field">
               <legend>
                 {{
                   workspaceType === "long"
                     ? t("novelGenre")
-                    : t("valueCategory", {
-                        arg0:
-                          workspaceType === "script"
-                            ? t("screenplay")
-                            : t("shortStory")
-                      })
+                    : workspaceType === "mystery"
+                      ? mysteryLabels("mysteryGenre")
+                      : t("valueCategory", {
+                          arg0:
+                            workspaceType === "script"
+                              ? t("screenplay")
+                              : t("shortStory")
+                        })
                 }}
               </legend>
               <div class="create-short-genre-options">
@@ -325,6 +550,45 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 </label>
               </div>
             </fieldset>
+
+            <div
+              v-if="workspaceType === 'mystery'"
+              class="create-mystery-board-spec"
+            >
+              <label class="create-short-book-field">
+                <span>{{ mysteryLabels("playerCount") }}</span>
+                <input
+                  v-model.number="mysteryPlayerCount"
+                  type="number"
+                  min="2"
+                  max="16"
+                  :disabled="submitting"
+                />
+              </label>
+              <label class="create-short-book-field">
+                <span>{{ mysteryLabels("actCountTarget") }}</span>
+                <input
+                  v-model.number="mysteryActCountTarget"
+                  type="number"
+                  min="1"
+                  max="12"
+                  :disabled="submitting"
+                />
+              </label>
+              <label class="create-short-book-field">
+                <span>{{ mysteryLabels("narrativePerson") }}</span>
+                <PopupSelect
+                  :model-value="mysteryNarrativePerson"
+                  :options="mysteryNarrativeOptions"
+                  :accessible-label="mysteryLabels('narrativePerson')"
+                  :disabled="submitting"
+                  align="end"
+                  :menu-min-width="300"
+                  :menu-z-index="2300"
+                  @update:model-value="selectMysteryNarrativePerson"
+                />
+              </label>
+            </div>
           </section>
 
           <BookLibraryBindings
@@ -368,11 +632,15 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               {{
                 submitting
                   ? t("creating")
-                  : workspaceType === "long"
-                    ? t("createNovel")
-                    : workspaceType === "script"
-                      ? t("createScreenplay")
-                      : t("createBook")
+                  : workspaceType === "academic"
+                    ? academicT("createAcademicBook")
+                    : workspaceType === "long"
+                      ? t("createNovel")
+                      : workspaceType === "mystery"
+                        ? mysteryLabels("createMystery")
+                        : workspaceType === "script"
+                          ? t("createScreenplay")
+                          : t("createBook")
               }}
             </button>
           </div>
@@ -381,3 +649,60 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.academic-subtype-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.academic-subtype-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--theme-line-soft);
+  background: var(--surface-raised);
+  text-align: left;
+  cursor: pointer;
+}
+
+.academic-subtype-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.academic-subtype-card strong {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.academic-subtype-card small,
+.academic-create-hint {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.academic-stage-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.academic-stage-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-line-soft);
+  background: var(--surface-raised);
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+</style>

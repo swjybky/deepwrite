@@ -77,12 +77,19 @@ export interface LibraryAttachmentBuildResult {
  * narrow shape keeps attachment resolution reusable without registering a
  * long book as a short/script Catalog workspace.
  */
-export interface LibraryAttachmentBindingTarget {
-  id: string;
-  bookType: LibraryType;
-  linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
-  linkedSkillIdsByKind: LinkedSkillIdsByKind;
-}
+export type LibraryAttachmentBindingTarget =
+  | {
+      id: string;
+      bookType: LibraryType;
+      linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
+      linkedSkillIdsByKind: LinkedSkillIdsByKind;
+    }
+  | {
+      id: string;
+      bookType: "academic";
+      linkedMaterialIds: readonly string[];
+      linkedSkillIds: readonly string[];
+    };
 
 export interface AttachmentCandidate<TKind extends MaterialKind | SkillKind> {
   domain: LibraryAttachmentDomain;

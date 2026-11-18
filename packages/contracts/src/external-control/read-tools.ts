@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AcademicBookSubtypeSchema } from "../academic-book";
+import { AcademicCitationStyleSchema } from "../academic-citation-style";
 
 export const EXTERNAL_DEFAULT_PAGE_CHARACTERS = 12_000;
 export const EXTERNAL_MAX_PAGE_CHARACTERS = 50_000;
@@ -7,7 +9,14 @@ export const EXTERNAL_MAX_SEARCH_LIMIT = 50;
 
 const IdSchema = z.string().trim().min(1).max(512);
 const TimestampSchema = z.string().datetime();
-const WorkTypeSchema = z.enum(["short", "script", "long"]);
+const WorkTypeSchema = z.enum([
+  "short",
+  "script",
+  "long",
+  "academic",
+  "mystery"
+]);
+const LibraryWorkTypeSchema = z.enum(["short", "script", "long"]);
 const LibraryDomainSchema = z.enum(["material", "skill"]);
 
 const pageFields = {
@@ -137,6 +146,8 @@ export const ExternalWorkSummarySchema = z
     type: WorkTypeSchema,
     title: z.string().min(1),
     genre: z.string(),
+    subtype: AcademicBookSubtypeSchema.optional(),
+    citationStyle: AcademicCitationStyleSchema.optional(),
     status: z.enum(["editing", "completed"]),
     updatedAt: TimestampSchema
   })
@@ -169,6 +180,17 @@ export const ExternalWorkDetailSchema = ExternalWorkSummarySchema.extend({
           id: IdSchema,
           title: z.string().min(1),
           enabled: z.boolean()
+        })
+        .strict()
+    )
+    .optional(),
+  chapters: z
+    .array(
+      z
+        .object({
+          id: IdSchema,
+          title: z.string().min(1),
+          sectionIds: z.array(IdSchema)
         })
         .strict()
     )
@@ -234,7 +256,7 @@ const ExternalLibrarySummarySchema = z
     id: IdSchema,
     domain: LibraryDomainSchema,
     title: z.string().min(1),
-    type: WorkTypeSchema,
+    type: LibraryWorkTypeSchema,
     kind: z.string().min(1),
     entryCount: z.number().int().nonnegative(),
     updatedAt: TimestampSchema

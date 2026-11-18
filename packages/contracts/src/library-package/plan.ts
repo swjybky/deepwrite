@@ -52,6 +52,7 @@ export interface LibraryPackagePlanLibrary {
   key: string;
   title: string;
   kind: string;
+  customTag?: string;
   /** Only folder recognition guesses kinds, so only those can be changed. */
   kindEditable: boolean;
   libraryType: LibraryType;
@@ -68,7 +69,9 @@ export interface LibraryPackagePlan {
     title: string;
     /** Whether "create group" starts checked. */
     suggested: boolean;
-    /** Slot → library key, as recorded in an exported package. */
+    /** Ordered library keys as recorded in an exported package. */
+    memberKeys?: readonly string[];
+    /** Slot → library key, as recorded in a legacy exported package. */
     slots?: Readonly<Record<string, string>>;
   } | null;
   libraries: LibraryPackagePlanLibrary[];

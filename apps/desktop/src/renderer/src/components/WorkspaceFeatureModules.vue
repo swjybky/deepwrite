@@ -37,6 +37,7 @@ import {
   StyleComparisonPage,
   SettingsPage,
   MarketplacePage,
+  MysteryWorkspaceModule,
   ZhuqueDetectionPage,
   WorkspaceDirectoryFeature
 } from "./lazyAppComponents";
@@ -477,4 +478,16 @@ const emit = defineEmits<{
     </button>
     <ZhuqueDetectionPage />
   </main>
+
+  <MysteryWorkspaceModule
+    v-else-if="module.kind === 'mystery-workspace'"
+    :book-id="module.bookId"
+    :catalog-snapshot="module.catalogSnapshot"
+    :conversation-for-key="module.resolveConversation"
+    :auto-save-enabled="module.autoSaveEnabled"
+    :default-text-view-mode="module.defaultTextViewMode"
+    :pane-layout="module.paneLayout"
+    :runtime-available="module.runtimeAvailable"
+    :on-book-removed="module.onBookRemoved"
+  />
 </template>

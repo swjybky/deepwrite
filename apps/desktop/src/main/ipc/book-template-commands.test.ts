@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  BookTemplateDraftSchema,
+  AcademicBookTemplateDraftSchema,
+  ShortBookTemplateDraftSchema,
   CommandEnvelopeSchema,
   createEnvelope,
   type CommandEnvelope
@@ -12,6 +13,7 @@ import { BookTemplateStore } from "../book-template-store";
 import type { IpcCommandContext } from "./command-types";
 import { handleBookTemplateCommands } from "./book-template-commands";
 import {
+  createInitialAcademicBook,
   createNewShortBook,
   createNewScriptBook
 } from "../../utilities/folder-catalog-store/book-creation";
@@ -30,7 +32,8 @@ async function setup() {
     async (_worker: string, command: CommandEnvelope) => {
       if (
         command.type !== "catalog.createShortBookAtPath" &&
-        command.type !== "catalog.createScriptBookAtPath"
+        command.type !== "catalog.createScriptBookAtPath" &&
+        command.type !== "catalog.createAcademicBookAtPath"
       )
         throw new Error("Unexpected command");
       const payload =
@@ -39,10 +42,15 @@ async function setup() {
               command.payload.input,
               "2026-01-01T00:00:00.000Z"
             )
-          : createNewScriptBook(
-              command.payload.input,
-              "2026-01-01T00:00:00.000Z"
-            );
+          : command.type === "catalog.createScriptBookAtPath"
+            ? createNewScriptBook(
+                command.payload.input,
+                "2026-01-01T00:00:00.000Z"
+              )
+            : createInitialAcademicBook(
+                command.payload.input,
+                "2026-01-01T00:00:00.000Z"
+              );
       return { status: "accepted", requestId: command.id, payload };
     }
   );
@@ -54,7 +62,7 @@ async function setup() {
     workspaceResourceParent: (directory: string) => join(directory, "books"),
     supervisor: { requestCommand }
   } as unknown as IpcCommandContext;
-  const configuration = BookTemplateDraftSchema.parse({
+  const configuration = ShortBookTemplateDraftSchema.parse({
     name: "创建模板",
     workspaceType: "short",
     genre: "其他",
@@ -177,5 +185,47 @@ describe("book template IPC routing", () => {
       error: { message: "模板已删除，请重新选择模板。" }
     });
     expect(h.requestCommand).not.toHaveBeenCalled();
+  });
+
+  it("saves and creates academic books from AcademicBookTemplateDraft", async () => {
+    const h = await setup();
+    const academicConfig = AcademicBookTemplateDraftSchema.parse({
+      name: "实证论文模板",
+      workspaceType: "academic",
+      subtype: "empirical_paper",
+      citationStyle: "ieee",
+      defaultFrameworkStageIds: ["problem_and_gap", "method_framework"],
+      linkedMaterialIds: ["mat_papers"],
+      linkedSkillIds: ["skill_academic"]
+    });
+    const saved = await h.store.save({ configuration: academicConfig });
+    const result = await handleBookTemplateCommands(
+      h.ctx,
+      command(saved.id),
+      () => h.store
+    );
+    expect(result).toMatchObject({
+      status: "accepted",
+      requestId: "cmd_template_test",
+      payload: {
+        title: "新作品",
+        bookType: "academic",
+        subtype: "empirical_paper",
+        citationStyle: "ieee"
+      }
+    });
+    expect(h.requestCommand.mock.calls[0]?.[1]).toMatchObject({
+      type: "catalog.createAcademicBookAtPath",
+      payload: {
+        input: {
+          title: "新作品",
+          subtype: "empirical_paper",
+          citationStyle: "ieee",
+          defaultFrameworkStageIds: ["problem_and_gap", "method_framework"],
+          linkedMaterialIds: ["mat_papers"],
+          linkedSkillIds: ["skill_academic"]
+        }
+      }
+    });
   });
 });

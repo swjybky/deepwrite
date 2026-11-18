@@ -14,6 +14,7 @@ import { webSearch } from "./web-search-api";
 import { bookIdentity } from "./book-identity-api";
 import { longMaterialPack } from "./long-material-pack-api";
 import { libraryPackage } from "./library-package-api";
+import { mystery } from "./mystery-api";
 import { storageSettings } from "./storage-settings-api";
 import { versions } from "./document-versions-api";
 import { textContextMenu } from "./text-context-menu-api";
@@ -36,7 +37,37 @@ import {
 } from "./agent-teams-api";
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  AcademicAgentIdSchema,
+  AcademicAgentSettingsInputSchema,
+  AcademicAgentSettingsSchema,
+  AcademicBookSchema,
+  type AcademicAgentId,
+  type AcademicAgentSettings,
+  type AcademicAgentSettingsInput,
   BookSchema,
+  CreateAcademicBookInputSchema,
+  CreateAcademicReferenceCardInputSchema,
+  CreateAcademicReferenceCardResultSchema,
+  CreativeBookSchema,
+  DeleteAcademicReferenceCardInputSchema,
+  DeleteAcademicReferenceCardResultSchema,
+  MutateAcademicFrameworkInputSchema,
+  MutateAcademicManuscriptInputSchema,
+  MutateAcademicManuscriptResultSchema,
+  UpdateAcademicReferenceCardInputSchema,
+  UpdateAcademicReferenceCardResultSchema,
+  type AcademicBook,
+  type CreateAcademicBookInput,
+  type CreateAcademicReferenceCardInput,
+  type CreateAcademicReferenceCardResult,
+  type CreativeBook,
+  type DeleteAcademicReferenceCardInput,
+  type DeleteAcademicReferenceCardResult,
+  type MutateAcademicFrameworkInput,
+  type MutateAcademicManuscriptInput,
+  type MutateAcademicManuscriptResult,
+  type UpdateAcademicReferenceCardInput,
+  type UpdateAcademicReferenceCardResult,
   SaveDocumentResultSchema,
   CatalogDraftSectionSchema,
   CatalogDraftRecoverySaveResultSchema,
@@ -71,6 +102,8 @@ import {
   MoveDraftSectionResultSchema,
   DuplicateCatalogProjectInputSchema,
   DuplicateCatalogProjectResultSchema,
+  ExportAcademicManuscriptInputSchema,
+  ExportAcademicManuscriptResultSchema,
   ExportLongManuscriptInputSchema,
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptInputSchema,
@@ -155,6 +188,8 @@ import {
   type MoveDraftSectionResult,
   type DuplicateCatalogProjectInput,
   type DuplicateCatalogProjectResult,
+  type ExportAcademicManuscriptInput,
+  type ExportAcademicManuscriptResult,
   type ExportLongManuscriptInput,
   type ExportLongManuscriptResult,
   type ExportShortManuscriptInput,
@@ -379,6 +414,21 @@ async function createScriptBook(
   );
 }
 
+async function createAcademicBook(
+  rawInput: CreateAcademicBookInput
+): Promise<AcademicBook | null> {
+  const input = CreateAcademicBookInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_create_academic_book");
+  return AcademicBookSchema.nullable().parse(
+    await invokeCommand<AcademicBook | null>(
+      createEnvelope("catalog.createAcademicBook", input, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
 async function createLibrary(
   rawInput: CreateLibraryInput
 ): Promise<CatalogLibrary | null> {
@@ -444,11 +494,11 @@ async function updateBook(rawInput: UpdateBookInput): Promise<Book> {
 
 async function mutatePlotStructure(
   rawInput: MutatePlotStructureInput
-): Promise<Book> {
+): Promise<CreativeBook> {
   const input = MutatePlotStructureInputSchema.parse(rawInput);
   const id = browserId("cmd_catalog_mutate_plot_structure");
-  return BookSchema.parse(
-    await invokeCommand<Book>(
+  return CreativeBookSchema.parse(
+    await invokeCommand<CreativeBook>(
       createEnvelope("catalog.mutatePlotStructure", input, {
         id,
         correlationId: id,
@@ -460,12 +510,92 @@ async function mutatePlotStructure(
 
 async function mutateCharacterStructure(
   rawInput: MutateCharacterStructureInput
-): Promise<Book> {
+): Promise<CreativeBook> {
   const input = MutateCharacterStructureInputSchema.parse(rawInput);
   const id = browserId("cmd_catalog_mutate_character_structure");
-  return BookSchema.parse(
-    await invokeCommand<Book>(
+  return CreativeBookSchema.parse(
+    await invokeCommand<CreativeBook>(
       createEnvelope("catalog.mutateCharacterStructure", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function mutateAcademicFramework(
+  rawInput: MutateAcademicFrameworkInput
+): Promise<AcademicBook> {
+  const input = MutateAcademicFrameworkInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_mutate_academic_framework");
+  return AcademicBookSchema.parse(
+    await invokeCommand<AcademicBook>(
+      createEnvelope("catalog.mutateAcademicFramework", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function createAcademicReferenceCard(
+  rawInput: CreateAcademicReferenceCardInput
+): Promise<CreateAcademicReferenceCardResult> {
+  const input = CreateAcademicReferenceCardInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_create_academic_card");
+  return CreateAcademicReferenceCardResultSchema.parse(
+    await invokeCommand<CreateAcademicReferenceCardResult>(
+      createEnvelope("catalog.createAcademicReferenceCard", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function updateAcademicReferenceCard(
+  rawInput: UpdateAcademicReferenceCardInput
+): Promise<UpdateAcademicReferenceCardResult> {
+  const input = UpdateAcademicReferenceCardInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_update_academic_card");
+  return UpdateAcademicReferenceCardResultSchema.parse(
+    await invokeCommand<UpdateAcademicReferenceCardResult>(
+      createEnvelope("catalog.updateAcademicReferenceCard", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function deleteAcademicReferenceCard(
+  rawInput: DeleteAcademicReferenceCardInput
+): Promise<DeleteAcademicReferenceCardResult> {
+  const input = DeleteAcademicReferenceCardInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_delete_academic_card");
+  return DeleteAcademicReferenceCardResultSchema.parse(
+    await invokeCommand<DeleteAcademicReferenceCardResult>(
+      createEnvelope("catalog.deleteAcademicReferenceCard", input, {
+        id,
+        correlationId: id,
+        context: { resourceId: input.bookId }
+      })
+    )
+  );
+}
+
+async function mutateAcademicManuscript(
+  rawInput: MutateAcademicManuscriptInput
+): Promise<MutateAcademicManuscriptResult> {
+  const input = MutateAcademicManuscriptInputSchema.parse(rawInput);
+  const id = browserId("cmd_catalog_mutate_academic_manuscript");
+  return MutateAcademicManuscriptResultSchema.parse(
+    await invokeCommand<MutateAcademicManuscriptResult>(
+      createEnvelope("catalog.mutateAcademicManuscript", input, {
         id,
         correlationId: id,
         context: { resourceId: input.bookId }
@@ -810,6 +940,48 @@ async function resetLongAgents(
   );
 }
 
+async function listAcademicAgents(): Promise<AcademicAgentSettings> {
+  const id = browserId("cmd_academic_agents_list");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope("academicAgents.list", {}, { id, correlationId: id })
+    )
+  );
+}
+
+async function saveAcademicAgents(
+  rawSettings: AcademicAgentSettingsInput
+): Promise<AcademicAgentSettings> {
+  const settings = AcademicAgentSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_academic_agents_save");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope("academicAgents.save", settings, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
+async function resetAcademicAgents(
+  rawAgentId?: AcademicAgentId
+): Promise<AcademicAgentSettings> {
+  const agentId = rawAgentId
+    ? AcademicAgentIdSchema.parse(rawAgentId)
+    : undefined;
+  const id = browserId("cmd_academic_agents_reset");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope(
+        "academicAgents.reset",
+        { ...(agentId ? { agentId } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
 async function saveWorkspaceAgents(
   rawSettings: ShortWorkspaceAgentSettingsInput
 ): Promise<ShortWorkspaceAgentSettings>;
@@ -975,6 +1147,21 @@ async function openNotificationSettings(): Promise<void> {
   );
 }
 
+async function exportAcademicManuscript(
+  rawInput: ExportAcademicManuscriptInput
+): Promise<ExportAcademicManuscriptResult> {
+  const input = ExportAcademicManuscriptInputSchema.parse(rawInput);
+  const id = browserId("cmd_manuscript_export_academic");
+  return ExportAcademicManuscriptResultSchema.parse(
+    await invokeCommand<ExportAcademicManuscriptResult>(
+      createEnvelope("manuscript.exportAcademic", input, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
 async function exportShortManuscript(
   rawInput: ExportShortManuscriptInput
 ): Promise<ExportShortManuscriptResult> {
@@ -1070,6 +1257,7 @@ const api: DeepWriteApi = {
     saveDraftRecovery,
     createShortBook,
     createScriptBook,
+    createAcademicBook,
     createLibrary,
     updateLibrary,
     createLibraryGroup,
@@ -1077,6 +1265,11 @@ const api: DeepWriteApi = {
     updateBook,
     mutateCharacterStructure,
     mutatePlotStructure,
+    mutateAcademicFramework,
+    createAcademicReferenceCard,
+    updateAcademicReferenceCard,
+    deleteAcademicReferenceCard,
+    mutateAcademicManuscript,
     updateLibraryGroup,
     deleteBook,
     saveDocument,
@@ -1115,6 +1308,11 @@ const api: DeepWriteApi = {
     save: saveLongAgents,
     reset: resetLongAgents
   },
+  academicAgents: {
+    list: listAcademicAgents,
+    save: saveAcademicAgents,
+    reset: resetAcademicAgents
+  },
   agentTeams: {
     saveBuiltins: saveBuiltinSubagents,
     list: listAgentTeams,
@@ -1144,9 +1342,11 @@ const api: DeepWriteApi = {
     openNotificationSettings
   },
   manuscript: {
+    exportAcademic: exportAcademicManuscript,
     exportLong: exportLongManuscript,
     exportShort: exportShortManuscript
   },
+  mystery,
   ...desktopEvents
 };
 

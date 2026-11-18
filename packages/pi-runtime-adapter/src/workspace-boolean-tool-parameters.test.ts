@@ -1,5 +1,12 @@
 import {
+  ACADEMIC_TERMINOLOGY_DOCUMENT_ID,
+  ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
+  createAcademicCardDocumentId,
+  createAcademicSectionDocumentId,
+  createShortWorkspaceContentRevision,
+  DEFAULT_ACADEMIC_AGENT_PROFILES,
   DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES,
+  type AcademicWorkspaceRuntimeContext,
   type AgentProviderRuntimeConfig
 } from "@deepwrite/contracts";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
@@ -9,6 +16,7 @@ import {
   type JsonObject
 } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
+import { buildAcademicWorkspaceTools } from "./academic-agent-tools";
 import { buildAskUserQuestionTool } from "./ask-user-question-tool";
 import { buildProviderRuntime } from "./provider-runtime";
 import {
@@ -27,7 +35,7 @@ import {
   toolByName
 } from "./short-agent-tools.test-support";
 
-type WorkspaceType = "short" | "script" | "long";
+type WorkspaceType = "short" | "script" | "long" | "academic";
 interface ToolPayload {
   tools: Array<{
     function: {
@@ -61,6 +69,98 @@ function writingTools(workspaceType: "short" | "script") {
         workspace: { ...workspace, activeAgentId: "script" },
         profile: DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES[0]!
       });
+}
+
+function academicTools() {
+  const mkMetric = (id: string, title: string, content: string) => ({
+    id,
+    title,
+    revision: createShortWorkspaceContentRevision(content),
+    characters: content.length,
+    content
+  });
+  const workspace: AcademicWorkspaceRuntimeContext = {
+    id: "book-academic-bool",
+    title: "测试学术论文",
+    subtype: "empirical_paper",
+    citationStyle: "apa",
+    readSource: "inline",
+    foundation: {
+      thesisOverview: mkMetric(
+        ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
+        "研究总述",
+        "原始研究总述。"
+      ),
+      terminology: mkMetric(
+        ACADEMIC_TERMINOLOGY_DOCUMENT_ID,
+        "术语与符号表",
+        "原始术语表。"
+      ),
+      cards: [
+        {
+          id: "card-1",
+          citeKey: "Smith2024",
+          cardType: "literature",
+          title: "Smith 2024",
+          documentId: createAcademicCardDocumentId("card-1"),
+          revision: createShortWorkspaceContentRevision("原始文献卡内容。"),
+          characters: 8,
+          content: "原始文献卡内容。"
+        }
+      ]
+    },
+    frameworkStages: [
+      {
+        id: "research_question",
+        title: "核心问题与贡献点",
+        description: "研究问题",
+        enabled: true,
+        builtin: true,
+        document: mkMetric(
+          "research_question",
+          "核心问题与贡献点",
+          "原始阶段论证。"
+        )
+      }
+    ],
+    manuscript: {
+      chapters: [],
+      sections: [
+        {
+          id: "sec-1",
+          order: 0,
+          title: "1. 引言",
+          wordCountRequirement: "",
+          brief: mkMetric(
+            createAcademicSectionDocumentId("sec-1", "brief"),
+            "1. 引言 - 写作指引",
+            "原始指引。"
+          ),
+          body: mkMetric(
+            createAcademicSectionDocumentId("sec-1", "body"),
+            "1. 引言",
+            "原始引言正文。"
+          ),
+          state: mkMetric(
+            createAcademicSectionDocumentId("sec-1", "state"),
+            "1. 引言 - 节末状态",
+            "原始节末状态。"
+          )
+        }
+      ]
+    }
+  };
+  return buildAcademicWorkspaceTools({
+    workspace,
+    profile: DEFAULT_ACADEMIC_AGENT_PROFILES[0]!,
+    writeApprovalMode: "request-approval",
+    requestUserInput: async () => ({
+      sessionId: "s",
+      runId: "r",
+      requestId: "req-1",
+      answers: []
+    })
+  });
 }
 
 async function capturePayload(
@@ -108,10 +208,8 @@ it.each([
   "serializes migrated tool modes as strings through %s",
   async (api, provider, modelId) => {
     const tools = [
-      ...writingTools("short").filter(
-        ({ name }) => name === "read" || name === "edit"
-      ),
-      buildAskUserQuestionTool()
+      toolByName(writingTools("short"), "read"),
+      ...academicTools().filter(({ name }) => name !== "read")
     ];
     const payload = JSON.stringify(
       await capturePayload(tools, {
@@ -122,13 +220,14 @@ it.each([
       })
     );
     expect(payload).toContain('"section_scope"');
-    expect(payload).toContain('"overwrite_mode"');
+    expect(payload).toContain('"stage_status"');
+    expect(payload).toContain('"match_scope"');
     expect(payload).toContain('"selection_mode"');
     expect(payload).not.toMatch(/"type":"boolean"/iu);
   }
 );
 
-describe.each(["short", "script", "long"] as const)(
+describe.each(["short", "script", "long", "academic"] as const)(
   "%s workspace tool parameters",
   (workspaceType: WorkspaceType) => {
     it.each([
@@ -142,7 +241,9 @@ describe.each(["short", "script", "long"] as const)(
         const tools =
           workspaceType === "long"
             ? longTools({ executor: documentExecutor(fixtureIndex()) })
-            : writingTools(workspaceType);
+            : workspaceType === "academic"
+              ? academicTools()
+              : writingTools(workspaceType);
         const payload = (await capturePayload(
           tools,
           { ...gatewayConfig, toolSchemaProfile: profile },
@@ -167,6 +268,18 @@ describe.each(["short", "script", "long"] as const)(
             enum: ["directory", "all_sections"]
           });
           expect(readProperties).not.toHaveProperty("include_all_sections");
+        }
+        if (workspaceType === "academic") {
+          const metaProps = (
+            editProperties.meta as {
+              properties: Record<string, Record<string, unknown>>;
+            }
+          ).properties;
+          expect(metaProps.stage_status).toMatchObject({
+            type: "string",
+            enum: ["enabled", "disabled"]
+          });
+          expect(metaProps).not.toHaveProperty("enabled");
         }
       }
     );
@@ -338,6 +451,42 @@ describe("long workspace overwrite permission", () => {
           expect(
             resultText(await read.execute("read-after", target))
           ).toContain("该文档自上次读取后未变化，原文仍在上文。");
+        }
+      }
+    }
+  );
+});
+
+describe("academic workspace overwrite permission", () => {
+  it.each(["", "替换后的学术正文。"])(
+    "preserves academic document content when overwrite mode is missing or invalid (content=%j)",
+    async (content) => {
+      const tools = academicTools();
+      const read = toolByName(tools, "read");
+      const edit = toolByName(tools, "edit");
+      const targets: JsonObject[] = [
+        { kind: "foundation", id: "thesis_overview" },
+        { kind: "foundation", id: "terminology" },
+        { kind: "reference_card", id: "card-1" },
+        { kind: "framework_stage", id: "research_question" },
+        { kind: "section", id: "sec-1", document: "brief" },
+        { kind: "section", id: "sec-1", document: "body" },
+        { kind: "section", id: "sec-1", document: "state" }
+      ];
+      for (const target of targets) {
+        const before = resultText(await read.execute("read-before", target));
+        const args = { ...target, content };
+        expectInvalidOverwriteModesRejected(edit, args);
+        for (const input of [args, { ...args, overwrite_mode: null }]) {
+          const result = await edit.execute(
+            "blocked-overwrite",
+            validateEdit(edit, input)
+          );
+          expect(resultText(result)).toContain("overwrite_mode=replace_all");
+          expect(result.details).toMatchObject({ kind: "none" });
+          expect(resultText(await read.execute("read-after", target))).toBe(
+            before
+          );
         }
       }
     }

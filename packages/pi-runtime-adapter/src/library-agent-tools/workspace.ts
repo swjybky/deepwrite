@@ -14,18 +14,18 @@ import {
 } from "./types";
 
 export const MATERIAL_KIND_STAGE_IDS: Record<string, readonly string[]> = {
-  character: ["character"],
-  gimmick: ["gimmick"],
-  plot: ["pacing", "intro", "plot_refine"],
-  draft: ["draft_excerpt"],
-  other: ["other"],
+  character: MATERIAL_STAGE_IDS,
+  gimmick: MATERIAL_STAGE_IDS,
+  plot: MATERIAL_STAGE_IDS,
+  draft: MATERIAL_STAGE_IDS,
+  other: MATERIAL_STAGE_IDS,
   mixed: MATERIAL_STAGE_IDS
 };
 
 export const SKILL_KIND_STAGE_IDS: Record<string, readonly string[]> = {
   general: SKILL_STAGE_IDS,
-  plot: ["character_design", "plot_design", "outline"],
-  style: ["draft", "expert_section_writer"],
+  plot: SKILL_STAGE_IDS,
+  style: SKILL_STAGE_IDS,
   other: SKILL_STAGE_IDS
 };
 
@@ -102,7 +102,8 @@ export function readableLibraries(
   const currentId = libraryId(workspace);
   const currentTitle = libraryTitle(workspace);
   const currentKind = String(
-    value.kind ??
+    value.customTag ??
+      value.kind ??
       (workspaceDomain(workspace) === "material"
         ? value.materialKind
         : value.skillKind) ??
@@ -112,7 +113,7 @@ export function readableLibraries(
     .map((library) => ({
       libraryId: String(library.libraryId ?? library.id ?? "").trim(),
       title: String(library.title ?? "").trim() || "未命名资料库",
-      kind: String(library.kind ?? "").trim() || "unknown"
+      kind: String(library.customTag ?? library.kind ?? "").trim() || "unknown"
     }))
     .filter((library) => library.libraryId);
   if (!listed.length) {
@@ -135,17 +136,7 @@ export function allowedStageIds(
   const explicit = value.allowedStageIds ?? value.stageIds;
   if (explicit?.length)
     return [...new Set(explicit.map(String).filter(Boolean))];
-  const kind = String(
-    value.kind ??
-      (domain === "material" ? value.materialKind : value.skillKind) ??
-      ""
-  );
-  const byKind =
-    domain === "material" ? MATERIAL_KIND_STAGE_IDS : SKILL_KIND_STAGE_IDS;
-  return [
-    ...(byKind[kind] ??
-      (domain === "material" ? MATERIAL_STAGE_IDS : SKILL_STAGE_IDS))
-  ];
+  return [...(domain === "material" ? MATERIAL_STAGE_IDS : SKILL_STAGE_IDS)];
 }
 
 export function mutableEntries(

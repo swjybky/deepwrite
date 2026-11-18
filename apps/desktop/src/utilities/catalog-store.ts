@@ -10,6 +10,8 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { createCatalogId, randomHex8 } from "@deepwrite/shared";
 import {
+  CreativeBookSchema,
+  type CreativeBook,
   BookSchema,
   CatalogDocumentSchema,
   CatalogSnapshotSchema,
@@ -48,7 +50,6 @@ import {
   type LinkedSkillIdsByKind,
   type LinkedSkillIdsByKindInput,
   type MaterialEntry,
-  type MaterialKind,
   type MaterialLibrary,
   type MaterialLibraryGroup,
   type MaterialStageId,
@@ -58,7 +59,6 @@ import {
   type ScriptBook,
   type ShortBook,
   type SkillEntry,
-  type SkillKind,
   type SkillLibrary,
   type SkillLibraryGroup,
   type SkillStageId,
@@ -677,6 +677,32 @@ function mergeSkillLibraries(
   return { values, aliasesByRoot };
 }
 
+function extractRawGroupMemberIds(
+  value: Record<string, unknown>,
+  legacySlots: readonly string[]
+): string[] {
+  if (Array.isArray(value.memberIds)) {
+    return [
+      ...new Set(
+        value.memberIds
+          .map((id) => asString(id).trim())
+          .filter((id) => id.length > 0)
+      )
+    ];
+  }
+  const membersRaw = asRecord(value.members);
+  const ordered: string[] = [];
+  for (const slot of legacySlots) {
+    const id = asString(membersRaw[slot]).trim();
+    if (id) ordered.push(id);
+  }
+  for (const rawId of Object.values(membersRaw)) {
+    const id = asString(rawId).trim();
+    if (id) ordered.push(id);
+  }
+  return [...new Set(ordered)];
+}
+
 function normalizeMaterialGroups(
   raw: unknown,
   materials: readonly MaterialLibrary[],
@@ -691,19 +717,10 @@ function normalizeMaterialGroups(
       if (!isRecord(value)) {
         return [];
       }
-      const membersRaw = asRecord(value.members);
-      const members: Partial<Record<MaterialKind, string>> = {};
-      for (const kind of MATERIAL_KINDS) {
-        const materialId = asString(membersRaw[kind]).trim();
-        const material = byId.get(materialId);
-        if (
-          material &&
-          (material.materialKind === "mixed" || material.materialKind === kind)
-        ) {
-          members[kind] = materialId;
-        }
-      }
-      if (Object.keys(members).length === 0) {
+      const memberIds = extractRawGroupMemberIds(value, MATERIAL_KINDS).filter(
+        (materialId) => byId.has(materialId)
+      );
+      if (memberIds.length === 0) {
         return [];
       }
       const createdAt = normalizeTimestamp(value.created_at, importedAt);
@@ -714,7 +731,7 @@ function normalizeMaterialGroups(
             asString(value.id).trim() ||
             stableLegacyId("material-group", index, value.title),
           title: nonBlankString(value.title, "未命名素材分组"),
-          members,
+          memberIds,
           createdAt,
           updatedAt
         }
@@ -737,16 +754,10 @@ function normalizeSkillGroups(
       if (!isRecord(value)) {
         return [];
       }
-      const membersRaw = asRecord(value.members);
-      const members: Partial<Record<SkillKind, string>> = {};
-      for (const kind of SKILL_KINDS) {
-        const skillId = asString(membersRaw[kind]).trim();
-        const skill = byId.get(skillId);
-        if (skill?.skillKind === kind) {
-          members[kind] = skillId;
-        }
-      }
-      if (Object.keys(members).length === 0) {
+      const memberIds = extractRawGroupMemberIds(value, SKILL_KINDS).filter(
+        (skillId) => byId.has(skillId)
+      );
+      if (memberIds.length === 0) {
         return [];
       }
       const createdAt = normalizeTimestamp(value.created_at, importedAt);
@@ -757,7 +768,7 @@ function normalizeSkillGroups(
             asString(value.id).trim() ||
             stableLegacyId("skill-group", index, value.title),
           title: nonBlankString(value.title, "未命名技能分组"),
-          members,
+          memberIds,
           createdAt,
           updatedAt
         }
@@ -777,27 +788,25 @@ function mergeMaterialGroups(
   for (const source of sources) {
     const aliases = aliasesByRoot.get(source.root);
     for (const incoming of source.materialGroups) {
-      const members: Partial<Record<MaterialKind, string>> = {};
-      for (const kind of MATERIAL_KINDS) {
-        const memberId = incoming.members[kind];
-        if (memberId) {
-          members[kind] = aliases?.get(memberId) ?? memberId;
-        }
-      }
+      const memberIds = [
+        ...new Set(
+          incoming.memberIds
+            .map((memberId) => aliases?.get(memberId) ?? memberId)
+            .filter(Boolean)
+        )
+      ];
       const existing = byId.get(incoming.id);
       if (existing) {
-        for (const kind of MATERIAL_KINDS) {
-          existing.members[kind] ??= members[kind];
-        }
+        existing.memberIds = [
+          ...new Set([...existing.memberIds, ...memberIds])
+        ];
         continue;
       }
-      const contentKey = `${incoming.title}\u0000${MATERIAL_KINDS.map(
-        (kind) => `${kind}:${members[kind] ?? ""}`
-      ).join("\u0001")}`;
+      const contentKey = `${incoming.title}\u0000${memberIds.join("\u0001")}`;
       if (contentKeys.has(contentKey)) {
         continue;
       }
-      const group = { ...incoming, members };
+      const group = { ...incoming, memberIds };
       values.push(group);
       byId.set(group.id, group);
       contentKeys.add(contentKey);
@@ -817,27 +826,25 @@ function mergeSkillGroups(
   for (const source of sources) {
     const aliases = aliasesByRoot.get(source.root);
     for (const incoming of source.skillGroups) {
-      const members: Partial<Record<SkillKind, string>> = {};
-      for (const kind of SKILL_KINDS) {
-        const memberId = incoming.members[kind];
-        if (memberId) {
-          members[kind] = aliases?.get(memberId) ?? memberId;
-        }
-      }
+      const memberIds = [
+        ...new Set(
+          incoming.memberIds
+            .map((memberId) => aliases?.get(memberId) ?? memberId)
+            .filter(Boolean)
+        )
+      ];
       const existing = byId.get(incoming.id);
       if (existing) {
-        for (const kind of SKILL_KINDS) {
-          existing.members[kind] ??= members[kind];
-        }
+        existing.memberIds = [
+          ...new Set([...existing.memberIds, ...memberIds])
+        ];
         continue;
       }
-      const contentKey = `${incoming.title}\u0000${SKILL_KINDS.map(
-        (kind) => `${kind}:${members[kind] ?? ""}`
-      ).join("\u0001")}`;
+      const contentKey = `${incoming.title}\u0000${memberIds.join("\u0001")}`;
       if (contentKeys.has(contentKey)) {
         continue;
       }
-      const group = { ...incoming, members };
+      const group = { ...incoming, memberIds };
       values.push(group);
       byId.set(group.id, group);
       contentKeys.add(contentKey);
@@ -1107,7 +1114,9 @@ async function importMissingLegacySources(
     revision: existing.revision + 1,
     creativePlotStages: mergeLegacyCreativePlotStages(
       existing.creativePlotStages,
-      existing.books.flatMap((book) => book.plotStages)
+      existing.books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      )
     ),
     books: structuredClone(existing.books),
     materials,
@@ -1182,20 +1191,29 @@ function assertCatalogReferences(snapshot: CatalogSnapshot): void {
   const skills = new Map(snapshot.skills.map((skill) => [skill.id, skill]));
 
   for (const book of snapshot.books) {
+    if (book.bookType === "academic") {
+      for (const materialId of book.linkedMaterialIds) {
+        if (!materials.has(materialId)) {
+          throw new Error(
+            `书籍「${book.title}」关联了不存在的素材库：${materialId}`
+          );
+        }
+      }
+      for (const skillId of book.linkedSkillIds) {
+        if (!skills.has(skillId)) {
+          throw new Error(
+            `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
+          );
+        }
+      }
+      continue;
+    }
     for (const kind of MATERIAL_KINDS) {
       for (const materialId of book.linkedMaterialIdsByKind[kind]) {
         const material = materials.get(materialId);
         if (!material) {
           throw new Error(
             `书籍「${book.title}」关联了不存在的素材库：${materialId}`
-          );
-        }
-        if (
-          material.materialKind !== "mixed" &&
-          material.materialKind !== kind
-        ) {
-          throw new Error(
-            `素材库「${material.title}」不能关联到 ${kind} 分类。`
           );
         }
       }
@@ -1208,37 +1226,22 @@ function assertCatalogReferences(snapshot: CatalogSnapshot): void {
             `书籍「${book.title}」绑定了不存在的技能库：${skillId}`
           );
         }
-        if (skill.skillKind !== kind) {
-          throw new Error(`技能库「${skill.title}」不能绑定到 ${kind} 分类。`);
-        }
       }
     }
   }
 
   for (const group of snapshot.materialGroups) {
-    for (const [kind, materialId] of Object.entries(group.members) as Array<
-      [MaterialKind, string]
-    >) {
-      const material = materials.get(materialId);
-      if (!material) {
+    for (const materialId of group.memberIds) {
+      if (!materials.has(materialId)) {
         throw new Error(`素材分组「${group.title}」引用了不存在的素材库。`);
-      }
-      if (material.materialKind !== "mixed" && material.materialKind !== kind) {
-        throw new Error(`素材分组「${group.title}」包含了错误分类的素材库。`);
       }
     }
   }
 
   for (const group of snapshot.skillGroups) {
-    for (const [kind, skillId] of Object.entries(group.members) as Array<
-      [SkillKind, string]
-    >) {
-      const skill = skills.get(skillId);
-      if (!skill) {
+    for (const skillId of group.memberIds) {
+      if (!skills.has(skillId)) {
         throw new Error(`技能分组「${group.title}」引用了不存在的技能库。`);
-      }
-      if (skill.skillKind !== kind) {
-        throw new Error(`技能分组「${group.title}」包含了错误分类的技能库。`);
       }
     }
   }
@@ -1410,21 +1413,36 @@ export class CatalogStore {
       if (input.title !== undefined) {
         book.title = input.title;
       }
-      if (input.genre !== undefined) {
-        book.genre = input.genre;
-      }
       if (input.status !== undefined) {
         book.status = input.status;
       }
-      if (input.linkedMaterialIdsByKind !== undefined) {
-        book.linkedMaterialIdsByKind = normalizeLinkedMaterialIds(
-          input.linkedMaterialIdsByKind
-        );
-      }
-      if (input.linkedSkillIdsByKind !== undefined) {
-        book.linkedSkillIdsByKind = normalizeLinkedSkillIds(
-          input.linkedSkillIdsByKind
-        );
+      if (book.bookType === "academic") {
+        if (input.subtype !== undefined) {
+          book.subtype = input.subtype;
+        }
+        if (input.citationStyle !== undefined) {
+          book.citationStyle = input.citationStyle;
+        }
+        if (input.linkedMaterialIds !== undefined) {
+          book.linkedMaterialIds = [...new Set(input.linkedMaterialIds)];
+        }
+        if (input.linkedSkillIds !== undefined) {
+          book.linkedSkillIds = [...new Set(input.linkedSkillIds)];
+        }
+      } else {
+        if (input.genre !== undefined) {
+          book.genre = input.genre;
+        }
+        if (input.linkedMaterialIdsByKind !== undefined) {
+          book.linkedMaterialIdsByKind = normalizeLinkedMaterialIds(
+            input.linkedMaterialIdsByKind
+          );
+        }
+        if (input.linkedSkillIdsByKind !== undefined) {
+          book.linkedSkillIdsByKind = normalizeLinkedSkillIds(
+            input.linkedSkillIdsByKind
+          );
+        }
       }
       book.updatedAt = this.now();
       return true;
@@ -1436,18 +1454,25 @@ export class CatalogStore {
     );
   }
 
-  async mutatePlotStructure(rawInput: MutatePlotStructureInput): Promise<Book> {
+  async mutatePlotStructure(
+    rawInput: MutatePlotStructureInput
+  ): Promise<CreativeBook> {
     const input = MutatePlotStructureInputSchema.parse(rawInput);
     const next = await this.commit((draft) => {
       const book = draft.books.find(
         (candidate) => candidate.id === input.bookId
       );
       if (!book) throw new Error("书籍不存在或已被删除。");
+      if (book.bookType === "academic") {
+        throw new Error("学术作品不支持剧情结构操作。");
+      }
       const now = this.now();
       const mutation = input.mutation;
       draft.creativePlotStages = mergeLegacyCreativePlotStages(
         draft.creativePlotStages,
-        draft.books.flatMap((candidate) => candidate.plotStages)
+        draft.books.flatMap((candidate) =>
+          candidate.bookType === "academic" ? [] : candidate.plotStages
+        )
       );
       if (mutation.type === "move" || mutation.type === "setEnabled") {
         const index = book.plotStages.findIndex(
@@ -1547,6 +1572,7 @@ export class CatalogStore {
         };
         draft.creativePlotStages.push(definition);
         for (const candidate of draft.books) {
+          if (candidate.bookType === "academic") continue;
           if (candidate.plotStages.some((stage) => stage.id === stageId)) {
             continue;
           }
@@ -1584,6 +1610,7 @@ export class CatalogStore {
           description: mutation.description
         };
         for (const candidate of draft.books) {
+          if (candidate.bookType === "academic") continue;
           const stage = candidate.plotStages.find(
             (item) => item.id === mutation.stageId
           );
@@ -1608,6 +1635,7 @@ export class CatalogStore {
           (stage) => stage.id !== mutation.stageId
         );
         for (const candidate of draft.books) {
+          if (candidate.bookType === "academic") continue;
           const index = candidate.plotStages.findIndex(
             (stage) => stage.id === mutation.stageId
           );
@@ -1630,18 +1658,21 @@ export class CatalogStore {
       }
       return true;
     });
-    return BookSchema.parse(
+    return CreativeBookSchema.parse(
       structuredClone(next.books.find((book) => book.id === input.bookId)!)
     );
   }
 
   async mutateCharacterStructure(
     rawInput: MutateCharacterStructureInput
-  ): Promise<Book> {
+  ): Promise<CreativeBook> {
     const input = MutateCharacterStructureInputSchema.parse(rawInput);
     const next = await this.commit((draft) => {
       const book = draft.books.find(({ id }) => id === input.bookId);
       if (!book) throw new Error("书籍不存在或已被删除。");
+      if (book.bookType === "academic") {
+        throw new Error("学术作品不支持人物结构操作。");
+      }
       const now = this.now();
       const overview = book.documents.find(
         ({ id }) => id === "character_design"
@@ -1752,7 +1783,7 @@ export class CatalogStore {
       book.updatedAt = now;
       return true;
     });
-    return BookSchema.parse(
+    return CreativeBookSchema.parse(
       structuredClone(next.books.find(({ id }) => id === input.bookId)!)
     );
   }
@@ -1779,6 +1810,9 @@ export class CatalogStore {
       );
       if (!book) {
         throw new Error("书籍不存在或已被删除。");
+      }
+      if (book.bookType === "academic") {
+        throw new Error("学术作品请通过文件夹存储保存文档。");
       }
       const now = this.now();
       const existing = book.documents.find(
@@ -1837,6 +1871,9 @@ export class CatalogStore {
       return true;
     });
     const book = next.books.find((candidate) => candidate.id === input.bookId)!;
+    if (book.bookType === "academic") {
+      throw new Error("学术作品请通过文件夹存储保存文档。");
+    }
     const saved =
       book.documents.find((document) => document.id === input.documentId) ??
       book.draft.sections

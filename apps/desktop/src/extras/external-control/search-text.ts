@@ -1,6 +1,9 @@
 import {
   CatalogReadDocumentResultSchema,
-  LongSearchResultSchema
+  LongSearchResultSchema,
+  MysteryReadAgentsMdResultSchema,
+  MysteryReadDocumentResultSchema,
+  MysteryWorkspaceIndexResultSchema
 } from "@deepwrite/contracts";
 import {
   EXTERNAL_DEFAULT_SEARCH_LIMIT,
@@ -13,6 +16,9 @@ import { findLibrary } from "./library-read-tools";
 import {
   catalogWorkDocuments,
   isLongWorkId,
+  isMysteryWorkId,
+  mysteryWorkDocuments,
+  parseMysteryDocumentTargetKey,
   readCatalogIndex
 } from "./work-read-tools";
 
@@ -53,7 +59,7 @@ function parseCursor(cursor: string | undefined): ScanPosition {
 function queryPattern(query: string): RegExp {
   const escaped = query
     .normalize("NFC")
-    .replace(/[.*+?^${}()|[\]\\/-]/gu, "\\$&");
+    .replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   return new RegExp(escaped, "giu");
 }
 
@@ -126,6 +132,40 @@ async function searchLong(
   });
 }
 
+async function readMysteryDocumentFull(
+  core: CoreRequest,
+  workId: string,
+  documentId: string
+): Promise<string> {
+  const target = parseMysteryDocumentTargetKey(documentId);
+  if (target.kind === "agents_md") {
+    return (
+      await readCore(
+        core,
+        "mystery.readAgentsMd",
+        { bookId: workId },
+        MysteryReadAgentsMdResultSchema
+      )
+    ).content;
+  }
+  const chunks: string[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await readCore(
+      core,
+      "mystery.readDocument",
+      { bookId: workId, target, offset, limit: 200_000 },
+      MysteryReadDocumentResultSchema
+    );
+    chunks.push(page.content);
+    if (!page.hasMore) break;
+    const readCount = Array.from(page.content).length;
+    if (readCount === 0) break;
+    offset += readCount;
+  }
+  return chunks.join("");
+}
+
 export async function searchText(
   core: CoreRequest,
   input: ExternalSearchTextInput,
@@ -139,6 +179,22 @@ export async function searchText(
     );
   }
   if (workId && isLongWorkId(workId)) return searchLong(core, input, workId);
+  if (workId && isMysteryWorkId(workId)) {
+    const { workspaceIndex } = await readCore(
+      core,
+      "mystery.getWorkspaceIndex",
+      { bookId: workId },
+      MysteryWorkspaceIndexResultSchema,
+      "找不到这部作品。请用 list_works 重新确认作品 ID。"
+    );
+    const scanned = await scanDocuments(
+      mysteryWorkDocuments(workspaceIndex),
+      (documentId) => readMysteryDocumentFull(core, workId, documentId),
+      input,
+      now
+    );
+    return ExternalSearchResultSchema.parse({ query: input.query, ...scanned });
+  }
 
   const index = await readCatalogIndex(core);
   let projectId: string;

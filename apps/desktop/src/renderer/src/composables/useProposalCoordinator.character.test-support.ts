@@ -129,6 +129,9 @@ export function createCharacterFixture(bookType: "short" | "script" = "short") {
     holdFirstSave: false,
     configure(context) {
       const book = context.catalog.catalogBook(BOOK_ID)!;
+      if (book.bookType === "academic") {
+        throw new Error("Expected creative book");
+      }
       book.characterStructure = { format: "list", items: [] };
       context.editor.documents.value = [];
       loader = useCatalogDocumentLoader({

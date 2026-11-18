@@ -1,9 +1,13 @@
 import { builtinWelcomeShortcuts } from "../i18n/builtinLabels";
+import { academicTreeT } from "../components/academic/academicTreeLabels";
 import { createScopedTranslator } from "../i18n";
 import type {
+  AcademicAgentId,
+  AgentTeamWorkspaceType,
   LibraryAgentDomain,
   LibraryAgentSkill,
   LongAgentId,
+  MysteryAgentId,
   ScriptAgentWelcomeShortcuts,
   ScriptWorkspaceAgentId,
   ShortAgentWelcomeShortcuts,
@@ -11,9 +15,12 @@ import type {
   WorkspaceAgentId
 } from "@deepwrite/contracts";
 import {
+  DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS,
+  DEFAULT_MYSTERY_AGENT_WELCOME_SHORTCUTS,
   DEFAULT_SCRIPT_AGENT_WELCOME_SHORTCUTS,
   DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS
-} from "@deepwrite/contracts";
+} from "@deepwrite/contracts/renderer";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 
 const t = createScopedTranslator("workspace");
 
@@ -114,16 +121,56 @@ export const LONG_AGENT_WELCOME_CONTENT = {
   }
 } satisfies Record<LongAgentId, AgentWelcomeContent>;
 
+export const ACADEMIC_AGENT_WELCOME_CONTENT = {
+  academic: {
+    get title() {
+      return academicTreeT("academicWelcomeTitle");
+    },
+    get description() {
+      return academicTreeT("academicWelcomeDesc");
+    },
+    get questions() {
+      return builtinWelcomeShortcuts("academic");
+    }
+  }
+} satisfies Record<AcademicAgentId, AgentWelcomeContent>;
+
 export function resolveAgentWelcome(
-  agentId: WorkspaceAgentId | LongAgentId | undefined,
+  agentId:
+    | WorkspaceAgentId
+    | LongAgentId
+    | AcademicAgentId
+    | MysteryAgentId
+    | undefined,
   libraryDomain?: LibraryAgentDomain,
   librarySkills?: readonly Pick<LibraryAgentSkill, "name">[],
   welcomeShortcuts?:
     | ShortAgentWelcomeShortcuts
     | ScriptAgentWelcomeShortcuts
     | readonly string[],
-  workspaceType: "short" | "script" | "long" = "short"
+  workspaceType: AgentTeamWorkspaceType = "short"
 ): AgentWelcomeContent {
+  if (agentId && workspaceType === "academic") {
+    const base = ACADEMIC_AGENT_WELCOME_CONTENT[agentId as AcademicAgentId];
+    if (base) {
+      return withWelcomeShortcuts(
+        base,
+        welcomeShortcuts,
+        DEFAULT_ACADEMIC_AGENT_WELCOME_SHORTCUTS
+      );
+    }
+  }
+  if (agentId && workspaceType === "mystery") {
+    return withWelcomeShortcuts(
+      {
+        title: mysteryLabels("mysteryWelcomeTitle"),
+        description: mysteryLabels("mysteryWelcomeDescription"),
+        questions: DEFAULT_MYSTERY_AGENT_WELCOME_SHORTCUTS
+      },
+      welcomeShortcuts,
+      DEFAULT_MYSTERY_AGENT_WELCOME_SHORTCUTS
+    );
+  }
   if (agentId && workspaceType === "script") {
     const base =
       SCRIPT_AGENT_WELCOME_CONTENT[agentId as ScriptWorkspaceAgentId];

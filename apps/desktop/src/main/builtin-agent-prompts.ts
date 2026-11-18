@@ -52,6 +52,7 @@ const LEGACY_PROMPT_FINGERPRINTS: Readonly<
     "2bce5325e2be36175f03c48f296b16fc81d5967735bf6b78e23af879bc3ffbf1",
     "b498b8338cce61c11dc5a85c20df5923ea65c5bf34a384bf1b091c0c4feacbf0"
   ],
+  academic: [],
   material: [
     "927455f3b9ae499d725cb61b50b454801b6899df7b49371f4c49be0a10e7a7d2",
     "1167d9285b09a60639c1b51fe0ef3f5cf76a6c6a6671767c49ce3e15d07091b0",
@@ -61,7 +62,8 @@ const LEGACY_PROMPT_FINGERPRINTS: Readonly<
     "8d72db2925c8f9db76c29f34fae1fbaa1e1a56919814326cf1977eaec4401c65",
     "bef3e68810b916c8f7efeaaca28e838dcc74c9e4dcb400cf67507d364f673a8f",
     "0b98a7fd0061fbef2533293cfb84d4a48ab8babb0ac89a2aaab7a7ac8cf544d0"
-  ]
+  ],
+  mystery: []
 };
 
 export function promptFingerprint(text: string): string {

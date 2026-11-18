@@ -11,6 +11,7 @@ import type {
 import type { CatalogWorkspaceProjection } from "../../data/catalogWorkspace";
 import type { AgentEditProposal } from "../../types/conversation";
 import type {
+  DraftFileKind,
   EditorDraftState,
   WorkspaceDocument
 } from "../../types/workspace";
@@ -117,7 +118,7 @@ export interface ProposalCoordinatorContext {
     documents: ShallowRef<WorkspaceDocument[]>;
     drafts: Ref<Record<string, EditorDraftState>>;
     liveDocuments: ComputedRef<WorkspaceDocument[]>;
-    selectedDraftFileKinds: Ref<Record<string, "body" | "character-state">>;
+    selectedDraftFileKinds: Ref<Record<string, DraftFileKind>>;
     selectedExpertSectionIds: Ref<Record<string, string>>;
     acceptingWorkspaceIds: Ref<Set<string>>;
     savingDocumentIds: Ref<Set<string>>;

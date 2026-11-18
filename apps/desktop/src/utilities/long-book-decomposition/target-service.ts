@@ -195,11 +195,12 @@ export async function prepareDecompositionTarget(
     if (job.targetSelection.action === "select" && !group)
       throw new Error("目标素材分组不存在。");
     for (const kind of kinds) {
-      const selected = group?.members[kind];
+      const selected = group?.memberIds.find(
+        (memberId) =>
+          snapshot.materials.find(({ id }) => id === memberId)?.materialKind ===
+          kind
+      );
       if (selected) {
-        const library = snapshot.materials.find(({ id }) => id === selected);
-        if (!library || library.materialKind !== kind)
-          throw new Error(`分组中的${kindNames[kind]}库的素材分类不兼容。`);
         prep.libraryIds[kind] = selected;
         await state.savePreparation(job.id, prep);
       } else if (
@@ -223,6 +224,7 @@ export async function prepareDecompositionTarget(
       await step(`library:${kind}`);
       snapshot = await catalog.indexSnapshot();
     }
+    const targetMemberIds = kinds.map((kind) => prep.libraryIds[kind]);
     const current = snapshot.materialGroups.find(
       ({ id }) => id === prep.groupId
     );
@@ -230,7 +232,7 @@ export async function prepareDecompositionTarget(
       await catalog.updateLibraryGroup({
         domain: "material",
         groupId: prep.groupId,
-        members: { ...current.members, ...prep.libraryIds }
+        memberIds: [...new Set([...current.memberIds, ...targetMemberIds])]
       });
     else {
       const path = join(prep.paths.groups, prep.groupId);
@@ -243,7 +245,7 @@ export async function prepareDecompositionTarget(
             title,
             snapshot.materialGroups.map(({ title }) => title)
           ),
-          members: prep.libraryIds,
+          memberIds: [...new Set(targetMemberIds)],
           parentDirectory: prep.paths.groups
         });
     }

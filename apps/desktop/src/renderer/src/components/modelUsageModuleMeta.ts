@@ -1,4 +1,6 @@
 import { createScopedTranslator } from "../i18n";
+import { academicTreeT } from "./academic/academicTreeLabels";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import type { ModelUsageModule } from "@deepwrite/contracts";
 
 const t = createScopedTranslator("components.modelUsageModuleMeta");
@@ -56,6 +58,22 @@ export const MODULE_META: Record<
     },
     get detail() {
       return t("novelWorkspace");
+    }
+  },
+  "academic-writing": {
+    get label() {
+      return academicTreeT("academicWritingModule");
+    },
+    get detail() {
+      return academicTreeT("academicWritingModuleDesc");
+    }
+  },
+  "mystery-writing": {
+    get label() {
+      return mysteryLabels("mysteryWriting");
+    },
+    get detail() {
+      return mysteryLabels("mysteryWorkspace");
     }
   },
   "skill-library": {

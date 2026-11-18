@@ -49,6 +49,9 @@ export function applyGlobalPlotStagesToNewBook<Resource extends Book>(
   globalStages: readonly CreativePlotStage[],
   defaultPlotStageIds?: readonly string[]
 ): Resource {
+  if (book.bookType === "academic") {
+    return book;
+  }
   const definitions =
     globalStages.length > 0
       ? mergeCreativePlotStageDefinitions(globalStages)
@@ -115,6 +118,9 @@ export async function mutatePlotStructure(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持剧情结构操作。");
+    }
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
@@ -356,6 +362,9 @@ export async function applyGlobalPlotStageOrder(
       projectDirectory,
       registration.id
     );
+    if (manifest.bookType === "academic") {
+      continue;
+    }
     const plotStages = [...manifest.plotStages].sort(
       (left, right) =>
         (order.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
@@ -400,6 +409,9 @@ export async function applyGlobalPlotStageCreate(
       projectDirectory,
       registration.id
     );
+    if (manifest.bookType === "academic") {
+      continue;
+    }
     if (manifest.plotStages.some(({ id }) => id === definition.id)) {
       continue;
     }
@@ -469,6 +481,9 @@ export async function applyGlobalPlotStageUpdate(
       projectDirectory,
       registration.id
     );
+    if (manifest.bookType === "academic") {
+      continue;
+    }
     const stageIndex = manifest.plotStages.findIndex(
       ({ id }) => id === definition.id
     );
@@ -524,6 +539,9 @@ export async function applyGlobalPlotStageDelete(
       projectDirectory,
       registration.id
     );
+    if (manifest.bookType === "academic") {
+      continue;
+    }
     const stageIndex = manifest.plotStages.findIndex(
       ({ id }) => id === stageId
     );

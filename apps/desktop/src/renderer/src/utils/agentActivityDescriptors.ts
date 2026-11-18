@@ -44,6 +44,9 @@ function shortAgentLabel(
   document: WorkspaceDocument,
   settings: readonly WorkspaceAgentSettings[]
 ): string | undefined {
+  if (document.workspaceType === "academic") {
+    return builtinAgentLabel("academic");
+  }
   if (
     !document.stageId ||
     (document.workspaceType !== "short" && document.workspaceType !== "script")

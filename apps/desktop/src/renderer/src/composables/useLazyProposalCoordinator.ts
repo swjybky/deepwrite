@@ -1,3 +1,4 @@
+import { authorizeProposalEvent } from "./proposal-coordinator/event-authorization";
 import { formatError } from "../i18n/errors";
 import { t } from "../i18n";
 import type {
@@ -95,6 +96,11 @@ export function useLazyProposalCoordinator(
       enqueue((loaded) => loaded.stageAgentEditProposal(...args)).catch(
         reportFailure
       );
+  const stageAcademicWorkspaceProposal: ProposalCoordinator["stageAcademicWorkspaceProposal"] =
+    (...args) => {
+      if (!disposed) authorizeProposalEvent(context, args[0]);
+      enqueueVoid((loaded) => loaded.stageAcademicWorkspaceProposal(...args));
+    };
   const stageLibraryStructureProposal: ProposalCoordinator["stageLibraryStructureProposal"] =
     (...args) => {
       enqueueVoid((loaded) => loaded.stageLibraryStructureProposal(...args));
@@ -155,6 +161,7 @@ export function useLazyProposalCoordinator(
     discardAgentEdit,
     scheduleQueuedAgentEdits,
     stageAgentEditProposal,
+    stageAcademicWorkspaceProposal,
     stageLibraryStructureProposal,
     stageLibraryEditProposal,
     stageLongCharacterEditProposal,

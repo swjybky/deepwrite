@@ -39,7 +39,7 @@ async function prepareGroups(): Promise<GroupDeletionFixture[]> {
     const group = await api.catalog.createLibraryGroup({
       domain,
       name: `${domain} 分组删除测试`,
-      members: { other: library.id }
+      memberIds: [library.id]
     });
     if (!group)
       throw new Error("Group deletion smoke group creation was canceled.");

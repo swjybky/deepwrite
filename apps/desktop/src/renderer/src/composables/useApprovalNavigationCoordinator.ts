@@ -5,14 +5,17 @@ import type {
 } from "@deepwrite/contracts";
 import type { DraftDirectoryProjection } from "../data/catalogWorkspace";
 import type { LongWorkspaceSelection } from "../types/longWorkspace";
-import type { ResourceTreeNode, WorkspaceDocument } from "../types/workspace";
+import type {
+  DraftFileKind,
+  ResourceTreeNode,
+  WorkspaceDocument
+} from "../types/workspace";
 import type {
   ApprovalNavigationTarget,
   LongApprovalEditorFocus,
   ResolvedLongApprovalNavigation
 } from "../utils/approvalNavigation";
 
-type DraftFileKind = "body" | "character-state";
 type LongTarget = Extract<ApprovalNavigationTarget, { kind: "long" }>;
 
 export interface ApprovalNavigationCatalogPort {

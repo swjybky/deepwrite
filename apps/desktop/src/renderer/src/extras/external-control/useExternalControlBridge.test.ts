@@ -546,4 +546,50 @@ describe("external recovery terminal status", () => {
       second.dispose();
     }
   );
+
+  it("opens academic works and runs academic conversations in team or normal mode", async () => {
+    const opened: unknown[] = [];
+    const saved = new Map<string, unknown>();
+    const test = harness(
+      {
+        open: async (target) => {
+          opened.push(target);
+          return true;
+        },
+        teamAvailable: (target) => target.kind === "academic"
+      },
+      true,
+      saved
+    );
+    try {
+      const openResp = await test.ask({
+        action: "open_target",
+        target: { kind: "academic", id: "acad-1" }
+      });
+      expect(openResp.ok).toBe(true);
+      expect(opened).toEqual([{ kind: "academic", id: "acad-1" }]);
+
+      const runResp = await test.ask({
+        action: "start_run",
+        target: { kind: "academic", id: "acad-1" },
+        message: "根据文献卡整理引言",
+        mode: "team",
+        newConversation: true
+      });
+      expect(runResp.ok).toBe(true);
+      expect(runResp.result).toMatchObject({
+        workId: "acad-1",
+        mode: "team",
+        status: "running"
+      });
+      await vi.waitFor(() =>
+        expect([...saved.values()][0]).toMatchObject({
+          target: { kind: "academic", id: "acad-1" },
+          mode: "team"
+        })
+      );
+    } finally {
+      test.dispose();
+    }
+  });
 });

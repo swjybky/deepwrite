@@ -6,6 +6,13 @@ import { computed, ref, watch } from "vue";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useConversationStore } from "../stores/conversationStore";
 
+export interface EditorDocumentVersionPort {
+  target: DocumentVersionTarget | null;
+  busy: boolean;
+  prepareRestore(): Promise<boolean>;
+  applyRestore(result: RestoreDocumentVersionResult): Promise<void> | void;
+}
+
 export function useEditorDocumentVersions(options: {
   target(): DocumentVersionTarget | null;
   content(): string;
@@ -34,12 +41,9 @@ export function useEditorDocumentVersions(options: {
         .some(({ isBusy }) => isBusy.value)
     );
   });
-  watch(
-    () => [visible.value, JSON.stringify(options.target())],
-    () => {
-      open.value = false;
-    }
-  );
+  watch([visible, () => JSON.stringify(options.target())], () => {
+    open.value = false;
+  });
   const dialogProps = computed(() => ({
     target: options.target()!,
     title: options.title(),

@@ -52,6 +52,23 @@ export function chatProjectStructure(
       JSON.stringify(book.navigation, null, 2)
     ];
   }
+  if (book.bookType === "academic") {
+    return [
+      `项目类型：学术作品（${book.subtype}，引用体例：${book.citationStyle}）`,
+      `项目名称：《${book.title}》`,
+      `项目 ID：${book.id}`,
+      `状态：${book.status}`,
+      `研究底座：研究立意与核心贡献、术语与符号表、文献与证据卡（${book.foundation.cards.length} 张）`,
+      `论证阶段：${book.frameworkStages
+        .filter((stage) => stage.enabled)
+        .map((stage) => `${stage.title}(${stage.id})`)
+        .join(" → ")}`,
+      `正文小节：${book.manuscript.sections
+        .map((section) => `${section.title}(${section.id})`)
+        .join("、")}`,
+      "各层与正文原文未注入系统提示词，必须通过本轮只读工具按需读取。"
+    ];
+  }
   return [
     `项目类型：${book.bookType === "script" ? "剧本" : "短篇"}`,
     `项目名称：《${book.title}》`,

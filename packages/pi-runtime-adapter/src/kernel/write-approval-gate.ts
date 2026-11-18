@@ -16,6 +16,7 @@ import { renderWriteApprovalResults } from "../write-approval";
 /** Runtime events that put an agent write in front of the user for review. */
 const PROPOSAL_EVENT_TYPES: ReadonlySet<AgentRuntimeEvent["type"]> = new Set([
   "workspace.editor_mutation",
+  "academic.workspace_mutation",
   "library.structure_proposal",
   "library.editor_mutation",
   "long.mutation_proposal",
@@ -23,7 +24,8 @@ const PROPOSAL_EVENT_TYPES: ReadonlySet<AgentRuntimeEvent["type"]> = new Set([
   "long.character_file_proposal",
   "long.continuity_file_proposal",
   "long.chapter_write_proposal",
-  "long.ledger_commit_proposal"
+  "long.ledger_commit_proposal",
+  "mystery.mutation_proposal"
 ]);
 
 export interface WriteApprovalGate {

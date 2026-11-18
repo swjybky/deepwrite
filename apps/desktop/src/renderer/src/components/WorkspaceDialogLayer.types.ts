@@ -1,10 +1,12 @@
 import type {
   Book,
   CharacterStructureMutation,
+  CreateAcademicBookInput,
   CreateLibraryEntryInput,
   CreateLibraryGroupInput,
   CreateLibraryInput,
   CreateLongBookInput,
+  CreateMysteryBookInput,
   CreateScriptBookInput,
   CreateShortBookInput,
   CatalogLibrary,
@@ -30,6 +32,7 @@ import type {
   PlotStructureMutation,
   SkillLibrary,
   SkillLibraryGroup,
+  SkillKind,
   UpdateLibraryGroupInput
 } from "@deepwrite/contracts";
 import type {
@@ -76,7 +79,12 @@ export type CreateCreativeBookPayload = BookAgentTeamChoice &
   (
     | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
     | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput)
+    | ({
+        workspaceType: "academic";
+        templateId?: string;
+      } & CreateAcademicBookInput)
     | ({ workspaceType: "long" } & CreateLongBookInput)
+    | ({ workspaceType: "mystery" } & CreateMysteryBookInput)
   );
 
 export type LibraryDomain = "material" | "skill";
@@ -243,6 +251,8 @@ export interface LongBindingsDialogModule {
   bookTitle: string;
   materials: readonly MaterialLibrary[];
   skills: readonly SkillLibrary[];
+  materialGroups: readonly MaterialLibraryGroup[];
+  skillGroups: readonly SkillLibraryGroup[];
   linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
   linkedSkillIdsByKind: LinkedSkillIdsByKind;
   linkedResourceStageScopes: LongLinkedResourceStageScopes;
@@ -269,6 +279,8 @@ export interface LibraryProjectDialogModule {
   libraryId?: string;
   libraryTitle?: string;
   materialKind?: MaterialLibraryKind;
+  skillKind?: SkillKind;
+  customTag?: string;
   entryId?: string;
   entryTitle?: string;
   workspaceType?: "short" | "script" | "long";
@@ -496,6 +508,9 @@ export interface WorkspaceDialogLayerEmits {
       domain: LibraryDomain;
       libraryId: string;
       title: string;
+      materialKind?: MaterialLibraryKind;
+      skillKind?: SkillKind;
+      customTag?: string | null;
     }
   ];
   renameLibraryEntry: [

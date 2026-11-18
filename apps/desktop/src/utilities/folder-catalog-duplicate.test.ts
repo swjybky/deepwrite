@@ -137,6 +137,9 @@ describe("FolderCatalogStore duplicateProject", () => {
     const snapshot = await store.snapshot();
     const source = snapshot.books.find(({ id }) => id === created.resource.id)!;
     const copy = snapshot.books.find(({ id }) => id === first.projectId)!;
+    if (source.bookType === "academic" || copy.bookType === "academic") {
+      throw new Error("Expected creative books");
+    }
 
     expect([first.title, second.title, third.title]).toEqual([
       "雨夜copy1",
@@ -183,10 +186,7 @@ describe("FolderCatalogStore duplicateProject", () => {
     const group = await store.createLibraryGroup({
       domain: "material",
       name: "都市组",
-      members: {
-        character: character.resource.id,
-        gimmick: gimmick.resource.id
-      }
+      memberIds: [character.resource.id, gimmick.resource.id]
     });
 
     const result = await store.duplicateProject({
@@ -198,10 +198,10 @@ describe("FolderCatalogStore duplicateProject", () => {
       ({ id }) => id === result.projectId
     )!;
     const copiedCharacter = snapshot.materials.find(
-      ({ id }) => id === copiedGroup.members.character
+      ({ id }) => id === copiedGroup.memberIds[0]
     )!;
     const copiedGimmick = snapshot.materials.find(
-      ({ id }) => id === copiedGroup.members.gimmick
+      ({ id }) => id === copiedGroup.memberIds[1]
     )!;
 
     expect(copiedGroup.title).toBe("都市组copy1");
@@ -282,7 +282,7 @@ describe("FolderCatalogStore duplicateProject", () => {
         {
           id: "broken-group",
           title: "损坏组",
-          members: { character: "missing-library" },
+          memberIds: ["missing-library"],
           createdAt: NOW,
           updatedAt: NOW
         }

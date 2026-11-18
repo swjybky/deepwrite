@@ -78,13 +78,14 @@ export function listActiveTeams(
   scope: LibraryManagementScope,
   models: AgentTeamModelChoice[]
 ) {
+  const bookType = scope.bookType;
   return ActiveAgentTeamListSchema.parse({
-    teams: activeAgentTeams(snapshot, scope.bookType, scope.bookId).teams.map(
+    teams: activeAgentTeams(snapshot, bookType, scope.bookId).teams.map(
       (team) => ({
         id: team.id,
         name: team.name,
         boundBookCount: agentTeamBoundBookCount(snapshot.bookBindings, team.id),
-        enabledAsDefault: snapshot.enabledTeamIds[scope.bookType] === team.id,
+        enabledAsDefault: snapshot.enabledTeamIds[bookType] === team.id,
         parallelSubagents: team.settings.parallelSubagents,
         parentAgentIds: team.settings.teams.map((item) => item.parentAgentId),
         revision: activeTeamRevision(team),
@@ -305,6 +306,7 @@ export function previewActiveTeamChange(
   const parallel = team.settings.parallelSubagents !== next.parallelSubagents;
   if (!members.length && !parallel)
     throw new Error("团队设置没有变化，未生成审阅。");
+  const bookType = input.scope.bookType;
   return AgentTeamChangeReviewSchema.parse({
     scope: input.scope,
     teamId: team.id,
@@ -321,7 +323,7 @@ export function previewActiveTeamChange(
     members,
     teamName: team.name,
     boundBookCount: agentTeamBoundBookCount(snapshot.bookBindings, team.id),
-    enabledAsDefault: snapshot.enabledTeamIds[input.scope.bookType] === team.id
+    enabledAsDefault: snapshot.enabledTeamIds[bookType] === team.id
   });
 }
 

@@ -35,11 +35,13 @@ export async function handleSessionCommands(
     | "requireModelConfigStore"
     | "requireWorkspaceAgentConfigStore"
     | "requireLongAgentConfigStore"
+    | "requireAcademicAgentConfigStore"
     | "requireAgentTeamConfigStore"
     | "requireLibraryAgentConfigStore"
     | "requireGeneralSettingsStore"
     | "resolveWebSearch"
-  >,
+  > &
+    Partial<Pick<IpcCommandContext, "requireMysteryAgentConfigStore">>,
   command: CommandEnvelope
 ): Promise<CommandResult | undefined> {
   const runControl = await handleSessionRunControlCommands(ctx, command);
@@ -64,12 +66,13 @@ export async function handleSessionCommands(
       };
     let keepOwnership = false;
     try {
-      const runtimeConfig = await ctx
-        .requireModelConfigStore()
-        .resolve(command.payload.modelId);
       const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
       const scriptWorkspace = command.payload.workspaceContext?.scriptWorkspace;
       const longWorkspace = command.payload.workspaceContext?.longWorkspace;
+      const academicWorkspace =
+        command.payload.workspaceContext?.academicWorkspace;
+      const mysteryWorkspace =
+        command.payload.workspaceContext?.mysteryWorkspace;
       const libraryWorkspace =
         command.payload.workspaceContext?.libraryWorkspace;
       const creativeWorkspace = shortWorkspace ?? scriptWorkspace;
@@ -84,6 +87,25 @@ export async function handleSessionCommands(
             .requireLongAgentConfigStore()
             .resolve(longWorkspace.activeAgentId)
         : undefined;
+      const academicAgentProfile = academicWorkspace
+        ? await ctx.requireAcademicAgentConfigStore().resolve("academic")
+        : undefined;
+      const requireMysteryStore = ctx.requireMysteryAgentConfigStore;
+      if (mysteryWorkspace && typeof requireMysteryStore !== "function") {
+        throw new Error("剧本杀智能体设置存储尚未初始化。");
+      }
+      const mysteryAgentProfile =
+        mysteryWorkspace && requireMysteryStore
+          ? await requireMysteryStore().resolve(mysteryWorkspace.activeAgentId)
+          : undefined;
+      const effectiveModelId =
+        command.payload.modelId ??
+        (academicAgentProfile?.modelMode === "custom"
+          ? academicAgentProfile.modelId
+          : undefined);
+      const runtimeConfig = await ctx
+        .requireModelConfigStore()
+        .resolve(effectiveModelId);
       const { subagentDefinitions, subagentRuntimeConfigs, parallelSubagents } =
         await resolveAgentTeamRuntime(
           command.payload.agentTeamMode,
@@ -99,7 +121,23 @@ export async function handleSessionCommands(
                   parentAgentId: longAgentProfile.id,
                   ...(longWorkspace ? { bookId: longWorkspace.bookId } : {})
                 }
-              : undefined,
+              : academicAgentProfile
+                ? {
+                    workspaceType: "academic",
+                    parentAgentId: academicAgentProfile.id,
+                    ...(academicWorkspace
+                      ? { bookId: academicWorkspace.id }
+                      : {})
+                  }
+                : mysteryAgentProfile
+                  ? {
+                      workspaceType: "mystery",
+                      parentAgentId: mysteryAgentProfile.id,
+                      ...(mysteryWorkspace
+                        ? { bookId: mysteryWorkspace.bookId }
+                        : {})
+                    }
+                  : undefined,
           {
             resolveDefinitions: (workspaceType, parentAgentId, bookId) =>
               ctx
@@ -128,8 +166,16 @@ export async function handleSessionCommands(
       const { thinkingLevel, temperature } = resolveModelRunSettings(
         runtimeConfig,
         {
-          thinkingLevel: command.payload.thinkingLevel,
-          temperature: command.payload.temperature
+          thinkingLevel:
+            command.payload.thinkingLevel ??
+            (academicAgentProfile?.modelMode === "custom"
+              ? academicAgentProfile.thinkingLevel
+              : undefined),
+          temperature:
+            command.payload.temperature ??
+            (academicAgentProfile?.modelMode === "custom"
+              ? academicAgentProfile.temperature
+              : undefined)
         }
       );
       const {
@@ -173,6 +219,8 @@ export async function handleSessionCommands(
           workspaceContext: command.payload.workspaceContext,
           ...(agentProfile ? { agentProfile } : {}),
           ...(longAgentProfile ? { longAgentProfile } : {}),
+          ...(academicAgentProfile ? { academicAgentProfile } : {}),
+          ...(mysteryAgentProfile ? { mysteryAgentProfile } : {}),
           snapshotMode: process.env.DEEPWRITE_MATERIAL_SNAPSHOT_MODE === "1"
         },
         (query) => ctx.supervisor.requestCommand("core", query, 60_000)
@@ -182,6 +230,9 @@ export async function handleSessionCommands(
           "agent.prompt",
           {
             ...promptPayload,
+            ...(effectiveModelId && !promptPayload.modelId
+              ? { modelId: effectiveModelId }
+              : {}),
             promptLocale: nativeLocale(),
             ...(libraryManagement ? { libraryManagement } : {}),
             ...(teamManagement ? { teamManagement } : {}),
@@ -199,6 +250,8 @@ export async function handleSessionCommands(
                 : { agentProfile }
               : {}),
             ...(longAgentProfile ? { longAgentProfile } : {}),
+            ...(academicAgentProfile ? { academicAgentProfile } : {}),
+            ...(mysteryAgentProfile ? { mysteryAgentProfile } : {}),
             ...(subagentDefinitions ? { subagentDefinitions } : {}),
             ...(parallelSubagents ? { parallelSubagents } : {}),
             ...(Object.keys(subagentRuntimeConfigs).length > 0
@@ -251,6 +304,8 @@ export async function handleSessionCommands(
             externalResourceIds: [
               ...(creativeWorkspace ? [creativeWorkspace.id] : []),
               ...(longWorkspace ? [longWorkspace.bookId] : []),
+              ...(academicWorkspace ? [academicWorkspace.id] : []),
+              ...(mysteryWorkspace ? [mysteryWorkspace.bookId] : []),
               ...(libraryWorkspace
                 ? [
                     `library-domain:${libraryWorkspace.domain}`,
@@ -278,7 +333,14 @@ export async function handleSessionCommands(
                     bookType: creativeWorkspaceType
                   }
                 }
-              : {}),
+              : academicWorkspace
+                ? {
+                    writingScope: {
+                      bookId: academicWorkspace.id,
+                      bookType: "academic" as const
+                    }
+                  }
+                : {}),
             promptRequestId: internalCommand.id,
             ...(teamManagement
               ? { teamManagementScope: teamManagement.scope }
@@ -299,7 +361,10 @@ export async function handleSessionCommands(
                 }
               : {}),
             usageContext,
-            ...(longWorkspace ? { resourceId: longWorkspace.bookId } : {})
+            ...(longWorkspace ? { resourceId: longWorkspace.bookId } : {}),
+            ...(mysteryWorkspace
+              ? { mysteryResourceId: mysteryWorkspace.bookId }
+              : {})
           });
         }
         ctx.pendingUsageContexts.delete(command.context.correlationId);

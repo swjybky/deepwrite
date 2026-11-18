@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { AcademicWorkspaceRuntimeContextSchema } from "../academic-workspace-runtime";
 import { MaterialMetadataSchema } from "../material-metadata";
 import { MaterialCatalogContextSchema } from "../material-query";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "../expert-draft";
 import { LongWorkspaceRuntimeContextSchema } from "../long-workspace-runtime/context";
+import { MysteryWorkspaceRuntimeContextSchema } from "../mystery";
 import { LibraryAgentWorkspaceSnapshotSchema } from "../library-agent";
 import { SubagentAuthoringRuntimeContextSchema } from "../subagent-authoring";
 import { ScriptWorkspaceSnapshotSchema } from "../script-workspace";
@@ -139,6 +141,8 @@ export const WorkspaceRuntimeContextSchema = z
     shortWorkspace: ShortWorkspaceSnapshotSchema.optional(),
     scriptWorkspace: ScriptWorkspaceSnapshotSchema.optional(),
     longWorkspace: LongWorkspaceRuntimeContextSchema.optional(),
+    academicWorkspace: AcademicWorkspaceRuntimeContextSchema.optional(),
+    mysteryWorkspace: MysteryWorkspaceRuntimeContextSchema.optional(),
     libraryWorkspace: LibraryAgentWorkspaceSnapshotSchema.optional(),
     subagentAuthoring: SubagentAuthoringRuntimeContextSchema.optional(),
     attachedSkills: z
@@ -157,6 +161,8 @@ export const WorkspaceRuntimeContextSchema = z
       value.shortWorkspace,
       value.scriptWorkspace,
       value.longWorkspace,
+      value.academicWorkspace,
+      value.mysteryWorkspace,
       value.libraryWorkspace,
       value.subagentAuthoring
     ].filter(Boolean).length;
@@ -219,6 +225,15 @@ export const WorkspaceRuntimeContextSchema = z
     }
     const active = value.activeResource;
     if (!active) return;
+
+    if (value.academicWorkspace && active.domain !== "creation") {
+      context.addIssue({
+        code: "custom",
+        path: ["academicWorkspace"],
+        message:
+          "The active resource must belong to the creation domain for an academic workspace."
+      });
+    }
 
     if (
       value.longWorkspace?.activeFileId &&

@@ -37,6 +37,24 @@ import {
   CatalogReadWritingContextCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema
 } from "./writing-context";
+import { AcademicCitationStyleSchema } from "./academic-citation-style";
+import {
+  AcademicBookSubtypeSchema,
+  CatalogIndexAcademicBookSchema,
+  CreateAcademicBookAtPathInputSchema,
+  CreateAcademicBookInputSchema,
+  CreateAcademicReferenceCardInputSchema,
+  CurrentAcademicBookProjectManifestObjectSchema,
+  CurrentAcademicBookSchema,
+  DeleteAcademicReferenceCardInputSchema,
+  MutateAcademicFrameworkInputSchema,
+  MutateAcademicManuscriptInputSchema,
+  UpdateAcademicReferenceCardInputSchema,
+  validateAcademicBookManifestFiles,
+  validateAcademicBookState
+} from "./academic-book";
+export * from "./academic-citation-style";
+export * from "./academic-book";
 
 const CatalogIdSchema = z.string().trim().min(1).max(512);
 const CatalogTitleSchema = z.string().trim().min(1).max(256);
@@ -309,6 +327,104 @@ export const SKILL_KINDS = ["general", "plot", "style", "other"] as const;
 export const SkillKindSchema = z.enum(SKILL_KINDS);
 export type SkillKind = z.infer<typeof SkillKindSchema>;
 
+export const LIBRARY_CUSTOM_TAG_MAX_LENGTH = 24;
+export const LibraryCustomTagSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(LIBRARY_CUSTOM_TAG_MAX_LENGTH);
+export type LibraryCustomTag = z.infer<typeof LibraryCustomTagSchema>;
+
+export const MATERIAL_PRESET_TAGS = [
+  "文献",
+  "数据",
+  "设定",
+  "案例",
+  "其他"
+] as const;
+export type MaterialPresetTag = (typeof MATERIAL_PRESET_TAGS)[number];
+
+export const SKILL_PRESET_TAGS = ["通用", "论证", "规范", "其他"] as const;
+export type SkillPresetTag = (typeof SKILL_PRESET_TAGS)[number];
+
+export const MATERIAL_GROUP_LEGACY_SLOTS = [
+  "character",
+  "gimmick",
+  "plot",
+  "draft",
+  "other"
+] as const;
+export const SKILL_GROUP_LEGACY_SLOTS = [
+  "general",
+  "plot",
+  "style",
+  "other"
+] as const;
+
+export const LibraryGroupMemberIdsSchema = UniqueIdListSchema;
+
+export function extractLegacyGroupMemberIds(
+  members: unknown,
+  slotOrder: readonly string[] = MATERIAL_GROUP_LEGACY_SLOTS
+): string[] {
+  if (
+    members === null ||
+    typeof members !== "object" ||
+    Array.isArray(members)
+  ) {
+    return [];
+  }
+  const record = members as Record<string, unknown>;
+  const ordered: string[] = [];
+  for (const slot of slotOrder) {
+    const value = record[slot];
+    if (typeof value === "string" && value.trim().length > 0) {
+      ordered.push(value.trim());
+    }
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      !slotOrder.includes(key) &&
+      typeof value === "string" &&
+      value.trim().length > 0
+    ) {
+      ordered.push(value.trim());
+    }
+  }
+  return [...new Set(ordered)];
+}
+
+export function migrateLegacyGroupMembers(slotOrder: readonly string[]) {
+  return (value: unknown): unknown => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.memberIds)) {
+      if ("members" in record) {
+        const { members: _members, ...rest } = record;
+        return rest;
+      }
+      return value;
+    }
+    if (
+      record.members !== null &&
+      typeof record.members === "object" &&
+      !Array.isArray(record.members) &&
+      Object.values(record.members as Record<string, unknown>).every(
+        (item) => item === undefined || typeof item === "string"
+      )
+    ) {
+      const { members, ...rest } = record;
+      return {
+        ...rest,
+        memberIds: extractLegacyGroupMemberIds(members, slotOrder)
+      };
+    }
+    return value;
+  };
+}
+
 export const LibraryTypeSchema = z.enum(["short", "long", "script"]);
 export type LibraryType = z.infer<typeof LibraryTypeSchema>;
 
@@ -373,6 +489,115 @@ export const LinkedSkillIdsByKindInputSchema = z.object({
 export type LinkedSkillIdsByKindInput = z.infer<
   typeof LinkedSkillIdsByKindInputSchema
 >;
+
+export function flattenMaterialIdsByKind(
+  byKind?: LinkedMaterialIdsByKindInput | null
+): string[] {
+  if (!byKind) return [];
+  const ordered: string[] = [];
+  for (const kind of MATERIAL_KINDS) {
+    for (const raw of byKind[kind] ?? []) {
+      const id = raw.trim();
+      if (id && !ordered.includes(id)) ordered.push(id);
+    }
+  }
+  return ordered;
+}
+
+export function flattenSkillIdsByKind(
+  byKind?: LinkedSkillIdsByKindInput | null
+): string[] {
+  if (!byKind) return [];
+  const ordered: string[] = [];
+  for (const kind of SKILL_KINDS) {
+    for (const raw of byKind[kind] ?? []) {
+      const id = raw.trim();
+      if (id && !ordered.includes(id)) ordered.push(id);
+    }
+  }
+  return ordered;
+}
+
+export function materialIdsToByKind(
+  ids: readonly string[],
+  materials: readonly {
+    id: string;
+    materialKind: MaterialLibraryKind;
+    customTag?: string | undefined;
+  }[],
+  previousByKind?: LinkedMaterialIdsByKindInput | null
+): LinkedMaterialIdsByKind {
+  const byId = new Map(materials.map((item) => [item.id, item]));
+  const previousBucket = new Map<string, MaterialKind>();
+  if (previousByKind) {
+    for (const kind of MATERIAL_KINDS) {
+      for (const id of previousByKind[kind] ?? []) {
+        if (!previousBucket.has(id)) previousBucket.set(id, kind);
+      }
+    }
+  }
+  const result: LinkedMaterialIdsByKind = {
+    character: [],
+    gimmick: [],
+    plot: [],
+    draft: [],
+    other: []
+  };
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const library = byId.get(id);
+    const bucket: MaterialKind = library
+      ? !library.customTag && library.materialKind !== "mixed"
+        ? library.materialKind
+        : "other"
+      : (previousBucket.get(id) ?? "other");
+    result[bucket].push(id);
+  }
+  return result;
+}
+
+export function skillIdsToByKind(
+  ids: readonly string[],
+  skills: readonly {
+    id: string;
+    skillKind: SkillKind;
+    customTag?: string | undefined;
+  }[],
+  previousByKind?: LinkedSkillIdsByKindInput | null
+): LinkedSkillIdsByKind {
+  const byId = new Map(skills.map((item) => [item.id, item]));
+  const previousBucket = new Map<string, SkillKind>();
+  if (previousByKind) {
+    for (const kind of SKILL_KINDS) {
+      for (const id of previousByKind[kind] ?? []) {
+        if (!previousBucket.has(id)) previousBucket.set(id, kind);
+      }
+    }
+  }
+  const result: LinkedSkillIdsByKind = {
+    general: [],
+    plot: [],
+    style: [],
+    other: []
+  };
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const library = byId.get(id);
+    const bucket: SkillKind = library
+      ? !library.customTag
+        ? library.skillKind
+        : "other"
+      : (previousBucket.get(id) ?? "other");
+    result[bucket].push(id);
+  }
+  return result;
+}
 
 export const CatalogDocumentSchema = z.object({
   id: CatalogIdSchema,
@@ -888,6 +1113,13 @@ function migrateLegacyCharacterOverviewTitle(value: unknown): unknown {
 }
 
 function migrateBook(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === "object" &&
+    (value as { bookType?: unknown }).bookType === "academic"
+  ) {
+    return value;
+  }
   return migrateLegacyCharacterOverviewTitle(
     migrateMissingCharacterStructure(
       migrateBookPlotStageEnabled(
@@ -1010,15 +1242,23 @@ export const ScriptBookSchema = z
   });
 export type ScriptBook = z.infer<typeof ScriptBookSchema>;
 
+export const CreativeBookSchema = z.union([ShortBookSchema, ScriptBookSchema]);
+export type CreativeBook = z.infer<typeof CreativeBookSchema>;
+
 export const CurrentBookSchema = z.discriminatedUnion("bookType", [
   CurrentShortBookSchema,
-  CurrentScriptBookSchema
+  CurrentScriptBookSchema,
+  CurrentAcademicBookSchema
 ]);
 
 /** Current books are discriminated by `bookType`; legacy short books migrate first. */
 export const BookSchema = z
   .preprocess(migrateBook, CurrentBookSchema)
   .superRefine((book, context) => {
+    if (book.bookType === "academic") {
+      validateAcademicBookState(book, context);
+      return;
+    }
     validateUniqueBookDocumentIds(book, context);
     validateCharacterStructureDocuments(book, context);
     validatePlotStageDocuments(book, context);
@@ -1041,6 +1281,7 @@ export const MaterialLibrarySchema = z.object({
   title: CatalogTitleSchema,
   materialType: LibraryTypeSchema,
   materialKind: MaterialLibraryKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   parentGenre: z.string(),
   subGenre: z.string(),
   overview: z.string(),
@@ -1051,20 +1292,17 @@ export const MaterialLibrarySchema = z.object({
 });
 export type MaterialLibrary = z.infer<typeof MaterialLibrarySchema>;
 
-export const MaterialLibraryGroupSchema = z.object({
-  id: CatalogIdSchema,
-  title: CatalogTitleSchema,
-  members: z.object({
-    character: CatalogIdSchema.optional(),
-    gimmick: CatalogIdSchema.optional(),
-    plot: CatalogIdSchema.optional(),
-    draft: CatalogIdSchema.optional(),
-    other: CatalogIdSchema.optional()
-  }),
-  projectRevision: z.number().int().nonnegative().optional(),
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema
-});
+export const MaterialLibraryGroupSchema = z.preprocess(
+  migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
+  z.object({
+    id: CatalogIdSchema,
+    title: CatalogTitleSchema,
+    memberIds: LibraryGroupMemberIdsSchema,
+    projectRevision: z.number().int().nonnegative().optional(),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+);
 export type MaterialLibraryGroup = z.infer<typeof MaterialLibraryGroupSchema>;
 
 export const SkillEntrySchema = z.object({
@@ -1087,6 +1325,7 @@ export const SkillLibrarySchema = z.object({
   title: CatalogTitleSchema,
   skillType: LibraryTypeSchema,
   skillKind: SkillKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   overview: z.string(),
   isBuiltin: z.boolean(),
   marketplaceSource: MarketplaceSourceSchema.optional(),
@@ -1097,20 +1336,18 @@ export const SkillLibrarySchema = z.object({
 });
 export type SkillLibrary = z.infer<typeof SkillLibrarySchema>;
 
-export const SkillLibraryGroupSchema = z.object({
-  id: CatalogIdSchema,
-  title: CatalogTitleSchema,
-  members: z.object({
-    general: CatalogIdSchema.optional(),
-    plot: CatalogIdSchema.optional(),
-    style: CatalogIdSchema.optional(),
-    other: CatalogIdSchema.optional()
-  }),
-  marketplaceSource: MarketplaceSourceSchema.optional(),
-  projectRevision: z.number().int().nonnegative().optional(),
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema
-});
+export const SkillLibraryGroupSchema = z.preprocess(
+  migrateLegacyGroupMembers(SKILL_GROUP_LEGACY_SLOTS),
+  z.object({
+    id: CatalogIdSchema,
+    title: CatalogTitleSchema,
+    memberIds: LibraryGroupMemberIdsSchema,
+    marketplaceSource: MarketplaceSourceSchema.optional(),
+    projectRevision: z.number().int().nonnegative().optional(),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+);
 export type SkillLibraryGroup = z.infer<typeof SkillLibraryGroupSchema>;
 
 export const BookProjectDocumentManifestSchema = z
@@ -1456,6 +1693,13 @@ function validateCharacterStructureManifestFiles(
 }
 
 function preprocessBookProjectManifestPlotStages(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === "object" &&
+    (value as { bookType?: unknown }).bookType === "academic"
+  ) {
+    return value;
+  }
   return migrateLegacyCharacterOverviewTitle(
     migrateBookPlotStageEnabled(value)
   );
@@ -1497,10 +1741,15 @@ export const CurrentBookProjectManifestSchema = z
     preprocessBookProjectManifestPlotStages,
     z.discriminatedUnion("bookType", [
       CurrentShortBookProjectManifestObjectSchema,
-      ScriptBookProjectManifestObjectSchema
+      ScriptBookProjectManifestObjectSchema,
+      CurrentAcademicBookProjectManifestObjectSchema
     ])
   )
   .superRefine((manifest, context) => {
+    if (manifest.bookType === "academic") {
+      validateAcademicBookManifestFiles(manifest, context);
+      return;
+    }
     validateUniqueBookManifestFiles(manifest, context);
     validateCharacterStructureManifestFiles(manifest, context);
     validatePlotStageManifestFiles(manifest, context);
@@ -1522,6 +1771,7 @@ export const MaterialLibraryProjectManifestSchema =
     kind: z.literal("deepwrite.material-library"),
     materialType: LibraryTypeSchema,
     materialKind: MaterialLibraryKindSchema,
+    customTag: LibraryCustomTagSchema.optional(),
     parentGenre: z.string(),
     subGenre: z.string(),
     overview: z.string(),
@@ -1538,6 +1788,7 @@ export const SkillLibraryProjectManifestSchema =
     kind: z.literal("deepwrite.skill-library"),
     skillType: LibraryTypeSchema,
     skillKind: SkillKindSchema,
+    customTag: LibraryCustomTagSchema.optional(),
     overview: z.string(),
     isBuiltin: z.boolean(),
     marketplaceSource: MarketplaceSourceSchema.optional(),
@@ -1549,32 +1800,25 @@ export type SkillLibraryProjectManifest = z.infer<
   typeof SkillLibraryProjectManifestSchema
 >;
 
-export const MaterialGroupProjectManifestSchema =
+export const MaterialGroupProjectManifestSchema = z.preprocess(
+  migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
   CatalogProjectManifestBaseSchema.extend({
     kind: z.literal("deepwrite.material-group"),
-    members: z.object({
-      character: CatalogIdSchema.optional(),
-      gimmick: CatalogIdSchema.optional(),
-      plot: CatalogIdSchema.optional(),
-      draft: CatalogIdSchema.optional(),
-      other: CatalogIdSchema.optional()
-    })
-  });
+    memberIds: LibraryGroupMemberIdsSchema
+  })
+);
 export type MaterialGroupProjectManifest = z.infer<
   typeof MaterialGroupProjectManifestSchema
 >;
 
-export const SkillGroupProjectManifestSchema =
+export const SkillGroupProjectManifestSchema = z.preprocess(
+  migrateLegacyGroupMembers(SKILL_GROUP_LEGACY_SLOTS),
   CatalogProjectManifestBaseSchema.extend({
     kind: z.literal("deepwrite.skill-group"),
-    members: z.object({
-      general: CatalogIdSchema.optional(),
-      plot: CatalogIdSchema.optional(),
-      style: CatalogIdSchema.optional(),
-      other: CatalogIdSchema.optional()
-    }),
+    memberIds: LibraryGroupMemberIdsSchema,
     marketplaceSource: MarketplaceSourceSchema.optional()
-  });
+  })
+);
 export type SkillGroupProjectManifest = z.infer<
   typeof SkillGroupProjectManifestSchema
 >;
@@ -1734,6 +1978,7 @@ export const CatalogSnapshotSchema = z
           message: "Book documents cannot contain duplicate ids."
         });
       }
+      if (book.bookType === "academic") continue;
       for (const [stageIndex, stage] of book.plotStages.entries()) {
         if (!globalIds.has(stage.id)) {
           context.addIssue({
@@ -1811,7 +2056,8 @@ const CatalogIndexScriptBookSchema = CurrentScriptBookSchema.extend({
 
 export const CatalogIndexBookSchema = z.discriminatedUnion("bookType", [
   CatalogIndexShortBookSchema,
-  CatalogIndexScriptBookSchema
+  CatalogIndexScriptBookSchema,
+  CatalogIndexAcademicBookSchema
 ]);
 export type CatalogIndexBook = z.infer<typeof CatalogIndexBookSchema>;
 
@@ -1998,9 +2244,13 @@ export const UpdateBookInputSchema = z
     force: z.boolean().optional(),
     title: CatalogTitleSchema.optional(),
     genre: ShortBookGenreSchema.optional(),
+    subtype: AcademicBookSubtypeSchema.optional(),
+    citationStyle: AcademicCitationStyleSchema.optional(),
     status: z.enum(["editing", "completed"]).optional(),
     linkedMaterialIdsByKind: LinkedMaterialIdsByKindInputSchema.optional(),
-    linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional()
+    linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional(),
+    linkedMaterialIds: UniqueIdListSchema.optional(),
+    linkedSkillIds: UniqueIdListSchema.optional()
   })
   .refine(
     ({
@@ -2295,6 +2545,7 @@ const CreateMaterialLibraryInputSchema = z.object({
   domain: z.literal("material"),
   name: CatalogTitleSchema,
   materialKind: MaterialKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   libraryType: LibraryTypeSchema.optional()
 });
 
@@ -2302,6 +2553,7 @@ const CreateSkillLibraryInputSchema = z.object({
   domain: z.literal("skill"),
   name: CatalogTitleSchema,
   skillKind: SkillKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   libraryType: LibraryTypeSchema.optional()
 });
 
@@ -2318,13 +2570,21 @@ export const UpdateLibraryInputSchema = z
     managementScope: LibraryManagementScopeSchema.optional(),
     title: CatalogTitleSchema.optional(),
     overview: z.string().optional(),
+    customTag: LibraryCustomTagSchema.nullable().optional(),
+    materialKind: MaterialLibraryKindSchema.optional(),
+    skillKind: SkillKindSchema.optional(),
     baseProjectRevision: z.number().int().nonnegative().optional(),
     force: z.boolean().optional()
   })
   .refine(
-    (value) => value.title !== undefined || value.overview !== undefined,
+    (value) =>
+      value.title !== undefined ||
+      value.overview !== undefined ||
+      value.customTag !== undefined ||
+      value.materialKind !== undefined ||
+      value.skillKind !== undefined,
     {
-      message: "Library updates must include a title or overview."
+      message: "Library updates must include a title, overview, or tag."
     }
   );
 export type UpdateLibraryInput = z.infer<typeof UpdateLibraryInputSchema>;
@@ -2342,22 +2602,35 @@ export type CreateLibraryAtPathInput = z.infer<
   typeof CreateLibraryAtPathInputSchema
 >;
 
+function migrateGroupMutationInput(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const domain = (value as Record<string, unknown>).domain;
+  return migrateLegacyGroupMembers(
+    domain === "skill" ? SKILL_GROUP_LEGACY_SLOTS : MATERIAL_GROUP_LEGACY_SLOTS
+  )(value);
+}
+
 const CreateMaterialLibraryGroupInputSchema = z.object({
   domain: z.literal("material"),
   name: CatalogTitleSchema,
-  members: MaterialLibraryGroupSchema.shape.members
+  memberIds: LibraryGroupMemberIdsSchema
 });
 
 const CreateSkillLibraryGroupInputSchema = z.object({
   domain: z.literal("skill"),
   name: CatalogTitleSchema,
-  members: SkillLibraryGroupSchema.shape.members
+  memberIds: LibraryGroupMemberIdsSchema
 });
 
-export const CreateLibraryGroupInputSchema = z.discriminatedUnion("domain", [
-  CreateMaterialLibraryGroupInputSchema,
-  CreateSkillLibraryGroupInputSchema
-]);
+export const CreateLibraryGroupInputSchema = z.preprocess(
+  migrateGroupMutationInput,
+  z.discriminatedUnion("domain", [
+    CreateMaterialLibraryGroupInputSchema,
+    CreateSkillLibraryGroupInputSchema
+  ])
+);
 export type CreateLibraryGroupInput = z.infer<
   typeof CreateLibraryGroupInputSchema
 >;
@@ -2366,7 +2639,7 @@ const UpdateMaterialLibraryGroupInputSchema = z.object({
   domain: z.literal("material"),
   groupId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
-  members: MaterialLibraryGroupSchema.shape.members,
+  memberIds: LibraryGroupMemberIdsSchema,
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
 });
@@ -2375,15 +2648,18 @@ const UpdateSkillLibraryGroupInputSchema = z.object({
   domain: z.literal("skill"),
   groupId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
-  members: SkillLibraryGroupSchema.shape.members,
+  memberIds: LibraryGroupMemberIdsSchema,
   baseProjectRevision: z.number().int().nonnegative().optional(),
   force: z.boolean().optional()
 });
 
-export const UpdateLibraryGroupInputSchema = z.discriminatedUnion("domain", [
-  UpdateMaterialLibraryGroupInputSchema,
-  UpdateSkillLibraryGroupInputSchema
-]);
+export const UpdateLibraryGroupInputSchema = z.preprocess(
+  migrateGroupMutationInput,
+  z.discriminatedUnion("domain", [
+    UpdateMaterialLibraryGroupInputSchema,
+    UpdateSkillLibraryGroupInputSchema
+  ])
+);
 export type UpdateLibraryGroupInput = z.infer<
   typeof UpdateLibraryGroupInputSchema
 >;
@@ -2673,6 +2949,12 @@ export const CatalogCreateScriptBookCommandEnvelopeSchema =
     CreateScriptBookInputSchema
   );
 
+export const CatalogCreateAcademicBookCommandEnvelopeSchema =
+  /* @__PURE__ */ createBookCreationEnvelope(
+    "catalog.createAcademicBook",
+    CreateAcademicBookInputSchema
+  );
+
 export const CatalogCreateLibraryCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.createLibrary"),
@@ -2713,6 +2995,12 @@ export const CatalogCreateScriptBookAtPathCommandEnvelopeSchema =
   /* @__PURE__ */ createBookCreationEnvelope(
     "catalog.createScriptBookAtPath",
     CreateScriptBookAtPathInputSchema
+  );
+
+export const CatalogCreateAcademicBookAtPathCommandEnvelopeSchema =
+  /* @__PURE__ */ createBookCreationEnvelope(
+    "catalog.createAcademicBookAtPath",
+    CreateAcademicBookAtPathInputSchema
   );
 
 export const CatalogCreateLibraryAtPathCommandEnvelopeSchema =
@@ -2756,6 +3044,36 @@ export const CatalogMutateCharacterStructureCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("catalog.mutateCharacterStructure"),
     payload: MutateCharacterStructureInputSchema
+  });
+
+export const CatalogMutateAcademicFrameworkCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.mutateAcademicFramework"),
+    payload: MutateAcademicFrameworkInputSchema
+  });
+
+export const CatalogCreateAcademicReferenceCardCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.createAcademicReferenceCard"),
+    payload: CreateAcademicReferenceCardInputSchema
+  });
+
+export const CatalogUpdateAcademicReferenceCardCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.updateAcademicReferenceCard"),
+    payload: UpdateAcademicReferenceCardInputSchema
+  });
+
+export const CatalogDeleteAcademicReferenceCardCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.deleteAcademicReferenceCard"),
+    payload: DeleteAcademicReferenceCardInputSchema
+  });
+
+export const CatalogMutateAcademicManuscriptCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.mutateAcademicManuscript"),
+    payload: MutateAcademicManuscriptInputSchema
   });
 
 export const CatalogUpdateLibraryGroupCommandEnvelopeSchema =
@@ -2870,18 +3188,25 @@ export const CatalogCommandEnvelopeSchema =
     CatalogSaveDraftRecoveryCommandEnvelopeSchema,
     CatalogCreateShortBookCommandEnvelopeSchema,
     CatalogCreateScriptBookCommandEnvelopeSchema,
+    CatalogCreateAcademicBookCommandEnvelopeSchema,
     CatalogCreateLibraryCommandEnvelopeSchema,
     CatalogUpdateLibraryCommandEnvelopeSchema,
     CatalogCreateLibraryGroupCommandEnvelopeSchema,
     CatalogOpenProjectCommandEnvelopeSchema,
     CatalogCreateShortBookAtPathCommandEnvelopeSchema,
     CatalogCreateScriptBookAtPathCommandEnvelopeSchema,
+    CatalogCreateAcademicBookAtPathCommandEnvelopeSchema,
     CatalogCreateLibraryAtPathCommandEnvelopeSchema,
     CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
     CatalogOpenProjectAtPathCommandEnvelopeSchema,
     CatalogUpdateBookCommandEnvelopeSchema,
     CatalogMutatePlotStructureCommandEnvelopeSchema,
     CatalogMutateCharacterStructureCommandEnvelopeSchema,
+    CatalogMutateAcademicFrameworkCommandEnvelopeSchema,
+    CatalogCreateAcademicReferenceCardCommandEnvelopeSchema,
+    CatalogUpdateAcademicReferenceCardCommandEnvelopeSchema,
+    CatalogDeleteAcademicReferenceCardCommandEnvelopeSchema,
+    CatalogMutateAcademicManuscriptCommandEnvelopeSchema,
     CatalogUpdateLibraryGroupCommandEnvelopeSchema,
     CatalogDeleteBookCommandEnvelopeSchema,
     CatalogSaveDocumentCommandEnvelopeSchema,

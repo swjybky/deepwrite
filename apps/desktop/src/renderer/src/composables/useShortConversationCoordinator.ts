@@ -1,6 +1,8 @@
 import { builtinAgentLabel } from "../i18n/builtinLabels";
+import { academicTreeT } from "../components/academic/academicTreeLabels";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
+import { useSettingsStore } from "../stores/settingsStore";
 import {
   creationSkillReferences,
   creationMaterialReferences
@@ -11,6 +13,7 @@ import {
   ATTACHED_CONTEXT_MAX_ITEMS,
   resolveScriptWorkspaceAgentIdForStage,
   resolveShortWorkspaceAgentIdForStage,
+  type AcademicAgentId,
   type Book,
   type AgentTeamRunMode,
   type CatalogIndexSnapshot,
@@ -41,7 +44,6 @@ import {
 import { buildLibraryAgentWorkspaceContext } from "../utils/libraryAgentContext";
 import { buildLibraryAgentSkillAttachments } from "../utils/libraryAgentSkillAttachments";
 import { buildLibraryAttachments } from "../utils/libraryAttachments";
-import { scopeBookLibrariesToReadAccess } from "../utils/shortWorkspaceLibraryScope";
 import { createConversationHistoryRewriteDispatcher } from "./agent-conversation/history-rewrite-dispatcher";
 
 const t = createScopedTranslator("workspace");
@@ -49,6 +51,15 @@ const t = createScopedTranslator("workspace");
 function composerStageLabel(
   descriptor: ShortConversationDocumentDescriptor
 ): string {
+  if (descriptor.workspaceType === "academic") {
+    if (descriptor.academicZone === "foundation")
+      return academicTreeT("zoneFoundation");
+    if (descriptor.academicZone === "framework")
+      return academicTreeT("zoneFramework");
+    if (descriptor.academicZone === "manuscript")
+      return academicTreeT("zoneManuscript");
+    return academicTreeT("academicWork");
+  }
   if (descriptor.stageId === "character_design")
     return t("catalogWorkspace.characterConcepts");
   if (descriptor.stageId === "draft") return t("catalogWorkspace.manuscript");
@@ -79,6 +90,7 @@ interface ShortConversationDocumentDescriptor {
   workspaceType?: WorkspaceDocument["workspaceType"];
   workspaceId?: string;
   stageId?: string;
+  academicZone?: WorkspaceDocument["academicZone"];
   shortAgentId?: WorkspaceAgentId;
   libraryId?: string;
   catalogEntryId?: string;
@@ -167,6 +179,7 @@ function descriptorFor(
       : {}),
     ...(document.workspaceId ? { workspaceId: document.workspaceId } : {}),
     ...(document.stageId ? { stageId: document.stageId } : {}),
+    ...(document.academicZone ? { academicZone: document.academicZone } : {}),
     ...(document.shortAgentId ? { shortAgentId: document.shortAgentId } : {}),
     ...(document.libraryId ? { libraryId: document.libraryId } : {}),
     ...(document.catalogEntryId
@@ -187,6 +200,7 @@ function descriptorSignature(
     descriptor.workspaceType ?? "",
     descriptor.workspaceId ?? "",
     descriptor.stageId ?? "",
+    descriptor.academicZone ?? "",
     descriptor.shortAgentId ?? "",
     descriptor.libraryId ?? "",
     descriptor.catalogEntryId ?? ""
@@ -231,12 +245,12 @@ function libraryEntryReferences(
   const current = libraries.find(({ id }) => id === descriptor.libraryId);
   if (!current) return [];
   const group = groups.find((candidate) =>
-    Object.values(candidate.members).includes(current.id)
+    candidate.memberIds.includes(current.id)
   );
   const memberIds = group
     ? [
         current.id,
-        ...Object.values(group.members).filter(
+        ...group.memberIds.filter(
           (id): id is string => Boolean(id) && id !== current.id
         )
       ]
@@ -281,6 +295,7 @@ function libraryEntryReferences(
 export function useShortConversationCoordinator(
   options: ShortConversationCoordinatorOptions
 ) {
+  const settingsStore = useSettingsStore();
   const sendPreflightPending = ref(false);
   const activeDescriptor = stableDocumentDescriptor(
     options.resource.activeAgentDocument
@@ -301,8 +316,13 @@ export function useShortConversationCoordinator(
     conversation: () => activeConversation.value,
     dispatch: (request) => sendMessage([], request)
   });
-  const activeAgentId = computed<WorkspaceAgentId | undefined>(() => {
+  const activeAgentId = computed<
+    WorkspaceAgentId | AcademicAgentId | undefined
+  >(() => {
     const descriptor = activeDescriptor.value;
+    if (descriptor.workspaceType === "academic") {
+      return "academic";
+    }
     if (!descriptor.stageId) return undefined;
     if (descriptor.workspaceType === "short") {
       return (
@@ -325,7 +345,7 @@ export function useShortConversationCoordinator(
   const activeShortAgentProfile = computed(() => {
     const descriptor = activeDescriptor.value;
     const agentId = activeAgentId.value;
-    return agentId
+    return agentId && descriptor.workspaceType !== "academic"
       ? options.profiles.workspaceAgents.value
           .find(
             ({ workspaceType }) => workspaceType === descriptor.workspaceType
@@ -333,6 +353,11 @@ export function useShortConversationCoordinator(
           ?.agents.find(({ id }) => id === agentId)
       : undefined;
   });
+  const activeAcademicAgentProfile = computed(() =>
+    activeDescriptor.value.workspaceType === "academic"
+      ? settingsStore.academicAgentSettings.agents[0]
+      : undefined
+  );
   const activeLibraryAgentProfile = computed(() => {
     const domain = activeLibraryDomain.value;
     return domain
@@ -354,8 +379,7 @@ export function useShortConversationCoordinator(
     const workspaceId = activeDescriptor.value.workspaceId;
     return creationSkillReferences(
       options.catalog.snapshot.value,
-      workspaceId ? options.catalog.findBook(workspaceId) : undefined,
-      activeShortAgentProfile.value?.readAccess?.skill ?? []
+      workspaceId ? options.catalog.findBook(workspaceId) : undefined
     );
   });
   const availableMaterialReferences = computed<ComposerReferenceOption[]>(
@@ -370,8 +394,7 @@ export function useShortConversationCoordinator(
       const workspaceId = activeDescriptor.value.workspaceId;
       return creationMaterialReferences(
         options.catalog.snapshot.value,
-        workspaceId ? options.catalog.findBook(workspaceId) : undefined,
-        activeShortAgentProfile.value?.readAccess?.material ?? []
+        workspaceId ? options.catalog.findBook(workspaceId) : undefined
       );
     }
   );
@@ -387,22 +410,26 @@ export function useShortConversationCoordinator(
         descriptor.pathRoot ||
         t("shortConversationCoordinator.noResourceSelected"),
       stageLabel: composerStageLabel(descriptor),
-      agentLabel: activeShortAgentProfile.value
-        ? builtinAgentLabel(
-            descriptor.workspaceType === "script" ? "script" : "short",
-            activeShortAgentProfile.value.label
-          )
-        : activeLibraryDomain.value
+      agentLabel: activeAcademicAgentProfile.value
+        ? builtinAgentLabel("academic", activeAcademicAgentProfile.value.label)
+        : activeShortAgentProfile.value
           ? builtinAgentLabel(
-              activeLibraryDomain.value,
-              activeLibraryAgentProfile.value?.label
+              descriptor.workspaceType === "script" ? "script" : "short",
+              activeShortAgentProfile.value.label
             )
-          : t("agentActivityDescriptors.agentConversation"),
+          : activeLibraryDomain.value
+            ? builtinAgentLabel(
+                activeLibraryDomain.value,
+                activeLibraryAgentProfile.value?.label
+              )
+            : t("agentActivityDescriptors.agentConversation"),
       agentId,
       agentWorkspaceType:
-        descriptor.workspaceType === "script"
-          ? ("script" as const)
-          : ("short" as const),
+        descriptor.workspaceType === "academic"
+          ? ("academic" as const)
+          : descriptor.workspaceType === "script"
+            ? ("script" as const)
+            : ("short" as const),
       agentBookId: descriptor.workspaceId,
       libraryDomain: activeLibraryDomain.value,
       librarySkills: activeLibraryAgentProfile.value?.readAccess.skills.map(
@@ -410,7 +437,9 @@ export function useShortConversationCoordinator(
           name: skill.name
         })
       ),
-      welcomeShortcuts: activeShortAgentProfile.value?.welcomeShortcuts,
+      welcomeShortcuts:
+        activeAcademicAgentProfile.value?.welcomeShortcuts ??
+        activeShortAgentProfile.value?.welcomeShortcuts,
       availableSkills: availableSkillReferences.value,
       availableMaterials: availableMaterialReferences.value,
       editorReferences: options.resource.pendingEditorReferences.value,
@@ -624,25 +653,20 @@ export function useShortConversationCoordinator(
     sendPreflightPending.value = true;
     const operation = (async () => {
       try {
+        if (
+          options.resource.activeAgentDocument.value.workspaceType ===
+            "academic" &&
+          !settingsStore.academicAgentLoaded &&
+          window.deepwrite
+        ) {
+          await settingsStore
+            .ensureAcademicAgentsLoaded(() =>
+              window.deepwrite!.academicAgents.list()
+            )
+            .catch(() => undefined);
+        }
         const readAccess = activeShortAgentProfile.value?.readAccess;
-        const contextDocuments = options.resource
-          .contextDocuments()
-          .filter((document) => {
-            if (!readAccess) return true;
-            if (document.domain === "material") {
-              return (
-                document.materialKind !== undefined &&
-                readAccess.material.includes(document.materialKind)
-              );
-            }
-            if (document.domain === "skill") {
-              return (
-                document.skillKind !== undefined &&
-                readAccess.skill.includes(document.skillKind)
-              );
-            }
-            return true;
-          });
+        const contextDocuments = options.resource.contextDocuments();
         const contextReady = await options.resource.ensureDocumentsLoaded(
           options.resource.activeAgentDocument.value.domain === "creation"
             ? contextDocuments.filter((document) => document.domain === "skill")
@@ -666,29 +690,13 @@ export function useShortConversationCoordinator(
           contextSnapshot &&
           agentDocument.domain === "creation" &&
           workspaceBook &&
-          readAccess
+          (readAccess || workspaceBook.bookType === "academic")
             ? buildLibraryAttachments(
                 contextSnapshot,
-                withoutMaterialBindings(
-                  scopeBookLibrariesToReadAccess(workspaceBook, readAccess)
-                )
+                withoutMaterialBindings(workspaceBook)
               )
             : null;
-        const attachments = allAttachments
-          ? {
-              ...allAttachments,
-              attachedSkills: allAttachments.attachedSkills.filter(
-                (item) =>
-                  item.kind !== undefined &&
-                  (readAccess?.skill.includes(item.kind) ?? false)
-              ),
-              attachedMaterials: allAttachments.attachedMaterials.filter(
-                (item) =>
-                  item.kind !== undefined &&
-                  (readAccess?.material.includes(item.kind) ?? false)
-              )
-            }
-          : null;
+        const attachments = allAttachments;
         const libraryProfile = activeLibraryAgentProfile.value;
         const librarySkillAttachments = libraryProfile
           ? buildLibraryAgentSkillAttachments(libraryProfile.readAccess.skills)
@@ -752,6 +760,9 @@ export function useShortConversationCoordinator(
               : {}),
           ...(libraryAgentContext
             ? { libraryWorkspace: libraryAgentContext }
+            : {}),
+          ...(workspaceBook?.bookType === "academic"
+            ? { academicBook: workspaceBook }
             : {})
         };
         let rewriteStarted = true;

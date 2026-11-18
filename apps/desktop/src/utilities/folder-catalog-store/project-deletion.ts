@@ -66,7 +66,7 @@ export async function deleteRegisteredProject(
     const group = opened.resource as CatalogLibraryGroup;
     const memberDomain =
       domain === "material-group" ? "material-library" : "skill-library";
-    for (const libraryId of new Set(Object.values(group.members))) {
+    for (const libraryId of new Set(group.memberIds)) {
       if (!libraryId) continue;
       const member = registry.projects.find(
         (project) => project.id === libraryId && project.domain === memberDomain

@@ -1,13 +1,17 @@
 import { createId } from "@deepwrite/shared";
 import {
   CommandEnvelopeSchema,
+  MATERIAL_KINDS,
+  MYSTERY_AGENT_DEFAULT_MATERIAL_KINDS,
   MaterialQueryResultSchema,
   MaterialReadScopeSchema,
   createEnvelope,
+  type AcademicAgentProfile,
   type CommandEnvelope,
   type CommandResult,
   type LongAgentProfile,
   type MaterialReadScope,
+  type MysteryAgentProfile,
   type ShortWorkspaceAgentProfile,
   type ScriptWorkspaceAgentProfile,
   type WorkspaceRuntimeContext
@@ -17,6 +21,8 @@ interface MaterialRunInput {
   workspaceContext?: WorkspaceRuntimeContext | undefined;
   agentProfile?: ShortWorkspaceAgentProfile | ScriptWorkspaceAgentProfile;
   longAgentProfile?: LongAgentProfile;
+  academicAgentProfile?: AcademicAgentProfile;
+  mysteryAgentProfile?: MysteryAgentProfile;
   snapshotMode?: boolean;
 }
 
@@ -29,7 +35,25 @@ export function resolveMaterialReadScope(
       bookId: workspace.longWorkspace.bookId,
       bookType: "long",
       stageId: workspace.longWorkspace.activeRoot,
-      kinds: input.longAgentProfile.readAccess.materialKinds
+      kinds: [...MATERIAL_KINDS]
+    });
+  }
+  if (workspace?.academicWorkspace && input.academicAgentProfile) {
+    return MaterialReadScopeSchema.parse({
+      bookId: workspace.academicWorkspace.id,
+      bookType: "academic",
+      stageId: (
+        workspace.academicWorkspace.activeTarget?.targetId ?? "thesis_overview"
+      ).slice(0, 120),
+      kinds: [...MATERIAL_KINDS]
+    });
+  }
+  if (workspace?.mysteryWorkspace && input.mysteryAgentProfile) {
+    return MaterialReadScopeSchema.parse({
+      bookId: workspace.mysteryWorkspace.bookId,
+      bookType: "mystery",
+      stageId: workspace.mysteryWorkspace.focus.stage,
+      kinds: [...MYSTERY_AGENT_DEFAULT_MATERIAL_KINDS]
     });
   }
   const writing = workspace?.scriptWorkspace ?? workspace?.shortWorkspace;
@@ -38,7 +62,7 @@ export function resolveMaterialReadScope(
     bookId: writing.id,
     bookType: workspace?.scriptWorkspace ? "script" : "short",
     stageId: writing.activeStageId,
-    kinds: input.agentProfile.readAccess.material
+    kinds: [...MATERIAL_KINDS]
   });
 }
 

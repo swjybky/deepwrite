@@ -195,7 +195,8 @@ describe("library package round trip", () => {
     const imported = importAll(plan, true);
     expect(imported.group).toEqual({
       title: "都市爽文素材组",
-      slots: ["character", "plot", "draft"]
+      slots: ["character", "plot", "draft"],
+      memberOrder: [0, 1, 2]
     });
     const original = [materialLibrary(), plotLibrary(), mixed];
     imported.libraries.forEach((library, index) => {
@@ -393,9 +394,9 @@ describe("folder recognition", () => {
     ]);
   });
 
-  it("refuses to group two libraries of the same kind", () => {
+  it("allows grouping multiple libraries of the same kind and round-trips customTag and memberKeys", () => {
     expect(assignLibraryPackageGroup("material", ["plot", "plot"])).toEqual({
-      problem: "duplicateKind"
+      slots: ["plot", "plot-2"]
     });
     expect(assignLibraryPackageGroup("material", ["mixed", "plot"])).toEqual({
       slots: ["other", "plot"]
@@ -403,6 +404,44 @@ describe("folder recognition", () => {
     expect(assignLibraryPackageGroup("skill", ["general", "style"])).toEqual({
       slots: ["general", "style"]
     });
+    const { tree } = asTree({
+      domain: "material",
+      groupTitle: "学术文献合集",
+      members: [
+        {
+          slot: null,
+          library: materialLibrary({
+            id: "lit-1",
+            title: "文献库一",
+            materialKind: "other",
+            customTag: "文献"
+          })
+        },
+        {
+          slot: null,
+          library: materialLibrary({
+            id: "lit-2",
+            title: "文献库二",
+            materialKind: "other",
+            customTag: "文献"
+          })
+        }
+      ]
+    });
+    const plan = recognizeLibraryPackage(tree, "material");
+    expect(plan.group).toMatchObject({
+      title: "学术文献合集",
+      suggested: true,
+      memberKeys: ["lib-1", "lib-2"]
+    });
+    const imported = importAll(plan, true);
+    expect(imported.libraries.map((lib) => [lib.title, lib.customTag])).toEqual(
+      [
+        ["文献库一", "文献"],
+        ["文献库二", "文献"]
+      ]
+    );
+    expect(imported.group?.memberOrder).toEqual([0, 1]);
     expect(() =>
       recognizeLibraryPackage({ rootName: "空", files: [] }, "material")
     ).toThrow("没有找到可导入");

@@ -11,6 +11,7 @@ import { isForbiddenRendererCommand } from "./forbidden-commands";
 import { handleLongCommands } from "./long-commands";
 import { handleManuscriptCommands } from "./manuscript-commands";
 import { handleModelCommands } from "./model-commands";
+import { handleMysteryCommands } from "./mystery-commands";
 import { handleRendererStateCommands } from "./renderer-state-commands";
 import { handleSessionCommands } from "./session-commands";
 import { handleSettingsCommands } from "./settings-commands";
@@ -47,7 +48,9 @@ export async function dispatchCommand(
     command.type.startsWith("versions.") ||
     command.type === "catalog.saveDocument" ||
     command.type === "catalog.createDraftSections" ||
-    command.type === "long.applyOperations"
+    command.type === "long.applyOperations" ||
+    command.type === "mystery.writeDocument" ||
+    command.type === "mystery.applyOperations"
   ) {
     const settings = (await ctx.requireGeneralSettingsStore().list()).settings;
     command = filterVersionOrigin(command, settings.versionHistoryEnabled);
@@ -67,6 +70,7 @@ export async function dispatchCommand(
     (await handleManuscriptCommands(ctx, command)) ??
     (await handleSettingsCommands(ctx, command)) ??
     (await handleLongCommands(ctx, command)) ??
+    (await handleMysteryCommands(ctx, command)) ??
     (await handleCatalogCommands(ctx, command)) ??
     (await handleRendererStateCommands(ctx, command)) ??
     (await handleConversationExportCommands(ctx, command)) ??

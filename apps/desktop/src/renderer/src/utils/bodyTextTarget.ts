@@ -4,7 +4,9 @@ import type { WorkspaceDocument } from "../types/workspace";
 export function catalogBodyTextKind(
   document: WorkspaceDocument
 ): BodyTextKind | undefined {
-  return document.domain === "creation" && document.draftFileKind === "body"
+  return document.domain === "creation" &&
+    document.draftFileKind === "body" &&
+    (document.workspaceType === "short" || document.workspaceType === "script")
     ? document.workspaceType
     : undefined;
 }

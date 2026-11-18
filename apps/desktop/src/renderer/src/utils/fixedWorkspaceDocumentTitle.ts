@@ -6,6 +6,11 @@ export function workspaceDocumentHasFixedTitle(
 ): boolean {
   return (
     document.draftFileKind === "character-state" ||
+    document.draftFileKind === "brief" ||
+    document.draftFileKind === "state" ||
+    document.academicDocKind === "thesis_overview" ||
+    document.academicDocKind === "terminology" ||
+    document.academicDocKind === "framework_stage" ||
     document.catalogLibraryField === "overview" ||
     document.characterFileKind === "overview" ||
     document.plotStageOrder !== undefined

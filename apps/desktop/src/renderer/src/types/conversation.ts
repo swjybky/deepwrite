@@ -1,5 +1,6 @@
 import type { LibraryManagementScope } from "@deepwrite/contracts";
 import type {
+  AcademicMutationTarget,
   AgentContextCompactionLevel,
   AgentContextCompactionReason,
   AgentEvaluationSnapshot,
@@ -58,6 +59,7 @@ export interface AgentEditProposal {
   workspaceId: string;
   stageId:
     | ShortWorkspaceStageId
+    | "academic"
     | "library"
     | "long-worldbuilding"
     | "long-character"
@@ -210,6 +212,8 @@ export interface AgentEditProposal {
   provisionalExpertSection?: boolean;
   /** Stable item id for a same-run character create-then-write proposal. */
   provisionalCharacterItemId?: string;
+  academicMutationTarget?: AcademicMutationTarget;
+  academicBaseProjectRevision?: number;
 }
 
 export interface ChatToolActivity {

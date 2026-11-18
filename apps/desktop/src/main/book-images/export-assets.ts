@@ -4,7 +4,7 @@ import {
   BOOK_IMAGE_MAX_DIMENSION,
   BookImagesResolveResultSchema,
   parseBookImageLine,
-  type ChatAssistantProjectRef
+  type BookImageBookRef
 } from "@deepwrite/contracts";
 import { bookImageCore, type BookImageCore } from "./core-client";
 import { BookImageError } from "./pick";
@@ -19,7 +19,7 @@ export interface BookImageExportAsset {
   height: number;
 }
 export type BookImageExportLoader = (
-  book: ChatAssistantProjectRef,
+  book: BookImageBookRef,
   sources: readonly string[]
 ) => Promise<{
   assets: Map<string, BookImageExportAsset>;

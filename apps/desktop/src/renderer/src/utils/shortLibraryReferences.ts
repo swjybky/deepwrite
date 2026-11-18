@@ -28,28 +28,31 @@ function catalogDocumentId(
 export function creationSkillReferences(
   snapshot: CatalogIndexSnapshot | null,
   book: Book | undefined,
-  allowedKinds: readonly SkillKind[]
+  _allowedKinds?: readonly SkillKind[]
 ): ComposerReferenceOption[] {
-  if (!snapshot || !book || allowedKinds.length === 0) return [];
-  const allowed = new Set(allowedKinds);
+  if (!snapshot || !book) return [];
   const libraries = new Map(
     snapshot.skills.map((library) => [library.id, library])
   );
   const seenLibraries = new Set<string>();
   const references: ComposerReferenceOption[] = [];
-  for (const boundIds of Object.values(book.linkedSkillIdsByKind)) {
+  const skillLibraryIdGroups =
+    book.bookType === "academic"
+      ? [book.linkedSkillIds]
+      : Object.values(book.linkedSkillIdsByKind);
+  for (const boundIds of skillLibraryIdGroups) {
     for (const libraryId of boundIds) {
       if (seenLibraries.has(libraryId)) continue;
       seenLibraries.add(libraryId);
       const library = libraries.get(libraryId);
-      if (!library || !allowed.has(library.skillKind)) continue;
+      if (!library) continue;
       for (const entry of library.entries) {
         if (entry.contentBytes <= 0) continue;
         references.push({
           id: catalogDocumentId("skill", library.id, entry.id),
           label: `${library.title} · ${entry.title}`,
           detail: t("linkedToThisBook", {
-            value: SKILL_KIND_LABELS[library.skillKind]
+            value: library.customTag ?? SKILL_KIND_LABELS[library.skillKind]
           })
         });
         if (references.length >= ATTACHED_CONTEXT_MAX_ITEMS) return references;
@@ -62,30 +65,26 @@ export function creationSkillReferences(
 export function creationMaterialReferences(
   snapshot: CatalogIndexSnapshot | null,
   book: Book | undefined,
-  allowedKinds: readonly MaterialKind[]
+  _allowedKinds?: readonly MaterialKind[]
 ): ComposerReferenceOption[] {
-  if (!snapshot || !book || allowedKinds.length === 0) return [];
-  const allowed = new Set(allowedKinds);
+  if (!snapshot || !book) return [];
   const libraries = new Map(
     snapshot.materials.map((library) => [library.id, library])
   );
   const references: ComposerReferenceOption[] = [];
   const seenEntries = new Set<string>();
-  for (const [boundKind, libraryIds] of Object.entries(
-    book.linkedMaterialIdsByKind
-  ) as [MaterialKind, string[]][]) {
-    if (!allowed.has(boundKind)) continue;
+  const materialLibraryIdGroups =
+    book.bookType === "academic"
+      ? [book.linkedMaterialIds]
+      : Object.values(book.linkedMaterialIdsByKind);
+  for (const libraryIds of materialLibraryIdGroups) {
     for (const libraryId of libraryIds) {
       const library = libraries.get(libraryId);
       if (!library) continue;
       for (const entry of library.entries) {
         const entryKind = MATERIAL_STAGE_KINDS[entry.stageId];
         const entryKey = `${library.id}\u0000${entry.id}`;
-        if (
-          entryKind !== boundKind ||
-          entry.contentBytes <= 0 ||
-          seenEntries.has(entryKey)
-        ) {
+        if (entry.contentBytes <= 0 || seenEntries.has(entryKey)) {
           continue;
         }
         seenEntries.add(entryKey);
@@ -93,7 +92,7 @@ export function creationMaterialReferences(
           id: catalogDocumentId("material", library.id, entry.id),
           label: `${library.title} · ${entry.title}`,
           detail: t("linkedToThisBook", {
-            value: MATERIAL_KIND_LABELS[entryKind]
+            value: library.customTag ?? MATERIAL_KIND_LABELS[entryKind]
           })
         });
       }

@@ -74,25 +74,28 @@ export function usePlotStructureDialog(
   const form = reactive({ title: "", description: "" });
   let previousFocus: HTMLElement | null = null;
 
+  const creativeBook = computed(() =>
+    props.book && props.book.bookType !== "academic" ? props.book : null
+  );
   const locked = computed(
     () => props.pending || props.writingContextPending || localPending.value
   );
-  const rows = computed(() => props.book?.plotStages ?? []);
+  const rows = computed(() => creativeBook.value?.plotStages ?? []);
   const deletingStage = computed(() =>
     rows.value.find(({ id }) => id === deletingStageId.value)
   );
   const deletingDocument = computed(() =>
-    props.book?.documents.find(({ id }) => id === deletingStageId.value)
+    creativeBook.value?.documents.find(({ id }) => id === deletingStageId.value)
   );
   const deletingHasContent = computed(() =>
     Boolean(deletingDocument.value?.content.trim())
   );
   const characterOverview = computed(() =>
-    props.book?.documents.find(({ id }) => id === "character_design")
+    creativeBook.value?.documents.find(({ id }) => id === "character_design")
   );
   const orderedCharacterItems = computed(() =>
-    props.book?.characterStructure.format === "list"
-      ? [...props.book.characterStructure.items].sort(
+    creativeBook.value?.characterStructure.format === "list"
+      ? [...creativeBook.value.characterStructure.items].sort(
           (left, right) => left.order - right.order
         )
       : []
@@ -184,7 +187,7 @@ export function usePlotStructureDialog(
 
   function selectCharacterFormat(value: PopupSelectValue): void {
     if ((value !== "text" && value !== "list") || locked.value) return;
-    if (value === props.book?.characterStructure.format) return;
+    if (value === creativeBook.value?.characterStructure.format) return;
     requestedCharacterFormat.value = value;
   }
 

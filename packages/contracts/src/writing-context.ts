@@ -3,7 +3,14 @@ import { EnvelopeBaseSchema } from "./envelope";
 
 export const WRITING_CONTEXT_PATH = "AGENTS.md" as const;
 export const WRITING_CONTEXT_MAX_CHARACTERS = 10_000;
-const WritingContextWorkspaceTypeSchema = z.enum(["short", "script"]);
+export const WritingContextWorkspaceTypeSchema = z.enum([
+  "short",
+  "script",
+  "academic"
+]);
+export type WritingContextWorkspaceType = z.infer<
+  typeof WritingContextWorkspaceTypeSchema
+>;
 
 export const DEFAULT_SHORT_WRITING_CONTEXT = `# 短篇上下文
 
@@ -60,6 +67,34 @@ export const DEFAULT_SCRIPT_WRITING_CONTEXT = `# 剧本上下文
 - 冲突通过可见行动、对白、调度与视听信息推进，不用解释代替画面；正文遵守应用注入的场景标题、动作、对白、OS/VO 与时空转换格式。
 - 状态可记录人物、剧情、情感及其他需要延续的信息。例如，记录本集结束时的处境、关系、情绪、已知与隐瞒信息、关键道具、未解决冲突和下一集接续点。它只供连续创作参考，不锁定正文修订。
 - 按剧情设计初始化剧集目录，正文可留空。
+`;
+
+export const DEFAULT_ACADEMIC_WRITING_CONTEXT = `# 学术写作上下文
+
+本文规定当前学术作品各层写什么、依据什么来写。研究底座、论证框架与正文编写由学术智能体统一维护，按需跨层读取，但内容必须写回所属对象。技能库是方法论，素材库是参考资料；未在「文献与证据卡」或已绑定素材库中核实的题录、DOI 与实验数据，严禁当作既成事实写入正文。
+
+## 总体原则（先给思路、拆解框架、分步写作）
+
+- 遵循「研究立意与核心贡献 → 术语与符号表 / 文献与证据卡 → 论证框架阶段 → 分节写作指引 / 正文 / 节末状态」的分层推进节奏，不在缺少框架与证据边界时直接堆写长篇空泛正文。
+- 防幻觉死线：严禁编造文献作者、年份、期刊会议、DOI 或实验数值；缺口处一律输出 \`[待补引用: ...]\` 或 \`[待补数据: ...]\` 显式占位。
+
+## 研究底座
+
+- \`研究立意与核心贡献\`：明确研究问题（RQ）、核心方法或理论主张一句话概括、不超过 3 条可证成的核心贡献，以及目标期刊/会议/学位或读者约束。
+- \`术语与符号表\`：维护全文统一的专业术语中英对照、缩写首次展开规范与数学符号定义表，避免跨章节符号漂移。
+- \`文献与证据卡\`：每张卡具有作品内唯一的 \`citeKey\`，区分 \`literature\`（核实题录、核心结论、局限与本文关系）与 \`evidence\`（核实实验表、统计口径、案例或史料证据）。
+
+## 论证框架
+
+- 当前作品启用的阶段、顺序与说明以左侧「论证框架」目录为准。
+- 框架层只写逻辑脉络、形式化骨架、实验/证据映射矩阵与章节提纲，不提前堆砌正式论文段落。发现前后假设或贡献口径不一致时先指出并收敛。
+
+## 正文编写
+
+- 正文支持单层「节」或「章 → 节」两级结构；每节由 \`写作指引（brief）\`、\`正文（body）\`、\`节末状态（state）\` 三联文档组成。
+- 动笔写 \`正文\` 前，先核对本节 \`写作指引\`、\`术语与符号表\`、相关 \`citeKey\` 卡片及相邻小节的 \`节末状态\`。
+- 行文保持高信息密度、因果严密、术语一致，去除空洞排比与套话；引用格式与文末 \`参考文献\` 严格遵守当前作品设定的 \`citationStyle\`。
+- 完成本节修订后，同步更新 \`节末状态\`（记录本节首次定义的缩写与符号、实际引用的 \`citeKey\`、已兑现论点及对后文的跨节承诺）。
 `;
 
 export function writingContextCharacterCount(content: string): number {

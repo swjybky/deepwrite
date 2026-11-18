@@ -19,47 +19,34 @@ type LongReadableAttachments = Pick<
 export function buildLongLibraryAttachmentsForProfile(
   summary: LongBookSummary,
   snapshot: CatalogSnapshot,
-  profile: LongAgentProfile
+  _profile: LongAgentProfile
 ): LibraryAttachmentBuildResult {
-  const skillKinds = new Set(profile.readAccess.skillKinds);
-  const materialKinds = new Set(profile.readAccess.materialKinds);
-  const materialIds = (kind: (typeof MATERIAL_KINDS)[number]) =>
-    summary.linkedMaterialIdsByKind[kind];
-  const skillIds = (kind: (typeof SKILL_KINDS)[number]) =>
-    summary.linkedSkillIdsByKind[kind];
   return buildLibraryAttachments(snapshot, {
     id: summary.id,
     bookType: "long",
     linkedMaterialIdsByKind: {
-      character: materialKinds.has("character") ? materialIds("character") : [],
-      gimmick: materialKinds.has("gimmick") ? materialIds("gimmick") : [],
-      plot: materialKinds.has("plot") ? materialIds("plot") : [],
-      draft: materialKinds.has("draft") ? materialIds("draft") : [],
-      other: materialKinds.has("other") ? materialIds("other") : []
+      character: [...summary.linkedMaterialIdsByKind.character],
+      gimmick: [...summary.linkedMaterialIdsByKind.gimmick],
+      plot: [...summary.linkedMaterialIdsByKind.plot],
+      draft: [...summary.linkedMaterialIdsByKind.draft],
+      other: [...summary.linkedMaterialIdsByKind.other]
     },
     linkedSkillIdsByKind: {
-      general: skillKinds.has("general") ? skillIds("general") : [],
-      plot: skillKinds.has("plot") ? skillIds("plot") : [],
-      style: skillKinds.has("style") ? skillIds("style") : [],
-      other: skillKinds.has("other") ? skillIds("other") : []
+      general: [...summary.linkedSkillIdsByKind.general],
+      plot: [...summary.linkedSkillIdsByKind.plot],
+      style: [...summary.linkedSkillIdsByKind.style],
+      other: [...summary.linkedSkillIdsByKind.other]
     }
   });
 }
 
 export function filterLongReadableAttachmentsForProfile(
   attachments: LibraryAttachmentBuildResult,
-  profile: LongAgentProfile
+  _profile: LongAgentProfile
 ): LongReadableAttachments {
-  const skillKinds = new Set(profile.readAccess.skillKinds);
-  const materialKinds = new Set(profile.readAccess.materialKinds);
   return {
-    attachedSkills: attachments.attachedSkills.filter(
-      (skill) => skill.kind !== undefined && skillKinds.has(skill.kind)
-    ),
-    attachedMaterials: attachments.attachedMaterials.filter(
-      (material) =>
-        material.kind !== undefined && materialKinds.has(material.kind)
-    )
+    attachedSkills: [...attachments.attachedSkills],
+    attachedMaterials: [...attachments.attachedMaterials]
   };
 }
 
@@ -82,21 +69,15 @@ export function buildLongReadableAttachmentsForProfile(
 
 export function longCatalogContextDocuments(
   summary: LongBookSummary,
-  profile: LongAgentProfile,
+  _profile: LongAgentProfile,
   documents: readonly WorkspaceDocument[]
 ): WorkspaceDocument[] {
   const libraryIds = new Set<string>();
-  const materialKinds = new Set(profile.readAccess.materialKinds);
-  const skillKinds = new Set(profile.readAccess.skillKinds);
   for (const kind of MATERIAL_KINDS) {
-    if (materialKinds.has(kind)) {
-      summary.linkedMaterialIdsByKind[kind].forEach((id) => libraryIds.add(id));
-    }
+    summary.linkedMaterialIdsByKind[kind].forEach((id) => libraryIds.add(id));
   }
   for (const kind of SKILL_KINDS) {
-    if (skillKinds.has(kind)) {
-      summary.linkedSkillIdsByKind[kind].forEach((id) => libraryIds.add(id));
-    }
+    summary.linkedSkillIdsByKind[kind].forEach((id) => libraryIds.add(id));
   }
   // Filtering the source array preserves the context ordering used by
   // previous sends; gathering from per-library buckets would reorder it.

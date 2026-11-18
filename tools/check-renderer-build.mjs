@@ -11,7 +11,7 @@ const indexPath = join(rendererOut, "index.html");
 // Allow moderate feature growth while keeping a guard on workspace startup size.
 // Account separately for Vue I18n: its build group excludes Vue and application
 // modules, and is measured from the same startup graph as every other script.
-const APP_READY_APPLICATION_JS_BUDGET_BYTES = 1_200_000;
+const APP_READY_APPLICATION_JS_BUDGET_BYTES = 1_235_000;
 const I18N_RUNTIME_JS_BUDGET_BYTES = 60_000;
 const APP_READY_JS_BUDGET_BYTES =
   APP_READY_APPLICATION_JS_BUDGET_BYTES + I18N_RUNTIME_JS_BUDGET_BYTES;

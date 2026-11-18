@@ -1,5 +1,4 @@
 import {
-  MATERIAL_STAGE_KINDS,
   reorderLibraryIds,
   type LibraryStructureOperation
 } from "@deepwrite/contracts";
@@ -150,13 +149,6 @@ export async function applyEntryStructureOperation(
           target.manifest.kind !== "deepwrite.material-library"
         )
           throw new Error("只有素材条目可以调整内容阶段。");
-        if (
-          target.manifest.kind === "deepwrite.material-library" &&
-          target.manifest.materialKind !== "mixed" &&
-          MATERIAL_STAGE_KINDS[stageId as keyof typeof MATERIAL_STAGE_KINDS] !==
-            target.manifest.materialKind
-        )
-          throw new Error("目标库不支持该素材阶段，请选择兼容库。");
         if (op.action === "copy-entries") {
           const copyId = `entry-${sha(JSON.stringify([request.requestId, operationIndex, id])).slice(0, 24)}`;
           const titles = target.manifest.entries

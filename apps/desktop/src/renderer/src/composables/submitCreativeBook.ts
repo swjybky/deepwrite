@@ -14,6 +14,15 @@ export async function submitCreativeBook(
     await options.createLong(book);
     return;
   }
+  if (input.workspaceType === "academic") {
+    await options.createShort(input);
+    return;
+  }
+  if (input.workspaceType === "mystery") {
+    const { workspaceType: _workspaceType, ...book } = input;
+    await options.createMystery?.(book);
+    return;
+  }
   await options.createShort(
     input.templateId
       ? input

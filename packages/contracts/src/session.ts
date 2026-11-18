@@ -17,6 +17,7 @@ export * from "./session/evaluation";
 export * from "./session/subagent";
 export * from "./session/workspace-mutations";
 export * from "./session/long-proposals";
+export * from "./session/academic-proposals";
 export * from "./session/proposal-settlements";
 export * from "./session/commands";
 export * from "./session/envelopes";

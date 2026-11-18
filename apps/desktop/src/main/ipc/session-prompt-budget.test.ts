@@ -29,6 +29,7 @@ describe("authoritative workspace prompt budget", () => {
       requireModelConfigStore: () => ({ resolve: async () => undefined }),
       requireWorkspaceAgentConfigStore: () => ({}),
       requireLongAgentConfigStore: () => ({}),
+      requireAcademicAgentConfigStore: () => ({}),
       requireAgentTeamConfigStore: () => ({}),
       requireLibraryAgentConfigStore: () => ({}),
       requireGeneralSettingsStore: () => ({ list: async () => ({ settings }) })

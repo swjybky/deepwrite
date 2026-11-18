@@ -28,6 +28,7 @@ import {
   type LibraryPackageManifestLibrary
 } from "./manifest";
 import {
+  libraryKindName,
   renderGroupReadme,
   renderLibraryReadme,
   type ReadmeContext,
@@ -185,6 +186,7 @@ function layoutLibrary(
       libraryType:
         "materialType" in library ? library.materialType : library.skillType,
       ...kind,
+      ...(library.customTag ? { customTag: library.customTag } : {}),
       overview: library.overview,
       entries: manifestEntries
     }
@@ -218,9 +220,14 @@ export function buildLibraryPackageFiles(
   const libraries: LibraryPackageManifestLibrary[] = [];
   const groupMembers: ReadmeGroupMember[] = [];
   const memberKeys: Record<string, string> = {};
+  const orderedMemberKeys: string[] = [];
 
   source.members.forEach(({ slot, library }, index) => {
-    const kindName = slot ? slotName(source.domain, slot, options.locale) : "";
+    const kindName = slot
+      ? slotName(source.domain, slot, options.locale)
+      : library
+        ? libraryKindName(library, options.locale)
+        : fallback;
     if (!library) {
       groupMembers.push({ kindName, title: "", directory: "", entryCount: 0 });
       return;
@@ -239,7 +246,8 @@ export function buildLibraryPackageFiles(
     const laidOut = layoutLibrary(library, key, directory, context);
     files.push(...laidOut.files);
     libraries.push(laidOut.manifest);
-    if (slot) memberKeys[slot] = key;
+    orderedMemberKeys.push(key);
+    if (slot && !(slot in memberKeys)) memberKeys[slot] = key;
     groupMembers.push({
       kindName,
       title: library.title,
@@ -266,7 +274,13 @@ export function buildLibraryPackageFiles(
     exportedAt: options.exportedAt,
     domain: source.domain,
     ...(source.groupTitle !== null
-      ? { group: { title: source.groupTitle, members: memberKeys } }
+      ? {
+          group: {
+            title: source.groupTitle,
+            members: memberKeys,
+            memberKeys: orderedMemberKeys
+          }
+        }
       : {}),
     libraries
   };

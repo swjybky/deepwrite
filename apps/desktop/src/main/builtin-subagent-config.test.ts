@@ -36,7 +36,7 @@ describe("independent built-in subagent settings", () => {
       expect(migrated.builtinSubagents).toEqual(
         defaultBuiltinSubagentSettings()
       );
-      expect(JSON.parse(await readFile(path, "utf8")).version).toBe(5);
+      expect(JSON.parse(await readFile(path, "utf8")).version).toBe(6);
       const settings = defaultBuiltinSubagentSettings();
       settings.skill.enabled = false;
       settings.material.description = "用户要求记录素材时调用";

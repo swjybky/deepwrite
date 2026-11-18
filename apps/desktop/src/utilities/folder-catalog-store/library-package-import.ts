@@ -63,6 +63,7 @@ export function buildLibraryPackageProjects(
           title,
           materialType: library.libraryType,
           materialKind: library.kind,
+          ...(library.customTag ? { customTag: library.customTag } : {}),
           parentGenre: library.parentGenre,
           subGenre: library.subGenre,
           overview: library.overview,
@@ -75,6 +76,7 @@ export function buildLibraryPackageProjects(
           title,
           skillType: library.libraryType,
           skillKind: library.kind,
+          ...(library.customTag ? { customTag: library.customTag } : {}),
           overview: library.overview,
           isBuiltin: false,
           entries,
@@ -90,15 +92,17 @@ export function buildLibraryPackageProjects(
   }
 
   if (!resolved.group) return { plans, libraryIds, entryCount };
-  const members = Object.fromEntries(
-    resolved.group.slots.map((slot, index) => [slot, libraryIds[index]])
-  );
+  const memberIds = (
+    resolved.group.memberOrder ?? libraryIds.map((_, index) => index)
+  )
+    .map((index) => libraryIds[index])
+    .filter((id): id is string => Boolean(id));
   const group = (
     material ? MaterialLibraryGroupSchema : SkillLibraryGroupSchema
   ).parse({
     id: createCatalogId(material ? "material-group" : "skill-group"),
     title: nextLibraryPackageTitle(resolved.group.title, context.groupTitles),
-    members,
+    memberIds,
     createdAt: now,
     updatedAt: now
   });

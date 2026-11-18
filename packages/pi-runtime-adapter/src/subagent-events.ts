@@ -145,11 +145,13 @@ export function toSubagentRuntimeEvents(
         event.type === "extras_agent.output_updated" ||
         event.type === "workspace.editor_mutation" ||
         event.type === "workspace.stage_selection" ||
+        event.type === "academic.workspace_mutation" ||
         event.type === "long.mutation_proposal" ||
         event.type === "long.worldbuilding_file_proposal" ||
         event.type === "long.character_file_proposal" ||
         event.type === "long.continuity_file_proposal" ||
         event.type === "long.chapter_write_proposal" ||
-        event.type === "long.ledger_commit_proposal"
+        event.type === "long.ledger_commit_proposal" ||
+        event.type === "mystery.mutation_proposal"
     );
 }

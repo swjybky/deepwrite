@@ -26,6 +26,9 @@ describe("scopeBookLibrariesToReadAccess", () => {
       material: ["character"],
       skill: ["general", "other"]
     });
+    if (scoped.bookType === "academic" || book.bookType === "academic") {
+      throw new Error("Expected short book");
+    }
     expect(scoped.linkedMaterialIdsByKind).toEqual({
       character: ["material-character"],
       gimmick: [],

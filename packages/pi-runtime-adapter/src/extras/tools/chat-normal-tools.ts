@@ -13,9 +13,12 @@ function projectSummaries(context: ChatAssistantRuntimeSnapshot) {
     project_type: book.bookType,
     project_id: book.id,
     title: book.title,
-    genre: book.genre,
+    genre: book.bookType === "academic" ? book.subtype : book.genre,
     status: book.status,
-    stage_count: book.plotStages.filter((stage) => stage.enabled).length + 2,
+    stage_count:
+      book.bookType === "academic"
+        ? book.frameworkStages.filter((stage) => stage.enabled).length + 2
+        : book.plotStages.filter((stage) => stage.enabled).length + 2,
     updated_at: book.updatedAt
   }));
   const long = context.longBooks.map((book) => ({
@@ -58,7 +61,7 @@ export function buildNormalTools(
     parameters: Type.Object({
       query: Type.Optional(Type.String({ maxLength: 200 })),
       project_type: Type.Optional(
-        StringEnum(["short", "script", "long"] as const)
+        StringEnum(["short", "script", "long", "academic"] as const)
       ),
       cursor: Type.Optional(Type.String({ maxLength: 32 })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 }))
@@ -78,7 +81,12 @@ export function buildNormalTools(
     label: "查看项目摘要",
     description: "读取指定创作项目的结构摘要和阶段目录；普通模式不返回正文。",
     parameters: Type.Object({
-      project_type: StringEnum(["short", "script", "long"] as const),
+      project_type: StringEnum([
+        "short",
+        "script",
+        "long",
+        "academic"
+      ] as const),
       project_id: Type.String({ minLength: 1, maxLength: 512 })
     }),
     execute: async (_id, params) => {
@@ -105,6 +113,28 @@ export function buildNormalTools(
           candidate.bookType === params.project_type
       );
       if (!book) return textResult("未找到指定创作项目。");
+      if (book.bookType === "academic") {
+        return jsonResult({
+          project_type: "academic",
+          project_id: book.id,
+          title: book.title,
+          subtype: book.subtype,
+          citation_style: book.citationStyle,
+          status: book.status,
+          updated_at: book.updatedAt,
+          framework_stages: book.frameworkStages,
+          card_count: book.foundation.cards.length,
+          chapters: book.manuscript.chapters,
+          sections: book.manuscript.sections.map((section) => ({
+            id: section.id,
+            chapter_id: section.chapterId ?? null,
+            title: section.title,
+            word_count_requirement: section.wordCountRequirement
+          })),
+          linked_material_ids: book.linkedMaterialIds,
+          linked_skill_ids: book.linkedSkillIds
+        });
+      }
       return jsonResult({
         project_type: book.bookType,
         project_id: book.id,

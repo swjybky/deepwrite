@@ -40,6 +40,8 @@ export type ContextTaskKind =
   | "short-draft"
   | "script"
   | "long"
+  | "academic"
+  | "mystery"
   | "library-skill"
   | "library-material"
   | "subagent-authoring"

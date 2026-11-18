@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CatalogSnapshotSchema,
+  CreativeBookSchema,
   catalogDraftBodyDocumentId
 } from "@deepwrite/contracts";
 import { CatalogStore } from "./catalog-store";
@@ -310,10 +311,10 @@ describe("CatalogStore", () => {
       "legacy-format-variant",
       "legacy-emotion-material"
     ]);
-    expect(imported.materialGroups[0]?.members).toEqual({
-      plot: "recovered-material-plot",
-      gimmick: "legacy-emotion-material"
-    });
+    expect(imported.materialGroups[0]?.memberIds).toEqual([
+      "legacy-emotion-material",
+      "recovered-material-plot"
+    ]);
     expect(imported.skills.map(({ id }) => id)).toEqual([
       "official-general-skill-library",
       "legacy-emotion-skill"
@@ -451,8 +452,9 @@ describe("CatalogStore", () => {
     ]);
     expect(supplemented.books).toHaveLength(1);
     expect(
-      supplemented.books[0]?.draft.sections.find(({ id }) => id === "section-1")
-        ?.body.content
+      CreativeBookSchema.parse(supplemented.books[0]).draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("必须保留的书稿");
     expect(supplemented.legacyImport).toMatchObject({
       sourceRoot: firstRoot,
@@ -561,7 +563,9 @@ describe("CatalogStore", () => {
       title: "改名后的短篇",
       status: "completed"
     });
-    expect(updated.linkedMaterialIdsByKind.character).toEqual([]);
+    expect(
+      CreativeBookSchema.parse(updated).linkedMaterialIdsByKind.character
+    ).toEqual([]);
 
     const persisted = await new CatalogStore({
       userDataPath,
@@ -569,8 +573,9 @@ describe("CatalogStore", () => {
       now: tickingClock()
     }).snapshot();
     expect(
-      persisted.books[0]?.draft.sections.find(({ id }) => id === "section-1")
-        ?.body.content
+      CreativeBookSchema.parse(persisted.books[0]).draft.sections.find(
+        ({ id }) => id === "section-1"
+      )?.body.content
     ).toBe("第一章正文");
     expect(() => CatalogSnapshotSchema.parse(persisted)).not.toThrow();
 
@@ -618,15 +623,17 @@ describe("CatalogStore", () => {
 
     await expect(
       store.createShortBook({
-        title: "错误分类",
+        title: "缺失素材",
         genre: "其他",
-        linkedMaterialIdsByKind: { plot: ["material-character"] }
+        linkedMaterialIdsByKind: { plot: ["missing-material"] }
       })
-    ).rejects.toThrow(/不能关联到 plot/u);
+    ).rejects.toThrow(/不存在的素材库/u);
     const sharedLibraryBook = await store.createShortBook({
-      title: "共用长篇来源素材",
+      title: "共用长篇来源素材与跨桶自由关联",
       genre: "其他",
-      linkedMaterialIdsByKind: { plot: ["material-long-plot"] }
+      linkedMaterialIdsByKind: {
+        plot: ["material-long-plot", "material-character"]
+      }
     });
 
     const after = await store.snapshot();

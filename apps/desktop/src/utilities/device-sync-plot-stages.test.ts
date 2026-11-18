@@ -31,6 +31,9 @@ function withStage(item: SyncItem): SyncItem {
   const manifest = CurrentBookProjectManifestSchema.parse(
     JSON.parse(item.files["deepwrite.json"]!)
   );
+  if (manifest.bookType === "academic") {
+    throw new Error("Expected creative book manifest");
+  }
   return {
     ...item,
     files: {

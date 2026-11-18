@@ -2,6 +2,11 @@ import {
   DuplicateCatalogProjectResultSchema,
   ExternalControlLocateProjectResultSchema,
   LongWriteDocumentResultSchema,
+  MYSTERY_BOOK_GENRES,
+  MysteryBookGenreSchema,
+  MysteryOpenBookResultSchema,
+  MysteryWriteAgentsMdResultSchema,
+  MysteryWriteDocumentResultSchema,
   SCRIPT_BOOK_GENRES,
   SaveDocumentResultSchema,
   ScriptBookGenreSchema,
@@ -23,7 +28,12 @@ import {
   runCommand,
   type MutationContext
 } from "./mutation-client";
-import { getWork, isLongWorkId } from "./work-read-tools";
+import {
+  getWork,
+  isLongWorkId,
+  isMysteryWorkId,
+  parseMysteryDocumentTargetKey
+} from "./work-read-tools";
 
 function changed(context: MutationContext, workId: string): void {
   context.broadcastChange({ domain: "work", resourceId: workId });
@@ -52,6 +62,34 @@ export async function writeDocument(
 ): Promise<ExternalMutationResult> {
   assertNoActiveRun(context, [input.workId]);
   const { workId, documentId, content, baseRevision } = input;
+  if (isMysteryWorkId(workId)) {
+    const target = parseMysteryDocumentTargetKey(documentId);
+    const revision =
+      target.kind === "agents_md"
+        ? (
+            await runCommand(
+              context,
+              "mystery.writeAgentsMd",
+              { bookId: workId, content, expectedRevision: baseRevision },
+              MysteryWriteAgentsMdResultSchema
+            )
+          ).revision
+        : (
+            await runCommand(
+              context,
+              "mystery.writeDocument",
+              {
+                bookId: workId,
+                target,
+                content,
+                expectedRevision: baseRevision
+              },
+              MysteryWriteDocumentResultSchema
+            )
+          ).revision;
+    changed(context, workId);
+    return ExternalMutationResultSchema.parse({ id: documentId, revision });
+  }
   if (isLongWorkId(workId)) {
     await assertLongEditorSaved(context, workId);
     const written = await runCommand(
@@ -91,8 +129,36 @@ async function createWork(
 ): Promise<ExternalMutationResult> {
   const type = requireField(input.type, "create", "type");
   const title = requireField(input.title, "create", "title");
+  if (type === "academic") {
+    const subtype = input.subtype ?? "empirical_paper";
+    const citationStyle = input.citationStyle ?? "gbt7714";
+    const created = await runCommand(
+      context,
+      "catalog.createAcademicBook",
+      { title, subtype, citationStyle },
+      ANY_PAYLOAD
+    );
+    const id = createdId(created);
+    if (!id) {
+      throw new ExternalControlError(
+        "external.not_ready",
+        "DeepWrite 还没有选择工作目录，无法新建作品。请让用户先在设置里选择。"
+      );
+    }
+    return { id, title };
+  }
   const genre = requireField(input.genre, "create", "genre");
-  if (type !== "long" && !ScriptBookGenreSchema.safeParse(genre).success) {
+  if (type === "mystery" && !MysteryBookGenreSchema.safeParse(genre).success) {
+    throw new ExternalControlError(
+      "external.invalid_input",
+      `剧本杀的 genre 只能是：${MYSTERY_BOOK_GENRES.join("、")}。`
+    );
+  }
+  if (
+    type !== "long" &&
+    type !== "mystery" &&
+    !ScriptBookGenreSchema.safeParse(genre).success
+  ) {
     throw new ExternalControlError(
       "external.invalid_input",
       `短篇和剧本的 genre 只能是：${SCRIPT_BOOK_GENRES.join("、")}。`
@@ -102,9 +168,11 @@ async function createWork(
     context,
     type === "long"
       ? "long.createBook"
-      : type === "script"
-        ? "catalog.createScriptBook"
-        : "catalog.createShortBook",
+      : type === "mystery"
+        ? "mystery.createBook"
+        : type === "script"
+          ? "catalog.createScriptBook"
+          : "catalog.createShortBook",
     { title, genre },
     ANY_PAYLOAD
   );
@@ -123,11 +191,15 @@ async function deleteWork(
   workId: string
 ): Promise<ExternalMutationResult> {
   const long = isLongWorkId(workId);
+  const mystery = isMysteryWorkId(workId);
   const { title } = await getWork(context.core, { workId });
   const { projectDirectory } = await readCore(
     context.core,
     "externalControl.locateProject",
-    { source: long ? "long" : "catalog", projectId: workId },
+    {
+      source: mystery ? "mystery" : long ? "long" : "catalog",
+      projectId: workId
+    },
     ExternalControlLocateProjectResultSchema,
     "找不到这部作品。请用 list_works 重新确认作品 ID。"
   );
@@ -135,12 +207,19 @@ async function deleteWork(
     kind: "project",
     title,
     client: context.client.name,
-    domain: long ? "long" : "book",
+    domain: mystery ? "mystery" : long ? "long" : "book",
     projectId: workId,
     projectDirectory
   });
   try {
-    if (long) {
+    if (mystery) {
+      await runCommand(
+        context,
+        "mystery.unregister",
+        { bookId: workId },
+        ANY_PAYLOAD
+      );
+    } else if (long) {
       await runCommand(
         context,
         "long.unregister",
@@ -178,19 +257,33 @@ export async function manageWork(
   }
   const workId = requireField(input.workId, action, "workId");
   const long = isLongWorkId(workId);
+  const mystery = isMysteryWorkId(workId);
   const result = await (async (): Promise<ExternalMutationResult> => {
     switch (action) {
       case "rename": {
         const title = requireField(input.title, "rename", "title");
         await runCommand(
           context,
-          long ? "long.rename" : "catalog.updateBook",
+          mystery
+            ? "mystery.rename"
+            : long
+              ? "long.rename"
+              : "catalog.updateBook",
           { bookId: workId, title },
           ANY_PAYLOAD
         );
         return { id: workId, title };
       }
       case "duplicate": {
+        if (mystery) {
+          const copy = await runCommand(
+            context,
+            "mystery.duplicateBook",
+            { bookId: workId },
+            MysteryOpenBookResultSchema
+          );
+          return { id: copy.book.id, title: copy.summary.title };
+        }
         if (long) {
           const copy = await runCommand(
             context,

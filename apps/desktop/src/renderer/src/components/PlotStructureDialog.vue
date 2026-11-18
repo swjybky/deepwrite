@@ -66,7 +66,7 @@ const {
 <template>
   <Teleport to="body">
     <div
-      v-if="open && book && !activeSubdialog"
+      v-if="open && book && book.bookType !== 'academic' && !activeSubdialog"
       class="dialog-backdrop plot-structure-dialog-overlay"
       @mousedown.self="close"
     >

@@ -176,7 +176,11 @@ export function createCharacterStructureLane(ctx: ProposalLaneContext) {
     const mutationTarget = event.payload.mutationTarget;
     if (mutationTarget?.kind === "character-structure") {
       const book = catalogBook(event.payload.workspaceId);
-      if (!book || book.characterStructure.format !== "list") {
+      if (
+        !book ||
+        book.bookType === "academic" ||
+        book.characterStructure.format !== "list"
+      ) {
         const message = t("theCurrentCharacterStructureIsNotListBasedThis");
         sourceConversation.markToolConflict(
           event.payload.runId,

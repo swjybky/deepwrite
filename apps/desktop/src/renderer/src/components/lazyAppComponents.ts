@@ -41,6 +41,10 @@ export const LongWorkspaceModule = lazyFeature(
   (features) => features.loadLongWorkspaceModule(),
   LongWorkspaceLoading
 );
+export const MysteryWorkspaceModule = lazyFeature(
+  (features) => features.loadMysteryWorkspaceModule(),
+  LongWorkspaceLoading
+);
 export const SettingsPage = lazyFeature((features) =>
   features.loadSettingsPage()
 );
@@ -180,4 +184,10 @@ export const LongMaterialPackPage = lazyFeature((features) =>
 );
 export const BookIdentityPage = lazyFeature((features) =>
   features.loadBookIdentityPage()
+);
+export const AcademicWorkspaceDialogs = lazyFeature((features) =>
+  features.loadAcademicWorkspaceDialogs()
+);
+export const AcademicReferenceCardBar = lazyFeature((features) =>
+  features.loadAcademicReferenceCardBar()
 );

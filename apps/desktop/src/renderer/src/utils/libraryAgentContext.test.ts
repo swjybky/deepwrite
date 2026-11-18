@@ -183,10 +183,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
     catalog.materialGroups.push({
       id: "material-group-1",
       title: "雾港素材组",
-      members: {
-        character: "material-1",
-        plot: "material-plot"
-      },
+      memberIds: ["material-1", "material-plot"],
       createdAt: now,
       updatedAt: now
     });
@@ -269,10 +266,7 @@ describe("buildLibraryAgentWorkspaceContext", () => {
     catalog.skillGroups.push({
       id: "skill-group-1",
       title: "短篇方法组",
-      members: {
-        general: "skill-1",
-        style: "skill-style"
-      },
+      memberIds: ["skill-1", "skill-style"],
       createdAt: now,
       updatedAt: now
     });
@@ -366,10 +360,7 @@ describe("buildLibraryEntryComposerReferences", () => {
     catalog.materialGroups.push({
       id: "material-group-1",
       title: "雾港素材组",
-      members: {
-        character: "material-1",
-        plot: "material-plot"
-      },
+      memberIds: ["material-1", "material-plot"],
       createdAt: now,
       updatedAt: now
     });

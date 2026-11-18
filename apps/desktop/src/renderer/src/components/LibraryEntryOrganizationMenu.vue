@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import {
-  MATERIAL_STAGE_KINDS,
-  type LibraryStructureOperation
-} from "@deepwrite/contracts/renderer";
+import type { LibraryStructureOperation } from "@deepwrite/contracts/renderer";
 import { useCatalogIndexStore } from "../stores/catalogIndexStore";
 import { createScopedTranslator } from "../i18n";
 import AppIcon from "./AppIcon.vue";
@@ -32,27 +29,13 @@ const source = computed(() =>
   libraries.value.find((library) => library.id === props.libraryId)
 );
 const targets = computed(() =>
-  libraries.value.filter((library) => {
-    if (
-      !source.value ||
-      library.id === props.libraryId ||
-      library.isUnbound ||
-      ("isBuiltin" in library && library.isBuiltin)
-    )
-      return false;
-    return (
-      !("materialKind" in library) ||
-      library.materialKind === "mixed" ||
-      source.value.entries
-        .filter((entry) => selected.value.includes(entry.id))
-        .every(
-          (entry) =>
-            MATERIAL_STAGE_KINDS[
-              entry.stageId as keyof typeof MATERIAL_STAGE_KINDS
-            ] === library.materialKind
-        )
-    );
-  })
+  libraries.value.filter(
+    (library) =>
+      Boolean(source.value) &&
+      library.id !== props.libraryId &&
+      !library.isUnbound &&
+      !("isBuiltin" in library && library.isBuiltin)
+  )
 );
 const options = computed(() => [
   { value: "", label: t("chooseDestination") },

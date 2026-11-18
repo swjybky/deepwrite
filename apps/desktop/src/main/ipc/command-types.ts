@@ -18,7 +18,10 @@ import type {
 import type { LegacySyncPreviewRegistry } from "../legacy-sync-preview-registry";
 import type { LibraryAgentConfigStore } from "../library-agent-config-store";
 import type { listRemoteModels } from "../list-remote-models";
+import type { AcademicAgentConfigStore } from "../academic-agent-config-store";
+import type { exportAcademicManuscript } from "../academic-manuscript-export";
 import type { LongAgentConfigStore } from "../long-agent-config-store";
+import type { MysteryAgentConfigStore } from "../mystery-agent-config-store";
 import type { exportLongManuscript } from "../long-manuscript-export";
 import type { ModelConfigStore } from "../model-config-store";
 import type { ModelUsageStore } from "../model-usage-store";
@@ -59,11 +62,14 @@ export interface IpcCommandContext {
   requireAgentTeamConfigStore: () => AgentTeamConfigStore;
   requireLibraryAgentConfigStore: () => LibraryAgentConfigStore;
   requireLongAgentConfigStore: () => LongAgentConfigStore;
+  requireAcademicAgentConfigStore: () => AcademicAgentConfigStore;
+  requireMysteryAgentConfigStore: () => MysteryAgentConfigStore;
   requireWorkspaceDirectoryStore: () => WorkspaceDirectoryStore;
   requireAppearanceService: () => AppearanceService;
   requireGeneralSettingsStore: () => GeneralSettingsStore;
   /** Search settings for one run; absent or undefined means no search tool. */
   resolveWebSearch?: () => Promise<WebSearchRuntimeConfig | undefined>;
+  exportAcademicManuscript: typeof exportAcademicManuscript;
   exportShortManuscript: typeof exportShortManuscript;
   exportLongManuscript: typeof exportLongManuscript;
   listRemoteModels: typeof listRemoteModels;

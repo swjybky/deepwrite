@@ -295,7 +295,8 @@ export async function sendMessage(
               ...(proposalSettlements ? { proposalSettlements } : {}),
               ...(contextSnapshot?.shortWorkspace ||
               contextSnapshot?.scriptWorkspace ||
-              contextSnapshot?.longWorkspace
+              contextSnapshot?.longWorkspace ||
+              contextSnapshot?.academicWorkspace
                 ? { agentTeamMode: requestedAgentTeamMode }
                 : {}),
               ...workspaceWebSearchPromptFields(ctx.webSearchEnabled.value),

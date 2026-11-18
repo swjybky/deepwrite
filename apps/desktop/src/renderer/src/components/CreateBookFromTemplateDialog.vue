@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { genreLabel } from "./catalogLabels";
+import { DEFAULT_ACADEMIC_FRAMEWORK_STAGES } from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../i18n";
 import { computed, ref } from "vue";
 import type { CreateCreativeBookPayload } from "./WorkspaceDialogLayer.types";
 import PopupSelect from "./PopupSelect.vue";
+import { academicT } from "./academic/academicLabels";
+import {
+  academicCitationStyleLabel,
+  academicFrameworkStageLabel,
+  academicSubtypeLabel,
+  academicTreeT
+} from "./academic/academicTreeLabels";
 import { useBookTemplates } from "../composables/useBookTemplates";
 import { bookTemplateReferenceError } from "../utils/bookTemplateReferences";
 import { useBookAgentTeamCatalog } from "../composables/useBookAgentTeamBinding";
@@ -30,39 +38,63 @@ const options = computed(() =>
     label: t("valueValue", {
       arg0: item.configuration.name,
       arg1:
-        item.configuration.workspaceType === "short"
-          ? t("shortStory")
-          : t("screenplay")
+        item.configuration.workspaceType === "academic"
+          ? academicTreeT("academicWork")
+          : item.configuration.workspaceType === "short"
+            ? t("shortStory")
+            : t("screenplay")
     })
   }))
 );
-const stageSummary = computed(() =>
-  configuration.value?.defaultPlotStageIds
+const stageSummary = computed(() => {
+  const config = configuration.value;
+  if (!config) return "";
+  if (config.workspaceType === "academic") {
+    return config.defaultFrameworkStageIds
+      .map((id) => {
+        const stage = DEFAULT_ACADEMIC_FRAMEWORK_STAGES.find(
+          (candidate) => candidate.id === id
+        );
+        return stage ? academicFrameworkStageLabel(stage) : id;
+      })
+      .join("、");
+  }
+  return config.defaultPlotStageIds
     .map(
       (id) =>
         catalog.value?.creativePlotStages.find((stage) => stage.id === id)
           ?.title ?? t("unavailableStage")
     )
-    .join("、")
-);
+    .join("、");
+});
 const librarySummary = computed(() => {
   if (!configuration.value)
     return {
       materials: t("noLink"),
       skills: t("noLink")
     };
-  const materials = [
-    ...new Set(
-      Object.values(configuration.value.linkedMaterialIdsByKind).flat()
-    )
-  ].map(
+  const materialIds =
+    configuration.value.workspaceType === "academic"
+      ? [...new Set(configuration.value.linkedMaterialIds)]
+      : [
+          ...new Set(
+            Object.values(configuration.value.linkedMaterialIdsByKind).flat()
+          )
+        ];
+  const skillIds =
+    configuration.value.workspaceType === "academic"
+      ? [...new Set(configuration.value.linkedSkillIds)]
+      : [
+          ...new Set(
+            Object.values(configuration.value.linkedSkillIdsByKind).flat()
+          )
+        ];
+  const materials = materialIds.map(
     (id) =>
       catalog.value?.materials.find((item) => item.id === id)?.title ??
       t("unavailableMaterialLibrary")
   );
-  const skills = [
-    ...new Set(Object.values(configuration.value.linkedSkillIdsByKind).flat())
-  ].map(
+  const skills = skillIds.map(
     (id) =>
       catalog.value?.skills.find((item) => item.id === id)?.title ??
       t("unavailableSkillLibrary")
@@ -101,14 +133,27 @@ function submit() {
     uiMessage.warning(error);
     return;
   }
+  const selectedConfig = selected.value.configuration;
+  if (selectedConfig.workspaceType === "academic") {
+    emit("submit", {
+      workspaceType: "academic",
+      subtype: selectedConfig.subtype,
+      templateId: selected.value.id,
+      title: title.value.trim(),
+      ...(selectedConfig.linkedAgentTeamIds
+        ? { linkedAgentTeamIds: selectedConfig.linkedAgentTeamIds }
+        : {})
+    });
+    return;
+  }
   emit("submit", {
-    workspaceType: selected.value.configuration.workspaceType,
-    genre: selected.value.configuration.genre,
+    workspaceType: selectedConfig.workspaceType,
+    genre: selectedConfig.genre,
     templateId: selected.value.id,
     title: title.value.trim(),
-    ...(selected.value.configuration.linkedAgentTeamIds
+    ...(selectedConfig.linkedAgentTeamIds
       ? {
-          linkedAgentTeamIds: selected.value.configuration.linkedAgentTeamIds
+          linkedAgentTeamIds: selectedConfig.linkedAgentTeamIds
         }
       : {})
   });
@@ -173,25 +218,41 @@ function submit() {
               </dt>
               <dd>
                 {{
-                  configuration.workspaceType === "short"
-                    ? t("shortStory")
-                    : t("screenplay")
+                  configuration.workspaceType === "academic"
+                    ? academicTreeT("academicWork")
+                    : configuration.workspaceType === "short"
+                      ? t("shortStory")
+                      : t("screenplay")
                 }}
               </dd>
-              <dt>{{ t("genre") }}</dt>
-              <dd>{{ genreLabel(configuration.genre) }}</dd>
+              <template v-if="configuration.workspaceType === 'academic'">
+                <dt>{{ academicT("subtypeLabel") }}</dt>
+                <dd>{{ academicSubtypeLabel(configuration.subtype) }}</dd>
+                <dt>{{ academicT("citationStyleLabel") }}</dt>
+                <dd>
+                  {{ academicCitationStyleLabel(configuration.citationStyle) }}
+                </dd>
+              </template>
+              <template v-else>
+                <dt>{{ t("genre") }}</dt>
+                <dd>{{ genreLabel(configuration.genre) }}</dd>
+                <dt>
+                  {{ t("characterStyle") }}
+                </dt>
+                <dd>
+                  {{
+                    configuration.characterFormat === "text"
+                      ? t("textStyle")
+                      : t("entryStyle")
+                  }}
+                </dd>
+              </template>
               <dt>
-                {{ t("characterStyle") }}
-              </dt>
-              <dd>
                 {{
-                  configuration.characterFormat === "text"
-                    ? t("textStyle")
-                    : t("entryStyle")
+                  configuration.workspaceType === "academic"
+                    ? academicTreeT("zoneFramework")
+                    : t("plotStages")
                 }}
-              </dd>
-              <dt>
-                {{ t("plotStages") }}
               </dt>
               <dd>{{ stageSummary }}</dd>
               <dt>
@@ -202,10 +263,12 @@ function submit() {
                 {{ t("materialLibrary") }}
               </dt>
               <dd>{{ librarySummary.materials }}</dd>
-              <dt>
-                {{ t("agentTeams") }}
-              </dt>
-              <dd>{{ teamSummary }}</dd>
+              <template v-if="configuration.workspaceType !== 'academic'">
+                <dt>
+                  {{ t("agentTeams") }}
+                </dt>
+                <dd>{{ teamSummary }}</dd>
+              </template>
             </dl>
             <label
               >{{ t("workTitle")

@@ -28,7 +28,9 @@ export function filterVersionOrigin(
     !enabled &&
     (command.type === "catalog.saveDocument" ||
       command.type === "catalog.createDraftSections" ||
-      command.type === "long.applyOperations") &&
+      command.type === "long.applyOperations" ||
+      command.type === "mystery.writeDocument" ||
+      command.type === "mystery.applyOperations") &&
     command.payload.versionOrigin
   ) {
     const { versionOrigin: _, ...payload } = command.payload;

@@ -12,6 +12,7 @@ defineProps<{
   note: string;
   disabled: boolean;
   limitReached: boolean;
+  hideLoadFromSkill?: boolean;
 }>();
 
 const emit = defineEmits<{ loadFromSkill: []; add: [] }>();
@@ -30,6 +31,7 @@ const titleId = useId();
       </div>
       <div class="section-actions">
         <button
+          v-if="!hideLoadFromSkill"
           type="button"
           class="secondary-button"
           :disabled="disabled || limitReached"

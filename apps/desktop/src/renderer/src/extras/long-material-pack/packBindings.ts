@@ -1,12 +1,14 @@
-import type {
-  DeepWriteApi,
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind
+import {
+  flattenMaterialIdsByKind,
+  materialIdsToByKind,
+  type DeepWriteApi,
+  type LinkedMaterialIdsByKind,
+  type LinkedSkillIdsByKind
 } from "@deepwrite/contracts/renderer";
 
 export interface PackWork {
   key: string;
-  kind: "short" | "script" | "long";
+  kind: "short" | "script" | "long" | "academic";
   id: string;
   title: string;
   /** Long books replace all links at once and must resend their skills. */
@@ -40,18 +42,10 @@ export async function packGroupLinks(
   api: DeepWriteApi,
   groupId: string
 ): Promise<LinkedMaterialIdsByKind> {
-  const group = (await api.catalog.index()).materialGroups.find(
-    ({ id }) => id === groupId
-  );
+  const index = await api.catalog.index();
+  const group = index.materialGroups.find(({ id }) => id === groupId);
   if (!group) throw new Error(groupId);
-  const one = (id: string | undefined) => (id ? [id] : []);
-  return {
-    character: one(group.members.character),
-    gimmick: one(group.members.gimmick),
-    plot: one(group.members.plot),
-    draft: one(group.members.draft),
-    other: one(group.members.other)
-  };
+  return materialIdsToByKind(group.memberIds, index.materials);
 }
 
 export async function bindPackToWork(
@@ -64,6 +58,11 @@ export async function bindPackToWork(
       bookId: work.id,
       linkedMaterialIdsByKind: links,
       linkedSkillIdsByKind: work.skills ?? {}
+    });
+  else if (work.kind === "academic")
+    await api.catalog.updateBook({
+      bookId: work.id,
+      linkedMaterialIds: flattenMaterialIdsByKind(links)
     });
   else
     await api.catalog.updateBook({

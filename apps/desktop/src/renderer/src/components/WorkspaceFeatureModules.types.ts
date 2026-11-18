@@ -2,6 +2,7 @@ import type {
   AppLanguage,
   BodyTextFormats,
   AgentTeamCatalogSnapshot,
+  CatalogIndexSnapshot,
   CatalogSnapshot,
   ContextCompactionSettings,
   CreativePlotStage,
@@ -126,6 +127,21 @@ export interface ZhuqueDetectionFeatureModule {
   kind: "zhuque-detection";
 }
 
+export interface MysteryWorkspaceFeatureModule {
+  kind: "mystery-workspace";
+  bookId: string;
+  catalogSnapshot: CatalogIndexSnapshot | CatalogSnapshot | null;
+  resolveConversation: (
+    key: string,
+    scope: string
+  ) => import("../composables/useAgentConversation").AgentConversationController;
+  autoSaveEnabled: boolean;
+  defaultTextViewMode: TextViewMode;
+  paneLayout: WorkspacePaneLayout;
+  runtimeAvailable: boolean;
+  onBookRemoved?: (() => void) | undefined;
+}
+
 export type WorkspaceFeatureModule =
   | {
       kind: "long-book-decomposition";
@@ -164,4 +180,5 @@ export type WorkspaceFeatureModule =
   | AgentTeamMarketplaceFeatureModule
   | DeviceSyncFeatureModule
   | CloudBackupFeatureModule
-  | ZhuqueDetectionFeatureModule;
+  | ZhuqueDetectionFeatureModule
+  | MysteryWorkspaceFeatureModule;

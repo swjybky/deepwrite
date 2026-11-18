@@ -1,20 +1,22 @@
-import { createScopedTranslator } from "../i18n";
-import { computed, reactive, ref, watch } from "vue";
-import type {
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  MaterialKind,
-  MaterialLibraryGroup,
-  SkillKind,
-  SkillLibraryGroup
-} from "@deepwrite/contracts";
+import { computed, ref, watch } from "vue";
+import {
+  flattenMaterialIdsByKind,
+  flattenSkillIdsByKind,
+  materialIdsToByKind,
+  skillIdsToByKind,
+  type LinkedMaterialIdsByKind,
+  type LinkedSkillIdsByKind,
+  type MaterialLibraryGroup,
+  type SkillLibraryGroup
+} from "@deepwrite/contracts/renderer";
 import type {
   BookResourceDialogMode,
   ResourceTreeNode
 } from "../types/workspace";
-import { MATERIAL_KINDS, SKILL_KINDS } from "./bookLibraryKinds";
-
-const t = createScopedTranslator("workspace");
+import {
+  formatNodeTagBadge,
+  sharingT
+} from "../components/librarySharingLabels";
 
 interface BookResourceBindingProps {
   mode: BookResourceDialogMode | null;
@@ -26,105 +28,118 @@ interface BookResourceBindingProps {
   loading?: boolean;
 }
 
+export interface ResourceBindingPickerItem {
+  id: string;
+  title: string;
+  tag: string;
+  entryCount: number;
+}
+
 export function useBookResourceBindings(props: BookResourceBindingProps) {
-  const bindingMode = ref<"single" | "group">("single");
-  const selectedGroupId = ref("");
-  const selectedMaterialIds = reactive<Record<MaterialKind, string>>({
-    character: "",
-    gimmick: "",
-    plot: "",
-    draft: "",
-    other: ""
-  });
-  const selectedSkillIds = reactive<Record<SkillKind, string>>({
-    general: "",
-    plot: "",
-    style: "",
-    other: ""
-  });
+  const selectedMaterialLibraryIds = ref<string[]>([]);
+  const selectedSkillLibraryIds = ref<string[]>([]);
+  const searchQuery = ref("");
+  const tagFilter = ref("");
+
   const bindingDomain = computed<"skill" | "material" | null>(() => {
     if (props.mode === "bind-skill") return "skill";
     if (props.mode === "bind-material") return "material";
     return null;
   });
-  function materialCandidates(kind: MaterialKind): ResourceTreeNode[] {
-    return props.materialLibraries.filter(
-      (library) =>
-        library.materialKind === kind || library.materialKind === "mixed"
+
+  const materialById = computed(
+    () =>
+      new Map(props.materialLibraries.map((item) => [item.id, item] as const))
+  );
+  const skillById = computed(
+    () => new Map(props.skillLibraries.map((item) => [item.id, item] as const))
+  );
+
+  function countNodeEntries(node: ResourceTreeNode): number {
+    return (node.children ?? []).filter((child) =>
+      Boolean(child.catalogEntryId)
+    ).length;
+  }
+
+  const activeItems = computed<ResourceBindingPickerItem[]>(() => {
+    const domain = bindingDomain.value;
+    if (!domain) return [];
+    const nodes =
+      domain === "material" ? props.materialLibraries : props.skillLibraries;
+    return nodes.map((node) => ({
+      id: node.id,
+      title: node.badge ? `${node.label} · ${node.badge}` : node.label,
+      tag: formatNodeTagBadge(domain, node),
+      entryCount: countNodeEntries(node)
+    }));
+  });
+
+  const tagFilterOptions = computed(() => {
+    const tags = [...new Set(activeItems.value.map((item) => item.tag))];
+    return [
+      { value: "", label: sharingT("allTags") },
+      ...tags.map((tag) => ({ value: tag, label: tag }))
+    ];
+  });
+
+  const filteredItems = computed(() => {
+    const query = searchQuery.value.trim().toLocaleLowerCase();
+    const tag = tagFilter.value;
+    return activeItems.value.filter(
+      (item) =>
+        (!tag || item.tag === tag) &&
+        (!query ||
+          item.title.toLocaleLowerCase().includes(query) ||
+          item.tag.toLocaleLowerCase().includes(query))
     );
+  });
+
+  function validMaterialGroupMemberIds(
+    group: Pick<MaterialLibraryGroup, "memberIds"> | undefined
+  ): string[] {
+    if (!group) return [];
+    return group.memberIds.filter((id) => materialById.value.has(id));
   }
 
-  function materialKindDescription(
-    kind: (typeof MATERIAL_KINDS)[number]
-  ): string {
-    return props.book?.workspaceType === "script" && kind.id === "plot"
-      ? t("bookLibrarySelection.plotDesignAndRefinement")
-      : kind.description;
-  }
-
-  function skillKindDescription(kind: (typeof SKILL_KINDS)[number]): string {
-    return props.book?.workspaceType === "script" && kind.id === "style"
-      ? t("bookLibrarySelection.manuscriptAndEpisodeWritingMethods")
-      : kind.description;
-  }
-
-  function skillCandidates(kind: SkillKind): ResourceTreeNode[] {
-    return props.skillLibraries.filter((library) => library.skillKind === kind);
+  function validSkillGroupMemberIds(
+    group: Pick<SkillLibraryGroup, "memberIds"> | undefined
+  ): string[] {
+    if (!group) return [];
+    return group.memberIds.filter((id) => skillById.value.has(id));
   }
 
   function materialGroupLinks(
-    group: Pick<MaterialLibraryGroup, "members"> | undefined
+    group: Pick<MaterialLibraryGroup, "memberIds"> | undefined
   ): LinkedMaterialIdsByKind {
-    const links: LinkedMaterialIdsByKind = {
-      character: [],
-      gimmick: [],
-      plot: [],
-      draft: [],
-      other: []
-    };
-    if (!group) return links;
-    for (const { id: kind } of MATERIAL_KINDS) {
-      const libraryId = group.members[kind];
-      if (
-        libraryId &&
-        materialCandidates(kind).some((library) => library.id === libraryId)
-      ) {
-        links[kind] = [libraryId];
-      }
-    }
-    return links;
+    return materialIdsToByKind(
+      validMaterialGroupMemberIds(group),
+      props.materialLibraries.map((item) => ({
+        id: item.id,
+        materialKind: item.materialKind ?? "other"
+      }))
+    );
   }
 
   function skillGroupLinks(
-    group: Pick<SkillLibraryGroup, "members"> | undefined
+    group: Pick<SkillLibraryGroup, "memberIds"> | undefined
   ): LinkedSkillIdsByKind {
-    const links: LinkedSkillIdsByKind = {
-      general: [],
-      plot: [],
-      style: [],
-      other: []
-    };
-    if (!group) return links;
-    for (const { id: kind } of SKILL_KINDS) {
-      const libraryId = group.members[kind];
-      if (
-        libraryId &&
-        skillCandidates(kind).some((library) => library.id === libraryId)
-      ) {
-        links[kind] = [libraryId];
-      }
-    }
-    return links;
+    return skillIdsToByKind(
+      validSkillGroupMemberIds(group),
+      props.skillLibraries.map((item) => ({
+        id: item.id,
+        skillKind: item.skillKind ?? "other"
+      }))
+    );
   }
 
   const availableMaterialGroups = computed(() =>
-    props.materialGroups.filter((group) =>
-      MATERIAL_KINDS.some(({ id }) => materialGroupLinks(group)[id].length > 0)
+    props.materialGroups.filter(
+      (group) => validMaterialGroupMemberIds(group).length > 0
     )
   );
   const availableSkillGroups = computed(() =>
-    props.skillGroups.filter((group) =>
-      SKILL_KINDS.some(({ id }) => skillGroupLinks(group)[id].length > 0)
+    props.skillGroups.filter(
+      (group) => validSkillGroupMemberIds(group).length > 0
     )
   );
   const availableGroups = computed(() =>
@@ -132,89 +147,139 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
       ? availableSkillGroups.value
       : availableMaterialGroups.value
   );
-  const selectedMaterialGroup = computed(() =>
-    availableMaterialGroups.value.find(
-      (group) => group.id === selectedGroupId.value
-    )
-  );
-  const selectedSkillGroup = computed(() =>
-    availableSkillGroups.value.find(
-      (group) => group.id === selectedGroupId.value
-    )
-  );
-  const groupOptions = computed(() => [
-    {
-      value: "",
-      label:
-        bindingDomain.value === "skill"
-          ? t("bookLibrarySelection.notLinked")
-          : t("bookLibrarySelection.noAssociation")
-    },
-    ...availableGroups.value.map((group) => ({
-      value: group.id,
-      label: group.title
-    }))
-  ]);
 
-  function materialOptions(
-    kind: MaterialKind
-  ): Array<{ value: string; label: string }> {
-    return [
-      { value: "", label: t("bookLibrarySelection.noAssociation") },
-      ...materialCandidates(kind).map((library) => ({
-        value: library.id,
-        label: library.badge
-          ? `${library.label} · ${library.badge}`
-          : library.label
-      }))
-    ];
+  const selectedIds = computed(() =>
+    bindingDomain.value === "skill"
+      ? selectedSkillLibraryIds.value
+      : selectedMaterialLibraryIds.value
+  );
+  const selectedSet = computed(() => new Set(selectedIds.value));
+
+  function groupMemberCount(
+    group: MaterialLibraryGroup | SkillLibraryGroup
+  ): number {
+    return bindingDomain.value === "skill"
+      ? validSkillGroupMemberIds(group).length
+      : validMaterialGroupMemberIds(group).length;
   }
 
-  function skillOptions(
-    kind: SkillKind
-  ): Array<{ value: string; label: string }> {
-    return [
-      { value: "", label: t("bookLibrarySelection.notLinked") },
-      ...skillCandidates(kind).map((library) => ({
-        value: library.id,
-        label: library.badge
-          ? `${library.label} · ${library.badge}`
-          : library.label
-      }))
-    ];
+  function isGroupSelected(
+    group: MaterialLibraryGroup | SkillLibraryGroup
+  ): boolean {
+    const ids =
+      bindingDomain.value === "skill"
+        ? validSkillGroupMemberIds(group)
+        : validMaterialGroupMemberIds(group);
+    return ids.length > 0 && ids.every((id) => selectedSet.value.has(id));
+  }
+
+  function toggleGroup(groupId: string): void {
+    if (bindingDomain.value === "skill") {
+      const group = availableSkillGroups.value.find(
+        (candidate) => candidate.id === groupId
+      );
+      if (!group) return;
+      const ids = validSkillGroupMemberIds(group);
+      if (!ids.length) return;
+      if (isGroupSelected(group)) {
+        const remove = new Set(ids);
+        selectedSkillLibraryIds.value = selectedSkillLibraryIds.value.filter(
+          (id) => !remove.has(id)
+        );
+      } else {
+        selectedSkillLibraryIds.value = [
+          ...new Set([...selectedSkillLibraryIds.value, ...ids])
+        ];
+      }
+      return;
+    }
+    const group = availableMaterialGroups.value.find(
+      (candidate) => candidate.id === groupId
+    );
+    if (!group) return;
+    const ids = validMaterialGroupMemberIds(group);
+    if (!ids.length) return;
+    if (isGroupSelected(group)) {
+      const remove = new Set(ids);
+      selectedMaterialLibraryIds.value =
+        selectedMaterialLibraryIds.value.filter((id) => !remove.has(id));
+    } else {
+      selectedMaterialLibraryIds.value = [
+        ...new Set([...selectedMaterialLibraryIds.value, ...ids])
+      ];
+    }
+  }
+
+  function toggleLibrary(libraryId: string): void {
+    if (bindingDomain.value === "skill") {
+      if (selectedSkillLibraryIds.value.includes(libraryId)) {
+        selectedSkillLibraryIds.value = selectedSkillLibraryIds.value.filter(
+          (id) => id !== libraryId
+        );
+      } else {
+        selectedSkillLibraryIds.value = [
+          ...selectedSkillLibraryIds.value,
+          libraryId
+        ];
+      }
+      return;
+    }
+    if (selectedMaterialLibraryIds.value.includes(libraryId)) {
+      selectedMaterialLibraryIds.value =
+        selectedMaterialLibraryIds.value.filter((id) => id !== libraryId);
+    } else {
+      selectedMaterialLibraryIds.value = [
+        ...selectedMaterialLibraryIds.value,
+        libraryId
+      ];
+    }
   }
 
   function selectedMaterialLinks(): LinkedMaterialIdsByKind {
-    return materialGroupLinks({ members: selectedMaterialIds });
+    const validIds = selectedMaterialLibraryIds.value.filter((id) =>
+      materialById.value.has(id)
+    );
+    return materialIdsToByKind(
+      validIds,
+      props.materialLibraries.map((item) => ({
+        id: item.id,
+        materialKind: item.materialKind ?? "other"
+      }))
+    );
   }
 
   function selectedSkillLinks(): LinkedSkillIdsByKind {
-    return skillGroupLinks({ members: selectedSkillIds });
+    const validIds = selectedSkillLibraryIds.value.filter((id) =>
+      skillById.value.has(id)
+    );
+    return skillIdsToByKind(
+      validIds,
+      props.skillLibraries.map((item) => ({
+        id: item.id,
+        skillKind: item.skillKind ?? "other"
+      }))
+    );
   }
 
   function clearUnavailableSelections(): void {
     if (props.loading) return;
-    const materials = selectedMaterialLinks();
-    const skills = selectedSkillLinks();
-    for (const { id } of MATERIAL_KINDS) {
-      selectedMaterialIds[id] = materials[id][0] ?? "";
-    }
-    for (const { id } of SKILL_KINDS) {
-      selectedSkillIds[id] = skills[id][0] ?? "";
-    }
+    selectedMaterialLibraryIds.value = selectedMaterialLibraryIds.value.filter(
+      (id) => materialById.value.has(id)
+    );
+    selectedSkillLibraryIds.value = selectedSkillLibraryIds.value.filter((id) =>
+      skillById.value.has(id)
+    );
   }
 
   function resetBindingDraft(): void {
-    bindingMode.value = "single";
-    selectedGroupId.value = "";
-    for (const { id } of MATERIAL_KINDS) {
-      selectedMaterialIds[id] =
-        props.book?.boundMaterialLibraryIdsByKind?.[id]?.[0] ?? "";
-    }
-    for (const { id } of SKILL_KINDS) {
-      selectedSkillIds[id] =
-        props.book?.boundSkillLibraryIdsByKind?.[id]?.[0] ?? "";
-    }
+    searchQuery.value = "";
+    tagFilter.value = "";
+    selectedMaterialLibraryIds.value = props.book?.boundMaterialLibraryIdsByKind
+      ? flattenMaterialIdsByKind(props.book.boundMaterialLibraryIdsByKind)
+      : [...(props.book?.boundMaterialLibraryIds ?? [])];
+    selectedSkillLibraryIds.value = props.book?.boundSkillLibraryIdsByKind
+      ? flattenSkillIdsByKind(props.book.boundSkillLibraryIdsByKind)
+      : [...(props.book?.boundSkillLibraryIds ?? [])];
     clearUnavailableSelections();
   }
 
@@ -228,35 +293,35 @@ export function useBookResourceBindings(props: BookResourceBindingProps) {
     { deep: true }
   );
 
-  watch(availableGroups, (groups) => {
+  watch(tagFilterOptions, (opts) => {
     if (
-      selectedGroupId.value &&
-      !groups.some((group) => group.id === selectedGroupId.value)
+      tagFilter.value &&
+      !opts.some((option) => option.value === tagFilter.value)
     ) {
-      selectedGroupId.value = "";
+      tagFilter.value = "";
     }
   });
 
   return {
-    MATERIAL_KINDS,
-    SKILL_KINDS,
-    bindingMode,
-    selectedGroupId,
-    selectedMaterialIds,
-    selectedSkillIds,
+    selectedMaterialLibraryIds,
+    selectedSkillLibraryIds,
+    selectedIds,
+    selectedSet,
+    searchQuery,
+    tagFilter,
+    tagFilterOptions,
+    activeItems,
+    filteredItems,
     bindingDomain,
-    materialKindDescription,
-    skillKindDescription,
     materialGroupLinks,
     skillGroupLinks,
+    availableGroups,
+    groupMemberCount,
+    isGroupSelected,
+    toggleGroup,
+    toggleLibrary,
     selectedMaterialLinks,
     selectedSkillLinks,
-    availableGroups,
-    selectedMaterialGroup,
-    selectedSkillGroup,
-    groupOptions,
-    materialOptions,
-    skillOptions,
     resetBindingDraft
   };
 }

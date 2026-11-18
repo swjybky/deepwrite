@@ -45,8 +45,19 @@ export const BookImageErrorCodeSchema = z.enum([
   "book_image.export_too_large"
 ]);
 export type BookImageErrorCode = z.infer<typeof BookImageErrorCodeSchema>;
+export const BookImageBookRefSchema = z.union([
+  ChatAssistantProjectRefSchema,
+  z
+    .object({
+      projectType: z.literal("mystery"),
+      projectId: z.string().trim().min(1).max(512)
+    })
+    .strict()
+]);
+export type BookImageBookRef = z.infer<typeof BookImageBookRefSchema>;
+
 export const BookImagesPickInputSchema = z
-  .object({ book: ChatAssistantProjectRefSchema })
+  .object({ book: BookImageBookRefSchema })
   .strict();
 export type BookImagesPickInput = z.infer<typeof BookImagesPickInputSchema>;
 export const BookImagesPickResultSchema = z.discriminatedUnion("status", [

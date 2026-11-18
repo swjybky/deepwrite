@@ -249,4 +249,78 @@ describe("IPC command requestId handling", () => {
       'supervisor.requestCommand("core", command, 0)'
     );
   });
+
+  it("routes academic book creation and mutations through preload, main, and core while forbidding direct AtPath from renderer", () => {
+    const preloadSource = readFileSync(
+      new URL("../preload/index.ts", import.meta.url),
+      "utf8"
+    );
+    const forbiddenSource = readFileSync(
+      new URL("./ipc/forbidden-commands.ts", import.meta.url),
+      "utf8"
+    );
+    const creationSource = readFileSync(
+      new URL("./ipc/catalog-project-commands.ts", import.meta.url),
+      "utf8"
+    );
+    const catalogCommandsSource = readFileSync(
+      new URL("./ipc/catalog-commands.ts", import.meta.url),
+      "utf8"
+    );
+    const coreSource = readFileSync(
+      new URL("../utilities/core-entry.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(forbiddenSource).toContain('"catalog.createAcademicBookAtPath"');
+    expect(preloadSource).toContain('"catalog.createAcademicBook"');
+    expect(preloadSource).toContain('"catalog.mutateAcademicFramework"');
+    expect(preloadSource).toContain('"catalog.createAcademicReferenceCard"');
+    expect(preloadSource).toContain('"catalog.mutateAcademicManuscript"');
+    expect(creationSource).toContain('"catalog.createAcademicBookAtPath"');
+    expect(creationSource).toContain(
+      "AcademicBookSchema.parse(result.payload)"
+    );
+    expect(catalogCommandsSource).toContain(
+      'command.type === "catalog.mutateAcademicFramework"'
+    );
+    expect(catalogCommandsSource).toContain(
+      'command.type === "catalog.mutateAcademicManuscript"'
+    );
+    expect(coreSource).toContain(
+      'command.type === "catalog.createAcademicBookAtPath"'
+    );
+    expect(coreSource).toContain(
+      "await catalogStore.mutateAcademicManuscript(command.payload)"
+    );
+  });
+
+  it("routes academic manuscript export through preload and both main IPC entrypoints", () => {
+    const preloadSource = readFileSync(
+      new URL("../preload/index.ts", import.meta.url),
+      "utf8"
+    );
+    const mainSource = readFileSync(
+      new URL("./index.ts", import.meta.url),
+      "utf8"
+    );
+    const manuscriptCommandsSource = readFileSync(
+      new URL("./ipc/manuscript-commands.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(preloadSource).toContain("async function exportAcademicManuscript");
+    expect(preloadSource).toContain('"manuscript.exportAcademic"');
+    expect(preloadSource).toContain("exportAcademic: exportAcademicManuscript");
+    expect(mainSource).toContain(
+      'command.type === "manuscript.exportAcademic"'
+    );
+    expect(mainSource).toContain("await exportAcademicManuscript(");
+    expect(manuscriptCommandsSource).toContain(
+      'command.type === "manuscript.exportAcademic"'
+    );
+    expect(manuscriptCommandsSource).toContain(
+      "await ctx.exportAcademicManuscript("
+    );
+  });
 });

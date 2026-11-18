@@ -1,4 +1,9 @@
 import {
+  AcademicAgentIdSchema,
+  AcademicAgentSettingsInputSchema,
+  AcademicAgentSettingsSchema,
+  ExportAcademicManuscriptInputSchema,
+  ExportAcademicManuscriptResultSchema,
   ExportLongManuscriptInputSchema,
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptInputSchema,
@@ -18,6 +23,11 @@ import {
   WorkspaceDirectorySettingsSchema,
   WorkspaceTypeSchema,
   createEnvelope,
+  type AcademicAgentId,
+  type AcademicAgentSettings,
+  type AcademicAgentSettingsInput,
+  type ExportAcademicManuscriptInput,
+  type ExportAcademicManuscriptResult,
   type ExportLongManuscriptInput,
   type ExportLongManuscriptResult,
   type ExportShortManuscriptInput,
@@ -95,6 +105,45 @@ export async function resetLongAgents(
     await invokeCommand<LongAgentSettings>(
       createEnvelope(
         "longAgents.reset",
+        { ...(agentId ? { agentId } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+export async function listAcademicAgents(): Promise<AcademicAgentSettings> {
+  const id = browserId("cmd_academic_agents_list");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope("academicAgents.list", {}, { id, correlationId: id })
+    )
+  );
+}
+export async function saveAcademicAgents(
+  rawSettings: AcademicAgentSettingsInput
+): Promise<AcademicAgentSettings> {
+  const settings = AcademicAgentSettingsInputSchema.parse(rawSettings);
+  const id = browserId("cmd_academic_agents_save");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope("academicAgents.save", settings, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+export async function resetAcademicAgents(
+  rawAgentId?: AcademicAgentId
+): Promise<AcademicAgentSettings> {
+  const agentId = rawAgentId
+    ? AcademicAgentIdSchema.parse(rawAgentId)
+    : undefined;
+  const id = browserId("cmd_academic_agents_reset");
+  return AcademicAgentSettingsSchema.parse(
+    await invokeCommand<AcademicAgentSettings>(
+      createEnvelope(
+        "academicAgents.reset",
         { ...(agentId ? { agentId } : {}) },
         { id, correlationId: id }
       )
@@ -225,6 +274,21 @@ export async function saveGeneralSettings(
   return GeneralSettingsSnapshotSchema.parse(
     await invokeCommand<GeneralSettingsSnapshot>(
       createEnvelope("generalSettings.save", settings, {
+        id,
+        correlationId: id
+      })
+    )
+  );
+}
+
+export async function exportAcademicManuscript(
+  rawInput: ExportAcademicManuscriptInput
+): Promise<ExportAcademicManuscriptResult> {
+  const input = ExportAcademicManuscriptInputSchema.parse(rawInput);
+  const id = browserId("cmd_manuscript_export_academic");
+  return ExportAcademicManuscriptResultSchema.parse(
+    await invokeCommand<ExportAcademicManuscriptResult>(
+      createEnvelope("manuscript.exportAcademic", input, {
         id,
         correlationId: id
       })

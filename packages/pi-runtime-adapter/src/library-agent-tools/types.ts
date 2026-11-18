@@ -93,6 +93,7 @@ export interface LibraryReadableLibraryShape {
   id?: string;
   title?: string;
   kind?: string;
+  customTag?: string;
 }
 
 export interface LibraryWorkspaceShape {
@@ -101,6 +102,7 @@ export interface LibraryWorkspaceShape {
   domain?: LibraryDomain;
   title?: string;
   kind?: string;
+  customTag?: string;
   materialKind?: string;
   skillKind?: string;
   readOnly?: boolean;

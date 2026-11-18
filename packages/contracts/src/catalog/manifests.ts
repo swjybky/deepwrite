@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  CurrentAcademicBookProjectManifestObjectSchema,
+  validateAcademicBookManifestFiles
+} from "../academic-book";
 
 import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
 import { MarketplaceSourceSchema } from "../marketplace";
@@ -24,16 +28,21 @@ import {
   CatalogProjectContentPathSchema,
   CatalogProjectKindSchema,
   CatalogTitleSchema,
+  LibraryCustomTagSchema,
+  LibraryGroupMemberIdsSchema,
   LibraryTypeSchema,
   LinkedMaterialIdsByKindSchema,
   LinkedSkillIdsByKindSchema,
+  MATERIAL_GROUP_LEGACY_SLOTS,
   MaterialLibraryKindSchema,
   MaterialStageIdSchema,
+  SKILL_GROUP_LEGACY_SLOTS,
   ScriptBookGenreSchema,
   ShortBookGenreSchema,
   SkillKindSchema,
   SkillStageIdSchema,
   TimestampSchema,
+  migrateLegacyGroupMembers,
   uniqueIds
 } from "./kinds";
 import { BookPlotStagesSchema } from "./plot-stages";
@@ -372,6 +381,13 @@ function validateCharacterStructureManifestFiles(
 }
 
 function preprocessBookProjectManifestPlotStages(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === "object" &&
+    (value as { bookType?: unknown }).bookType === "academic"
+  ) {
+    return value;
+  }
   return migrateLegacyCharacterOverviewTitle(
     migrateBookPlotStageEnabled(value)
   );
@@ -413,10 +429,15 @@ export const CurrentBookProjectManifestSchema = z
     preprocessBookProjectManifestPlotStages,
     z.discriminatedUnion("bookType", [
       CurrentShortBookProjectManifestObjectSchema,
-      ScriptBookProjectManifestObjectSchema
+      ScriptBookProjectManifestObjectSchema,
+      CurrentAcademicBookProjectManifestObjectSchema
     ])
   )
   .superRefine((manifest, context) => {
+    if (manifest.bookType === "academic") {
+      validateAcademicBookManifestFiles(manifest, context);
+      return;
+    }
     validateUniqueBookManifestFiles(manifest, context);
     validateCharacterStructureManifestFiles(manifest, context);
     validatePlotStageManifestFiles(manifest, context);
@@ -438,6 +459,7 @@ export const MaterialLibraryProjectManifestSchema =
     kind: z.literal("deepwrite.material-library"),
     materialType: LibraryTypeSchema,
     materialKind: MaterialLibraryKindSchema,
+    customTag: LibraryCustomTagSchema.optional(),
     parentGenre: z.string(),
     subGenre: z.string(),
     overview: z.string(),
@@ -454,6 +476,7 @@ export const SkillLibraryProjectManifestSchema =
     kind: z.literal("deepwrite.skill-library"),
     skillType: LibraryTypeSchema,
     skillKind: SkillKindSchema,
+    customTag: LibraryCustomTagSchema.optional(),
     overview: z.string(),
     isBuiltin: z.boolean(),
     marketplaceSource: MarketplaceSourceSchema.optional(),
@@ -465,32 +488,25 @@ export type SkillLibraryProjectManifest = z.infer<
   typeof SkillLibraryProjectManifestSchema
 >;
 
-export const MaterialGroupProjectManifestSchema =
+export const MaterialGroupProjectManifestSchema = z.preprocess(
+  migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
   CatalogProjectManifestBaseSchema.extend({
     kind: z.literal("deepwrite.material-group"),
-    members: z.object({
-      character: CatalogIdSchema.optional(),
-      gimmick: CatalogIdSchema.optional(),
-      plot: CatalogIdSchema.optional(),
-      draft: CatalogIdSchema.optional(),
-      other: CatalogIdSchema.optional()
-    })
-  });
+    memberIds: LibraryGroupMemberIdsSchema
+  })
+);
 export type MaterialGroupProjectManifest = z.infer<
   typeof MaterialGroupProjectManifestSchema
 >;
 
-export const SkillGroupProjectManifestSchema =
+export const SkillGroupProjectManifestSchema = z.preprocess(
+  migrateLegacyGroupMembers(SKILL_GROUP_LEGACY_SLOTS),
   CatalogProjectManifestBaseSchema.extend({
     kind: z.literal("deepwrite.skill-group"),
-    members: z.object({
-      general: CatalogIdSchema.optional(),
-      plot: CatalogIdSchema.optional(),
-      style: CatalogIdSchema.optional(),
-      other: CatalogIdSchema.optional()
-    }),
+    memberIds: LibraryGroupMemberIdsSchema,
     marketplaceSource: MarketplaceSourceSchema.optional()
-  });
+  })
+);
 export type SkillGroupProjectManifest = z.infer<
   typeof SkillGroupProjectManifestSchema
 >;

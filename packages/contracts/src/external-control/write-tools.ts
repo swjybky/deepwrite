@@ -1,9 +1,19 @@
 import { z } from "zod";
+import { AcademicBookSubtypeSchema } from "../academic-book";
+import { AcademicCitationStyleSchema } from "../academic-citation-style";
+import { AgentTeamWorkspaceTypeSchema } from "../agent-team-catalog";
 import { SHORT_BOOK_GENRES } from "../catalog";
+import { MYSTERY_BOOK_GENRES } from "../mystery";
 
 const IdSchema = z.string().trim().min(1).max(512);
 const TitleSchema = z.string().trim().min(1).max(256);
-const WorkTypeSchema = z.enum(["short", "script", "long"]);
+const WorkTypeSchema = z.enum([
+  "short",
+  "script",
+  "long",
+  "academic",
+  "mystery"
+]);
 const LibraryDomainSchema = z.enum(["material", "skill"]);
 /** Matches the store limit on one Markdown file. */
 const ContentSchema = z.string().max(16 * 1024 * 1024);
@@ -27,11 +37,14 @@ export const ExternalManageDocumentInputSchema = z
     action: z
       .enum(["create", "rename", "move", "duplicate", "delete"])
       .describe(
-        "create adds a draft section. rename applies to any document. move, duplicate and delete apply to draft sections."
+        "create adds a manuscript section. rename applies to any document. move, duplicate and delete apply to manuscript sections."
       ),
-    workId: IdSchema.describe("A short or script work id."),
+    workId: IdSchema.describe("A short, script or academic work id."),
     documentId: IdSchema.optional().describe(
       "Target document. Required except for create, where it places the new section after this one."
+    ),
+    chapterId: IdSchema.optional().describe(
+      "Optional academic chapter id for create."
     ),
     title: TitleSchema.optional().describe("Title for create and rename."),
     direction: z.enum(["up", "down"]).optional().describe("Direction for move.")
@@ -51,8 +64,14 @@ export const ExternalManageWorkInputSchema = z
       .max(120)
       .optional()
       .describe(
-        `Genre for create. Short and script works must use one of: ${SHORT_BOOK_GENRES.join(", ")}. Long works take any short label.`
-      )
+        `Genre for create when type is short, script, mystery or long. Short and script works must use one of: ${SHORT_BOOK_GENRES.join(", ")}. Mystery works must use one of: ${MYSTERY_BOOK_GENRES.join(", ")}. Long works take any short label.`
+      ),
+    subtype: AcademicBookSubtypeSchema.optional().describe(
+      "Academic subtype for create when type is academic. Default empirical_paper."
+    ),
+    citationStyle: AcademicCitationStyleSchema.optional().describe(
+      "Citation style for create when type is academic. Default gbt7714."
+    )
   })
   .strict();
 
@@ -117,7 +136,9 @@ export const ExternalManageAgentTeamInputSchema = z
   .object({
     action: z.enum(["create", "rename", "enable", "disable", "delete"]),
     teamId: TeamIdSchema.optional().describe("Required except for create."),
-    type: WorkTypeSchema.optional().describe("Work type for create."),
+    type: AgentTeamWorkspaceTypeSchema.optional().describe(
+      "Work type for create."
+    ),
     name: z
       .string()
       .trim()
@@ -191,8 +212,12 @@ export const ExternalTrashRecordSchema = z.discriminatedUnion("kind", [
   TrashBaseSchema.extend({
     kind: z.literal("section"),
     bookId: IdSchema,
+    bookType: z.enum(["short", "script", "academic"]).optional(),
+    brief: z.string().optional(),
     body: z.string(),
-    characterState: z.string(),
+    state: z.string().optional(),
+    characterState: z.string().default(""),
+    chapterId: IdSchema.optional(),
     wordCountRequirement: z.string().optional()
   }),
   TrashBaseSchema.extend({
@@ -204,12 +229,12 @@ export const ExternalTrashRecordSchema = z.discriminatedUnion("kind", [
   }),
   TrashBaseSchema.extend({
     kind: z.literal("team"),
-    workspaceType: WorkTypeSchema,
+    workspaceType: AgentTeamWorkspaceTypeSchema,
     settings: z.unknown()
   }),
   TrashBaseSchema.extend({
     kind: z.literal("project"),
-    domain: z.enum(["book", "long", "material", "skill"]),
+    domain: z.enum(["book", "long", "mystery", "material", "skill"]),
     projectId: IdSchema,
     projectDirectory: z.string().min(1)
   })

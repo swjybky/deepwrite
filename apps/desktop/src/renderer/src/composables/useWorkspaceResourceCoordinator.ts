@@ -1,3 +1,4 @@
+import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import type {
   Book,
@@ -24,6 +25,7 @@ import type {
 import type { LongWorkspaceSelection } from "../types/longWorkspace";
 import { reconcileLongWorkspaceSelection } from "../types/longWorkspace";
 import type {
+  DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
   ResourceTreeSection,
@@ -35,8 +37,6 @@ import { useBookPanePreferenceKey } from "./useBookPanePreferenceKey";
 import type { ResourceTreeLookup } from "../utils/resourceTreeLookup";
 
 const t = createScopedTranslator("workspace");
-
-type DraftFileKind = "body" | "character-state";
 
 export interface WorkspaceResourceNotifications {
   error(message: string): void;
@@ -91,11 +91,22 @@ export interface WorkspaceResourceLongNavigationPort {
   deactivateActiveBook(): void;
 }
 
+export interface WorkspaceResourceMysteryNavigationPort {
+  activeBookId: Readonly<Ref<string | null>>;
+  openBook(bookId: string, current: () => boolean): Promise<void>;
+  selectTarget(
+    target: import("@deepwrite/contracts").MysteryDocumentTarget
+  ): Promise<boolean>;
+  saveActiveEditorBeforeLeaving(): Promise<boolean>;
+  deactivateActiveBook(): void;
+}
+
 export interface WorkspaceResourceCoordinatorOptions {
   state: WorkspaceResourceCoordinatorState;
   catalog: WorkspaceResourceCatalogPort;
   tree: WorkspaceResourceTreePort;
   longNavigation: WorkspaceResourceLongNavigationPort;
+  mysteryNavigation?: WorkspaceResourceMysteryNavigationPort;
   emptyDocument: Readonly<WorkspaceDocument>;
   showConversation(): void;
   revealEditor(): void;
@@ -229,9 +240,15 @@ export function useWorkspaceResourceCoordinator(
     );
     if (!section) return undefined;
     const documentId =
-      fileKind === "body"
-        ? section.bodyDocumentId
-        : section.characterStateDocumentId;
+      directory.workspaceType === "academic"
+        ? fileKind === "brief"
+          ? (section.briefDocumentId ?? section.bodyDocumentId)
+          : fileKind === "state"
+            ? (section.stateDocumentId ?? section.characterStateDocumentId)
+            : section.bodyDocumentId
+        : fileKind === "body"
+          ? section.bodyDocumentId
+          : section.characterStateDocumentId;
     return catalog.loader.documentsById.value.get(documentId);
   }
 
@@ -432,7 +449,11 @@ export function useWorkspaceResourceCoordinator(
       return [] as { id: string; title: string }[];
     }
     const book = catalog.findBook(document.workspaceId);
-    if (!book || book.characterStructure.format !== "list") {
+    if (
+      !book ||
+      book.bookType === "academic" ||
+      book.characterStructure.format !== "list"
+    ) {
       return [] as { id: string; title: string }[];
     }
     const overview = state.documents.value.find(
@@ -476,7 +497,8 @@ export function useWorkspaceResourceCoordinator(
     () =>
       !editorShowsCharacterItemTabs.value &&
       activeExpertSectionTabs.value.length > 0 &&
-      activeDocument.value.workspaceType === "short" &&
+      (activeDocument.value.workspaceType === "short" ||
+        activeDocument.value.workspaceType === "academic") &&
       activeDocument.value.stageId === "draft"
   );
   const showEditorDeleteSection = computed(
@@ -539,7 +561,8 @@ export function useWorkspaceResourceCoordinator(
   const activeRightPanePreferenceKey = useBookPanePreferenceKey({
     document: activeDocument,
     longWorkspaceActive: longNavigation.workspaceActive,
-    longBookId: longNavigation.activeBookId
+    longBookId: longNavigation.activeBookId,
+    mysteryBookId: options.mysteryNavigation?.activeBookId
   });
   const liveWorkspaceDocuments = computed<WorkspaceDocument[]>(() =>
     state.documents.value.map((document) => {
@@ -558,11 +581,16 @@ export function useWorkspaceResourceCoordinator(
     );
     const book = workspaceId ? catalog.findBook(workspaceId) : undefined;
     if (book) {
-      for (const ids of Object.values(book.linkedMaterialIdsByKind)) {
-        ids.forEach((id) => libraryIds.add(id));
-      }
-      for (const ids of Object.values(book.linkedSkillIdsByKind)) {
-        ids.forEach((id) => libraryIds.add(id));
+      if (book.bookType === "academic") {
+        book.linkedMaterialIds.forEach((id) => libraryIds.add(id));
+        book.linkedSkillIds.forEach((id) => libraryIds.add(id));
+      } else {
+        for (const ids of Object.values(book.linkedMaterialIdsByKind)) {
+          ids.forEach((id) => libraryIds.add(id));
+        }
+        for (const ids of Object.values(book.linkedSkillIdsByKind)) {
+          ids.forEach((id) => libraryIds.add(id));
+        }
       }
     }
     return state.documents.value.filter(
@@ -609,6 +637,7 @@ export function useWorkspaceResourceCoordinator(
         (book) => book.id === node.longBookId
       );
     }
+    if (node?.mysteryBookId) return !node.unavailable;
     const targetId = resourceTargetDocumentId(sections, resourceId);
     return catalog.loader.documentsById.value.has(targetId);
   }
@@ -617,6 +646,14 @@ export function useWorkspaceResourceCoordinator(
     previousSections: readonly ResourceTreeSection[],
     previousResourceId: string
   ): string {
+    const mysteryBookId = findResourceNodeIn(
+      previousSections,
+      previousResourceId
+    )?.mysteryBookId;
+    if (mysteryBookId) {
+      const rootId = `mystery-book:${mysteryBookId}`;
+      if (findResourceNodeIn(tree.sections.value, rootId)) return rootId;
+    }
     const previousTargetId = resourceTargetDocumentId(
       previousSections,
       previousResourceId
@@ -666,9 +703,8 @@ export function useWorkspaceResourceCoordinator(
           state.activeCreationResourceId.value
         )
       );
-      if (!selectedMissing && !activeCreationMissing) return;
-      beginNavigationRequest();
       if (selectedMissing) {
+        beginNavigationRequest();
         state.selectedResourceId.value = fallbackCreationResourceId(
           previousSections ?? [],
           state.selectedResourceId.value
@@ -687,6 +723,58 @@ export function useWorkspaceResourceCoordinator(
   async function selectResource(node: ResourceTreeNode): Promise<void> {
     let requestId = beginNavigationRequest();
     if (disposed) return;
+    if (
+      options.mysteryNavigation?.activeBookId.value &&
+      (!(await options.mysteryNavigation.saveActiveEditorBeforeLeaving()) ||
+        !navigationRequestIsCurrent(requestId))
+    )
+      return;
+    if (node.mysteryBookId) {
+      if (node.unavailable) return;
+      if (
+        !(await longNavigation.saveActiveEditorBeforeLeaving()) ||
+        !navigationRequestIsCurrent(requestId)
+      ) {
+        return;
+      }
+      const mystery = options.mysteryNavigation;
+      if (!mystery) return;
+      if (mystery.activeBookId.value !== node.mysteryBookId) {
+        const previous = state.selectedResourceId.value;
+        state.selectedResourceId.value = `mystery-book:${node.mysteryBookId}`;
+        try {
+          await mystery.openBook(node.mysteryBookId, () =>
+            navigationRequestIsCurrent(requestId)
+          );
+        } catch (error) {
+          if (navigationRequestIsCurrent(requestId)) {
+            state.selectedResourceId.value = previous;
+            options.notifications.error(
+              formatError(
+                error,
+                t("composerContextNavigation.couldNotSwitchPleaseTryAgain")
+              )
+            );
+          }
+          return;
+        }
+        if (!navigationRequestIsCurrent(requestId)) return;
+      }
+      if (longNavigation.activeBookId.value) {
+        longNavigation.deactivateActiveBook();
+        requestId = beginNavigationRequest();
+      }
+      options.showConversation();
+      options.revealEditor();
+      if (node.mysteryTarget) {
+        if (
+          (await mystery.selectTarget(node.mysteryTarget)) &&
+          navigationRequestIsCurrent(requestId)
+        )
+          state.selectedResourceId.value = node.id;
+      }
+      return;
+    }
     if (node.longBookId) {
       if (
         !(await longNavigation.saveActiveEditorBeforeLeaving(
@@ -696,8 +784,9 @@ export function useWorkspaceResourceCoordinator(
       ) {
         return;
       }
-      options.showConversation();
       state.selectedResourceId.value = node.id;
+      options.mysteryNavigation?.deactivateActiveBook();
+      options.showConversation();
       options.revealEditor();
       if (
         longNavigation.activeBookId.value !== node.longBookId ||
@@ -730,6 +819,10 @@ export function useWorkspaceResourceCoordinator(
       !navigationRequestIsCurrent(requestId)
     ) {
       return;
+    }
+    if (options.mysteryNavigation?.activeBookId.value) {
+      options.mysteryNavigation.deactivateActiveBook();
+      requestId = beginNavigationRequest();
     }
     if (longNavigation.activeBookId.value) {
       longNavigation.deactivateActiveBook();
@@ -914,6 +1007,8 @@ export function useWorkspaceResourceCoordinator(
           candidate.sections.some(
             (section) =>
               section.bodyDocumentId === document.id ||
+              section.briefDocumentId === document.id ||
+              section.stateDocumentId === document.id ||
               section.characterStateDocumentId === document.id
           )
       );

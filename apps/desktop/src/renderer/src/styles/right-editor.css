@@ -3,16 +3,19 @@
 .editor-pane {
   grid-column: 3;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr) 36px;
+  grid-template-rows: minmax(40px, auto) minmax(0, 1fr) minmax(36px, auto);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid var(--line);
-  background: var(--editor);
+  border-left: 1px solid var(--theme-line);
+  background: var(--surface-main);
+  color: var(--text-primary);
 }
 
-.editor-pane.has-section-tabs {
-  grid-template-rows: 42px 40px minmax(0, 1fr) 36px;
+.editor-pane.has-file-tabs {
+  grid-template-rows:
+    minmax(42px, auto) minmax(40px, auto)
+    minmax(0, 1fr) minmax(36px, auto);
 }
 
 .section-tabs-bar {
@@ -78,6 +81,21 @@
   background: var(--accent, #7c5c3e);
 }
 
+.editor-file-tabs-bar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 5px 13px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--theme-line-soft);
+  background: var(--surface-muted);
+  scrollbar-width: none;
+}
+
+.editor-file-tabs-bar .draft-file-tabs {
+  flex: 0 0 auto;
+}
+
 .section-tabs-add,
 .section-tabs-remove {
   display: grid;
@@ -125,13 +143,32 @@
   gap: 3px;
   min-width: 0;
   padding: 5px 13px;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--theme-line-soft);
   background: var(--surface-muted);
+}
+
+.editor-toolbar-actions {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.editor-toolbar-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-toolbar-actions > * {
+  flex-shrink: 0;
 }
 
 .view-tabs,
 .draft-file-tabs {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   padding: 2px;
   border-radius: 7px;
@@ -140,12 +177,14 @@
 
 .view-tabs button,
 .draft-file-tabs button {
-  height: 25px;
+  flex-shrink: 0;
+  height: max(25px, 1.85em);
   padding: 0 9px;
   border-radius: 5px;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 0.714286rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -170,6 +209,7 @@
 .editor-text-tools {
   position: relative;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 3px;
 }
@@ -325,6 +365,7 @@
 
 .editor-document.without-metadata {
   grid-template-rows: auto minmax(0, 1fr);
+  padding-top: 28px;
 }
 
 .editor-document.is-readonly {
@@ -454,7 +495,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   overflow: hidden;
   gap: 10px;
   padding: 0 13px;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--theme-line-soft);
   background: var(--surface-muted);
   color: var(--text-tertiary);
   font-size: 0.678571rem;

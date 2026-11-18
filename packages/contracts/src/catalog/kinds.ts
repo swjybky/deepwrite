@@ -100,6 +100,104 @@ export const SKILL_KINDS = ["general", "plot", "style", "other"] as const;
 export const SkillKindSchema = z.enum(SKILL_KINDS);
 export type SkillKind = z.infer<typeof SkillKindSchema>;
 
+export const LIBRARY_CUSTOM_TAG_MAX_LENGTH = 24;
+export const LibraryCustomTagSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(LIBRARY_CUSTOM_TAG_MAX_LENGTH);
+export type LibraryCustomTag = z.infer<typeof LibraryCustomTagSchema>;
+
+export const MATERIAL_PRESET_TAGS = [
+  "文献",
+  "数据",
+  "设定",
+  "案例",
+  "其他"
+] as const;
+export type MaterialPresetTag = (typeof MATERIAL_PRESET_TAGS)[number];
+
+export const SKILL_PRESET_TAGS = ["通用", "论证", "规范", "其他"] as const;
+export type SkillPresetTag = (typeof SKILL_PRESET_TAGS)[number];
+
+export const MATERIAL_GROUP_LEGACY_SLOTS = [
+  "character",
+  "gimmick",
+  "plot",
+  "draft",
+  "other"
+] as const;
+export const SKILL_GROUP_LEGACY_SLOTS = [
+  "general",
+  "plot",
+  "style",
+  "other"
+] as const;
+
+export const LibraryGroupMemberIdsSchema = UniqueIdListSchema;
+
+export function extractLegacyGroupMemberIds(
+  members: unknown,
+  slotOrder: readonly string[] = MATERIAL_GROUP_LEGACY_SLOTS
+): string[] {
+  if (
+    members === null ||
+    typeof members !== "object" ||
+    Array.isArray(members)
+  ) {
+    return [];
+  }
+  const record = members as Record<string, unknown>;
+  const ordered: string[] = [];
+  for (const slot of slotOrder) {
+    const value = record[slot];
+    if (typeof value === "string" && value.trim().length > 0) {
+      ordered.push(value.trim());
+    }
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      !slotOrder.includes(key) &&
+      typeof value === "string" &&
+      value.trim().length > 0
+    ) {
+      ordered.push(value.trim());
+    }
+  }
+  return [...new Set(ordered)];
+}
+
+export function migrateLegacyGroupMembers(slotOrder: readonly string[]) {
+  return (value: unknown): unknown => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return value;
+    }
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.memberIds)) {
+      if ("members" in record) {
+        const { members: _members, ...rest } = record;
+        return rest;
+      }
+      return value;
+    }
+    if (
+      record.members !== null &&
+      typeof record.members === "object" &&
+      !Array.isArray(record.members) &&
+      Object.values(record.members as Record<string, unknown>).every(
+        (item) => item === undefined || typeof item === "string"
+      )
+    ) {
+      const { members, ...rest } = record;
+      return {
+        ...rest,
+        memberIds: extractLegacyGroupMemberIds(members, slotOrder)
+      };
+    }
+    return value;
+  };
+}
+
 export const LibraryTypeSchema = z.enum(["short", "long", "script"]);
 export type LibraryType = z.infer<typeof LibraryTypeSchema>;
 

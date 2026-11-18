@@ -117,7 +117,9 @@ export function resolvePortableToolSchemaProfile(
 ): PortableToolSchemaProfile {
   return workspaceContext?.shortWorkspace ||
     workspaceContext?.scriptWorkspace ||
-    workspaceContext?.longWorkspace
+    workspaceContext?.longWorkspace ||
+    workspaceContext?.academicWorkspace ||
+    workspaceContext?.mysteryWorkspace
     ? "writing-workspace"
     : "default";
 }

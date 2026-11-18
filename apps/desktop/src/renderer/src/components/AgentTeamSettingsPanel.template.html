@@ -5,7 +5,9 @@
       {{ activeWorkspaceType === "long" ?
       t('configureSpecialistSubagentsForEachPrimaryAgentInAdvance') :
       t('configureSpecialistSubagentsForTheUnifiedValueAgent', { arg0:
-      activeWorkspaceType === "script" ? t('screenplay') : t('shortStory') }) }}
+      activeWorkspaceType === "script" ? t('screenplay') : activeWorkspaceType
+      === "academic" ? academicAgentT('tabLabel') : activeWorkspaceType ===
+      "mystery" ? mysteryLabels('murderMystery') : t('shortStory') }) }}
     </p>
   </header>
   <p v-if="!runtimeAvailable" class="runtime-note" role="status">
@@ -48,6 +50,26 @@
     >
       <span>{{ t('novel') }}</span>
     </button>
+    <button
+      class="workspace-tab"
+      type="button"
+      role="tab"
+      :class="{ 'is-active': activeWorkspaceType === 'academic' }"
+      :aria-selected="activeWorkspaceType === 'academic'"
+      @click="activeWorkspaceType = 'academic'"
+    >
+      <span>{{ academicAgentT('tabLabel') }}</span>
+    </button>
+    <button
+      class="workspace-tab"
+      type="button"
+      role="tab"
+      :class="{ 'is-active': activeWorkspaceType === 'mystery' }"
+      :aria-selected="activeWorkspaceType === 'mystery'"
+      @click="activeWorkspaceType = 'mystery'"
+    >
+      <span>{{ mysteryLabels('murderMystery') }}</span>
+    </button>
   </div>
 
   <LongAgentTeamSettingsPanel
@@ -70,6 +92,18 @@
     @authoring-generate="emit('authoringGenerate', $event)"
     @authoring-stop="emit('authoringStop')"
     @authoring-reset="emit('authoringReset')"
+  />
+  <MysteryAgentTeamSettingsPanel
+    v-else-if="activeWorkspaceType === 'mystery'"
+    :settings="mysterySettings ?? null"
+    :models="models"
+    :loading="longLoading"
+    :saving="longSaving"
+    :load-error="longLoadError ?? null"
+    :runtime-available="runtimeAvailable"
+    @retry="emit('retry')"
+    @save="emit('saveMystery', $event)"
+    @dirty-change="emit('dirtyChange', $event)"
   />
   <div v-else-if="loading" class="panel-state" aria-live="polite">
     {{ t('loadingAgentTeamSettings') }}

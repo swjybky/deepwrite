@@ -201,7 +201,7 @@ describe("agent team package service", () => {
       teamName: `${source.name} (2)`
     });
     if (installed.status === "installed") {
-      expect(installed.catalog.teams).toHaveLength(4);
+      expect(installed.catalog.teams).toHaveLength(6);
     }
   });
 
@@ -278,7 +278,7 @@ describe("agent team package service", () => {
       JSON.parse(
         await readFile(join(config, "agent-team-profiles.json"), "utf8")
       )
-    ).toMatchObject({ version: 5 });
+    ).toMatchObject({ version: 6 });
     await expect(
       readFile(join(config, "agent-teams.json"), "utf8")
     ).resolves.toContain("expert_section_writer");

@@ -12,6 +12,7 @@ import {
 } from "./useWorkspaceResourceCoordinator";
 import {
   COMPOSER_CONTEXT_NAVIGATION,
+  OPEN_WORKSPACE_RESOURCE,
   type ComposerContextNavigation
 } from "./composerContextNavigationContext";
 
@@ -21,6 +22,12 @@ export function useWorkspaceResourceNavigation(
 ) {
   const resources = useWorkspaceResourceCoordinator(options);
   let navigation: Promise<ComposerContextNavigation | null> | undefined;
+  provide(OPEN_WORKSPACE_RESOURCE, async (id) => {
+    const node = options.tree.lookup.value.nodeById.get(id);
+    if (!node || node.unavailable || node.missing) return false;
+    await resources.selectResource(node);
+    return options.state.selectedResourceId.value === id;
+  });
   provide(COMPOSER_CONTEXT_NAVIGATION, {
     available: computed(() =>
       options.tree.lookup.value.nodeById.has(
@@ -87,18 +94,23 @@ export function useWorkspaceResourceNavigation(
     const root = resources.findResourceNodeWhere((node) =>
       target.kind === "long"
         ? node.longBookId === target.id && node.catalogNodeType === "long-book"
-        : target.kind === "library"
-          ? node.libraryId === target.id && node.catalogNodeType === "library"
-          : node.id === target.id && node.catalogNodeType === "book"
+        : target.kind === "mystery"
+          ? node.mysteryBookId === target.id &&
+            node.catalogNodeType === "mystery-book"
+          : target.kind === "library"
+            ? node.libraryId === target.id && node.catalogNodeType === "library"
+            : node.id === target.id && node.catalogNodeType === "book"
     );
     function opening(
       node: ResourceTreeNode | undefined
     ): ResourceTreeNode | undefined {
       if (!node || node.unavailable || node.missing) return undefined;
       if (
-        target.kind === "long"
-          ? node.longWorkspaceSelection?.key === "root:worldbuilding"
-          : resources.documentForResourceId(node.id)
+        target.kind === "mystery"
+          ? node.catalogNodeType === "mystery-book"
+          : target.kind === "long"
+            ? node.longWorkspaceSelection?.key === "root:worldbuilding"
+            : resources.documentForResourceId(node.id)
       ) {
         return node;
       }
@@ -157,6 +169,11 @@ export function useWorkspaceResourceNavigation(
 
   return {
     ...resources,
+    defaultCreationResourceId: () =>
+      resources.fallbackCreationResourceId(
+        options.tree.sections.value,
+        options.state.selectedResourceId.value
+      ),
     openIdentityBook,
     openExternalTarget,
     selectEditorEntrySearchResult,

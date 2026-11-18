@@ -134,6 +134,16 @@ export function migrateVersionOneCatalog(
       enabledTeamIds.long = split[short.length + script.length]!.id;
     }
   }
+  teams.push(
+    createAgentTeamProfile(
+      "academic",
+      availableMigrationName(defaultAgentTeamName("academic"), "", usedNames)
+    ),
+    createAgentTeamProfile(
+      "mystery",
+      availableMigrationName(defaultAgentTeamName("mystery"), "", usedNames)
+    )
+  );
   return AgentTeamCatalogSnapshotSchema.parse({ enabledTeamIds, teams });
 }
 
@@ -187,12 +197,32 @@ function migrateProfileCatalog(
       })
     );
   }
+  for (const workspaceType of ["academic", "mystery"] as const) {
+    if (!teams.some((team) => team.workspaceType === workspaceType)) {
+      teams.push(
+        createAgentTeamProfile(
+          workspaceType,
+          availableMigrationName(
+            defaultAgentTeamName(workspaceType),
+            "",
+            usedNames
+          )
+        )
+      );
+    }
+  }
   const enabled = raw.enabledTeamIds;
   const parsed = AgentTeamCatalogSnapshotSchema.safeParse({
     enabledTeamIds: {
       ...(typeof enabled.short === "string" ? { short: enabled.short } : {}),
       ...(typeof enabled.script === "string" ? { script: enabled.script } : {}),
-      ...(typeof enabled.long === "string" ? { long: enabled.long } : {})
+      ...(typeof enabled.long === "string" ? { long: enabled.long } : {}),
+      ...(typeof enabled.academic === "string"
+        ? { academic: enabled.academic }
+        : {}),
+      ...(typeof enabled.mystery === "string"
+        ? { mystery: enabled.mystery }
+        : {})
     },
     teams
   });

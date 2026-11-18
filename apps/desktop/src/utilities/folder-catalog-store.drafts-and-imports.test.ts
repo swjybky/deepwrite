@@ -2,6 +2,7 @@ import {
   FolderCatalogConflictError,
   FolderCatalogStore,
   access,
+  asCreativeBook,
   catalogDraftBodyDocumentId,
   catalogDraftCharacterStateDocumentId,
   createShortWorkspaceContentRevision,
@@ -56,11 +57,13 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       parentDirectory
     );
     expect(correctlyBound.resource.bookType).toBe("script");
-    const crossTypeUpdate = await store.updateBook({
-      bookId: correctlyBound.resource.id,
-      linkedMaterialIdsByKind: { plot: [shortMaterial.resource.id] },
-      baseProjectRevision: 0
-    });
+    const crossTypeUpdate = asCreativeBook(
+      await store.updateBook({
+        bookId: correctlyBound.resource.id,
+        linkedMaterialIdsByKind: { plot: [shortMaterial.resource.id] },
+        baseProjectRevision: 0
+      })
+    );
     expect(crossTypeUpdate.linkedMaterialIdsByKind.plot).toEqual([
       shortMaterial.resource.id
     ]);
@@ -150,7 +153,7 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
     ).resolves.toMatchObject({ title: "雨中的门" });
 
     const snapshot = await store.snapshot();
-    const section = snapshot.books[0]?.draft.sections.find(
+    const section = asCreativeBook(snapshot.books[0]).draft.sections.find(
       ({ id }) => id === "section-1"
     );
     expect(section).toMatchObject({
@@ -196,7 +199,7 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       content: "磁盘上的最新正文"
     });
     const snapshot = await store.snapshot();
-    expect(snapshot.books[0]?.draft.sections[0]).toMatchObject({
+    expect(asCreativeBook(snapshot.books[0]).draft.sections[0]).toMatchObject({
       title: "新的剧集名",
       body: { title: "新的剧集名", content: "磁盘上的最新正文" },
       characterState: { title: "新的剧集名 · 状态" }
@@ -421,7 +424,7 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       };
       await store.saveDocument({ ...update, draftSectionChange: move });
       const directory = async () =>
-        (await store.snapshot()).books[0]!.draft.sections;
+        asCreativeBook((await store.snapshot()).books[0]).draft.sections;
       expect((await directory())[0]).toMatchObject({
         id: b!.id,
         wordCountRequirement: "one scene",
@@ -495,11 +498,12 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
     });
 
     const snapshot = await store.snapshot();
-    expect(snapshot.books[0]?.draft.sections.map(({ id }) => id)).toEqual([
+    const movedBook = asCreativeBook(snapshot.books[0]);
+    expect(movedBook.draft.sections.map(({ id }) => id)).toEqual([
       secondSection.id,
       firstSection.id
     ]);
-    expect(snapshot.books[0]?.draft.sections[0]).toMatchObject({
+    expect(movedBook.draft.sections[0]).toMatchObject({
       id: secondSection.id,
       body: { content: "第二集正文" },
       characterState: { content: "第二集人物状态" }

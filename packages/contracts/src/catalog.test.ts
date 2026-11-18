@@ -34,7 +34,8 @@ import {
   createDefaultBookPlotStages,
   createDefaultCreativePlotStages,
   isBuiltinCreativePlotStageId,
-  parseCatalogDraftDocumentId
+  parseCatalogDraftDocumentId,
+  syncDependencies
 } from "./index";
 
 const now = "2026-07-18T10:00:00.000Z";
@@ -331,14 +332,21 @@ describe("catalog contracts", () => {
     ).toBe(false);
   });
 
-  it("accepts optional library selections when creating groups", () => {
+  it("accepts optional library selections and migrates legacy group members", () => {
     expect(
       CreateLibraryGroupInputSchema.parse({
         domain: "material",
         name: "空素材分组",
         members: {}
-      }).members
-    ).toEqual({});
+      }).memberIds
+    ).toEqual([]);
+    expect(
+      CreateLibraryGroupInputSchema.parse({
+        domain: "material",
+        name: "多文献自由分组",
+        memberIds: ["lit-1", "lit-2", "data-1"]
+      }).memberIds
+    ).toEqual(["lit-1", "lit-2", "data-1"]);
     expect(
       CommandEnvelopeSchema.parse(
         createEnvelope(
@@ -363,6 +371,7 @@ describe("catalog contracts", () => {
     ).toMatchObject({
       groupId: "skill-group",
       title: "已重命名的技能组",
+      memberIds: ["skill-plot"],
       baseProjectRevision: 2
     });
     expect(
@@ -372,12 +381,78 @@ describe("catalog contracts", () => {
           {
             domain: "material",
             groupId: "material-group",
-            members: {}
+            memberIds: []
           },
           { id: "catalog-update-library-group" }
         )
       ).type
     ).toBe("catalog.updateLibraryGroup");
+    expect(
+      CatalogProjectManifestSchema.parse({
+        schemaVersion: 1,
+        kind: "deepwrite.material-group",
+        id: "legacy-group",
+        revision: 3,
+        title: "旧格式分组",
+        members: {
+          plot: "mat-plot",
+          character: "mat-char",
+          other: "mat-char"
+        },
+        createdAt: now,
+        updatedAt: now
+      })
+    ).toMatchObject({
+      id: "legacy-group",
+      memberIds: ["mat-char", "mat-plot"]
+    });
+    expect(
+      CreateLibraryInputSchema.parse({
+        domain: "material",
+        name: "深度学习论文库",
+        materialKind: "other",
+        customTag: " 文献 "
+      })
+    ).toMatchObject({
+      customTag: "文献"
+    });
+    expect(
+      UpdateLibraryInputSchema.parse({
+        domain: "material",
+        libraryId: "lib-1",
+        customTag: null
+      })
+    ).toMatchObject({
+      libraryId: "lib-1",
+      customTag: null
+    });
+    const syncItem = (
+      kind: "material-group" | "skill-group" | "book",
+      manifest: Record<string, unknown>
+    ) => ({
+      id: "item-1",
+      kind,
+      title: "测试项",
+      revision: "1",
+      updatedAt: now,
+      files: { "deepwrite.json": JSON.stringify(manifest) }
+    });
+    expect(
+      syncDependencies(syncItem("material-group", { memberIds: ["m1", "m2"] }))
+    ).toEqual(["material-library:m1", "material-library:m2"]);
+    expect(
+      syncDependencies(
+        syncItem("skill-group", { members: { general: "s1", plot: "s2" } })
+      )
+    ).toEqual(["skill-library:s1", "skill-library:s2"]);
+    expect(
+      syncDependencies(
+        syncItem("book", {
+          linkedMaterialIds: ["m-flat"],
+          linkedSkillIds: ["s-flat"]
+        })
+      )
+    ).toEqual(["material-library:m-flat", "skill-library:s-flat"]);
   });
 
   it("validates a normalized catalog snapshot", () => {
@@ -458,10 +533,13 @@ describe("catalog contracts", () => {
       updatedAt: now
     });
 
-    expect(snapshot.books[0]?.linkedMaterialIdsByKind.character).toEqual([
-      "material-1"
-    ]);
-    expect(snapshot.books[0]?.plotStages.map(({ id }) => id)).toEqual([
+    const firstBook = snapshot.books[0];
+    expect(firstBook?.bookType).toBe("short");
+    if (!firstBook || firstBook.bookType === "academic") {
+      throw new Error("Expected short book");
+    }
+    expect(firstBook.linkedMaterialIdsByKind.character).toEqual(["material-1"]);
+    expect(firstBook.plotStages.map(({ id }) => id)).toEqual([
       "worldbuilding",
       "plot_design",
       "intro_design",
@@ -469,7 +547,7 @@ describe("catalog contracts", () => {
       "narrative_perspective",
       "outline"
     ]);
-    expect(snapshot.books[0]?.documents.map(({ id }) => id)).toEqual([
+    expect(firstBook.documents.map(({ id }) => id)).toEqual([
       "worldbuilding",
       "plot_design",
       "intro_design",
@@ -479,12 +557,10 @@ describe("catalog contracts", () => {
       "character_design"
     ]);
     expect(
-      snapshot.books[0]?.draft.sections.find((section) => section.body.content)
-        ?.body.content
+      firstBook.draft.sections.find((section) => section.body.content)?.body
+        .content
     ).toBe("窗外正在下雨。");
-    expect(snapshot.books[0]?.draft.sections[0]?.characterState.content).toBe(
-      ""
-    );
+    expect(firstBook.draft.sections[0]?.characterState.content).toBe("");
     expect(MATERIAL_KINDS).toHaveLength(5);
     expect(SKILL_KINDS).toHaveLength(4);
   });
@@ -540,15 +616,19 @@ describe("catalog contracts", () => {
       updatedAt: now
     });
 
+    const migratedBook = snapshot.books[0];
+    if (!migratedBook || migratedBook.bookType === "academic") {
+      throw new Error("Expected short book");
+    }
     expect(
-      snapshot.books[0]?.documents.find(({ id }) => id === "notes")
+      migratedBook.documents.find(({ id }) => id === "notes")
     ).toMatchObject({
       id: "notes",
       content: "同名普通文档"
     });
     expect(
-      snapshot.books[0]?.draft.sections.find(({ id }) => id === "section-1")
-        ?.body.content
+      migratedBook.draft.sections.find(({ id }) => id === "section-1")?.body
+        .content
     ).toBe("必须迁移的正文");
   });
 

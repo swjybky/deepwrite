@@ -16,6 +16,54 @@ import {
   normalizedQuery
 } from "./chat-tool-helpers";
 function bookTextSources(book: Book) {
+  if (book.bookType === "academic") {
+    return [
+      {
+        id: book.foundation.thesisOverview.id,
+        title: book.foundation.thesisOverview.title,
+        kind: "foundation" as const,
+        content: book.foundation.thesisOverview.content
+      },
+      {
+        id: book.foundation.terminology.id,
+        title: book.foundation.terminology.title,
+        kind: "foundation" as const,
+        content: book.foundation.terminology.content
+      },
+      ...book.foundation.cards.map((card) => ({
+        id: card.document.id,
+        title: `[${card.citeKey}] ${card.title}`,
+        kind: "reference_card" as const,
+        content: card.document.content
+      })),
+      ...book.documents.map((document) => ({
+        id: document.id,
+        title: document.title,
+        kind: "stage" as const,
+        content: document.content
+      })),
+      ...book.manuscript.sections.flatMap((section) => [
+        {
+          id: section.brief.id,
+          title: section.brief.title,
+          kind: "section-brief" as const,
+          content: section.brief.content
+        },
+        {
+          id: section.body.id,
+          title: `${section.title} · 正文`,
+          kind: "draft-body" as const,
+          content: section.body.content
+        },
+        {
+          id: section.state.id,
+          title: section.state.title,
+          kind: "section-state" as const,
+          content: section.state.content
+        }
+      ])
+    ];
+  }
   return [
     ...book.documents.map((document) => ({
       id: document.id,
@@ -61,27 +109,63 @@ export function buildShortProjectTools(book: Book): AgentTool[] {
       "列出当前短篇或剧本的阶段、人物文件和正文小节目录，不返回正文。",
     parameters: Type.Object({}),
     execute: async () =>
-      jsonResult({
-        project_id: book.id,
-        project_type: book.bookType,
-        title: book.title,
-        plot_stages: book.plotStages,
-        stage_documents: book.documents.map((item) => ({
-          id: item.id,
-          title: item.title
-        })),
-        characters:
-          book.characterStructure.format === "list"
-            ? book.characterStructure.items
-            : [{ id: "character_design", title: "人物设计" }],
-        draft_sections: book.draft.sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          word_count_requirement: section.wordCountRequirement,
-          body_document_id: section.body.id,
-          character_state_document_id: section.characterState.id
-        }))
-      })
+      book.bookType === "academic"
+        ? jsonResult({
+            project_id: book.id,
+            project_type: "academic",
+            title: book.title,
+            subtype: book.subtype,
+            citation_style: book.citationStyle,
+            foundation: {
+              thesis_overview: {
+                id: book.foundation.thesisOverview.id,
+                title: book.foundation.thesisOverview.title
+              },
+              terminology: {
+                id: book.foundation.terminology.id,
+                title: book.foundation.terminology.title
+              },
+              cards: book.foundation.cards.map((card) => ({
+                id: card.id,
+                cite_key: card.citeKey,
+                card_type: card.cardType,
+                title: card.title,
+                document_id: card.document.id
+              }))
+            },
+            framework_stages: book.frameworkStages,
+            chapters: book.manuscript.chapters,
+            sections: book.manuscript.sections.map((section) => ({
+              id: section.id,
+              chapter_id: section.chapterId ?? null,
+              title: section.title,
+              word_count_requirement: section.wordCountRequirement,
+              brief_document_id: section.brief.id,
+              body_document_id: section.body.id,
+              state_document_id: section.state.id
+            }))
+          })
+        : jsonResult({
+            project_id: book.id,
+            project_type: book.bookType,
+            title: book.title,
+            plot_stages: book.plotStages,
+            stage_documents: book.documents.map((item) => ({
+              id: item.id,
+              title: item.title
+            })),
+            characters:
+              book.characterStructure.format === "list"
+                ? book.characterStructure.items
+                : [{ id: "character_design", title: "人物设计" }],
+            draft_sections: book.draft.sections.map((section) => ({
+              id: section.id,
+              title: section.title,
+              word_count_requirement: section.wordCountRequirement,
+              body_document_id: section.body.id,
+              character_state_document_id: section.characterState.id
+            }))
+          })
   });
   const searchTool = defineTool({
     name: "search_workspace_text",
@@ -150,9 +234,11 @@ export function buildShortProjectTools(book: Book): AgentTool[] {
     }
   });
   const characters =
-    book.characterStructure.format === "list"
-      ? book.characterStructure.items
-      : [{ id: "character_design", title: "人物设计", order: 1 }];
+    book.bookType === "academic"
+      ? []
+      : book.characterStructure.format === "list"
+        ? book.characterStructure.items
+        : [{ id: "character_design", title: "人物设计", order: 1 }];
   const listCharacters = defineTool({
     name: "list_characters",
     label: "列出人物",
@@ -215,13 +301,36 @@ export function buildShortProjectTools(book: Book): AgentTool[] {
     description: "分页读取当前项目指定正文小节的正文或人物状态文件。",
     parameters: Type.Object({
       section_id: Type.String({ minLength: 1, maxLength: 512 }),
-      file: StringEnum(["body", "character_state"] as const),
+      file: StringEnum(["brief", "body", "state", "character_state"] as const),
       offset: Type.Optional(Type.Integer({ minimum: 0 })),
       max_characters: Type.Optional(
         Type.Integer({ minimum: 1, maximum: 32_768 })
       )
     }),
     execute: async (_id, params) => {
+      if (book.bookType === "academic") {
+        const section = book.manuscript.sections.find(
+          (item) => item.id === params.section_id
+        );
+        if (!section) return textResult("指定正文小节不属于当前项目。");
+        const document =
+          params.file === "brief"
+            ? section.brief
+            : params.file === "body"
+              ? section.body
+              : section.state;
+        return jsonResult({
+          project_id: book.id,
+          section_id: section.id,
+          title: section.title,
+          file: params.file,
+          ...readPage(
+            document.content,
+            Number(params.offset ?? 0),
+            Number(params.max_characters ?? 12_000)
+          )
+        });
+      }
       const section = book.draft.sections.find(
         (item) => item.id === params.section_id
       );

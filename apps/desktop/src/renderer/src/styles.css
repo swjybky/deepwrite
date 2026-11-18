@@ -3453,7 +3453,8 @@ html[data-theme="dark"]
   font-weight: 570;
 }
 
-.create-short-book-field input {
+.create-short-book-field input,
+.create-short-book-field select {
   width: 100%;
   height: 38px;
   padding: 0 11px;
@@ -3466,9 +3467,22 @@ html[data-theme="dark"]
   font-size: 0.857143rem;
 }
 
-.create-short-book-field input:focus {
+.create-short-book-field input:focus,
+.create-short-book-field select:focus {
   border-color: var(--accent, #929ba6);
   box-shadow: 0 0 0 3px var(--accent-soft, rgb(90 105 120 / 10%));
+}
+
+.create-mystery-board-spec {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .create-mystery-board-spec {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .create-short-genre-field {
@@ -3609,7 +3623,7 @@ html[data-theme="dark"]
 
 .create-workspace-type-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   width: 100%;
   gap: 4px;
 }

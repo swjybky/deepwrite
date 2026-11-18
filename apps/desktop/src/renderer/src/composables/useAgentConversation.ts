@@ -187,6 +187,8 @@ export function useAgentConversation(
     sendAssistantMessage: ctx.sendAssistantMessage,
     sendLongMessage: ctx.sendLongMessage,
     resendLongMessage: ctx.resendLongMessage,
+    sendMysteryMessage: ctx.sendMysteryMessage,
+    resendMysteryMessage: ctx.resendMysteryMessage,
     stopGeneration: ctx.stopGeneration,
     cancelPendingGeneration: ctx.cancelPendingGeneration,
     newConversation: ctx.newConversation,

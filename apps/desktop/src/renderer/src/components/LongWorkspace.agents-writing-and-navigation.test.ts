@@ -170,10 +170,10 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
       "options.catalog.filterReadableAttachments("
     );
     expect(longLibraryReferencesSource).toContain(
-      "profile.readAccess.skillKinds"
+      "summary.linkedSkillIdsByKind"
     );
     expect(longLibraryReferencesSource).toContain(
-      "profile.readAccess.materialKinds"
+      "summary.linkedMaterialIdsByKind"
     );
     expect(appSource).not.toContain("<LongProposalReview");
     expect(agentConversationSource).toContain("<LongProposalReview");

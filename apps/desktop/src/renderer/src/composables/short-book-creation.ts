@@ -1,4 +1,5 @@
 import { createScopedTranslator } from "../i18n";
+import { academicTreeT } from "../components/academic/academicTreeLabels";
 import type { Book } from "@deepwrite/contracts";
 import { bindCreatedBookAgentTeams } from "./useBookAgentTeamBinding";
 import type {
@@ -47,28 +48,43 @@ export function createShortBookCreator<Lease>(
     return runWithLease(lease, async () => {
       let created: Book | null = null;
       try {
+        const workspaceTypeLabel =
+          input.workspaceType === "academic"
+            ? academicTreeT("academicWork")
+            : input.workspaceType === "script"
+              ? t("catalogWorkspace.screenplay")
+              : t("catalogWorkspace.shortStory");
         created = input.templateId
           ? await api.createBookFromTemplate({
               templateId: input.templateId,
               title: input.title
             })
-          : input.workspaceType === "script"
-            ? await api.createScriptBook({
-                defaultPlotStageIds: input.defaultPlotStageIds,
+          : input.workspaceType === "academic"
+            ? await api.createAcademicBook({
                 title: input.title,
-                genre: input.genre,
-                characterFormat: input.characterFormat,
-                linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
-                linkedSkillIdsByKind: input.linkedSkillIdsByKind
+                subtype: input.subtype,
+                citationStyle: input.citationStyle,
+                defaultFrameworkStageIds: input.defaultFrameworkStageIds,
+                linkedMaterialIds: input.linkedMaterialIds,
+                linkedSkillIds: input.linkedSkillIds
               })
-            : await api.createShortBook({
-                title: input.title,
-                genre: input.genre,
-                characterFormat: input.characterFormat,
-                defaultPlotStageIds: input.defaultPlotStageIds,
-                linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
-                linkedSkillIdsByKind: input.linkedSkillIdsByKind
-              });
+            : input.workspaceType === "script"
+              ? await api.createScriptBook({
+                  defaultPlotStageIds: input.defaultPlotStageIds,
+                  title: input.title,
+                  genre: input.genre,
+                  characterFormat: input.characterFormat,
+                  linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
+                  linkedSkillIdsByKind: input.linkedSkillIdsByKind
+                })
+              : await api.createShortBook({
+                  title: input.title,
+                  genre: input.genre,
+                  characterFormat: input.characterFormat,
+                  defaultPlotStageIds: input.defaultPlotStageIds,
+                  linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
+                  linkedSkillIdsByKind: input.linkedSkillIdsByKind
+                });
         if (created) {
           await bindCreatedBookAgentTeams(
             created.id,
@@ -95,10 +111,7 @@ export function createShortBookCreator<Lease>(
               t(
                 "shortBookCreation.createdButFailedToRefreshTheProjectListRefresh",
                 {
-                  value:
-                    input.workspaceType === "script"
-                      ? t("catalogWorkspace.screenplay")
-                      : t("catalogWorkspace.shortStory"),
+                  value: workspaceTypeLabel,
                   title: created.title
                 }
               )
@@ -114,10 +127,7 @@ export function createShortBookCreator<Lease>(
             t(
               "shortBookCreation.createdAndSavedTheMaterialAndSkillLibraryLinks",
               {
-                value:
-                  input.workspaceType === "script"
-                    ? t("catalogWorkspace.screenplay")
-                    : t("catalogWorkspace.shortStory"),
+                value: workspaceTypeLabel,
                 title: created.title
               }
             )

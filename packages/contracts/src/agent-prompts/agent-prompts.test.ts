@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   BUILTIN_AGENT_PROMPT_KEYS,
   BUILTIN_AGENT_SYSTEM_PROMPTS,
+  DEFAULT_ACADEMIC_AGENT_PROFILES,
   DEFAULT_LIBRARY_AGENT_PROFILES,
   DEFAULT_LONG_AGENT_PROFILES,
+  DEFAULT_MYSTERY_AGENT_PROFILES,
   DEFAULT_SCRIPT_WORKSPACE_AGENT_PROFILES,
   DEFAULT_SHORT_WORKSPACE_AGENT_PROFILES,
   builtinAgentSystemPrompt
@@ -52,6 +54,12 @@ describe("built-in agent role prompts", () => {
     );
     expect(DEFAULT_LONG_AGENT_PROFILES[0]!.systemPrompt).toBe(
       BUILTIN_AGENT_SYSTEM_PROMPTS.long["zh-CN"]
+    );
+    expect(DEFAULT_ACADEMIC_AGENT_PROFILES[0]!.systemPrompt).toBe(
+      BUILTIN_AGENT_SYSTEM_PROMPTS.academic["zh-CN"]
+    );
+    expect(DEFAULT_MYSTERY_AGENT_PROFILES[0]!.systemPrompt).toBe(
+      BUILTIN_AGENT_SYSTEM_PROMPTS.mystery["zh-CN"]
     );
     expect(
       Object.fromEntries(

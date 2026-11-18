@@ -54,12 +54,16 @@ import {
   type FolderCurrentBookProjectManifest,
   type OpenFolderCatalogProjectResult
 } from "./types";
+import { academicManifestContentItems } from "./academic-mutations";
 import { initializeWritingContextFile } from "./writing-context";
 
 export function manifestContentItems(
   manifest: FolderCatalogProjectManifest
 ): Array<{ id: string; path: string }> {
   if (manifest.kind === "deepwrite.book") {
+    if (manifest.bookType === "academic") {
+      return academicManifestContentItems(manifest);
+    }
     return manifest.schemaVersion !== 1
       ? [
           ...manifest.documents,
@@ -137,6 +141,11 @@ export function indexBookFromManifest(
   manifest: FolderBookProjectManifest,
   contentMetadataById: ReadonlyMap<string, CatalogContentMetadata>
 ): CatalogIndexSnapshot["books"][number] {
+  if (manifest.bookType === "academic") {
+    throw new Error(
+      "Legacy split manifest helper does not index academic books."
+    );
+  }
   const bookInput = {
     id: manifest.id,
     title: manifest.title,
@@ -205,6 +214,9 @@ export function indexBookFromManifest(
   const legacyDraftMetadata = legacyDraft
     ? contentMetadataById.get(legacyDraft.id)
     : undefined;
+  if (book.bookType === "academic") {
+    throw new Error("Unexpected academic book");
+  }
   return CatalogIndexBookSchema.parse({
     ...book,
     documents: book.documents.map((document) => ({
@@ -253,6 +265,7 @@ export function indexResourceFromManifest(
         title: manifest.title,
         materialType: manifest.materialType,
         materialKind: manifest.materialKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         parentGenre: manifest.parentGenre,
         subGenre: manifest.subGenre,
         overview: "",
@@ -281,6 +294,7 @@ export function indexResourceFromManifest(
         title: manifest.title,
         skillType: manifest.skillType,
         skillKind: manifest.skillKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         overview: "",
         overviewContentBytes: Buffer.byteLength(manifest.overview, "utf8"),
         overviewContentStamp: manifestContentStamp(
@@ -321,7 +335,7 @@ export function indexResourceFromManifest(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         projectRevision: manifest.revision,
         createdAt: manifest.createdAt,
         updatedAt: manifest.updatedAt
@@ -330,7 +344,7 @@ export function indexResourceFromManifest(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         ...(manifest.marketplaceSource
           ? { marketplaceSource: manifest.marketplaceSource }
           : {}),
@@ -351,6 +365,11 @@ export async function hydrateResource(
     case "deepwrite.book": {
       if (manifest.schemaVersion !== 4) {
         throw new Error("书籍项目未完成正文目录迁移。");
+      }
+      if (manifest.bookType === "academic") {
+        throw new Error(
+          "Legacy split manifest helper does not hydrate academic books."
+        );
       }
       const draftFiles = manifest.draft.sections.flatMap((section) => [
         section.body,
@@ -424,6 +443,7 @@ export async function hydrateResource(
         title: manifest.title,
         materialType: manifest.materialType,
         materialKind: manifest.materialKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         parentGenre: manifest.parentGenre,
         subGenre: manifest.subGenre,
         overview: manifest.overview,
@@ -452,6 +472,7 @@ export async function hydrateResource(
         title: manifest.title,
         skillType: manifest.skillType,
         skillKind: manifest.skillKind,
+        ...(manifest.customTag ? { customTag: manifest.customTag } : {}),
         overview: manifest.overview,
         isBuiltin: manifest.isBuiltin,
         ...(manifest.marketplaceSource
@@ -486,7 +507,7 @@ export async function hydrateResource(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         projectRevision: manifest.revision,
         createdAt: manifest.createdAt,
         updatedAt: manifest.updatedAt
@@ -495,7 +516,7 @@ export async function hydrateResource(
       return {
         id: manifest.id,
         title: manifest.title,
-        members: manifest.members,
+        memberIds: manifest.memberIds,
         ...(manifest.marketplaceSource
           ? { marketplaceSource: manifest.marketplaceSource }
           : {}),
@@ -532,7 +553,10 @@ export async function readProjectMarkdownContents(
 }
 
 export function findDraftDocumentManifest(
-  draft: FolderCurrentBookProjectManifest["draft"],
+  draft: Extract<
+    FolderCurrentBookProjectManifest,
+    { bookType: "short" | "script" }
+  >["draft"],
   documentId: string
 ): { sectionIndex: number; kind: "body" | "characterState" } | undefined {
   for (const [sectionIndex, section] of draft.sections.entries()) {
@@ -558,6 +582,11 @@ export function findManifestDocument(
     }
   | undefined {
   if (manifest.kind === "deepwrite.book") {
+    if (manifest.bookType === "academic") {
+      return academicManifestContentItems(manifest).find(
+        ({ id }) => id === documentId
+      );
+    }
     const document = manifest.documents.find(({ id }) => id === documentId);
     if (document) return document;
     if (manifest.schemaVersion === 1) return undefined;
@@ -644,6 +673,11 @@ export async function writeResourceContents(
   switch (domain) {
     case "book": {
       const book = resource as Book;
+      if (book.bookType === "academic") {
+        throw new Error(
+          "Legacy split manifest helper does not write academic books."
+        );
+      }
       const used = new Set<string>();
       const documents: BookProjectDocumentManifest[] = [];
       for (const document of book.documents) {
@@ -779,6 +813,7 @@ export async function writeResourceContents(
         kind: kindForDomain(domain),
         materialType: material.materialType,
         materialKind: material.materialKind,
+        ...(material.customTag ? { customTag: material.customTag } : {}),
         parentGenre: material.parentGenre,
         subGenre: material.subGenre,
         overview: material.overview,
@@ -829,6 +864,7 @@ export async function writeResourceContents(
         kind: kindForDomain(domain),
         skillType: skill.skillType,
         skillKind: skill.skillKind,
+        ...(skill.customTag ? { customTag: skill.customTag } : {}),
         overview: skill.overview,
         isBuiltin: skill.isBuiltin,
         ...(skill.marketplaceSource
@@ -842,7 +878,7 @@ export async function writeResourceContents(
       return FolderMaterialGroupProjectManifestSchema.parse({
         ...common,
         kind: kindForDomain(domain),
-        members: group.members
+        memberIds: group.memberIds
       });
     }
     case "skill-group": {
@@ -850,7 +886,7 @@ export async function writeResourceContents(
       return FolderSkillGroupProjectManifestSchema.parse({
         ...common,
         kind: kindForDomain(domain),
-        members: group.members,
+        memberIds: group.memberIds,
         ...(group.marketplaceSource
           ? { marketplaceSource: group.marketplaceSource }
           : {})

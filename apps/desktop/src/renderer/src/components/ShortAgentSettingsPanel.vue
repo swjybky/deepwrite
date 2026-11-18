@@ -9,11 +9,21 @@ import type {
   WorkspaceAgentSettings,
   WorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
-import { computed, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import BookTemplateSettings from "./BookTemplateSettings.vue";
 import LongAgentSettingsPanel from "./LongAgentSettingsPanel.vue";
 import ScriptAgentSettingsPanel from "./ScriptAgentSettingsPanel.vue";
 import UnifiedShortAgentSettingsPanel from "./UnifiedShortAgentSettingsPanel.vue";
+import { academicAgentT } from "./academic/academicAgentLabels";
+
+const AcademicAgentSettingsPanel = defineAsyncComponent(
+  () => import("./academic/AcademicAgentSettingsPanel.vue")
+);
+
+const MysteryAgentSettingsPanel = defineAsyncComponent(
+  () => import("../features/mystery/MysteryAgentSettingsPanel.vue")
+);
 
 const t = createScopedTranslator("components.shortAgentSettingsPanel");
 
@@ -35,7 +45,9 @@ const emit = defineEmits<{
   saveLong: [input: LongAgentSettingsInput];
 }>();
 
-const activeType = ref<"short" | "script" | "long">("short");
+const activeType = ref<"short" | "script" | "long" | "academic" | "mystery">(
+  "short"
+);
 const shortSettings = computed(
   () =>
     (props.settings.find(({ workspaceType }) => workspaceType === "short") as
@@ -68,7 +80,13 @@ const scriptSettings = computed(
 
     <div class="workspace-tabs" role="tablist" :aria-label="t('writingType')">
       <button
-        v-for="type in ['short', 'script', 'long'] as const"
+        v-for="type in [
+          'short',
+          'script',
+          'long',
+          'academic',
+          'mystery'
+        ] as const"
         :key="type"
         type="button"
         role="tab"
@@ -81,7 +99,11 @@ const scriptSettings = computed(
             ? t("shortStory")
             : type === "script"
               ? t("screenplay")
-              : t("novel")
+              : type === "long"
+                ? t("novel")
+                : type === "academic"
+                  ? academicAgentT("tabLabel")
+                  : mysteryLabels("murderMystery")
         }}
       </button>
     </div>
@@ -103,6 +125,14 @@ const scriptSettings = computed(
       :runtime-available="runtimeAvailable"
       @save="emit('save', $event)"
     />
+    <AcademicAgentSettingsPanel
+      v-else-if="activeType === 'academic'"
+      :runtime-available="runtimeAvailable"
+    />
+    <MysteryAgentSettingsPanel
+      v-else-if="activeType === 'mystery'"
+      :runtime-available="runtimeAvailable"
+    />
     <LongAgentSettingsPanel
       v-else
       :settings="longSettings"
@@ -114,7 +144,7 @@ const scriptSettings = computed(
       @save="emit('saveLong', $event)"
     />
     <BookTemplateSettings
-      v-if="activeType !== 'long'"
+      v-if="activeType === 'short' || activeType === 'script'"
       :key="activeType"
       :workspace-type="activeType"
       :default-stage-ids="shortSettings?.defaultPlotStageIds ?? []"

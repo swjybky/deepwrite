@@ -113,7 +113,7 @@ describe("retired team member disk compatibility", () => {
     const loaded = await store.list();
     expect(loaded.teams[0]!.settings.teams[0]!.subagents).toEqual([ordinary]);
     const saved = JSON.parse(await readFile(path, "utf8"));
-    expect(saved.version).toBe(5);
+    expect(saved.version).toBe(6);
     expect(saved.teams[0].settings.teams[0].subagents).toEqual([ordinary]);
   });
 });

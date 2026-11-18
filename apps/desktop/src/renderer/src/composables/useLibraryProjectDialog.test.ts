@@ -105,16 +105,62 @@ describe("shared library entry creation", () => {
       }
     }
   );
-  it("retains content-stage validation when switching material libraries", async () => {
+  it("allows all content stages regardless of the target library's tag or kind", async () => {
     const { form } = await setup("material");
     form.stageId.value = "character";
     form.destination.value = "long";
     await nextTick();
     expect(form.stageOptions.value.map(({ value }) => value)).toEqual([
+      "gimmick",
+      "character",
       "pacing",
       "intro",
-      "plot_refine"
+      "plot_refine",
+      "draft_excerpt",
+      "other"
     ]);
-    expect(form.stageId.value).toBe("pacing");
+    expect(form.stageId.value).toBe("character");
+  });
+
+  it("supports preset and custom tags on library creation and clearing customTag on rename", async () => {
+    const { form, props, emit } = await setup("material");
+    props.operation = "create-library";
+    await nextTick();
+    form.title.value = "深度学习文献库";
+    form.libraryTagChoice.value = "preset:文献";
+    form.submit();
+    expect(emit).toHaveBeenLastCalledWith("createLibrary", {
+      domain: "material",
+      name: "深度学习文献库",
+      materialKind: "other",
+      customTag: "文献"
+    });
+
+    form.libraryTagChoice.value = "__custom__";
+    form.customTagDraft.value = " 实验记录 ";
+    form.submit();
+    expect(emit).toHaveBeenLastCalledWith("createLibrary", {
+      domain: "material",
+      name: "深度学习文献库",
+      materialKind: "other",
+      customTag: "实验记录"
+    });
+
+    props.operation = "rename-library";
+    props.libraryId = "long";
+    props.libraryTitle = "旧名称";
+    props.materialKind = "other";
+    props.customTag = "实验记录";
+    await nextTick();
+    expect(form.libraryTagChoice.value).toBe("__custom__");
+    expect(form.customTagDraft.value).toBe("实验记录");
+    form.libraryTagChoice.value = "other";
+    form.submit();
+    expect(emit).toHaveBeenLastCalledWith("renameLibrary", {
+      domain: "material",
+      libraryId: "long",
+      title: "旧名称",
+      customTag: null
+    });
   });
 });

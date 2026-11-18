@@ -9,8 +9,8 @@ import source from "./WritingWorkspaceModule.vue?raw";
 describe("WritingWorkspaceModule boundary", () => {
   it("owns the default short and script conversation/editor surface", () => {
     expect(source).toContain("<AgentConversation");
-    expect(source).toContain(
-      'import { AgentConversation } from "./lazyAppComponents"'
+    expect(source).toMatch(
+      /import \{[^}]*\bAgentConversation\b[^}]*\} from "\.\/lazyAppComponents"/
     );
     expect(source).not.toContain(
       'import AgentConversation from "./AgentConversation.vue"'

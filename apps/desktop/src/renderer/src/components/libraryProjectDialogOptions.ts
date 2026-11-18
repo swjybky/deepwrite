@@ -46,8 +46,8 @@ export function libraryKindOptions(domain: "material" | "skill") {
         }
       ];
 }
-export function entryStageOptions(kind: MaterialLibraryKind) {
-  const allOptions = [
+export function entryStageOptions(_kind?: MaterialLibraryKind) {
+  return [
     { value: "gimmick", label: t("idea") },
     {
       value: "character",
@@ -71,14 +71,4 @@ export function entryStageOptions(kind: MaterialLibraryKind) {
       label: t("otherMaterials")
     }
   ];
-  const allowedByKind: Record<MaterialLibraryKind, readonly string[]> = {
-    character: ["character"],
-    gimmick: ["gimmick"],
-    plot: ["pacing", "intro", "plot_refine"],
-    draft: ["draft_excerpt"],
-    other: ["other"],
-    mixed: allOptions.map(({ value }) => value)
-  };
-  const allowed = new Set(allowedByKind[kind]);
-  return allOptions.filter(({ value }) => allowed.has(value));
 }

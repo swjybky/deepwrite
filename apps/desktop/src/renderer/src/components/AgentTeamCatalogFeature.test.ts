@@ -37,8 +37,8 @@ describe("AgentTeamCatalogFeature", () => {
   });
 
   it("shows which team is active for each writing type", () => {
-    expect(listSource).toContain(
-      'const WORKSPACE_TYPES = ["short", "script", "long"]'
+    expect(listSource).toMatch(
+      /const WORKSPACE_TYPES = \[\s*"short",\s*"script",\s*"long",\s*"academic",\s*"mystery"\s*\]/
     );
     expect(listSource).toContain('class="active-strip"');
     expect(listSource).toContain("notEnabled");

@@ -2,10 +2,13 @@
 import { createScopedTranslator } from "../i18n";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type {
+  AcademicAgentId,
   AgentTeamRunMode,
+  AgentTeamWorkspaceType,
   LibraryAgentDomain,
   LongAgentId,
   ModelConfig,
+  MysteryAgentId,
   ThinkingLevel,
   UserPromptAttachment,
   WorkspaceAgentId
@@ -65,14 +68,20 @@ const props = defineProps<{
   messagesEmpty: boolean;
   bookTitle: string;
   stageLabel: string;
+  stageIcon?: IconName | undefined;
   selectedModelId: string;
   selectedModel: ModelConfig | undefined;
   thinkingLevel: ThinkingLevel;
   temperature: number;
   approvalMode: AgentApprovalMode;
   agentTeamMode: AgentTeamRunMode;
-  agentId: WorkspaceAgentId | LongAgentId | undefined;
-  agentWorkspaceType: "short" | "script" | "long" | undefined;
+  agentId:
+    | WorkspaceAgentId
+    | LongAgentId
+    | AcademicAgentId
+    | MysteryAgentId
+    | undefined;
+  agentWorkspaceType: AgentTeamWorkspaceType | undefined;
   agentBookId?: string | undefined;
   libraryDomain: LibraryAgentDomain | undefined;
   availableSkills: ComposerReferenceOption[];
@@ -385,6 +394,7 @@ defineExpose({ focusInput });
           v-if="messagesEmpty"
           :book-title="bookTitle"
           :stage-label="stageLabel"
+          :stage-icon="stageIcon"
           :responding="responding"
         />
         <div

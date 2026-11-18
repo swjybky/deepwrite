@@ -1,4 +1,16 @@
 export {
+  buildAcademicWorkspaceTools,
+  createAcademicWorkspaceToolSharedState,
+  createAcademicWritingReader,
+  isAcademicWorkspaceToolDetails
+} from "./academic-agent-tools";
+export type {
+  AcademicToolDetails,
+  AcademicWorkspaceToolSharedState,
+  AcademicWritingReader,
+  BuildAcademicWorkspaceToolsInput
+} from "./academic-agent-tools";
+export {
   buildLongWorkspaceTools,
   createLongWorkspaceToolSharedState,
   isLongAgentToolDetails
@@ -10,6 +22,18 @@ export type {
   LongQueryCommandEnvelope,
   LongWorkspaceToolSharedState
 } from "./long-agent-tools";
+export {
+  buildMysteryWorkspaceTools,
+  createMysteryWorkspaceToolSharedState,
+  isMysteryAgentToolDetails
+} from "./mystery";
+export type {
+  BuildMysteryWorkspaceToolsInput,
+  MysteryAgentToolDetails,
+  MysteryCommandExecutor,
+  MysteryQueryCommandEnvelope,
+  MysteryWorkspaceToolSharedState
+} from "./mystery";
 export type {
   AgentRunInput,
   AgentRuntimeEvent,

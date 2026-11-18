@@ -7,11 +7,13 @@ import {
 } from "../agent-team";
 import { EnvelopeBaseSchema } from "../envelope";
 import { PromptLocaleSchema } from "../prompt-locale";
+import { AcademicAgentProfileSchema } from "../academic-agent-settings";
 import { LibraryAgentProfileSchema } from "../library-agent";
 import {
   LongAgentProfileSchema,
   resolveLongAgentIdForRoot
 } from "../long-workspace";
+import { MysteryAgentProfileSchema } from "../mystery";
 import {
   AgentProviderRuntimeConfigSchema,
   TemperatureSchema,
@@ -110,12 +112,15 @@ export const SessionPromptCommandPayloadSchema = z
       value.agentTeamMode !== undefined &&
       !value.workspaceContext?.shortWorkspace &&
       !value.workspaceContext?.scriptWorkspace &&
-      !value.workspaceContext?.longWorkspace
+      !value.workspaceContext?.longWorkspace &&
+      !value.workspaceContext?.academicWorkspace &&
+      !value.workspaceContext?.mysteryWorkspace
     ) {
       context.addIssue({
         code: "custom",
         path: ["agentTeamMode"],
-        message: "Agent team mode requires a short, script or long workspace."
+        message:
+          "Agent team mode requires a short, script, long, academic or mystery workspace."
       });
     }
   });
@@ -240,6 +245,8 @@ export const AgentPromptCommandPayloadSchema =
     agentProfile: ShortWorkspaceAgentProfileSchema.optional(),
     scriptAgentProfile: ScriptWorkspaceAgentProfileSchema.optional(),
     longAgentProfile: LongAgentProfileSchema.optional(),
+    academicAgentProfile: AcademicAgentProfileSchema.optional(),
+    mysteryAgentProfile: MysteryAgentProfileSchema.optional(),
     libraryManagement: LibraryManagementRuntimeContextSchema.optional(),
     teamManagement: TeamManagementRuntimeContextSchema.optional(),
     subagentDefinitions: ShortAgentSubagentDefinitionsSchema.optional(),
@@ -260,6 +267,8 @@ export const AgentPromptCommandPayloadSchema =
     const shortWorkspace = value.workspaceContext?.shortWorkspace;
     const scriptWorkspace = value.workspaceContext?.scriptWorkspace;
     const longWorkspace = value.workspaceContext?.longWorkspace;
+    const academicWorkspace = value.workspaceContext?.academicWorkspace;
+    const mysteryWorkspace = value.workspaceContext?.mysteryWorkspace;
     if (
       (value.subagentDefinitions !== undefined ||
         value.libraryManagement !== undefined ||
@@ -267,14 +276,16 @@ export const AgentPromptCommandPayloadSchema =
       !(
         (shortWorkspace && value.agentProfile) ||
         (scriptWorkspace && value.scriptAgentProfile) ||
-        (longWorkspace && value.longAgentProfile)
+        (longWorkspace && value.longAgentProfile) ||
+        (academicWorkspace && value.academicAgentProfile) ||
+        (mysteryWorkspace && value.mysteryAgentProfile)
       )
     ) {
       context.addIssue({
         code: "custom",
         path: ["subagentDefinitions"],
         message:
-          "Subagent definitions require a short, script or long workspace and its agent profile."
+          "Subagent definitions require a short, script, long, academic or mystery workspace and its agent profile."
       });
     }
     for (const management of [value.libraryManagement, value.teamManagement]) {
@@ -283,9 +294,13 @@ export const AgentPromptCommandPayloadSchema =
       const expectedBookId =
         scope.bookType === "long"
           ? longWorkspace?.bookId
-          : scope.bookType === "script"
-            ? scriptWorkspace?.id
-            : shortWorkspace?.id;
+          : scope.bookType === "academic"
+            ? academicWorkspace?.id
+            : scope.bookType === "mystery"
+              ? mysteryWorkspace?.bookId
+              : scope.bookType === "script"
+                ? scriptWorkspace?.id
+                : shortWorkspace?.id;
       if (expectedBookId !== scope.bookId)
         context.addIssue({
           code: "custom",
@@ -389,6 +404,34 @@ export const AgentPromptCommandPayloadSchema =
             "Long workspace agent profile must match the active long-form agent."
         });
       }
+    }
+    if (Boolean(academicWorkspace) !== Boolean(value.academicAgentProfile)) {
+      context.addIssue({
+        code: "custom",
+        path: ["academicAgentProfile"],
+        message:
+          "Academic workspace context and agent profile must be provided together."
+      });
+    }
+    if (Boolean(mysteryWorkspace) !== Boolean(value.mysteryAgentProfile)) {
+      context.addIssue({
+        code: "custom",
+        path: ["mysteryAgentProfile"],
+        message:
+          "Mystery workspace context and agent profile must be provided together."
+      });
+    }
+    if (
+      mysteryWorkspace &&
+      value.mysteryAgentProfile &&
+      value.mysteryAgentProfile.id !== mysteryWorkspace.activeAgentId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["mysteryAgentProfile", "id"],
+        message:
+          "Mystery workspace agent profile must match the active mystery agent."
+      });
     }
     if (
       Boolean(value.workspaceContext?.libraryWorkspace) !==

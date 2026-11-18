@@ -30,26 +30,24 @@ export function longSkillReferences(
   profile: LongAgentProfile | null
 ): ComposerReferenceOption[] {
   if (!snapshot || !summary || !profile) return [];
-  const readableKinds = new Set(profile.readAccess.skillKinds);
   const libraries = new Map(
     snapshot.skills.map((library) => [library.id, library])
   );
   const seenLibraries = new Set<string>();
   const references: ComposerReferenceOption[] = [];
   for (const selectedKind of SKILL_KINDS) {
-    if (!readableKinds.has(selectedKind)) continue;
     for (const libraryId of summary.linkedSkillIdsByKind[selectedKind]) {
       if (seenLibraries.has(libraryId)) continue;
       seenLibraries.add(libraryId);
       const library = libraries.get(libraryId);
-      if (!library || !readableKinds.has(library.skillKind)) continue;
+      if (!library) continue;
       for (const entry of library.entries) {
         if (entry.contentBytes <= 0) continue;
         references.push({
           id: catalogAttachmentId("skill", library.id, entry.id),
           label: `${library.title} · ${entry.title}`,
           detail: t("linkedToThisNovel", {
-            value: SKILL_KIND_LABELS[library.skillKind]
+            value: library.customTag ?? SKILL_KIND_LABELS[library.skillKind]
           })
         });
         if (references.length >= ATTACHED_CONTEXT_MAX_ITEMS) {
@@ -67,25 +65,19 @@ export function longMaterialReferences(
   profile: LongAgentProfile | null
 ): ComposerReferenceOption[] {
   if (!snapshot || !summary || !profile) return [];
-  const readableKinds = new Set(profile.readAccess.materialKinds);
   const libraries = new Map(
     snapshot.materials.map((library) => [library.id, library])
   );
   const seenEntries = new Set<string>();
   const references: ComposerReferenceOption[] = [];
   for (const selectedKind of MATERIAL_KINDS) {
-    if (!readableKinds.has(selectedKind)) continue;
     for (const libraryId of summary.linkedMaterialIdsByKind[selectedKind]) {
       const library = libraries.get(libraryId);
       if (!library) continue;
       for (const entry of library.entries) {
         const entryKind = MATERIAL_STAGE_KINDS[entry.stageId];
         const entryId = catalogAttachmentId("material", library.id, entry.id);
-        if (
-          entryKind !== selectedKind ||
-          entry.contentBytes <= 0 ||
-          seenEntries.has(entryId)
-        ) {
+        if (entry.contentBytes <= 0 || seenEntries.has(entryId)) {
           continue;
         }
         seenEntries.add(entryId);
@@ -93,7 +85,7 @@ export function longMaterialReferences(
           id: entryId,
           label: `${library.title} · ${entry.title}`,
           detail: t("linkedToThisNovel", {
-            value: MATERIAL_KIND_LABELS[entryKind]
+            value: library.customTag ?? MATERIAL_KIND_LABELS[entryKind]
           })
         });
       }

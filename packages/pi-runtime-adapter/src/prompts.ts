@@ -3,11 +3,20 @@ import {
   buildWorkspaceMaterialContext,
   materialCatalogNotes
 } from "./prompts-material";
-import { type LongAgentProfile } from "@deepwrite/contracts";
+import type { LongAgentProfile } from "@deepwrite/contracts";
 import {
   buildLongFixedContextLines,
   buildLongFollowUpContextLines
 } from "./prompts-long";
+import {
+  academicReadOnlyRuntimeSystemRequirements,
+  academicRuntimeSystemRequirements,
+  buildAcademicRuntimeUserPrompt
+} from "./prompts-academic";
+import {
+  buildMysteryFixedContextLines,
+  buildMysteryFollowUpContextLines
+} from "./mystery";
 import type { UserMessage } from "@earendil-works/pi-ai";
 import {
   buildRawUserText,
@@ -26,6 +35,10 @@ export {
   scriptReadOnlyRuntimeSystemRequirements,
   shortReadOnlyRuntimeSystemRequirements
 } from "./prompts-writing-readonly";
+export {
+  academicReadOnlyRuntimeSystemRequirements,
+  academicRuntimeSystemRequirements
+};
 
 export {
   buildDeepWriteSystemPrompt,
@@ -42,6 +55,8 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
   const writingWorkspace = scriptWorkspace ?? shortWorkspace;
   const writingProfile = input.scriptAgentProfile ?? input.agentProfile;
   const longProfile = input.longAgentProfile;
+  const mysteryWorkspace = input.workspaceContext?.mysteryWorkspace;
+  const mysteryProfile = input.mysteryAgentProfile;
   const skills = input.workspaceContext?.attachedSkills ?? [];
   const materials = input.workspaceContext?.materialCatalog
     ? materialCatalogEntries(input.workspaceContext.materialCatalog)
@@ -53,24 +68,11 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
   // The unified long agent owns every stage, so all fixed context is injected
   // and no implementation-level ids are exposed.
   const isLongRun = Boolean(longWorkspace && longProfile);
-  const readableSkills = writingProfile
-    ? skills.filter(
-        (item) =>
-          item.kind !== undefined &&
-          writingProfile.readAccess.skill.includes(item.kind)
-      )
-    : longProfile
-      ? skills.filter(
-          (item) =>
-            item.kind !== undefined &&
-            longProfile.readAccess.skillKinds.includes(item.kind)
-        )
-      : input.libraryAgentProfile
-        ? skills
-        : skills;
+  const isMysteryRun = Boolean(mysteryWorkspace && mysteryProfile);
+  const readableSkills = skills;
   const isLongAgentRun = isLongRun;
   const skillContext =
-    isWritingAgentRun || isLibraryAgentRun || isLongAgentRun
+    isWritingAgentRun || isLibraryAgentRun || isLongAgentRun || isMysteryRun
       ? readableSkills.length
         ? isLibraryAgentRun
           ? `可按需加载的技能：\n${input
@@ -90,13 +92,16 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
         ? `显式附加技能:\n${skills.map((item) => `- ${item.title}: ${item.content}`).join("\n")}`
         : "显式附加技能: 无";
   const materialContext =
-    isWritingAgentRun || isLongAgentRun
+    isWritingAgentRun || isLongAgentRun || isMysteryRun
       ? buildWorkspaceMaterialContext(input)
       : materials.length
         ? `显式附加素材:\n${materials
             .map((item) => `- ${item.title}: ${item.content}`)
             .join("\n")}`
         : "显式附加素材: 无";
+  if (input.workspaceContext?.academicWorkspace && input.academicAgentProfile) {
+    return buildAcademicRuntimeUserPrompt(input);
+  }
   if (writingWorkspace && writingProfile) {
     const english = input.promptLocale === "en-US";
     return [
@@ -121,18 +126,25 @@ export function buildRuntimeUserPrompt(input: AgentRunInput): string {
   }
   const lines = [
     "【本次智能体会话固定上下文】",
-    isLongRun || writingWorkspace ? "" : `sessionId: ${input.sessionId}`,
-    isLongRun || writingWorkspace ? "" : `runId: ${input.runId}`,
+    isLongRun || isMysteryRun || writingWorkspace
+      ? ""
+      : `sessionId: ${input.sessionId}`,
+    isLongRun || isMysteryRun || writingWorkspace
+      ? ""
+      : `runId: ${input.runId}`,
     ...(isLongRun ? buildLongFixedContextLines(longWorkspace!) : []),
+    ...(isMysteryRun ? buildMysteryFixedContextLines(mysteryWorkspace!) : []),
     writingProfile
       ? `当前智能体: ${writingProfile.label} (${writingProfile.id})`
       : longProfile
         ? `当前智能体: ${longProfile.label}`
-        : input.libraryAgentProfile
-          ? `当前智能体: ${input.libraryAgentProfile.label} (${input.libraryAgentProfile.domain})`
-          : "",
+        : mysteryProfile
+          ? `当前智能体: ${mysteryProfile.label}`
+          : input.libraryAgentProfile
+            ? `当前智能体: ${input.libraryAgentProfile.label} (${input.libraryAgentProfile.domain})`
+            : "",
     libraryContext
-      ? `当前资料库: 《${libraryContext.title}》 (${libraryContext.domain} / ${libraryContext.kind}；短篇、剧本、长篇共用)`
+      ? `当前资料库: 《${libraryContext.title}》 (${libraryContext.domain} / ${libraryContext.customTag ?? libraryContext.kind}；短篇、剧本、长篇共用)`
       : "",
     libraryContext
       ? `资料库状态: ${libraryContext.readOnly ? "只读" : "可写"}${libraryContext.projectRevision === undefined ? "" : `；项目版本 ${libraryContext.projectRevision}`}`
@@ -216,6 +228,29 @@ export function buildLongFollowUpTurnUserMessageContent(
   input: AgentRunInput
 ): UserMessage["content"] {
   const text = buildLongFollowUpTurnUserPrompt(input);
+  const images = imageContentBlocks(input);
+  return images.length ? [{ type: "text", text }, ...images] : text;
+}
+
+export function buildMysteryFollowUpTurnUserMessageContent(
+  input: AgentRunInput
+): UserMessage["content"] {
+  const mysteryWorkspace = input.workspaceContext?.mysteryWorkspace;
+  if (!mysteryWorkspace || !input.mysteryAgentProfile) {
+    return buildFollowUpRawUserMessageContent(input);
+  }
+  const text = [
+    ...buildMysteryFollowUpContextLines(mysteryWorkspace),
+    buildWorkspaceMaterialContext(input),
+    ...materialCatalogNotes(input),
+    "",
+    renderProposalSettlements(input.proposalSettlements),
+    "",
+    "【用户消息与上传附件】",
+    buildRawUserText(input)
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
   const images = imageContentBlocks(input);
   return images.length ? [{ type: "text", text }, ...images] : text;
 }

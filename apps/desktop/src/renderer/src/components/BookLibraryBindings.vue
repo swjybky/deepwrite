@@ -7,6 +7,7 @@ import type {
 } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
 import PopupSelect from "./PopupSelect.vue";
+import { sharingT } from "./librarySharingLabels";
 import {
   useBookLibrarySelection,
   type BookLibrarySelectionProps
@@ -21,43 +22,71 @@ const emit = defineEmits<{
     value: {
       linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
       linkedSkillIdsByKind: LinkedSkillIdsByKind;
+      linkedMaterialIds: string[];
+      linkedSkillIds: string[];
     }
   ];
 }>();
 const {
-  MATERIAL_KINDS,
-  SKILL_KINDS,
-  materialBindingMode,
-  skillBindingMode,
-  selectedMaterialGroupId,
-  selectedSkillGroupId,
-  selectedMaterialIds,
-  selectedSkillIds,
+  selectedMaterialLibraryIds,
+  selectedSkillLibraryIds,
+  selectedMaterialSet,
+  selectedSkillSet,
+  materialSearchQuery,
+  skillSearchQuery,
+  materialTagFilter,
+  skillTagFilter,
+  materialItems,
+  skillItems,
+  filteredMaterialItems,
+  filteredSkillItems,
+  materialTagFilterOptions,
+  skillTagFilterOptions,
   availableMaterialGroups,
   availableSkillGroups,
-  selectedMaterialGroup,
-  selectedSkillGroup,
-  materialById,
-  skillById,
-  materialKindDescription,
-  skillKindDescription,
-  materialSelectOptions,
-  skillSelectOptions,
-  materialGroupOptions,
-  skillGroupOptions,
+  missingMaterialIds,
+  missingSkillIds,
+  validMaterialGroupMemberIds,
+  validSkillGroupMemberIds,
+  isMaterialGroupSelected,
+  isSkillGroupSelected,
+  toggleMaterialGroup,
+  toggleSkillGroup,
+  toggleMaterialLibrary,
+  toggleSkillLibrary,
   selectedMaterialLinks,
-  selectedSkillLinks
+  selectedSkillLinks,
+  selectedFlatMaterialIds,
+  selectedFlatSkillIds
 } = useBookLibrarySelection(props);
+
 watch(
-  () => [selectedMaterialLinks(), selectedSkillLinks()] as const,
-  ([linkedMaterialIdsByKind, linkedSkillIdsByKind]) =>
-    emit("change", { linkedMaterialIdsByKind, linkedSkillIdsByKind }),
+  () =>
+    [
+      selectedMaterialLinks(),
+      selectedSkillLinks(),
+      selectedFlatMaterialIds(),
+      selectedFlatSkillIds()
+    ] as const,
+  ([
+    linkedMaterialIdsByKind,
+    linkedSkillIdsByKind,
+    linkedMaterialIds,
+    linkedSkillIds
+  ]) =>
+    emit("change", {
+      linkedMaterialIdsByKind,
+      linkedSkillIdsByKind,
+      linkedMaterialIds,
+      linkedSkillIds
+    }),
   { immediate: true, deep: true }
 );
 </script>
+
 <template>
   <section
-    class="create-short-binding-panel"
+    class="create-short-binding-panel lib-picker-stack"
     aria-labelledby="create-short-skill-heading"
   >
     <div class="create-short-binding-heading">
@@ -74,87 +103,112 @@ watch(
       </div>
     </div>
 
-    <div
-      class="create-short-binding-modes"
-      role="radiogroup"
-      :aria-label="t('skillLibraryLinking')"
-    >
-      <label :class="{ 'is-selected': skillBindingMode === 'single' }">
-        <input
-          v-model="skillBindingMode"
-          type="radio"
-          value="single"
-          :disabled="submitting"
-        />
-        {{ t("chooseByCategory") }}
-      </label>
-      <label
-        :class="{ 'is-selected': skillBindingMode === 'group' }"
-        :title="availableSkillGroups.length ? '' : t('noSkillGroupsAvailable')"
-      >
-        <input
-          v-model="skillBindingMode"
-          type="radio"
-          value="group"
-          :disabled="submitting || availableSkillGroups.length === 0"
-        />
-        {{ t("selectGroup") }}
-      </label>
+    <div v-if="availableSkillGroups.length" class="lib-picker-groups">
+      <span class="lib-picker-groups-label">{{
+        sharingT("quickSelectGroups")
+      }}</span>
+      <div class="lib-picker-group-chips">
+        <button
+          v-for="group in availableSkillGroups"
+          :key="group.id"
+          class="lib-picker-group-chip"
+          :class="{ 'is-active': isSkillGroupSelected(group) }"
+          type="button"
+          :disabled="loading || submitting"
+          @click="toggleSkillGroup(group.id)"
+        >
+          <span>{{ group.title }}</span>
+          <span class="lib-picker-group-count">{{
+            sharingT("groupMemberCount", {
+              count: validSkillGroupMemberIds(group).length
+            })
+          }}</span>
+        </button>
+      </div>
     </div>
 
-    <div v-if="skillBindingMode === 'single'" class="create-short-kind-grid">
-      <label
-        v-for="kind in SKILL_KINDS"
-        :key="kind.id"
-        class="create-short-kind-field"
+    <div v-if="missingSkillIds.length" class="lib-picker-missing-list">
+      <span
+        v-for="id in missingSkillIds"
+        :key="id"
+        class="lib-picker-missing-chip"
       >
-        <span>
-          <strong>{{ kind.label }}</strong>
-          <small>{{ skillKindDescription(kind) }}</small>
+        {{ sharingT("missingLibraryLabel", { id }) }}
+        <button
+          type="button"
+          :aria-label="sharingT('removeMissingBinding', { id })"
+          :disabled="submitting"
+          @click="toggleSkillLibrary(id)"
+        >
+          ×
+        </button>
+      </span>
+    </div>
+
+    <div class="lib-picker-toolbar">
+      <input
+        v-model="skillSearchQuery"
+        class="lib-picker-search-input"
+        type="search"
+        autocomplete="off"
+        :placeholder="sharingT('searchLibrariesPlaceholder')"
+        :aria-label="sharingT('searchLibrariesPlaceholder')"
+        :disabled="loading || submitting"
+      />
+      <PopupSelect
+        :model-value="skillTagFilter"
+        :options="skillTagFilterOptions"
+        :accessible-label="sharingT('filterByTag')"
+        size="large"
+        :disabled="loading || submitting"
+        :menu-min-width="160"
+        @update:model-value="skillTagFilter = String($event)"
+      />
+    </div>
+
+    <div
+      v-if="filteredSkillItems.length"
+      class="lib-picker-list"
+      role="group"
+      :aria-label="t('linkSkillLibraries')"
+    >
+      <label
+        v-for="item in filteredSkillItems"
+        :key="item.id"
+        class="lib-picker-row"
+        :class="{ 'is-checked': selectedSkillSet.has(item.id) }"
+      >
+        <span class="lib-picker-row-main">
+          <input
+            type="checkbox"
+            :checked="selectedSkillSet.has(item.id)"
+            :disabled="loading || submitting"
+            @change="toggleSkillLibrary(item.id)"
+          />
+          <span class="lib-picker-row-title">{{ item.title }}</span>
         </span>
-        <PopupSelect
-          :model-value="selectedSkillIds[kind.id]"
-          :options="skillSelectOptions(kind.id)"
-          :accessible-label="kind.label"
-          size="large"
-          :disabled="loading || submitting"
-          :menu-min-width="260"
-          @update:model-value="selectedSkillIds[kind.id] = String($event)"
-        />
+        <span class="lib-picker-row-meta">
+          <span class="lib-picker-tag-badge">{{ item.tag }}</span>
+          <span class="lib-picker-entry-count">{{
+            sharingT("entryCount", { count: item.entryCount })
+          }}</span>
+        </span>
       </label>
     </div>
-    <div v-else class="create-short-group-picker">
-      <label class="create-short-book-field">
-        <span>{{ t("skillGroup") }}</span>
-        <PopupSelect
-          :model-value="selectedSkillGroupId"
-          :options="skillGroupOptions"
-          :accessible-label="t('skillGroup')"
-          size="large"
-          :disabled="loading || submitting"
-          :menu-min-width="260"
-          @update:model-value="selectedSkillGroupId = String($event)"
-        />
-      </label>
-      <div v-if="selectedSkillGroup" class="create-short-group-members">
-        <span v-for="kind in SKILL_KINDS" :key="kind.id">
-          <small>{{ kind.label }}</small>
-          <strong>
-            {{
-              skillById.get(selectedSkillGroup.members[kind.id] ?? "")?.title ??
-              t("notConfigured")
-            }}
-          </strong>
-        </span>
-      </div>
-      <p v-else class="create-short-stable-hint">
-        {{ t("selectingAGroupLinksAllConfiguredSkillLibrariesIn") }}
-      </p>
-    </div>
+    <p v-else class="lib-picker-empty">
+      {{
+        skillItems.length === 0
+          ? sharingT("noLibrariesAvailable")
+          : sharingT("noMatchingLibraries")
+      }}
+    </p>
+    <span class="lib-picker-count">
+      {{ sharingT("selectedCount", { count: selectedSkillLibraryIds.length }) }}
+    </span>
   </section>
 
   <section
-    class="create-short-binding-panel"
+    class="create-short-binding-panel lib-picker-stack"
     aria-labelledby="create-short-material-heading"
   >
     <div class="create-short-binding-heading">
@@ -171,84 +225,111 @@ watch(
       </div>
     </div>
 
-    <div
-      class="create-short-binding-modes"
-      role="radiogroup"
-      :aria-label="t('materialLibraryLinking')"
-    >
-      <label :class="{ 'is-selected': materialBindingMode === 'single' }">
-        <input
-          v-model="materialBindingMode"
-          type="radio"
-          value="single"
-          :disabled="submitting"
-        />
-        {{ t("chooseByCategory") }}
-      </label>
-      <label
-        :class="{ 'is-selected': materialBindingMode === 'group' }"
-        :title="
-          availableMaterialGroups.length ? '' : t('noMaterialGroupsAvailable')
-        "
-      >
-        <input
-          v-model="materialBindingMode"
-          type="radio"
-          value="group"
-          :disabled="submitting || availableMaterialGroups.length === 0"
-        />
-        {{ t("selectGroup") }}
-      </label>
+    <div v-if="availableMaterialGroups.length" class="lib-picker-groups">
+      <span class="lib-picker-groups-label">{{
+        sharingT("quickSelectGroups")
+      }}</span>
+      <div class="lib-picker-group-chips">
+        <button
+          v-for="group in availableMaterialGroups"
+          :key="group.id"
+          class="lib-picker-group-chip"
+          :class="{ 'is-active': isMaterialGroupSelected(group) }"
+          type="button"
+          :disabled="loading || submitting"
+          @click="toggleMaterialGroup(group.id)"
+        >
+          <span>{{ group.title }}</span>
+          <span class="lib-picker-group-count">{{
+            sharingT("groupMemberCount", {
+              count: validMaterialGroupMemberIds(group).length
+            })
+          }}</span>
+        </button>
+      </div>
     </div>
 
-    <div v-if="materialBindingMode === 'single'" class="create-short-kind-grid">
-      <label
-        v-for="kind in MATERIAL_KINDS"
-        :key="kind.id"
-        class="create-short-kind-field"
+    <div v-if="missingMaterialIds.length" class="lib-picker-missing-list">
+      <span
+        v-for="id in missingMaterialIds"
+        :key="id"
+        class="lib-picker-missing-chip"
       >
-        <span>
-          <strong>{{ kind.label }}</strong>
-          <small>{{ materialKindDescription(kind) }}</small>
+        {{ sharingT("missingLibraryLabel", { id }) }}
+        <button
+          type="button"
+          :aria-label="sharingT('removeMissingBinding', { id })"
+          :disabled="submitting"
+          @click="toggleMaterialLibrary(id)"
+        >
+          ×
+        </button>
+      </span>
+    </div>
+
+    <div class="lib-picker-toolbar">
+      <input
+        v-model="materialSearchQuery"
+        class="lib-picker-search-input"
+        type="search"
+        autocomplete="off"
+        :placeholder="sharingT('searchLibrariesPlaceholder')"
+        :aria-label="sharingT('searchLibrariesPlaceholder')"
+        :disabled="loading || submitting"
+      />
+      <PopupSelect
+        :model-value="materialTagFilter"
+        :options="materialTagFilterOptions"
+        :accessible-label="sharingT('filterByTag')"
+        size="large"
+        :disabled="loading || submitting"
+        :menu-min-width="160"
+        @update:model-value="materialTagFilter = String($event)"
+      />
+    </div>
+
+    <div
+      v-if="filteredMaterialItems.length"
+      class="lib-picker-list"
+      role="group"
+      :aria-label="t('linkMaterialLibraries')"
+    >
+      <label
+        v-for="item in filteredMaterialItems"
+        :key="item.id"
+        class="lib-picker-row"
+        :class="{ 'is-checked': selectedMaterialSet.has(item.id) }"
+      >
+        <span class="lib-picker-row-main">
+          <input
+            type="checkbox"
+            :checked="selectedMaterialSet.has(item.id)"
+            :disabled="loading || submitting"
+            @change="toggleMaterialLibrary(item.id)"
+          />
+          <span class="lib-picker-row-title">{{ item.title }}</span>
         </span>
-        <PopupSelect
-          :model-value="selectedMaterialIds[kind.id]"
-          :options="materialSelectOptions(kind.id)"
-          :accessible-label="kind.label"
-          size="large"
-          :disabled="loading || submitting"
-          :menu-min-width="260"
-          @update:model-value="selectedMaterialIds[kind.id] = String($event)"
-        />
+        <span class="lib-picker-row-meta">
+          <span class="lib-picker-tag-badge">{{ item.tag }}</span>
+          <span class="lib-picker-entry-count">{{
+            sharingT("entryCount", { count: item.entryCount })
+          }}</span>
+        </span>
       </label>
     </div>
-    <div v-else class="create-short-group-picker">
-      <label class="create-short-book-field">
-        <span>{{ t("materialGroup") }}</span>
-        <PopupSelect
-          :model-value="selectedMaterialGroupId"
-          :options="materialGroupOptions"
-          :accessible-label="t('materialGroup')"
-          size="large"
-          :disabled="loading || submitting"
-          :menu-min-width="260"
-          @update:model-value="selectedMaterialGroupId = String($event)"
-        />
-      </label>
-      <div v-if="selectedMaterialGroup" class="create-short-group-members">
-        <span v-for="kind in MATERIAL_KINDS" :key="kind.id">
-          <small>{{ kind.label }}</small>
-          <strong>
-            {{
-              materialById.get(selectedMaterialGroup.members[kind.id] ?? "")
-                ?.title ?? t("notConfigured")
-            }}
-          </strong>
-        </span>
-      </div>
-      <p v-else class="create-short-stable-hint">
-        {{ t("selectingAGroupLinksAllConfiguredMaterialLibrariesIn") }}
-      </p>
-    </div>
+    <p v-else class="lib-picker-empty">
+      {{
+        materialItems.length === 0
+          ? sharingT("noLibrariesAvailable")
+          : sharingT("noMatchingLibraries")
+      }}
+    </p>
+    <span class="lib-picker-count">
+      {{
+        sharingT("selectedCount", { count: selectedMaterialLibraryIds.length })
+      }}
+    </span>
   </section>
 </template>
+
+<style scoped src="./library-sharing-picker.css"></style>

@@ -408,8 +408,8 @@ describe("useLongWorkspacePresentationCoordinator", () => {
     expect(
       coordinator.filterLongReadableAttachmentsForProfile(attachments, profile)
     ).toEqual({
-      attachedSkills: [attachments.attachedSkills[0]],
-      attachedMaterials: [attachments.attachedMaterials[0]]
+      attachedSkills: attachments.attachedSkills,
+      attachedMaterials: attachments.attachedMaterials
     });
     expect(
       coordinator.buildLongReadableAttachmentsForProfile(summary, null, profile)

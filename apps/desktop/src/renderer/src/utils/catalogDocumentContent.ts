@@ -134,20 +134,55 @@ export function catalogSnapshotWithDocumentContents(
   });
   return {
     ...snapshot,
-    books: snapshot.books.map((book) => ({
-      ...book,
-      documents: book.documents.map((document) =>
-        hydrateBookDocument(book.id, document)
-      ),
-      draft: {
-        ...book.draft,
-        sections: book.draft.sections.map((section) => ({
-          ...section,
-          body: hydrateBookDocument(book.id, section.body),
-          characterState: hydrateBookDocument(book.id, section.characterState)
-        }))
-      }
-    })),
+    books: snapshot.books.map((book) =>
+      book.bookType === "academic"
+        ? {
+            ...book,
+            foundation: {
+              thesisOverview: hydrateBookDocument(
+                book.id,
+                book.foundation.thesisOverview
+              ),
+              terminology: hydrateBookDocument(
+                book.id,
+                book.foundation.terminology
+              ),
+              cards: book.foundation.cards.map((card) => ({
+                ...card,
+                document: hydrateBookDocument(book.id, card.document)
+              }))
+            },
+            documents: book.documents.map((document) =>
+              hydrateBookDocument(book.id, document)
+            ),
+            manuscript: {
+              ...book.manuscript,
+              sections: book.manuscript.sections.map((section) => ({
+                ...section,
+                brief: hydrateBookDocument(book.id, section.brief),
+                body: hydrateBookDocument(book.id, section.body),
+                state: hydrateBookDocument(book.id, section.state)
+              }))
+            }
+          }
+        : {
+            ...book,
+            documents: book.documents.map((document) =>
+              hydrateBookDocument(book.id, document)
+            ),
+            draft: {
+              ...book.draft,
+              sections: book.draft.sections.map((section) => ({
+                ...section,
+                body: hydrateBookDocument(book.id, section.body),
+                characterState: hydrateBookDocument(
+                  book.id,
+                  section.characterState
+                )
+              }))
+            }
+          }
+    ),
     materials: snapshot.materials.map((library) => ({
       ...library,
       overview:

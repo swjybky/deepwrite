@@ -1,5 +1,6 @@
 import {
   FolderCatalogStore,
+  asCreativeBook,
   expect,
   it,
   join,
@@ -54,7 +55,9 @@ it("initializes imported same-title stages without losing IDs or existing Markdo
   ).toHaveLength(2);
   const snapshot = await target.snapshot();
   for (const source of sources) {
-    const book = snapshot.books.find(({ id }) => id === source.resource.id)!;
+    const book = asCreativeBook(
+      snapshot.books.find(({ id }) => id === source.resource.id)
+    );
     expect(book.plotStages.map(({ id }) => id)).toEqual(
       expect.arrayContaining(sources.map(({ stageId }) => stageId))
     );

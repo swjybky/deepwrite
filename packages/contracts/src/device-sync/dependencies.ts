@@ -17,14 +17,25 @@ export function syncDependencies(item: SyncItem): string[] {
           for (const id of values)
             if (typeof id === "string") result.push(`${kind}:${id}`);
   }
-  if (
-    (item.kind === "material-group" || item.kind === "skill-group") &&
-    record(manifest.members)
-  ) {
+  for (const [field, kind] of [
+    ["linkedMaterialIds", "material-library"],
+    ["linkedSkillIds", "skill-library"]
+  ] as const) {
+    const ids = manifest[field];
+    if (Array.isArray(ids))
+      for (const id of ids)
+        if (typeof id === "string") result.push(`${kind}:${id}`);
+  }
+  if (item.kind === "material-group" || item.kind === "skill-group") {
     const kind =
       item.kind === "material-group" ? "material-library" : "skill-library";
-    for (const value of Object.values(manifest.members))
-      if (typeof value === "string") result.push(`${kind}:${value}`);
+    if (Array.isArray(manifest.memberIds)) {
+      for (const value of manifest.memberIds)
+        if (typeof value === "string") result.push(`${kind}:${value}`);
+    } else if (record(manifest.members)) {
+      for (const value of Object.values(manifest.members))
+        if (typeof value === "string") result.push(`${kind}:${value}`);
+    }
   }
   return [...new Set(result)];
 }

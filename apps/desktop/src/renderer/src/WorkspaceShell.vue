@@ -25,7 +25,7 @@ import type {
 import LeftSidebar from "./components/LeftSidebar.vue";
 import ToastHost from "./components/ToastHost.vue";
 import WritingWorkspaceModule from "./components/WritingWorkspaceModule.vue";
-import { registerWorkspaceSystemEventRoutes } from "./events/registerWorkspaceSystemEventRoutes";
+import { startNativeWorkspaceSystemEvents } from "./events/registerWorkspaceSystemEventRoutes";
 import { systemEventCenter } from "./events/systemEventCenter";
 import {
   ChatAssistantOverlay,
@@ -74,10 +74,10 @@ import { useWorkspaceResourceTreeCoordinator } from "./composables/useWorkspaceR
 import { useWorkspaceStageNavigator } from "./composables/useWorkspaceStageNavigator";
 import { useWorkspaceDialogModuleCoordinator } from "./composables/useWorkspaceDialogModuleCoordinator";
 import { useWorkspaceFeatureHostCoordinator } from "./composables/useWorkspaceFeatureHostCoordinator";
+import { useMysteryShellBridge } from "./composables/useMysteryShellBridge";
 import { useChatAssistant } from "./features/chat-assistant/useChatAssistant";
 import { uiMessage } from "./ui-feedback";
 import { prepareLibraryProjects } from "./composables/libraryProjectPreparation";
-import { externalTeamAvailable } from "./extras/external-control/team-availability";
 import { useExternalControlBridge } from "./extras/external-control/useExternalControlBridge";
 import { resourceSections } from "./data/demoWorkspace";
 import { EMPTY_WORKSPACE_DOCUMENT } from "./data/emptyWorkspaceDocument";
@@ -92,6 +92,7 @@ import type {
   EditorTextReferenceNavigation
 } from "./types/conversation";
 import type {
+  DraftFileKind,
   EditorDraftState,
   ResourceSectionActionPayload,
   ResourceTreeNode,
@@ -176,9 +177,7 @@ const {
 } = storeToRefs(settingsStore);
 const legacyGeneralPreferences = loadGeneralPreferences(window.localStorage);
 const selectedExpertSectionIds = ref<Record<string, string>>({});
-const selectedDraftFileKinds = ref<Record<string, "body" | "character-state">>(
-  {}
-);
+const selectedDraftFileKinds = ref<Record<string, DraftFileKind>>({});
 const pendingEditorReferences = ref<EditorTextReference[]>([]);
 const editorReferenceNavigation = ref<EditorTextReferenceNavigation>();
 const acceptingAgentEditDocumentIds = ref<Set<string>>(new Set());
@@ -460,6 +459,8 @@ const conversationPersistenceAdapter = createConversationPersistenceAdapter(
   {
     storage: window.localStorage,
     beforeClose: async () => {
+      if (!(await mysteryBridge.navigationPort.saveActiveEditorBeforeLeaving()))
+        throw new Error(t("couldNotSaveEditorDraft"));
       await drainEditorSaves();
       await drainGeneralSettings({ strict: true });
       await appearance.flush();
@@ -498,6 +499,18 @@ const {
   synchronizeSessionAgentModelSelection
 } = conversationRuntimeRegistry;
 const handledWorkspaceMutationEventIds = new Set<string>();
+const mysteryBridge = useMysteryShellBridge({
+  createBookDialogOpen,
+  selectedResourceId,
+  deactivateLongBook: () => deactivateActiveLongBook(),
+  saveLongEditor: () => saveActiveLongEditorBeforeLeaving(),
+  showConversation: () => featureHost.showConversation(),
+  fallbackResourceId: () => defaultCreationResourceId(),
+  conversationForKey,
+  findConversation: (key) => conversationStore.controllerForKey(key),
+  loadLongBooks: (opts) => loadLongBookList(opts),
+  notifications: uiMessage
+});
 const {
   collectResourceNodeIds,
   longBookResourceNodes,
@@ -514,6 +527,7 @@ const {
   activeLongBookId,
   activeLongWorkspaceIndex,
   activeLongSelection,
+  ...mysteryBridge.treePorts,
   selectedResourceId,
   storage: () => window.localStorage,
   notifications: uiMessage
@@ -525,7 +539,8 @@ const featureHost = useWorkspaceFeatureHostCoordinator({
     current: currentView,
     settingsInitialCategory,
     workspaceMain: workspaceMainView,
-    activeLongBookId
+    activeLongBookId,
+    activeMysteryBookId: mysteryBridge.activeBookId
   },
   settingsStore,
   catalogSnapshot,
@@ -548,10 +563,10 @@ const featureHost = useWorkspaceFeatureHostCoordinator({
         saveLong: () => saveActiveLongEditorBeforeLeaving()
       });
     },
-    saveActiveLongEditorBeforeLeaving: () =>
-      saveActiveLongEditorBeforeLeaving(),
+    saveActiveEditorBeforeLeaving: mysteryBridge.saveEditorsBeforeLeaving,
     newShortConversation: () => newShortConversation(),
-    newLongConversation: () => newLongConversation()
+    newLongConversation: () => newLongConversation(),
+    ...mysteryBridge.featureHostActions
   },
   loaders: {
     loadSyncLongBooks: () => loadLongBookList(),
@@ -570,6 +585,7 @@ const featureHost = useWorkspaceFeatureHostCoordinator({
 
 const {
   isLongWorkspaceActive,
+  isMysteryWorkspaceActive,
   activeFeature,
   workspaceFeatureModule,
   marketplaceDisplayName
@@ -700,7 +716,7 @@ const {
   async selectFallbackAfterClear() {
     const fallback = resourceTreeSections.value
       .find(({ id }) => id === "creation")
-      ?.nodes.find((node) => !node.longBookId);
+      ?.nodes.find((node) => !node.longBookId && !node.mysteryBookId);
     if (fallback) {
       await selectResource(fallback);
     } else {
@@ -759,6 +775,7 @@ const {
   editorShowsCharacterItemTabs,
   ensureCatalogDocumentLoaded,
   ensureCatalogDocumentsLoaded,
+  defaultCreationResourceId,
   fallbackCreationResourceId: resolveFallbackCreationResourceId,
   findResourceNodeIn,
   findResourceNodeWhere,
@@ -814,6 +831,7 @@ const {
     selectWorkspaceFile: selectLongWorkspaceFile,
     deactivateActiveBook: deactivateActiveLongBook
   },
+  mysteryNavigation: mysteryBridge.navigationPort,
   emptyDocument: EMPTY_WORKSPACE_DOCUMENT,
   showConversation: featureHost.showConversation,
   revealEditor: () => {
@@ -1315,11 +1333,15 @@ const {
   openTemplateSettings
 } = useCreativeBookCreation({
   open: createBookDialogOpen,
-  pending: () => catalogMutationPending.value || longMutationPending.value,
+  pending: () =>
+    catalogMutationPending.value ||
+    longMutationPending.value ||
+    mysteryBridge.mutationPending.value,
   settings: workspaceAgentSettings,
   catalog: catalogSnapshot,
   createShort: (input) => shortBookLifecycle.createBook(input),
   createLong: createLongBook,
+  createMystery: mysteryBridge.createMysteryBook,
   openSettings: featureHost.openSettings
 });
 const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
@@ -2127,27 +2149,24 @@ async function locateAcceptedEditProposal(input: {
   }
 }
 
-useExternalControlBridge({
-  api: () => window.deepwrite,
-  open: openExternalTarget,
-  conversation: () =>
-    isLongWorkspaceActive.value
-      ? activeLongConversation.value
-      : activeConversation.value,
-  conversationsRestored: conversationRuntimeRegistry.drain,
-  teamAvailable: (target) =>
-    externalTeamAvailable(
-      settingsStore,
-      target,
-      activeLongAgentProfile.value?.id
-    ),
-  sendReady: () =>
-    !isLongWorkspaceActive.value || activeLongWorkspaceContextReady.value,
-  send: () => (isLongWorkspaceActive.value ? sendLongMessage() : sendMessage()),
-  longEditorHasUnsavedChanges: (bookId) =>
-    activeLongBookId.value === bookId &&
-    Boolean(longWorkspaceEditor.value?.hasUnsavedEdits())
-});
+useExternalControlBridge(
+  mysteryBridge.externalControlPorts({
+    open: openExternalTarget,
+    settingsStore,
+    isLong: () => isLongWorkspaceActive.value,
+    isMystery: () => isMysteryWorkspaceActive.value,
+    activeLongConversation: () => activeLongConversation.value,
+    activeShortConversation: () => activeConversation.value,
+    activeLongAgentId: () => activeLongAgentProfile.value?.id,
+    longContextReady: () => activeLongWorkspaceContextReady.value,
+    sendLong: sendLongMessage,
+    sendShort: sendMessage,
+    conversationsRestored: conversationRuntimeRegistry.drain,
+    longEditorHasUnsavedChanges: (bookId) =>
+      activeLongBookId.value === bookId &&
+      Boolean(longWorkspaceEditor.value?.hasUnsavedEdits())
+  })
+);
 
 function setAgentEditDocumentAccepting(
   documentId: string,
@@ -2194,6 +2213,7 @@ const {
   discardAgentEdit,
   scheduleQueuedAgentEdits,
   stageAgentEditProposal,
+  stageAcademicWorkspaceProposal,
   stageLibraryStructureProposal,
   stageLibraryEditProposal,
   stageLongCharacterEditProposal,
@@ -2262,8 +2282,8 @@ const navigateToWorkspaceStage = useWorkspaceStageNavigator({
   revealTextPane
 });
 
-function startWorkspaceSystemEvents(): () => void {
-  const removeRoutes = registerWorkspaceSystemEventRoutes(systemEventCenter, {
+const startWorkspaceSystemEvents = (): (() => void) =>
+  startNativeWorkspaceSystemEvents(systemEventCenter, {
     longBookAnalysis: longBookAnalysisFeature,
     longBookDecomposition: longBookDecompositionFeature,
     refreshDecompositionTarget: decompositionWorkspace.handle,
@@ -2276,33 +2296,19 @@ function startWorkspaceSystemEvents(): () => void {
     stageLongDraftEditProposal,
     handleLongWorkspaceProposal: (event) =>
       longWorkspaceProposals.handleEvent(event),
+    handleMysteryMutationProposal: mysteryBridge.handleMysteryProposalEvent,
     stageAgentEditProposal,
+    stageAcademicWorkspaceProposal,
     stageLibraryStructureProposal,
     stageLibraryEditProposal,
     navigateToWorkspaceStage,
     refreshAfterExternalChange: () =>
-      loadLongBookList().finally(workspaceLifecycle.requestFocusRefresh),
+      mysteryBridge
+        .loadAllBooks(true)
+        .finally(workspaceLifecycle.requestFocusRefresh),
     allConversations,
-    scheduleQueuedAgentEdits,
-    onAsyncError(error) {
-      console.error(
-        "DeepWrite long workspace proposal event could not be handled:",
-        error
-      );
-    }
+    scheduleQueuedAgentEdits
   });
-  const removeNativeListener = window.deepwrite?.events.subscribe((event) => {
-    systemEventCenter.publish(event);
-  });
-  let stopped = false;
-
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    removeNativeListener?.();
-    removeRoutes();
-  };
-}
 
 const handleGlobalKeydown = useWorkspaceWindowMenus({
   busy: () => catalogMutationPending.value || longMutationPending.value,
@@ -2347,6 +2353,8 @@ async function refreshWorkspaceOnWindowFocus(): Promise<void> {
       loadLongBookList({ notify: true }),
       refreshLongWorkspaceOnWindowFocus(bookId)
     );
+  } else if (mysteryBridge.activeBookId.value) {
+    tasks.push(mysteryBridge.loadBooks());
   }
   const results = await Promise.allSettled(tasks);
   const failure = results.find(
@@ -2379,7 +2387,7 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   loadCatalog: loadCatalogSnapshot,
   ensureFeatureDependencies: featureHost.ensureActiveFeatureDependencies,
   scheduleDirtyDraftAutoSave: scheduleDirtyEditorDraftsForAutoSave,
-  loadLongBookList: () => loadLongBookList({ notify: false }),
+  loadLongBookList: () => mysteryBridge.loadAllBooks(false),
   refreshOnFocus: refreshWorkspaceOnWindowFocus,
   onDraftRecoveryLoaded: recordRecoveredDraftCount,
   notifyRecoveredDrafts,

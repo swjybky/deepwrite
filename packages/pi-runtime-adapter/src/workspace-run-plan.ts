@@ -16,6 +16,7 @@ import {
   buildEffectiveSystemPrompt,
   buildFollowUpRawUserMessageContent,
   buildLongFollowUpTurnUserMessageContent,
+  buildMysteryFollowUpTurnUserMessageContent,
   buildRawUserMessage,
   buildRuntimeUserMessageContent,
   longAgentRefreshesDesignContextOnLaterTurns
@@ -43,6 +44,7 @@ export function planWorkspaceRun(
 ): AgentRunPlan {
   const shortWorkspace = input.workspaceContext?.shortWorkspace;
   const scriptWorkspace = input.workspaceContext?.scriptWorkspace;
+  const academicWorkspace = input.workspaceContext?.academicWorkspace;
   const contextPolicy = workspaceContextPolicy(input);
   const portableToolSchemaProfile = resolvePortableToolSchemaProfile(
     input.workspaceContext
@@ -110,12 +112,16 @@ export function planWorkspaceRun(
     userMessageContent: (firstTurn) =>
       firstTurn ||
       (input.agentProfile && shortWorkspace) ||
-      (input.scriptAgentProfile && scriptWorkspace)
+      (input.scriptAgentProfile && scriptWorkspace) ||
+      (input.academicAgentProfile && academicWorkspace)
         ? buildRuntimeUserMessageContent(input)
         : longAgentRefreshesDesignContextOnLaterTurns(
               input.longAgentProfile?.id
             ) && input.workspaceContext?.longWorkspace
           ? buildLongFollowUpTurnUserMessageContent(input)
-          : buildFollowUpRawUserMessageContent(input)
+          : input.mysteryAgentProfile &&
+              input.workspaceContext?.mysteryWorkspace
+            ? buildMysteryFollowUpTurnUserMessageContent(input)
+            : buildFollowUpRawUserMessageContent(input)
   };
 }

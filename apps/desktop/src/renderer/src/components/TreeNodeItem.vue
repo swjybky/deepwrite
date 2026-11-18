@@ -3,6 +3,7 @@ import LibraryEntryOrganizationMenu from "./LibraryEntryOrganizationMenu.vue";
 import { createScopedTranslator } from "../i18n";
 import {
   computed,
+  defineAsyncComponent,
   inject,
   nextTick,
   onBeforeUnmount,
@@ -27,8 +28,16 @@ import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog
 import LibraryGroupActionMenu from "./LibraryGroupActionMenu.vue";
 import { useTreeNodeDisclosure } from "../composables/useTreeNodeDisclosure";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
+import { openMysteryWorkspaceDialog } from "../stores/mysteryWorkspaceNavigation";
 
 import { registerTreeNodeActionListeners } from "../utils/treeNodeActionListeners";
+
+const AcademicTreeNodeMenuItems = defineAsyncComponent(
+  () => import("./academic/AcademicTreeNodeMenuItems.vue")
+);
+const MysteryTreeNodeMenuItems = defineAsyncComponent(
+  () => import("../features/mystery/MysteryTreeNodeMenuItems.vue")
+);
 
 const t = createScopedTranslator("components.treeNodeItem");
 
@@ -129,11 +138,43 @@ const hasLongBookAction = computed(
     props.node.workspaceType === "long" &&
     Boolean(props.node.longBookId)
 );
+const hasMysteryAction = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    !props.node.unavailable &&
+    (props.node.catalogNodeType === "mystery-book" ||
+      Boolean(props.node.mysteryItem))
+);
 const isExpertDraftParent = computed(
   () =>
     props.resourceDomain === "creation" &&
     props.node.stageCategoryId === "draft" &&
-    !props.node.expertSectionId
+    !props.node.expertSectionId &&
+    !props.node.academicCollection
+);
+const isAcademicCardsCollection = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    props.node.academicCollection?.kind === "reference-cards"
+);
+const isAcademicManuscriptRoot = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    props.node.academicCollection?.kind === "manuscript-root"
+);
+const isAcademicChapter = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    Boolean(props.node.academicChapterItem)
+);
+const isAcademicCard = computed(
+  () =>
+    props.resourceDomain === "creation" && Boolean(props.node.academicCardItem)
+);
+const isAcademicSection = computed(
+  () =>
+    props.resourceDomain === "creation" &&
+    Boolean(props.node.academicSectionItem)
 );
 const isLongDraftVolume = computed(
   () =>
@@ -168,7 +209,9 @@ const isLongLedgerCommit = computed(
 );
 const isExpertDraftSection = computed(
   () =>
-    props.resourceDomain === "creation" && Boolean(props.node.expertSectionId)
+    props.resourceDomain === "creation" &&
+    Boolean(props.node.expertSectionId) &&
+    !props.node.academicSectionItem
 );
 const isCharacterDirectory = computed(
   () =>
@@ -186,6 +229,12 @@ const hasActionMenu = computed(
     hasGroupAction.value ||
     hasBookAction.value ||
     hasLongBookAction.value ||
+    hasMysteryAction.value ||
+    isAcademicCardsCollection.value ||
+    isAcademicManuscriptRoot.value ||
+    isAcademicChapter.value ||
+    isAcademicCard.value ||
+    isAcademicSection.value ||
     isLongLedgerCommit.value ||
     isLongTreeItem.value ||
     isLongDraftSection.value ||
@@ -195,6 +244,7 @@ const hasActionMenu = computed(
 const hasNodeAction = computed(
   () =>
     hasActionMenu.value ||
+    Boolean(props.node.mysteryCollection) ||
     isLongTreeCollection.value ||
     isLongDraftVolume.value ||
     isExpertDraftParent.value ||
@@ -222,7 +272,11 @@ const longTreeItemBoundaries = computed(() =>
 );
 
 function activate(): void {
-  if (props.node.unavailable && props.node.catalogNodeType === "long-book") {
+  if (
+    props.node.unavailable &&
+    (props.node.catalogNodeType === "long-book" ||
+      props.node.catalogNodeType === "mystery-book")
+  ) {
     return;
   }
   if (props.node.children?.length) {
@@ -265,9 +319,21 @@ function updateActionMenuPlacement(): void {
 
 function toggleActionMenu(): void {
   const willOpen = !actionMenuOpen.value;
+  if (willOpen && props.node.catalogNodeType === "mystery-book")
+    emit("select", props.node);
   if (willOpen) actionMenuOpensUpward.value = false;
   actionMenuOpen.value = willOpen;
   if (willOpen) void nextTick(updateActionMenuPlacement);
+}
+
+function createMysteryItem(): void {
+  const { mysteryBookId, mysteryCollection } = props.node;
+  if (mysteryBookId && mysteryCollection) {
+    openMysteryWorkspaceDialog(mysteryBookId, {
+      kind: "createStructure",
+      targetKind: mysteryCollection
+    });
+  }
 }
 
 function openBookAction(mode: BookResourceDialogMode): void {
@@ -277,9 +343,9 @@ function openBookAction(mode: BookResourceDialogMode): void {
 
 function openAgentTeamBinding(): void {
   actionMenuOpen.value = false;
-  const { id, label, longBookId, workspaceType } = props.node;
+  const { id, label, longBookId, mysteryBookId, workspaceType } = props.node;
   bookAgentTeamBindingTarget.value = {
-    bookId: longBookId ?? id,
+    bookId: mysteryBookId ?? longBookId ?? id,
     title: label,
     workspaceType: workspaceType ?? "short"
   };
@@ -554,6 +620,7 @@ onBeforeUnmount(() => {
 
     <div
       v-if="
+        node.mysteryCollection ||
         isLongTreeCollection ||
         isLongDraftVolume ||
         isExpertDraftParent ||
@@ -566,40 +633,46 @@ onBeforeUnmount(() => {
         type="button"
         :disabled="isLongTreeCollection && longTreeActionsDisabled"
         :aria-label="
-          isCharacterDirectory
-            ? t('newCharacterEntry')
-            : isLongTreeCollection
-              ? t('addEntryToValue', {
-                  arg0: node.label
-                })
-              : isLongDraftVolume
-                ? t('addSectionToValue', {
+          node.mysteryCollection
+            ? t('addEntryToValue', { arg0: node.label })
+            : isCharacterDirectory
+              ? t('newCharacterEntry')
+              : isLongTreeCollection
+                ? t('addEntryToValue', {
                     arg0: node.label
                   })
-                : t('addValueAtTheEndOfValue', {
-                    arg0: node.label,
-                    arg1: draftUnitLabel
-                  })
+                : isLongDraftVolume
+                  ? t('addSectionToValue', {
+                      arg0: node.label
+                    })
+                  : t('addValueAtTheEndOfValue', {
+                      arg0: node.label,
+                      arg1: draftUnitLabel
+                    })
         "
         :title="
-          isCharacterDirectory
-            ? t('newCharacterEntry')
-            : isLongTreeCollection
-              ? t('addEntry')
-              : isLongDraftVolume
-                ? t('addSection')
-                : t('newValue', {
-                    arg0: draftUnitLabel
-                  })
+          node.mysteryCollection
+            ? t('addEntry')
+            : isCharacterDirectory
+              ? t('newCharacterEntry')
+              : isLongTreeCollection
+                ? t('addEntry')
+                : isLongDraftVolume
+                  ? t('addSection')
+                  : t('newValue', {
+                      arg0: draftUnitLabel
+                    })
         "
         @click.stop="
-          isCharacterDirectory
-            ? createCharacterItem()
-            : isLongTreeCollection
-              ? createLongTreeItem()
-              : isLongDraftVolume
-                ? createLongDraftSection()
-                : createExpertSection()
+          node.mysteryCollection
+            ? createMysteryItem()
+            : isCharacterDirectory
+              ? createCharacterItem()
+              : isLongTreeCollection
+                ? createLongTreeItem()
+                : isLongDraftVolume
+                  ? createLongDraftSection()
+                  : createExpertSection()
         "
       >
         <AppIcon name="plus" :size="16" />
@@ -793,6 +866,24 @@ onBeforeUnmount(() => {
             }}</span>
           </button>
         </template>
+        <AcademicTreeNodeMenuItems
+          v-else-if="
+            isAcademicCardsCollection ||
+            isAcademicManuscriptRoot ||
+            isAcademicChapter ||
+            isAcademicCard ||
+            isAcademicSection
+          "
+          :node="node"
+          :resource-domain="resourceDomain"
+          @close="actionMenuOpen = false"
+        />
+        <MysteryTreeNodeMenuItems
+          v-else-if="hasMysteryAction"
+          :node="node"
+          @close="actionMenuOpen = false"
+          @bind-agent-teams="openAgentTeamBinding"
+        />
         <LongBookActionMenu
           v-else-if="hasLongBookAction"
           :unavailable="node.unavailable"

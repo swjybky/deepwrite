@@ -1,9 +1,11 @@
-import { parseBookImageLine } from "@deepwrite/contracts";
+import {
+  parseBookImageLine,
+  type BookImageBookRef
+} from "@deepwrite/contracts";
 import type {
   BookImageExportAsset,
   BookImageExportLoader
 } from "./book-images/export-assets";
-import type { ChatAssistantProjectRef } from "@deepwrite/contracts";
 
 export type ManuscriptImageAssets = ReadonlyMap<string, BookImageExportAsset>;
 
@@ -43,7 +45,7 @@ export function textWithImagePlaceholders(
 }
 
 export async function loadManuscriptImages(
-  book: ChatAssistantProjectRef,
+  book: BookImageBookRef,
   sources: readonly string[],
   loader?: BookImageExportLoader
 ): Promise<{

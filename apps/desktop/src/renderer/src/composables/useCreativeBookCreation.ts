@@ -3,6 +3,7 @@ import { ref, type Ref } from "vue";
 import type {
   CatalogIndexSnapshot,
   CreateLongBookInput,
+  CreateMysteryBookInput,
   WorkspaceAgentSettings
 } from "@deepwrite/contracts";
 import type {
@@ -18,6 +19,9 @@ export interface CreativeBookCreationOptions {
   catalog: Ref<CatalogIndexSnapshot | null>;
   createShort(input: CreateShortOrScriptBookInput): Promise<void>;
   createLong(input: CreateLongBookInput & BookAgentTeamChoice): Promise<void>;
+  createMystery?: (
+    input: CreateMysteryBookInput & BookAgentTeamChoice
+  ) => Promise<void>;
   openSettings(category: string): Promise<void>;
 }
 export function useCreativeBookCreation(options: CreativeBookCreationOptions) {

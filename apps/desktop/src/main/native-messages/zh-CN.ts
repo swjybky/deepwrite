@@ -45,6 +45,8 @@ export default {
   installAgentTeam: "导入智能体团队",
   exportDocx: "导出正文为 DOCX",
   wordDocument: "Word 文档",
+  exportMarkdown: "导出稿件为 Markdown",
+  markdownDocument: "Markdown 文档",
   exportTxt: "导出正文为 TXT",
   textDocument: "纯文本文档",
   exportEpub: "导出正文为 EPUB",

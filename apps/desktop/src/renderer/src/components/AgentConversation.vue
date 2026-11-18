@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import type { IconName } from "../types/workspace";
 import { createScopedTranslator } from "../i18n";
 import { computed, inject, ref } from "vue";
 import {
+  type AcademicAgentId,
   type AgentTeamRunMode,
+  type AgentTeamWorkspaceType,
   type AgentUserInputAnswer,
   type AgentUserInputRequestedPayload,
   type LibraryAgentDomain,
@@ -10,10 +13,12 @@ import {
   type LongAgentId,
   type LongWorkspaceIndexSnapshot,
   type ModelConfig,
+  type MysteryAgentId,
   type WorkspaceAgentId,
   type ThinkingLevel,
   type UserPromptAttachment
 } from "@deepwrite/contracts";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
 import { resolveAgentWelcome } from "../data/agentWelcome";
 import { useConversationTextReferences } from "../composables/useConversationTextReferences";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
@@ -43,6 +48,7 @@ import ConversationMessageList from "./ConversationMessageList.vue";
 import ConversationTurnNavigator from "./ConversationTurnNavigator.vue";
 import { AGENT_ACTIVITY_CONTEXT_KEY } from "../composables/agentActivityContext";
 import { workspaceWebSearchDisabledReason } from "../composables/agent-conversation/web-search";
+import { academicTreeT } from "./academic/academicTreeLabels";
 
 const t = createScopedTranslator("components.agentConversation");
 
@@ -73,9 +79,15 @@ const props = withDefaults(
     contextTitle: string;
     bookTitle: string;
     stageLabel: string;
+    stageIcon?: IconName | undefined;
     agentLabel: string;
-    agentId: WorkspaceAgentId | LongAgentId | undefined;
-    agentWorkspaceType?: "short" | "script" | "long";
+    agentId:
+      | WorkspaceAgentId
+      | LongAgentId
+      | AcademicAgentId
+      | MysteryAgentId
+      | undefined;
+    agentWorkspaceType?: AgentTeamWorkspaceType;
     agentBookId?: string | undefined;
     allowLiveEditReview?: boolean;
     libraryDomain: LibraryAgentDomain | undefined;
@@ -115,7 +127,9 @@ const conversationTitle = computed(() => {
   const workspaceLabels = {
     short: t("shortStory"),
     script: t("screenplay"),
-    long: t("novel")
+    long: t("novel"),
+    academic: academicTreeT("academicWork"),
+    mystery: mysteryLabels("murderMystery")
   };
   return `${workspaceLabels[props.agentWorkspaceType]} · ${props.bookTitle}`;
 });
@@ -357,7 +371,10 @@ const {
 
     <div
       class="conversation-body"
-      :class="{ 'is-welcome': messages.length === 0 && !userInputRequest }"
+      :class="{
+        'is-welcome':
+          messages.length === 0 && !userInputRequest && !$slots.review
+      }"
     >
       <div class="conversation-scroll-shell">
         <AgentActivityFloatPanel
@@ -399,7 +416,11 @@ const {
           "
           @locate-long-proposal="emit('locateLongProposal', $event)"
           @insert-selection="insertConversationReference"
-        />
+        >
+          <template v-if="$slots.review" #review
+            ><slot name="review"
+          /></template>
+        </ConversationMessageList>
 
         <ConversationTurnNavigator
           v-if="conversationTurns.length"
@@ -448,9 +469,10 @@ const {
         :runtime-available="runtimeAvailable"
         :current-session-id="currentSessionId"
         :messages="messages"
-        :messages-empty="messages.length === 0"
+        :messages-empty="messages.length === 0 && !$slots.review"
         :book-title="bookTitle"
         :stage-label="stageLabel"
+        :stage-icon="stageIcon"
         :selected-model-id="selectedModelId"
         :selected-model="selectedModel"
         :thinking-level="thinkingLevel"

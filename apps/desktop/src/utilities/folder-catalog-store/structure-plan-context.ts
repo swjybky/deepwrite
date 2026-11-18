@@ -35,6 +35,7 @@ export interface Item {
   manifest: Manifest;
   registration: RegistryProject;
   original: string | null;
+  originalNormalized: string | null;
   files: Map<string, ProjectTransactionFileOperation>;
 }
 
@@ -80,6 +81,7 @@ export async function createStructurePlanContext(
       manifest,
       registration: { ...registration, projectDirectory: root },
       original: text,
+      originalNormalized: JSON.stringify(manifest),
       files: new Map()
     });
     fingerprints.push(`${manifest.id}:${sha(text)}`);
@@ -119,7 +121,7 @@ export async function createStructurePlanContext(
   }
   function group(id: string): Item & { manifest: Group } {
     const item = get(id);
-    if (!("members" in item.manifest)) throw new Error("目标不是分组。");
+    if (!("memberIds" in item.manifest)) throw new Error("目标不是分组。");
     return item as Item & { manifest: Group };
   }
   function add(
@@ -130,7 +132,7 @@ export async function createStructurePlanContext(
   ): Item {
     if (refs.has(ref) || items.has(ref))
       throw new Error("新建对象的引用重复。");
-    const isGroup = "members" in fields;
+    const isGroup = "memberIds" in fields;
     const id = `${request.domain}-${isGroup ? "group" : "library"}-${sha(`${request.requestId}:${ref}`).slice(0, 24)}`;
     if (items.has(id)) throw new Error("新建对象已存在。");
     const domain =
@@ -155,6 +157,7 @@ export async function createStructurePlanContext(
       manifest,
       registration,
       original: null,
+      originalNormalized: null,
       files: new Map<string, ProjectTransactionFileOperation>()
     };
     items.set(id, item);
@@ -168,7 +171,8 @@ export async function createStructurePlanContext(
     title: string,
     kind: string,
     libraryType: string,
-    unbound = false
+    unbound = false,
+    customTag?: string
   ) {
     return add(
       ref,
@@ -177,6 +181,7 @@ export async function createStructurePlanContext(
         ? {
             materialKind: kind,
             materialType: libraryType,
+            ...(customTag ? { customTag } : {}),
             parentGenre: "",
             subGenre: "",
             overview: "",
@@ -185,6 +190,7 @@ export async function createStructurePlanContext(
         : {
             skillKind: kind,
             skillType: libraryType,
+            ...(customTag ? { customTag } : {}),
             overview: "",
             isBuiltin: false,
             entries: []
@@ -194,47 +200,34 @@ export async function createStructurePlanContext(
   }
   function setMembers(
     item: Item & { manifest: Group },
-    members: Partial<Record<string, string>>
+    memberRefs: readonly string[]
   ) {
-    const next: Record<string, string> = {};
-    for (const [kind, ref] of Object.entries(members)) {
+    const next: string[] = [];
+    for (const ref of memberRefs) {
       if (!ref) continue;
       const member = library(ref);
       writable(member);
-      const memberKind =
-        "materialKind" in member.manifest
-          ? member.manifest.materialKind
-          : member.manifest.skillKind;
-      if (memberKind !== kind && memberKind !== "mixed")
-        throw new Error("分组成员类别不兼容。");
-      if (Object.values(next).includes(member.manifest.id))
-        throw new Error("分组成员重复。");
+      if (next.includes(member.manifest.id)) throw new Error("分组成员重复。");
       for (const other of items.values())
         if (
           other !== item &&
-          "members" in other.manifest &&
+          "memberIds" in other.manifest &&
           registry.projects.some(({ id }) => id === other.manifest.id) &&
-          Object.values(other.manifest.members).includes(member.manifest.id)
+          other.manifest.memberIds.includes(member.manifest.id)
         )
           throw new Error("该库已加入其它分组，请先移出。");
-      next[kind] = member.manifest.id;
+      next.push(member.manifest.id);
     }
-    const keys =
-      request.domain === "material"
-        ? ["character", "gimmick", "plot", "draft", "other"]
-        : ["general", "plot", "style", "other"];
-    if (Object.keys(next).some((key) => !keys.includes(key)))
-      throw new Error("分组类别不属于当前领域。");
-    item.manifest.members = next;
+    item.manifest.memberIds = next;
   }
   function rootIds() {
     const active = [...items.values()].filter((item) =>
       registry.projects.some(({ id }) => id === item.manifest.id)
     );
-    const groups = active.filter((item) => "members" in item.manifest);
+    const groups = active.filter((item) => "memberIds" in item.manifest);
     const grouped = new Set(
       groups.flatMap(({ manifest }) =>
-        "members" in manifest ? Object.values(manifest.members) : []
+        "memberIds" in manifest ? manifest.memberIds : []
       )
     );
     return [
@@ -256,10 +249,10 @@ export async function createStructurePlanContext(
         entry.domain !== item.registration.domain
     );
     for (const other of items.values())
-      if ("members" in other.manifest)
-        for (const [kind, id] of Object.entries(other.manifest.members))
-          if (id === item.manifest.id)
-            delete (other.manifest.members as Record<string, string>)[kind];
+      if ("memberIds" in other.manifest)
+        other.manifest.memberIds = other.manifest.memberIds.filter(
+          (id) => id !== item.manifest.id
+        );
   }
   async function body(
     item: Item & { manifest: Library },

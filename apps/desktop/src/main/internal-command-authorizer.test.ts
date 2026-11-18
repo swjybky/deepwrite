@@ -7,6 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import {
   AGENT_CORE_LONG_QUERY_COMMANDS,
+  AGENT_CORE_MYSTERY_QUERY_COMMANDS,
   authorizeMainInternalCommand,
   type MainInternalCommandActiveRun
 } from "./internal-command-authorizer";
@@ -375,6 +376,95 @@ describe("library structure preview authorization", () => {
       authorizeMainInternalCommand(
         authorizationContext(apply),
         acceptedRun({ libraryAgentScope: { domain: "material" } })
+      )
+    ).toMatchObject({ authorized: false });
+  });
+});
+
+describe("mystery workspace query authorization", () => {
+  const MYSTERY_BOOK_ID = "mys_authorized";
+  const mysteryCommand = (
+    type: (typeof AGENT_CORE_MYSTERY_QUERY_COMMANDS)[number],
+    bookId = MYSTERY_BOOK_ID
+  ) =>
+    CommandEnvelopeSchema.parse(
+      createEnvelope(
+        type,
+        type === "mystery.getWorkspaceIndex"
+          ? { bookId }
+          : type === "mystery.readDocument"
+            ? { bookId, target: { kind: "agents_md" as const } }
+            : type === "mystery.search"
+              ? { bookId, query: "线索" }
+              : {
+                  bookId,
+                  batch: {
+                    operations: [],
+                    documentWrites: []
+                  }
+                },
+        {
+          id: `mystery-${type}`,
+          context: {
+            runId: RUN_ID,
+            sessionId: SESSION_ID,
+            resourceId: bookId
+          }
+        }
+      )
+    );
+
+  it("permits read and preview commands only for the accepted mystery work", () => {
+    const runs = acceptedRun({ mysteryResourceId: MYSTERY_BOOK_ID });
+    for (const type of AGENT_CORE_MYSTERY_QUERY_COMMANDS) {
+      expect(
+        authorizeMainInternalCommand(
+          authorizationContext(mysteryCommand(type)),
+          runs
+        )
+      ).toBe(true);
+    }
+
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(
+          mysteryCommand("mystery.getWorkspaceIndex", "mys_other")
+        ),
+        runs
+      )
+    ).toMatchObject({ authorized: false, code: "main.resource_mismatch" });
+
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(mysteryCommand("mystery.getWorkspaceIndex")),
+        acceptedRun()
+      )
+    ).toMatchObject({ authorized: false, code: "main.run_not_mystery" });
+  });
+
+  it("rejects mystery direct writes from the agent bridge", () => {
+    const write = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "mystery.writeDocument",
+        {
+          bookId: MYSTERY_BOOK_ID,
+          target: { kind: "agents_md" as const },
+          content: "blocked"
+        },
+        {
+          id: "mystery-write-blocked",
+          context: {
+            runId: RUN_ID,
+            sessionId: SESSION_ID,
+            resourceId: MYSTERY_BOOK_ID
+          }
+        }
+      )
+    );
+    expect(
+      authorizeMainInternalCommand(
+        authorizationContext(write),
+        acceptedRun({ mysteryResourceId: MYSTERY_BOOK_ID })
       )
     ).toMatchObject({ authorized: false });
   });

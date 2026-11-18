@@ -168,6 +168,9 @@ export async function hydrateDraftSectionCreationResult(
   maxMarkdownBytes: number,
   maxProjectContentBytes: number
 ): Promise<CreateDraftSectionsResult> {
+  if (manifest.bookType === "academic") {
+    throw new Error("学术作品不支持短篇/剧本小节操作。");
+  }
   const sections = operationSections.map(({ sectionId }) => {
     const section = manifest.draft.sections.find(({ id }) => id === sectionId);
     if (!section) {
@@ -253,6 +256,9 @@ export async function saveDocument(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持短篇/剧本小节接口。");
+    }
     const now = store.now();
     const regularDocumentIndex = manifest.documents.findIndex(
       ({ id }) => id === input.documentId
@@ -516,6 +522,9 @@ export async function createDraftSection(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持短篇/剧本小节接口。");
+    }
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
@@ -664,6 +673,9 @@ export async function createDraftSections(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持短篇/剧本小节接口。");
+    }
     const requestHash = createDraftSectionsRequestHash(input);
     const existingOperation = manifest.draftSectionCreationOperations?.find(
       ({ operationId }) => operationId === input.operationId
@@ -914,6 +926,9 @@ export async function deleteDraftSection(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持短篇/剧本小节接口。");
+    }
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
@@ -984,6 +999,9 @@ export async function moveDraftSection(
       projectDirectory,
       input.bookId
     );
+    if (manifest.bookType === "academic") {
+      throw new Error("学术作品不支持短篇/剧本小节接口。");
+    }
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }

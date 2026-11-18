@@ -4,12 +4,17 @@ import { MarketplaceSourceSchema } from "../marketplace";
 import {
   CatalogIdSchema,
   CatalogTitleSchema,
+  LibraryCustomTagSchema,
+  LibraryGroupMemberIdsSchema,
   LibraryTypeSchema,
+  MATERIAL_GROUP_LEGACY_SLOTS,
   MaterialLibraryKindSchema,
   MaterialStageIdSchema,
+  SKILL_GROUP_LEGACY_SLOTS,
   SkillKindSchema,
   SkillStageIdSchema,
-  TimestampSchema
+  TimestampSchema,
+  migrateLegacyGroupMembers
 } from "./kinds";
 
 export const MaterialEntrySchema = z.object({
@@ -23,10 +28,12 @@ export const MaterialEntrySchema = z.object({
 export type MaterialEntry = z.infer<typeof MaterialEntrySchema>;
 
 export const MaterialLibrarySchema = z.object({
+  isUnbound: z.boolean().optional(),
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   materialType: LibraryTypeSchema,
   materialKind: MaterialLibraryKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   parentGenre: z.string(),
   subGenre: z.string(),
   overview: z.string(),
@@ -37,20 +44,17 @@ export const MaterialLibrarySchema = z.object({
 });
 export type MaterialLibrary = z.infer<typeof MaterialLibrarySchema>;
 
-export const MaterialLibraryGroupSchema = z.object({
-  id: CatalogIdSchema,
-  title: CatalogTitleSchema,
-  members: z.object({
-    character: CatalogIdSchema.optional(),
-    gimmick: CatalogIdSchema.optional(),
-    plot: CatalogIdSchema.optional(),
-    draft: CatalogIdSchema.optional(),
-    other: CatalogIdSchema.optional()
-  }),
-  projectRevision: z.number().int().nonnegative().optional(),
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema
-});
+export const MaterialLibraryGroupSchema = z.preprocess(
+  migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
+  z.object({
+    id: CatalogIdSchema,
+    title: CatalogTitleSchema,
+    memberIds: LibraryGroupMemberIdsSchema,
+    projectRevision: z.number().int().nonnegative().optional(),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+);
 export type MaterialLibraryGroup = z.infer<typeof MaterialLibraryGroupSchema>;
 
 export const SkillEntrySchema = z.object({
@@ -68,10 +72,12 @@ export const SkillEntrySchema = z.object({
 export type SkillEntry = z.infer<typeof SkillEntrySchema>;
 
 export const SkillLibrarySchema = z.object({
+  isUnbound: z.boolean().optional(),
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   skillType: LibraryTypeSchema,
   skillKind: SkillKindSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   overview: z.string(),
   isBuiltin: z.boolean(),
   marketplaceSource: MarketplaceSourceSchema.optional(),
@@ -82,18 +88,16 @@ export const SkillLibrarySchema = z.object({
 });
 export type SkillLibrary = z.infer<typeof SkillLibrarySchema>;
 
-export const SkillLibraryGroupSchema = z.object({
-  id: CatalogIdSchema,
-  title: CatalogTitleSchema,
-  members: z.object({
-    general: CatalogIdSchema.optional(),
-    plot: CatalogIdSchema.optional(),
-    style: CatalogIdSchema.optional(),
-    other: CatalogIdSchema.optional()
-  }),
-  marketplaceSource: MarketplaceSourceSchema.optional(),
-  projectRevision: z.number().int().nonnegative().optional(),
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema
-});
+export const SkillLibraryGroupSchema = z.preprocess(
+  migrateLegacyGroupMembers(SKILL_GROUP_LEGACY_SLOTS),
+  z.object({
+    id: CatalogIdSchema,
+    title: CatalogTitleSchema,
+    memberIds: LibraryGroupMemberIdsSchema,
+    marketplaceSource: MarketplaceSourceSchema.optional(),
+    projectRevision: z.number().int().nonnegative().optional(),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema
+  })
+);
 export type SkillLibraryGroup = z.infer<typeof SkillLibraryGroupSchema>;

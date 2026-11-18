@@ -13,11 +13,14 @@ export {
 } from "./library-agent-defaults";
 import { z } from "zod";
 import {
+  LibraryCustomTagSchema,
   LibraryTypeSchema,
+  MATERIAL_GROUP_LEGACY_SLOTS,
   MaterialLibraryKindSchema,
   MaterialStageIdSchema,
   SkillKindSchema,
-  SkillStageIdSchema
+  SkillStageIdSchema,
+  migrateLegacyGroupMembers
 } from "./catalog";
 import { EnvelopeBaseSchema } from "./envelope";
 
@@ -269,6 +272,7 @@ export const LibraryAgentReadableLibrarySchema = z.object({
   libraryId: z.string().trim().min(1).max(512),
   title: z.string().trim().min(1).max(256),
   kind: z.string().trim().min(1).max(64),
+  customTag: LibraryCustomTagSchema.optional(),
   readOnly: z.boolean().default(false),
   entryCount: z.number().int().nonnegative().default(0),
   groupTitle: z.string().trim().min(1).max(256).optional()
@@ -277,10 +281,22 @@ export type LibraryAgentReadableLibrary = z.infer<
   typeof LibraryAgentReadableLibrarySchema
 >;
 
+const LibraryAgentGroupSnapshotSchema = z.preprocess(
+  migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
+  z
+    .object({
+      id: z.string().min(1),
+      title: z.string().min(1),
+      memberIds: z.array(z.string().min(1))
+    })
+    .strict()
+);
+
 const LibraryAgentWorkspaceBaseSchema = z.object({
   libraryId: z.string().trim().min(1).max(512),
   title: z.string().trim().min(1).max(256),
   libraryType: LibraryTypeSchema,
+  customTag: LibraryCustomTagSchema.optional(),
   overviewDocumentId: z.string().trim().min(1).max(4_096),
   overview: z.string().max(LIBRARY_AGENT_OVERVIEW_MAX_CHARACTERS),
   overviewRevision: z.string().regex(/^v1:\d+:[0-9a-f]{8}$/),
@@ -298,18 +314,7 @@ const LibraryAgentWorkspaceBaseSchema = z.object({
   /** Present when the current library belongs to a material/skill group. */
   groupId: z.string().trim().min(1).max(512).optional(),
   groupTitle: z.string().trim().min(1).max(256).optional(),
-  libraryGroups: z
-    .array(
-      z
-        .object({
-          id: z.string().min(1),
-          title: z.string().min(1),
-          members: z.record(z.string(), z.string())
-        })
-        .strict()
-    )
-    .max(512)
-    .optional(),
+  libraryGroups: z.array(LibraryAgentGroupSnapshotSchema).max(512).optional(),
   /**
    * All libraries in this domain. Current library is the default focus.
    */

@@ -10,7 +10,9 @@ import type {
   AgentTeamModelChoice
 } from "@deepwrite/contracts";
 import {
+  ACADEMIC_AGENT_SUBAGENT_MAX_COUNT,
   AGENT_TEAM_PROFILE_NAME_MAX_LENGTH,
+  AcademicAgentIdSchema,
   AgentTeamBookBindingInputSchema,
   AgentTeamCatalogSnapshotSchema,
   AgentTeamMarketplaceSourceSchema,
@@ -21,13 +23,17 @@ import {
   AgentTeamProfileSetEnabledInputSchema,
   AgentTeamProfileTargetInputSchema,
   LongAgentIdSchema,
+  MysteryAgentIdSchema,
   SHORT_AGENT_SUBAGENT_MAX_COUNT,
   ScriptWorkspaceAgentIdSchema,
   ShortWorkspaceAgentIdSchema,
+  type LongAgentId,
+  type MysteryAgentId,
   activeAgentTeamMembers,
   activeAgentTeams,
   activeAgentTeamsParallel,
   withoutAgentTeamBindings,
+  type AcademicAgentId,
   type AgentTeamBookBindingInput,
   type AgentTeamBookBindings,
   type AgentTeamCatalogSnapshot,
@@ -54,6 +60,7 @@ import {
   tryMigrateStandaloneCatalog,
   type AgentTeamDiskCatalog
 } from "./agent-team-config-migration";
+import { defaultAgentTeamName } from "./agent-team-profile-factory";
 import {
   readAgentTeamBookBindings,
   withAgentTeamBookBinding,
@@ -91,10 +98,31 @@ export class AgentTeamConfigStore {
     });
   }
 
+  private seedMissingDefaultTeams(snapshot: AgentTeamCatalogSnapshot): boolean {
+    let changed = false;
+    for (const workspaceType of ["academic", "mystery"] as const) {
+      if (snapshot.teams.some((team) => team.workspaceType === workspaceType)) {
+        continue;
+      }
+      snapshot.teams.push(
+        createAgentTeamProfile(
+          workspaceType,
+          this.availableImportedName(
+            snapshot,
+            defaultAgentTeamName(workspaceType)
+          )
+        )
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
   private async readSnapshot(): Promise<AgentTeamCatalogSnapshot> {
     const raw = await readAgentTeamJson(this.settingsPath);
     if (raw === undefined) {
       const snapshot = await this.readLegacyFiles();
+      this.seedMissingDefaultTeams(snapshot);
       await this.writeSnapshot(snapshot);
       return snapshot;
     }
@@ -102,17 +130,22 @@ export class AgentTeamConfigStore {
     const { version, ...stored } = raw as Record<string, unknown>;
     const current = AgentTeamCatalogSnapshotSchema.safeParse(stored);
     if (current.success) {
-      if (version !== AGENT_TEAM_CATALOG_DISK_VERSION) {
-        await this.writeSnapshot(current.data);
+      const upgraded = current.data;
+      const seeded =
+        (typeof version !== "number" ||
+          version < AGENT_TEAM_CATALOG_DISK_VERSION) &&
+        this.seedMissingDefaultTeams(upgraded);
+      if (version !== AGENT_TEAM_CATALOG_DISK_VERSION || seeded) {
+        await this.writeSnapshot(upgraded);
       }
-      return current.data;
+      return upgraded;
     }
     const migrated =
       tryMigrateCombinedCatalog(stored) ?? tryMigrateStandaloneCatalog(stored);
     if (migrated) {
-      const snapshot = migrated;
-      await this.writeSnapshot(snapshot);
-      return snapshot;
+      this.seedMissingDefaultTeams(migrated);
+      await this.writeSnapshot(migrated);
+      return migrated;
     }
     throw invalidAgentTeamConfig(current.error.issues[0]);
   }
@@ -362,7 +395,8 @@ export class AgentTeamConfigStore {
 
   async resolve(
     workspaceType: AgentTeamWorkspaceType,
-    rawParentAgentId: WorkspaceAgentId | "long",
+    rawParentAgentId:
+      WorkspaceAgentId | LongAgentId | AcademicAgentId | MysteryAgentId,
     bookId?: string
   ): Promise<ShortAgentSubagentDefinition[]> {
     const active = activeAgentTeams(await this.list(), workspaceType, bookId);
@@ -370,18 +404,26 @@ export class AgentTeamConfigStore {
     const parentAgentId =
       workspaceType === "long"
         ? LongAgentIdSchema.parse(rawParentAgentId)
-        : workspaceType === "script"
-          ? ScriptWorkspaceAgentIdSchema.parse(rawParentAgentId)
-          : ShortWorkspaceAgentIdSchema.parse(rawParentAgentId);
+        : workspaceType === "academic"
+          ? AcademicAgentIdSchema.parse(rawParentAgentId)
+          : workspaceType === "mystery"
+            ? MysteryAgentIdSchema.parse(rawParentAgentId)
+            : workspaceType === "script"
+              ? ScriptWorkspaceAgentIdSchema.parse(rawParentAgentId)
+              : ShortWorkspaceAgentIdSchema.parse(rawParentAgentId);
     const members = activeAgentTeamMembers(active, parentAgentId);
     if (active.source === "bound" && members.length === 0) {
       throw new Error(
         "本作品绑定的智能体团队已失效或没有当前智能体可用的成员，请在作品菜单的“团队绑定”中调整。"
       );
     }
-    if (members.length > SHORT_AGENT_SUBAGENT_MAX_COUNT) {
+    const maxCount =
+      workspaceType === "academic"
+        ? ACADEMIC_AGENT_SUBAGENT_MAX_COUNT
+        : SHORT_AGENT_SUBAGENT_MAX_COUNT;
+    if (members.length > maxCount) {
       throw new Error(
-        `本作品绑定的团队合计 ${members.length} 个成员，超过单次运行 ${SHORT_AGENT_SUBAGENT_MAX_COUNT} 个的上限，请减少绑定的团队或关闭部分成员。`
+        `本作品绑定的团队合计 ${members.length} 个成员，超过单次运行 ${maxCount} 个的上限，请减少绑定的团队或关闭部分成员。`
       );
     }
     return members;

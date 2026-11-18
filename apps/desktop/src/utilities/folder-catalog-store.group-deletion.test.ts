@@ -55,13 +55,13 @@ async function fixture(domain: "material" | "skill") {
       ? {
           domain,
           name: "待删除分组",
-          members: { character: first.resource.id, plot: second.resource.id },
+          memberIds: [first.resource.id, second.resource.id],
           parentDirectory: join(root, "groups")
         }
       : {
           domain,
           name: "待删除分组",
-          members: { general: first.resource.id, plot: second.resource.id },
+          memberIds: [first.resource.id, second.resource.id],
           parentDirectory: join(root, "groups")
         }
   );
@@ -150,7 +150,7 @@ describe("FolderCatalogStore group deletion", () => {
       domain: "skill",
       groupId: group.resource.id,
       title: "已修改分组",
-      members: { general: first.resource.id, plot: second.resource.id },
+      memberIds: [first.resource.id, second.resource.id],
       baseProjectRevision: 0
     });
     await expect(
@@ -193,7 +193,7 @@ describe("FolderCatalogStore group deletion", () => {
     const group = await store.createLibraryGroup({
       domain: "material",
       name: "嵌套分组",
-      members: {},
+      memberIds: [],
       parentDirectory: root
     });
     const member = await store.createLibrary({
@@ -205,7 +205,7 @@ describe("FolderCatalogStore group deletion", () => {
     await store.updateLibraryGroup({
       domain: "material",
       groupId: group.resource.id,
-      members: { other: member.resource.id },
+      memberIds: [member.resource.id],
       baseProjectRevision: 0
     });
     await expect(
@@ -251,7 +251,7 @@ describe("FolderCatalogStore group deletion", () => {
     const group = await store.createLibraryGroup({
       domain: "skill",
       name: "空分组",
-      members: {},
+      memberIds: [],
       parentDirectory: root
     });
     await expect(

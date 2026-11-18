@@ -1,18 +1,22 @@
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { createShortBookCreator } from "./short-book-creation";
-import type {
-  Book,
-  CreateScriptBookInput,
-  CreateShortBookInput,
-  DeepWriteApi,
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  ShortManuscriptExportFormat
-} from "@deepwrite/contracts";
+import {
+  flattenMaterialIdsByKind,
+  flattenSkillIdsByKind,
+  type Book,
+  type CreateAcademicBookInput,
+  type CreateScriptBookInput,
+  type CreateShortBookInput,
+  type DeepWriteApi,
+  type LinkedMaterialIdsByKind,
+  type LinkedSkillIdsByKind,
+  type ShortManuscriptExportFormat
+} from "@deepwrite/contracts/renderer";
 import type { Ref, ShallowRef } from "vue";
 import type {
   BookResourceDialogMode,
+  DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
   WorkspaceDocument
@@ -21,17 +25,21 @@ import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport
 import { executeShortManuscriptExport } from "./short-manuscript-export-transaction";
 import { disposeShortBookRemovalRuntime } from "./book-removal-runtime";
 import type { BookAgentTeamChoice } from "../components/WorkspaceDialogLayer.types";
+import { openAcademicFrameworkDialog } from "../stores/academicWorkspaceDialog";
 
 const t = createScopedTranslator("workspace");
 
 type MaybePromise<Value> = Value | Promise<Value>;
 type PendingLane = "catalog" | "manuscript-export";
-type DraftFileKind = "body" | "character-state";
 
 export type CreateShortOrScriptBookInput = BookAgentTeamChoice &
   (
     | ({ workspaceType: "short"; templateId?: string } & CreateShortBookInput)
     | ({ workspaceType: "script"; templateId?: string } & CreateScriptBookInput)
+    | ({
+        workspaceType: "academic";
+        templateId?: string;
+      } & CreateAcademicBookInput)
   );
 
 export type ShortBookBindingsUpdate =
@@ -55,7 +63,7 @@ export interface ShortBookLifecycleTarget {
   readonly requestId: number;
   readonly bookId: string;
   readonly label: string;
-  readonly workspaceType: "short" | "script";
+  readonly workspaceType: "short" | "script" | "academic";
   readonly projectRevision: number | undefined;
   readonly unavailable: boolean;
   readonly node: Readonly<ResourceTreeNode>;
@@ -468,6 +476,14 @@ export function useShortBookLifecycleCoordinator(
     ) {
       return Promise.resolve();
     }
+    if (target.workspaceType === "academic") {
+      openAcademicFrameworkDialog(target.bookId, "stages");
+      if (state.activeBook.value === target) {
+        state.activeBook.value = null;
+        state.bookDialogMode.value = null;
+      }
+      return Promise.resolve();
+    }
     return runTracked(async () => {
       const opened = await structure.openStructure(target.bookId);
       if (!opened || !dialogIntentIsCurrent(target.requestId)) return;
@@ -684,9 +700,17 @@ export function useShortBookLifecycleCoordinator(
         await api!.updateBook({
           bookId: target.bookId,
           baseProjectRevision: authoritativeBook.projectRevision,
-          ...(payload.domain === "skill"
-            ? { linkedSkillIdsByKind: payload.linksByKind }
-            : { linkedMaterialIdsByKind: payload.linksByKind })
+          ...(authoritativeBook.bookType === "academic"
+            ? payload.domain === "skill"
+              ? { linkedSkillIds: flattenSkillIdsByKind(payload.linksByKind) }
+              : {
+                  linkedMaterialIds: flattenMaterialIdsByKind(
+                    payload.linksByKind
+                  )
+                }
+            : payload.domain === "skill"
+              ? { linkedSkillIdsByKind: payload.linksByKind }
+              : { linkedMaterialIdsByKind: payload.linksByKind })
         });
         if (!leaseIsOwned(lease)) return;
         const refreshed = await refreshAfterDurableMutation();

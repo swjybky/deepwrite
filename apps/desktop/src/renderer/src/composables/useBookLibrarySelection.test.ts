@@ -1,11 +1,6 @@
 import { effectScope, reactive } from "vue";
 import { describe, expect, it } from "vitest";
-import type {
-  MaterialLibrary,
-  MaterialLibraryGroup,
-  SkillLibrary,
-  SkillLibraryGroup
-} from "@deepwrite/contracts";
+import type { MaterialLibrary, SkillLibrary } from "@deepwrite/contracts";
 import {
   useBookLibrarySelection,
   type BookLibrarySelectionProps
@@ -15,6 +10,7 @@ import {
   loadBookTemplateDraftSchema,
   createDefaultCreativePlotStages
 } from "@deepwrite/contracts";
+
 function properties(): BookLibrarySelectionProps {
   return {
     workspaceType: "short",
@@ -25,55 +21,105 @@ function properties(): BookLibrarySelectionProps {
         materialKind: "character",
         materialType: "script",
         parentGenre: "",
-        subGenre: ""
-      } as MaterialLibrary
+        subGenre: "",
+        entries: []
+      } as unknown as MaterialLibrary,
+      {
+        id: "material_lit",
+        title: "AI 论文文献",
+        materialKind: "other",
+        customTag: "文献",
+        materialType: "long",
+        parentGenre: "",
+        subGenre: "",
+        entries: []
+      } as unknown as MaterialLibrary
     ],
     skills: [
       {
         id: "skill_1",
         title: "文风技能",
         skillKind: "style",
-        skillType: "long"
-      } as SkillLibrary
+        skillType: "long",
+        entries: []
+      } as unknown as SkillLibrary,
+      {
+        id: "skill_arg",
+        title: "论证规范",
+        skillKind: "other",
+        customTag: "论证",
+        skillType: "long",
+        entries: []
+      } as unknown as SkillLibrary
     ],
     materialGroups: [
       {
         id: "material_group",
         title: "素材分组",
-        members: { character: "material_1" }
-      } as MaterialLibraryGroup
+        memberIds: ["material_1", "material_lit"],
+        createdAt: "2026-07-19T00:00:00.000Z",
+        updatedAt: "2026-07-19T00:00:00.000Z"
+      }
     ],
     skillGroups: [
       {
         id: "skill_group",
         title: "技能分组",
-        members: { style: "skill_1" }
-      } as SkillLibraryGroup
+        memberIds: ["skill_1", "skill_arg"],
+        createdAt: "2026-07-19T00:00:00.000Z",
+        updatedAt: "2026-07-19T00:00:00.000Z"
+      }
     ]
   };
 }
+
 describe("shared book library selection", () => {
-  it("resolves groups to independent ID snapshots from the shared cross-workspace library pool", () => {
+  it("toggles groups into independent multi-select ID snapshots and allows individual adjustments", () => {
     const scope = effectScope();
     const props = reactive(properties());
     try {
       const selection = scope.run(() => useBookLibrarySelection(props))!;
-      selection.materialBindingMode.value = "group";
-      selection.selectedMaterialGroupId.value = "material_group";
-      selection.skillBindingMode.value = "group";
-      selection.selectedSkillGroupId.value = "skill_group";
+      selection.toggleMaterialGroup("material_group");
+      selection.toggleSkillGroup("skill_group");
       const materials = selection.selectedMaterialLinks();
       const skills = selection.selectedSkillLinks();
       expect(materials.character).toEqual(["material_1"]);
+      expect(materials.other).toEqual(["material_lit"]);
       expect(skills.style).toEqual(["skill_1"]);
-      props.materialGroups[0]!.members.character = "";
-      props.skillGroups[0]!.members.style = "";
-      expect(materials.character).toEqual(["material_1"]);
-      expect(skills.style).toEqual(["skill_1"]);
+      expect(skills.other).toEqual(["skill_arg"]);
+
+      props.materialGroups[0]!.memberIds = [];
+      props.skillGroups[0]!.memberIds = [];
+      expect(selection.selectedMaterialLinks()).toEqual(materials);
+      expect(selection.selectedSkillLinks()).toEqual(skills);
+
+      selection.toggleMaterialLibrary("material_1");
+      expect(selection.selectedMaterialLinks().character).toEqual([]);
+      expect(selection.selectedMaterialLinks().other).toEqual(["material_lit"]);
     } finally {
       scope.stop();
     }
   });
+
+  it("filters by custom/preset tag and search query across workspace types", () => {
+    const scope = effectScope();
+    const props = reactive(properties());
+    try {
+      const selection = scope.run(() => useBookLibrarySelection(props))!;
+      selection.materialTagFilter.value = "文献";
+      expect(selection.filteredMaterialItems.value.map((i) => i.id)).toEqual([
+        "material_lit"
+      ]);
+      selection.materialTagFilter.value = "";
+      selection.materialSearchQuery.value = "人物";
+      expect(selection.filteredMaterialItems.value.map((i) => i.id)).toEqual([
+        "material_1"
+      ]);
+    } finally {
+      scope.stop();
+    }
+  });
+
   it("retains missing template references so validation blocks creation instead of dropping bindings", async () => {
     const scope = effectScope();
     const configuration = (await loadBookTemplateDraftSchema()).parse({
@@ -91,6 +137,9 @@ describe("shared book library selection", () => {
       },
       linkedSkillIdsByKind: { general: [], plot: [], style: [], other: [] }
     });
+    if (configuration.workspaceType === "academic") {
+      throw new Error("Expected short template draft");
+    }
     const props = reactive({
       ...properties(),
       preserveMissing: true,
@@ -101,17 +150,15 @@ describe("shared book library selection", () => {
       expect(selection.selectedMaterialLinks().character).toEqual([
         "deleted_material"
       ]);
-      expect(selection.materialSelectOptions("character")).toContainEqual({
-        value: "deleted_material",
-        label: "已失效的素材库（请重新选择）"
-      });
+      expect(selection.missingMaterialIds.value).toEqual(["deleted_material"]);
       expect(
         bookTemplateReferenceError(configuration, {
           ...props,
           creativePlotStages: createDefaultCreativePlotStages()
         })
       ).toContain("素材库已失效");
-      selection.selectedMaterialIds.character = "material_1";
+      selection.toggleMaterialLibrary("deleted_material");
+      selection.toggleMaterialLibrary("material_lit");
       expect(
         bookTemplateReferenceError(
           {

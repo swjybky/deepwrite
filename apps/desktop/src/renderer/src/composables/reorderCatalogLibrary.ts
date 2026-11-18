@@ -22,14 +22,12 @@ export async function reorderCatalogLibrary(
     payload.domain === "material" ? snapshot.materials : snapshot.skills;
   const group =
     payload.node.catalogNodeType === "library"
-      ? groups.find((item) => Object.values(item.members).includes(id))
+      ? groups.find((item) => item.memberIds.includes(id))
       : undefined;
-  const grouped = new Set(
-    groups.flatMap((item) => Object.values(item.members))
-  );
+  const grouped = new Set(groups.flatMap((item) => item.memberIds));
   const organization = snapshot.libraryOrganization;
   const available = group
-    ? Object.values(group.members).filter((id): id is string => !!id)
+    ? [...group.memberIds]
     : [
         ...groups.map(({ id }) => id),
         ...libraries

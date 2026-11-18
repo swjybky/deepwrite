@@ -15,11 +15,12 @@ type LibraryWorkspace = NonNullable<
 
 function libraryIndex(workspace: LibraryWorkspace, english: boolean): string {
   return (workspace.readableLibraries ?? [])
-    .map((library) =>
-      english
-        ? `${library.title} | id=${library.libraryId} | ${library.kind} | ${library.entryCount} entries | ${library.groupTitle ?? "ungrouped"} | ${library.readOnly ? "read-only" : "writable"}`
-        : `${library.title}｜id=${library.libraryId}｜${library.kind}｜${library.entryCount} 条｜${library.groupTitle ?? "未分组"}｜${library.readOnly ? "只读" : "可写"}`
-    )
+    .map((library) => {
+      const tag = library.customTag ?? library.kind;
+      return english
+        ? `${library.title} | id=${library.libraryId} | ${tag} | ${library.entryCount} entries | ${library.groupTitle ?? "ungrouped"} | ${library.readOnly ? "read-only" : "writable"}`
+        : `${library.title}｜id=${library.libraryId}｜${tag}｜${library.entryCount} 条｜${library.groupTitle ?? "未分组"}｜${library.readOnly ? "只读" : "可写"}`;
+    })
     .join("\n")
     .slice(0, 16_000);
 }
@@ -30,7 +31,7 @@ function chineseRules(domain: "material" | "skill"): string[] {
   return [
     "【资料库工具规则】",
     `- 查看与查重：list_${domain}_entries 列出栏目和条目，search_${domain}_entries 按内容搜索，read_${domain}_entry 读取完整条目。搜索片段只用于定位；修改前必须用 read_${domain}_entry 读取完整目标。优先用 entry_id 指定目标，重名时结合栏目或来源库区分，不要猜测。`,
-    `- 新建：调用 create_${domain}_entry，提供 stage_id、title、name、description 和 body。stage_id 只能用目标库允许的栏目；title 是目录标题，通常与 name 相同；name 是${noun}名称；description 是一句话的单行说明；body 是正式的 Markdown ${noun}正文。`,
+    `- 新建：调用 create_${domain}_entry，提供 stage_id、title、name、description 和 body。stage_id 使用本领域对应的内容栏目；title 是目录标题，通常与 name 相同；name 是${noun}名称；description 是一句话的单行说明；body 是正式的 Markdown ${noun}正文。`,
     `- 说明头部：name 和 description 由工具写进条目 Markdown 顶部以 --- 包裹的头部，缺失则补齐，已有则按参数覆盖，其它头部字段和正文保持不变。不要在 body 里重复手写这两个字段，也不要新增 JSON 清单字段。${domain === "skill" ? "技能必须有实际的方法正文，不能只有名称和说明。" : ""}`,
     `- 修改：调用 edit_${domain}_entry。局部修订用 replace_fragments，并提供唯一、精确的原文；追加用 append；只有正文为空或用户明确要求全文重写时才用 replace，覆盖非空正文须设置 overwrite_mode=replace_all。编辑工具的 name 参数用于按目录标题定位旧条目，不是设置 Markdown 名称；title 用于修改目录标题；修改名称或说明时在头部原位更新。`,
     `- ${overview}：用 edit_${domain}_library_overview 维护，不添加条目元数据头部。`,
@@ -46,7 +47,7 @@ function englishRules(domain: "material" | "skill"): string[] {
   return [
     "[Library tool rules]",
     `- Browsing and duplicates: list_${domain}_entries lists sections and entries, search_${domain}_entries searches content and read_${domain}_entry reads a full entry. Search snippets only locate entries; read the full target with read_${domain}_entry before changing it. Prefer entry_id to name the target; when titles repeat, tell them apart by section or source library instead of guessing.`,
-    `- Creating: call create_${domain}_entry with stage_id, title, name, description and body. stage_id must be a section the target library allows; title is the directory title, usually the same as name; name is the ${noun}'s name; description is a one-line summary; body is the final Markdown ${noun} text.`,
+    `- Creating: call create_${domain}_entry with stage_id, title, name, description and body. stage_id must be a valid section for this domain; title is the directory title, usually the same as name; name is the ${noun}'s name; description is a one-line summary; body is the final Markdown ${noun} text.`,
     `- Metadata header: the tool writes name and description into the --- header at the top of the entry's Markdown, adding them if missing and overwriting them from the parameters if present, while other header fields and the body stay unchanged. Do not repeat these fields in body, and do not add JSON manifest fields.${domain === "skill" ? " A skill must have a real method body, not just a name and description." : ""}`,
     `- Editing: call edit_${domain}_entry. Use replace_fragments with a unique, exact original passage for local revisions and append to add text. Use replace only when the body is empty or the user explicitly asks for a full rewrite; overwriting a non-empty body needs overwrite_mode=replace_all. The edit tool's name parameter locates an existing entry by its directory title and does not set the Markdown name; title changes the directory title; update name or description in place in the header.`,
     `- Library overview: maintain it with edit_${domain}_library_overview, without an entry metadata header.`,
@@ -94,7 +95,7 @@ export function buildLibraryRuntimeRequirements(
       "",
       writeApprovalBoundary(input.writeApprovalMode, locale),
       "",
-      `[Current location] "${workspace.title}" id=${workspace.libraryId} tag=${workspace.kind} group=${workspace.groupTitle ?? "none"} current entry=${workspace.activeEntryId ?? "none"}`,
+      `[Current location] "${workspace.title}" id=${workspace.libraryId} tag=${workspace.customTag ?? workspace.kind} group=${workspace.groupTitle ?? "none"} current entry=${workspace.activeEntryId ?? "none"}`,
       "[All libraries index]",
       libraryIndex(workspace, true),
       "The index may be truncated when it is long; call the list tool to see every library."
@@ -111,7 +112,7 @@ export function buildLibraryRuntimeRequirements(
     "",
     writeApprovalBoundary(input.writeApprovalMode, locale),
     "",
-    `【当前位置】《${workspace.title}》 id=${workspace.libraryId} 标签=${workspace.kind} 分组=${workspace.groupTitle ?? "无"} 当前条目=${workspace.activeEntryId ?? "无"}`,
+    `【当前位置】《${workspace.title}》 id=${workspace.libraryId} 标签=${workspace.customTag ?? workspace.kind} 分组=${workspace.groupTitle ?? "无"} 当前条目=${workspace.activeEntryId ?? "无"}`,
     "【全库索引】",
     libraryIndex(workspace, false),
     "索引过长时可能截断，调用 list 工具查看全库索引。"

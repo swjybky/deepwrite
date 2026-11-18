@@ -112,7 +112,7 @@ export function identityFaux(
                 )
               ]
             : []),
-          ...(book.draft.sections[0]
+          ...("draft" in book && book.draft.sections[0]
             ? [
                 fauxAssistantMessage(
                   fauxToolCall(

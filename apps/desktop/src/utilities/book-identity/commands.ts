@@ -2,8 +2,7 @@ import { createBookProjectResolver } from "../book-project-resolver";
 import {
   BookIdentityUpdatedEventEnvelopeSchema,
   createEnvelope,
-  type CommandEnvelope,
-  type ChatAssistantProjectRef
+  type CommandEnvelope
 } from "@deepwrite/contracts";
 import type { FolderCatalogStore } from "../folder-catalog-store";
 import type { LongWorkspaceService } from "../long-workspace-service";
@@ -71,7 +70,7 @@ export function withBookIdentityCommands(
   };
 }
 
-function bookKey(book: ChatAssistantProjectRef) {
+function bookKey(book: { projectType: string; projectId: string }) {
   return `${book.projectType}:${book.projectId}`;
 }
 

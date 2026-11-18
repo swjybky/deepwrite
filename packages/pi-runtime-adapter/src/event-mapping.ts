@@ -7,9 +7,11 @@ import type {
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type { AgentTurnAttempt } from "./agent-turn-retry";
+import { isAcademicWorkspaceToolDetails } from "./academic-agent-tools";
 import { isLibraryAgentToolDetails } from "./library-agent-tools";
 import type { LibraryMutationDetails } from "./library-agent-tools/types";
 import { isLongAgentToolDetails } from "./long-agent-tools";
+import { isMysteryAgentToolDetails } from "./mystery";
 import type { AgentRunEventSource, AgentRuntimeEvent } from "./runtime-types";
 import { isShortWorkspaceToolDetails } from "./short-agent-tools";
 import { isSubagentAuthoringToolDetails } from "./subagent-authoring-tools";
@@ -447,6 +449,26 @@ export function toRuntimeEvents(
         events.push(
           libraryEditorMutationEvent(item, event.toolCallId, input, runtime)
         );
+    } else if (
+      isAcademicWorkspaceToolDetails(details) &&
+      details.kind === "academic-workspace-mutation" &&
+      !event.isError
+    ) {
+      events.push({
+        type: "academic.workspace_mutation",
+        runId: input.runId,
+        sessionId: input.sessionId,
+        payload: {
+          toolCallId: event.toolCallId,
+          workspaceId: details.workspaceId,
+          summary: details.summary,
+          ...(details.baseProjectRevision !== undefined
+            ? { baseProjectRevision: details.baseProjectRevision }
+            : {}),
+          target: details.target,
+          runtime
+        }
+      });
     } else if (isSubagentAuthoringToolDetails(details)) {
       events.push({
         type: "subagent_authoring.draft_updated",
@@ -550,6 +572,24 @@ export function toRuntimeEvents(
               ? { files: details.files }
               : {}),
             summary: details.summary,
+            runtime
+          }
+        });
+      }
+    } else if (isMysteryAgentToolDetails(details)) {
+      if (details.kind === "mystery-mutation-proposal") {
+        events.push({
+          type: "mystery.mutation_proposal",
+          runId: input.runId,
+          sessionId: input.sessionId,
+          payload: {
+            toolCallId: event.toolCallId,
+            bookId: details.bookId,
+            agentId: details.agentId,
+            summary: details.summary,
+            batch: details.batch,
+            fileChanges: details.fileChanges,
+            structureChanges: details.structureChanges,
             runtime
           }
         });

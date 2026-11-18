@@ -80,7 +80,7 @@ export function resourceContentByteLength(
     ),
     "utf8"
   );
-  if ("documents" in resource) {
+  if ("documents" in resource && resource.bookType !== "academic") {
     const documentBytes = resource.documents.reduce(
       (total, document) => total + Buffer.byteLength(document.content, "utf8"),
       0
@@ -231,7 +231,9 @@ export async function migrateSnapshot(
     base.creativePlotStages = mergeCreativePlotStageDefinitions(
       base.creativePlotStages,
       snapshot.creativePlotStages,
-      snapshot.books.flatMap((book) => book.plotStages)
+      snapshot.books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      )
     );
     const { registry: next, createdProjectDirectories } =
       await writeMissingSnapshotProjects(store, base, snapshot);
@@ -261,7 +263,9 @@ export async function syncSnapshot(
     const mergedStages = mergeCreativePlotStageDefinitions(
       current.creativePlotStages,
       snapshot.creativePlotStages,
-      snapshot.books.flatMap((book) => book.plotStages)
+      snapshot.books.flatMap((book) =>
+        book.bookType === "academic" ? [] : book.plotStages
+      )
     );
     const stagesChanged = !sameCreativePlotStageDefinitions(
       current.creativePlotStages,
@@ -377,7 +381,9 @@ export async function aggregateSnapshot(
   }
   const creativePlotStages = mergeCreativePlotStageDefinitions(
     registry.creativePlotStages,
-    books.flatMap((book) => book.plotStages)
+    books.flatMap((book) =>
+      book.bookType === "academic" ? [] : book.plotStages
+    )
   );
   if (
     !sameCreativePlotStageDefinitions(
@@ -391,6 +397,7 @@ export async function aggregateSnapshot(
   const now = store.now();
   for (let index = 0; index < books.length; index += 1) {
     const book = books[index]!;
+    if (book.bookType === "academic") continue;
     const missing = creativePlotStages.filter(
       (stage) => !book.plotStages.some((candidate) => candidate.id === stage.id)
     );
@@ -404,6 +411,7 @@ export async function aggregateSnapshot(
       projectDirectory,
       book.id
     );
+    if (manifest.bookType === "academic") continue;
     let plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
     let documents = manifest.documents.map((document) => ({ ...document }));
     const usedPaths = new Set(
@@ -560,7 +568,9 @@ export async function aggregateIndexSnapshot(
 
   const creativePlotStages = mergeCreativePlotStageDefinitions(
     registry.creativePlotStages,
-    books.flatMap((book) => book.plotStages)
+    books.flatMap((book) =>
+      book.bookType === "academic" ? [] : book.plotStages
+    )
   );
   return CatalogIndexSnapshotSchema.parse({
     schemaVersion: 1,

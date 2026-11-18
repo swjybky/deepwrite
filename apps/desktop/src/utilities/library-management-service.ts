@@ -15,6 +15,7 @@ import {
 } from "@deepwrite/contracts";
 import type { FolderCatalogStore } from "./folder-catalog-store";
 import type { LongWorkspaceService } from "./long-workspace-service";
+import type { MysteryWorkspaceService } from "./mystery-store";
 import {
   assertManagementStructureTargets,
   libraryAgentDocumentId,
@@ -28,11 +29,37 @@ export class LibraryManagementService {
       FolderCatalogStore,
       "indexSnapshot" | "readDocument" | "previewLibraryStructure"
     >,
-    private readonly long: Pick<LongWorkspaceService, "open">
+    private readonly long: Pick<LongWorkspaceService, "open">,
+    private readonly mystery?: Pick<MysteryWorkspaceService, "open">
   ) {}
 
   private async sources(scope: LibraryManagementScope) {
     const index = await this.catalog.indexSnapshot();
+    if (scope.bookType === "mystery") {
+      if (!this.mystery)
+        throw new Error("当前运行上下文不支持剧本杀资料库管理。");
+      const book = (await this.mystery.open({ bookId: scope.bookId })).summary;
+      const materialIds = new Set(book.linkedMaterialIds);
+      const skillIds = new Set(book.linkedSkillIds);
+      return [
+        ...index.materials
+          .filter((item) => materialIds.has(item.id))
+          .map((library) => ({
+            library,
+            domain: "material" as const,
+            kind: library.materialKind,
+            readOnly: false
+          })),
+        ...index.skills
+          .filter((item) => skillIds.has(item.id))
+          .map((library) => ({
+            library,
+            domain: "skill" as const,
+            kind: library.skillKind,
+            readOnly: library.isBuiltin
+          }))
+      ];
+    }
     const book =
       scope.bookType === "long"
         ? (await this.long.open({ bookId: scope.bookId })).summary
@@ -44,8 +71,14 @@ export class LibraryManagementService {
       throw new Error("资料库管理所属作品不存在。");
     const ids = (bindings: object) =>
       new Set(Object.values(bindings).flat() as string[]);
-    const materialIds = ids(book.linkedMaterialIdsByKind);
-    const skillIds = ids(book.linkedSkillIdsByKind);
+    const materialIds =
+      "linkedMaterialIds" in book
+        ? new Set(book.linkedMaterialIds)
+        : ids(book.linkedMaterialIdsByKind);
+    const skillIds =
+      "linkedSkillIds" in book
+        ? new Set(book.linkedSkillIds)
+        : ids(book.linkedSkillIdsByKind);
     return [
       ...index.materials
         .filter((item) => materialIds.has(item.id))
@@ -221,6 +254,7 @@ export class LibraryManagementService {
       libraryType:
         "materialType" in library ? library.materialType : library.skillType,
       kind,
+      ...(library.customTag ? { customTag: library.customTag } : {}),
       readOnly,
       projectRevision: library.projectRevision,
       overviewDocumentId: documentId("overview"),

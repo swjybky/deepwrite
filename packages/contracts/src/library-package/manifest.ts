@@ -34,6 +34,7 @@ const ManifestLibrarySchema = z.object({
   libraryType: z.string().max(40).optional(),
   materialKind: z.string().max(40).optional(),
   skillKind: z.string().max(40).optional(),
+  customTag: z.string().max(120).optional(),
   parentGenre: z.string().max(1024).optional(),
   subGenre: z.string().max(1024).optional(),
   overview: z.string().max(1_000_000).optional(),
@@ -49,7 +50,11 @@ export const LibraryPackageManifestSchema = z.object({
   group: z
     .object({
       title: z.string().max(1024),
-      members: z.record(z.string().max(40), z.string().max(64))
+      members: z.record(z.string().max(40), z.string().max(64)).default({}),
+      memberKeys: z
+        .array(z.string().min(1).max(64))
+        .max(LIBRARY_PACKAGE_MAX_LIBRARIES)
+        .optional()
     })
     .optional(),
   libraries: z.array(ManifestLibrarySchema).max(LIBRARY_PACKAGE_MAX_LIBRARIES)

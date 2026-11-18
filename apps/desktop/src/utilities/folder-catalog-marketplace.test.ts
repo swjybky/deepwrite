@@ -206,8 +206,14 @@ describe("FolderCatalogStore marketplace installation", () => {
     const result = await store.installMarketplaceSkillContent(input);
     const snapshot = await store.snapshot();
     const group = snapshot.skillGroups.find(({ id }) => id === result.groupId)!;
-    const plot = snapshot.skills.find(({ id }) => id === group.members.plot)!;
-    const style = snapshot.skills.find(({ id }) => id === group.members.style)!;
+    const plot = snapshot.skills.find(
+      ({ id, skillKind }) =>
+        group.memberIds.includes(id) && skillKind === "plot"
+    )!;
+    const style = snapshot.skills.find(
+      ({ id, skillKind }) =>
+        group.memberIds.includes(id) && skillKind === "style"
+    )!;
 
     expect(result.libraryIds).toHaveLength(2);
     expect(group.marketplaceSource).toMatchObject({

@@ -2,10 +2,15 @@ import { createScopedTranslator, i18n, locale } from "../i18n";
 import type {
   LongBookSummary,
   LongListBooksResult,
-  LongWorkspaceIndexSnapshot
+  LongWorkspaceIndexSnapshot,
+  MysteryBookSummary,
+  MysteryProjectDiagnostic,
+  MysteryWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
-import { computed, ref, type Ref } from "vue";
+import { computed, ref, shallowRef, watch, type Ref } from "vue";
 import type { CatalogWorkspaceProjection } from "../data/catalogWorkspace";
+import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
+import { mysteryBookResourceId } from "../stores/mysteryWorkspaceStore";
 import type { ResourceTreeNode, ResourceTreeSection } from "../types/workspace";
 import {
   longBookResourceId,
@@ -40,6 +45,13 @@ export interface WorkspaceResourceTreeCoordinatorOptions {
   activeLongBookId: Readonly<Ref<string | null>>;
   activeLongWorkspaceIndex: Readonly<Ref<LongWorkspaceIndexSnapshot | null>>;
   activeLongSelection: Readonly<Ref<LongWorkspaceSelection | null>>;
+  mysteryBooks?: Readonly<Ref<readonly MysteryBookSummary[]>>;
+  mysteryDiagnostics?: Readonly<Ref<readonly MysteryProjectDiagnostic[]>>;
+  selectedMysteryDocumentId?: Readonly<Ref<string | null>>;
+  activeMysteryBookId?: Readonly<Ref<string | null>>;
+  activeMysteryWorkspaceIndex?: Readonly<
+    Ref<MysteryWorkspaceIndexSnapshot | null>
+  >;
   selectedResourceId: Ref<string>;
   storage(): WorkspaceResourceTreeStorage | undefined;
   notifications: {
@@ -146,6 +158,68 @@ export function useWorkspaceResourceTreeCoordinator(
     ];
   });
 
+  const mysteryTreeBuilder =
+    shallowRef<
+      typeof import("../utils/mysteryWorkspaceResourceTree").buildMysteryWorkspaceResourceTree
+    >();
+  watch(
+    () => options.activeMysteryWorkspaceIndex?.value,
+    (index) => {
+      if (index && !mysteryTreeBuilder.value) {
+        void import("../utils/mysteryWorkspaceResourceTree").then((module) => {
+          mysteryTreeBuilder.value = module.buildMysteryWorkspaceResourceTree;
+        });
+      }
+    },
+    { immediate: true }
+  );
+  const mysteryBookResourceNodes = computed<ResourceTreeNode[]>(() => {
+    const books = options.mysteryBooks?.value ?? [];
+    const diagnostics = options.mysteryDiagnostics?.value ?? [];
+    const availableIds = new Set(books.map(({ id }) => id));
+    const unavailable = new Map(
+      diagnostics
+        .filter(({ bookId }) => !availableIds.has(bookId))
+        .map((diagnostic) => [diagnostic.bookId, diagnostic] as const)
+    );
+    return [
+      ...books.map((book) => ({
+        id: mysteryBookResourceId(book.id),
+        label: book.title,
+        icon: "book" as const,
+        badge: mysteryLabels("murderMystery"),
+        workspaceType: "mystery" as const,
+        mysteryBookId: book.id,
+        catalogNodeType: "mystery-book" as const,
+        selectableBranch: true,
+        children:
+          book.id === options.activeMysteryBookId?.value &&
+          options.activeMysteryWorkspaceIndex?.value?.bookId === book.id &&
+          mysteryTreeBuilder.value
+            ? mysteryTreeBuilder.value(
+                options.activeMysteryWorkspaceIndex.value
+              )
+            : []
+      })),
+      ...[...unavailable.values()].map((diagnostic) => ({
+        id: mysteryBookResourceId(diagnostic.bookId),
+        label: mysteryLabels("unavailableMystery", {
+          bookId: diagnostic.bookId
+        }),
+        icon: "book" as const,
+        badge:
+          diagnostic.code === "invalid"
+            ? mysteryLabels("unavailableMysteryFailed")
+            : mysteryLabels("unavailableMysteryTemp"),
+        workspaceType: "mystery" as const,
+        mysteryBookId: diagnostic.bookId,
+        catalogNodeType: "mystery-book" as const,
+        unavailable: true,
+        muted: true
+      }))
+    ];
+  });
+
   const resourceTreeSections = computed(() =>
     applyBookResourcePreferences(
       baseResourceSections.value,
@@ -154,7 +228,11 @@ export function useWorkspaceResourceTreeCoordinator(
       section.id === "creation"
         ? {
             ...section,
-            nodes: [...section.nodes, ...longBookResourceNodes.value]
+            nodes: [
+              ...section.nodes,
+              ...longBookResourceNodes.value,
+              ...mysteryBookResourceNodes.value
+            ]
           }
         : section
     )
@@ -164,6 +242,16 @@ export function useWorkspaceResourceTreeCoordinator(
   // projection change instead of recursively walking it at every call site.
   const resourceTreeLookup = computed(() =>
     createResourceTreeLookup(resourceTreeSections.value)
+  );
+
+  watch(
+    () => {
+      const id = options.selectedMysteryDocumentId?.value;
+      return id && resourceTreeLookup.value.nodeById.has(id) ? id : null;
+    },
+    (id) => {
+      if (id) options.selectedResourceId.value = id;
+    }
   );
 
   function updateBookPreference(

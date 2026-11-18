@@ -1,6 +1,7 @@
 import { createBookImageExportLoader } from "../book-images/export-assets";
 import { BookImageError } from "../book-images/pick";
 import {
+  ExportAcademicManuscriptResultSchema,
   ExportLongManuscriptResultSchema,
   ExportShortManuscriptResultSchema,
   type CommandEnvelope,
@@ -69,6 +70,37 @@ export async function handleManuscriptCommands(
               ? error.code
               : "manuscript.export_failed",
           message: error instanceof Error ? error.message : "导出长篇失败。",
+          details: safeErrorDetails(error)
+        }
+      };
+    }
+  }
+  if (command.type === "manuscript.exportAcademic") {
+    try {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: ExportAcademicManuscriptResultSchema.parse(
+          await ctx.exportAcademicManuscript(
+            ctx.getMainWindow(),
+            command.payload,
+            createBookImageExportLoader((coreCommand) =>
+              ctx.supervisor.requestCommand("core", coreCommand, 0)
+            )
+          )
+        )
+      };
+    } catch (error: unknown) {
+      return {
+        status: "rejected",
+        requestId: command.id,
+        error: {
+          code:
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
+          message:
+            error instanceof Error ? error.message : "导出学术稿件失败。",
           details: safeErrorDetails(error)
         }
       };

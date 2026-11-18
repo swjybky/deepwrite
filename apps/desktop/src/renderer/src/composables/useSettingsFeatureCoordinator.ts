@@ -1,12 +1,15 @@
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import type {
+  AcademicAgentId,
+  AcademicAgentSettingsInput,
   DeepWriteApi,
   LibraryAgentDomain,
   LibraryAgentSettingsInput,
   LongAgentSettingsInput,
   WorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
+import { academicTreeT } from "../components/academic/academicTreeLabels";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useAgentTeamCatalogCoordinator } from "./useAgentTeamCatalogCoordinator";
 import {
@@ -17,6 +20,7 @@ import {
 import {
   withWorkspaceAgentBaseline,
   withLongAgentBaseline,
+  withAcademicAgentBaseline,
   withLibraryAgentBaseline
 } from "../utils/agentSettingsBaseline";
 
@@ -84,10 +88,36 @@ export function useSettingsFeatureCoordinator(
     return settingsStore.longAgentLoaded || (await loadLongAgentSettings());
   }
 
+  async function loadAcademicAgentSettings(): Promise<boolean> {
+    const api = context.api();
+    if (!api) return false;
+    try {
+      await settingsStore.ensureAcademicAgentsLoaded(() =>
+        api.academicAgents.list()
+      );
+      return true;
+    } catch (error: unknown) {
+      uiMessage.error(
+        errorMessage(
+          error,
+          t("settingsFeatureCoordinator.failedToLoadWorkspaceAgentSettings")
+        )
+      );
+      return false;
+    }
+  }
+
+  async function ensureAcademicAgentSettingsLoaded(): Promise<boolean> {
+    return (
+      settingsStore.academicAgentLoaded || (await loadAcademicAgentSettings())
+    );
+  }
+
   async function loadWorkspaceAgentSettings(): Promise<void> {
     await Promise.all([
       loadShortAndScriptAgentSettings(),
-      loadLongAgentSettings()
+      loadLongAgentSettings(),
+      loadAcademicAgentSettings()
     ]);
   }
 
@@ -160,6 +190,60 @@ export function useSettingsFeatureCoordinator(
       );
     } finally {
       settingsStore.longAgentSaving = false;
+    }
+  }
+
+  async function saveAcademicAgentSettings(
+    settings: AcademicAgentSettingsInput
+  ): Promise<void> {
+    const api = context.api();
+    if (!api || settingsStore.academicAgentSaving) return;
+    settingsStore.academicAgentSaving = true;
+    try {
+      const saved = await api.academicAgents.save(
+        withAcademicAgentBaseline(settings, settingsStore.academicAgentSettings)
+      );
+      settingsStore.markLoaded("academicAgents", saved);
+      uiMessage.success(
+        t(
+          "settingsFeatureCoordinator.savedPromptsWelcomeShortcutsAndMaterialSkillReadPermissions"
+        )
+      );
+    } catch (error: unknown) {
+      uiMessage.error(
+        errorMessage(
+          error,
+          t("settingsFeatureCoordinator.failedToSaveWorkspaceAgentSettings")
+        )
+      );
+    } finally {
+      settingsStore.academicAgentSaving = false;
+    }
+  }
+
+  async function resetAcademicAgentSettings(
+    agentId: AcademicAgentId = "academic"
+  ): Promise<void> {
+    const api = context.api();
+    if (!api || settingsStore.academicAgentSaving) return;
+    settingsStore.academicAgentSaving = true;
+    try {
+      const saved = await api.academicAgents.reset(agentId);
+      settingsStore.markLoaded("academicAgents", saved);
+      uiMessage.success(
+        t("settingsFeatureCoordinator.agentSettingsRestoredToDefaults", {
+          value: academicTreeT("academicAgent")
+        })
+      );
+    } catch (error: unknown) {
+      uiMessage.error(
+        errorMessage(
+          error,
+          t("settingsFeatureCoordinator.failedToSaveWorkspaceAgentSettings")
+        )
+      );
+    } finally {
+      settingsStore.academicAgentSaving = false;
     }
   }
 
@@ -243,9 +327,13 @@ export function useSettingsFeatureCoordinator(
     loadShortAndScriptAgentSettings,
     loadLongAgentSettings,
     ensureLongAgentSettingsLoaded,
+    loadAcademicAgentSettings,
+    ensureAcademicAgentSettingsLoaded,
     loadWorkspaceAgentSettings,
     saveWorkspaceAgentSettings,
     saveLongAgentSettings,
+    saveAcademicAgentSettings,
+    resetAcademicAgentSettings,
     loadLibraryAgentSettings,
     saveLibraryAgentSettings,
     resetLibraryAgentSettings

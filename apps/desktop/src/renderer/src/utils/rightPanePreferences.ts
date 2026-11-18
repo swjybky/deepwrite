@@ -15,7 +15,7 @@ interface RightPanePreferencesStorage {
 
 export interface RightPaneBookDocument {
   domain: string;
-  workspaceType?: "short" | "script" | "long";
+  workspaceType?: "short" | "script" | "long" | "academic" | "mystery";
   workspaceId?: string;
 }
 
@@ -38,7 +38,9 @@ export function rightPanePreferenceKey(
     document.domain !== "creation" ||
     (document.workspaceType !== "short" &&
       document.workspaceType !== "script" &&
-      document.workspaceType !== "long") ||
+      document.workspaceType !== "long" &&
+      document.workspaceType !== "academic" &&
+      document.workspaceType !== "mystery") ||
     !document.workspaceId?.trim()
   ) {
     return undefined;

@@ -57,11 +57,18 @@ export async function planLibraryStructure(
       continue;
     }
     if (op.action === "create-library") {
-      createLibrary(op.ref, op.title, op.kind, op.libraryType ?? "short");
+      createLibrary(
+        op.ref,
+        op.title,
+        op.kind,
+        op.libraryType ?? "short",
+        false,
+        op.customTag
+      );
       summary.push(`新建库「${op.title}」`);
     } else if (op.action === "create-group") {
-      const item = add(op.ref, op.title, { members: {} });
-      setMembers(item as Item & { manifest: Group }, op.members);
+      const item = add(op.ref, op.title, { memberIds: [] });
+      setMembers(item as Item & { manifest: Group }, op.memberIds);
       summary.push(`新建分组「${op.title}」`);
     } else if (op.action === "rename-library" || op.action === "rename-group") {
       const item =
@@ -69,15 +76,20 @@ export async function planLibraryStructure(
       writable(item);
       summary.push(`改名：${item.manifest.title} → ${op.title}`);
       item.manifest.title = op.title;
+      if (op.action === "rename-library" && op.customTag !== undefined) {
+        const target = item.manifest as { customTag?: string };
+        if (op.customTag === null) delete target.customTag;
+        else target.customTag = op.customTag;
+      }
     } else if (op.action === "set-members") {
       const item = group(op.id);
-      const before = Object.values(item.manifest.members)
+      const before = item.manifest.memberIds
         .map((id) => (id ? get(id).manifest.title : ""))
         .join("、");
-      setMembers(item, op.members);
+      setMembers(item, op.memberIds);
       summary.push(
         `分组「${item.manifest.title}」：${before || "空"} → ${
-          Object.values(item.manifest.members)
+          item.manifest.memberIds
             .map((id) => (id ? get(id).manifest.title : ""))
             .join("、") || "空"
         }`
@@ -91,9 +103,7 @@ export async function planLibraryStructure(
       writable(item);
       const groupId = op.groupId ? resolveId(op.groupId) : undefined;
       const ids = groupId
-        ? Object.values(group(groupId).manifest.members).filter(
-            (id): id is string => !!id
-          )
+        ? group(groupId).manifest.memberIds.filter((id): id is string => !!id)
         : rootIds();
       const next = reorderLibraryIds(
         reconcileLibraryOrder(
@@ -117,7 +127,7 @@ export async function planLibraryStructure(
       remove(item);
     } else if (op.action === "dissolve-group" || op.action === "delete-group") {
       const item = group(op.id);
-      const members = Object.values(item.manifest.members).filter(
+      const members = item.manifest.memberIds.filter(
         (id): id is string => !!id
       );
       const order = reconcileLibraryOrder(
@@ -143,11 +153,11 @@ export async function planLibraryStructure(
             [...items.values()].some(
               (other) =>
                 other !== item &&
-                "members" in other.manifest &&
+                "memberIds" in other.manifest &&
                 registry.projects.some(
                   (project) => project.id === other.manifest.id
                 ) &&
-                Object.values(other.manifest.members).includes(id)
+                other.manifest.memberIds.includes(id)
             )
           )
             throw new Error(
@@ -170,7 +180,7 @@ export async function planLibraryStructure(
     const current = JSON.stringify(item.manifest);
     if (
       item.original !== null &&
-      current === JSON.stringify(JSON.parse(item.original)) &&
+      current === item.originalNormalized &&
       [...item.files.values()].every((file) => file.action === "check")
     ) {
       roots.push({

@@ -52,6 +52,9 @@ async function bookTemplateSmokeInRenderer() {
         title: "模板创建作品"
       });
       if (!book) throw new Error("Template creation was unexpectedly canceled");
+      if (book.bookType === "academic") {
+        throw new Error("Unexpected academic book for creative template");
+      }
       ensure(
         book.bookType === workspaceType && book.genre === configuration.genre,
         "work type or genre differs"

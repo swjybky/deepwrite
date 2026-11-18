@@ -23,11 +23,26 @@ const draft = {
   linkedSkillIdsByKind: { general: [], plot: [], style: [], other: [] }
 };
 describe("book templates contracts", () => {
-  it("accepts short and script configuration but rejects long and unsupported content", () => {
-    expect(BookTemplateDraftSchema.parse(draft).characterFormat).toBe("list");
+  it("accepts short, script, and academic configuration but rejects long and unsupported content", () => {
+    const parsed = BookTemplateDraftSchema.parse(draft);
+    expect(parsed.workspaceType).toBe("short");
+    if (parsed.workspaceType !== "academic") {
+      expect(parsed.characterFormat).toBe("list");
+    }
     expect(
       BookTemplateDraftSchema.safeParse({ ...draft, workspaceType: "script" })
         .success
+    ).toBe(true);
+    expect(
+      BookTemplateDraftSchema.safeParse({
+        name: "学术论文模板",
+        workspaceType: "academic",
+        subtype: "empirical_paper",
+        citationStyle: "ieee",
+        defaultFrameworkStageIds: ["problem_and_gap", "argument_outline"],
+        linkedMaterialIds: ["mat-1"],
+        linkedSkillIds: ["skill-1"]
+      }).success
     ).toBe(true);
     expect(
       BookTemplateDraftSchema.safeParse({ ...draft, workspaceType: "long" })
