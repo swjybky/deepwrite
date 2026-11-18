@@ -276,7 +276,7 @@ describe("long tool editing content counts", () => {
             await edit.execute("clear", {
               ...target,
               content: "",
-              allow_overwrite_existing: true,
+              overwrite_mode: "replace_all",
               summary: "清空"
             })
           )
@@ -302,7 +302,7 @@ describe("long tool editing content counts", () => {
     const result = await toolByName(tools, "edit").execute("write", {
       id: "foreshadow_one",
       content: foreshadowingBody,
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "改写伏笔"
     });
     expect(counts(resultText(result))).toEqual([25]);

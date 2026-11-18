@@ -15,7 +15,7 @@ type Request = {
   kind?: string;
   id?: string;
   document?: string;
-  include_all_sections?: boolean;
+  section_scope?: "directory" | "all_sections";
   offset?: number;
   limit?: number;
   meta?: unknown;
@@ -179,7 +179,7 @@ async function refresh(
   project();
   if (
     counts === "draft" &&
-    params.include_all_sections &&
+    params.section_scope === "all_sections" &&
     params.id === "draft"
   ) {
     const needed: string[] = [];

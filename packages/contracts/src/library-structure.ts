@@ -27,6 +27,25 @@ const Order = {
   position: z.enum(["before", "after"]),
   groupId: Id.optional()
 };
+
+const DeleteGroupOperationSchema = z.strictObject({
+  action: z.literal("delete-group"),
+  id: Id,
+  includeLibraries: z.boolean()
+});
+export const DeleteGroupToolOperationSchema = DeleteGroupOperationSchema.omit({
+  includeLibraries: true
+})
+  .extend({
+    deletion_scope: z
+      .enum(["group_only", "group_and_libraries"])
+      .describe("group_only 保留成员库，group_and_libraries 同时移除成员库。")
+  })
+  .transform(({ deletion_scope, ...operation }) => ({
+    ...operation,
+    includeLibraries: deletion_scope === "group_and_libraries"
+  }));
+
 export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
   z
     .object({
@@ -97,13 +116,7 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
     .strict(),
   z.object({ action: z.literal("reorder-group"), ...Order }).strict(),
   z.object({ action: z.literal("dissolve-group"), id: Id }).strict(),
-  z
-    .object({
-      action: z.literal("delete-group"),
-      id: Id,
-      includeLibraries: z.boolean()
-    })
-    .strict(),
+  DeleteGroupOperationSchema,
   z
     .object({
       action: z.literal("move-entries"),
@@ -137,6 +150,9 @@ export const LibraryStructureOperationSchema = z.discriminatedUnion("action", [
 export type LibraryStructureOperation = z.infer<
   typeof LibraryStructureOperationSchema
 >;
+export type LibraryStructureToolOperation =
+  | Exclude<LibraryStructureOperation, { action: "delete-group" }>
+  | z.input<typeof DeleteGroupToolOperationSchema>;
 export const LibraryStructureRequestSchema = z
   .object({
     domain: Domain,
@@ -186,9 +202,13 @@ export type LibraryStructureProposalEventEnvelope = z.infer<
 export function libraryStructureOperationJsonSchema(
   actions: readonly LibraryStructureOperation["action"][]
 ) {
-  const options = LibraryStructureOperationSchema.options.filter((schema) =>
-    actions.includes(schema.shape.action.value)
-  );
+  const options = LibraryStructureOperationSchema.options
+    .filter((schema) => actions.includes(schema.shape.action.value))
+    .map((schema) =>
+      schema === DeleteGroupOperationSchema
+        ? DeleteGroupToolOperationSchema
+        : schema
+    );
   const json = z.toJSONSchema(
     z.union(
       options as [
@@ -197,7 +217,7 @@ export function libraryStructureOperationJsonSchema(
         ...(typeof options)[number][]
       ]
     ),
-    { target: "draft-7" }
+    { target: "draft-7", io: "input" }
   );
   // Older proposals may still contain this field; new tools no longer offer it.
   for (const option of json.anyOf ?? []) {

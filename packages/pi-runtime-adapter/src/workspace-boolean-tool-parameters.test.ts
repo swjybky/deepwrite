@@ -3,8 +3,13 @@ import {
   type AgentProviderRuntimeConfig
 } from "@deepwrite/contracts";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { normalizeContext, validateToolArguments } from "@earendil-works/pi-ai";
-import { describe, expect, it } from "vitest";
+import {
+  normalizeContext,
+  validateToolArguments,
+  type JsonObject
+} from "@earendil-works/pi-ai";
+import { describe, expect, it, vi } from "vitest";
+import { buildAskUserQuestionTool } from "./ask-user-question-tool";
 import { buildProviderRuntime } from "./provider-runtime";
 import {
   documentExecutor,
@@ -23,7 +28,6 @@ import {
 } from "./short-agent-tools.test-support";
 
 type WorkspaceType = "short" | "script" | "long";
-type SchemaProfile = "native" | "portable";
 interface ToolPayload {
   tools: Array<{
     function: {
@@ -61,15 +65,12 @@ function writingTools(workspaceType: "short" | "script") {
 
 async function capturePayload(
   tools: AgentTool[],
-  profile: SchemaProfile,
-  declaration: "root" | "transcript"
-): Promise<ToolPayload> {
-  const { model, streamFn } = buildProviderRuntime(
-    { ...gatewayConfig, toolSchemaProfile: profile },
-    undefined,
-    "off",
-    { portableToolSchemaProfile: "writing-workspace" }
-  );
+  config: AgentProviderRuntimeConfig,
+  declaration: "root" | "transcript" = "root"
+) {
+  const { model, streamFn } = buildProviderRuntime(config, undefined, "off", {
+    portableToolSchemaProfile: "writing-workspace"
+  });
   const context = normalizeContext({
     ...(declaration === "root" ? { tools } : {}),
     messages: [
@@ -95,11 +96,40 @@ async function capturePayload(
   });
   await stream.result();
   expect(payload).toBeDefined();
-  return payload as ToolPayload;
+  return payload;
 }
 
+it.each([
+  ["openai-completions", "openai", "chat-test"],
+  ["openai-responses", "openai", "responses-test"],
+  ["anthropic-messages", "anthropic", "claude-test"],
+  ["google-generative-ai", "google", "gemini-test"]
+] as const)(
+  "serializes migrated tool modes as strings through %s",
+  async (api, provider, modelId) => {
+    const tools = [
+      ...writingTools("short").filter(
+        ({ name }) => name === "read" || name === "edit"
+      ),
+      buildAskUserQuestionTool()
+    ];
+    const payload = JSON.stringify(
+      await capturePayload(tools, {
+        ...gatewayConfig,
+        api,
+        provider,
+        modelId
+      })
+    );
+    expect(payload).toContain('"section_scope"');
+    expect(payload).toContain('"overwrite_mode"');
+    expect(payload).toContain('"selection_mode"');
+    expect(payload).not.toMatch(/"type":"boolean"/iu);
+  }
+);
+
 describe.each(["short", "script", "long"] as const)(
-  "%s workspace boolean tool parameters",
+  "%s workspace tool parameters",
   (workspaceType: WorkspaceType) => {
     it.each([
       ["native", "root"],
@@ -107,44 +137,123 @@ describe.each(["short", "script", "long"] as const)(
       ["portable", "root"],
       ["portable", "transcript"]
     ] as const)(
-      "sends plain booleans through the Gemini gateway with %s schemas and %s declarations",
+      "sends portable schemas through the Gemini gateway with %s profiles and %s declarations",
       async (profile, declaration) => {
         const tools =
           workspaceType === "long"
             ? longTools({ executor: documentExecutor(fixtureIndex()) })
             : writingTools(workspaceType);
-        const payload = await capturePayload(tools, profile, declaration);
-        const fields = [
-          ["edit", "allow_overwrite_existing"],
-          ...(workspaceType === "long"
-            ? []
-            : [["read", "include_all_sections"]])
-        ];
-        for (const [name, field] of fields) {
-          const tool = payload.tools.find(
-            (item) => item.function.name === name
-          );
-          expect(tool).toBeDefined();
-          const parameter = tool!.function.parameters.properties[field!]!;
-          expect(parameter).toMatchObject({ type: "boolean" });
-          expect(parameter).not.toHaveProperty("enum");
-          expect(parameter).not.toHaveProperty("const");
+        const payload = (await capturePayload(
+          tools,
+          { ...gatewayConfig, toolSchemaProfile: profile },
+          declaration
+        )) as ToolPayload;
+        expect(JSON.stringify(payload.tools)).not.toContain('"type":"boolean"');
+        const editProperties = payload.tools.find(
+          (item) => item.function.name === "edit"
+        )!.function.parameters.properties;
+        expect(editProperties.overwrite_mode).toMatchObject({
+          type: "string",
+          enum: ["replace_all"]
+        });
+        expect(editProperties.overwrite_mode).not.toHaveProperty("const");
+        expect(editProperties).not.toHaveProperty("allow_overwrite_existing");
+        if (workspaceType === "short" || workspaceType === "script") {
+          const readProperties = payload.tools.find(
+            (item) => item.function.name === "read"
+          )!.function.parameters.properties;
+          expect(readProperties.section_scope).toMatchObject({
+            type: "string",
+            enum: ["directory", "all_sections"]
+          });
+          expect(readProperties).not.toHaveProperty("include_all_sections");
         }
       }
     );
   }
 );
 
+function validateEdit(tool: AgentTool, args: JsonObject) {
+  return validateToolArguments(tool, {
+    type: "toolCall",
+    id: "overwrite-test",
+    name: tool.name,
+    arguments: args
+  });
+}
+
+it("validates selection_mode and forwards the existing question shape", async () => {
+  const requestUserInput = vi.fn(async () => ({
+    sessionId: "session",
+    runId: "run",
+    requestId: "request",
+    answers: []
+  }));
+  const ask = buildAskUserQuestionTool(requestUserInput);
+  const question = {
+    id: "choice",
+    question: "保留哪些文献？",
+    options: [
+      { id: "a", label: "甲" },
+      { id: "b", label: "乙" }
+    ]
+  };
+  const run = (options: JsonObject) =>
+    ask.execute(
+      "ask",
+      validateEdit(ask, { questions: [{ ...question, ...options }] })
+    );
+
+  expect(() => run({ selection_mode: false })).toThrow("selection_mode");
+  expect(() => run({ multi_select: true })).toThrow("multi_select");
+  expect(requestUserInput).not.toHaveBeenCalled();
+  await run({ selection_mode: "single" });
+  await run({ selection_mode: "multiple" });
+  expect(requestUserInput).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({
+      questions: [{ ...question, multi_select: false }]
+    }),
+    undefined
+  );
+  expect(requestUserInput).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({
+      questions: [{ ...question, multi_select: true }]
+    }),
+    undefined
+  );
+});
+
+function expectInvalidOverwriteModesRejected(
+  tool: AgentTool,
+  args: JsonObject
+) {
+  for (const mode of [
+    true,
+    false,
+    1,
+    "true",
+    "replace",
+    ["replace_all"],
+    [null, null, null, 1]
+  ]) {
+    expect(() => validateEdit(tool, { ...args, overwrite_mode: mode })).toThrow(
+      "overwrite_mode"
+    );
+  }
+}
+
 describe.each(["short", "script"] as const)(
   "%s workspace overwrite permission",
   (workspaceType) => {
     it.each(["", "替换后的正文。"])(
-      "preserves existing content when overwrite permission is false or only truthy (content=%j)",
+      "preserves existing content when overwrite mode is missing or invalid (content=%j)",
       async (content) => {
         const tools = writingTools(workspaceType);
         const read = toolByName(tools, "read");
         const edit = toolByName(tools, "edit");
-        const targets = [
+        const targets: JsonObject[] = [
           { kind: "character_overview", id: "character_design" },
           { kind: "character", id: "character-lin" },
           { kind: "plot_stage", id: "plot_design" },
@@ -157,21 +266,14 @@ describe.each(["short", "script"] as const)(
         ];
         for (const target of targets) {
           const before = resultText(await read.execute("read-before", target));
-          for (const flag of [false, "true", 1]) {
-            const args = { ...target, content, allow_overwrite_existing: flag };
-            const params =
-              flag === false
-                ? validateToolArguments(edit, {
-                    type: "toolCall",
-                    id: "blocked-overwrite",
-                    name: "edit",
-                    arguments: args
-                  })
-                : args;
-            const result = await edit.execute("blocked-overwrite", params);
-            expect(resultText(result)).toContain(
-              "allow_overwrite_existing=true"
+          const args = { ...target, content };
+          expectInvalidOverwriteModesRejected(edit, args);
+          for (const input of [args, { ...args, overwrite_mode: null }]) {
+            const result = await edit.execute(
+              "blocked-overwrite",
+              validateEdit(edit, input)
             );
+            expect(resultText(result)).toContain("overwrite_mode=replace_all");
             expect(result.details).toMatchObject({ kind: "none" });
             expect(resultText(await read.execute("read-after", target))).toBe(
               before
@@ -181,24 +283,29 @@ describe.each(["short", "script"] as const)(
       }
     );
 
-    it("reads the directory instead of all sections when include_all_sections is false", async () => {
+    it("reads the directory by default and requires an explicit scope for all sections", async () => {
       const read = toolByName(writingTools(workspaceType), "read");
-      const params = validateToolArguments(read, {
-        type: "toolCall",
-        id: "read-directory",
-        name: "read",
-        arguments: { kind: "draft", id: "draft", include_all_sections: false }
-      });
-      const result = resultText(await read.execute("read-directory", params));
-      expect(result).toContain("section-1");
-      expect(result).not.toContain("汽笛迟到了七分钟。");
+      const draft = { kind: "draft", id: "draft" };
+      const run = (args: JsonObject) =>
+        read.execute("read-draft", validateEdit(read, { ...draft, ...args }));
+      expect(resultText(await run({}))).toContain("section-1");
+      expect(
+        resultText(await run({ section_scope: "directory" }))
+      ).not.toContain("汽笛迟到了七分钟。");
+      expect(
+        resultText(await run({ section_scope: "all_sections" }))
+      ).toContain("汽笛迟到了七分钟。");
+      expect(() => run({ section_scope: true })).toThrow("section_scope");
+      expect(() => run({ include_all_sections: true })).toThrow(
+        "include_all_sections"
+      );
     });
   }
 );
 
 describe("long workspace overwrite permission", () => {
   it.each(["", "替换后的正文。"])(
-    "preserves document and record content when permission is false or only truthy (content=%j)",
+    "preserves document and record content when mode is missing or invalid (content=%j)",
     async (content) => {
       const index = fixtureIndex();
       const beforeText = "需要保留的旧正文。";
@@ -211,26 +318,22 @@ describe("long workspace overwrite permission", () => {
       });
       const read = toolByName(tools, "read");
       const edit = toolByName(tools, "edit");
-      for (const target of [
+      const targets: JsonObject[] = [
         { id: "chapter_one", document: "body" },
         { id: "volume_one" }
-      ]) {
+      ];
+      for (const target of targets) {
         expect(resultText(await read.execute("read-before", target))).toContain(
           beforeText
         );
-        for (const flag of [false, "true", 1]) {
-          const args = { ...target, content, allow_overwrite_existing: flag };
-          const params =
-            flag === false
-              ? validateToolArguments(edit, {
-                  type: "toolCall",
-                  id: "blocked-overwrite",
-                  name: "edit",
-                  arguments: args
-                })
-              : args;
-          const result = await edit.execute("blocked-overwrite", params);
-          expect(resultText(result)).toContain("allow_overwrite_existing=true");
+        const args = { ...target, content };
+        expectInvalidOverwriteModesRejected(edit, args);
+        for (const input of [args, { ...args, overwrite_mode: null }]) {
+          const result = await edit.execute(
+            "blocked-overwrite",
+            validateEdit(edit, input)
+          );
+          expect(resultText(result)).toContain("overwrite_mode=replace_all");
           expect(result.details).toMatchObject({ kind: "none" });
           expect(
             resultText(await read.execute("read-after", target))

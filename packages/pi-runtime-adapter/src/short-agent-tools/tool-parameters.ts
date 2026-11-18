@@ -61,8 +61,8 @@ export function writingParameters(
   const writingDocumentParameter = literalUnion(WRITING_DOCUMENTS, {
     description:
       input.promptLocale === "en-US"
-        ? "For draft_section or draft with include_all_sections=true: body is the manuscript; state is State, for character, plot, emotional or any other continuity information. Required for file reads/edits; omit for meta-only renames and other kinds."
-        : "仅 draft_section，或 kind=draft 且 include_all_sections=true 时使用：body 为正文，state 为状态，可记录人物、剧情、情感及其他需要延续的信息。读取、写入或修改 draft_section 的正文/状态时必须指定；edit 只用 meta.title 改名时可省略；其他 kind 不要传。"
+        ? "For draft_section or draft with section_scope=all_sections: body is the manuscript; state is State, for character, plot, emotional or any other continuity information. Required for file reads/edits; omit for meta-only renames and other kinds."
+        : "仅 draft_section，或 kind=draft 且 section_scope=all_sections 时使用：body 为正文，state 为状态，可记录人物、剧情、情感及其他需要延续的信息。读取、写入或修改 draft_section 的正文/状态时必须指定；edit 只用 meta.title 改名时可省略；其他 kind 不要传。"
   });
 
   const writingContentParameter = Type.String({
@@ -185,13 +185,6 @@ export function writingParameters(
     }
   );
 
-  const explicitTrueParameter = Type.Boolean({
-    description:
-      input.promptLocale === "en-US"
-        ? "Pass true explicitly."
-        : "必须显式传 true。"
-  });
-
   return {
     stableWritingIdParameter,
     writingEditKindParameter,
@@ -201,7 +194,6 @@ export function writingParameters(
     writingContentParameter,
     writingSummaryParameter,
     writingCreateMetaParameter,
-    writingEditMetaParameter,
-    explicitTrueParameter
+    writingEditMetaParameter
   };
 }

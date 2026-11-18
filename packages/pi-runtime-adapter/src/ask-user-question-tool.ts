@@ -1,5 +1,5 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { Type } from "@earendil-works/pi-ai";
+import { StringEnum, Type, type Static } from "@earendil-works/pi-ai";
 import {
   AgentUserInputQuestionsSchema,
   type PromptLocale
@@ -30,7 +30,11 @@ const questionParameter = strictObject({
   options: Type.Optional(
     Type.Array(optionParameter, { minItems: 2, maxItems: 5 })
   ),
-  multi_select: Type.Optional(Type.Boolean())
+  selection_mode: Type.Optional(
+    StringEnum(["single", "multiple"], {
+      description: "Choice selection: single (default) or multiple."
+    })
+  )
 });
 
 export function buildAskUserQuestionTool(
@@ -59,7 +63,14 @@ export function buildAskUserQuestionTool(
         );
       }
       const questions = AgentUserInputQuestionsSchema.parse(
-        (params as { questions: unknown }).questions
+        (params as Static<typeof parameters>).questions.map(
+          ({ selection_mode, ...question }) => ({
+            ...question,
+            ...(selection_mode === undefined
+              ? {}
+              : { multi_select: selection_mode === "multiple" })
+          })
+        )
       );
       const response = await requestUserInput(
         { toolCallId, source: "ask_user_question", questions },

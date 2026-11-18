@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { validateToolArguments, type JsonObject } from "@earendil-works/pi-ai";
 import {
   CommandEnvelopeSchema,
   LibraryStructurePlanSchema
@@ -88,6 +89,58 @@ describe("library structure tools", () => {
           "catalog.previewLibraryStructure"
       )
     ).toBe(true);
+    const group = toolByName(tools, "manage_group");
+    expect(JSON.stringify(group.parameters)).not.toContain('"type":"boolean"');
+    const validateDelete = (args: JsonObject) =>
+      validateToolArguments(group, {
+        type: "toolCall",
+        id: "delete",
+        name: group.name,
+        arguments: group.prepareArguments!({
+          operations: [{ action: "delete-group", id: "group", ...args }]
+        }) as JsonObject
+      });
+    expect(() => validateDelete({})).toThrow("deletion_scope");
+    expect(() => validateDelete({ deletion_scope: true })).toThrow(
+      "deletion_scope"
+    );
+    expect(() => validateDelete({ includeLibraries: true })).toThrow(
+      "deletion_scope"
+    );
+    expect(executor).toHaveBeenCalledTimes(2);
+    const retain = await group.execute(
+      "retain-libraries",
+      validateDelete({
+        id: "retain",
+        deletion_scope: "group_only"
+      })
+    );
+    expect(retain.details).toMatchObject({
+      plan: {
+        operations: [
+          { action: "create-library" },
+          { action: "create-group" },
+          { action: "delete-group", id: "retain", includeLibraries: false }
+        ]
+      }
+    });
+    const remove = await group.execute(
+      "remove-libraries",
+      validateDelete({
+        id: "remove",
+        deletion_scope: "group_and_libraries"
+      })
+    );
+    expect(remove.details).toMatchObject({
+      plan: {
+        operations: [
+          { action: "create-library" },
+          { action: "create-group" },
+          { action: "delete-group", id: "retain", includeLibraries: false },
+          { action: "delete-group", id: "remove", includeLibraries: true }
+        ]
+      }
+    });
   });
   it("routes unbound creation through the shared reviewed plan without editing the focus library", async () => {
     const executor = vi.fn(async (command: unknown) => {

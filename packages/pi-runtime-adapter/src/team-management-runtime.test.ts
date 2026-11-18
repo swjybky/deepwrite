@@ -4,7 +4,9 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
+  validateToolArguments,
   type Api,
+  type JsonObject,
   type Model
 } from "@earendil-works/pi-ai";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
@@ -137,6 +139,72 @@ function provider() {
 }
 
 describe("main-agent team management tools", () => {
+  it("converts member, draw, and parallel modes into the existing review operations", async () => {
+    const f = fixture("reject");
+    const [list, , propose] = f.runtime.tools;
+    expect(JSON.stringify(propose!.parameters)).not.toContain(
+      '"type":"boolean"'
+    );
+    await list!.execute("list", {});
+    const validate = (operations: JsonObject[]) => {
+      const args = { team_id: "team", summary: "调整团队", operations };
+      return validateToolArguments(propose!, {
+        type: "toolCall",
+        id: "propose",
+        name: propose!.name,
+        arguments: propose!.prepareArguments!(args) as JsonObject
+      });
+    };
+    const update = {
+      action: "update-member",
+      parentAgentId: "short",
+      memberId: "editor"
+    };
+    const parallel = { action: "set-parallel" };
+    expect(() => validate([{ ...update, set: { status: 0 } }])).toThrow(
+      "status"
+    );
+    expect(() =>
+      validate([{ ...update, set: { draw: { status: true } } }])
+    ).toThrow("status");
+    expect(() => validate([{ ...parallel, enabled: true }])).toThrow("mode");
+    const result = await propose!.execute(
+      "propose",
+      validate([
+        { ...update, set: { status: "disabled", draw: { status: "enabled" } } },
+        {
+          action: "add-member",
+          parentAgentId: "short",
+          member: {
+            name: "校对员",
+            description: "核对术语",
+            systemPrompt: "校对正文",
+            status: "enabled",
+            draw: { status: "disabled" }
+          }
+        },
+        { ...parallel, mode: "sequential" }
+      ])
+    );
+    expect(f.executor.mock.calls[1]![0]).toMatchObject({
+      type: "agentTeams.previewActiveChange",
+      payload: {
+        operations: [
+          { ...update, set: { enabled: false, draw: { enabled: true } } },
+          {
+            action: "add-member",
+            member: { enabled: true, draw: { enabled: false } }
+          },
+          { ...parallel, enabled: false }
+        ]
+      }
+    });
+    expect(result.content).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("未保存") })
+    ]);
+    expect(f.executor).toHaveBeenCalledTimes(2);
+  });
+
   it("uses only team tools and demands a fresh read before proposing", async () => {
     const f = fixture();
     const child = f.runtime;

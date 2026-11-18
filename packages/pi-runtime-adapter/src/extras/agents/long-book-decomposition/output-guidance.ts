@@ -28,10 +28,10 @@ export function decompositionOutputGuidance(
     registrar: unitIds.includes("registry:merge")
       ? "只对候选簇给出决定，一次提交。"
       : "本分片的计划一次提交，只写需要的决定，不要罗列无需处理的编号。",
-    chronicler: `${perCall}剧情点多时分批：每批最多 ${Math.max(5, Math.floor(prose / 300))} 个，前几批带 more: true，summary 放在最后一批。`,
-    plot_architect: `${perCall}伏笔线每批最多 ${batch("foreshadowingLine")} 条，超过就分批：前几批带 more: true，最后一批不带；分卷多时主线同样分批，前几批只交 volumes，content 与 gimmick 放在最后一批。`,
+    chronicler: `${perCall}剧情点多时分批：每批最多 ${Math.max(5, Math.floor(prose / 300))} 个，前几批带 batch_mode=partial，summary 放在最后一批。`,
+    plot_architect: `${perCall}伏笔线每批最多 ${batch("foreshadowingLine")} 条，超过就分批：前几批带 batch_mode=partial，最后一批不带；分卷多时主线同样分批，前几批只交 volumes，content 与 gimmick 放在最后一批。`,
     character_archivist: perCall,
-    world_archivist: `${perCall}设定条目每批最多 ${batch("worldItem")} 条，超过就分批：前几批带 more: true，overview 放在最后一批。`,
+    world_archivist: `${perCall}设定条目每批最多 ${batch("worldItem")} 条，超过就分批：前几批带 batch_mode=partial，overview 放在最后一批。`,
     style_analyst: `content 不超过约 ${Math.floor(prose / 2)} 字，典型片段最多 ${Math.min(100, batch("styleExcerpt"))} 条。`,
     continuity_keeper: perCall,
     reviewer: `问题最多 ${Math.min(1000, batch("reviewIssue"))} 条，按严重程度取舍。`,

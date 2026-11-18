@@ -152,49 +152,92 @@ const PromptReplacementSchema = z
   })
   .strict();
 
-/** What the agent asks for; Main turns it into exact member before/after. */
+const UpdateMemberSchema = z.strictObject({
+  action: z.literal("update-member"),
+  parentAgentId: ParentAgentIdSchema,
+  memberId: MemberIdSchema,
+  set: MemberFieldsSchema.optional(),
+  /** Whole new prompt; excludes promptReplacements. */
+  systemPrompt: PromptSchema.optional(),
+  promptReplacements: z.array(PromptReplacementSchema).min(1).max(20).optional()
+});
+const NewMemberFields = {
+  id: MemberIdSchema.optional(),
+  systemPrompt: PromptSchema
+};
+const AddMemberSchema = z.strictObject({
+  action: z.literal("add-member"),
+  parentAgentId: ParentAgentIdSchema,
+  member: MemberFieldsSchema.extend(NewMemberFields).required({
+    name: true,
+    description: true
+  })
+});
+const RemoveMemberSchema = z.strictObject({
+  action: z.literal("remove-member"),
+  parentAgentId: ParentAgentIdSchema,
+  memberId: MemberIdSchema
+});
+
+/** Main turns these operations into exact member before/after values. */
 export const AgentTeamChangeOperationSchema = z.discriminatedUnion("action", [
-  z
-    .object({
-      action: z.literal("update-member"),
-      parentAgentId: ParentAgentIdSchema,
-      memberId: MemberIdSchema,
-      set: MemberFieldsSchema.optional(),
-      /** Whole new prompt; excludes promptReplacements. */
-      systemPrompt: PromptSchema.optional(),
-      promptReplacements: z
-        .array(PromptReplacementSchema)
-        .min(1)
-        .max(20)
-        .optional()
-    })
-    .strict(),
-  z
-    .object({
-      action: z.literal("add-member"),
-      parentAgentId: ParentAgentIdSchema,
-      member: MemberFieldsSchema.extend({
-        id: MemberIdSchema.optional(),
-        systemPrompt: PromptSchema
-      }).required({ name: true, description: true })
-    })
-    .strict(),
-  z
-    .object({
-      action: z.literal("remove-member"),
-      parentAgentId: ParentAgentIdSchema,
-      memberId: MemberIdSchema
-    })
-    .strict(),
+  UpdateMemberSchema,
+  AddMemberSchema,
+  RemoveMemberSchema,
   z.object({ action: z.literal("set-parallel"), enabled: z.boolean() }).strict()
 ]);
 export type AgentTeamChangeOperation = z.infer<
   typeof AgentTeamChangeOperationSchema
 >;
 
-/** Tool parameter schema for the agent; Main re-validates every operation. */
+const ToggleStatusSchema = z.enum(["enabled", "disabled"]);
+const ToolMemberFieldsSchema = MemberFieldsSchema.omit({
+  enabled: true
+}).extend({
+  status: ToggleStatusSchema.optional(),
+  draw: SubagentDrawSettingsSchema.omit({ enabled: true })
+    .extend({ status: ToggleStatusSchema })
+    .strict()
+    .transform(({ status, ...draw }) => ({
+      ...draw,
+      enabled: status === "enabled"
+    }))
+    .optional()
+});
+
+function memberFieldsForCommand<
+  T extends z.output<typeof ToolMemberFieldsSchema>
+>({ status, ...fields }: T) {
+  return {
+    ...fields,
+    ...(status === undefined ? {} : { enabled: status === "enabled" })
+  };
+}
+
+export const AgentTeamToolChangeOperationSchema = z
+  .discriminatedUnion("action", [
+    UpdateMemberSchema.extend({
+      set: ToolMemberFieldsSchema.transform(memberFieldsForCommand).optional()
+    }),
+    AddMemberSchema.extend({
+      member: ToolMemberFieldsSchema.extend(NewMemberFields)
+        .required({ name: true, description: true })
+        .transform(memberFieldsForCommand)
+    }),
+    RemoveMemberSchema,
+    z.strictObject({
+      action: z.literal("set-parallel"),
+      mode: z.enum(["parallel", "sequential"])
+    })
+  ])
+  .transform((operation): AgentTeamChangeOperation =>
+    operation.action === "set-parallel"
+      ? { action: operation.action, enabled: operation.mode === "parallel" }
+      : operation
+  );
+
 export function agentTeamChangeOperationJsonSchema() {
-  return z.toJSONSchema(AgentTeamChangeOperationSchema, {
+  return z.toJSONSchema(AgentTeamToolChangeOperationSchema, {
     target: "draft-7",
     io: "input"
   });

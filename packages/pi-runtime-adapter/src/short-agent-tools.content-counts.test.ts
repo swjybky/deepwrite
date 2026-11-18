@@ -110,7 +110,7 @@ describe.each(["short", "script"] as const)(
         const written = await edit.execute("write", {
           ...target,
           content: body,
-          allow_overwrite_existing: true,
+          overwrite_mode: "replace_all",
           summary: "改写"
         });
         expect(resultText(written)).toContain(`${countLabel}7 字`);
@@ -129,7 +129,7 @@ describe.each(["short", "script"] as const)(
         const cleared = await edit.execute("clear", {
           ...target,
           content: "",
-          allow_overwrite_existing: true,
+          overwrite_mode: "replace_all",
           summary: "清空"
         });
         expect(resultText(cleared)).toContain(`${countLabel}0 字`);

@@ -165,7 +165,7 @@ describe("unified short workspace tools", () => {
     const manuscript = await read.execute("read-manuscript", {
       kind: "draft",
       id: "draft",
-      include_all_sections: true
+      section_scope: "all_sections"
     });
     expect(resultText(manuscript)).not.toContain("甲尾");
     expect(resultText(manuscript)).not.toContain("乙尾");
@@ -175,7 +175,7 @@ describe("unified short workspace tools", () => {
       kind: "plot_stage",
       id: "plot_design",
       content: "新剧情",
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "重写剧情"
     });
     expect(details(proposal)).toMatchObject({
@@ -208,7 +208,7 @@ describe("unified short workspace tools", () => {
           summary: "重写"
         })
       )
-    ).toContain("allow_overwrite_existing=true");
+    ).toContain("overwrite_mode=replace_all");
 
     expect(
       resultText(
@@ -305,7 +305,7 @@ describe("unified short workspace tools", () => {
       kind: "plot_stage",
       id: "plot_design",
       content: "子智能体的新剧情。",
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "子智能体修改"
     });
     expect(
@@ -342,7 +342,7 @@ describe("unified short workspace tools", () => {
           kind: "plot_stage",
           id: "plot_design",
           content: "父智能体覆盖。",
-          allow_overwrite_existing: true,
+          overwrite_mode: "replace_all",
           summary: "父智能体修改"
         })
       )

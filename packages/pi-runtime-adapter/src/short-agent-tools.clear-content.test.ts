@@ -93,7 +93,7 @@ describe.each(["short", "script"] as const)(
           arguments: {
             ...target,
             content: "",
-            allow_overwrite_existing: true,
+            overwrite_mode: "replace_all",
             summary: "清空正文"
           }
         });
@@ -135,14 +135,14 @@ describe.each(["short", "script"] as const)(
         resultText(
           await tool.execute("clear-unread", {
             ...args,
-            allow_overwrite_existing: true
+            overwrite_mode: "replace_all"
           })
         )
       ).toContain("请先用 read 完整读取");
       await toolByName(tools, "read").execute("read-body", target);
       expect(
         resultText(await tool.execute("clear-unconfirmed", args))
-      ).toContain("allow_overwrite_existing=true");
+      ).toContain("overwrite_mode=replace_all");
     });
 
     it("edit skips a proposal when clearing an already empty document", async () => {

@@ -81,7 +81,7 @@ describe("unified long-form tools: plot-point content", () => {
     const edited = await edit.execute("edit-arc", {
       id: "arc_one",
       content: "更新后的概要。",
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "改写剧情点概要"
     });
     expect(mutationBatch(edited.details)).toMatchObject({

@@ -128,6 +128,29 @@ export function withEmptyCollections(
 const PAYLOAD_KEYS = new Set(["card", "registry", "review", "asset"]);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
+
+export function decodeReadingEvidence(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(decodeReadingEvidence);
+  if (!isRecord(value)) return value;
+  const { evidence_kind: evidenceKind, ...fields } = value;
+  if (
+    Object.hasOwn(fields, "inferred") ||
+    (evidenceKind !== undefined &&
+      evidenceKind !== "stated" &&
+      evidenceKind !== "inferred")
+  ) {
+    throw new Error("事实来源请使用 evidence_kind=stated 或 inferred。");
+  }
+  const decoded = Object.fromEntries(
+    Object.entries(fields).map(([name, item]) => [
+      name,
+      decodeReadingEvidence(item)
+    ])
+  );
+  if (evidenceKind !== undefined)
+    decoded.inferred = evidenceKind === "inferred";
+  return decoded;
+}
 /**
  * Models send `items`, an item or its `data` as JSON text, sometimes encoded
  * twice and often with raw line breaks or stray escapes inside. Text that

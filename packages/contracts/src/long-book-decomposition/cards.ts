@@ -4,8 +4,7 @@ import { DECOMPOSITION_MAX_CHAPTERS, DecompositionIdSchema } from "./limits";
 const order = z.number().int().min(1).max(DECOMPOSITION_MAX_CHAPTERS);
 const fact = z.object({
   text: z.string().trim().min(1).max(2000),
-  chapterOrder: order,
-  inferred: z.boolean().optional()
+  chapterOrder: order
 });
 export const DecompositionBeatTypeSchema = z.enum([
   "plant",
@@ -26,8 +25,8 @@ export const DecompositionChapterReadingSchema = z.object({
   scene: z.string().max(1000).optional(),
   hook: z.string().max(1000).optional()
 });
-export const DecompositionReadingCardSchema = z
-  .object({
+function readingCard<S extends z.ZodRawShape>(readingFact: z.ZodObject<S>) {
+  return z.object({
     chunkId: DecompositionIdSchema,
     chapters: z.array(DecompositionChapterReadingSchema).min(1).max(20),
     characters: z
@@ -36,7 +35,7 @@ export const DecompositionReadingCardSchema = z
           name: z.string().min(1).max(256),
           aliases: z.array(z.string().min(1).max(256)).max(100),
           role: z.string().max(1000).optional(),
-          facts: z.array(fact).max(500),
+          facts: z.array(readingFact).max(500),
           endState: z.string().max(2000).optional()
         })
       )
@@ -47,17 +46,17 @@ export const DecompositionReadingCardSchema = z
           categoryId: DecompositionIdSchema,
           name: z.string().min(1).max(256),
           aliases: z.array(z.string().min(1).max(256)).max(100).optional(),
-          facts: z.array(fact).max(500)
+          facts: z.array(readingFact).max(500)
         })
       )
       .max(500),
     plot: z.object({
       events: z
-        .array(fact.extend({ cause: z.string().max(1000).optional() }))
+        .array(readingFact.extend({ cause: z.string().max(1000).optional() }))
         .max(160),
       foreshadowing: z
         .array(
-          fact.extend({
+          readingFact.extend({
             label: z.string().min(1).max(256),
             action: DecompositionBeatTypeSchema
           })
@@ -76,43 +75,56 @@ export const DecompositionReadingCardSchema = z
         )
         .max(3)
     })
-  })
-  .superRefine((value, ctx) => {
-    const orders = new Set(value.chapters.map((chapter) => chapter.order));
-    const located = (
-      path: Array<string | number>,
-      list: ReadonlyArray<{ chapterOrder: number }>
-    ) =>
-      list.map((fact, index) => ({
-        path: [...path, index, "chapterOrder"],
-        order: fact.chapterOrder
-      }));
-    const stray = [
-      ...value.characters.flatMap(({ facts }, index) =>
-        located(["characters", index, "facts"], facts)
-      ),
-      ...value.world.flatMap(({ facts }, index) =>
-        located(["world", index, "facts"], facts)
-      ),
-      ...located(["plot", "events"], value.plot.events),
-      ...located(["plot", "foreshadowing"], value.plot.foreshadowing),
-      ...located(["style", "excerpts"], value.style.excerpts)
-    ].find(({ order }) => !orders.has(order));
-    // The path and the expected orders let a model fix just this field.
-    if (stray)
-      ctx.addIssue({
-        code: "custom",
-        path: stray.path,
-        message: `事实必须来自提交的章节：章号应为 ${[...orders].join("、")}，收到 ${stray.order}。`
-      });
-    if (JSON.stringify(value).length > 60_000)
-      ctx.addIssue({ code: "custom", message: "阅读记录超过 60,000 字。" });
-    if (
-      new Set(value.chapters.map(({ chapterId }) => chapterId)).size !==
-      value.chapters.length
-    )
-      ctx.addIssue({ code: "custom", message: "阅读记录章节不能重复。" });
   });
+}
+
+export const DecompositionReadingToolCardSchema = readingCard(
+  fact.extend({
+    evidence_kind: z
+      .enum(["stated", "inferred"])
+      .optional()
+      .describe("stated 来自原文明示（默认），inferred 表示根据原文推断。")
+  })
+);
+
+export const DecompositionReadingCardSchema = readingCard(
+  fact.extend({ inferred: z.boolean().optional() })
+).superRefine((value, ctx) => {
+  const orders = new Set(value.chapters.map((chapter) => chapter.order));
+  const located = (
+    path: Array<string | number>,
+    list: ReadonlyArray<{ chapterOrder: number }>
+  ) =>
+    list.map((fact, index) => ({
+      path: [...path, index, "chapterOrder"],
+      order: fact.chapterOrder
+    }));
+  const stray = [
+    ...value.characters.flatMap(({ facts }, index) =>
+      located(["characters", index, "facts"], facts)
+    ),
+    ...value.world.flatMap(({ facts }, index) =>
+      located(["world", index, "facts"], facts)
+    ),
+    ...located(["plot", "events"], value.plot.events),
+    ...located(["plot", "foreshadowing"], value.plot.foreshadowing),
+    ...located(["style", "excerpts"], value.style.excerpts)
+  ].find(({ order }) => !orders.has(order));
+  // The path and the expected orders let a model fix just this field.
+  if (stray)
+    ctx.addIssue({
+      code: "custom",
+      path: stray.path,
+      message: `事实必须来自提交的章节：章号应为 ${[...orders].join("、")}，收到 ${stray.order}。`
+    });
+  if (JSON.stringify(value).length > 60_000)
+    ctx.addIssue({ code: "custom", message: "阅读记录超过 60,000 字。" });
+  if (
+    new Set(value.chapters.map(({ chapterId }) => chapterId)).size !==
+    value.chapters.length
+  )
+    ctx.addIssue({ code: "custom", message: "阅读记录章节不能重复。" });
+});
 export type DecompositionReadingCard = z.infer<
   typeof DecompositionReadingCardSchema
 >;

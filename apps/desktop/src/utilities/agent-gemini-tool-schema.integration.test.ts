@@ -87,7 +87,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("desktop Agent utility Gemini gateway tool schemas", () => {
   it.each(["short", "script", "long", "material", "skill"] as const)(
-    "sends plain booleans from the %s App workflow and completes its turn",
+    "sends portable tool schemas from the %s App workflow and completes its turn",
     async (domain) => {
       let payload: ToolPayload | undefined;
       const fetcher: typeof globalThis.fetch = async (input, init) => {
@@ -137,23 +137,30 @@ describe("desktop Agent utility Gemini gateway tool schemas", () => {
         true
       );
       expect(payload).toBeDefined();
-      const fields =
+      const editNames =
         domain === "material" || domain === "skill"
-          ? [
-              [`edit_${domain}_entry`, "allow_overwrite_existing"],
-              [`edit_${domain}_library_overview`, "allow_overwrite_existing"]
-            ]
-          : [
-              ["edit", "allow_overwrite_existing"],
-              ...(domain === "long" ? [] : [["read", "include_all_sections"]])
-            ];
-      for (const [name, field] of fields) {
-        const tool = payload!.tools.find((item) => item.function.name === name);
-        expect(tool).toBeDefined();
-        const parameter = tool!.function.parameters.properties[field!]!;
-        expect(parameter).toMatchObject({ type: "boolean" });
-        expect(parameter).not.toHaveProperty("enum");
-        expect(parameter).not.toHaveProperty("const");
+          ? [`edit_${domain}_entry`, `edit_${domain}_library_overview`]
+          : ["edit"];
+      for (const name of editNames) {
+        const properties = payload!.tools.find(
+          (item) => item.function.name === name
+        )!.function.parameters.properties;
+        expect(properties.overwrite_mode).toMatchObject({
+          type: "string",
+          enum: ["replace_all"]
+        });
+        expect(properties.overwrite_mode).not.toHaveProperty("const");
+        expect(properties).not.toHaveProperty("allow_overwrite_existing");
+      }
+      if (domain === "short" || domain === "script") {
+        const readProperties = payload!.tools.find(
+          (item) => item.function.name === "read"
+        )!.function.parameters.properties;
+        expect(readProperties.section_scope).toMatchObject({
+          type: "string",
+          enum: ["directory", "all_sections"]
+        });
+        expect(readProperties).not.toHaveProperty("include_all_sections");
       }
     }
   );
@@ -175,7 +182,7 @@ describe("desktop Agent utility Gemini gateway tool schemas", () => {
       const step = requests.length;
       const args =
         step === 1
-          ? { kind: "draft", id: "draft", include_all_sections: false }
+          ? { kind: "draft", id: "draft", section_scope: "directory" }
           : { kind: "draft_section", id: "section-1", document: "body" };
       const delta =
         step <= 2

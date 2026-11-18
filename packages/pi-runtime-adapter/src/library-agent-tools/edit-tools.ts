@@ -19,6 +19,13 @@ import {
   LIBRARY_AGENT_OVERVIEW_MAX_CHARACTERS
 } from "@deepwrite/contracts";
 import { mutationResult, overviewMutationResult } from "./mutations";
+import {
+  overwriteModeParameter,
+  REPLACE_ALL_OVERWRITE_MODE
+} from "../writing-edit-guidance";
+
+export const LIBRARY_OVERWRITE_MODE_DESCRIPTION =
+  "用户明确要求替换已有非空正文且 mode=replace 时传 replace_all。目标为空、局部替换或追加时省略。";
 
 export const MAX_REPLACEMENTS = 20;
 
@@ -84,7 +91,9 @@ export function buildEditTool(
       body: Type.Optional(
         Type.String({ maxLength: MAX_ENTRY_CONTENT_CHARACTERS })
       ),
-      allow_overwrite_existing: Type.Optional(Type.Boolean()),
+      overwrite_mode: overwriteModeParameter(
+        LIBRARY_OVERWRITE_MODE_DESCRIPTION
+      ),
       replacements: Type.Optional(
         Type.Array(
           Type.Object({
@@ -158,10 +167,10 @@ export function buildEditTool(
         } else {
           if (
             entry.content.trim() &&
-            params.allow_overwrite_existing !== true
+            params.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
           ) {
             return textResult(
-              "未覆盖：该条目已有正文。只有用户明确要求覆盖全文时，才可设置 allow_overwrite_existing=true；普通修改请使用 replace_fragments。"
+              "未覆盖：该条目已有正文。只有用户明确要求覆盖全文时，才可设置 overwrite_mode=replace_all；普通修改请使用 replace_fragments。"
             );
           }
           nextContent = body;
@@ -226,7 +235,9 @@ export function buildEditOverviewTool(
       body: Type.Optional(
         Type.String({ maxLength: LIBRARY_AGENT_OVERVIEW_MAX_CHARACTERS })
       ),
-      allow_overwrite_existing: Type.Optional(Type.Boolean()),
+      overwrite_mode: overwriteModeParameter(
+        LIBRARY_OVERWRITE_MODE_DESCRIPTION
+      ),
       replacements: Type.Optional(
         Type.Array(
           Type.Object({
@@ -286,10 +297,10 @@ export function buildEditOverviewTool(
         } else {
           if (
             previousContent.trim() &&
-            params.allow_overwrite_existing !== true
+            params.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
           ) {
             return textResult(
-              "未覆盖：库介绍已有正文。只有用户明确要求覆盖全文时，才可设置 allow_overwrite_existing=true；普通修改请使用 replace_fragments。"
+              "未覆盖：库介绍已有正文。只有用户明确要求覆盖全文时，才可设置 overwrite_mode=replace_all；普通修改请使用 replace_fragments。"
             );
           }
           nextContent = body;

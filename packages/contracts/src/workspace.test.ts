@@ -163,9 +163,7 @@ describe("short workspace contracts", () => {
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("当前阶段");
     expect(DEFAULT_SHORT_SYSTEM_PROMPT).toContain("ask_user_question");
     // Object addressing lives in the non-editable runtime rules.
-    expect(DEFAULT_SHORT_SYSTEM_PROMPT).not.toContain(
-      "allow_overwrite_existing"
-    );
+    expect(DEFAULT_SHORT_SYSTEM_PROMPT).not.toContain("overwrite_mode");
   });
 
   it("keeps only material and skill read ranges", () => {

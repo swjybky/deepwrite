@@ -65,7 +65,7 @@ it.each(["short", "script"] as const)(
       id,
       document: "state",
       content: "新的情感状态",
-      allow_overwrite_existing: true
+      overwrite_mode: "replace_all"
     });
     expect(edit.details).toMatchObject({
       fileKind: "characterState",

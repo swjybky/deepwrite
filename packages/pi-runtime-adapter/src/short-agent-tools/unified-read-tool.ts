@@ -1,5 +1,6 @@
 import { assertWritingDocumentAvailable } from "./settlement";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { defineTool } from "./schema";
 import {
@@ -221,8 +222,8 @@ export function buildShortUnifiedReadTool(
         : `读取${workspaceKindLabel(input)}对象`,
     description:
       (input.promptLocale === "en-US"
-        ? "Read by stable kind/id from the directory. workspace/workspace lists current objects; draft/draft lists manuscript files and counts. draft_section requires document=body or state (State). include_all_sections=true on draft returns all files (default body), but above 50000 characters including whitespace returns only the directory. Single objects above that limit require offset/limit reads, which do not authorize full-text overwrites. Read existing text in full before edits."
-        : "按稳定业务 id 一次读全人物概览、人物条目、剧情结构或正文小节，超过 50000 字符（含空白）的对象须用 offset、limit 分段读取，分段读取不授予全文覆盖权限。kind 与 id 必须按目录配对：人物概览用 kind=character_overview、id=character_design；剧情结构用 kind=plot_stage 与目录中原样复制的阶段 id（如 plot_design、plot-stage-8f6f2d36），不能与 character_overview 混用。kind=workspace、id=workspace 获取实时人物、剧情结构和正文小节目录，包含本轮新建对象；不知道目标 id 时先读此目录，不要用人名或标题代替 id。kind=draft_section 必须同时给出 document=body 或 state。kind=draft、id=draft 读取正文目录及各小节的正文、状态字数；再设置 include_all_sections=true 可一次返回全部小节及合计字数，不传 document 时默认 body。全部正文超过 50000 字符（含空白）时仅返回目录，请分小节读取。修改任何已有正文前必须先 read 完整读取。") +
+        ? "Read by stable kind/id from the directory. workspace/workspace lists current objects; draft/draft lists manuscript files and counts. draft_section requires document=body or state (State). section_scope=all_sections on draft returns all files (default body), but above 50000 characters including whitespace returns only the directory. Single objects above that limit require offset/limit reads, which do not authorize full-text overwrites. Read existing text in full before edits."
+        : "按稳定业务 id 一次读全人物概览、人物条目、剧情结构或正文小节，超过 50000 字符（含空白）的对象须用 offset、limit 分段读取，分段读取不授予全文覆盖权限。kind 与 id 必须按目录配对：人物概览用 kind=character_overview、id=character_design；剧情结构用 kind=plot_stage 与目录中原样复制的阶段 id（如 plot_design、plot-stage-8f6f2d36），不能与 character_overview 混用。kind=workspace、id=workspace 获取实时人物、剧情结构和正文小节目录，包含本轮新建对象；不知道目标 id 时先读此目录，不要用人名或标题代替 id。kind=draft_section 必须同时给出 document=body 或 state。kind=draft、id=draft 读取正文目录及各小节的正文、状态字数；再设置 section_scope=all_sections 可一次返回全部小节及合计字数，不传 document 时默认 body。全部正文超过 50000 字符（含空白）时仅返回目录，请分小节读取。修改任何已有正文前必须先 read 完整读取。") +
       (input.workspace.readSource === "core"
         ? input.promptLocale === "en-US"
           ? " Reads use the latest saved files and include pending changes from this run."
@@ -255,12 +256,12 @@ export function buildShortUnifiedReadTool(
                 : "单对象分段读取的字符数，最多 50000；不授予全文覆盖权限。"
           })
         ),
-        include_all_sections: Type.Optional(
-          Type.Boolean({
+        section_scope: Type.Optional(
+          StringEnum(["directory", "all_sections"] as const, {
             description:
               input.promptLocale === "en-US"
-                ? "draft/draft only: read all sections. document defaults to body; use state for State."
-                : "仅 kind=draft、id=draft：一次返回全部小节。不传 document 时默认 body；读取状态须指定 document=state。"
+                ? "draft/draft only: directory lists sections (default); all_sections reads their text. document defaults to body; use state for State."
+                : "仅 kind=draft、id=draft：directory 返回目录（默认）；all_sections 读取全部小节。不传 document 时默认 body；读取状态须指定 document=state。"
           })
         )
       },
@@ -284,11 +285,11 @@ export function buildShortUnifiedReadTool(
               : "作品对象目录的稳定 id 固定为 workspace。"
           );
         }
-        if (params.document || params.include_all_sections === true) {
+        if (params.document || params.section_scope === "all_sections") {
           throw new Error(
             input.promptLocale === "en-US"
-              ? "The work directory does not accept document or include_all_sections=true."
-              : "作品对象目录不接受 document 或 include_all_sections=true。"
+              ? "The work directory does not accept document or section_scope=all_sections."
+              : "作品对象目录不接受 document 或 section_scope=all_sections。"
           );
         }
         return textResult(
@@ -307,7 +308,7 @@ export function buildShortUnifiedReadTool(
               : "正文目录的稳定 id 固定为 draft。"
           );
         }
-        if (params.include_all_sections === true) {
+        if (params.section_scope === "all_sections") {
           return textResult(
             readAllDraftSections(
               input,
@@ -320,17 +321,17 @@ export function buildShortUnifiedReadTool(
         if (params.document) {
           throw new Error(
             input.promptLocale === "en-US"
-              ? "On the manuscript directory, document requires include_all_sections=true."
-              : "读取正文目录时，document 只与 include_all_sections=true 一起使用。"
+              ? "On the manuscript directory, document requires section_scope=all_sections."
+              : "读取正文目录时，document 只与 section_scope=all_sections 一起使用。"
           );
         }
         return textResult(readDraftDirectory(input, sharedState));
       }
-      if (params.include_all_sections === true) {
+      if (params.section_scope === "all_sections") {
         throw new Error(
           input.promptLocale === "en-US"
-            ? "include_all_sections only applies to kind=draft, id=draft."
-            : "include_all_sections 仅用于 kind=draft、id=draft。"
+            ? "section_scope only applies to kind=draft, id=draft."
+            : "section_scope 仅用于 kind=draft、id=draft。"
         );
       }
       if (params.kind === "draft_section" && !params.document) {

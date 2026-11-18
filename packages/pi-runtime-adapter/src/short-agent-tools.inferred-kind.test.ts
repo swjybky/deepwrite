@@ -276,13 +276,13 @@ describe.each(["short", "script"] as const)(
         document: args.document
       });
       expect(resultText(await tool.execute("overwrite", args))).toContain(
-        "allow_overwrite_existing=true"
+        "overwrite_mode=replace_all"
       );
       expect(
         details(
           await tool.execute("allowed", {
             ...args,
-            allow_overwrite_existing: true
+            overwrite_mode: "replace_all"
           })
         )
       ).toMatchObject({ fileKind: "characterState", text: args.content });

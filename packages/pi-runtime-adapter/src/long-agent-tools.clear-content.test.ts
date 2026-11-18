@@ -62,7 +62,7 @@ describe("long-form empty content writes", () => {
         arguments: {
           ...target,
           content: "",
-          allow_overwrite_existing: true,
+          overwrite_mode: "replace_all",
           summary: "清空正文"
         }
       });
@@ -78,7 +78,7 @@ describe("long-form empty content writes", () => {
             summary: "清空正文"
           })
         )
-      ).toContain("allow_overwrite_existing=true");
+      ).toContain("overwrite_mode=replace_all");
       const result = await edit.execute(`clear-${file.id}`, args);
       expect(result.details).toMatchObject({
         kind,
@@ -121,19 +121,19 @@ describe("long-form empty content writes", () => {
       resultText(
         await edit.execute("clear-unread", {
           ...args,
-          allow_overwrite_existing: true
+          overwrite_mode: "replace_all"
         })
       )
     ).toContain("请先用 read 完整读取");
     await toolByName(tools, "read").execute("read-volume", { id: args.id });
     expect(resultText(await edit.execute("clear-unconfirmed", args))).toContain(
-      "allow_overwrite_existing=true"
+      "overwrite_mode=replace_all"
     );
     expect(
       (
         await edit.execute("clear-volume", {
           ...args,
-          allow_overwrite_existing: true
+          overwrite_mode: "replace_all"
         })
       ).details
     ).toMatchObject({

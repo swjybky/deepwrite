@@ -9,7 +9,11 @@ import {
 } from "@deepwrite/contracts";
 import { toolNamed } from "../../extras.test-support";
 import { longBookDecompositionAgent } from "./definition";
-import { decompositionRoleDefinitions } from "./roles";
+import {
+  DECOMPOSITION_ROLES,
+  decompositionRoleDefinitions,
+  type DecompositionRole
+} from "./roles";
 import { decompositionSubmissionTools } from "./submissions";
 
 function setup(
@@ -85,13 +89,35 @@ function callAsModel(tool: AgentTool, args: Record<string, unknown>) {
 }
 
 describe("decomposition output limits", () => {
-  it("stages a list batch marked more and finishes the unit with the last one", async () => {
+  it("stages a partial batch and finishes the unit with the final one", async () => {
     const { task, services, submit } = setup(["world:items"]);
     const writer = toolNamed(
       decompositionSubmissionTools(task, services, "world_archivist"),
       "write_world_category"
     );
     const item = (title: string) => ({ title, content: `${title}的来历。` });
+    const finalBatch = {
+      unitId: "world:items",
+      data: {
+        asset: {
+          categoryId: "items",
+          overview: "器物。",
+          items: [item("铁甲")]
+        }
+      }
+    };
+    for (const batchMode of [true, null]) {
+      expect(() =>
+        callAsModel(writer, {
+          items: [{ ...finalBatch, batch_mode: batchMode }]
+        })
+      ).toThrow("items.0.batch_mode");
+    }
+    await expect(
+      callAsModel(writer, { items: [{ ...finalBatch, more: true }] })
+    ).rejects.toThrow("batch_mode=partial");
+    expect(submit).not.toHaveBeenCalled();
+    expect(task.input.units["world:items"]!.status).toBe("running");
     const staged = await callAsModel(writer, {
       items: [
         {
@@ -99,7 +125,7 @@ describe("decomposition output limits", () => {
           data: {
             asset: { categoryId: "items", items: [item("铜铃"), item("木剑")] }
           },
-          more: true
+          batch_mode: "partial"
         }
       ]
     });
@@ -114,24 +140,81 @@ describe("decomposition output limits", () => {
     });
     expect(task.input.units["world:items"]!.status).toBe("running");
     await callAsModel(writer, {
-      items: [
-        {
-          unitId: "world:items",
-          data: {
-            asset: {
-              categoryId: "items",
-              overview: "器物。",
-              items: [item("铁甲")]
-            }
-          }
-        }
-      ]
+      items: [{ ...finalBatch, batch_mode: "final" }]
     });
     expect(submit.mock.calls[1]![0].data).toMatchObject({
       kind: "asset",
       asset: { kind: "world", overview: "器物。", items: [item("铁甲")] }
     });
     expect(task.input.units["world:items"]!.status).toBe("done");
+  });
+
+  it("uses evidence_kind in reading calls and preserves stored evidence flags", async () => {
+    const { task, services, submit } = setup(["reading:chapter_1"]);
+    const tools = (
+      Object.keys(DECOMPOSITION_ROLES) as DecompositionRole[]
+    ).flatMap((id) => decompositionSubmissionTools(task, services, id));
+    expect(
+      tools
+        .filter((tool) =>
+          JSON.stringify(tool.parameters).includes('"type":"boolean"')
+        )
+        .map((tool) => tool.name)
+    ).toEqual([]);
+    const reader = toolNamed(tools, "submit_chapter_reading");
+    const run = (facts: Record<string, unknown>[]) =>
+      callAsModel(reader, {
+        items: [
+          {
+            unitId: "reading:chapter_1",
+            data: {
+              card: {
+                chunkId: "chunk_1",
+                chapters: [
+                  {
+                    chapterId: "chapter_1",
+                    order: 1,
+                    title: "雨夜",
+                    summary: "夜访旧宅。"
+                  }
+                ],
+                characters: [
+                  {
+                    name: "来访者",
+                    facts: facts.map((fact) => ({ chapterOrder: 1, ...fact }))
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      });
+    expect(() => run([{ text: "原文", evidence_kind: true }])).toThrow(
+      "evidence_kind"
+    );
+    await expect(run([{ text: "原文", inferred: true }])).rejects.toThrow(
+      "evidence_kind"
+    );
+    expect(submit).not.toHaveBeenCalled();
+    await run([
+      { text: "他进了旧宅。", evidence_kind: "stated" },
+      { text: "他可能在等人。", evidence_kind: "inferred" },
+      { text: "天在下雨。" }
+    ]);
+    expect(submit.mock.calls[0]![0].data).toMatchObject({
+      kind: "reading",
+      card: {
+        characters: [
+          {
+            facts: [
+              { chapterOrder: 1, text: "他进了旧宅。", inferred: false },
+              { chapterOrder: 1, text: "他可能在等人。", inferred: true },
+              { chapterOrder: 1, text: "天在下雨。" }
+            ]
+          }
+        ]
+      }
+    });
   });
 
   it("explains invalid chronicle fields, stages the points, then finishes with only a summary", async () => {
@@ -160,10 +243,10 @@ describe("decomposition output limits", () => {
     );
     expect(submit).not.toHaveBeenCalled();
     await expect(callAsModel(writer, { items: [item] })).rejects.toThrow(
-      "将 more: true 放在 unitId、data 同级"
+      "将 batch_mode=partial 放在 unitId、data 同级"
     );
     const staged = await callAsModel(writer, {
-      items: [{ ...item, more: true }]
+      items: [{ ...item, batch_mode: "partial" }]
     });
     expect(JSON.stringify(staged.content)).toContain("summary");
     expect(JSON.stringify(staged.content)).toContain("不要重交已暂存的剧情点");

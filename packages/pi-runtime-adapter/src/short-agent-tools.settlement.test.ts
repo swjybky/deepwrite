@@ -32,7 +32,7 @@ function harness() {
     toolByName(tools, "edit").execute(id, {
       ...target,
       content: text,
-      allow_overwrite_existing: true
+      overwrite_mode: "replace_all"
     });
   const settle = (id: string, result: Partial<AgentWriteApprovalResult>) =>
     settleWritingMutations(sharedState, [id], {
@@ -96,7 +96,7 @@ describe("writing proposal settlement", () => {
     await toolByName(child, "edit").execute("child", {
       ...h.target,
       content: "子智能体已保存",
-      allow_overwrite_existing: true
+      overwrite_mode: "replace_all"
     });
     h.settle("child", {});
     h.settle("delete", { status: "rejected" });

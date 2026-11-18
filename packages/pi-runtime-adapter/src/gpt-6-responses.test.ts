@@ -99,9 +99,9 @@ describe("GPT-6 Responses compatibility", () => {
       read.execute("invalid-overview", {
         kind: "character_overview",
         id: "character_design",
-        include_all_sections: true
+        section_scope: "all_sections"
       })
-    ).rejects.toThrow("include_all_sections 仅用于 kind=draft、id=draft。");
+    ).rejects.toThrow("section_scope 仅用于 kind=draft、id=draft。");
   });
 
   it.each(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])(

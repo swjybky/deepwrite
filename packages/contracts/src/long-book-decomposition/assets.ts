@@ -1,7 +1,8 @@
 import { z } from "zod";
 import {
   DecompositionBeatTypeSchema,
-  DecompositionReadingCardSchema
+  DecompositionReadingCardSchema,
+  DecompositionReadingToolCardSchema
 } from "./cards";
 import {
   DECOMPOSITION_MAX_CHAPTERS,
@@ -212,7 +213,7 @@ export const DecompositionToolJsonSchemas = {
   reading: toolJsonSchema(
     z.object({
       kind: z.literal("reading"),
-      card: DecompositionReadingCardSchema
+      card: DecompositionReadingToolCardSchema
     })
   ),
   "finish-card": toolJsonSchema(z.object({ kind: z.literal("finish-card") })),

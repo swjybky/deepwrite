@@ -200,7 +200,7 @@ describe("long read retention and ranges", () => {
           await h.call("edit", {
             ...target,
             content: "覆盖",
-            allow_overwrite_existing: true
+            overwrite_mode: "replace_all"
           })
         )
       ).toContain("完整读取");
@@ -233,7 +233,7 @@ describe("read parameter compatibility", () => {
         await h.call("edit", {
           ...target,
           content: "覆盖",
-          allow_overwrite_existing: true
+          overwrite_mode: "replace_all"
         })
       )
     ).toContain("完整读取");

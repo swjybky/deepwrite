@@ -19,12 +19,17 @@ import {
   textResult
 } from "../library-agent-tools/shared";
 import {
+  LIBRARY_OVERWRITE_MODE_DESCRIPTION,
   MAX_NEW_FRAGMENT_CHARACTERS,
   MAX_ORIGINAL_FRAGMENT_CHARACTERS,
   MAX_REPLACEMENTS,
   replaceFragments
 } from "../library-agent-tools/edit-tools";
 import { approvalSummary } from "../library-agent-tools/mutations";
+import {
+  overwriteModeParameter,
+  REPLACE_ALL_OVERWRITE_MODE
+} from "../writing-edit-guidance";
 import type { LibraryMutationDetails } from "../library-agent-tools/types";
 import { libraryIdParameter } from "./read-tools";
 import type {
@@ -46,7 +51,7 @@ const operationSchema = Type.Object({
     StringEnum(["replace_fragments", "append", "replace"] as const)
   ),
   body: Type.Optional(Type.String({ maxLength: MAX_ENTRY_CONTENT_CHARACTERS })),
-  allow_overwrite_existing: Type.Optional(Type.Boolean()),
+  overwrite_mode: overwriteModeParameter(LIBRARY_OVERWRITE_MODE_DESCRIPTION),
   replacements: Type.Optional(
     Type.Array(
       Type.Object({
@@ -86,10 +91,10 @@ function edited(current: string, op: Operation, limit: number): string {
   if (
     op.mode === "replace" &&
     current.trim() &&
-    op.allow_overwrite_existing !== true
+    op.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
   )
     throw new Error(
-      "已有正文，只有用户明确要求覆盖全文时才可设置 allow_overwrite_existing=true；普通修改请用 replace_fragments。"
+      "已有正文，只有用户明确要求覆盖全文时才可设置 overwrite_mode=replace_all；普通修改请用 replace_fragments。"
     );
   const next =
     op.mode === "append"

@@ -1,11 +1,13 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type, type Static } from "@earendil-works/pi-ai";
 import {
   CommandEnvelopeSchema,
   createEnvelope,
+  DeleteGroupToolOperationSchema,
   LibraryStructurePlanSchema,
   LibraryStructureOperationSchema,
   libraryStructureOperationJsonSchema,
-  type LibraryStructureOperation
+  type LibraryStructureOperation,
+  type LibraryStructureToolOperation
 } from "@deepwrite/contracts";
 import { defineTool, textResult } from "./shared";
 import type { BuildLibraryAgentToolsInput } from "./types";
@@ -66,14 +68,16 @@ export function buildLibraryStructureTools(
   let pending: LibraryStructureOperation[] = [];
   async function propose(
     _id: string,
-    raw: LibraryStructureOperation[],
+    raw: LibraryStructureToolOperation[],
     signal?: AbortSignal
   ) {
     try {
       if (!run.libraryAgentCommandExecutor)
         throw new Error("资料库管理服务不可用。");
       const operations = raw.map((operation) =>
-        LibraryStructureOperationSchema.parse(operation)
+        operation.action === "delete-group"
+          ? DeleteGroupToolOperationSchema.parse(operation)
+          : LibraryStructureOperationSchema.parse(operation)
       );
       const next = [...pending, ...operations];
       if (next.length > 32)
@@ -108,15 +112,15 @@ export function buildLibraryStructureTools(
       return textResult(error instanceof Error ? error.message : String(error));
     }
   }
-  const tools = definitions.map(({ name, label, actions }) =>
-    defineTool({
+  const tools = definitions.map(({ name, label, actions }) => {
+    const tool = defineTool({
       name,
       label,
       executionMode: "sequential",
-      description: `${label}：先查询索引获取稳定 id。操作生成待用户接受的整理提案，不立即落盘。同轮操作合并审阅，最多 32 项。新建 ref 可供后续操作引用；不可跨领域或修改内置库。解散保留成员，移除库保留本地文件，删除条目及其正文文件无法恢复；delete-group 必须明确 includeLibraries。不要声称提案已经执行。`,
+      description: `${label}：先查询索引获取稳定 id。操作生成待用户接受的整理提案，不立即落盘。同轮操作合并审阅，最多 32 项。新建 ref 可供后续操作引用；不可跨领域或修改内置库。解散保留成员，移除库保留本地文件，删除条目及其正文文件无法恢复；delete-group 必须明确 deletion_scope=group_only（保留成员库）或 group_and_libraries（同时移除成员库）。不要声称提案已经执行。`,
       parameters: Type.Object({
         operations: Type.Array(
-          Type.Unsafe<LibraryStructureOperation>(
+          Type.Unsafe<LibraryStructureToolOperation>(
             portableSchema(
               libraryStructureOperationJsonSchema(actions)
             ) as Record<string, unknown>
@@ -133,7 +137,26 @@ export function buildLibraryStructureTools(
           return textResult("操作不属于此工具。");
         return propose(id, params.operations, signal);
       }
-    })
-  );
+    });
+    if (name === "manage_group")
+      tool.prepareArguments = (raw) => {
+        const params = raw as Static<typeof tool.parameters>;
+        if (Array.isArray(params?.operations)) {
+          for (const [index, operation] of params.operations.entries()) {
+            if (
+              operation?.action === "delete-group" &&
+              ((operation.deletion_scope !== "group_only" &&
+                operation.deletion_scope !== "group_and_libraries") ||
+                Object.hasOwn(operation, "includeLibraries"))
+            )
+              throw new Error(
+                `operations.${index}.deletion_scope：delete-group 请使用 group_only（保留成员库）或 group_and_libraries（同时移除成员库）。`
+              );
+          }
+        }
+        return params;
+      };
+    return tool;
+  });
   return { tools, propose };
 }

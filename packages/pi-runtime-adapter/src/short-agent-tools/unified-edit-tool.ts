@@ -6,6 +6,8 @@ import {
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import {
+  overwriteModeParameter,
+  REPLACE_ALL_OVERWRITE_MODE,
   WRITING_EDIT_CONTENT_DESCRIPTION,
   WRITING_EDIT_OVERWRITE_DESCRIPTION,
   WRITING_EDIT_OVERWRITE_RECOVERY
@@ -37,7 +39,6 @@ export function buildShortUnifiedEditTool(
   readState: ShortUnifiedReadState
 ): AgentTool {
   const {
-    explicitTrueParameter,
     stableWritingIdParameter,
     writingContentParameter,
     writingDocumentParameter,
@@ -67,7 +68,7 @@ export function buildShortUnifiedEditTool(
             ...writingContentParameter,
             description:
               input.promptLocale === "en-US"
-                ? 'Full replacement text. To clear, use content="". For non-empty targets, first read the complete file and set allow_overwrite_existing=true. Use replacements for local edits.'
+                ? 'Full replacement text. To clear, use content="". For non-empty targets, first read the complete file and set overwrite_mode=replace_all. Use replacements for local edits.'
                 : WRITING_EDIT_CONTENT_DESCRIPTION
           })
         ),
@@ -106,14 +107,10 @@ export function buildShortUnifiedEditTool(
           )
         ),
         meta: Type.Optional(writingEditMetaParameter),
-        allow_overwrite_existing: Type.Optional(
-          Type.Unsafe<boolean>({
-            ...explicitTrueParameter,
-            description:
-              input.promptLocale === "en-US"
-                ? "Pass true with content only for a requested full rewrite or clear after a full read."
-                : WRITING_EDIT_OVERWRITE_DESCRIPTION
-          })
+        overwrite_mode: overwriteModeParameter(
+          input.promptLocale === "en-US"
+            ? "Set replace_all with content after a full read when the user asks to replace or clear existing text. Omit for blank targets and local edits."
+            : WRITING_EDIT_OVERWRITE_DESCRIPTION
         ),
         summary: Type.Optional(
           Type.String({
@@ -205,10 +202,13 @@ export function buildShortUnifiedEditTool(
         );
       }
       if (params.content !== undefined) {
-        if (target.content.trim() && params.allow_overwrite_existing !== true) {
+        if (
+          target.content.trim() &&
+          params.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
+        ) {
           return textResult(
             input.promptLocale === "en-US"
-              ? "Not changed: to replace existing text, read the full file and set allow_overwrite_existing=true. For local edits use replacements."
+              ? "Not changed: to replace existing text, read the full file and set overwrite_mode=replace_all. For local edits use replacements."
               : WRITING_EDIT_OVERWRITE_RECOVERY
           );
         }

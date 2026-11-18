@@ -6,6 +6,7 @@ import {
   resultText
 } from "./library-agent-tools/test-fixtures";
 import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import {
   LIBRARY_AGENT_TOOL_MANIFEST,
@@ -212,14 +213,31 @@ describe("library agent tools", () => {
       mode: "replace",
       body: "新技能全文。"
     });
-    const allowed = await edit.execute("edit-2", {
+    const argumentsForOverwrite = {
       entry_id: "skill-entry-1",
       mode: "replace",
-      body: "新技能全文。",
-      allow_overwrite_existing: true
-    });
+      body: "新技能全文。"
+    };
+    const call = {
+      type: "toolCall" as const,
+      id: "edit-2",
+      name: edit.name
+    };
+    expect(() =>
+      validateToolArguments(edit, {
+        ...call,
+        arguments: { ...argumentsForOverwrite, overwrite_mode: true }
+      })
+    ).toThrow("overwrite_mode");
+    const allowed = await edit.execute(
+      call.id,
+      validateToolArguments(edit, {
+        ...call,
+        arguments: { ...argumentsForOverwrite, overwrite_mode: "replace_all" }
+      })
+    );
 
-    expect(resultText(blocked)).toContain("allow_overwrite_existing=true");
+    expect(resultText(blocked)).toContain("overwrite_mode=replace_all");
     expect(allowed.details).toMatchObject({
       kind: "library-entry-mutation",
       operation: "edit",
@@ -247,6 +265,19 @@ describe("library agent tools", () => {
       mode: "replace",
       body: "整篇覆盖"
     });
+    const allowedOverwrite = await edit.execute(
+      "overview-4",
+      validateToolArguments(edit, {
+        type: "toolCall",
+        id: "overview-4",
+        name: edit.name,
+        arguments: {
+          mode: "replace",
+          body: "新版库介绍。",
+          overwrite_mode: "replace_all"
+        }
+      })
+    );
 
     expect(first.details).toMatchObject({
       kind: "library-overview-mutation",
@@ -263,8 +294,15 @@ describe("library agent tools", () => {
       baseRevision: createShortWorkspaceContentRevision("都市悬疑剧情素材。")
     });
     expect(resultText(blockedOverwrite)).toContain(
-      "allow_overwrite_existing=true"
+      "overwrite_mode=replace_all"
     );
+    expect(allowedOverwrite.details).toMatchObject({
+      kind: "library-overview-mutation",
+      text: "新版库介绍。",
+      baseRevision: createShortWorkspaceContentRevision(
+        "都市悬疑剧情素材。\n\n不用于保存一次性正文。"
+      )
+    });
   });
 
   it("blocks overview writes when the full overview is not in the snapshot", async () => {

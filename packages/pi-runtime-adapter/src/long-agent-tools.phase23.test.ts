@@ -217,7 +217,7 @@ describe("long phase two and three tools", () => {
           id: "chapter_one",
           document: "body",
           content: "替换",
-          allow_overwrite_existing: true
+          overwrite_mode: "replace_all"
         })
       )
     ).toContain("完整读取");

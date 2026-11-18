@@ -31,9 +31,9 @@ describe("built-in agent role prompts", () => {
     for (const prompts of Object.values(BUILTIN_AGENT_SYSTEM_PROMPTS)) {
       for (const text of Object.values(prompts)) {
         for (const rule of [
-          "allow_overwrite_existing",
+          "overwrite_mode",
           "replace_fragments",
-          "include_all_sections",
+          "section_scope",
           "scope_id",
           "【写入审批方式】"
         ]) {

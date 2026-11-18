@@ -75,7 +75,7 @@ describe.each(["short", "script"] as const)(
       );
       await toolByName(tools, "read").execute("read", target);
       expect(resultText(await edit.execute("unguarded", args))).toContain(
-        "allow_overwrite_existing=true"
+        "overwrite_mode=replace_all"
       );
       const replaced = await edit.execute(
         "replace",
@@ -89,7 +89,7 @@ describe.each(["short", "script"] as const)(
       });
       const cleared = await edit.execute(
         "clear",
-        validate(edit, { ...args, allow_overwrite_existing: true })
+        validate(edit, { ...args, overwrite_mode: "replace_all" })
       );
       expect(cleared.details).toMatchObject({
         text: "",
@@ -151,10 +151,10 @@ describe("long optional edit summary", () => {
           validate(edit, { ...target, content: "" })
         )
       )
-    ).toContain("allow_overwrite_existing=true");
+    ).toContain("overwrite_mode=replace_all");
     const cleared = await edit.execute(
       "clear",
-      validate(edit, { ...target, content: "", allow_overwrite_existing: true })
+      validate(edit, { ...target, content: "", overwrite_mode: "replace_all" })
     );
     expect(cleared.details).toMatchObject({
       summary: expect.stringMatching(/^清空/u)

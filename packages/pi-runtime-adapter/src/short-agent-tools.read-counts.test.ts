@@ -94,7 +94,7 @@ describe.each(["short", "script"] as const)("%s read counts", (type) => {
         await read.execute("all", {
           kind: "draft",
           id: "draft",
-          include_all_sections: true,
+          section_scope: "all_sections",
           ...(document ? { document } : {})
         })
       );
@@ -140,7 +140,7 @@ describe.each(["short", "script"] as const)("%s read counts", (type) => {
     await toolByName(tools, "edit").execute("edit", {
       ...target,
       content: "新 剧情。",
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "改写"
     });
     const text = resultText(await read.execute("after", target));
@@ -157,7 +157,7 @@ describe.each(["short", "script"] as const)("%s read counts", (type) => {
       await read.execute("empty", {
         kind: "draft",
         id: "draft",
-        include_all_sections: true
+        section_scope: "all_sections"
       })
     );
     expect(text).toContain("合计字数：0 字");

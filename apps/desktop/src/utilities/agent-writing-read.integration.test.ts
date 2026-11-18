@@ -222,7 +222,7 @@ describe("authorized Agent-to-Core writing reads", () => {
             kind: "draft",
             id: "draft",
             document: "state",
-            include_all_sections: true
+            section_scope: "all_sections"
           })
         )
       ).toContain("Full text not returned");

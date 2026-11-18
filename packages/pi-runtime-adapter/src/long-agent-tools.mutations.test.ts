@@ -206,7 +206,7 @@ describe("unified long-form tools: mutations", () => {
       })
     );
     expect(blocked).toContain("目标已有正文");
-    expect(blocked).toContain("allow_overwrite_existing");
+    expect(blocked).toContain("overwrite_mode");
   });
 
   it("maps character state and history to committed chapter files as read-only", async () => {
@@ -252,7 +252,7 @@ describe("unified long-form tools: mutations", () => {
         id: "character_alice",
         document: "current_state",
         content: "不允许在人物阶段覆盖",
-        allow_overwrite_existing: true,
+        overwrite_mode: "replace_all",
         summary: "错误覆盖"
       })
     ).rejects.toThrow(/映射自最新已提交章节/u);
@@ -286,7 +286,7 @@ describe("unified long-form tools: mutations", () => {
     const overwritten = await edit.execute("overwrite", {
       id: "world_rules",
       content: "新规则。",
-      allow_overwrite_existing: true,
+      overwrite_mode: "replace_all",
       summary: "覆盖世界规则"
     });
     expect(overwritten.details).toMatchObject({

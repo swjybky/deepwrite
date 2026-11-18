@@ -9,7 +9,7 @@
 **处理：**
 
 - 按模型配置动态定额：`contracts/src/long-book-decomposition/output-budget.ts` 的 `decompositionCallOutputTokens` 及派生上限。
-- 列表型成品用 `more` 分批暂存，由程序合并，不要求一次交齐。
+- 列表型成品用 `batch_mode=partial` 分批暂存，由程序合并，不要求一次交齐。
 - 截断交给 `pi-runtime-adapter/src/subagent-reply-guard.ts` 的 `createSubagentReplyGuard`（提示拆小批次），不当作正常结束。
 
 **预防：**用大书规模的夹具测分批路径；新增同类调用时先算最坏输出量。

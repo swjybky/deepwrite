@@ -2,6 +2,8 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import type { LongWorkspaceOperation } from "@deepwrite/contracts";
 import {
+  overwriteModeParameter,
+  REPLACE_ALL_OVERWRITE_MODE,
   WRITING_EDIT_CONTENT_DESCRIPTION,
   WRITING_EDIT_CONTENT_GUIDANCE,
   WRITING_EDIT_OVERWRITE_DESCRIPTION,
@@ -18,7 +20,6 @@ import {
   documentParameter,
   editMetaParameter,
   entityIdParameter,
-  explicitTrueParameter,
   strictObject
 } from "./schemas";
 import { characterMetadataOperations } from "./character-metadata";
@@ -134,11 +135,8 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         )
       ),
       meta: Type.Optional(editMetaParameter),
-      allow_overwrite_existing: Type.Optional(
-        Type.Unsafe<boolean>({
-          ...explicitTrueParameter,
-          description: WRITING_EDIT_OVERWRITE_DESCRIPTION
-        })
+      overwrite_mode: overwriteModeParameter(
+        WRITING_EDIT_OVERWRITE_DESCRIPTION
       ),
       summary: Type.Optional(
         Type.String({
@@ -208,7 +206,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             }
             if (
               params.content !== undefined &&
-              params.allow_overwrite_existing !== true
+              params.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
             ) {
               return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
             }
@@ -309,7 +307,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
       if (live.content.trim()) {
         if (
           params.content !== undefined &&
-          params.allow_overwrite_existing !== true
+          params.overwrite_mode !== REPLACE_ALL_OVERWRITE_MODE
         ) {
           return textResult(WRITING_EDIT_OVERWRITE_RECOVERY);
         }

@@ -157,8 +157,8 @@ export function buildShortUnifiedDeleteTool(
       ) {
         return textResult(
           input.promptLocale === "en-US"
-            ? `Not changed: delete only removes character cards and ${draftUnitLabel(callInput)}s. To clear text, first read the full target, then edit with content="" and allow_overwrite_existing=true.`
-            : `未修改：delete 只删除人物条目和${draftUnitLabel(callInput)}。清空${requestedKind === "plot_stage" ? "剧情阶段" : "人物总稿"}的内容请用 edit：先 read 完整读取，再传 content="" 和 allow_overwrite_existing=true。`
+            ? `Not changed: delete only removes character cards and ${draftUnitLabel(callInput)}s. To clear text, first read the full target, then edit with content="" and overwrite_mode=replace_all.`
+            : `未修改：delete 只删除人物条目和${draftUnitLabel(callInput)}。清空${requestedKind === "plot_stage" ? "剧情阶段" : "人物总稿"}的内容请用 edit：先 read 完整读取，再传 content="" 和 overwrite_mode=replace_all。`
         );
       }
       const target = resolveShortUnifiedTarget(callInput, state, {

@@ -24,7 +24,7 @@ describe("writing read limits", () => {
       await read.execute("all", {
         kind: "draft",
         id: "draft",
-        include_all_sections: true
+        section_scope: "all_sections"
       })
     );
     expect(all).toContain("未返回全文");
@@ -40,7 +40,7 @@ describe("writing read limits", () => {
     const edit = await toolByName(tools, "edit").execute("edit", {
       ...target,
       content: "新",
-      allow_overwrite_existing: true
+      overwrite_mode: "replace_all"
     });
     expect(resultText(edit)).toContain("请先用 read 完整读取");
   });

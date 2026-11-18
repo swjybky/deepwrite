@@ -214,7 +214,7 @@ function stagedSection(unitId: string, draft: DecompositionAssetPart) {
                 `${title}（${startOrder}–${endOrder}）`
             );
   return {
-    title: `【${unitId} 已暂存 ${titles.length} 条】下面这些已保存在暂存区，不要重交；只提交其余条目，最后一批不带 more 完成本单元。若条目已交齐，补齐必填文字字段并提交空条目列表即可收尾，不要重新生成已暂存内容。`,
+    title: `【${unitId} 已暂存 ${titles.length} 条】下面这些已保存在暂存区，不要重交；只提交其余条目，最后一批省略 batch_mode 完成本单元。若条目已交齐，补齐必填文字字段并提交空条目列表即可收尾，不要重新生成已暂存内容。`,
     lines: [titles.join("、")]
   };
 }

@@ -133,7 +133,7 @@ export function buildLibraryReadTools(
   const read = defineTool({
     name: "library_read",
     label: "读取资料库条目",
-    description: `读取目标库条目全文，一次最多 ${LIBRARY_MANAGEMENT_READ_MAX_ENTRIES} 条；按 entry_ids 或精确 titles 指定，overview=true 同时读取库介绍。修改条目前必须先读取或搜索到它。`,
+    description: `读取目标库条目全文，一次最多 ${LIBRARY_MANAGEMENT_READ_MAX_ENTRIES} 条；按 entry_ids 或精确 titles 指定，include=overview 同时读取库介绍。修改条目前必须先读取或搜索到它。`,
     parameters: Type.Object({
       library_id: libraryId,
       domain,
@@ -147,10 +147,14 @@ export function buildLibraryReadTools(
           maxItems: LIBRARY_MANAGEMENT_READ_MAX_ENTRIES
         })
       ),
-      overview: Type.Optional(Type.Boolean())
+      include: Type.Optional(
+        StringEnum(["overview"], { description: "overview 同时读取库介绍。" })
+      )
     }),
     execute: async (_id, params, signal) => {
       try {
+        if (Object.hasOwn(params, "overview"))
+          return textResult("读取库介绍请使用 include=overview。");
         const library = await session.library(
           params.library_id,
           signal,
@@ -165,11 +169,14 @@ export function buildLibraryReadTools(
           return textResult(
             `一次最多读取 ${LIBRARY_MANAGEMENT_READ_MAX_ENTRIES} 条。`
           );
-        if (!ids.length && !params.overview)
-          return textResult("请提供 entry_ids、titles，或设置 overview=true。");
-        await session.load(library, ids, params.overview === true, signal);
+        const includeOverview = params.include === "overview";
+        if (!ids.length && !includeOverview)
+          return textResult(
+            "请提供 entry_ids、titles，或设置 include=overview。"
+          );
+        await session.load(library, ids, includeOverview, signal);
         const parts: string[] = [];
-        if (params.overview && library.overview)
+        if (includeOverview && library.overview)
           parts.push(
             `【库介绍】《${library.candidate.title}》${library.overview.truncated ? "（过长已截断，不能修改）" : ""}\n${library.overview.content || "暂无库介绍。"}`
           );

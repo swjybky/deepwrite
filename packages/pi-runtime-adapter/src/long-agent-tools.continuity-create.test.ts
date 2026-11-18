@@ -170,7 +170,7 @@ describe("unified long-form tools: continuity create with content", () => {
         id: "chapter_one",
         document: "world_reveals",
         content: "雾潮期间城门只在月蚀之夜显形。",
-        allow_overwrite_existing: true,
+        overwrite_mode: "replace_all",
         summary: "修订世界观揭露"
       }
     );

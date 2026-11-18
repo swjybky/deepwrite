@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { validateToolArguments, type JsonObject } from "@earendil-works/pi-ai";
 import {
   createShortWorkspaceContentRevision,
   LIBRARY_AGENT_ENTRY_MAX_CHARACTERS
@@ -47,6 +48,36 @@ const create = (name: string) => ({
 const content = (value: unknown) => JSON.stringify(value);
 
 describe("work-scoped library tools", () => {
+  it("reads the library introduction only with include=overview", async () => {
+    const f = fixture();
+    const read = f.runtime.tools.find((tool) => tool.name === "library_read")!;
+    expect(
+      JSON.stringify(f.runtime.tools.map((tool) => tool.parameters))
+    ).not.toContain('"type":"boolean"');
+    const run = (args: JsonObject) =>
+      read.execute(
+        "read",
+        validateToolArguments(read, {
+          type: "toolCall",
+          id: "read",
+          name: read.name,
+          arguments: { library_id: f.workspace.libraryId, ...args }
+        })
+      );
+
+    expect(() => run({ include: true })).toThrow("include");
+    expect(content(await run({ overview: true }))).toContain(
+      "include=overview"
+    );
+    expect(
+      content(await run({ entry_ids: [f.workspace.entries[0]!.id] }))
+    ).not.toContain("【库介绍】");
+    expect(content(await run({ include: "overview" }))).toContain("【库介绍】");
+    expect(content(await run({ include: "overview" }))).toContain(
+      f.workspace.overview
+    );
+  });
+
   it("validates an entire batch before emitting any mutation or keeping drafts", async () => {
     const f = fixture();
     const failed = await f.call("library_write", {
@@ -112,6 +143,58 @@ describe("work-scoped library tools", () => {
     const result = await f.call("library_write", { operations: [edit] });
     expect(content(result)).toContain("上限");
     expect(result.details).toEqual({ kind: "none" });
+  });
+
+  it("requires replace_all for each whole-text replacement in a batch", async () => {
+    const f = fixture();
+    const entry = f.workspace.entries[0]!;
+    const tool = f.runtime.tools.find((item) => item.name === "library_write")!;
+    const operations = [
+      {
+        action: "edit",
+        entry_id: entry.id,
+        mode: "replace",
+        body: "新条目正文。"
+      },
+      { action: "edit_overview", mode: "replace", body: "新库介绍。" }
+    ] as const;
+    const validate = (items: JsonObject[]) =>
+      validateToolArguments(tool, {
+        type: "toolCall",
+        id: "batch-overwrite",
+        name: tool.name,
+        arguments: { library_id: f.workspace.libraryId, operations: items }
+      });
+    await f.call("library_read", {
+      entry_ids: [entry.id],
+      include: "overview"
+    });
+
+    expect(() =>
+      validate([{ ...operations[0], overwrite_mode: [null, null, null, 1] }])
+    ).toThrow("overwrite_mode");
+    const blocked = await tool.execute(
+      "batch-blocked",
+      validate([
+        { ...operations[0], overwrite_mode: "replace_all" },
+        operations[1]!
+      ])
+    );
+    expect(content(blocked)).toContain("overwrite_mode=replace_all");
+    expect(blocked.details).toEqual({ kind: "none" });
+
+    const allowed = await tool.execute(
+      "batch-overwrite",
+      validate(
+        operations.map((op) => ({ ...op, overwrite_mode: "replace_all" }))
+      )
+    );
+    expect(allowed.details).toMatchObject({
+      items: [
+        { kind: "library-entry-mutation", text: "新条目正文。" },
+        { kind: "library-overview-mutation", text: "新库介绍。" }
+      ]
+    });
   });
 
   it("reloads user-edited saved text after review and does not retain rejected creations", async () => {

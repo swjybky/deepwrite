@@ -169,13 +169,13 @@ describe("script workspace tool regression", () => {
       document: "body"
     });
     expect(resultText(await edit.execute("no-consent", request))).toContain(
-      "allow_overwrite_existing=true"
+      "overwrite_mode=replace_all"
     );
     expect(
       (
         await edit.execute("accepted", {
           ...request,
-          allow_overwrite_existing: true
+          overwrite_mode: "replace_all"
         })
       ).details
     ).toMatchObject({
@@ -243,7 +243,7 @@ describe("script workspace tool regression", () => {
           id: "episode-1",
           document: "body",
           content: "新正文",
-          allow_overwrite_existing: true,
+          overwrite_mode: "replace_all",
           summary: "重写第一集。"
         })
       )

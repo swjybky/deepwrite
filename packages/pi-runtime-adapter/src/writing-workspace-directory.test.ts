@@ -122,7 +122,7 @@ describe("writing workspace directory reads", () => {
   it.each([
     { id: "wrong-directory" },
     { id: "workspace", document: "body" },
-    { id: "workspace", include_all_sections: true }
+    { id: "workspace", section_scope: "all_sections" }
   ])("rejects invalid directory addressing: %j", async (params) => {
     const { tools } = harness();
     await expect(
