@@ -61,6 +61,7 @@ export interface AcademicLifecyclePort {
   manuscriptApi?(): DeepWriteApi["manuscript"] | undefined;
   book(bookId: string): Book | undefined;
   openBookRename?(book: ResourceTreeNode): void;
+  isBookRenameOpen?(bookId: string): boolean;
   refresh(): Promise<boolean>;
   prepareBookMutation(bookId: string): Promise<boolean>;
   ensureDocumentsLoaded?(

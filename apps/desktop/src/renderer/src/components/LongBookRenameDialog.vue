@@ -9,6 +9,7 @@ const props = defineProps<{
   open: boolean;
   title: string;
   pending?: boolean;
+  nested?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -57,7 +58,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="dialog-backdrop" @mousedown.self="requestClose">
+    <div
+      v-if="open"
+      class="dialog-backdrop"
+      :class="{ 'book-management-child': nested }"
+      @mousedown.self="requestClose"
+    >
       <section
         class="workspace-dialog book-resource-dialog"
         role="dialog"
@@ -66,7 +72,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
       >
         <header>
           <div>
-            <span class="dialog-eyebrow">{{ title }}</span>
+            <span v-if="!nested" class="dialog-eyebrow">{{ title }}</span>
             <h2 id="long-book-rename-dialog-title">
               {{ t("renameNovel") }}
             </h2>

@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { plotStageLabel } from "../i18n/plotStageLabels";
 import { createScopedTranslator } from "../i18n";
 import { type Book } from "@deepwrite/contracts/renderer";
-import AppIcon from "./AppIcon.vue";
-import BookManagementName from "./BookManagementName.vue";
+import BookManagementRowActions from "./book-management/BookManagementRowActions.vue";
+import AgentTeamSwitch from "./AgentTeamSwitch.vue";
+import BookManagementChildDialog from "./book-management/BookManagementChildDialog.vue";
+import BookManagementDialog, {
+  type BookManagementSection
+} from "./book-management/BookManagementDialog.vue";
 import PopupSelect from "./PopupSelect.vue";
 import WritingContextPanel from "./WritingContextPanel.vue";
 import {
@@ -16,6 +21,7 @@ const t = createScopedTranslator("components.plotStructureDialog");
 const props = withDefaults(
   defineProps<{
     open: boolean;
+    childOpen?: boolean;
     book: Book | null;
     pending?: boolean;
     writingContext?: string | null;
@@ -38,12 +44,10 @@ const {
   characterOverview,
   characterTextPreview,
   close,
-  closeButton,
   confirmCharacterFormat,
   confirmDelete,
   deletingHasContent,
   deletingStage,
-  dialogElement,
   form,
   formMode,
   flushWritingContext,
@@ -63,512 +67,323 @@ const {
   toggleEnabled,
   writingContextPanel
 } = usePlotStructureDialog(props, emit);
+const contextT = createScopedTranslator("components.writingContextPanel");
+const sections = computed<
+  BookManagementSection<typeof activeStructureTab.value>[]
+>(() => [
+  {
+    id: "character",
+    group: "structure",
+    label: t("characterStructure"),
+    description: t("chooseContinuousCharacterTextOrAnOverviewWithIndividual")
+  },
+  {
+    id: "plot",
+    group: "structure",
+    label: t("plotStructureLabel"),
+    description: t("namesAndNotesApplyGloballyEnabledStateAndOrder")
+  },
+  {
+    id: "context",
+    group: "context",
+    label: contextT(
+      props.book?.bookType === "script"
+        ? "screenplayContext"
+        : "shortStoryContext"
+    ),
+    description: contextT(
+      "storeLastingCreativeMethodsAndConstraintsForThisWork"
+    )
+  }
+]);
+
 async function openRename(): Promise<void> {
   const book = props.book;
   if (!book || locked.value || !(await flushWritingContext())) return;
-  emit("close");
   emit("openRename", book.id);
 }
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open && book && book.bookType !== 'academic' && !activeSubdialog"
-      class="dialog-backdrop plot-structure-dialog-overlay"
-      @mousedown.self="close"
-    >
-      <section
-        ref="dialogElement"
-        class="plot-structure-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="plot-structure-title"
-        tabindex="-1"
+  <BookManagementDialog
+    v-if="book && book.bookType !== 'academic'"
+    :open="open"
+    :book-title="book.title"
+    :book-type="t(book.bookType === 'script' ? 'screenplay' : 'shortStory')"
+    :sections="sections"
+    :active="activeStructureTab"
+    :pending="locked"
+    :child-open="childOpen || Boolean(activeSubdialog)"
+    @close="close"
+    @rename="openRename"
+    @select="setActiveStructureTab"
+  >
+    <template #actions>
+      <button
+        v-if="activeStructureTab === 'plot'"
+        class="dialog-primary-button"
+        type="button"
+        :disabled="locked || rows.length >= 32"
+        @click="openCreate"
       >
-        <header class="plot-structure-dialog-header">
-          <div>
-            <span>{{
-              t("settingsMessage", {
-                arg0:
-                  (book.bookType === "script"
-                    ? t("screenplay")
-                    : t("shortStory")) ?? ""
-              })
-            }}</span>
-            <strong id="plot-structure-title">{{
-              t("structureManagementMessage", {
-                arg0: book.title ?? ""
-              })
-            }}</strong>
-          </div>
-          <button
-            ref="closeButton"
-            type="button"
-            :aria-label="t('closeStructureManagement')"
-            :disabled="locked"
-            @click="close"
-          >
-            <AppIcon name="close" :size="16" />
-          </button>
-        </header>
-        <BookManagementName
-          :title="book.title"
-          :pending="locked"
-          @rename="openRename"
+        {{ t("newPlotStructure") }}
+      </button>
+    </template>
+
+    <div
+      v-if="activeStructureTab === 'character'"
+      class="book-management-settings"
+    >
+      <div class="book-management-setting">
+        <div class="book-management-copy">
+          <strong>{{ t("characterStyle") }}</strong>
+          <span>{{
+            book.characterStructure.format === "list"
+              ? t("charactersAppearAsAnOverviewAndSeparateEntriesIn")
+              : t("charactersContinueToUseASingleMarkdownDocument")
+          }}</span>
+        </div>
+        <PopupSelect
+          :model-value="book.characterStructure.format"
+          :options="[
+            { value: 'list', label: t('entryStyle') },
+            { value: 'text', label: t('textStyle') }
+          ]"
+          :accessible-label="t('characterStructureStyle')"
+          :disabled="locked"
+          :menu-z-index="2300"
+          @update:model-value="selectCharacterFormat"
         />
-
-        <section
-          class="plot-structure-manager"
-          :aria-label="t('manageStructure')"
+      </div>
+    </div>
+    <template v-else-if="activeStructureTab === 'plot'">
+      <ol class="book-management-list">
+        <li
+          v-for="(stage, index) in rows"
+          :key="stage.id"
+          class="book-management-row"
         >
-          <div
-            class="structure-main-tabs"
-            role="tablist"
-            :aria-label="t('structureManagementType')"
-          >
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="activeStructureTab === 'character'"
-              @click="setActiveStructureTab('character')"
-            >
-              {{ t("characterStructure") }}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="activeStructureTab === 'plot'"
-              @click="setActiveStructureTab('plot')"
-            >
-              {{ t("plotStructure") }}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="activeStructureTab === 'context'"
-              @click="setActiveStructureTab('context')"
-            >
-              {{
-                book.bookType === "script"
-                  ? t("screenplayContext")
-                  : t("shortStoryContext")
-              }}
-            </button>
-          </div>
-
-          <template v-if="activeStructureTab === 'character'">
-            <header class="manager-header">
-              <div>
-                <p class="manager-eyebrow">CHARACTER STRUCTURE</p>
-                <h2>
-                  {{ t("characterStructure") }}
-                </h2>
-                <p>
-                  {{
-                    t("chooseContinuousCharacterTextOrAnOverviewWithIndividual")
-                  }}
-                </p>
-              </div>
-            </header>
-            <div class="structure-panel-content character-structure-panel">
-              <label class="form-field">
-                <span>{{ t("characterStyle") }}</span>
-                <PopupSelect
-                  :model-value="book.characterStructure.format"
-                  :options="[
-                    {
-                      value: 'list',
-                      label: t('entryStyle')
-                    },
-                    {
-                      value: 'text',
-                      label: t('textStyle')
-                    }
-                  ]"
-                  :accessible-label="t('characterStructureStyle')"
-                  :disabled="locked"
-                  :menu-z-index="2300"
-                  @update:model-value="selectCharacterFormat"
-                />
-                <small v-if="book.characterStructure.format === 'list'">
-                  {{ t("charactersAppearAsAnOverviewAndSeparateEntriesIn") }}
-                </small>
-                <small v-else>
-                  {{ t("charactersContinueToUseASingleMarkdownDocument") }}
-                </small>
-              </label>
-            </div>
-          </template>
-
-          <template v-else-if="activeStructureTab === 'plot'">
-            <header class="manager-header">
-              <div>
-                <p class="manager-eyebrow">CREATIVE PLOT STRUCTURE</p>
-                <h2>{{ t("plotStructure") }}</h2>
-                <p>
-                  {{ t("namesAndNotesApplyGloballyEnabledStateAndOrder") }}
-                </p>
-              </div>
-            </header>
-
-            <div class="structure-panel-content">
-              <header class="manager-toolbar">
-                <div
-                  class="section-tabs"
-                  role="tablist"
-                  :aria-label="t('basicStructureType')"
-                >
-                  <button type="button" role="tab" aria-selected="true">
-                    {{ t("plotStructureLabel") }}
-                  </button>
-                </div>
-                <button
-                  class="primary-button"
-                  type="button"
-                  :disabled="locked || rows.length >= 32"
-                  @click="openCreate"
-                >
-                  {{ t("newPlotStructure") }}
-                </button>
-              </header>
-
-              <ol class="manager-list">
-                <li
-                  v-for="(stage, index) in rows"
-                  :key="stage.id"
-                  class="manager-row"
-                  :class="{ 'is-disabled': !stage.enabled }"
-                >
-                  <label class="row-toggle">
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      :checked="stage.enabled"
-                      :disabled="locked"
-                      :aria-label="
-                        t('stageToggleLabel', {
-                          action: stage.enabled
-                            ? t('disableStage')
-                            : t('enable'),
-                          name: plotStageLabel(stage)
-                        })
-                      "
-                      @change="
-                        toggleEnabled(
-                          stage.id,
-                          ($event.target as HTMLInputElement).checked
-                        )
-                      "
-                    />
-                    <span>{{ stage.enabled ? t("enable") : t("off") }}</span>
-                  </label>
-                  <div class="row-copy">
-                    <strong>{{ plotStageLabel(stage) }}</strong>
-                    <span>{{ stage.description }}</span>
-                    <code>
-                      {{ stage.id }}
-                      <template v-if="isBuiltinCreativePlotStageId(stage.id)">
-                        {{ t("default") }}
-                      </template>
-                    </code>
-                  </div>
-                  <div class="row-actions">
-                    <button
-                      type="button"
-                      :aria-label="
-                        t('moveValueUp', {
-                          arg0: plotStageLabel(stage)
-                        })
-                      "
-                      :title="t('moveUp')"
-                      :disabled="locked || index === 0"
-                      @click="move(stage.id, 'up')"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      :aria-label="
-                        t('moveValueDown', {
-                          arg0: plotStageLabel(stage)
-                        })
-                      "
-                      :title="t('moveDown')"
-                      :disabled="locked || index === rows.length - 1"
-                      @click="move(stage.id, 'down')"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      :aria-label="
-                        t('editValue', {
-                          arg0: plotStageLabel(stage)
-                        })
-                      "
-                      :disabled="locked"
-                      @click="openEdit(stage.id)"
-                    >
-                      {{ t("edit") }}
-                    </button>
-                    <button
-                      class="delete-button"
-                      type="button"
-                      :aria-label="
-                        t('deleteValue', {
-                          arg0: plotStageLabel(stage)
-                        })
-                      "
-                      :disabled="
-                        locked ||
-                        rows.length <= 1 ||
-                        isBuiltinCreativePlotStageId(stage.id)
-                      "
-                      @click="openDelete(stage.id)"
-                    >
-                      {{ t("delete") }}
-                    </button>
-                  </div>
-                </li>
-              </ol>
-
-              <p class="manager-footnote">
-                {{ t("newStagesApplyToAllShortStoriesAndScreenplays") }}
-              </p>
-            </div>
-          </template>
-
-          <WritingContextPanel
-            v-else
-            :key="book.id"
-            ref="writingContextPanel"
-            :content="writingContext"
-            :loading="writingContextLoading"
-            :pending="writingContextPending"
-            :workspace-type="book.bookType"
-            @save="saveWritingContext"
+          <AgentTeamSwitch
+            :model-value="stage.enabled"
+            :disabled="locked"
+            :label="
+              t('stageToggleLabel', {
+                action: stage.enabled ? t('disableStage') : t('enable'),
+                name: plotStageLabel(stage)
+              })
+            "
+            @update:model-value="toggleEnabled(stage.id, $event)"
           />
-        </section>
-      </section>
-    </div>
-
-    <div
-      v-if="open && book && activeSubdialog === 'character-format'"
-      class="dialog-backdrop structure-modal-overlay"
-      @mousedown.self="requestedCharacterFormat = null"
-      @keydown.esc.stop="requestedCharacterFormat = null"
-    >
-      <section
-        class="structure-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="character-format-title"
-      >
-        <header class="modal-header">
-          <div>
-            <span>CONVERT</span>
-            <h3 id="character-format-title">
-              {{ t("convertCharacterStructure") }}
-            </h3>
-          </div>
-        </header>
-        <fieldset class="modal-body" :disabled="locked">
-          <p class="delete-copy">
-            <template v-if="requestedCharacterFormat === 'list'">
-              {{ t("currentCharacterTextMovesInFullToACharacter") }}
-            </template>
-            <template v-else>
-              {{ t("theOverviewAndAllCharacterEntriesMergeIntoOne") }}
-            </template>
-          </p>
-          <div class="character-conversion-preview">
-            <strong>{{ t("conversionPreview") }}</strong>
-            <template v-if="requestedCharacterFormat === 'list'">
-              <span>{{
-                characterOverview?.content.trim()
-                  ? t("characterProfiles1Entry")
-                  : t("overviewEmptyEntryList")
-              }}</span>
-              <pre>{{ characterTextPreview }}</pre>
-            </template>
-            <template v-else>
-              <span>
-                {{
-                  t("overviewFollowedByCharacterEntriesMessage", {
-                    arg0:
-                      (characterOverview?.content.trim()
-                        ? t("hasContent")
-                        : t("empty")) ?? "",
-                    arg1: orderedCharacterItems.length ?? ""
-                  })
-                }}
+          <div class="book-management-copy">
+            <strong :title="plotStageLabel(stage)">{{
+              plotStageLabel(stage)
+            }}</strong>
+            <span>{{ stage.description }}</span>
+            <div class="book-management-meta">
+              <code :title="stage.id">{{ stage.id }}</code>
+              <span
+                v-if="isBuiltinCreativePlotStageId(stage.id)"
+                class="book-management-label"
+              >
+                {{ t("default") }}
               </span>
-              <ol v-if="orderedCharacterItems.length">
-                <li v-for="item in orderedCharacterItems" :key="item.id">
-                  {{ item.title }}
-                </li>
-              </ol>
-              <span v-else>{{ t("noCharacterEntriesYet") }}</span>
-            </template>
-          </div>
-        </fieldset>
-        <footer class="modal-actions">
-          <button
-            type="button"
-            :disabled="locked"
-            @click="requestedCharacterFormat = null"
-          >
-            {{ t("cancel") }}
-          </button>
-          <button
-            class="primary-button"
-            type="button"
-            :disabled="locked"
-            @click="confirmCharacterFormat"
-          >
-            {{ locked ? t("converting") : t("convert") }}
-          </button>
-        </footer>
-      </section>
-    </div>
-
-    <div
-      v-else-if="open && book && activeSubdialog === 'form'"
-      class="dialog-backdrop structure-modal-overlay"
-      @mousedown.self="close"
-      @keydown.esc.stop="close"
-    >
-      <section
-        class="structure-modal"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="
-          formMode === 'create' ? t('newPlotStructure') : t('editPlotStructure')
-        "
-      >
-        <form @submit.prevent="submitForm">
-          <header class="modal-header">
-            <div>
-              <span>{{ formMode === "create" ? "CREATE" : "EDIT" }}</span>
-              <h3>
-                {{
-                  formMode === "create"
-                    ? t("newPlotStructure")
-                    : t("editPlotStructure")
-                }}
-              </h3>
             </div>
-            <button
-              class="close-button"
-              type="button"
-              :aria-label="t('close')"
-              :disabled="locked"
-              @click="close"
-            >
-              ×
-            </button>
-          </header>
-
-          <fieldset class="modal-body" :disabled="locked">
-            <label class="form-field">
-              <span>{{ t("name") }}</span>
-              <input
-                v-model="form.title"
-                maxlength="120"
-                autocomplete="off"
-                autofocus
-                required
-              />
-            </label>
-            <label class="form-field">
-              <span>{{ t("structureNotes") }}</span>
-              <textarea
-                v-model="form.description"
-                maxlength="20000"
-                rows="7"
-                required
-              />
-              <small>{{
-                t("theseNotesDefineThePlotAgentSResponsibilitiesAnd")
-              }}</small>
-            </label>
-            <p class="stable-id-note">
-              {{ t("theStableIDRemainsUnchangedAfterRenamingOrReordering") }}
-            </p>
-          </fieldset>
-
-          <footer class="modal-actions">
-            <button type="button" :disabled="locked" @click="close">
-              {{ t("cancel") }}
-            </button>
-            <button class="primary-button" type="submit" :disabled="locked">
-              {{
-                locked
-                  ? t("saving")
-                  : formMode === "create"
-                    ? t("create")
-                    : t("saveChanges")
-              }}
-            </button>
-          </footer>
-        </form>
-      </section>
-    </div>
-
-    <div
-      v-else-if="open && book && activeSubdialog === 'delete' && deletingStage"
-      class="dialog-backdrop structure-modal-overlay"
-      @mousedown.self="close"
-      @keydown.esc.stop="close"
-    >
-      <section
-        class="structure-modal delete-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="plot-structure-delete-title"
-        aria-describedby="plot-structure-delete-description"
-      >
-        <header class="modal-header">
-          <div>
-            <span>DELETE</span>
-            <h3 id="plot-structure-delete-title">
-              {{
-                t("deleteMessage", {
-                  arg0: plotStageLabel(deletingStage) ?? ""
-                })
-              }}
-            </h3>
           </div>
-        </header>
-        <fieldset class="modal-body" :disabled="locked">
-          <p id="plot-structure-delete-description" class="delete-copy">
+          <BookManagementRowActions
+            :title="plotStageLabel(stage)"
+            :pending="locked"
+            :up-disabled="index === 0"
+            :down-disabled="index === rows.length - 1"
+            :delete-disabled="
+              rows.length <= 1 || isBuiltinCreativePlotStageId(stage.id)
+            "
+            @move="move(stage.id, $event)"
+            @edit="openEdit(stage.id)"
+            @delete="openDelete(stage.id)"
+          />
+        </li>
+      </ol>
+
+      <p class="book-management-note">
+        {{ t("newStagesApplyToAllShortStoriesAndScreenplays") }}
+      </p>
+    </template>
+    <WritingContextPanel
+      v-else
+      :key="book.id"
+      ref="writingContextPanel"
+      :content="writingContext"
+      :loading="writingContextLoading"
+      :pending="writingContextPending"
+      :workspace-type="book.bookType"
+      @save="saveWritingContext"
+    />
+
+    <BookManagementChildDialog
+      v-if="activeSubdialog === 'character-format'"
+      :title="t('convertCharacterStructure')"
+      :pending="locked"
+      confirm
+      @close="requestedCharacterFormat = null"
+      @submit="confirmCharacterFormat"
+    >
+      <p class="dialog-description">
+        <template v-if="requestedCharacterFormat === 'list'">
+          {{ t("currentCharacterTextMovesInFullToACharacter") }}
+        </template>
+        <template v-else>
+          {{ t("theOverviewAndAllCharacterEntriesMergeIntoOne") }}
+        </template>
+      </p>
+      <div class="dialog-note book-management-conversion-preview">
+        <strong>{{ t("conversionPreview") }}</strong>
+        <template v-if="requestedCharacterFormat === 'list'">
+          <span>{{
+            characterOverview?.content.trim()
+              ? t("characterProfiles1Entry")
+              : t("overviewEmptyEntryList")
+          }}</span>
+          <pre>{{ characterTextPreview }}</pre>
+        </template>
+        <template v-else>
+          <span>
             {{
-              t("thisCustomStageAppliesToAllShortMessage", {
+              t("overviewFollowedByCharacterEntriesMessage", {
                 arg0:
-                  (deletingHasContent
-                    ? t("thisStageAlreadyHasContentInTheCurrentWork")
-                    : "") ?? ""
+                  (characterOverview?.content.trim()
+                    ? t("hasContent")
+                    : t("empty")) ?? "",
+                arg1: orderedCharacterItems.length ?? ""
               })
             }}
-          </p>
-        </fieldset>
-        <footer class="modal-actions">
-          <button type="button" :disabled="locked" autofocus @click="close">
-            {{ t("cancel") }}
-          </button>
-          <button
-            class="danger-button"
-            type="button"
-            :disabled="locked"
-            @click="confirmDelete"
-          >
-            {{ locked ? t("deleting") : t("deleteGlobally") }}
-          </button>
-        </footer>
-      </section>
-    </div>
-  </Teleport>
+          </span>
+          <ol v-if="orderedCharacterItems.length">
+            <li v-for="item in orderedCharacterItems" :key="item.id">
+              {{ item.title }}
+            </li>
+          </ol>
+          <span v-else>{{ t("noCharacterEntriesYet") }}</span>
+        </template>
+      </div>
+      <template #actions>
+        <button
+          class="dialog-secondary-button"
+          type="button"
+          :disabled="locked"
+          autofocus
+          @click="requestedCharacterFormat = null"
+        >
+          {{ t("cancel") }}
+        </button>
+        <button class="dialog-primary-button" type="submit" :disabled="locked">
+          {{ locked ? t("converting") : t("convert") }}
+        </button>
+      </template>
+    </BookManagementChildDialog>
+
+    <BookManagementChildDialog
+      v-else-if="activeSubdialog === 'form'"
+      :title="
+        formMode === 'create' ? t('newPlotStructure') : t('editPlotStructure')
+      "
+      :pending="locked"
+      @close="close"
+      @submit="submitForm"
+    >
+      <label class="book-management-field">
+        <span>{{ t("name") }}</span>
+        <input
+          v-model="form.title"
+          maxlength="120"
+          autocomplete="off"
+          autofocus
+          required
+        />
+      </label>
+      <label class="book-management-field">
+        <span>{{ t("structureNotes") }}</span>
+        <textarea
+          v-model="form.description"
+          maxlength="20000"
+          rows="7"
+          required
+        />
+        <small>{{
+          t("theseNotesDefineThePlotAgentSResponsibilitiesAnd")
+        }}</small>
+      </label>
+      <p class="book-management-note">
+        {{ t("theStableIDRemainsUnchangedAfterRenamingOrReordering") }}
+      </p>
+      <template #actions>
+        <button
+          class="dialog-secondary-button"
+          type="button"
+          :disabled="locked"
+          @click="close"
+        >
+          {{ t("cancel") }}
+        </button>
+        <button class="dialog-primary-button" type="submit" :disabled="locked">
+          {{
+            locked
+              ? t("saving")
+              : formMode === "create"
+                ? t("create")
+                : t("saveChanges")
+          }}
+        </button>
+      </template>
+    </BookManagementChildDialog>
+
+    <BookManagementChildDialog
+      v-else-if="activeSubdialog === 'delete' && deletingStage"
+      :title="t('deleteMessage', { arg0: plotStageLabel(deletingStage) })"
+      :pending="locked"
+      confirm
+      @close="close"
+      @submit="confirmDelete"
+    >
+      <p class="dialog-description">
+        {{
+          t("thisCustomStageAppliesToAllShortMessage", {
+            arg0: deletingHasContent
+              ? t("thisStageAlreadyHasContentInTheCurrentWork")
+              : ""
+          })
+        }}
+      </p>
+      <template #actions>
+        <button
+          class="dialog-secondary-button"
+          type="button"
+          :disabled="locked"
+          autofocus
+          @click="close"
+        >
+          {{ t("cancel") }}
+        </button>
+        <button
+          class="dialog-primary-button is-danger"
+          type="submit"
+          :disabled="locked"
+        >
+          {{ locked ? t("deleting") : t("deleteGlobally") }}
+        </button>
+      </template>
+    </BookManagementChildDialog>
+    <slot name="child" />
+  </BookManagementDialog>
 </template>
 
-<style scoped src="./plot-structure-dialog.css"></style>
+<style scoped>
+.book-management-conversion-preview {
+  display: grid;
+  gap: 6px;
+}
+.book-management-conversion-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+</style>

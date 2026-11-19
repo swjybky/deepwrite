@@ -1,4 +1,7 @@
 export default {
+  novelContext: "小说上下文",
+  academicContext: "学术上下文",
+  storeLastingAcademicInstructions: "保存本作品长期有效的研究约定与写作要求。",
   screenplayContext: "剧本上下文",
   shortStoryContext: "短篇上下文",
   mysteryContext: "剧本杀上下文",
@@ -8,8 +11,9 @@ export default {
   saving: "保存中…",
   saveContext: "保存上下文",
   readingContext: "正在读取上下文…",
+  contextReadFailed: "读取上下文失败。",
   retryReadingContext: "重新读取上下文",
   valueContent: "{arg0}内容",
   unsavedChangesAreSavedAutomaticallyWhenSwitchingTabsOr:
-    "切换页签或关闭结构管理时会自动保存未提交修改。"
+    "切换分区或关闭结构管理时会自动保存未提交修改。"
 };

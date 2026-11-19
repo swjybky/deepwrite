@@ -27,7 +27,6 @@ import proposalImpactSource from "./LongProposalImpactDetails.vue?raw";
 import proposalPresentationSource from "./longProposalPresentation.ts?raw";
 import removalSource from "./LongBookRemovalDialog.vue?raw";
 import sectionSource from "./TreeSection.vue?raw";
-import structureSource from "./LongStructureManager.vue?raw";
 import treeNodeSource from "./TreeNodeItem.vue?raw";
 import workspaceDialogLayerSource from "./WorkspaceDialogLayer.vue?raw";
 import longWorkspaceTypeSource from "../types/longWorkspace.ts?raw";
@@ -133,7 +132,6 @@ export {
   removalSource,
   resourceTreeCoordinatorSource,
   sectionSource,
-  structureSource,
   treeNodeSource,
   workspaceDialogLayerSource,
   workspaceSystemEventRoutesSource,

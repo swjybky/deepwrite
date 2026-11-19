@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, useId, watch } from "vue";
 import type {
   MysteryOperation,
   MysteryWorkspaceIndexSnapshot
@@ -11,8 +11,11 @@ import {
   MYSTERY_MAX_TRUTH_DOCS,
   MysteryBoardSpecSchema
 } from "@deepwrite/contracts/renderer";
+import BookManagementDialog, {
+  type BookManagementSection
+} from "../../components/book-management/BookManagementDialog.vue";
 import AgentTeamSegmented from "../../components/AgentTeamSegmented.vue";
-import AppIcon from "../../components/AppIcon.vue";
+import BookManagementRowActions from "../../components/book-management/BookManagementRowActions.vue";
 import SaveConflictDialog from "../../components/SaveConflictDialog.vue";
 import WritingContextPanel, {
   type WritingContextSaveCompletion
@@ -32,6 +35,9 @@ type Item = NonNullable<ResourceTreeNode["mysteryItem"]>;
 type Panel = "board" | Item["kind"] | "context";
 
 const props = defineProps<{
+  open: boolean;
+  bookTitle: string;
+  childOpen?: boolean;
   index: MysteryWorkspaceIndexSnapshot;
   busy: boolean;
   initialPanel: "board" | "context";
@@ -40,11 +46,13 @@ const emit = defineEmits<{
   applyOperation: [operation: MysteryOperation];
   openItem: [dialog: MysteryStructureItemDialog];
   move: [item: Item & { move: "up" | "down" }];
-  contextConflictChange: [open: boolean];
+  close: [];
+  rename: [];
 }>();
 
 const t = createScopedTranslator("components.treeNodeItem");
 const contextT = createScopedTranslator("components.writingContextPanel");
+const boardFormId = useId();
 const panel = ref<Panel>(props.initialPanel);
 const store = useMysteryWorkspaceStore();
 const contextPanel = ref<InstanceType<typeof WritingContextPanel>>();
@@ -79,11 +87,6 @@ watch(
   },
   { immediate: true }
 );
-watch(
-  () => Boolean(conflict.value),
-  (open) => emit("contextConflictChange", open)
-);
-
 async function flushContextIfNeeded(): Promise<boolean> {
   return (await contextPanel.value?.flushIfNeeded()) ?? true;
 }
@@ -112,21 +115,52 @@ const collectionPanels = computed(
       {
         id: "truth_doc",
         label: mysteryT("truthDocuments"),
+        description: mysteryT("truthDocumentsDescription"),
+        create: mysteryT("addTruthDoc"),
         limit: MYSTERY_MAX_TRUTH_DOCS
       },
-      { id: "role", label: mysteryT("roles"), limit: MYSTERY_MAX_ROLES },
-      { id: "act", label: mysteryT("acts"), limit: MYSTERY_MAX_ACTS },
+      {
+        id: "role",
+        label: mysteryT("roles"),
+        description: mysteryT("rolesDescription"),
+        create: mysteryT("addRole"),
+        limit: MYSTERY_MAX_ROLES
+      },
+      {
+        id: "act",
+        label: mysteryT("acts"),
+        description: mysteryT("actsDescription"),
+        create: mysteryT("addAct"),
+        limit: MYSTERY_MAX_ACTS
+      },
       {
         id: "clue_round",
         label: mysteryT("clueRounds"),
+        description: mysteryT("clueRoundsDescription"),
+        create: mysteryT("addClueRound"),
         limit: MYSTERY_MAX_CLUE_ROUNDS
       }
     ] as const
 );
-const panels = computed(() => [
-  { id: "board" as const, label: mysteryT("boardSpecButton") },
-  ...collectionPanels.value,
-  { id: "context" as const, label: contextT("mysteryContext") }
+const sections = computed<BookManagementSection<Panel>[]>(() => [
+  {
+    id: "board",
+    group: "structure",
+    label: mysteryT("boardSpecButton"),
+    description: mysteryT("boardDescription")
+  },
+  ...collectionPanels.value.map((entry) => ({
+    ...entry,
+    group: "structure" as const
+  })),
+  {
+    id: "context",
+    group: "context",
+    label: contextT("mysteryContext"),
+    description: contextT(
+      "storeLastingCreativeMethodsAndConstraintsForThisWork"
+    )
+  }
 ]);
 const collectionPanel = computed(() =>
   collectionPanels.value.find((entry) => entry.id === panel.value)
@@ -171,21 +205,49 @@ function editItem(
 </script>
 
 <template>
-  <div class="mystery-structure-manager">
-    <nav class="mystery-structure-tabs" :aria-label="t('manageStructure')">
+  <BookManagementDialog
+    :open="open"
+    :book-title="bookTitle"
+    :book-type="mysteryLabels('murderMystery')"
+    :sections="sections"
+    :active="panel"
+    :pending="busy"
+    :child-open="childOpen || Boolean(conflict)"
+    @close="!busy && emit('close')"
+    @rename="emit('rename')"
+    @select="switchPanel"
+  >
+    <template #actions>
       <button
-        v-for="entry in panels"
-        :key="entry.id"
-        type="button"
-        :aria-pressed="panel === entry.id"
-        @click="switchPanel(entry.id)"
+        v-if="panel === 'board'"
+        class="dialog-primary-button"
+        type="submit"
+        :form="boardFormId"
+        :disabled="busy || !dirty || !boardInput.success"
       >
-        {{ entry.label }}
+        {{ mysteryT("saveBoardSpec") }}
       </button>
-    </nav>
-
+      <button
+        v-else-if="collectionPanel"
+        class="dialog-primary-button"
+        type="button"
+        :disabled="
+          busy ||
+          collections[collectionPanel.id].length >= collectionPanel.limit
+        "
+        @click="
+          emit('openItem', {
+            kind: 'createStructure',
+            targetKind: collectionPanel.id
+          })
+        "
+      >
+        {{ collectionPanel.create }}
+      </button>
+    </template>
     <form
       v-if="panel === 'board'"
+      :id="boardFormId"
       class="mystery-fields"
       @submit.prevent="saveBoard"
     >
@@ -240,101 +302,44 @@ function editItem(
           maxlength="2000"
         />
       </label>
-      <div class="dialog-actions">
-        <button
-          class="dialog-primary-button"
-          type="submit"
-          :disabled="busy || !dirty || !boardInput.success"
-        >
-          {{ mysteryT("saveBoardSpec") }}
-        </button>
-      </div>
     </form>
 
-    <section
-      v-else-if="collectionPanel"
-      :key="collectionPanel.id"
-      :aria-label="collectionPanel.label"
-      class="mystery-structure-group"
-    >
-      <div class="mystery-structure-toolbar">
-        <button
-          class="dialog-secondary-button"
-          type="button"
-          :disabled="
-            busy ||
-            collections[collectionPanel.id].length >= collectionPanel.limit
-          "
-          @click="
-            emit('openItem', {
-              kind: 'createStructure',
-              targetKind: collectionPanel.id
-            })
-          "
-        >
-          <AppIcon name="plus" :size="16" />{{ t("addEntry") }}
-        </button>
-      </div>
+    <template v-else-if="collectionPanel">
       <ul
         v-if="collections[collectionPanel.id].length"
-        class="mystery-structure-list"
+        class="book-management-list"
       >
-        <li v-for="item in collections[collectionPanel.id]" :key="item.id">
-          <div class="mystery-structure-label">
+        <li
+          v-for="item in collections[collectionPanel.id]"
+          :key="item.id"
+          class="book-management-row"
+        >
+          <div class="book-management-copy">
             <strong :title="item.title">{{ item.title }}</strong>
             <span v-if="item.tag" :title="item.tag">{{ item.tag }}</span>
           </div>
-          <button
-            class="icon-button"
-            type="button"
-            :aria-label="t('rename')"
-            :title="t('rename')"
-            :disabled="busy || item.renameDisabled"
-            @click="editItem('renameStructure', item)"
-          >
-            <AppIcon name="edit" :size="16" />
-          </button>
-          <button
-            class="icon-button"
-            type="button"
-            :aria-label="t('moveUp')"
-            :title="t('moveUp')"
-            :disabled="busy || item.moveUpDisabled"
-            @click="emit('move', { ...item, move: 'up' })"
-          >
-            <AppIcon name="arrow-up" :size="16" />
-          </button>
-          <button
-            class="icon-button"
-            type="button"
-            :aria-label="t('moveDown')"
-            :title="t('moveDown')"
-            :disabled="busy || item.moveDownDisabled"
-            @click="emit('move', { ...item, move: 'down' })"
-          >
-            <span aria-hidden="true">↓</span>
-          </button>
-          <button
-            class="icon-button mystery-structure-delete"
-            type="button"
-            :aria-label="t('delete')"
-            :title="t('delete')"
-            :disabled="busy || item.deleteDisabled"
-            @click="editItem('deleteStructure', item)"
-          >
-            <AppIcon name="trash" :size="16" />
-          </button>
+          <BookManagementRowActions
+            :title="item.title"
+            :pending="busy"
+            :up-disabled="item.moveUpDisabled"
+            :down-disabled="item.moveDownDisabled"
+            :edit-disabled="item.renameDisabled"
+            :delete-disabled="item.deleteDisabled"
+            :edit-label="t('rename')"
+            @move="emit('move', { ...item, move: $event })"
+            @edit="editItem('renameStructure', item)"
+            @delete="editItem('deleteStructure', item)"
+          />
         </li>
       </ul>
       <p v-else class="dialog-description">{{ mysteryT("noEntries") }}</p>
-    </section>
+    </template>
 
     <template v-else>
       <WritingContextPanel
         v-if="docReady || docLoading"
         :key="contextDraftVersion"
         ref="contextPanel"
-        class="mystery-context-panel"
         workspace-type="mystery"
         :content="savedContent"
         :loading="docLoading"
@@ -363,109 +368,5 @@ function editItem(
       @reload="reloadContext"
       @overwrite="overwriteConflict"
     />
-  </div>
+  </BookManagementDialog>
 </template>
-
-<style scoped>
-.mystery-structure-manager {
-  display: grid;
-  min-height: 0;
-  gap: 16px;
-  overflow: auto;
-  padding: 16px;
-  background: var(--surface-main);
-}
-
-.mystery-structure-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 10px;
-  background: var(--surface-muted);
-}
-
-.mystery-structure-tabs button {
-  min-height: 32px;
-  padding: 4px 12px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.mystery-structure-tabs button:hover {
-  background: var(--surface-hover);
-}
-
-.mystery-structure-tabs button[aria-pressed="true"] {
-  border-color: var(--theme-line);
-  background: var(--surface-raised);
-  color: var(--accent);
-}
-
-.mystery-context-panel {
-  height: auto;
-  min-height: min-content;
-  grid-template-rows: auto minmax(min(320px, 32vh), 1fr) auto;
-}
-
-.mystery-context-panel :deep(textarea) {
-  min-height: 0;
-}
-
-.mystery-structure-group {
-  min-width: 0;
-}
-
-.mystery-structure-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.mystery-structure-list {
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--theme-line-soft);
-  border-radius: 10px;
-  background: var(--surface-raised);
-  list-style: none;
-}
-
-.mystery-structure-list li {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-}
-
-.mystery-structure-list li + li {
-  border-top: 1px solid var(--theme-line-soft);
-}
-
-.mystery-structure-label {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  gap: 2px;
-}
-
-.mystery-structure-label > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mystery-structure-label span {
-  color: var(--text-secondary);
-  font-size: 0.857143rem;
-}
-
-.mystery-structure-delete:hover:not(:disabled) {
-  color: var(--danger-text);
-}
-</style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { academicDialogTarget } from "../stores/academicWorkspaceDialog";
 import { longBookResourceId } from "../types/longWorkspace";
 import type { LongBookResourceNodeAction } from "../types/workspace";
 import { createScopedTranslator } from "../i18n";
@@ -72,6 +73,13 @@ function longBookAction(
       :mode="module.mode"
       :book="module.book"
       :submitting="module.submitting"
+      :backdrop-class="
+        module.mode === 'rename' &&
+        academicDialogTarget?.kind === 'framework' &&
+        academicDialogTarget.bookId === module.book?.id
+          ? 'book-management-child'
+          : undefined
+      "
       @close="emit('closeBookResource')"
       @rename="emit('renameBook', $event)"
       @remove="emit('removeBook', $event)"
@@ -86,6 +94,7 @@ function longBookAction(
       :writing-context="module.writingContext"
       :writing-context-loading="module.writingContextLoading"
       :writing-context-pending="module.writingContextPending"
+      :child-open="Boolean(module.renameBook)"
       @close="emit('closePlotStructure')"
       @open-rename="emit('openBookRename', $event)"
       @mutation="
@@ -99,7 +108,19 @@ function longBookAction(
       @save-writing-context="
         (content, completion) => emit('saveWritingContext', content, completion)
       "
-    />
+    >
+      <template #child>
+        <BookResourceDialog
+          v-if="module.renameBook"
+          mode="rename"
+          :book="module.renameBook"
+          :submitting="module.pending"
+          backdrop-class="book-management-child"
+          @close="emit('closeBookResource')"
+          @rename="emit('renameBook', $event)"
+        />
+      </template>
+    </PlotStructureDialog>
 
     <CharacterItemDialog
       v-else-if="module.kind === 'character-item'"
@@ -198,6 +219,9 @@ function longBookAction(
       :sync-book-options="module.syncBookOptions"
       :snapshot="module.snapshot"
       :pending="module.pending"
+      :child-open="
+        module.renameTitle !== undefined || Boolean(module.legacySync)
+      "
       show-book-actions
       @book-action="longBookAction(module, $event)"
       @close="emit('closeLongStructure')"
@@ -211,7 +235,28 @@ function longBookAction(
         (payload, completion) =>
           emit('syncLongWorldbuilding', payload, completion)
       "
-    />
+    >
+      <template #child>
+        <LongBookRenameDialog
+          v-if="module.renameTitle !== undefined"
+          open
+          nested
+          :title="module.renameTitle"
+          :pending="module.pending"
+          @close="emit('closeLongRename')"
+          @submit="emit('submitLongRename', $event)"
+        />
+        <LongLegacySyncDialog
+          v-else-if="module.legacySync"
+          nested
+          :preview="module.legacySync.preview"
+          :result="module.legacySync.result"
+          :pending="module.legacySync.pending"
+          @close="emit('closeLegacySync')"
+          @confirm="emit('confirmLegacySync', $event)"
+        />
+      </template>
+    </LongStructureDialog>
 
     <CreateLongCharacterDialog
       v-else-if="module.kind === 'create-long-character'"

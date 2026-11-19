@@ -22,7 +22,6 @@ import {
   removalSource,
   resourceTreeCoordinatorSource,
   sectionSource,
-  structureSource,
   workspaceDialogLayerSource
 } from "./LongWorkspace.test-support";
 
@@ -180,16 +179,6 @@ describe("long-form renderer vertical slice: bindings-and-structure", () => {
     expect(longStructureTransactionsSource).not.toContain(
       "longWorkspaceProposals.enqueueManualMutation({"
     );
-    expect(structureSource).toContain(
-      "completion: LongStructureMutationCompletion"
-    );
-    expect(structureSource).toContain("builder.createWorldbuilding");
-    expect(structureSource).toContain("builder.updateWorldbuilding");
-    expect(structureSource).toContain("loadWorldbuildingFromAnotherBook");
-    expect(structureSource).not.toContain("<LongPlotStructureManager");
-    expect(structureSource).toContain('@click="openCreate"');
-    expect(structureSource).toContain('@click="openEdit(row)"');
-    expect(structureSource).toContain('@click="openDelete(row)"');
   });
 
   it("keeps every lazy long-structure mutation bound to its originating book and index", () => {

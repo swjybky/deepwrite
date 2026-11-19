@@ -25,17 +25,14 @@ import {
 } from "@deepwrite/contracts/renderer";
 import { computed, inject, onScopeDispose, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import {
-  LongStructureDialog,
-  SaveConflictDialog
-} from "../../components/lazyAppComponents";
+import { SaveConflictDialog } from "../../components/lazyAppComponents";
 import AgentConversation from "../../components/AgentConversation.vue";
 import { OPEN_WORKSPACE_RESOURCE } from "../../composables/composerContextNavigationContext";
 import { usePendingEditorReferences } from "../../composables/usePendingEditorReferences";
 import { provideBookImageContext } from "../../composables/bookImageContext";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
 import { formatError } from "../../i18n/errors";
-import { createScopedTranslator, t } from "../../i18n";
+import { t } from "../../i18n";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { registerMysteryWorkspaceNavigation } from "../../stores/mysteryWorkspaceNavigation";
 import {
@@ -139,15 +136,11 @@ const activeDialog = ref<Exclude<
   { kind: "manage-structure" | "bind" }
 > | null>(null);
 const structureOpen = ref(false);
-const structureOpened = ref(false);
 const initialStructurePanel = ref<"board" | "context">("board");
-const contextConflictOpen = ref(false);
 const structureManager = ref<InstanceType<typeof MysteryStructureManager>>();
-const treeT = createScopedTranslator("components.treeNodeItem");
 
 function openStructure(panel: "board" | "context" = "board"): void {
   initialStructurePanel.value = panel;
-  structureOpened.value = true;
   structureOpen.value = true;
 }
 
@@ -721,30 +714,22 @@ onScopeDispose(
       @reload="reloadConflict"
       @overwrite="overwriteConflict"
     />
-    <LongStructureDialog
-      v-if="structureOpened"
-      :open="structureOpen"
+    <MysteryStructureManager
+      v-if="structureOpen"
+      :key="bookId"
+      ref="structureManager"
+      open
       :book-title="manifest.title"
-      :heading="treeT('manageStructure')"
-      :snapshot="null"
-      :pending="opBusy"
-      :child-open="Boolean(activeDialog) || contextConflictOpen"
-      show-rename
-      @book-action="openRenameFromStructure"
+      :index="workspaceIndex"
+      :busy="opBusy"
+      :initial-panel="initialStructurePanel"
+      :child-open="Boolean(activeDialog)"
+      @rename="openRenameFromStructure"
       @close="closeStructure"
-    >
-      <MysteryStructureManager
-        :key="bookId"
-        ref="structureManager"
-        :index="workspaceIndex"
-        :busy="opBusy"
-        :initial-panel="initialStructurePanel"
-        @context-conflict-change="contextConflictOpen = $event"
-        @open-item="activeDialog = $event"
-        @move="handleMoveItem"
-        @apply-operation="runOperation"
-      />
-    </LongStructureDialog>
+      @open-item="activeDialog = $event"
+      @move="handleMoveItem"
+      @apply-operation="runOperation"
+    />
     <MysteryDialogs
       :dialog="activeDialog"
       :manifest="manifest"

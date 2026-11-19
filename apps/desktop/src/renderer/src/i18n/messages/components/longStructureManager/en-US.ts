@@ -1,16 +1,15 @@
 export default {
+  featureSettingsDescription:
+    "Choose how entries are arranged in the novel workspace.",
+  readingStructure: "Reading the work structure…",
   entryList: "Entry list",
   continuousText: "Continuous text",
   horizontalTabsAbove: "Horizontal tabs above",
   verticalListOnTheRight: "Vertical list on the right",
   treeOnTheLeft: "Tree on the left",
-  novelContext: "Novel context",
-  fiveStageOverview: "Five-stage overview",
-  basicStructure: "Basic structure",
   worldbuildingCategory: "Worldbuilding category",
   featureSettings: "Feature settings",
   worldbuildingEntryLayout: "Worldbuilding entry layout",
-  valueValueCategories: "{arg0} ({arg1} categories)",
   continuousTextValueCharacters: "Continuous text · {arg0} characters",
   newCharacterType: "New character type",
   editCharacterType: "Edit character type",
@@ -30,14 +29,7 @@ export default {
   theEntrySStableIDIsMissing: "The entry's stable ID is missing.",
   migrationEvidenceHasAFixedOrderAndCannotBe:
     "Migration evidence has a fixed order and cannot be reordered.",
-  novelContextCannotExceedValueCharacters:
-    "Novel context cannot exceed {arg0} characters.",
   novelContextSaved: "Novel context saved.",
-  manageStructure: "Manage structure",
-  manageWorldbuildingCategoriesCharacterTypesFeaturesAndNovelContext:
-    "Manage worldbuilding categories, character types, features, and novel context here. Edit their content in the corresponding workspace.",
-  structureManagementSections: "Structure management sections",
-  basicStructureType: "Basic structure type",
   characterType: "Character type",
   loadWorldbuildingFromAnotherBook: "Load worldbuilding from another book",
   noCharacterTypesYetCreateTheFirstOne:
@@ -49,14 +41,6 @@ export default {
   creationGeneratesStableIDsAndAllMatchingEmptyFile:
     "Creation generates stable IDs and all matching empty file references.",
   readOnlyMigrationEvidence: " · Read-only migration evidence",
-  moveValueUp: "Move {arg0} up",
-  moveUp: "Move up",
-  moveValueDown: "Move {arg0} down",
-  moveDown: "Move down",
-  editValue: "Edit {arg0}",
-  edit: "Edit",
-  deleteValue: "Delete {arg0}",
-  delete: "Delete",
   reorderingChangesOnlyTheDisplayOrderOfCharacterTypes:
     "Reordering changes only the display order of character types. Characters retain both core profile and relationship documents.",
   reorderingChangesOnlyTheDisplayOrderOfWorldbuildingCategories:
@@ -74,11 +58,7 @@ export default {
   selectPlotDesignEntryLayout: "Select plot design entry layout",
   describeTheRolesOfWorldbuildingCharactersPlotPointsManuscript:
     "Describe the roles of worldbuilding, characters, plot points, manuscript, and continuity ledger. This is included in agent conversations and saved in the book's AGENTS.md.",
-  characters: " characters",
-  describeEachOfTheFiveStages: "Describe each of the five stages…",
   saving: "Saving…",
-  save: "Save",
-  close: "Close",
   title: "Title",
   contentFormat: "Content format",
   selectWorldbuildingContentFormat: "Select worldbuilding content format",
@@ -87,6 +67,5 @@ export default {
   cancel: "Cancel",
   convertAndSaveWithTheImpactShown: "Convert and save with the impact shown",
   create: "Create",
-  saveChanges: "Save changes",
-  charactersMessage: "Characters: {arg0} / {arg1}"
+  saveChanges: "Save changes"
 };

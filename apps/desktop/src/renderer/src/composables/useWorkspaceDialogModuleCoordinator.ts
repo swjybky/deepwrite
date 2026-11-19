@@ -182,6 +182,25 @@ export interface WorkspaceDialogModuleCoordinatorOptions {
 export function useWorkspaceDialogModuleCoordinator(
   options: WorkspaceDialogModuleCoordinatorOptions
 ): Readonly<Ref<WorkspaceDialogModule | null>> {
+  function longStructure(
+    extras: Pick<
+      DialogModule<"long-structure">,
+      "renameTitle" | "legacySync"
+    > = {}
+  ): DialogModule<"long-structure"> {
+    return {
+      kind: "long-structure",
+      bookTitle: options.longLifecycle.activeBookSummary.value?.title ?? "",
+      bookId: options.longLifecycle.activeBookId.value,
+      agentsMd: options.longStructure.agentsMd.value,
+      agentsMdPending: options.longStructure.agentsMdPending.value,
+      syncBookOptions: options.longStructure.syncBookOptions.value,
+      snapshot: options.longLifecycle.workspaceIndex.value,
+      pending: options.longLifecycle.bookActionPending.value,
+      ...extras
+    };
+  }
+
   return computed<WorkspaceDialogModule | null>(() => {
     const startupMessages = options.startup.messages.value;
     if (startupMessages.length > 0) {
@@ -234,12 +253,19 @@ export function useWorkspaceDialogModuleCoordinator(
     const legacyPreview = options.longLifecycle.legacyPreview.value;
     const legacyResult = options.longLifecycle.legacyResult.value;
     if (legacyPreview || legacyResult) {
-      return {
+      const sync: DialogModule<"legacy-sync"> = {
         kind: "legacy-sync",
         preview: legacyPreview,
         result: legacyResult,
         pending: options.longLifecycle.mutationPending.value
       };
+      if (
+        legacyPreview &&
+        options.longStructure.dialogOpen.value &&
+        options.longLifecycle.activeBookId.value
+      )
+        return longStructure({ legacySync: sync });
+      return sync;
     }
 
     const characterCreation = options.longStructure.characterCreation.value;
@@ -323,7 +349,11 @@ export function useWorkspaceDialogModuleCoordinator(
     }
 
     const renameTarget = options.longLifecycle.renameTarget.value;
-    if (renameTarget) {
+    const renameInLongStructure =
+      renameTarget &&
+      options.longStructure.dialogOpen.value &&
+      renameTarget.bookId === options.longLifecycle.activeBookId.value;
+    if (renameTarget && !renameInLongStructure) {
       return {
         kind: "long-rename",
         title: renameTarget.title,
@@ -342,16 +372,9 @@ export function useWorkspaceDialogModuleCoordinator(
     }
 
     if (options.longStructure.dialogOpen.value) {
-      return {
-        kind: "long-structure",
-        bookTitle: options.longLifecycle.activeBookSummary.value?.title ?? "",
-        bookId: options.longLifecycle.activeBookId.value,
-        agentsMd: options.longStructure.agentsMd.value,
-        agentsMdPending: options.longStructure.agentsMdPending.value,
-        syncBookOptions: options.longStructure.syncBookOptions.value,
-        snapshot: options.longLifecycle.workspaceIndex.value,
-        pending: options.longLifecycle.bookActionPending.value
-      };
+      return longStructure(
+        renameInLongStructure ? { renameTitle: renameTarget.title } : undefined
+      );
     }
 
     const characterDialog = options.shortStructure.characterDialog.value;
@@ -364,10 +387,18 @@ export function useWorkspaceDialogModuleCoordinator(
       };
     }
 
-    if (options.shortStructure.plotBookId.value) {
+    const plotBookId = options.shortStructure.plotBookId.value;
+    if (plotBookId) {
+      const renameTarget =
+        options.shortLifecycle.resourceMode.value === "rename"
+          ? options.shortLifecycle.activeBookTarget.value
+          : null;
       return {
         kind: "plot-structure",
         book: options.shortStructure.plotBook.value,
+        ...(renameTarget?.bookId === plotBookId
+          ? { renameBook: renameTarget.node }
+          : {}),
         pending: options.catalog.mutationPending.value,
         writingContext: options.shortStructure.writingContext?.value ?? null,
         writingContextLoading:

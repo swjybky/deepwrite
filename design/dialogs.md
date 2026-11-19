@@ -44,3 +44,8 @@
 - 弹窗和弹层 `Teleport` 到 `body` 后脱离组件的 scoped 上下文，样式必须只依赖根节点主题变量，不依赖父容器的类。
 - 工作台弹窗遮罩 z-index 100；二级弹窗 2100–2400；其内菜单要再高。新弹层按 [tokens.md](tokens.md) 的层级表取值。
 - 弹窗里的 `PopupSelect` 菜单不得被弹窗裁切或压在弹窗下面。
+
+## 作品管理
+
+- 短篇、剧本、长篇、剧本杀和学术共用 `BookManagementDialog`。尺寸固定为 `width: min(960px, calc(100vw - 48px))` 与 `height: min(680px, calc(100vh - 48px))`。右侧内容独立滚动，分区超出时左栏独立滚动。
+- 各作品传入 `{ id, group, label, title?, description? }[]`，导航按结构、设置、上下文分组，省略空组。子弹窗使用 `book-management-child` 层级，主弹窗保持原位并进入 `inert` 状态。

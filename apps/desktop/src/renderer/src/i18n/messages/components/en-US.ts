@@ -121,7 +121,6 @@ import longPlotStoryListPane from "./longPlotStoryListPane/en-US";
 import longProposalImpactDetails from "./longProposalImpactDetails/en-US";
 import longProposalReview from "./longProposalReview/en-US";
 import longStructureDeleteDialog from "./longStructureDeleteDialog/en-US";
-import longStructureDialog from "./longStructureDialog/en-US";
 import longStructureManager from "./longStructureManager/en-US";
 import longWorkspaceEditor from "./longWorkspaceEditor/en-US";
 import longWorkspaceLoading from "./longWorkspaceLoading/en-US";
@@ -318,7 +317,6 @@ export default {
   longProposalImpactDetails,
   longProposalReview,
   longStructureDeleteDialog,
-  longStructureDialog,
   longStructureManager,
   longWorkspaceEditor,
   longWorkspaceLoading,

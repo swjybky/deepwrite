@@ -30,7 +30,7 @@ export type PendingLongStructureDelete = LongStructureDeleteRow & {
 };
 
 interface Options {
-  snapshot: ComputedRef<LongWorkspaceIndexSnapshot>;
+  snapshot: ComputedRef<LongWorkspaceIndexSnapshot | null>;
   locked: () => boolean;
   mutate(
     batch: LongWorkspaceOperationBatch,
@@ -52,18 +52,18 @@ export function useLongStructureDeleteConfirmation(options: Options) {
 
   const deletingCharacterCount = computed(() =>
     pendingDelete.value?.kind === "characterType"
-      ? options.snapshot.value.characters.filter(
+      ? (options.snapshot.value?.characters.filter(
           ({ group }) => group === pendingDelete.value?.id
-        ).length
+        ).length ?? 0)
       : 0
   );
   const deletingLastCharacterType = computed(
     () =>
       pendingDelete.value?.kind === "characterType" &&
-      options.snapshot.value.characterTypes.length <= 1
+      (options.snapshot.value?.characterTypes.length ?? 0) <= 1
   );
   const characterTypeMoveOptions = computed(() =>
-    options.snapshot.value.characterTypes
+    (options.snapshot.value?.characterTypes ?? [])
       .filter(({ id }) => id !== pendingDelete.value?.id)
       .sort((left, right) => left.order - right.order)
       .map(({ id, title }) => ({ value: id, label: title }))
@@ -73,7 +73,7 @@ export function useLongStructureDeleteConfirmation(options: Options) {
     if (target?.kind !== "worldbuilding") return "";
     if (target.previewPending)
       return t("checkingRelationshipsAndDeletionImpact");
-    const category = options.snapshot.value.worldbuilding.find(
+    const category = options.snapshot.value?.worldbuilding.find(
       ({ id }) => id === target.id
     );
     if (!category) return t("thisCategoryNoLongerExists");
@@ -93,7 +93,8 @@ export function useLongStructureDeleteConfirmation(options: Options) {
   }
 
   function openDelete(row: LongStructureDeleteRow): void {
-    if (options.locked()) return;
+    const snapshot = options.snapshot.value;
+    if (!snapshot || options.locked()) return;
     if (
       row.readOnly ||
       (row.kind === "worldbuilding" &&
@@ -104,16 +105,13 @@ export function useLongStructureDeleteConfirmation(options: Options) {
     }
     moveCharactersToTypeId.value = "";
     characterTypeDeleteMode.value =
-      row.kind === "characterType" &&
-      options.snapshot.value.characterTypes.length <= 1
+      row.kind === "characterType" && snapshot.characterTypes.length <= 1
         ? "cascade"
         : "move";
     pendingDelete.value = { ...row, previewPending: true };
     if (
       row.kind === "worldbuilding" ||
-      !options.snapshot.value.characters.some(
-        ({ group }) => group === row.id
-      ) ||
+      !snapshot.characters.some(({ group }) => group === row.id) ||
       characterTypeDeleteMode.value === "cascade"
     ) {
       previewPendingDelete();
@@ -149,11 +147,10 @@ export function useLongStructureDeleteConfirmation(options: Options) {
 
   function previewPendingDelete(): void {
     const target = pendingDelete.value;
-    if (!target) return;
+    const snapshot = options.snapshot.value;
+    if (!target || !snapshot) return;
     try {
-      const builder = createLongStructureMutationBuilder(
-        options.snapshot.value
-      );
+      const builder = createLongStructureMutationBuilder(snapshot);
       const batch =
         target.kind === "characterType"
           ? builder.deleteCharacterType(
@@ -167,10 +164,8 @@ export function useLongStructureDeleteConfirmation(options: Options) {
         ...target,
         previewPending: false,
         batch,
-        expectedImpact: previewLongWorkspaceOperations(
-          options.snapshot.value,
-          batch
-        ).confirmation
+        expectedImpact: previewLongWorkspaceOperations(snapshot, batch)
+          .confirmation
       };
       pendingDelete.value = pending;
     } catch (error: unknown) {

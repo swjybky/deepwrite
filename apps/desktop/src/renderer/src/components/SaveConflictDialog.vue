@@ -23,7 +23,8 @@ const emit = defineEmits<{
     <div
       v-if="open"
       class="dialog-backdrop"
-      :class="{ 'save-conflict-nested': nested }"
+      :class="{ 'book-management-child': nested }"
+      @keydown.esc="nested && !submitting && emit('keep')"
     >
       <section
         class="workspace-dialog save-conflict-dialog"
@@ -101,10 +102,6 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.save-conflict-nested {
-  z-index: 2300;
-}
-
 .save-conflict-dialog {
   width: min(820px, calc(100vw - 40px));
 }

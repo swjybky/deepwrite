@@ -118,7 +118,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
       >
         <header>
           <div>
-            <span class="dialog-eyebrow">{{ book.label }}</span>
+            <span v-if="!backdropClass" class="dialog-eyebrow">{{
+              book.label
+            }}</span>
             <h2 :id="`book-resource-dialog-${mode}`">{{ title }}</h2>
           </div>
           <button

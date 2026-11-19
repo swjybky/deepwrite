@@ -97,6 +97,7 @@ export interface PlotStructureDialogModule {
   writingContext: string | null;
   writingContextLoading: boolean;
   writingContextPending: boolean;
+  renameBook?: ResourceTreeNode | undefined;
 }
 
 export interface CharacterItemDialogModule {
@@ -168,6 +169,8 @@ export interface LongStructureDialogModule {
   syncBookOptions: readonly LongWorldbuildingSyncBookOption[];
   snapshot: LongWorkspaceIndexSnapshot | null;
   pending: boolean;
+  renameTitle?: string | undefined;
+  legacySync?: LegacySyncDialogModule;
 }
 
 export interface CreateLongCharacterDialogModule {

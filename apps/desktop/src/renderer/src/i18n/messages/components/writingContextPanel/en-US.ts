@@ -1,4 +1,8 @@
 export default {
+  novelContext: "Novel context",
+  academicContext: "Academic context",
+  storeLastingAcademicInstructions:
+    "Store research conventions and writing requirements that apply throughout this work.",
   screenplayContext: "Screenplay context",
   shortStoryContext: "Short story context",
   mysteryContext: "Murder mystery context",
@@ -8,8 +12,9 @@ export default {
   saving: "Saving…",
   saveContext: "Save context",
   readingContext: "Reading context…",
+  contextReadFailed: "Could not read the context.",
   retryReadingContext: "Retry reading context",
   valueContent: "{arg0} content",
   unsavedChangesAreSavedAutomaticallyWhenSwitchingTabsOr:
-    "Unsaved changes are saved automatically when switching tabs or closing structure management."
+    "Unsaved changes are saved automatically when switching sections or closing structure management."
 };

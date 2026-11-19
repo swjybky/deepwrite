@@ -1,13 +1,5 @@
 import { createScopedTranslator } from "../i18n";
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  watch
-} from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   isBuiltinCreativePlotStageId,
   type Book,
@@ -62,8 +54,6 @@ export function usePlotStructureDialog(
   props: Readonly<PlotStructureDialogProps>,
   emit: PlotStructureDialogEmit
 ) {
-  const dialogElement = ref<HTMLElement | null>(null);
-  const closeButton = ref<HTMLButtonElement | null>(null);
   const writingContextPanel = ref<WritingContextPanelHandle | null>(null);
   const formOpen = ref(false);
   const formMode = ref<"create" | "edit">("create");
@@ -73,7 +63,6 @@ export function usePlotStructureDialog(
   const activeStructureTab = ref<"character" | "plot" | "context">("character");
   const requestedCharacterFormat = ref<BookCharacterFormat | null>(null);
   const form = reactive({ title: "", description: "" });
-  let previousFocus: HTMLElement | null = null;
 
   const creativeBook = computed(() =>
     props.book && props.book.bookType !== "academic" ? props.book : null
@@ -289,68 +278,14 @@ export function usePlotStructureDialog(
     beginMutation({ type: "delete", stageId: stage.id, deleteContent: true });
   }
 
-  function focusableElements(): HTMLElement[] {
-    return dialogElement.value
-      ? Array.from(
-          dialogElement.value.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((element) => !element.hasAttribute("hidden"))
-      : [];
-  }
-
-  function handleKeydown(event: KeyboardEvent): void {
-    if (!props.open) return;
-    if (event.key === "Escape") {
-      void close();
-      return;
-    }
-    if (
-      event.key !== "Tab" ||
-      !dialogElement.value?.contains(event.target as Node)
-    ) {
-      return;
-    }
-    const focusable = focusableElements();
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!first || !last) {
-      event.preventDefault();
-      dialogElement.value.focus({ preventScroll: true });
-    } else if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus({ preventScroll: true });
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus({ preventScroll: true });
-    }
-  }
-
   watch(
     () => props.open,
-    async (open) => {
-      if (open) {
-        previousFocus =
-          document.activeElement instanceof HTMLElement
-            ? document.activeElement
-            : null;
-        activeStructureTab.value = "character";
-        resetPanels();
-        await nextTick();
-        (closeButton.value ?? dialogElement.value)?.focus({
-          preventScroll: true
-        });
-      } else {
-        const target = previousFocus;
-        previousFocus = null;
-        await nextTick();
-        if (target?.isConnected) target.focus({ preventScroll: true });
-      }
+    (open) => {
+      if (!open) return;
+      activeStructureTab.value = "character";
+      resetPanels();
     }
   );
-
-  onMounted(() => document.addEventListener("keydown", handleKeydown));
-  onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
 
   function saveWritingContext(
     content: string,
@@ -365,12 +300,10 @@ export function usePlotStructureDialog(
     characterOverview,
     characterTextPreview,
     close,
-    closeButton,
     confirmCharacterFormat,
     confirmDelete,
     deletingHasContent,
     deletingStage,
-    dialogElement,
     form,
     formMode,
     flushWritingContext,

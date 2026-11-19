@@ -3,6 +3,7 @@ import { createScopedTranslator } from "../i18n";
 import { computed } from "vue";
 import type { LongWorldbuildingSyncPreparedChange } from "../types/longWorkspace";
 import type { LongWorldbuildingSyncBookOption } from "../utils/longWorldbuildingSync";
+import BookManagementChildDialog from "./book-management/BookManagementChildDialog.vue";
 import LongImpactConfirmationDetails from "./LongImpactConfirmationDetails.vue";
 import PopupSelect, {
   type PopupSelectOption,
@@ -58,192 +59,77 @@ function selectBook(value: PopupSelectValue): void {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="dialog-backdrop sync-overlay"
-      @mousedown.self="emit('close')"
-      @keydown.esc.stop="emit('close')"
-    >
-      <section
-        class="sync-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="long-structure-sync-title"
-        aria-describedby="long-structure-sync-description"
+  <BookManagementChildDialog
+    v-if="open"
+    :title="t('loadWorldbuildingFromAnotherBook')"
+    :pending="locked"
+    confirm
+    @close="emit('close')"
+    @submit="emit('confirm')"
+  >
+    <fieldset class="book-management-child-fields" :disabled="locked">
+      <p class="dialog-description">
+        {{ t("syncReplacesAllEditableWorldbuildingInThisBookWith") }}
+      </p>
+      <label class="book-management-field">
+        <span>{{ t("selectSourceNovel") }}</span>
+        <PopupSelect
+          :model-value="selectedBookId"
+          :options="selectOptions"
+          :accessible-label="t('selectANovelToSyncWorldbuildingFrom')"
+          :menu-z-index="2300"
+          @update:model-value="selectBook"
+        />
+      </label>
+      <p v-if="selectedBook" class="dialog-note">
+        {{
+          t("readAllContentFromTheWorldbuildingCategoriesMessage", {
+            arg0: selectedBook.title ?? "",
+            arg1: selectedBook.categoryCount ?? ""
+          })
+        }}
+      </p>
+      <template v-if="prepared">
+        <p class="dialog-note">
+          {{
+            t("categoriesToAddCategoriesToDeleteContentMessage", {
+              arg0: prepared.createdCategoryCount ?? "",
+              arg1: prepared.deletedCategoryCount ?? "",
+              arg2: prepared.writtenFileCount ?? ""
+            })
+          }}
+        </p>
+        <LongImpactConfirmationDetails
+          :confirmation="prepared.confirmation"
+          :fallback="t('syncWillNotChangeLinksInTheCurrentNovel')"
+        />
+      </template>
+    </fieldset>
+    <template #actions>
+      <button
+        class="dialog-secondary-button"
+        type="button"
+        :disabled="locked"
+        @click="emit('close')"
       >
-        <header>
-          <div>
-            <span>SYNC</span>
-            <h3 id="long-structure-sync-title">
-              {{ t("loadWorldbuildingFromAnotherBook") }}
-            </h3>
-          </div>
-          <button
-            class="close-button"
-            type="button"
-            :aria-label="t('close')"
-            :disabled="locked"
-            @click="emit('close')"
-          >
-            ×
-          </button>
-        </header>
-        <fieldset :disabled="locked">
-          <p id="long-structure-sync-description">
-            {{ t("syncReplacesAllEditableWorldbuildingInThisBookWith") }}
-          </p>
-          <label>
-            <span>{{ t("selectSourceNovel") }}</span>
-            <PopupSelect
-              :model-value="selectedBookId"
-              :options="selectOptions"
-              :accessible-label="t('selectANovelToSyncWorldbuildingFrom')"
-              :menu-z-index="2300"
-              @update:model-value="selectBook"
-            />
-          </label>
-          <p v-if="selectedBook" class="summary">
-            {{
-              t("readAllContentFromTheWorldbuildingCategoriesMessage", {
-                arg0: selectedBook.title ?? "",
-                arg1: selectedBook.categoryCount ?? ""
-              })
-            }}
-          </p>
-          <template v-if="prepared">
-            <p class="summary">
-              {{
-                t("categoriesToAddCategoriesToDeleteContentMessage", {
-                  arg0: prepared.createdCategoryCount ?? "",
-                  arg1: prepared.deletedCategoryCount ?? "",
-                  arg2: prepared.writtenFileCount ?? ""
-                })
-              }}
-            </p>
-            <LongImpactConfirmationDetails
-              :confirmation="prepared.confirmation"
-              :fallback="t('syncWillNotChangeLinksInTheCurrentNovel')"
-            />
-          </template>
-        </fieldset>
-        <footer>
-          <button type="button" :disabled="locked" @click="emit('close')">
-            {{ t("cancel") }}
-          </button>
-          <button
-            :class="{ 'danger-button': Boolean(prepared) }"
-            type="button"
-            :disabled="locked || !selectedBookId"
-            @click="emit('confirm')"
-          >
-            {{
-              pending
-                ? prepared
-                  ? t("syncing")
-                  : t("checking")
-                : prepared
-                  ? t("overwriteWithTheImpactShown")
-                  : t("reviewSyncImpact")
-            }}
-          </button>
-        </footer>
-      </section>
-    </div>
-  </Teleport>
+        {{ t("cancel") }}
+      </button>
+      <button
+        class="dialog-primary-button"
+        :class="{ 'is-danger': Boolean(prepared) }"
+        type="submit"
+        :disabled="locked || !selectedBookId"
+      >
+        {{
+          pending
+            ? prepared
+              ? t("syncing")
+              : t("checking")
+            : prepared
+              ? t("overwriteWithTheImpactShown")
+              : t("reviewSyncImpact")
+        }}
+      </button>
+    </template>
+  </BookManagementChildDialog>
 </template>
-
-<style scoped>
-.sync-overlay {
-  z-index: 2200;
-  overflow: auto;
-  padding: 1rem;
-}
-
-.sync-modal {
-  width: min(31rem, 100%);
-  max-height: min(88vh, 48rem);
-  overflow: auto;
-  border: 1px solid var(--theme-line);
-  border-radius: 0.9rem;
-  color: var(--text-primary);
-  background: var(--surface-main);
-  box-shadow: 0 1.2rem 3.5rem
-    color-mix(in srgb, var(--theme-foreground) 24%, transparent);
-  font-size: 0.875rem;
-}
-
-header,
-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
-}
-
-header {
-  border-bottom: 1px solid var(--theme-line-soft);
-}
-
-header h3 {
-  margin: 0.15rem 0 0;
-}
-
-header span {
-  color: var(--accent);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-.close-button {
-  width: 2rem;
-  padding: 0;
-  border-color: transparent;
-  background: transparent;
-  font-size: 1.2rem;
-}
-
-fieldset {
-  display: grid;
-  min-inline-size: 0;
-  gap: 0.85rem;
-  margin: 0;
-  padding: 1rem;
-  border: 0;
-}
-
-fieldset > p {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.55;
-}
-
-label {
-  display: grid;
-  gap: 0.4rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.summary {
-  padding: 0.75rem;
-  border: 1px solid var(--theme-line);
-  border-radius: 0.65rem;
-  background: var(--surface-muted);
-}
-
-footer {
-  justify-content: flex-end;
-  border-top: 1px solid var(--theme-line-soft);
-  background: var(--surface-muted);
-}
-
-.danger-button {
-  border-color: var(--danger);
-  color: #fff;
-  background: var(--danger);
-  font-weight: 650;
-}
-</style>

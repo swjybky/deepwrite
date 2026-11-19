@@ -260,7 +260,7 @@ function close(): void {
     :mode="bookDialogMode"
     :book="book"
     :submitting="busy"
-    :backdrop-class="nested ? 'mystery-dialog-nested' : undefined"
+    :backdrop-class="nested ? 'book-management-child' : undefined"
     @close="close"
     @rename="emit('renameBook', $event.label)"
     @remove="emit('unregisterBook')"
@@ -271,7 +271,7 @@ function close(): void {
     <div
       v-if="dialog && !bookDialogMode"
       class="dialog-backdrop"
-      :class="{ 'mystery-dialog-nested': nested }"
+      :class="{ 'book-management-child': nested }"
       @mousedown.self="close"
     >
       <section
@@ -285,7 +285,9 @@ function close(): void {
       >
         <header>
           <div>
-            <span class="dialog-eyebrow">{{ manifest.title }}</span>
+            <span v-if="!nested" class="dialog-eyebrow">{{
+              manifest.title
+            }}</span>
             <h2 id="mystery-dialog-title">{{ title }}</h2>
           </div>
           <button
@@ -398,9 +400,3 @@ function close(): void {
     </div>
   </Teleport>
 </template>
-
-<style>
-.mystery-dialog-nested {
-  z-index: 2300;
-}
-</style>

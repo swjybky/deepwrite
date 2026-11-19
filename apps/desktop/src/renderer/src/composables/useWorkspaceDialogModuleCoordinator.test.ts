@@ -670,6 +670,60 @@ describe("useWorkspaceDialogModuleCoordinator", () => {
     expect(module.book).not.toBe(target);
   });
 
+  it("keeps plot management mounted while renaming the same work", () => {
+    const { options, refs } = createHarness();
+    const target = shortBookTarget();
+    refs.plotBookId.value = target.bookId;
+    const module = useWorkspaceDialogModuleCoordinator(options);
+
+    refs.activeBookTarget.value = target;
+    refs.resourceMode.value = "rename";
+    expect(module.value).toMatchObject({
+      kind: "plot-structure",
+      renameBook: target.node
+    });
+
+    refs.resourceMode.value = null;
+    expect(module.value?.kind).toBe("plot-structure");
+    expect(module.value).not.toHaveProperty("renameBook");
+  });
+
+  it("layers a novel rename over management only for the active novel", () => {
+    const { options, refs } = createHarness();
+    refs.longStructureDialogOpen.value = true;
+    refs.activeBookId.value = "novel-1";
+    const module = useWorkspaceDialogModuleCoordinator(options);
+
+    refs.renameTarget.value = { bookId: "novel-1", title: "Novel one" };
+    expect(module.value).toMatchObject({
+      kind: "long-structure",
+      renameTitle: "Novel one"
+    });
+
+    refs.renameTarget.value = { bookId: "novel-2", title: "Novel two" };
+    expect(module.value).toMatchObject({
+      kind: "long-rename",
+      title: "Novel two"
+    });
+  });
+
+  it("keeps novel management mounted when the legacy archive preview opens", () => {
+    const harness = createHarness();
+    harness.refs.longStructureDialogOpen.value = true;
+    harness.refs.activeBookId.value = "novel-1";
+    setKindActive(harness, "legacy-sync", true);
+    const module = useWorkspaceDialogModuleCoordinator(harness.options);
+
+    expect(module.value).toMatchObject({
+      kind: "long-structure",
+      legacySync: { preview: harness.refs.legacyPreview.value }
+    });
+
+    setKindActive(harness, "legacy-sync", false);
+    expect(module.value?.kind).toBe("long-structure");
+    expect(module.value).not.toHaveProperty("legacySync");
+  });
+
   it("passes the long-form export book id into the export-long module", () => {
     const harness = createHarness();
     harness.refs.longExportTarget.value = {

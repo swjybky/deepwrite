@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import type {
   LongApplyLegacySyncResult,
   LongChooseLegacySyncSourceResult,
@@ -14,6 +14,7 @@ const props = defineProps<{
   preview: LongChooseLegacySyncSourceResult | null;
   result?: LongApplyLegacySyncResult | null;
   pending?: boolean;
+  nested?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +23,12 @@ const emit = defineEmits<{
 }>();
 
 const selected = ref<LongLegacySyncModule[]>([]);
+const dialog = ref<HTMLElement>();
+
+onMounted(() => {
+  if (props.nested && !dialog.value?.contains(document.activeElement))
+    dialog.value?.focus({ preventScroll: true });
+});
 
 const options = computed(() => {
   const counts = props.preview?.counts;
@@ -98,17 +105,21 @@ function total(counts: LongApplyLegacySyncResult["imported"]): number {
     <div
       v-if="preview"
       class="dialog-backdrop"
+      :class="{ 'book-management-child': nested }"
+      @keydown.esc.stop="!pending && emit('close')"
       @mousedown.self="!pending && emit('close')"
     >
       <section
+        ref="dialog"
         class="workspace-dialog legacy-sync-dialog"
+        tabindex="-1"
         role="dialog"
         aria-modal="true"
         aria-labelledby="legacy-sync-title"
       >
         <header>
           <div>
-            <span class="dialog-eyebrow">{{ t("syncLegacyVersion") }}</span>
+            <span>{{ t("syncLegacyVersion") }}</span>
             <h2 id="legacy-sync-title">{{ preview.sourceTitle }}</h2>
           </div>
           <button

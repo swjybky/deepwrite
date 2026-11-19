@@ -1,0 +1,100 @@
+{
+  "operations": [
+    {
+      "kind": "plot-mutation",
+      "type": "create"
+    },
+    {
+      "kind": "plot-mutation",
+      "type": "update"
+    },
+    {
+      "kind": "plot-mutation",
+      "type": "delete"
+    },
+    {
+      "kind": "plot-mutation",
+      "type": "move"
+    },
+    {
+      "kind": "plot-mutation",
+      "type": "setEnabled"
+    },
+    {
+      "kind": "character-mutation",
+      "type": "setFormat"
+    },
+    {
+      "kind": "plot-context",
+      "type": null
+    },
+    {
+      "kind": "long-sync",
+      "type": null
+    },
+    {
+      "kind": "long-mutation",
+      "type": null
+    },
+    {
+      "kind": "long-context",
+      "type": null
+    },
+    {
+      "kind": "long-book-action",
+      "type": null
+    },
+    {
+      "kind": "long-book-action",
+      "type": null
+    },
+    {
+      "kind": "mystery-operation",
+      "type": "boardSpec.update"
+    },
+    {
+      "kind": "mystery-context",
+      "type": null
+    },
+    {
+      "kind": "academic-stage",
+      "type": "create"
+    },
+    {
+      "kind": "academic-stage",
+      "type": "update"
+    },
+    {
+      "kind": "academic-stage",
+      "type": "setEnabled"
+    },
+    {
+      "kind": "academic-stage",
+      "type": "move"
+    },
+    {
+      "kind": "academic-stage",
+      "type": "delete"
+    },
+    {
+      "kind": "academic-settings",
+      "type": null
+    },
+    {
+      "kind": "academic-context",
+      "type": null
+    },
+    {
+      "kind": "short-rename",
+      "type": null
+    },
+    {
+      "kind": "long-rename",
+      "type": null
+    }
+  ],
+  "focus": "passed",
+  "loading": "passed",
+  "overflow": "passed",
+  "english": "passed"
+}

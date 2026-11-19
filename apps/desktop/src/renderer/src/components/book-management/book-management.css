@@ -1,0 +1,294 @@
+.dialog-backdrop.book-management-backdrop {
+  z-index: 2200;
+  padding: 24px;
+}
+
+.workspace-dialog.book-management-dialog {
+  position: relative;
+  width: min(960px, calc(100vw - 48px));
+  height: min(680px, calc(100vh - 48px));
+  max-height: none;
+}
+
+.book-management-dialog[inert]::after {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--theme-foreground) 14%, transparent);
+  content: "";
+}
+
+.book-management-dialog > header {
+  align-items: center;
+  padding: 12px 22px;
+}
+
+.book-management-dialog > header h2,
+.book-management-section-header h3,
+.book-management-section-header p {
+  margin: 0;
+}
+
+.book-management-layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.book-management-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  padding: 16px 12px;
+  border-inline-end: 1px solid var(--theme-line-soft);
+  background: var(--surface-muted);
+}
+
+.book-management-nav-group {
+  display: grid;
+  gap: 3px;
+}
+
+.book-management-nav-group strong {
+  padding: 0 9px 3px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.book-management-nav button {
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.book-management-nav button:hover {
+  background: var(--surface-hover);
+}
+
+.book-management-nav button[aria-current="true"] {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.book-management-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.book-management-section-header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 16px 22px 12px;
+  border-bottom: 1px solid var(--theme-line-soft);
+}
+
+.book-management-section-header > div:first-child {
+  flex: 1 1 230px;
+  min-width: 0;
+}
+
+.book-management-section-header h3 {
+  font-size: 1.14rem;
+}
+
+.book-management-section-header p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+}
+
+.book-management-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-inline-start: auto;
+}
+
+.book-management-section-actions:empty {
+  display: none;
+}
+
+.book-management-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 22px;
+}
+
+.dialog-actions.book-management-footer {
+  flex: none;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 9px 22px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+
+.book-management-list,
+.book-management-settings {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  list-style: none;
+}
+
+.book-management-row,
+.book-management-setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.book-management-row + .book-management-row,
+.book-management-setting + .book-management-setting {
+  border-top: 1px solid var(--theme-line-soft);
+}
+
+.book-management-row:hover {
+  background: var(--surface-hover);
+}
+
+.book-management-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.book-management-copy strong,
+.book-management-copy code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-management-copy > span,
+.book-management-note {
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  overflow-wrap: anywhere;
+}
+
+.book-management-content > * + .book-management-note {
+  margin-block-start: 12px;
+}
+
+.book-management-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.book-management-dialog .book-management-copy code,
+.book-management-label {
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+}
+
+.book-management-copy code {
+  font-family: var(--code-font);
+}
+
+.book-management-label {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 4px;
+  background: var(--surface-muted);
+}
+
+.book-management-row-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.book-management-row-actions .icon-button {
+  width: max(24px, 2.285714rem);
+  height: max(24px, 2.285714rem);
+}
+
+.book-management-row-actions svg {
+  width: 1.142857rem;
+  height: 1.142857rem;
+}
+
+.book-management-row-actions .icon-button:last-child:hover:not(:disabled) {
+  color: var(--danger-text);
+}
+
+.book-management-move-down {
+  transform: rotate(180deg);
+}
+
+.book-management-setting > .popup-select {
+  flex: 0 1 40%;
+  min-width: 0;
+}
+
+:root .dialog-backdrop.book-management-child {
+  z-index: 2250;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.book-management-child .dialog-content {
+  min-height: 0;
+}
+
+.book-management-child > .workspace-dialog > .dialog-actions {
+  flex: none;
+  padding: 0 22px 18px;
+}
+
+.book-management-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+}
+
+.book-management-field:last-child {
+  margin-bottom: 0;
+}
+
+.book-management-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+}
+
+.book-management-child-fields {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.book-management-child-fields > * {
+  margin: 0;
+}

@@ -173,6 +173,8 @@ export function useLazyShortBookLifecycleCoordinator(
     openBookRename: (book) => {
       void openBookDialog("rename", book);
     },
+    isBookRenameOpen: (bookId) =>
+      bookDialogMode.value === "rename" && activeBook.value?.bookId === bookId,
     refresh: () => options.catalog.refresh(),
     prepareBookMutation: (bookId) =>
       options.preparation.prepareBookMutation(bookId),

@@ -106,6 +106,7 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 
 | 日期 | 主题 | 结论 | 报告 |
 | --- | --- | --- | --- |
+| 2026-11-18 | 五类作品管理弹窗统一 | 73 项与五类桌面对比通过 | [报告](test/2026-11-18-book-management-dialog.md) |
 | 2026-11-18 | 剧本杀上下文移入管理 | 29 项与四组桌面截图通过 | [报告](test/2026-11-18-mystery-context.md) |
 | 2026-11-18 | 长篇合并归档与账本确认 | 110 项与 Core 冒烟通过 | [报告](test/2026-11-18-long-continuity-archive.md) |
 | 2026-11-18 | 技能广场已安装状态 | 71 项与桌面对比通过 | [报告](test/2026-11-18-skill-marketplace-installed.md) |
