@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import {
   getModelContentBlockReason,
-  isModelQuotaExhausted
+  isModelQuotaExhausted,
+  isUnsupportedDeveloperRoleError
 } from "./model-provider-errors";
 
 it.each([
@@ -66,4 +67,39 @@ it("包装错误里的循环引用不会导致递归卡住", () => {
   const cause: { cause?: unknown } = {};
   cause.cause = cause;
   expect(isModelQuotaExhausted(cause)).toBe(false);
+});
+
+it.each([
+  "400 Invalid role: 'developer'",
+  "400 Unsupported role 'developer'",
+  "Role 'developer' is not supported by this model",
+  "messages[0].role: Input should be 'system', 'user', 'assistant' or 'tool'",
+  "'developer' is not one of ['system', 'assistant', 'user', 'tool']",
+  "当前模型不支持 developer 角色",
+  { error: { message: "messages.0.role: 'developer' is not allowed" } },
+  new Error("请求失败", {
+    cause: {
+      details: {
+        errorMessage: "Invalid value: role developer is not supported"
+      }
+    }
+  })
+])("识别接口不支持 developer 角色的报错：%j", (cause) => {
+  expect(isUnsupportedDeveloperRoleError(cause)).toBe(true);
+});
+
+it.each([
+  "503 Service Unavailable",
+  "Please contact the developer for API access.",
+  "Developer documentation is available at example.test",
+  "400 Invalid role: 'function'",
+  undefined
+])("普通故障或包含 developer 的无关文案不误判：%j", (cause) => {
+  expect(isUnsupportedDeveloperRoleError(cause)).toBe(false);
+});
+
+it("不支持 developer 角色识别可处理循环引用", () => {
+  const cause: { cause?: unknown } = {};
+  cause.cause = cause;
+  expect(isUnsupportedDeveloperRoleError(cause)).toBe(false);
 });

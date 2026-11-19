@@ -1,3 +1,4 @@
+import { isWorkspaceBookNode } from "../utils/resourceTreeLookup";
 import { formatError } from "../i18n/errors";
 import { t } from "../i18n";
 import { computed, ref, type Ref } from "vue";
@@ -31,9 +32,7 @@ export function createComposerContextNavigation(options: {
     const seen = new Set<string>();
     function visit(nodes: ResourceTreeNode[], domain: string): void {
       for (const node of nodes) {
-        if (
-          ["book", "long-book", "library"].includes(node.catalogNodeType ?? "")
-        ) {
+        if (isWorkspaceBookNode(node) || node.catalogNodeType === "library") {
           if (!seen.has(node.id)) result.push({ node, domain });
           seen.add(node.id);
         } else visit(node.children ?? [], domain);
@@ -129,10 +128,12 @@ export function createWorkspaceComposerContextNavigation(
     selectedResourceId: options.state.selectedResourceId,
     selectResource: resources.selectResource,
     canSelect: (node) =>
+      Boolean(node.mysteryTarget || node.catalogNodeType === "mystery-book") ||
       Boolean(
         node.longBookId &&
         (node.longWorkspaceSelection || node.catalogNodeType === "long-book")
-      ) || Boolean(resources.documentForResourceId(node.id)),
+      ) ||
+      Boolean(resources.documentForResourceId(node.id)),
     error: options.notifications.error
   });
 }

@@ -176,7 +176,6 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
   const ledgerCommitDeleteTarget =
     shallowRef<LongLedgerCommitDeleteTarget | null>(null);
   const volumeCreateTarget = shallowRef<LongVolumeCreateTarget | null>(null);
-  const bindingsDialogMode = ref<"skill" | "material" | null>(null);
   const exportTarget = shallowRef<LongBookRenameTarget | null>(null);
   const bookRenameTarget = shallowRef<LongBookRenameTarget | null>(null);
   const bookRemovalTarget = shallowRef<LongBookRemovalTarget | null>(null);
@@ -521,7 +520,6 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
     treeItemDeleteTarget.value = null;
     ledgerCommitDeleteTarget.value = null;
     volumeCreateTarget.value = null;
-    bindingsDialogMode.value = null;
     exportTarget.value = null;
     bookRenameTarget.value = null;
     bookRemovalTarget.value = null;
@@ -637,7 +635,6 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
     treeItemDeleteTarget,
     ledgerCommitDeleteTarget,
     volumeCreateTarget,
-    bindingsDialogMode,
     exportTarget,
     bookRenameTarget,
     bookRemovalTarget,

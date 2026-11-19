@@ -11,6 +11,7 @@ import {
   MODEL_MAX_TOKENS_MIN
 } from "@deepwrite/contracts/renderer";
 import { uiMessage } from "../ui-feedback";
+import AgentTeamSwitch from "./AgentTeamSwitch.vue";
 import { toModelInput, type DraftModel } from "./modelSettingsDraft";
 
 const t = createScopedTranslator("components.modelAdvancedConfigDialog");
@@ -22,12 +23,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  save: [capacity: { contextWindow: number; maxTokens: number }];
+  save: [
+    capacity: {
+      contextWindow: number;
+      maxTokens: number;
+      supportsDeveloperRole?: boolean;
+    }
+  ];
 }>();
 
 const firstInput = ref<HTMLInputElement | null>(null);
 const contextWindowText = ref("");
 const maxTokensText = ref("");
+const disableDeveloperRole = ref(false);
 const resolving = ref(false);
 let resolveSequence = 0;
 
@@ -87,6 +95,7 @@ watch(
   (model) => {
     resolveSequence += 1;
     resolving.value = false;
+    disableDeveloperRole.value = model?.supportsDeveloperRole === false;
     if (!model) {
       contextWindowText.value = "";
       maxTokensText.value = "";
@@ -147,7 +156,16 @@ function save(): void {
     uiMessage.warning(t("maximumOutputLengthCannotExceedContextLength"));
     return;
   }
-  emit("save", { contextWindow, maxTokens });
+  const supportsDeveloperRole = disableDeveloperRole.value
+    ? false
+    : props.model.supportsDeveloperRole === true
+      ? true
+      : undefined;
+  emit("save", {
+    contextWindow,
+    maxTokens,
+    ...(supportsDeveloperRole !== undefined ? { supportsDeveloperRole } : {})
+  });
 }
 </script>
 
@@ -175,13 +193,6 @@ function save(): void {
             </h2>
           </div>
         </header>
-        <p>
-          {{
-            t("setRequestCapacityForDefaultsMatchTheMessage", {
-              arg0: model.label ?? ""
-            })
-          }}
-        </p>
         <div class="model-advanced-config-fields">
           <label>
             <span>{{ t("contextLength") }}</span>
@@ -194,9 +205,6 @@ function save(): void {
               :placeholder="resolving ? t('readingActualRequestCapacity') : ''"
               :aria-label="t('contextLength')"
             />
-            <small>{{
-              t("totalTokensPerRequestIncludingInputAndOutput")
-            }}</small>
           </label>
           <label>
             <span>{{ t("maximumOutputLength") }}</span>
@@ -208,7 +216,16 @@ function save(): void {
               :placeholder="resolving ? t('readingActualRequestCapacity') : ''"
               :aria-label="t('maximumOutputLength')"
             />
-            <small>{{ t("maximumTokensGeneratedInASingleReply") }}</small>
+          </label>
+          <label class="model-advanced-config-switch-row">
+            <span class="model-advanced-config-switch-title">{{
+              t("devRoleOff")
+            }}</span>
+            <AgentTeamSwitch
+              v-model="disableDeveloperRole"
+              :disabled="busy"
+              :label="t('devRoleOff')"
+            />
           </label>
         </div>
         <footer class="dialog-actions">
@@ -241,14 +258,40 @@ function save(): void {
   padding: 14px 18px 0;
 }
 
-.model-advanced-config-fields label {
+.model-advanced-config-fields > label:not(.model-advanced-config-switch-row) {
   display: grid;
   gap: 5px;
   color: var(--text-secondary);
   font-size: 0.678571rem;
 }
 
-.model-advanced-config-fields input {
+.model-advanced-config-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 9px;
+  background: var(--surface-main);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.model-advanced-config-switch-row:hover {
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface-main));
+}
+
+.model-advanced-config-switch-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 0.785714rem;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.model-advanced-config-fields input[type="text"] {
   width: 100%;
   height: 34px;
   padding: 0 9px;
@@ -261,13 +304,7 @@ function save(): void {
   font-variant-numeric: tabular-nums;
 }
 
-.model-advanced-config-fields input:focus {
+.model-advanced-config-fields input[type="text"]:focus {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--theme-line));
-}
-
-.model-advanced-config-fields small {
-  color: var(--text-tertiary);
-  font-size: 0.642857rem;
-  line-height: 1.5;
 }
 </style>

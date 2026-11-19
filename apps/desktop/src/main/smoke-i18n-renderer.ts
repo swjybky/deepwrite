@@ -1,7 +1,12 @@
-import type { AppLanguage, DeepWriteApi } from "@deepwrite/contracts";
+import type {
+  AppLanguage,
+  DeepWriteApi,
+  MoreFeaturesSettings
+} from "@deepwrite/contracts";
 
 export interface I18nSmokeFixture {
   originalLanguage: AppLanguage;
+  originalMoreFeatures: MoreFeaturesSettings;
   bookId: string;
   documentId: string;
   snapshot: string;
@@ -166,7 +171,8 @@ export async function i18nSmokeInRenderer(
     const current = await api.generalSettings.list();
     const reset = await api.generalSettings.save({
       ...current.settings,
-      language: restored.originalLanguage
+      language: restored.originalLanguage,
+      moreFeatures: restored.originalMoreFeatures
     });
     ensure(
       reset.settings.language === restored.originalLanguage,
@@ -175,7 +181,9 @@ export async function i18nSmokeInRenderer(
     return restored;
   }
 
-  const originalLanguage = (await api.generalSettings.list()).settings.language;
+  const { language: originalLanguage, moreFeatures: originalMoreFeatures } = (
+    await api.generalSettings.list()
+  ).settings;
   const book = await api.catalog.createShortBook({
     title: "语言测试原名",
     genre: "其他"
@@ -237,7 +245,22 @@ export async function i18nSmokeInRenderer(
     }
     layout();
   }
-  await openGeneral();
+  await settingsCategory("More features");
+  const featureSettings = await until(
+    () => select(".more-features-settings"),
+    "feature visibility settings"
+  );
+  const toggles = featureSettings.querySelectorAll<HTMLInputElement>(
+    '[data-more-feature-id] input[role="switch"]'
+  );
+  for (const toggle of toggles) {
+    if (toggle.checked) continue;
+    toggle.click();
+    await until(
+      () => toggle.getAttribute("aria-checked") === "true",
+      toggle.getAttribute("aria-label") ?? "feature visibility"
+    );
+  }
   await click(".settings-back");
   const more = await until(
     () => select<HTMLButtonElement>('[data-nav-id="more"]'),
@@ -248,7 +271,10 @@ export async function i18nSmokeInRenderer(
   const features = [
     ...document.querySelectorAll<HTMLElement>("[data-feature-id]")
   ];
-  ensure(features.length >= 9, "more features missing");
+  ensure(
+    features.length >= 9 && features.length === toggles.length,
+    `expected ${toggles.length} more features, found ${features.length}`
+  );
   ensure(
     features.every((node) => !/\p{Script=Han}/u.test(node.textContent ?? "")),
     "Chinese feature label in English mode"
@@ -260,12 +286,11 @@ export async function i18nSmokeInRenderer(
     ["style-comparison", "Style comparison"],
     ["device-sync", "Device sync"],
     ["cloud-backup", "Cloud backup"],
-    ["skill-marketplace", "Skill marketplace"],
-    ["agent-team-marketplace", "Agent team marketplace"]
+    ["skill-marketplace", "Marketplace"]
   ]) {
     if (!select(`[data-feature-id="${id}"]`)) more.click();
     await click(`[data-feature-id="${id}"]`);
-    if (id === "skill-marketplace" || id === "agent-team-marketplace") {
+    if (id === "skill-marketplace") {
       await until(
         () => select(".marketplace-login-dialog .auth-form"),
         `${id} sign-in prompt`
@@ -307,6 +332,7 @@ export async function i18nSmokeInRenderer(
   layout();
   return {
     originalLanguage,
+    originalMoreFeatures,
     bookId: book.id,
     documentId,
     snapshot,

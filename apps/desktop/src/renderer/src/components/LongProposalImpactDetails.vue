@@ -9,6 +9,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
 import { longCharacterFiles } from "../utils/longCharacterFiles";
+import { formatLongImpactSnapshot } from "../utils/longProposalChangePresentation";
 import { longWorldbuildingFiles } from "../utils/longWorldbuildingFiles";
 
 const t = createScopedTranslator("components.longProposalImpactDetails");
@@ -124,7 +125,13 @@ function entityActionLabel(action: LongWorkspaceEntityChange["action"]) {
 }
 
 function snapshotText(value: unknown): string {
-  return value === null ? t("missing") : JSON.stringify(value, null, 2);
+  return formatLongImpactSnapshot(
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null,
+    props.workspaceIndex,
+    t("missing")
+  );
 }
 
 const relationshipKindLabels: Record<string, string> = {

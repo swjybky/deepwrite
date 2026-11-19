@@ -249,6 +249,7 @@ import { ExportAcademicManuscriptCommandEnvelopeSchema } from "./academic-manusc
 import { ExportShortManuscriptCommandEnvelopeSchema } from "./short-manuscript-export";
 import { ExportLongManuscriptCommandEnvelopeSchema } from "./long-manuscript-export";
 import { CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema } from "./marketplace";
+import { CatalogInstallMarketplaceMaterialCommandEnvelopeSchema } from "./material-marketplace";
 import {
   CatalogReadWritingContextCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema
@@ -371,6 +372,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
+  CatalogInstallMarketplaceMaterialCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema,
   ...LongWorkspaceCommandSchemas,
   ...MysteryCommandSchemas,

@@ -29,7 +29,16 @@ function harness() {
   const approvalModeForEvent = vi.fn<
     NonNullable<UseLongWorkspaceProposalsOptions["approvalModeForEvent"]>
   >(() => "request-approval");
+  const versionOriginForEvent = vi.fn<
+    NonNullable<UseLongWorkspaceProposalsOptions["versionOriginForEvent"]>
+  >(() => undefined);
   const received: string[] = [];
+  const receivedOrigins = new Map<
+    string,
+    ReturnType<
+      NonNullable<UseLongWorkspaceProposalsOptions["versionOriginForEvent"]>
+    >
+  >();
   const approve = vi.fn(async () => undefined);
   const factory = vi.fn(
     (
@@ -60,6 +69,7 @@ function harness() {
           const event = value as LongWorkspaceProposalEvent;
           if (!options.acceptsEvent(event)) return false;
           received.push(event.id);
+          receivedOrigins.set(event.id, options.versionOriginForEvent?.(event));
           queues.value = {
             ...queues.value,
             [event.payload.bookId]: [
@@ -86,6 +96,7 @@ function harness() {
       api: () => undefined,
       acceptsEvent,
       approvalModeForEvent,
+      versionOriginForEvent,
       notifications: { success: vi.fn(), warning: vi.fn(), error: vi.fn() }
     },
     load
@@ -98,7 +109,9 @@ function harness() {
     factory,
     acceptsEvent,
     approvalModeForEvent,
+    versionOriginForEvent,
     received,
+    receivedOrigins,
     approve,
     finishLoading
   };
@@ -125,16 +138,25 @@ describe("lazy long proposal processor", () => {
     const test = harness();
     const queues = test.controller.queues;
     const count = computed(() => test.controller.itemsForBook(bookId).length);
+    const origin = {
+      sessionId: "session_test",
+      runId: "run_test",
+      summary: "同步来源"
+    };
     test.approvalModeForEvent.mockReturnValue("auto-approve");
+    test.versionOriginForEvent.mockReturnValue(origin);
     const first = test.controller.handleEvent(mutationEvent({ id: "first" }));
     const second = test.controller.handleEvent(mutationEvent({ id: "second" }));
     expect(test.load).toHaveBeenCalledTimes(1);
     expect(count.value).toBe(0);
     test.acceptsEvent.mockReturnValue(false);
     test.approvalModeForEvent.mockReturnValue("request-approval");
+    test.versionOriginForEvent.mockReturnValue(undefined);
     test.finishLoading();
     expect(await Promise.all([first, second])).toEqual([true, true]);
     expect(test.received).toEqual(["first", "second"]);
+    expect(test.receivedOrigins.get("first")).toEqual(origin);
+    expect(test.receivedOrigins.get("second")).toEqual(origin);
     expect(test.controller.queues).toBe(queues);
     expect(count.value).toBe(2);
     expect(queues.value[bookId]?.map((item) => item.approvalMode)).toEqual([

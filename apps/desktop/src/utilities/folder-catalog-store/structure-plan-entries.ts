@@ -48,13 +48,9 @@ export async function applyEntryStructureOperation(
     body
   } = state;
   if (op.action === "create-unbound-entry") {
-    const kind =
-      request.domain === "material" ? "mixed" : (op.skillKind ?? "general");
-    const existing = [...items.values()].find(
-      ({ manifest }) =>
-        organization.unboundLibraryIds.includes(manifest.id) &&
-        ("materialKind" in manifest ||
-          ("skillKind" in manifest && manifest.skillKind === kind))
+    const kind = request.domain === "material" ? "mixed" : "general";
+    const existing = [...items.values()].find(({ manifest }) =>
+      organization.unboundLibraryIds.includes(manifest.id)
     );
     const target = (existing ??
       createLibrary(
@@ -112,15 +108,9 @@ export async function applyEntryStructureOperation(
           "materialType" in source.manifest
             ? source.manifest.materialType
             : source.manifest.skillType;
-        const kind =
-          "materialKind" in source.manifest
-            ? "mixed"
-            : source.manifest.skillKind;
-        const existing = [...items.values()].find(
-          ({ manifest }) =>
-            organization.unboundLibraryIds.includes(manifest.id) &&
-            ("materialKind" in manifest ||
-              ("skillKind" in manifest && manifest.skillKind === kind))
+        const kind = request.domain === "material" ? "mixed" : "general";
+        const existing = [...items.values()].find(({ manifest }) =>
+          organization.unboundLibraryIds.includes(manifest.id)
         );
         target = (existing ??
           createLibrary(

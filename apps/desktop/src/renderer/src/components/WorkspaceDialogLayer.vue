@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { longBookResourceId } from "../types/longWorkspace";
+import type { LongBookResourceNodeAction } from "../types/workspace";
 import { createScopedTranslator } from "../i18n";
 import CreateBookFromTemplateDialog from "./CreateBookFromTemplateDialog.vue";
 import DialogHost from "./DialogHost.vue";
@@ -23,7 +25,6 @@ import {
   LibraryGroupDialog,
   LibraryProjectDialog,
   LibraryRemovalDialog,
-  LongBookBindingsDialog,
   LongBookRemovalDialog,
   LongBookRenameDialog,
   LongContinuationImportDialog,
@@ -45,6 +46,23 @@ defineProps<{
 }>();
 
 const emit = defineEmits<WorkspaceDialogLayerEmits>();
+
+function longBookAction(
+  module: Extract<WorkspaceDialogModule, { kind: "long-structure" }>,
+  action: LongBookResourceNodeAction
+): void {
+  if (!module.bookId) return;
+  emit("longBookAction", {
+    action,
+    node: {
+      id: longBookResourceId(module.bookId),
+      label: module.bookTitle,
+      workspaceType: "long",
+      catalogNodeType: "long-book",
+      longBookId: module.bookId
+    }
+  });
+}
 </script>
 
 <template>
@@ -53,17 +71,11 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       v-if="module.kind === 'book-resource'"
       :mode="module.mode"
       :book="module.book"
-      :skill-libraries="module.skillLibraries"
-      :material-libraries="module.materialLibraries"
-      :material-groups="module.materialGroups"
-      :skill-groups="module.skillGroups"
-      :loading="module.loading"
       :submitting="module.submitting"
       @close="emit('closeBookResource')"
       @rename="emit('renameBook', $event)"
       @remove="emit('removeBook', $event)"
       @delete="emit('deleteBook', $event)"
-      @update-bindings="emit('updateBookBindings', $event)"
     />
 
     <PlotStructureDialog
@@ -75,6 +87,7 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       :writing-context-loading="module.writingContextLoading"
       :writing-context-pending="module.writingContextPending"
       @close="emit('closePlotStructure')"
+      @open-rename="emit('openBookRename', $event)"
       @mutation="
         (mutation, completion) =>
           emit('plotStructureMutation', mutation, completion)
@@ -185,6 +198,8 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       :sync-book-options="module.syncBookOptions"
       :snapshot="module.snapshot"
       :pending="module.pending"
+      show-book-actions
+      @book-action="longBookAction(module, $event)"
       @close="emit('closeLongStructure')"
       @mutation="
         (batch, completion) => emit('longStructureMutation', batch, completion)
@@ -283,22 +298,6 @@ const emit = defineEmits<WorkspaceDialogLayerEmits>();
       :pending="module.pending"
       @close="emit('closeCreateLongVolume')"
       @submit="emit('submitCreateLongVolume', $event)"
-    />
-
-    <LongBookBindingsDialog
-      v-else-if="module.kind === 'long-bindings'"
-      :mode="module.mode"
-      :book-title="module.bookTitle"
-      :materials="module.materials"
-      :skills="module.skills"
-      :material-groups="module.materialGroups"
-      :skill-groups="module.skillGroups"
-      :linked-material-ids-by-kind="module.linkedMaterialIdsByKind"
-      :linked-skill-ids-by-kind="module.linkedSkillIdsByKind"
-      :linked-resource-stage-scopes="module.linkedResourceStageScopes"
-      :submitting="module.submitting"
-      @close="emit('closeLongBindings')"
-      @submit="emit('submitLongBindings', $event)"
     />
 
     <LongBookRenameDialog

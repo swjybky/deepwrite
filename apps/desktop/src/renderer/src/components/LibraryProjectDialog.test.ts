@@ -22,8 +22,11 @@ describe("LibraryProjectDialog", () => {
       expect(html).toContain("所属库");
       expect(html).toContain("暂不放入库");
       expect(html).not.toMatch(/创作类型|短篇|剧本|长篇/);
-      expect(html).toContain(domain === "material" ? "内容阶段" : "技能库分类");
-      expect(html.match(/role="combobox"/g)).toHaveLength(2);
+      expect(html).not.toMatch(/技能库分类|素材库分类/);
+      if (domain === "material") expect(html).toContain("内容阶段");
+      expect(html.match(/role="combobox"/g)).toHaveLength(
+        domain === "material" ? 2 : 1
+      );
     }
   );
 

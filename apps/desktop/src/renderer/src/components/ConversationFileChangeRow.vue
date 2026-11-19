@@ -3,7 +3,7 @@ import { computed, useId, watch } from "vue";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import { createScopedTranslator, t as translate } from "../i18n";
 import { useConversationDisclosure } from "../composables/conversationDisclosureState";
-import type { ChatMessage } from "../types/conversation";
+import type { AgentEditProposal, ChatMessage } from "../types/conversation";
 import type { FileChangeRow } from "./conversationFileChanges";
 import type { ApprovalCardItem } from "./conversationToolPresentation";
 import {
@@ -28,6 +28,7 @@ const props = defineProps<{
   messageStatus: ChatMessage["status"];
   allowLiveEditReview: boolean;
   longWorkspaceIndex: LongWorkspaceIndexSnapshot | null;
+  peerProposals?: readonly AgentEditProposal[];
 }>();
 
 const emit = defineEmits<{
@@ -204,6 +205,7 @@ function locate(): void {
         :allow-live-edit-review="allowLiveEditReview"
         :discardable="latest.canDiscard"
         :remote-device="latest.remoteDevice"
+        :peer-proposals="peerProposals ?? []"
         @review="emit('reviewEdit', $event)"
         @locate="emit('locateEditProposal', $event)"
         @discard="emit('discardEditProposal', $event)"

@@ -174,6 +174,8 @@ export function createConversationPersistenceState(
     persistenceBusy,
     persistenceProgress,
     configurePersistenceAdapter,
+    isPersistenceAdapter: (adapter: ConversationPersistenceAdapter | null) =>
+      persistenceAdapter === adapter,
     schedulePersistence,
     schedulePersistenceFactory,
     schedulePersistenceWork,

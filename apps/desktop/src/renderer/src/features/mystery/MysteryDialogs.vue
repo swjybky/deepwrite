@@ -1,50 +1,48 @@
 <script setup lang="ts">
 import type {
-  CatalogIndexSnapshot,
-  CatalogSnapshot,
   MysteryBookManifest,
-  MysteryNarrativePerson,
   MysteryOperation
 } from "@deepwrite/contracts";
-import { ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import BookResourceDialog from "../../components/BookResourceDialog.vue";
+import PopupSelect from "../../components/PopupSelect.vue";
+import { createScopedTranslator } from "../../i18n";
+import type { ResourceTreeNode } from "../../types/workspace";
 import { mysteryT } from "./messages";
 
-export type MysteryDialogState =
-  | { kind: "boardSpec" }
-  | { kind: "bindings" }
-  | { kind: "export" }
-  | { kind: "manageBook" }
+type StructureItem = NonNullable<ResourceTreeNode["mysteryItem"]>;
+
+export type MysteryStructureItemDialog =
+  | { kind: "createStructure"; targetKind: StructureItem["kind"] }
   | {
-      kind: "createStructure";
-      targetKind: "truth_doc" | "role" | "act" | "clue_round";
-    }
-  | {
-      kind: "renameStructure";
-      targetKind: "truth_doc" | "role" | "act" | "clue_round";
+      kind: "renameStructure" | "deleteStructure";
+      targetKind: StructureItem["kind"];
       id: string;
       title: string;
       tag?: string | undefined;
-    }
-  | {
-      kind: "deleteStructure";
-      targetKind: "truth_doc" | "role" | "act" | "clue_round";
-      id: string;
-      title: string;
     };
 
+export type MysteryDialogState =
+  | { kind: "manage-structure" }
+  | { kind: "rename" | "unregister" | "delete" }
+  | { kind: "bind" }
+  | { kind: "export" | "discardBoard" }
+  | MysteryStructureItemDialog;
+
 const props = defineProps<{
-  dialog: MysteryDialogState | null;
+  dialog: Exclude<
+    MysteryDialogState,
+    { kind: "manage-structure" | "bind" }
+  > | null;
   manifest: MysteryBookManifest;
-  catalogSnapshot: CatalogIndexSnapshot | CatalogSnapshot | null;
   busy: boolean;
+  nested: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
+  discardBoard: [];
   applyOperation: [op: MysteryOperation];
-  saveBindings: [
-    payload: { linkedMaterialIds: string[]; linkedSkillIds: string[] }
-  ];
   exportBundle: [
     payload: {
       format: "md" | "docx";
@@ -52,590 +50,357 @@ const emit = defineEmits<{
     }
   ];
   renameBook: [title: string];
-  duplicateBook: [];
   unregisterBook: [];
   deleteBook: [];
 }>();
 
-// Form state
+const treeT = createScopedTranslator("components.treeNodeItem");
+const discardT = createScopedTranslator("components.agentTeamCatalogDialogs");
 const titleInput = ref("");
 const tagInput = ref("");
-const playerCount = ref(6);
-const actCountTarget = ref(4);
-const narrativePerson = ref<MysteryNarrativePerson>("second");
-const boardSummary = ref("");
-const selectedMaterialIds = ref<string[]>([]);
-const selectedSkillIds = ref<string[]>([]);
 const exportFormat = ref<"md" | "docx">("docx");
 const exportLayout = ref<"by-role" | "by-role-act">("by-role");
+const dialogElement = ref<HTMLElement>();
+const firstInput = ref<HTMLInputElement>();
+let previousFocus: HTMLElement | null = null;
+
+const bookDialogMode = computed(() => {
+  const kind = props.dialog?.kind;
+  if (kind === "unregister") return "remove";
+  return kind === "rename" || kind === "delete" ? kind : null;
+});
+const book = computed<ResourceTreeNode>(() => ({
+  id: props.manifest.id,
+  label: props.manifest.title,
+  workspaceType: "mystery"
+}));
+const isStructureForm = computed(
+  () =>
+    props.dialog?.kind === "createStructure" ||
+    props.dialog?.kind === "renameStructure"
+);
+const title = computed(() => {
+  const dialog = props.dialog;
+  if (!dialog) return "";
+  switch (dialog.kind) {
+    case "export":
+      return mysteryT("exportDialogTitle");
+    case "renameStructure":
+      return treeT("rename");
+    case "deleteStructure":
+      return mysteryT("deleteItemConfirmTitle", { name: dialog.title });
+    case "discardBoard":
+      return discardT("discardUnsavedChanges");
+    case "createStructure":
+      return mysteryT(
+        (
+          {
+            truth_doc: "createItemTitleTruth",
+            role: "createItemTitleRole",
+            act: "createItemTitleAct",
+            clue_round: "createItemTitleClue"
+          } as const
+        )[dialog.targetKind]
+      );
+    default:
+      return "";
+  }
+});
+const formats = computed(() => [
+  { value: "docx" as const, label: mysteryT("exportFormatDocx") },
+  { value: "md" as const, label: mysteryT("exportFormatMd") }
+]);
+const layouts = computed(() => [
+  { value: "by-role" as const, label: mysteryT("exportLayoutByRole") },
+  { value: "by-role-act" as const, label: mysteryT("exportLayoutByRoleAct") }
+]);
+const deleteWarning = computed(() => {
+  if (props.dialog?.kind !== "deleteStructure") return "";
+  return mysteryT(
+    props.dialog.targetKind === "role"
+      ? "deleteRoleWarning"
+      : props.dialog.targetKind === "act"
+        ? "deleteActWarning"
+        : "deleteDocumentWarning"
+  );
+});
 
 watch(
   () => props.dialog,
-  (dlg) => {
-    if (!dlg) return;
-    if (dlg.kind === "boardSpec") {
-      playerCount.value = props.manifest.boardSpec.playerCount;
-      actCountTarget.value = props.manifest.boardSpec.actCountTarget;
-      narrativePerson.value = props.manifest.boardSpec.narrativePerson;
-      boardSummary.value = props.manifest.boardSpec.summary ?? "";
-    } else if (dlg.kind === "bindings") {
-      selectedMaterialIds.value = [...props.manifest.linkedMaterialIds];
-      selectedSkillIds.value = [...props.manifest.linkedSkillIds];
-    } else if (dlg.kind === "manageBook") {
-      titleInput.value = props.manifest.title;
-    } else if (dlg.kind === "createStructure") {
-      titleInput.value = "";
-      tagInput.value = "";
-    } else if (dlg.kind === "renameStructure") {
-      titleInput.value = dlg.title;
-      tagInput.value = dlg.tag ?? "";
+  async (dialog, previous) => {
+    if (dialog && !previous)
+      previousFocus = document.activeElement as HTMLElement | null;
+    if (!dialog) {
+      await nextTick();
+      previousFocus?.focus({ preventScroll: true });
+      previousFocus = null;
+      return;
     }
-  },
-  { immediate: true }
+    titleInput.value = dialog.kind === "renameStructure" ? dialog.title : "";
+    tagInput.value =
+      dialog.kind === "renameStructure" ? (dialog.tag ?? "") : "";
+    await nextTick();
+    (firstInput.value ?? dialogElement.value)?.focus({ preventScroll: true });
+    firstInput.value?.select();
+  }
 );
 
 function generateId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function submitStructureCreate(): void {
-  if (props.dialog?.kind !== "createStructure") return;
+function submit(): void {
+  const dialog = props.dialog;
+  if (!dialog || props.busy) return;
   const label = titleInput.value.trim();
-  if (!label) return;
-  const k = props.dialog.targetKind;
-  if (k === "truth_doc") {
-    emit("applyOperation", {
-      type: "truthDoc.create",
-      doc: { id: generateId("truth"), title: label }
-    });
-  } else if (k === "role") {
-    emit("applyOperation", {
-      type: "role.create",
-      role: { id: generateId("role"), name: label, tag: tagInput.value.trim() }
-    });
-  } else if (k === "act") {
-    emit("applyOperation", {
-      type: "act.create",
-      act: { id: generateId("act"), title: label }
-    });
-  } else {
-    emit("applyOperation", {
-      type: "clueRound.create",
-      round: { id: generateId("round"), title: label }
-    });
+  const tag = tagInput.value.trim();
+  switch (dialog.kind) {
+    case "export":
+      emit("exportBundle", {
+        format: exportFormat.value,
+        playerScriptLayout: exportLayout.value
+      });
+      break;
+    case "createStructure":
+      if (!label) return;
+      switch (dialog.targetKind) {
+        case "truth_doc":
+          emit("applyOperation", {
+            type: "truthDoc.create",
+            doc: { id: generateId("truth"), title: label }
+          });
+          break;
+        case "role":
+          emit("applyOperation", {
+            type: "role.create",
+            role: { id: generateId("role"), name: label, tag }
+          });
+          break;
+        case "act":
+          emit("applyOperation", {
+            type: "act.create",
+            act: { id: generateId("act"), title: label }
+          });
+          break;
+        case "clue_round":
+          emit("applyOperation", {
+            type: "clueRound.create",
+            round: { id: generateId("round"), title: label }
+          });
+          break;
+      }
+      break;
+    case "renameStructure":
+      if (!label) return;
+      switch (dialog.targetKind) {
+        case "truth_doc":
+          emit("applyOperation", {
+            type: "truthDoc.updateMeta",
+            docId: dialog.id,
+            title: label
+          });
+          break;
+        case "role":
+          emit("applyOperation", {
+            type: "role.updateMeta",
+            roleId: dialog.id,
+            name: label,
+            tag
+          });
+          break;
+        case "act":
+          emit("applyOperation", {
+            type: "act.updateMeta",
+            actId: dialog.id,
+            title: label
+          });
+          break;
+        case "clue_round":
+          emit("applyOperation", {
+            type: "clueRound.updateMeta",
+            roundId: dialog.id,
+            title: label
+          });
+          break;
+      }
+      break;
+    case "deleteStructure":
+      switch (dialog.targetKind) {
+        case "truth_doc":
+          emit("applyOperation", { type: "truthDoc.delete", docId: dialog.id });
+          break;
+        case "role":
+          emit("applyOperation", { type: "role.delete", roleId: dialog.id });
+          break;
+        case "act":
+          emit("applyOperation", { type: "act.delete", actId: dialog.id });
+          break;
+        case "clue_round":
+          emit("applyOperation", {
+            type: "clueRound.delete",
+            roundId: dialog.id
+          });
+          break;
+      }
+      break;
+    case "discardBoard":
+      emit("discardBoard");
+      break;
   }
 }
 
-function submitStructureRename(): void {
-  if (props.dialog?.kind !== "renameStructure") return;
-  const label = titleInput.value.trim();
-  if (!label) return;
-  const { targetKind: k, id } = props.dialog;
-  if (k === "truth_doc") {
-    emit("applyOperation", {
-      type: "truthDoc.updateMeta",
-      docId: id,
-      title: label
-    });
-  } else if (k === "role") {
-    emit("applyOperation", {
-      type: "role.updateMeta",
-      roleId: id,
-      name: label,
-      tag: tagInput.value.trim()
-    });
-  } else if (k === "act") {
-    emit("applyOperation", { type: "act.updateMeta", actId: id, title: label });
-  } else {
-    emit("applyOperation", {
-      type: "clueRound.updateMeta",
-      roundId: id,
-      title: label
-    });
-  }
-}
-
-function confirmStructureDelete(): void {
-  if (props.dialog?.kind !== "deleteStructure") return;
-  const { targetKind: k, id } = props.dialog;
-  if (k === "truth_doc")
-    emit("applyOperation", { type: "truthDoc.delete", docId: id });
-  else if (k === "role")
-    emit("applyOperation", { type: "role.delete", roleId: id });
-  else if (k === "act")
-    emit("applyOperation", { type: "act.delete", actId: id });
-  else emit("applyOperation", { type: "clueRound.delete", roundId: id });
-}
-
-function toggleSelection(list: string[], id: string): string[] {
-  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+function close(): void {
+  if (!props.busy) emit("close");
 }
 </script>
 
 <template>
+  <BookResourceDialog
+    v-if="bookDialogMode"
+    :mode="bookDialogMode"
+    :book="book"
+    :submitting="busy"
+    :backdrop-class="nested ? 'mystery-dialog-nested' : undefined"
+    @close="close"
+    @rename="emit('renameBook', $event.label)"
+    @remove="emit('unregisterBook')"
+    @delete="emit('deleteBook')"
+  />
+
   <Teleport to="body">
     <div
-      v-if="dialog"
+      v-if="dialog && !bookDialogMode"
       class="dialog-backdrop"
-      @mousedown.self="!busy && emit('close')"
+      :class="{ 'mystery-dialog-nested': nested }"
+      @mousedown.self="close"
     >
       <section
+        ref="dialogElement"
         class="workspace-dialog"
         :role="dialog.kind === 'deleteStructure' ? 'alertdialog' : 'dialog'"
         aria-modal="true"
+        aria-labelledby="mystery-dialog-title"
+        tabindex="-1"
+        @keydown.esc.stop="close"
       >
         <header>
           <div>
             <span class="dialog-eyebrow">{{ manifest.title }}</span>
-            <h2>
-              <template v-if="dialog.kind === 'boardSpec'">{{
-                mysteryT("boardSpecDialogTitle")
-              }}</template>
-              <template v-else-if="dialog.kind === 'bindings'">{{
-                mysteryT("bindingsDialogTitle")
-              }}</template>
-              <template v-else-if="dialog.kind === 'export'">{{
-                mysteryT("exportDialogTitle")
-              }}</template>
-              <template v-else-if="dialog.kind === 'manageBook'">{{
-                mysteryT("manageBookTitle", { title: manifest.title })
-              }}</template>
-              <template v-else-if="dialog.kind === 'createStructure'">
-                {{
-                  dialog.targetKind === "truth_doc"
-                    ? mysteryT("createItemTitleTruth")
-                    : dialog.targetKind === "role"
-                      ? mysteryT("createItemTitleRole")
-                      : dialog.targetKind === "act"
-                        ? mysteryT("createItemTitleAct")
-                        : mysteryT("createItemTitleClue")
-                }}
-              </template>
-              <template v-else-if="dialog.kind === 'renameStructure'">{{
-                mysteryT("renameTitlePrompt")
-              }}</template>
-              <template v-else>{{
-                mysteryT("deleteItemConfirmTitle", { name: dialog.title })
-              }}</template>
-            </h2>
+            <h2 id="mystery-dialog-title">{{ title }}</h2>
           </div>
           <button
-            type="button"
             class="dialog-close"
+            type="button"
             :aria-label="mysteryT('close')"
             :disabled="busy"
-            @click="emit('close')"
+            @click="close"
           >
             ×
           </button>
         </header>
 
-        <!-- Board Spec -->
-        <form
-          v-if="dialog.kind === 'boardSpec'"
-          class="mystery-dialog-form"
-          @submit.prevent="
-            emit('applyOperation', {
-              type: 'boardSpec.update',
-              boardSpec: {
-                playerCount,
-                actCountTarget,
-                narrativePerson,
-                summary: boardSummary
-              }
-            })
-          "
-        >
-          <div class="mystery-field-grid-2">
-            <label class="mystery-field-row">
-              <span>{{ mysteryT("playerCountLabel") }}</span>
-              <input
-                v-model.number="playerCount"
-                type="number"
-                min="1"
-                max="32"
-                class="mystery-input"
-              />
-            </label>
-            <label class="mystery-field-row">
-              <span>{{ mysteryT("actCountTargetLabel") }}</span>
-              <input
-                v-model.number="actCountTarget"
-                type="number"
-                min="1"
-                max="24"
-                class="mystery-input"
-              />
-            </label>
-          </div>
-          <div class="mystery-field-row">
-            <span class="mystery-field-label">{{
-              mysteryT("narrativePersonLabel")
-            }}</span>
-            <div class="mystery-segmented">
-              <button
-                type="button"
-                :class="{ 'is-active': narrativePerson === 'second' }"
-                @click="narrativePerson = 'second'"
-              >
-                {{ mysteryT("narrativePersonSecond") }}
-              </button>
-              <button
-                type="button"
-                :class="{ 'is-active': narrativePerson === 'first' }"
-                @click="narrativePerson = 'first'"
-              >
-                {{ mysteryT("narrativePersonFirst") }}
-              </button>
-            </div>
-          </div>
-          <label class="mystery-field-row">
-            <span>{{ mysteryT("boardSummaryLabel") }}</span>
-            <textarea
-              v-model="boardSummary"
-              rows="3"
-              class="mystery-textarea"
-              maxlength="4000"
-            />
-          </label>
-          <div class="mystery-proposal-actions">
-            <button
-              type="button"
-              class="mystery-btn-secondary"
-              @click="emit('close')"
-            >
-              {{ mysteryT("cancel") }}
-            </button>
-            <button type="submit" class="mystery-btn-primary" :disabled="busy">
-              {{ mysteryT("saveBoardSpec") }}
-            </button>
-          </div>
-        </form>
-
-        <!-- Cross-type library bindings -->
-        <form
-          v-else-if="dialog.kind === 'bindings'"
-          class="mystery-dialog-form"
-          @submit.prevent="
-            emit('saveBindings', {
-              linkedMaterialIds: selectedMaterialIds,
-              linkedSkillIds: selectedSkillIds
-            })
-          "
-        >
-          <p>{{ mysteryT("bindingsSubtitle") }}</p>
-          <div class="mystery-field-row">
-            <span class="mystery-field-label">{{
-              mysteryT("linkedMaterialsHeading")
-            }}</span>
-            <div class="mystery-binding-list">
-              <label
-                v-for="mat in catalogSnapshot?.materials ?? []"
-                :key="mat.id"
-                class="mystery-binding-check"
-              >
-                <span class="mystery-binding-check-left">
-                  <input
-                    type="checkbox"
-                    :checked="selectedMaterialIds.includes(mat.id)"
-                    @change="
-                      selectedMaterialIds = toggleSelection(
-                        selectedMaterialIds,
-                        mat.id
-                      )
-                    "
-                  />
-                  <span>{{ mat.title }}</span>
-                </span>
-                <span class="mystery-pill-badge">{{ mat.materialType }}</span>
-              </label>
-              <span v-if="!catalogSnapshot?.materials.length">{{
-                mysteryT("noLibrariesAvailable")
+        <form class="dialog-content mystery-fields" @submit.prevent="submit">
+          <template v-if="dialog.kind === 'export'">
+            <p class="dialog-description">{{ mysteryT("exportSubtitle") }}</p>
+            <div class="mystery-field-row">
+              <span class="mystery-field-label">{{
+                mysteryT("exportFormatLabel")
               }}</span>
+              <PopupSelect
+                :model-value="exportFormat"
+                @update:model-value="
+                  exportFormat = $event === 'md' ? 'md' : 'docx'
+                "
+                :options="formats"
+                :accessible-label="mysteryT('exportFormatLabel')"
+              />
             </div>
-          </div>
-          <div class="mystery-field-row">
-            <span class="mystery-field-label">{{
-              mysteryT("linkedSkillsHeading")
-            }}</span>
-            <div class="mystery-binding-list">
-              <label
-                v-for="skill in catalogSnapshot?.skills ?? []"
-                :key="skill.id"
-                class="mystery-binding-check"
-              >
-                <span class="mystery-binding-check-left">
-                  <input
-                    type="checkbox"
-                    :checked="selectedSkillIds.includes(skill.id)"
-                    @change="
-                      selectedSkillIds = toggleSelection(
-                        selectedSkillIds,
-                        skill.id
-                      )
-                    "
-                  />
-                  <span>{{ skill.title }}</span>
-                </span>
-                <span class="mystery-pill-badge">{{ skill.skillType }}</span>
-              </label>
-              <span v-if="!catalogSnapshot?.skills.length">{{
-                mysteryT("noLibrariesAvailable")
+            <div class="mystery-field-row">
+              <span class="mystery-field-label">{{
+                mysteryT("exportLayoutLabel")
               }}</span>
+              <PopupSelect
+                :model-value="exportLayout"
+                @update:model-value="
+                  exportLayout =
+                    $event === 'by-role-act' ? 'by-role-act' : 'by-role'
+                "
+                :options="layouts"
+                :accessible-label="mysteryT('exportLayoutLabel')"
+              />
             </div>
-          </div>
-          <div class="mystery-proposal-actions">
-            <button
-              type="button"
-              class="mystery-btn-secondary"
-              @click="emit('close')"
-            >
-              {{ mysteryT("cancel") }}
-            </button>
-            <button type="submit" class="mystery-btn-primary" :disabled="busy">
-              {{ mysteryT("saveBindings") }}
-            </button>
-          </div>
-        </form>
+          </template>
 
-        <!-- Spoiler-Free Bundle Export -->
-        <form
-          v-else-if="dialog.kind === 'export'"
-          class="mystery-dialog-form"
-          @submit.prevent="
-            emit('exportBundle', {
-              format: exportFormat,
-              playerScriptLayout: exportLayout
-            })
-          "
-        >
-          <p>{{ mysteryT("exportSubtitle") }}</p>
-          <div class="mystery-field-row">
-            <span class="mystery-field-label">{{
-              mysteryT("exportFormatLabel")
-            }}</span>
-            <div class="mystery-segmented">
-              <button
-                type="button"
-                :class="{ 'is-active': exportFormat === 'docx' }"
-                @click="exportFormat = 'docx'"
-              >
-                {{ mysteryT("exportFormatDocx") }}
-              </button>
-              <button
-                type="button"
-                :class="{ 'is-active': exportFormat === 'md' }"
-                @click="exportFormat = 'md'"
-              >
-                {{ mysteryT("exportFormatMd") }}
-              </button>
-            </div>
-          </div>
-          <div class="mystery-field-row">
-            <span class="mystery-field-label">{{
-              mysteryT("exportLayoutLabel")
-            }}</span>
-            <div class="mystery-segmented">
-              <button
-                type="button"
-                :class="{ 'is-active': exportLayout === 'by-role' }"
-                @click="exportLayout = 'by-role'"
-              >
-                {{ mysteryT("exportLayoutByRole") }}
-              </button>
-              <button
-                type="button"
-                :class="{ 'is-active': exportLayout === 'by-role-act' }"
-                @click="exportLayout = 'by-role-act'"
-              >
-                {{ mysteryT("exportLayoutByRoleAct") }}
-              </button>
-            </div>
-          </div>
-          <div class="mystery-proposal-actions">
-            <button
-              type="button"
-              class="mystery-btn-secondary"
-              @click="emit('close')"
-            >
-              {{ mysteryT("cancel") }}
-            </button>
-            <button type="submit" class="mystery-btn-primary" :disabled="busy">
-              {{ mysteryT("startExport") }}
-            </button>
-          </div>
-        </form>
-
-        <!-- Manage Book -->
-        <div
-          v-else-if="dialog.kind === 'manageBook'"
-          class="mystery-dialog-form"
-        >
-          <form
-            class="mystery-field-row"
-            @submit.prevent="
-              titleInput.trim() && emit('renameBook', titleInput.trim())
-            "
-          >
-            <label for="mystery-rename-input">{{
-              mysteryT("manageRenameLabel")
-            }}</label>
-            <div class="mystery-field-grid-2">
+          <template v-else-if="isStructureForm && 'targetKind' in dialog">
+            <label class="mystery-field-row">
+              <span class="mystery-field-label">{{
+                mysteryT("itemTitleLabel")
+              }}</span>
               <input
-                id="mystery-rename-input"
+                ref="firstInput"
                 v-model="titleInput"
                 type="text"
-                maxlength="120"
+                maxlength="256"
+                class="mystery-input"
+                required
+              />
+            </label>
+            <label
+              v-if="dialog.targetKind === 'role'"
+              class="mystery-field-row"
+            >
+              <span class="mystery-field-label">{{
+                mysteryT("itemTagLabel")
+              }}</span>
+              <input
+                v-model="tagInput"
+                type="text"
+                maxlength="80"
                 class="mystery-input"
               />
-              <button
-                type="submit"
-                class="mystery-btn-primary"
-                :disabled="busy"
-              >
-                {{ mysteryT("manageRenameButton") }}
-              </button>
-            </div>
-          </form>
+            </label>
+          </template>
 
-          <div class="mystery-proposal-card">
-            <strong class="mystery-proposal-title">{{
-              mysteryT("manageDuplicateTitle")
-            }}</strong>
-            <span class="mystery-proposal-list">{{
-              mysteryT("manageDuplicateDesc")
-            }}</span>
-            <div class="mystery-proposal-actions">
-              <button
-                type="button"
-                class="mystery-btn-secondary"
-                :disabled="busy"
-                @click="emit('duplicateBook')"
-              >
-                {{ mysteryT("manageDuplicateButton") }}
-              </button>
-            </div>
-          </div>
+          <p v-else-if="deleteWarning" class="dialog-description">
+            {{ deleteWarning }}
+          </p>
 
-          <div class="mystery-proposal-card">
-            <strong class="mystery-proposal-title">{{
-              mysteryT("manageUnregisterTitle")
-            }}</strong>
-            <span class="mystery-proposal-list">{{
-              mysteryT("manageUnregisterDesc")
-            }}</span>
-            <div class="mystery-proposal-actions">
-              <button
-                type="button"
-                class="mystery-btn-secondary"
-                :disabled="busy"
-                @click="emit('unregisterBook')"
-              >
-                {{ mysteryT("manageUnregisterButton") }}
-              </button>
-            </div>
-          </div>
-
-          <div class="mystery-proposal-card">
-            <strong class="mystery-proposal-title">{{
-              mysteryT("manageDeleteTitle")
-            }}</strong>
-            <span class="mystery-proposal-list">{{
-              mysteryT("manageDeleteDesc")
-            }}</span>
-            <div class="mystery-proposal-actions">
-              <button
-                type="button"
-                class="mystery-btn-danger"
-                :disabled="busy"
-                @click="emit('deleteBook')"
-              >
-                {{ mysteryT("manageDeleteButton") }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Create / Rename Structure Item -->
-        <form
-          v-else-if="
-            dialog.kind === 'createStructure' ||
-            dialog.kind === 'renameStructure'
-          "
-          class="mystery-dialog-form"
-          @submit.prevent="
-            dialog.kind === 'createStructure'
-              ? submitStructureCreate()
-              : submitStructureRename()
-          "
-        >
-          <label class="mystery-field-row">
-            <span>{{ mysteryT("itemTitleLabel") }}</span>
-            <input
-              v-model="titleInput"
-              type="text"
-              maxlength="120"
-              class="mystery-input"
-              autofocus
-            />
-          </label>
-          <label v-if="dialog.targetKind === 'role'" class="mystery-field-row">
-            <span>{{ mysteryT("itemTagLabel") }}</span>
-            <input
-              v-model="tagInput"
-              type="text"
-              maxlength="80"
-              class="mystery-input"
-            />
-          </label>
-          <div class="mystery-proposal-actions">
+          <div class="dialog-actions">
             <button
               type="button"
-              class="mystery-btn-secondary"
-              @click="emit('close')"
+              class="dialog-secondary-button"
+              :disabled="busy"
+              @click="close"
             >
               {{ mysteryT("cancel") }}
             </button>
             <button
               type="submit"
-              class="mystery-btn-primary"
-              :disabled="busy || !titleInput.trim()"
+              class="dialog-primary-button"
+              :class="{ 'is-danger': dialog.kind === 'deleteStructure' }"
+              :disabled="busy || (isStructureForm && !titleInput.trim())"
             >
-              {{ mysteryT("confirm") }}
+              {{
+                dialog.kind === "export"
+                  ? mysteryT("startExport")
+                  : dialog.kind === "deleteStructure"
+                    ? treeT("delete")
+                    : dialog.kind === "discardBoard"
+                      ? discardT("discardAndLeave")
+                      : dialog.kind === "createStructure"
+                        ? treeT("addEntry")
+                        : mysteryT("save")
+              }}
             </button>
           </div>
         </form>
-
-        <!-- Delete Structure Confirmation -->
-        <div
-          v-else-if="dialog.kind === 'deleteStructure'"
-          class="mystery-dialog-form"
-        >
-          <p v-if="dialog.targetKind === 'role'">
-            {{ mysteryT("deleteRoleWarning") }}
-          </p>
-          <p v-else-if="dialog.targetKind === 'act'">
-            {{ mysteryT("deleteActWarning") }}
-          </p>
-          <div class="mystery-proposal-actions">
-            <button
-              type="button"
-              class="mystery-btn-secondary"
-              @click="emit('close')"
-            >
-              {{ mysteryT("cancel") }}
-            </button>
-            <button
-              type="button"
-              class="mystery-btn-danger"
-              :disabled="busy"
-              @click="confirmStructureDelete"
-            >
-              {{ mysteryT("delete") }}
-            </button>
-          </div>
-        </div>
       </section>
     </div>
   </Teleport>
 </template>
+
+<style>
+.mystery-dialog-nested {
+  z-index: 2300;
+}
+</style>

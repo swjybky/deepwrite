@@ -12,7 +12,7 @@ import {
 } from "./list-world-character";
 
 export function buildListTool(ctx: LongToolContext): AgentTool {
-  const { readableRoots, loadIndex } = ctx;
+  const { readableRoots, loadIndex, reloadIndex } = ctx;
   return defineTool({
     name: "list",
     label: "列出范围细节",
@@ -33,7 +33,10 @@ export function buildListTool(ctx: LongToolContext): AgentTool {
       if (params.view && params.stage && params.stage !== "continuity") {
         throw new Error("view=continuity 不能与其它 stage 同时使用。");
       }
-      const index = await loadIndex(signal);
+      const requestedStage = params.view ?? params.stage;
+      const index = await (
+        requestedStage === "continuity" ? reloadIndex : loadIndex
+      )(signal);
       const inferred: LongStage =
         scopeId.startsWith("world_") || scopeId.startsWith("worlditem_")
           ? "worldbuilding"
@@ -43,10 +46,7 @@ export function buildListTool(ctx: LongToolContext): AgentTool {
               scopeId.startsWith("character_")
             ? "character"
             : "plot";
-      const stage =
-        params.view === "continuity"
-          ? "continuity"
-          : ((params.stage as LongStage | undefined) ?? inferred);
+      const stage = (requestedStage as LongStage | undefined) ?? inferred;
       if (!readableRoots.has(LONG_STAGE_ROOTS[stage])) {
         throw new Error(`当前智能体无权读取 ${stage} 阶段。`);
       }

@@ -120,7 +120,6 @@ describe("SkillMarketplacePage", () => {
       "entries: publishEntries.value.map(({ stageId, title: entryTitle, content })"
     );
     expect(source).toContain("libraries: publishGroupLibraries.value.map");
-    expect(source).toContain("...Object.fromEntries(");
     expect(source).not.toMatch(/entries:\s*publishEntries\.value\s*[,}]/u);
     expect(source).not.toMatch(/items:\s*publishGroupItems\.value\s*[,}]/u);
   });
@@ -133,8 +132,20 @@ describe("SkillMarketplacePage", () => {
     expect(source).toContain("<PopupSelect");
     expect(source).toContain("{{ installPreview.orderNotice }}");
     expect(source).toContain("installTargetLibraryOptions");
-    expect(source).toContain("installIntoSkillLibrary");
+    expect(source).toContain("installAsUnboundSkill");
     expect(source).toContain("targetLibraryId: installTargetLibraryId.value");
+  });
+
+  it("shows the same version as installed on browse cards and in details", () => {
+    for (const item of ["item", "detail"]) {
+      expect(source).toContain(
+        `:disabled="installPending || isInstalled(${item})"`
+      );
+      expectSourceToContain(
+        source,
+        `isInstalled(${item}) ? t("installed") : t("install")`
+      );
+    }
   });
 
   it("keeps long detail and install content scrollable inside the modal", () => {

@@ -28,7 +28,7 @@ function fakeCoordinator() {
     duplicateBook: vi.fn(async () => undefined),
     manageStructure: vi.fn(async () => undefined),
     renameBook: vi.fn(async () => undefined),
-    updateBookBindings: vi.fn(async () => undefined),
+    openBookBindings: vi.fn(async () => undefined),
     removeBook: vi.fn(async () => undefined),
     deleteBook: vi.fn(async () => undefined),
     exportBookManuscript: vi.fn(async () => undefined),

@@ -6,11 +6,13 @@ import {
 import { longFileContentTargets } from "./content-counts";
 import {
   LONG_CHARACTER_OVERVIEW_CHANGE_ID,
+  LongMutationReviewSchema,
   LongWorkspaceOperationBatchSchema,
   type LongChapterBodyChange,
   type LongCharacterFileChange,
   type LongContinuityFileChange,
   type LongContinuityFileRole,
+  type LongMutationReview,
   type LongWorkspaceFileReference,
   type LongWorkspaceOperation,
   type LongWorldbuildingFileChange
@@ -151,8 +153,48 @@ export interface LongProposalInput {
   summary: string;
   message: string;
   contentTargets?: readonly WritingContentTarget[];
+  review?: LongMutationReview;
   index: Parameters<typeof preflightLongMutationProposal>[0];
   remember?: boolean;
+}
+
+function mutationReviewFromDocumentChange(
+  change: LongFileChangeInput
+): LongMutationReview {
+  const { target, file, operation, beforeText, afterText } = change;
+  const isCreate = operation === "create";
+  const targetKey = isCreate ? `create:${target.id}` : `doc:${file.id}`;
+  let title = target.title;
+  if (target.kind === "chapter_card" && target.document === "card") {
+    title = isCreate
+      ? `新建章卡 · ${target.chapterTitle ?? target.title}`
+      : target.title;
+  } else if (target.kind === "book_line") {
+    title = "全书故事线";
+  } else if (target.kind === "story_plot") {
+    title = isCreate
+      ? `新建故事情节 · ${target.title}`
+      : `故事情节 · ${target.title}`;
+  }
+  const hasContent = !isCreate || afterText.length > 0;
+  return LongMutationReviewSchema.parse({
+    targetKey,
+    targetKind: target.kind,
+    targetId: target.id,
+    action: isCreate ? "create" : "edit",
+    title: title.slice(0, 600),
+    ...(hasContent
+      ? {
+          content: {
+            fileId: file.id,
+            filePath: file.path,
+            operation,
+            beforeText,
+            afterText
+          }
+        }
+      : {})
+  });
 }
 
 /**
@@ -242,5 +284,15 @@ export function formLongProposal(
       file: (routed[0] as { change: LongChapterBodyChange }).change
     });
   }
-  return textResult(message, { kind: "long-mutation-proposal", ...base });
+  const review =
+    input.review !== undefined
+      ? LongMutationReviewSchema.parse(input.review)
+      : input.changes.length === 1
+        ? mutationReviewFromDocumentChange(input.changes[0]!)
+        : undefined;
+  return textResult(message, {
+    kind: "long-mutation-proposal",
+    ...base,
+    ...(review ? { review } : {})
+  });
 }

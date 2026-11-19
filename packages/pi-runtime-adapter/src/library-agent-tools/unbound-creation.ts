@@ -25,9 +25,6 @@ export function wrapUnboundCreation(
         StringEnum(["library", "unbound"], {
           description: "明确为 unbound 时创建尚未归档的条目；缺省为当前位置。"
         })
-      ),
-      skill_kind: Type.Optional(
-        StringEnum(["general", "plot", "style", "other"])
       )
     },
     { required: schema.required ?? [] }
@@ -36,7 +33,7 @@ export function wrapUnboundCreation(
     ...tool,
     parameters,
     ...piStrictToolSampling(parameters),
-    description: `${tool.description} target=unbound 可新增未归档条目，所有创作类型共用资料库，技能 skill_kind 缺省 general。`,
+    description: `${tool.description} target=unbound 可新增未归档条目，所有创作类型共用资料库。`,
     execute: async (id, raw, signal, onUpdate) => {
       const params = raw as Record<string, unknown>;
       if (params.target !== "unbound")
@@ -90,13 +87,7 @@ export function wrapUnboundCreation(
         ref: id,
         title: details.title!,
         content: details.text!,
-        stageId: details.stageId!,
-        ...(domain === "skill"
-          ? {
-              skillKind: (params.skill_kind ?? "general") as
-                "general" | "plot" | "style" | "other"
-            }
-          : {})
+        stageId: details.stageId!
       };
       return propose(id, [operation], signal);
     }

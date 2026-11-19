@@ -60,6 +60,7 @@ export interface AcademicLifecyclePort {
   api(): DeepWriteApi["catalog"] | undefined;
   manuscriptApi?(): DeepWriteApi["manuscript"] | undefined;
   book(bookId: string): Book | undefined;
+  openBookRename?(book: ResourceTreeNode): void;
   refresh(): Promise<boolean>;
   prepareBookMutation(bookId: string): Promise<boolean>;
   ensureDocumentsLoaded?(

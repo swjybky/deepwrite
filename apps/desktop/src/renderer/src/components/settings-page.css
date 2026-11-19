@@ -25,8 +25,11 @@
   -webkit-app-region: drag;
 }
 
-:global(html[data-platform="darwin"] .settings-sidebar)
-  :is(button, input, a, .settings-nav) {
+:global(
+  html[data-platform="darwin"]
+    .settings-sidebar
+    :is(button, input, a, .settings-search, .settings-nav)
+) {
   -webkit-app-region: no-drag;
 }
 

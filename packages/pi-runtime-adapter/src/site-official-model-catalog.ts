@@ -141,7 +141,10 @@ function completionsCompat(
     case "native":
       return {
         ...common,
-        ...(source?.api === "openai-completions" ? source.compat : {})
+        ...(source?.api === "openai-completions" ? source.compat : {}),
+        ...(route.metadataProvider === "deepseek"
+          ? { supportsStrictMode: false }
+          : {})
       };
     default:
       // A Responses or Anthropic model behind /chat/completions must not inherit

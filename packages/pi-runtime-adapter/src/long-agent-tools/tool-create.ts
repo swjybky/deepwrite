@@ -1,5 +1,11 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
+import {
+  parseLongForeshadowingBody,
+  serializeLongForeshadowingBody,
+  type LongMutationReview,
+  type LongWorkspaceIndexSnapshot
+} from "@deepwrite/contracts";
 import { WRITING_CONTENT_COUNT_DESCRIPTION } from "../writing-content-counts";
 import { longCreatedContentTargets } from "./content-counts";
 import { defineTool } from "./shared";
@@ -82,6 +88,65 @@ function normalizeCreateMeta(
   return normalizedMeta;
 }
 
+function createRecordReview(
+  kind: LongCreateKind,
+  meta: LongCreateMeta,
+  content: string,
+  index: LongWorkspaceIndexSnapshot,
+  createdId: string
+): LongMutationReview {
+  const eventTitle = (eventId: string | undefined) =>
+    index.plot.storyEvents.find((event) => event.id === eventId)?.title ??
+    eventId ??
+    "";
+  const chapterTitle = (chapterCardId: string | undefined) =>
+    index.plot.chapterCards.find((card) => card.id === chapterCardId)?.title ??
+    chapterCardId ??
+    "";
+  const threadTitle = (threadId: string | undefined) =>
+    index.plot.foreshadowing.find((thread) => thread.id === threadId)?.title ??
+    threadId ??
+    "";
+
+  let title = "新建对象";
+  if (kind === "volume") title = `新建分卷 · ${meta.title ?? createdId}`;
+  else if (kind === "arc") title = `新建剧情点 · ${meta.title ?? createdId}`;
+  else if (kind === "story_event") {
+    title = `新建故事事件 · ${meta.title ?? createdId}`;
+  } else if (kind === "event_connection") {
+    title = `新建事件连接 · ${eventTitle(meta.source_event_id)} → ${eventTitle(meta.target_event_id)}`;
+  } else if (kind === "narrative_placement") {
+    title = `新建叙事落点 · ${eventTitle(meta.event_id)} @ ${chapterTitle(meta.chapter_card_id)}`;
+  } else if (kind === "foreshadowing") {
+    title = `新建伏笔线 · ${meta.title ?? createdId}`;
+  } else if (kind === "foreshadowing_beat") {
+    title = `新建伏笔触点 · ${threadTitle(meta.foreshadowing_id)}`;
+  }
+
+  const hasContent = content.trim().length > 0;
+  const afterText =
+    hasContent && kind === "foreshadowing"
+      ? serializeLongForeshadowingBody(parseLongForeshadowingBody(content))
+      : content;
+
+  return {
+    targetKey: `create:${createdId}`,
+    targetKind: kind as LongMutationReview["targetKind"],
+    targetId: createdId,
+    action: "create",
+    title: title.slice(0, 600),
+    ...(hasContent
+      ? {
+          content: {
+            operation: "create",
+            beforeText: "",
+            afterText
+          }
+        }
+      : {})
+  };
+}
+
 export function buildCreateTool(ctx: LongToolContext): AgentTool {
   const { writableRoots, loadIndex } = ctx;
   return defineTool({
@@ -135,6 +200,17 @@ export function buildCreateTool(ctx: LongToolContext): AgentTool {
         summary,
         message: `已形成${verb}${result.label}（${result.createdId}）的提案，等待客户端审阅。`,
         contentTargets: longCreatedContentTargets(result, kind, content),
+        ...(result.changes.length === 0
+          ? {
+              review: createRecordReview(
+                kind,
+                meta,
+                content,
+                index,
+                result.createdId
+              )
+            }
+          : {}),
         index
       });
     }

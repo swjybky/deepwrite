@@ -1,52 +1,8 @@
-import type { MaterialLibraryKind } from "@deepwrite/contracts";
 import { createScopedTranslator } from "../i18n";
 
 const t = createScopedTranslator("components.libraryProjectDialog");
 
-export function libraryKindOptions(domain: "material" | "skill") {
-  return domain === "material"
-    ? [
-        {
-          value: "character",
-          label: t("characterMaterialLibrary")
-        },
-        {
-          value: "gimmick",
-          label: t("ideaMaterialLibrary")
-        },
-        {
-          value: "plot",
-          label: t("plotMaterialLibrary")
-        },
-        {
-          value: "draft",
-          label: t("manuscriptMaterialLibrary")
-        },
-        {
-          value: "other",
-          label: t("otherMaterialLibrary")
-        }
-      ]
-    : [
-        {
-          value: "general",
-          label: t("generalSkillLibrary")
-        },
-        {
-          value: "plot",
-          label: t("plotDesignSkillLibrary")
-        },
-        {
-          value: "style",
-          label: t("writingStyleSkillLibrary")
-        },
-        {
-          value: "other",
-          label: t("otherSkillLibrary")
-        }
-      ];
-}
-export function entryStageOptions(_kind?: MaterialLibraryKind) {
+export function entryStageOptions() {
   return [
     { value: "gimmick", label: t("idea") },
     {

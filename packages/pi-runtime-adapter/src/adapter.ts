@@ -117,10 +117,16 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       configuredThinkingLevel === "off"
         ? config.temperatureOptions[1]
         : undefined;
+    let developerRoleFallback = false;
     const { model, streamFn } = buildProviderRuntime(
       config,
       effectiveTemperature,
-      configuredThinkingLevel
+      configuredThinkingLevel,
+      {
+        onDeveloperRoleFallback: () => {
+          developerRoleFallback = true;
+        }
+      }
     );
     const stream = streamFn(
       model,
@@ -147,13 +153,19 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
       throw new Error(result.errorMessage || "模型连接测试失败。");
     }
     const usage = normalizeUsage(result.usage);
+    const supportsDeveloperRole = developerRoleFallback
+      ? false
+      : config.supportsDeveloperRole;
     return {
       modelId: config.id,
       ok: true,
-      message: "连接成功，模型已返回有效响应。",
+      message: developerRoleFallback
+        ? "连接成功，检测到接口不支持 developer 角色，已自动开启兼容配置。"
+        : "连接成功，模型已返回有效响应。",
       testedAt: new Date().toISOString(),
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
+      ...(supportsDeveloperRole !== undefined ? { supportsDeveloperRole } : {}),
       ...(usage ? { usage } : {})
     };
   }

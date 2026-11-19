@@ -14,9 +14,6 @@ defineProps<{
   formatVisible?: boolean;
   formatDisabled?: boolean;
   formatLabel?: string | undefined;
-  exportVisible?: boolean;
-  exportDisabled?: boolean;
-  exportLabel?: string | undefined;
 }>();
 const emit = defineEmits<{
   undo: [];
@@ -24,7 +21,6 @@ const emit = defineEmits<{
   toggleFind: [mode: "find" | "replace"];
   format: [];
   versions: [];
-  export: [];
 }>();
 </script>
 
@@ -99,18 +95,6 @@ const emit = defineEmits<{
     @click="emit('format')"
   >
     <AppIcon name="wand" :size="16" />
-  </button>
-  <button
-    v-if="exportVisible"
-    class="text-tool-button"
-    type="button"
-    :aria-label="exportLabel"
-    :title="exportLabel"
-    :disabled="exportDisabled"
-    @mousedown.prevent
-    @click="emit('export')"
-  >
-    <AppIcon name="download" :size="16" />
   </button>
 </template>
 

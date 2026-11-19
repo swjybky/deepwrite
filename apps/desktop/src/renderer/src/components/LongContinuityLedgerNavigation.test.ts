@@ -7,9 +7,7 @@ describe("LongContinuityLedgerNavigation", () => {
   it("owns both configured continuity navigation layouts", () => {
     expect(source).toContain('mode: "top-tabs" | "right-list"');
     expect(source).toContain(`v-if="mode === 'top-tabs'"`);
-    expect(source).toContain(
-      'class="long-editor-file-tabs long-continuity-ledger-tabs"'
-    );
+    expect(source).toContain('class="draft-file-tabs"');
     expect(source).toContain("continuityLedgerFiles");
     expect(source).toContain(
       'class="long-story-plot-pane long-entry-list-pane long-continuity-ledger-list"'

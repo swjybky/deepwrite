@@ -2,6 +2,7 @@ import type {
   AgentProviderRuntimeConfig,
   LongWorkspaceRuntimeContext
 } from "./index.test-support";
+import { vi } from "vitest";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
   DEFAULT_LONG_AGENT_PROFILES,
@@ -1024,5 +1025,159 @@ describe("DeepWrite Pi runtime adapter: provider-model-routing", () => {
 
     expect(payload).not.toHaveProperty("reasoning");
     expect(payload).not.toHaveProperty("temperature");
+  });
+
+  it("defaults ModelScope endpoints to the system role while honoring an explicit override", async () => {
+    const modelscopeConfig: AgentProviderRuntimeConfig = {
+      id: "modelscope-qwen",
+      label: "ModelScope Qwen",
+      provider: "custom",
+      modelId: "Qwen/Qwen3-235B-A22B",
+      api: "openai-completions",
+      baseUrl: "https://api-inference.modelscope.cn.example.test/v1",
+      reasoning: true,
+      defaultThinkingLevel: "high",
+      thinkingLevelOptions: ["low", "high"],
+      temperatureOptions: [0.1, 0.7, 1],
+      apiKey: "test-only"
+    };
+
+    expect(buildProviderRuntime(modelscopeConfig).model.compat).toMatchObject({
+      supportsDeveloperRole: false
+    });
+    const payload = await captureThinkingPayload(modelscopeConfig, "high");
+    expect(payload.messages).toEqual([
+      expect.objectContaining({ role: "system" }),
+      expect.objectContaining({ role: "user" })
+    ]);
+
+    expect(
+      buildProviderRuntime({
+        ...modelscopeConfig,
+        provider: "modelscope",
+        baseUrl: "https://proxy.example.test/v1",
+        supportsDeveloperRole: true
+      }).model.compat
+    ).toMatchObject({
+      supportsDeveloperRole: true
+    });
+  });
+
+  it("uses the system role on openai-responses when developer messages are disabled", async () => {
+    const config: AgentProviderRuntimeConfig = {
+      id: "responses-no-developer",
+      label: "Responses No Developer",
+      provider: "custom",
+      modelId: "compat-responses-model",
+      api: "openai-responses",
+      baseUrl: "https://responses.example.test/v1",
+      reasoning: true,
+      supportsDeveloperRole: false,
+      defaultThinkingLevel: "high",
+      thinkingLevelOptions: ["low", "high"],
+      temperatureOptions: [0.1, 0.7, 1],
+      apiKey: "test-only"
+    };
+
+    const payload = await captureThinkingPayload(config, "high");
+    expect(payload.input).toEqual([
+      expect.objectContaining({ role: "system" }),
+      expect.objectContaining({ role: "user" })
+    ]);
+  });
+
+  it("retries with the system role when an endpoint rejects developer messages and records fallback in testConnection", async () => {
+    const config: AgentProviderRuntimeConfig = {
+      id: "fallback-custom",
+      label: "Fallback Custom",
+      provider: "custom",
+      modelId: "qwen3-writer",
+      api: "openai-completions",
+      baseUrl: "https://compat.example.test/v1",
+      reasoning: true,
+      defaultThinkingLevel: "high",
+      thinkingLevelOptions: ["low", "high"],
+      temperatureOptions: [0.1, 0.7, 1],
+      apiKey: "test-only"
+    };
+
+    const sentRoles: string[][] = [];
+    const fetcher: typeof globalThis.fetch = async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        messages?: Array<{ role: string }>;
+      };
+      sentRoles.push((body.messages ?? []).map((message) => message.role));
+      if (sentRoles.length === 1) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "messages[0].role: Input should be 'system', 'user', 'assistant' or 'tool'"
+            }
+          }),
+          { status: 400, headers: { "content-type": "application/json" } }
+        );
+      }
+      const chunk = {
+        id: "chatcmpl-fallback",
+        object: "chat.completion.chunk",
+        created: 0,
+        model: config.modelId,
+        choices: [
+          {
+            index: 0,
+            delta: { role: "assistant", content: "OK" },
+            finish_reason: "stop"
+          }
+        ]
+      };
+      return new Response(
+        `data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } }
+      );
+    };
+
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      let fallbackTriggered = false;
+      const { model, streamFn } = buildProviderRuntime(
+        config,
+        undefined,
+        "high",
+        {
+          onDeveloperRoleFallback: () => {
+            fallbackTriggered = true;
+          }
+        }
+      );
+      const stream = await streamFn(model, {
+        systemPrompt: "Be concise.",
+        messages: [{ role: "user", content: "Hi", timestamp: Date.now() }]
+      });
+      const result = await stream.result();
+      expect(result.stopReason).toBe("stop");
+      expect(fallbackTriggered).toBe(true);
+      expect(sentRoles).toEqual([
+        ["developer", "user"],
+        ["system", "user"]
+      ]);
+      expect(model.compat).toMatchObject({ supportsDeveloperRole: false });
+
+      sentRoles.length = 0;
+      const connectionResult = await new PiAgentRuntimeAdapter().testConnection(
+        config
+      );
+      expect(connectionResult).toMatchObject({
+        ok: true,
+        supportsDeveloperRole: false
+      });
+      expect(connectionResult.message).toContain("developer");
+      expect(sentRoles).toEqual([
+        ["developer", "user"],
+        ["system", "user"]
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

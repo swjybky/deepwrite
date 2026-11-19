@@ -104,7 +104,8 @@ function isStructureEdit(proposal: AgentEditProposal): boolean {
     proposal.draftSectionRenameTarget ||
     proposal.draftSectionDeletionTarget ||
     proposal.plotStructureTarget ||
-    proposal.characterStructureTarget
+    proposal.characterStructureTarget ||
+    (proposal.longPlotDesignTarget && proposal.hunks.length === 0)
   );
 }
 
@@ -118,14 +119,27 @@ function editCreates(proposal: AgentEditProposal): boolean {
     (proposal.longCharacterTarget?.files.every(
       ({ operation }) => operation === "create"
     ) ??
-      false)
+      false) ||
+    proposal.longPlotDesignTarget?.review?.action === "create" ||
+    Boolean(
+      proposal.longPlotDesignTarget?.batch.operations.length === 1 &&
+      proposal.longPlotDesignTarget.batch.operations[0]!.type.endsWith(
+        ".create"
+      )
+    )
   );
 }
 
 function editDeletes(proposal: AgentEditProposal): boolean {
   return (
     Boolean(proposal.draftSectionDeletionTarget) ||
-    proposal.characterStructureTarget?.mutation.type === "deleteItem"
+    proposal.characterStructureTarget?.mutation.type === "deleteItem" ||
+    proposal.longPlotDesignTarget?.review?.action === "delete" ||
+    Boolean(
+      proposal.longPlotDesignTarget?.batch.operations.some(({ type }) =>
+        type.endsWith(".delete")
+      )
+    )
   );
 }
 

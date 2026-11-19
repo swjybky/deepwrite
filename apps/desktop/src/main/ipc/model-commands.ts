@@ -8,6 +8,7 @@ import {
   ModelUsageDashboardSchema,
   RemoteModelListResultSchema,
   createEnvelope,
+  isDeepWriteSiteOfficialModel,
   type AgentRuntimeRef,
   type CommandEnvelope,
   type CommandResult
@@ -221,6 +222,16 @@ async function dispatchModelCommand(
       );
       if (result.status === "accepted") {
         const payload = ModelConnectionTestResultSchema.parse(result.payload);
+        if (
+          payload.supportsDeveloperRole === false &&
+          !command.payload.model.managedBy &&
+          !isDeepWriteSiteOfficialModel(command.payload.model)
+        ) {
+          await ctx
+            .requireModelConfigStore()
+            .disableDeveloperRole?.(command.payload.model.id)
+            .catch(() => undefined);
+        }
         if (payload.usage) {
           const runtime: AgentRuntimeRef = {
             provider: runtimeConfig.provider,

@@ -1,0 +1,59 @@
+{
+  "samples": [
+    {
+      "suffix": "light-1200x800",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "dialogWidth": 460,
+      "dialogHeight": 356,
+      "overflowX": false,
+      "overflowY": false,
+      "clipped": 0,
+      "hasSwitch": false,
+      "switchChecked": null,
+      "switchRowHeight": null
+    },
+    {
+      "suffix": "dark-1200x800",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "dialogWidth": 460,
+      "dialogHeight": 356,
+      "overflowX": false,
+      "overflowY": false,
+      "clipped": 0,
+      "hasSwitch": false,
+      "switchChecked": null,
+      "switchRowHeight": null
+    },
+    {
+      "suffix": "light-1000x680-24px",
+      "viewportWidth": 1000,
+      "viewportHeight": 680,
+      "dialogWidth": 460,
+      "dialogHeight": 480,
+      "overflowX": false,
+      "overflowY": false,
+      "clipped": 0,
+      "hasSwitch": false,
+      "switchChecked": null,
+      "switchRowHeight": null
+    },
+    {
+      "suffix": "dark-1000x680-24px",
+      "viewportWidth": 1000,
+      "viewportHeight": 680,
+      "dialogWidth": 460,
+      "dialogHeight": 480,
+      "overflowX": false,
+      "overflowY": false,
+      "clipped": 0,
+      "hasSwitch": false,
+      "switchChecked": null,
+      "switchRowHeight": null
+    }
+  ],
+  "toggleCheck": {
+    "supported": false
+  }
+}

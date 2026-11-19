@@ -11,17 +11,105 @@ import {
   createFixture,
   describe,
   expect,
+  FIXED_NOW,
   it,
   join,
+  projectTransactionContentSha256,
   readFile
 } from "./long-project-store.test-support";
 
-async function fixture() {
+const priorForeshadowing = "已保存的伏笔说明。";
+const beatId = "beat_combined_direct";
+const placedBeatId = "beat_combined_placement";
+const placementId = "placement_combined_letter";
+
+async function fixture(withDecisions = false) {
   const { projectStore, created } = await createFixture("combined");
   const dir = created.projectDirectory;
-  const chapterId = created.book.workspaceIndex.chapters[0]!.chapterCardId;
+  const originalChapter = created.book.workspaceIndex.chapters[0]!;
+  const chapterId = originalChapter.chapterCardId;
+  if (withDecisions) {
+    const eventId = "event_combined_letter";
+    await projectStore.applyWorkspaceOperations(dir, {
+      batch: {
+        updatedAt: FIXED_NOW,
+        documentWrites: [],
+        operations: [
+          {
+            type: "event.create",
+            event: {
+              id: eventId,
+              title: "旧信",
+              summary: "收到一封旧信。",
+              timeMode: "sequence",
+              timeLabel: "第一天",
+              storyOrder: 1,
+              location: "门口",
+              arcIds: [created.book.workspaceIndex.plot.arcs[0]!.id],
+              characterIds: []
+            }
+          },
+          {
+            type: "placement.create",
+            placement: {
+              id: placementId,
+              eventId,
+              chapterCardId: chapterId,
+              orderInChapter: 1,
+              mode: "scene",
+              disclosure: "hint",
+              writingPrompt: "",
+              status: "planned",
+              commitId: null
+            }
+          },
+          {
+            type: "foreshadowing.create",
+            thread: {
+              id: "foreshadow_combined_letter",
+              title: "寄信人",
+              coreQuestion: "谁寄了信？",
+              truthEventId: null,
+              expectedReaderEffect: "产生疑问。",
+              status: "planned",
+              beats: [
+                {
+                  id: beatId,
+                  type: "plant",
+                  order: 1,
+                  eventId: null,
+                  placementId: null,
+                  chapterCardId: chapterId,
+                  plannedScope: "",
+                  note: "",
+                  status: "planned",
+                  commitId: null
+                },
+                {
+                  id: placedBeatId,
+                  type: "reinforce",
+                  order: 2,
+                  eventId,
+                  placementId,
+                  chapterCardId: null,
+                  plannedScope: "",
+                  note: "",
+                  status: "planned",
+                  commitId: null
+                }
+              ]
+            }
+          }
+        ]
+      }
+    });
+    await projectStore.writeDocument(dir, {
+      fileId: originalChapter.foreshadowingChanges.id,
+      content: priorForeshadowing
+    });
+  }
   await projectStore.writeDocument(dir, {
-    fileId: created.book.workspaceIndex.chapters[0]!.body.id,
+    fileId: originalChapter.body.id,
     content: "合成章节正文。"
   });
   const index = (await projectStore.openBook(dir)).book.workspaceIndex;
@@ -66,11 +154,33 @@ async function fixture() {
               })()
     })
   });
+  if (withDecisions) {
+    const read = tools.find((tool) => tool.name === "read")!;
+    await read.execute("read-prior-foreshadowing", {
+      id: chapterId,
+      document: "foreshadowing_changes"
+    });
+  }
   const tool = tools.find((tool) => tool.name === "propose_continuity_commit")!;
   const params = {
     chapter_card_id: chapterId,
     summary: "合并连续性",
-    foreshadowing_touchpoint_decisions: [],
+    foreshadowing_touchpoint_decisions: withDecisions
+      ? [
+          {
+            foreshadowing_id: "foreshadow_combined_letter",
+            beat_id: beatId,
+            status: "committed",
+            evidence: "正文出现旧信。"
+          },
+          {
+            foreshadowing_id: "foreshadow_combined_letter",
+            beat_id: placedBeatId,
+            status: "missed",
+            evidence: "正文未给出第二个线索。"
+          }
+        ]
+      : [],
     documents: {
       chapter_end_state: "章末状态。",
       handoff: "接续要点。",
@@ -109,6 +219,68 @@ describe("combined continuity transaction", () => {
     expect(
       await readFile(join(h.dir, after.chapters[0]!.worldReveals!.path), "utf8")
     ).toBe("本批揭露的设定。");
+  });
+
+  it("archives direct and placement-linked beats with an already saved foreshadowing document", async () => {
+    const h = await fixture(true);
+    const preparation = h.input.preparation!;
+    const foreshadowing = preparation.batch.documentWrites.find(
+      ({ fileId }) => fileId === h.chapter.foreshadowingChanges.id
+    )!;
+    expect(foreshadowing).toMatchObject({
+      mode: "replace",
+      expectedSha256: projectTransactionContentSha256(priorForeshadowing)
+    });
+    const first = await h.projectStore.commitChapter(h.dir, h.input);
+    expect(await h.projectStore.commitChapter(h.dir, h.input)).toEqual(first);
+
+    const after = (await h.projectStore.openBook(h.dir)).book.workspaceIndex;
+    const id = preparation.commitId;
+    expect(first.record.id).toBe(id);
+    expect(after.chapters[0]!.commitId).toBe(id);
+    expect(after.ledger.commits).toEqual([
+      expect.objectContaining({
+        id,
+        foreshadowingBeatIds: [beatId, placedBeatId],
+        placementIds: [placementId]
+      })
+    ]);
+    expect(after.plot.foreshadowing[0]).toMatchObject({
+      status: "open",
+      beats: [
+        { id: beatId, status: "committed", commitId: id },
+        { id: placedBeatId, status: "missed", commitId: id }
+      ]
+    });
+    expect(after.plot.narrativePlacements[0]).toMatchObject({
+      id: placementId,
+      status: "committed",
+      commitId: id
+    });
+    expect(
+      await readFile(join(h.dir, h.chapter.foreshadowingChanges.path), "utf8")
+    ).toBe(foreshadowing.content);
+  });
+
+  it("keeps an intervening foreshadowing edit and writes none of the batch", async () => {
+    const h = await fixture(true);
+    const content = "用户修订后的伏笔说明。";
+    await h.projectStore.writeDocument(h.dir, {
+      fileId: h.chapter.foreshadowingChanges.id,
+      content
+    });
+    await expect(
+      h.projectStore.commitChapter(h.dir, h.input)
+    ).rejects.toMatchObject({ code: "document_changed" });
+    const after = (await h.projectStore.openBook(h.dir)).book.workspaceIndex;
+    expect(after.ledger.commits).toHaveLength(0);
+    expect(after.chapters[0]!.worldReveals).toBeNull();
+    expect(await readFile(join(h.dir, h.chapter.handoff.path), "utf8")).toBe(
+      ""
+    );
+    expect(
+      await readFile(join(h.dir, h.chapter.foreshadowingChanges.path), "utf8")
+    ).toBe(content);
   });
 
   it.each(["body", "handoff"] as const)(

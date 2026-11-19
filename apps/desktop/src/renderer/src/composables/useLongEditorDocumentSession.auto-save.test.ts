@@ -16,9 +16,6 @@ import type {
   LongWorkspaceSelection,
   LongWorkspaceSelectionFile
 } from "../types/longWorkspace";
-import shellSource from "../WorkspaceShell.vue?raw";
-import moduleSource from "../components/LongWorkspaceModule.vue?raw";
-import editorSource from "../components/LongWorkspaceEditor.vue?raw";
 import { useEditorComposition } from "./useEditorComposition";
 import { useLongEditorHistory } from "./useLongEditorHistory";
 
@@ -304,14 +301,6 @@ describe("long editor auto-save", () => {
       content: "第一稿你"
     });
     editor.app.unmount();
-  });
-
-  it("passes the general setting through to the editor and footer", () => {
-    expect(shellSource).toContain(':auto-save-enabled="editorAutoSaveEnabled"');
-    expect(moduleSource).toContain(':auto-save-enabled="autoSaveEnabled"');
-    expect(editorSource).toContain(
-      ':auto-save-enabled="autoSaveEnabled || currentIsForeshadowingView"'
-    );
   });
 
   it("follows the setting and saves the latest draft after typing stops", async () => {

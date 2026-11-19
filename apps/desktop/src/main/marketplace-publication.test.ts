@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserWindow } from "electron";
 import type { MarketplacePublishInput } from "@deepwrite/contracts";
+import { CommandEnvelopeSchema, createEnvelope } from "@deepwrite/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const bridge = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ vi.mock("electron", () => ({
 import { MarketplaceClient } from "./marketplace-client";
 import { registerMarketplaceIpc } from "./ipc/marketplace-ipc";
 import { marketplace } from "../preload/marketplace-api";
+import { FolderCatalogStore } from "../utilities/folder-catalog-store";
 
 const roots: string[] = [];
 const NOW = "2030-01-01T00:00:00.000Z";
@@ -328,4 +330,62 @@ describe("marketplace publication through Main and Preload", () => {
     });
     expect(requests[0]!.body).not.toHaveProperty("enabled");
   });
+});
+
+it("adds a legacy material through the marketplace bridge and persists its Markdown", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deepwrite-material-bridge-"));
+  roots.push(root);
+  const store = new FolderCatalogStore({ userDataPath: join(root, "catalog") });
+  const fixture = {
+    id: "legacy-library",
+    domain: "material",
+    title: "旧素材库",
+    overview: "",
+    kind: "plot",
+    version: 2,
+    library_type: "long",
+    parent_genre: "",
+    sub_genre: "",
+    entries: [{ stage_id: "character", title: "人物", body: "旧素材正文\n" }]
+  };
+  const client = new MarketplaceClient(root, {
+    baseUrl: "https://relay.example.test",
+    fetcher: async (url) =>
+      Response.json({
+        data: new URL(url).pathname.endsWith("/libraries") ? [fixture] : fixture
+      }),
+    installMaterial: async (input) => {
+      const command = CommandEnvelopeSchema.parse(
+        createEnvelope("catalog.installMarketplaceMaterial", input, {
+          id: "material-install",
+          correlationId: "material-install"
+        })
+      );
+      if (command.type !== "catalog.installMarketplaceMaterial")
+        throw new Error("Wrong command");
+      return store.installMarketplaceMaterial(command.payload);
+    }
+  });
+  registerMarketplaceIpc({
+    getMainWindow: () =>
+      ({
+        isDestroyed: () => false,
+        webContents: bridge.sender
+      }) as BrowserWindow,
+    getMarketplaceClient: () => client
+  });
+  const [summary] = await marketplace.listMaterials();
+  expect(summary).toMatchObject({ id: fixture.id, kind: "plot" });
+  const detail = await marketplace.materialDetail(summary!.id);
+  const result = await marketplace.installMaterial({
+    id: detail.id,
+    version: detail.version
+  });
+  expect((await store.snapshot()).materials).toMatchObject([
+    {
+      id: result.libraryId,
+      materialKind: "plot",
+      entries: [{ stageId: "character", title: "人物", body: "旧素材正文\n" }]
+    }
+  ]);
 });

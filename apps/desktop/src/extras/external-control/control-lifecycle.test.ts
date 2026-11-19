@@ -181,6 +181,71 @@ describe("external control lifecycle", () => {
     expect(await readExternalControlState(paths.stateFile)).toBeUndefined();
   });
 
+  describe("beside another instance serving the same home", () => {
+    let other: ExternalControl;
+
+    beforeEach(async () => {
+      other = createExternalControl({
+        ...testControlOptions(paths),
+        app: testAppState({ dataDirectory: () => paths.directory }),
+        pid: 5151,
+        createToken: () => TEST_TOKEN,
+        warn: vi.fn()
+      });
+      await other.sync(true);
+    });
+
+    afterEach(() => other.stop());
+
+    async function expectOtherStillServes(): Promise<void> {
+      expect(await readExternalControlState(paths.stateFile)).toMatchObject({
+        status: "ready",
+        pid: 5151
+      });
+      const client = await connectRawClient(paths.endpoint);
+      client.send(helloEnvelope(TEST_TOKEN));
+      expect(await client.nextMessage()).toMatchObject({ status: "accepted" });
+      client.socket.destroy();
+    }
+
+    it("leaves its endpoint alone while switched off", async () => {
+      await control.noteLaunchRequest();
+      await control.sync(false);
+      await expectOtherStillServes();
+      await control.stop();
+      await expectOtherStillServes();
+    });
+
+    it("does not take its endpoint over when switched on", async () => {
+      await control.sync(true);
+      await control.stop();
+      await expectOtherStillServes();
+    });
+
+    it("takes over once that instance has stopped", async () => {
+      await other.stop();
+      await control.sync(true);
+      expect(await readExternalControlState(paths.stateFile)).toMatchObject({
+        status: "ready",
+        pid: 4242
+      });
+    });
+  });
+
+  it("clears a ready state whose endpoint no longer answers", async () => {
+    await writeExternalControlState(paths.stateFile, {
+      status: "ready",
+      protocolVersion: 1,
+      appVersion: "0.9.0",
+      pid: 1,
+      endpoint: paths.endpoint,
+      token: TEST_TOKEN,
+      startedAt: "2026-01-01T00:00:00.000Z"
+    });
+    await control.sync(false);
+    expect(await readExternalControlState(paths.stateFile)).toBeUndefined();
+  });
+
   it("recovers from a failed start on the next change", async () => {
     const warn = vi.fn();
     const failing = createExternalControl({

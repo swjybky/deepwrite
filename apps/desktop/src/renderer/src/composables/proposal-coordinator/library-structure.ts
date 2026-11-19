@@ -8,6 +8,7 @@ import type { AgentEditProposal } from "../../types/conversation";
 import type { AgentConversationController } from "../useAgentConversation";
 import { buildAgentTextDiff } from "../../utils/agentTextDiff";
 import { formatError } from "../../i18n/errors";
+import { resolveShortProposalConversation } from "./event-authorization";
 
 export function stageLibraryStructureProposal(
   context: ProposalCoordinatorContext,
@@ -15,9 +16,7 @@ export function stageLibraryStructureProposal(
 ) {
   if (!context.editor.rememberWorkspaceMutationEvent(event.id)) return;
   const payload = event.payload;
-  const conversation = context.conversations
-    .all()
-    .find((item) => item.acceptsRunEvent(payload.sessionId, payload.runId));
+  const conversation = resolveShortProposalConversation(context, event);
   if (!conversation) return;
   const id = `library-structure:${payload.plan.requestId}`;
   const existing = conversation.getEditProposal(payload.runId, id);

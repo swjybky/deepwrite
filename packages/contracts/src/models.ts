@@ -96,6 +96,8 @@ export const ModelConnectionTestResultSchema = z.object({
   contextWindow: z.number().int().positive().max(MODEL_CONTEXT_WINDOW_MAX),
   /** Runtime-resolved max output tokens used after this successful test. */
   maxTokens: z.number().int().positive().max(MODEL_CONTEXT_WINDOW_MAX),
+  /** Present when the test detected or used an explicit developer-role compatibility setting. */
+  supportsDeveloperRole: z.boolean().optional(),
   /** Present when the provider returned token accounting for this test call. */
   usage: ModelConnectionTestUsageSchema.optional()
 });

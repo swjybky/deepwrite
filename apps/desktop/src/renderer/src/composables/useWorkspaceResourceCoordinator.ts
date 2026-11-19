@@ -97,6 +97,7 @@ export interface WorkspaceResourceMysteryNavigationPort {
   selectTarget(
     target: import("@deepwrite/contracts").MysteryDocumentTarget
   ): Promise<boolean>;
+  selectStage(stage: import("@deepwrite/contracts").MysteryStageId): void;
   saveActiveEditorBeforeLeaving(): Promise<boolean>;
   deactivateActiveBook(): void;
 }
@@ -772,6 +773,9 @@ export function useWorkspaceResourceCoordinator(
           navigationRequestIsCurrent(requestId)
         )
           state.selectedResourceId.value = node.id;
+      } else if (node.mysteryStage) {
+        mystery.selectStage(node.mysteryStage);
+        state.selectedResourceId.value = node.id;
       }
       return;
     }

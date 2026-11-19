@@ -741,6 +741,18 @@ const showGenericFileTabs = computed(
     !currentUsesRightContinuityList.value &&
     !currentUsesLeftTreeContinuity.value
 );
+const showRelatedFileTabs = computed(
+  () =>
+    Boolean(
+      (currentIsBookLineWorkspace.value && currentBookLineVolume.value) ||
+      (currentIsPlotPointWorkspace.value && currentPlotPoint.value)
+    ) ||
+    currentUsesTopContinuityTabs.value ||
+    showGenericFileTabs.value
+);
+const showToolbarTextTools = computed(
+  () => !currentIsForeshadowingView.value && !currentIsPlotPointStoryline.value
+);
 const currentWorldbuildingListState = computed<{
   items: Array<{ id: string; title: string }>;
   error: string | null;
@@ -1366,6 +1378,15 @@ const {
   },
   undo,
   redo,
+  save: () => {
+    if (
+      currentDirty.value &&
+      !currentSaving.value &&
+      !workspaceSavePending.value &&
+      !isDocumentContentBusy.value
+    )
+      void saveCurrentDocument();
+  },
   isComposing: () => editorComposition.isComposing.value
 });
 const entrySearchScope = computed<LongWorkspaceRoot>(
@@ -1825,191 +1846,201 @@ onBeforeUnmount(() => {
         @delete-item="openWorldbuildingItemDelete"
       />
 
-      <div class="long-editor-toolbar">
-        <div
-          v-if="currentIsBookLineWorkspace && currentBookLineVolume"
-          class="long-editor-file-tabs"
-          role="tablist"
-          :aria-label="
-            t('valueContent', {
-              arg0: currentBookLineVolume.title
-            })
-          "
+      <header
+        class="long-editor-controls"
+        :class="{
+          'has-file-controls-only': showRelatedFileTabs && !showToolbarTextTools
+        }"
+      >
+        <nav
+          v-if="showRelatedFileTabs"
+          class="editor-file-tabs-bar"
+          @wheel="handleHorizontalOverflowWheel"
         >
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activeBookLineContentTab === 'outline'"
-            :class="{
-              'is-active': activeBookLineContentTab === 'outline'
-            }"
-            @click="selectBookLineContentTab('outline')"
-          >
-            {{ t("volumeOutline") }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activeBookLineContentTab === 'foreshadowing'"
-            :class="{
-              'is-active': activeBookLineContentTab === 'foreshadowing'
-            }"
-            @click="selectBookLineContentTab('foreshadowing')"
-          >
-            {{ t("volumeForeshadowing") }}
-          </button>
-        </div>
-        <div
-          v-if="currentIsPlotPointWorkspace && currentPlotPoint"
-          class="long-editor-file-tabs"
-          role="tablist"
-          :aria-label="
-            t('valueContent', {
-              arg0: currentPlotPoint?.title ?? t('currentPlotPoint')
-            })
-          "
-        >
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activePlotPointTab === 'summary'"
-            :class="{ 'is-active': activePlotPointTab === 'summary' }"
-            @click="selectPlotPointTab('summary')"
-          >
-            {{ t("summary") }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activePlotPointTab === 'storyline'"
-            :class="{ 'is-active': activePlotPointTab === 'storyline' }"
-            @click="selectPlotPointTab('storyline')"
-          >
-            {{ t("storyEvent") }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="activePlotPointTab === 'foreshadowing'"
-            :class="{
-              'is-active': activePlotPointTab === 'foreshadowing'
-            }"
-            @click="selectPlotPointTab('foreshadowing')"
-          >
-            {{ t("foreshadowingTouchpoints") }}
-          </button>
-        </div>
-        <LongContinuityLedgerNavigation
-          v-if="currentUsesTopContinuityTabs"
-          mode="top-tabs"
-          :title="selection.title"
-          :items="currentContinuityNavigationItems"
-          :active-file-id="currentSelectionFile?.file.id ?? null"
-          :pending-file-id="pendingFileId"
-          @select-file="selectWorkspaceFile"
-        />
-        <div
-          v-if="showGenericFileTabs"
-          class="long-editor-file-tabs"
-          role="tablist"
-          :aria-label="
-            t('valueFile', {
-              arg0: selection.title
-            })
-          "
-        >
-          <button
-            v-for="file in selection.files"
-            :key="file.file.id"
-            type="button"
-            role="tab"
-            :aria-selected="currentSelectionFile?.file.id === file.file.id"
-            :class="{
-              'is-active': currentSelectionFile?.file.id === file.file.id,
-              'is-loading': pendingFileId === file.file.id
-            }"
-            :aria-busy="pendingFileId === file.file.id"
-            @click="selectWorkspaceFile(file.file.id)"
-          >
-            {{ file.label }}
-          </button>
-        </div>
-        <span
-          v-if="
-            !currentIsForeshadowingView &&
-            !currentIsPlotPointStoryline &&
-            ((currentIsBookLineWorkspace && currentBookLineVolume) ||
-              (currentIsPlotPointWorkspace && currentPlotPoint) ||
-              (currentIsChapterCardWorkspace && currentChapterCard) ||
-              currentUsesTopContinuityTabs ||
-              showGenericFileTabs)
-          "
-          class="long-toolbar-separator"
-        />
-        <div
-          v-if="!currentIsForeshadowingView && !currentIsPlotPointStoryline"
-          class="long-editor-view-tabs"
-          role="tablist"
-          :aria-label="t('textView')"
-        >
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="viewMode === 'edit'"
-            :class="{ 'is-active': viewMode === 'edit' }"
-            :disabled="!canUseTextTools || currentReadOnly"
-            @click="setViewMode('edit')"
-          >
-            {{ t("edit") }}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="viewMode === 'preview'"
-            :class="{ 'is-active': viewMode === 'preview' }"
-            :disabled="!canUseTextTools"
-            @click="setViewMode('preview')"
-          >
-            {{ t("preview") }}
-          </button>
-        </div>
-        <span
-          v-if="!currentIsForeshadowingView && !currentIsPlotPointStoryline"
-          class="long-toolbar-separator"
-        />
-        <div
-          v-if="!currentIsForeshadowingView && !currentIsPlotPointStoryline"
-          class="long-editor-text-tools"
-          role="group"
-          :aria-label="t('textActions')"
-        >
-          <EditorTextTools
-            :can-undo="canUndo"
-            :can-redo="canRedo"
-            :disabled="!canUseTextTools"
-            :find-panel-open="findPanelOpen"
-            :find-panel-mode="findPanelMode"
-            :version-visible="versionVisible"
-            :format-visible="bodyFormatVisible"
-            :format-disabled="bodyFormatDisabled"
-            @undo="undo"
-            @redo="redo"
-            @toggle-find="toggleFindPanel"
-            @format="formatBody"
-            @versions="versionOpen = true"
-          />
-          <PreviewOutlinePopover
-            v-if="viewMode === 'preview' && canUseTextTools"
-            icon-only
-            :content="currentVisibleContent"
-            :preview-element="documentPreview"
-            :document-key="
-              currentSelectionFile?.file.id ?? selection?.key ?? ''
+          <div
+            v-if="currentIsBookLineWorkspace && currentBookLineVolume"
+            class="draft-file-tabs"
+            role="tablist"
+            :aria-label="
+              t('valueContent', {
+                arg0: currentBookLineVolume.title
+              })
             "
+          >
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activeBookLineContentTab === 'outline'"
+              :class="{
+                'is-active': activeBookLineContentTab === 'outline'
+              }"
+              @click="selectBookLineContentTab('outline')"
+            >
+              {{ t("volumeOutline") }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activeBookLineContentTab === 'foreshadowing'"
+              :class="{
+                'is-active': activeBookLineContentTab === 'foreshadowing'
+              }"
+              @click="selectBookLineContentTab('foreshadowing')"
+            >
+              {{ t("volumeForeshadowing") }}
+            </button>
+          </div>
+          <div
+            v-if="currentIsPlotPointWorkspace && currentPlotPoint"
+            class="draft-file-tabs"
+            role="tablist"
+            :aria-label="
+              t('valueContent', {
+                arg0: currentPlotPoint?.title ?? t('currentPlotPoint')
+              })
+            "
+          >
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activePlotPointTab === 'summary'"
+              :class="{ 'is-active': activePlotPointTab === 'summary' }"
+              @click="selectPlotPointTab('summary')"
+            >
+              {{ t("summary") }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activePlotPointTab === 'storyline'"
+              :class="{ 'is-active': activePlotPointTab === 'storyline' }"
+              @click="selectPlotPointTab('storyline')"
+            >
+              {{ t("storyEvent") }}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activePlotPointTab === 'foreshadowing'"
+              :class="{
+                'is-active': activePlotPointTab === 'foreshadowing'
+              }"
+              @click="selectPlotPointTab('foreshadowing')"
+            >
+              {{ t("foreshadowingTouchpoints") }}
+            </button>
+          </div>
+          <LongContinuityLedgerNavigation
+            v-if="currentUsesTopContinuityTabs"
+            mode="top-tabs"
+            :title="selection.title"
+            :items="currentContinuityNavigationItems"
+            :active-file-id="currentSelectionFile?.file.id ?? null"
+            :pending-file-id="pendingFileId"
+            @select-file="selectWorkspaceFile"
           />
+          <div
+            v-if="showGenericFileTabs"
+            class="draft-file-tabs"
+            role="tablist"
+            :aria-label="
+              t('valueFile', {
+                arg0: selection.title
+              })
+            "
+          >
+            <button
+              v-for="file in selection.files"
+              :key="file.file.id"
+              type="button"
+              role="tab"
+              :aria-selected="currentSelectionFile?.file.id === file.file.id"
+              :class="{
+                'is-active': currentSelectionFile?.file.id === file.file.id,
+                'is-loading': pendingFileId === file.file.id
+              }"
+              :aria-busy="pendingFileId === file.file.id"
+              @click="selectWorkspaceFile(file.file.id)"
+            >
+              {{ file.label }}
+            </button>
+          </div>
+        </nav>
 
+        <div
+          v-if="
+            showToolbarTextTools || rightPane !== false || rightPaneCollapsed
+          "
+          class="editor-toolbar"
+        >
+          <div
+            v-if="showToolbarTextTools"
+            class="editor-toolbar-actions"
+            @wheel="handleHorizontalOverflowWheel"
+          >
+            <span v-if="showRelatedFileTabs" class="toolbar-separator" />
+            <div class="view-tabs" role="tablist" :aria-label="t('textView')">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="viewMode === 'edit'"
+                :class="{ 'is-active': viewMode === 'edit' }"
+                :disabled="!canUseTextTools || currentReadOnly"
+                @click="setViewMode('edit')"
+              >
+                {{ t("edit") }}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="viewMode === 'preview'"
+                :class="{ 'is-active': viewMode === 'preview' }"
+                :disabled="!canUseTextTools"
+                @click="setViewMode('preview')"
+              >
+                {{ t("preview") }}
+              </button>
+            </div>
+            <span class="toolbar-separator" />
+            <div
+              class="long-editor-text-tools"
+              role="group"
+              :aria-label="t('textActions')"
+            >
+              <EditorTextTools
+                :can-undo="canUndo"
+                :can-redo="canRedo"
+                :disabled="!canUseTextTools"
+                :find-panel-open="findPanelOpen"
+                :find-panel-mode="findPanelMode"
+                :version-visible="versionVisible"
+                :format-visible="bodyFormatVisible"
+                :format-disabled="bodyFormatDisabled"
+                @undo="undo"
+                @redo="redo"
+                @toggle-find="toggleFindPanel"
+                @format="formatBody"
+                @versions="versionOpen = true"
+              />
+              <PreviewOutlinePopover
+                v-if="viewMode === 'preview' && canUseTextTools"
+                icon-only
+                :content="currentVisibleContent"
+                :preview-element="documentPreview"
+                :document-key="
+                  currentSelectionFile?.file.id ?? selection?.key ?? ''
+                "
+              />
+            </div>
+          </div>
+          <EditorPaneToggle
+            :right-pane="rightPane"
+            :right-pane-collapsed="rightPaneCollapsed"
+            @collapse="emit('collapse')"
+            @toggle-right="emit('toggleRight')"
+          />
           <LongEditorFindReplaceBar
-            v-if="findPanelOpen"
+            v-if="showToolbarTextTools && findPanelOpen"
             v-model:find-panel-element="findPanelElement"
             v-model:find-input="findInput"
             :find-panel-mode="findPanelMode"
@@ -2035,13 +2066,7 @@ onBeforeUnmount(() => {
             @select-entry-search="selectEntrySearchResult"
           />
         </div>
-        <EditorPaneToggle
-          :right-pane="rightPane"
-          :right-pane-collapsed="rightPaneCollapsed"
-          @collapse="emit('collapse')"
-          @toggle-right="emit('toggleRight')"
-        />
-      </div>
+      </header>
 
       <LongChapterPlotBinding
         v-if="showChapterPlotBinding && workspaceIndex && currentChapterCard"
@@ -2182,7 +2207,7 @@ onBeforeUnmount(() => {
                 />
                 <div class="long-story-plot-text-toolbar">
                   <div
-                    class="long-editor-view-tabs"
+                    class="view-tabs"
                     role="tablist"
                     :aria-label="t('textView')"
                   >
@@ -2207,7 +2232,7 @@ onBeforeUnmount(() => {
                       {{ t("preview") }}
                     </button>
                   </div>
-                  <span class="long-toolbar-separator" />
+                  <span class="toolbar-separator" />
                   <div
                     class="long-editor-text-tools"
                     role="group"
@@ -2921,68 +2946,21 @@ onBeforeUnmount(() => {
     minmax(0, 1fr) minmax(36px, auto);
 }
 
-.long-editor-toolbar {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 3px;
+.long-editor-controls {
   min-width: 0;
-  padding: 5px 13px;
-  border-bottom: 1px solid var(--theme-line-soft);
-  background: var(--surface-muted);
 }
 
-.long-editor-file-tabs,
-.long-editor-view-tabs {
+.long-editor-controls.has-file-controls-only {
   display: flex;
-  align-items: center;
-  padding: 2px;
-  border-radius: 7px;
-  background: var(--surface-hover);
 }
 
-.long-editor-file-tabs {
-  max-width: 48%;
-  overflow-x: auto;
-  scrollbar-width: none;
+.long-editor-controls.has-file-controls-only > .editor-file-tabs-bar {
+  flex: 1 1 auto;
 }
 
-.long-editor-file-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.long-editor-file-tabs button,
-.long-editor-view-tabs button {
+.long-editor-controls.has-file-controls-only > .editor-toolbar {
   flex: 0 0 auto;
-  height: max(25px, 1.85em);
-  padding: 0 9px;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-size: 0.714286rem;
-  cursor: pointer;
-}
-
-.long-editor-file-tabs button.is-active,
-.long-editor-view-tabs button.is-active {
-  background: var(--surface-main);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgb(24 26 28 / 8%);
-}
-
-.long-editor-file-tabs button:disabled,
-.long-editor-view-tabs button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
-.long-toolbar-separator {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 19px;
-  margin: 0 4px;
-  background: var(--theme-line);
+  padding-left: 0;
 }
 
 .long-footer-spacer {
@@ -3096,7 +3074,7 @@ onBeforeUnmount(() => {
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  padding: 28px 0 18px;
+  padding-bottom: 18px;
   overflow: hidden;
   background: var(--surface-main);
 }
@@ -3114,7 +3092,6 @@ onBeforeUnmount(() => {
 .long-document-title-input,
 .long-document-title {
   width: 100%;
-  margin: 8px 0 13px;
   padding: 0 var(--long-document-inline-padding);
   border: 0;
   outline: 0;
@@ -3131,7 +3108,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   min-width: 0;
-  margin: 8px 0 13px;
+  margin-bottom: 13px;
 }
 
 .long-document-heading > .long-document-title-input,
@@ -3354,19 +3331,8 @@ onBeforeUnmount(() => {
 }
 
 @container (max-width: 38rem) {
-  .long-editor-toolbar {
-    flex-wrap: wrap;
-    padding-inline: 8px;
-  }
-
-  .long-editor-file-tabs {
-    flex: 1 1 100%;
-    max-width: 100%;
-  }
-
   .long-editor-writing-surface {
     --long-document-inline-padding: clamp(14px, 4cqw, 20px);
-    padding-top: 18px;
   }
 
   .long-document-heading {
@@ -3520,7 +3486,7 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   height: 100%;
   min-height: 0;
-  padding: 14px 0 0;
+  padding-top: 14px;
   overflow: hidden;
   background: var(--surface-main);
 }
@@ -3531,7 +3497,7 @@ onBeforeUnmount(() => {
 
 .long-story-plot-title-input {
   width: 100%;
-  margin: 6px 0 8px;
+  margin: 0 0 8px;
   padding: 0 var(--long-document-inline-padding);
   border: 0;
   outline: 0;

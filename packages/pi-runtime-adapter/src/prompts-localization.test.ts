@@ -151,6 +151,12 @@ describe("system prompt language", () => {
   });
 
   it("keeps the long-form rules complete in both languages", () => {
+    expect(buildLongWorkspaceRules("zh-CN")).toContain(
+      "只有查到本批记录，才能回复「已归档」"
+    );
+    expect(buildLongWorkspaceRules("en-US")).toContain(
+      "Report it as archived only when the lookup returns the batch record."
+    );
     for (const locale of ["zh-CN", "en-US"] as const) {
       const rules = buildLongWorkspaceRules(locale);
       for (const token of [

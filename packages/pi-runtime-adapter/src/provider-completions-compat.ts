@@ -39,6 +39,8 @@ export function resolveOpenAICompletionsCompat(
     baseUrl.includes("bigmodel.cn")
   ) {
     compat.thinkingFormat = "zai";
+  } else if (provider === "modelscope" || baseUrl.includes("modelscope.cn")) {
+    compat.supportsDeveloperRole = false;
   }
   if (config.supportsDeveloperRole !== undefined) {
     compat.supportsDeveloperRole = config.supportsDeveloperRole;

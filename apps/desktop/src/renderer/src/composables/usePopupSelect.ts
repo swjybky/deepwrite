@@ -71,6 +71,37 @@ export function usePopupSelect(
     const rect = trigger.value.getBoundingClientRect();
     const viewportMargin = 8;
     const gap = 7;
+    let topBoundary = viewportMargin;
+    let bottomBoundary = window.innerHeight - viewportMargin;
+    const dialog = trigger.value.closest('[role="dialog"]');
+    if (dialog) {
+      const dialogRect = dialog.getBoundingClientRect();
+      topBoundary = Math.max(topBoundary, dialogRect.top + viewportMargin);
+      bottomBoundary = Math.min(
+        bottomBoundary,
+        dialogRect.bottom - viewportMargin
+      );
+      const actions = dialog.querySelector<HTMLElement>(".dialog-actions");
+      if (actions && !actions.contains(trigger.value)) {
+        bottomBoundary = Math.min(
+          bottomBoundary,
+          actions.getBoundingClientRect().top - viewportMargin
+        );
+      }
+    }
+    for (
+      let parent = trigger.value.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      const style = getComputedStyle(parent);
+      if (!/(auto|scroll|hidden|clip)/.test(style.overflowY)) continue;
+      const parentRect = parent.getBoundingClientRect();
+      if (rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
+        closeMenu();
+        return;
+      }
+    }
     const maximumWidth = Math.max(160, window.innerWidth - viewportMargin * 2);
     const minimumWidth = Math.min(
       Math.max(rect.width, props.menuMinWidth),
@@ -80,17 +111,11 @@ export function usePopupSelect(
       menu.value?.scrollHeight ?? 12,
       props.menuMaxHeight
     );
-    const spaceBelow = Math.max(
-      0,
-      window.innerHeight - rect.bottom - gap - viewportMargin
-    );
-    const spaceAbove = Math.max(0, rect.top - gap - viewportMargin);
+    const spaceBelow = Math.max(0, bottomBoundary - rect.bottom - gap);
+    const spaceAbove = Math.max(0, rect.top - gap - topBoundary);
     const opensUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
     const availableHeight = opensUpward ? spaceAbove : spaceBelow;
-    const maxHeight = Math.max(
-      72,
-      Math.min(props.menuMaxHeight, availableHeight)
-    );
+    const maxHeight = Math.min(props.menuMaxHeight, availableHeight);
     const renderedHeight = Math.min(estimatedHeight, maxHeight);
     const preferredLeft =
       props.align === "end" ? rect.right - minimumWidth : rect.left;
@@ -103,7 +128,7 @@ export function usePopupSelect(
       : rect.bottom + gap;
 
     menuStyle.value = {
-      top: `${Math.max(viewportMargin, top)}px`,
+      top: `${Math.max(topBoundary, top)}px`,
       left: `${left}px`,
       width: `${minimumWidth}px`,
       maxWidth: `${Math.min(360, maximumWidth)}px`,

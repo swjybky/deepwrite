@@ -9,6 +9,10 @@ import {
   MarketplaceLikeInputSchema,
   MarketplaceLikeResultSchema,
   MarketplaceListFilterSchema,
+  MarketplaceMaterialFilterSchema,
+  MarketplaceMaterialInstallResultSchema,
+  MarketplaceMaterialListSchema,
+  MarketplaceMaterialRefSchema,
   MarketplacePublishInputSchema,
   MarketplaceSetEnabledInputSchema,
   MarketplaceUpdateInputSchema,
@@ -25,6 +29,11 @@ import {
   type MarketplaceLikeInput,
   type MarketplaceLikeResult,
   type MarketplaceListFilter,
+  type MarketplaceMaterialDetail,
+  type MarketplaceMaterialFilter,
+  type MarketplaceMaterialInstallResult,
+  type MarketplaceMaterialRef,
+  type MarketplaceMaterialSummary,
   type MarketplacePublishInput,
   type MarketplaceSetEnabledInput,
   type MarketplaceSkillDetail,
@@ -44,6 +53,8 @@ import {
   MarketplaceClientError,
   normalizeContentPage,
   normalizeDetail,
+  normalizeMaterialDetail,
+  normalizeMaterialSummary,
   normalizeSummary,
   requiredBoolean,
   requiredNumber
@@ -55,10 +66,73 @@ export class MarketplaceClient extends MarketplaceAccountClient {
     (() => Promise<CatalogSnapshot>) | undefined;
   private readonly installCatalogPackage:
     MarketplaceClientOptions["installPackage"] | undefined;
+  private readonly installMaterialToCatalog: MarketplaceClientOptions["installMaterial"];
   constructor(userDataPath: string, options: MarketplaceClientOptions = {}) {
     super(userDataPath, options);
     this.loadCatalogSnapshot = options.loadCatalogSnapshot;
     this.installCatalogPackage = options.installPackage;
+    this.installMaterialToCatalog = options.installMaterial;
+  }
+
+  async listMaterials(
+    filter: MarketplaceMaterialFilter
+  ): Promise<MarketplaceMaterialSummary[]> {
+    const { query, kind } = MarketplaceMaterialFilterSchema.parse(filter);
+    const search = new URLSearchParams({ domain: "material", limit: "200" });
+    if (query) search.set("q", query);
+    if (kind) search.set("kind", kind);
+    const data = await this.request("GET", `/market/v1/libraries?${search}`, {
+      authenticated: false
+    });
+    if (!Array.isArray(data)) {
+      throw new MarketplaceClientError(
+        "marketplace.invalid_response",
+        "素材广场返回了无效的列表。"
+      );
+    }
+    return MarketplaceMaterialListSchema.parse(
+      data.map(normalizeMaterialSummary)
+    );
+  }
+
+  async materialDetail(id: string): Promise<MarketplaceMaterialDetail> {
+    const parsed = MarketplaceMaterialRefSchema.shape.id.parse(id);
+    const detail = normalizeMaterialDetail(
+      await this.request(
+        "GET",
+        `/market/v1/libraries/${encodeURIComponent(parsed)}`,
+        { authenticated: false }
+      )
+    );
+    if (detail.id !== parsed) {
+      throw new MarketplaceClientError(
+        "marketplace.invalid_response",
+        "素材广场返回了其他素材库的详情。"
+      );
+    }
+    return detail;
+  }
+
+  async installMaterial(
+    ref: MarketplaceMaterialRef
+  ): Promise<MarketplaceMaterialInstallResult> {
+    const { id, version } = MarketplaceMaterialRefSchema.parse(ref);
+    if (!this.installMaterialToCatalog) {
+      throw new MarketplaceClientError(
+        "marketplace.install_unavailable",
+        "本地素材安装服务尚未初始化。"
+      );
+    }
+    const detail = await this.materialDetail(id);
+    if (detail.version !== version) {
+      throw new MarketplaceClientError(
+        "marketplace.material_version_changed",
+        "素材库已更新，请重新打开详情后加入。"
+      );
+    }
+    return MarketplaceMaterialInstallResultSchema.parse(
+      await this.installMaterialToCatalog(detail)
+    );
   }
   async list(
     filter: MarketplaceListFilter = {}
@@ -225,12 +299,6 @@ export class MarketplaceClient extends MarketplaceAccountClient {
       );
     }
     const detail = await this.detail(parsed.ref);
-    if (detail.contentType === "skill" && !parsed.targetLibraryId) {
-      throw new MarketplaceClientError(
-        "marketplace.target_library_required",
-        "安装单技能前请选择目标技能库。"
-      );
-    }
     if (detail.contentType !== "skill" && parsed.targetLibraryId) {
       throw new MarketplaceClientError(
         "marketplace.target_library_not_allowed",
@@ -277,20 +345,32 @@ export class MarketplaceClient extends MarketplaceAccountClient {
   private async buildInstallPackage(
     detail: MarketplaceContentDetail
   ): Promise<MarketplaceInstallPackage> {
-    const orderedSkills: MarketplaceSkillDetail[] = [];
-    if (detail.contentType === "skill") {
-      orderedSkills.push(detail);
-    } else if (detail.contentType === "library") {
-      orderedSkills.push(...detail.skills);
+    const orderedSkills: {
+      skill: MarketplaceSkillDetail;
+      kind: MarketplaceSkillKind;
+      libraryType: MarketplaceSkillDetail["libraryType"];
+    }[] = [];
+    const add = (
+      item: Exclude<MarketplaceContentDetail, { contentType: "group" }>
+    ) => {
+      const skills = item.contentType === "library" ? item.skills : [item];
+      for (const skill of skills) {
+        orderedSkills.push({
+          skill,
+          kind: item.contentType === "library" ? item.kind : "general",
+          libraryType: item.libraryType
+        });
+      }
+    };
+    if (detail.contentType !== "group") {
+      add(detail);
     } else {
       for (const item of detail.items) {
         const child = await this.detail({
           contentType: item.contentType,
           id: item.id
         });
-        if (child.contentType === "skill") orderedSkills.push(child);
-        if (child.contentType === "library")
-          orderedSkills.push(...child.skills);
+        if (child.contentType !== "group") add(child);
       }
     }
     const kinds: MarketplaceSkillKind[] = ["general", "plot", "style", "other"];
@@ -305,7 +385,7 @@ export class MarketplaceClient extends MarketplaceAccountClient {
           kind,
           libraryType: availableLibraryTypes[0]!,
           availableLibraryTypes,
-          entries: values.map((skill) => ({
+          entries: values.map(({ skill }) => ({
             marketplaceSkillId: skill.id,
             title: skill.title,
             stageId: skill.stageId,

@@ -48,6 +48,7 @@ const LONG_WORKSPACE_WRITE_RULES_ZH = `【章卡与写作】
 - 用 propose_continuity_commit 提交本书中一章已写完的章节，或按叙事顺序连续的一批已写完、未提交的章节；单章提交就是长度为一的批次。
 - 多章批次要读取每一章的正文作为依据，只在最后一章（检查点）上创建或修改连续性文档，内容概括整批结束后的状态；不要为中间章节生成或绑定单独的连续性记录。chapter_card_ids 按叙事顺序提交，最后一个 id 即检查点，整批成为所有成员章节共用的一条账本记录。
 - 优先在 propose_continuity_commit 的 documents 中一并提供 chapter_end_state、handoff，以及需要的 world_reveals、characters（character_id、current_state、history）；形成一张可审阅文件差异的卡，文件和账本一起保存。修改非空连续性文件前仍须完整读取。不传 documents 时保留先 create/edit 文件、再登记的旧流程。
+- 提案生成后，用 list(scope_id=<检查点章 id>, view=continuity) 查询本批账本。只有查到本批记录，才能回复「已归档」。账本显示未提交或无法查询时，只能报告归档申请已提出、结果尚未确认。读到提案中的连续性文件只能核对提案内容。
 - 伏笔总览是设计来源。账本只能核对批次内已有的伏笔节点，并把它们标为已兑现或已错过，不能新建伏笔线或伏笔节点。正文里出现疑似伏笔但总览中没有对应条目时，只在对话中提醒用户补充设计。
 
 【写回内容】
@@ -94,6 +95,7 @@ Every object is a body of text plus compact metadata, including objects without 
 - Use propose_continuity_commit to submit one written chapter of this book, or a contiguous narrative-order batch of written, uncommitted chapters; a single chapter is a batch of one.
 - For a batch, read every chapter's manuscript as evidence, and create or edit continuity documents only on the final checkpoint chapter, summarizing the state after the whole batch. Do not generate or bind separate continuity records for intermediate chapters. Submit chapter_card_ids in narrative order; the last id is the checkpoint, and the batch becomes one ledger record shared by all its chapters.
 - Prefer providing documents in propose_continuity_commit: chapter_end_state, handoff, and optional world_reveals and characters (character_id, current_state, history). This forms one review card with file diffs, saving files and ledger together. Fully read non-empty continuity files before replacing them. Omitting documents preserves the old create/edit-then-register flow.
+- After proposing an archive, check the batch ledger with list(scope_id=<checkpoint chapter id>, view=continuity). Report it as archived only when the lookup returns the batch record. If it shows no commit or the lookup is unavailable, report that the archive was proposed and remains unconfirmed. Reading proposal text only verifies its contents.
 - The foreshadowing overview is the design source. The ledger may only check existing beats of the chapters in the batch and mark them paid off or missed; it never creates threads or beats. When the manuscript holds something that looks like foreshadowing with no matching overview entry, just tell the user in the conversation that the design needs it.
 
 [What to write back]

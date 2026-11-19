@@ -6,6 +6,7 @@ import type {
   MarketplaceSession
 } from "@deepwrite/contracts";
 import { createScopedTranslator } from "../i18n";
+import MaterialMarketplacePage from "./MaterialMarketplacePage.vue";
 import {
   SkillMarketplacePage,
   AgentTeamMarketplacePage
@@ -23,7 +24,8 @@ const emit = defineEmits<{
   catalogChange: [catalog: AgentTeamCatalogSnapshot];
 }>();
 const t = createScopedTranslator("components.workspaceFeatureModules");
-const tab = ref(props.initialTab);
+const tabs = ["skills", "materials", "teams"] as const;
+const tab = ref<(typeof tabs)[number]>(props.initialTab);
 const session = ref(props.initialSession);
 watch(
   () => props.initialTab,
@@ -44,14 +46,15 @@ function updateSession(next: MarketplaceSession) {
 function moveTab(event: KeyboardEvent) {
   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
   event.preventDefault();
-  tab.value =
+  const index = tabs.indexOf(tab.value);
+  const step = event.key === "ArrowLeft" ? -1 : 1;
+  const next =
     event.key === "Home"
-      ? "skills"
+      ? 0
       : event.key === "End"
-        ? "teams"
-        : tab.value === "skills"
-          ? "teams"
-          : "skills";
+        ? tabs.length - 1
+        : (index + step + tabs.length) % tabs.length;
+  tab.value = tabs[next]!;
   document.getElementById(`marketplace-tab-${tab.value}`)?.focus();
 }
 </script>
@@ -65,7 +68,7 @@ function moveTab(event: KeyboardEvent) {
       @keydown="moveTab"
     >
       <button
-        v-for="item in ['skills', 'teams'] as const"
+        v-for="item in tabs"
         :id="`marketplace-tab-${item}`"
         :key="item"
         type="button"
@@ -91,6 +94,10 @@ function moveTab(event: KeyboardEvent) {
         :initial-session="session"
         @refresh-catalog="emit('refreshCatalog')"
         @session-change="updateSession"
+      />
+      <MaterialMarketplacePage
+        v-else-if="tab === 'materials'"
+        @refresh-catalog="emit('refreshCatalog')"
       />
       <AgentTeamMarketplacePage
         v-else

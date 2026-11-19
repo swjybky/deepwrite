@@ -47,7 +47,7 @@ export interface WorkspaceResourceTreeCoordinatorOptions {
   activeLongSelection: Readonly<Ref<LongWorkspaceSelection | null>>;
   mysteryBooks?: Readonly<Ref<readonly MysteryBookSummary[]>>;
   mysteryDiagnostics?: Readonly<Ref<readonly MysteryProjectDiagnostic[]>>;
-  selectedMysteryDocumentId?: Readonly<Ref<string | null>>;
+  selectedMysteryResourceId?: Readonly<Ref<string | null>>;
   activeMysteryBookId?: Readonly<Ref<string | null>>;
   activeMysteryWorkspaceIndex?: Readonly<
     Ref<MysteryWorkspaceIndexSnapshot | null>
@@ -246,7 +246,7 @@ export function useWorkspaceResourceTreeCoordinator(
 
   watch(
     () => {
-      const id = options.selectedMysteryDocumentId?.value;
+      const id = options.selectedMysteryResourceId?.value;
       return id && resourceTreeLookup.value.nodeById.has(id) ? id : null;
     },
     (id) => {

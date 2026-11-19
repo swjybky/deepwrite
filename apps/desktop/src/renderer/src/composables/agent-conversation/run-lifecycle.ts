@@ -224,6 +224,7 @@ export function scheduleIdleTimeout(
       // A run the UI gave up on must not keep retrying in the background: it
       // would hold the session and the provider's concurrency.
       if (expiredRunId) {
+        ctx.userInput.clear(expiredRunId);
         void ctx.options
           .api()
           ?.session.abort({
@@ -253,6 +254,7 @@ export function failProtocol(
   ctx.submitting.value = false;
   ctx.stopping.value = false;
   ctx.conversationError.value = messageText;
+  ctx.userInput.clear(runId);
   ctx.clearIdleTimer();
 }
 export function finishRun(ctx: RunLifecycleContext, runId: string): void {

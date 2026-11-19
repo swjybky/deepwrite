@@ -425,7 +425,7 @@ export default {
     updatedTheLinkForButTheProjectListCould:
       "Updated the {bindingLabel} link for “{label}”, but the project list could not be refreshed. An automatic retry will follow.",
     theBookSLibraryLinksWereUpdatedElsewhereAnd:
-      "The book's library links were updated elsewhere and have been reloaded. Review them before saving again.",
+      "The book's library bindings changed elsewhere. Reopen Bindings before saving again.",
     couldNotUpdateTheLibraryLinks: "Could not update the library links.",
     thisBookHasAlreadyBeenRemovedFromTheCurrent:
       "This book has already been removed from the current writing workspace.",

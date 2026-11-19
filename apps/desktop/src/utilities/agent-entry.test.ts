@@ -654,6 +654,13 @@ describe("Agent Utility prompt forwarding", () => {
               }
             ],
             documentWrites: []
+          },
+          review: {
+            targetKey: "meta:world_rules",
+            targetKind: "worldbuilding_category",
+            targetId: "world_rules",
+            action: "meta",
+            title: "世界观分类 · 世界规则"
           }
         }
       },
@@ -830,7 +837,14 @@ describe("Agent Utility prompt forwarding", () => {
       payload: {
         sessionId: "session-long-proposals",
         runId: "run-long-proposals",
-        bookId: "longbook_proposals"
+        bookId: "longbook_proposals",
+        review: {
+          targetKey: "meta:world_rules",
+          targetKind: "worldbuilding_category",
+          targetId: "world_rules",
+          action: "meta",
+          title: "世界观分类 · 世界规则"
+        }
       }
     });
   });

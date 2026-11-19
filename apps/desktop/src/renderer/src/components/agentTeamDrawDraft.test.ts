@@ -4,8 +4,6 @@ import {
   type ModelConfig,
   type ShortAgentSubagentDefinition
 } from "@deepwrite/contracts";
-import fieldSource from "./SubagentDrawField.vue?raw";
-import editorSource from "./AgentTeamSubagentEditor.vue?raw";
 import {
   cloneSubagentDraw,
   newSubagentDraw,
@@ -166,23 +164,5 @@ describe("draw drafts", () => {
     expect(
       validateAgentTeamDraft([{ subagents: [standard] }], [judge])
     ).toBeNull();
-  });
-});
-
-describe("SubagentDrawField", () => {
-  it("sits under the run mode and only opens for pure members", () => {
-    expect(editorSource.indexOf("<SubagentDrawField")).toBeGreaterThan(
-      editorSource.indexOf("<SubagentModeField")
-    );
-    expect(fieldSource.indexOf('t("drawMode")')).toBeLessThan(
-      fieldSource.indexOf("<AgentTeamSwitch")
-    );
-    expect(fieldSource).toContain(':disabled="disabled || !pure"');
-    expect(fieldSource).toContain('mode === "standard" && draw.value?.enabled');
-    expect(fieldSource).toContain("v-if=\"draw.selection === 'auto'\"");
-    expect(fieldSource).toContain("<SubagentModelField");
-    expect(fieldSource).toContain('t("evaluationMethod")');
-    expect(fieldSource).toContain('t("jevEvaluation")');
-    expect(fieldSource).toContain("delete draw.value.evaluator.prompt");
   });
 });

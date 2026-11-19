@@ -44,7 +44,6 @@ export default {
   deletedTheServerRetainsItForAbout10Days: "已删除，服务端将保留约 10 天",
   retainedUntilValue: "保留至 {arg0}",
   couldNotLoadInstallationPreview: "读取安装预览失败。",
-  selectALocalSkillLibraryToInstallInto: "请选择要安装到的本地技能库。",
   thisVersionIsAlreadyInstalled: "相同版本已经安装，无需重复安装。",
   skillsWereInstalledLocallyButTheRemoteDownloadCount:
     "技能已安装到本地，但远程下载计数更新失败。",
@@ -89,7 +88,7 @@ export default {
   publishContent: "发布内容",
   searchNamesDescriptionsOrAuthors: "搜索名称、简介或作者",
   contentType: "内容类型",
-  skillCategory: "技能分类",
+  skillCategory: "技能库分类",
   writingType: "创作类型",
   sortBy: "排序方式",
   refreshing: "刷新中…",
@@ -165,11 +164,8 @@ export default {
   currentV: "当前 v",
   isInstalledNewRemoteVersionsAreInstalledAsSeparate:
     "已安装。远程更新后的新版本会作为独立副本安装。",
-  installIntoSkillLibrary: "安装到技能库",
-  selectTargetLibraryForTheSkill: "选择单技能的目标技能库",
-  selectASkillLibrary: "请选择技能库",
-  noWritableSkillLibrariesCreateOneInTheSidebar:
-    "当前没有可写技能库，请先在左侧新建技能库。",
+  installLocation: "安装位置",
+  installAsUnboundSkill: "暂不放入库",
   localTargetType: "本地目标类型",
   valueLocalTargetType: "{arg0}本地目标类型",
   cancel: "取消",

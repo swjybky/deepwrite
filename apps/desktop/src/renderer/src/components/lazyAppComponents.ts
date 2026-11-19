@@ -22,8 +22,8 @@ export const MarketplaceLoginDialog = lazyFeature((features) =>
 export const AuthorSupportDialog = lazyFeature((features) =>
   features.loadAuthorSupportDialog()
 );
-export const BookAgentTeamDialog = lazyFeature((features) =>
-  features.loadBookAgentTeamDialog()
+export const BookBindingsDialog = lazyFeature((features) =>
+  features.loadBookBindingsDialog()
 );
 export const AgentTeamSettingsPanel = lazyFeature((features) =>
   features.loadAgentTeamSettingsPanel()
@@ -41,9 +41,8 @@ export const LongWorkspaceModule = lazyFeature(
   (features) => features.loadLongWorkspaceModule(),
   LongWorkspaceLoading
 );
-export const MysteryWorkspaceModule = lazyFeature(
-  (features) => features.loadMysteryWorkspaceModule(),
-  LongWorkspaceLoading
+export const MysteryWorkspaceModule = lazyFeature((features) =>
+  features.loadMysteryWorkspaceModule()
 );
 export const SettingsPage = lazyFeature((features) =>
   features.loadSettingsPage()
@@ -137,9 +136,6 @@ export const LibraryProjectDialog = lazyFeature((features) =>
 );
 export const LibraryRemovalDialog = lazyFeature((features) =>
   features.loadLibraryRemovalDialog()
-);
-export const LongBookBindingsDialog = lazyFeature((features) =>
-  features.loadLongBookBindingsDialog()
 );
 export const LongBookRemovalDialog = lazyFeature((features) =>
   features.loadLongBookRemovalDialog()

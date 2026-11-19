@@ -21,6 +21,8 @@ import {
   showDiscardButton,
   showProposalReviewActions
 } from "./agentEditProposalPresentation";
+import { buildLongProposalChangePresentation } from "../utils/longProposalChangePresentation";
+import LongProposalChangeDetails from "./LongProposalChangeDetails.vue";
 
 const t = createScopedTranslator("components.agentEditProposalCard");
 const longWorkspace = useLongWorkspaceStore();
@@ -35,11 +37,13 @@ const props = withDefaults(
     remoteDevice?: string | undefined;
     /** `row`: body of a file-change summary row, whose header shows the title. */
     variant?: "card" | "row";
+    peerProposals?: readonly AgentEditProposal[];
   }>(),
   {
     allowLiveEditReview: false,
     discardable: false,
-    variant: "card"
+    variant: "card",
+    peerProposals: () => []
   }
 );
 
@@ -58,18 +62,33 @@ const emit = defineEmits<{
 }>();
 
 const isStale = computed(() => isStaleProposal(props.proposal));
+const proposalBookId = computed(
+  () =>
+    props.proposal.longPlotDesignTarget?.bookId ??
+    props.proposal.longWorldbuildingTarget?.bookId ??
+    props.proposal.longCharacterTarget?.bookId ??
+    props.proposal.longDraftTarget?.bookId
+);
+const matchedWorkspaceIndex = computed(() =>
+  proposalBookId.value &&
+  longWorkspace.workspaceIndex?.bookId === proposalBookId.value
+    ? longWorkspace.workspaceIndex
+    : undefined
+);
 const longExpectedImpact = computed(() =>
   proposalExpectedImpact(props.proposal)
 );
 const longExpectedImpactSummary = computed(() =>
   longExpectedImpact.value
-    ? longImpactSummary(
-        longExpectedImpact.value,
-        longWorkspace.workspaceIndex?.bookId === props.proposal.workspaceId
-          ? longWorkspace.workspaceIndex
-          : undefined
-      )
+    ? longImpactSummary(longExpectedImpact.value, matchedWorkspaceIndex.value)
     : ""
+);
+const changePresentation = computed(() =>
+  buildLongProposalChangePresentation(
+    props.proposal,
+    matchedWorkspaceIndex.value,
+    props.peerProposals
+  )
 );
 const canLocate = computed(
   () => props.proposal.status === "accepted" && !props.remoteDevice
@@ -191,6 +210,10 @@ function discard(): void {
         <p>{{ proposal.summary }}</p>
       </div>
       <div
+        v-if="
+          changePresentation.hasContentDiff ||
+          proposal.additions + proposal.deletions > 0
+        "
         class="edit-proposal-stats"
         :aria-label="
           t('valueLinesAddedValueLinesRemoved', {
@@ -230,19 +253,36 @@ function discard(): void {
       </div>
     </div>
 
+    <div
+      v-if="changePresentation.rows.length > 0"
+      class="long-change-details-wrap"
+    >
+      <LongProposalChangeDetails :rows="changePresentation.rows" />
+    </div>
+
     <AgentEditProposalEditor
       v-if="editing"
       v-model="editedText"
       :label="t('editProposalText', { title: proposal.title })"
     />
-    <AgentEditProposalDiff
-      v-else
-      :proposal="proposal"
-      :inline="variant === 'row'"
-    />
+    <div
+      v-else-if="changePresentation.hasContentDiff"
+      class="long-change-diff-block"
+    >
+      <strong
+        v-if="changePresentation.contentLabel"
+        class="long-change-diff-heading"
+        >{{ changePresentation.contentLabel }}</strong
+      >
+      <AgentEditProposalDiff :proposal="proposal" :inline="variant === 'row'" />
+    </div>
 
     <section
-      v-if="longExpectedImpact"
+      v-if="
+        longExpectedImpact &&
+        !changePresentation.rows.length &&
+        !changePresentation.hasContentDiff
+      "
       class="long-proposal-impact"
       :aria-label="t('exactImpactOfThisNovelChange')"
     >
@@ -325,5 +365,34 @@ function discard(): void {
 
 .long-proposal-impact p {
   margin: 0;
+}
+.long-change-details-wrap {
+  min-width: 0;
+}
+
+.edit-proposal-card.is-card-variant .long-change-details-wrap {
+  margin: 10px 14px 0;
+}
+
+.edit-proposal-card.is-row-variant .long-change-details-wrap {
+  margin-top: 8px;
+}
+
+.long-change-diff-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.long-change-diff-heading {
+  font-size: 0.785714rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.edit-proposal-card.is-card-variant .long-change-diff-heading {
+  padding: 0 14px;
 }
 </style>

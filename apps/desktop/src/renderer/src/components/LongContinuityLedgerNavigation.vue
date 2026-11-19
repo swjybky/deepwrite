@@ -23,7 +23,7 @@ const emit = defineEmits<{
 <template>
   <div
     v-if="mode === 'top-tabs'"
-    class="long-editor-file-tabs long-continuity-ledger-tabs"
+    class="draft-file-tabs"
     role="tablist"
     :aria-label="t('valueFile', { arg0: title })"
   >
@@ -83,38 +83,6 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.long-editor-file-tabs {
-  display: flex;
-  align-items: center;
-  max-width: 48%;
-  padding: 2px;
-  overflow-x: auto;
-  border-radius: 7px;
-  background: var(--surface-hover);
-  scrollbar-width: none;
-}
-
-.long-editor-file-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.long-editor-file-tabs button {
-  flex: 0 0 auto;
-  height: max(25px, 1.85em);
-  padding: 0 9px;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-size: 0.714286rem;
-  cursor: pointer;
-}
-
-.long-editor-file-tabs button.is-active {
-  background: var(--surface-main);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgb(24 26 28 / 8%);
-}
-
 .long-story-plot-pane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -209,12 +177,5 @@ const emit = defineEmits<{
   font-size: 0.714286rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@container (max-width: 40rem) {
-  .long-editor-file-tabs {
-    flex: 1 1 100%;
-    max-width: 100%;
-  }
 }
 </style>

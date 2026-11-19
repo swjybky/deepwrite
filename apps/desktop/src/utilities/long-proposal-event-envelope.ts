@@ -33,6 +33,7 @@ export function longProposalEventEnvelope(
         agentId: event.payload.agentId,
         batch: event.payload.batch,
         summary: event.payload.summary,
+        ...(event.payload.review ? { review: event.payload.review } : {}),
         runtime: event.payload.runtime
       },
       { id: createId("evt"), context }

@@ -156,7 +156,7 @@ function updateTitle(event: Event): void {
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  padding: 28px 0 18px;
+  padding-bottom: 18px;
   overflow: hidden;
   background: var(--surface-main);
 }
@@ -168,7 +168,6 @@ function updateTitle(event: Event): void {
 .long-document-title-input,
 .long-document-title {
   width: 100%;
-  margin: 8px 0 13px;
   padding: 0 var(--long-document-inline-padding);
   border: 0;
   outline: 0;
@@ -185,7 +184,7 @@ function updateTitle(event: Event): void {
   display: flex;
   align-items: center;
   min-width: 0;
-  margin: 8px 0 13px;
+  margin-bottom: 13px;
 }
 
 .long-document-heading > .long-document-title-input,
@@ -258,7 +257,6 @@ function updateTitle(event: Event): void {
 @container (max-width: 40rem) {
   .long-editor-writing-surface {
     --long-document-inline-padding: clamp(14px, 4cqw, 20px);
-    padding-top: 18px;
   }
 
   .long-document-heading {

@@ -8,6 +8,7 @@ import type {
   MysteryOperationBatch,
   MysteryProjectDiagnostic,
   MysteryRestoreOperationsResult,
+  MysteryStageId,
   MysteryWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
 import { defineStore } from "pinia";
@@ -45,6 +46,13 @@ export function mysteryDocumentResourceId(
   return `mystery-document:${encodeURIComponent(bookId)}:${mysteryDocumentTargetKey(target)}`;
 }
 
+export function mysteryStageResourceId(
+  bookId: string,
+  stage: MysteryStageId
+): string {
+  return `mystery-stage:${encodeURIComponent(bookId)}:${stage}`;
+}
+
 export function mysteryConversationKey(bookId: string): string {
   return `mystery:${encodeURIComponent(bookId)}:chat`;
 }
@@ -55,6 +63,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
   const loadingList = ref(false);
 
   const activeBookId = ref<string | null>(null);
+  const overviewStage = ref<MysteryStageId | null>(null);
   const selectedTarget = shallowRef<MysteryDocumentTarget>({
     kind: "truth_doc",
     docId: "core_truth"
@@ -63,6 +72,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
     activeBookId,
     () => {
       selectedTarget.value = { kind: "truth_doc", docId: "core_truth" };
+      overviewStage.value = null;
     },
     { flush: "sync" }
   );
@@ -307,6 +317,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
     loadingList,
     activeBookId,
     selectedTarget,
+    overviewStage,
     activeBook,
     activeWorkspaceIndex,
     openLoading,

@@ -1,6 +1,10 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
-import type { LongWorkspaceOperation } from "@deepwrite/contracts";
+import {
+  parseLongForeshadowingBody,
+  serializeLongForeshadowingBody,
+  type LongWorkspaceOperation
+} from "@deepwrite/contracts";
 import {
   overwriteModeParameter,
   REPLACE_ALL_OVERWRITE_MODE,
@@ -24,7 +28,7 @@ import {
 } from "./schemas";
 import { characterMetadataOperations } from "./character-metadata";
 import { chapterMetadataOperations } from "./chapter-metadata";
-import { LONG_STAGE_ROOTS } from "./entity-registry";
+import { LONG_ENTITY_KIND_LABELS, LONG_STAGE_ROOTS } from "./entity-registry";
 import {
   longEntityContentPatch,
   longEntityUpdateOperationType,
@@ -189,6 +193,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
 
       if (target.addressing === "field") {
         const contentTargets: WritingContentTarget[] = [];
+        let nextContent: string | undefined;
         const { chapter_order: chapterOrder, ...recordMeta } =
           params.meta ?? {};
         const reorder = chapterOrder
@@ -215,6 +220,7 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             ? applyReplacements(target.content, params.replacements)
             : { content: params.content! };
           if ("failure" in next) return textResult(next.failure);
+          nextContent = next.content;
           Object.assign(
             patch,
             longEntityContentPatch(target.record, next.content)
@@ -244,6 +250,13 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         if (operations.length === 0) {
           return textResult("无需修改：本卷章节顺序未变化。");
         }
+        const hasBody = nextContent !== undefined;
+        const afterBody =
+          hasBody && target.kind === "foreshadowing"
+            ? serializeLongForeshadowingBody(
+                parseLongForeshadowingBody(nextContent!)
+              )
+            : nextContent;
         return formLongProposal(ctx, {
           toolCallId,
           changes: [],
@@ -254,6 +267,26 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             : summary,
           message: `已形成《${target.title}》修改提案，等待客户端审阅。`,
           contentTargets,
+          review: {
+            targetKey: `entity:${target.id}`,
+            targetKind: target.kind,
+            targetId: target.id,
+            action: hasBody ? "edit" : "meta",
+            title:
+              `${LONG_ENTITY_KIND_LABELS[target.kind]} · ${target.title}`.slice(
+                0,
+                600
+              ),
+            ...(hasBody
+              ? {
+                  content: {
+                    operation: params.replacements ? "edit" : "write",
+                    beforeText: target.content,
+                    afterText: afterBody!
+                  }
+                }
+              : {})
+          },
           index
         });
       }
@@ -275,6 +308,12 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
               ? "无需修改：人物信息和类型归属未变化。"
               : "无需修改：章卡标题和主剧情点未变化。"
           );
+        const reviewTitle =
+          target.kind === "character"
+            ? `人物信息 · ${target.characterName ?? target.title}`
+            : target.kind === "chapter_card"
+              ? `章卡 · ${target.chapterTitle ?? target.title}`
+              : `${LONG_ENTITY_KIND_LABELS[target.kind]} · ${target.title}`;
         return formLongProposal(ctx, {
           toolCallId,
           changes: [],
@@ -290,6 +329,13 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
             ? `${summary}（${metadataEdit.relocation}）`.slice(0, 1_000)
             : summary,
           message: `已形成《${target.title}》信息修改提案，等待客户端审阅。`,
+          review: {
+            targetKey: `meta:${target.id}`,
+            targetKind: target.kind,
+            targetId: target.id,
+            action: "meta",
+            title: reviewTitle.slice(0, 600)
+          },
           index
         });
       }

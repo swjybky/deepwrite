@@ -2,6 +2,7 @@ import { storeToRefs } from "pinia";
 import { computed, nextTick, onScopeDispose, ref, type Ref } from "vue";
 import type {
   CreateMysteryBookInput,
+  MysteryStageId,
   SystemEventEnvelope
 } from "@deepwrite/contracts";
 import type { BookAgentTeamChoice } from "../components/WorkspaceDialogLayer.types";
@@ -12,6 +13,7 @@ import type { useSettingsStore } from "../stores/settingsStore";
 import {
   mysteryBookResourceId,
   mysteryDocumentResourceId,
+  mysteryStageResourceId,
   mysteryConversationKey,
   useMysteryWorkspaceStore
 } from "../stores/mysteryWorkspaceStore";
@@ -46,6 +48,7 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
     activeBook,
     activeWorkspaceIndex,
     selectedTarget,
+    overviewStage,
     openLoading
   } = storeToRefs(store);
   const selectedDocumentId = computed(() =>
@@ -53,6 +56,12 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
       ? mysteryDocumentResourceId(activeBookId.value, selectedTarget.value)
       : null
   );
+  const selectedMysteryResourceId = computed(() => {
+    const bookId = activeBookId.value;
+    return bookId && overviewStage.value
+      ? mysteryStageResourceId(bookId, overviewStage.value)
+      : selectedDocumentId.value;
+  });
   const mutationPending = ref(false);
   onScopeDispose(
     registerWriteApprovalSource((request) => {
@@ -212,14 +221,8 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
     };
   }
 
-  const saveActiveEditorBeforeLeaving = () =>
-    mysteryWorkspaceNavigation.value?.save() ?? Promise.resolve(true);
-
   return {
     books,
-    saveEditorsBeforeLeaving: async () =>
-      (await saveActiveEditorBeforeLeaving()) &&
-      ((await options.saveLongEditor?.()) ?? true),
     diagnostics,
     activeBookId,
     activeBook,
@@ -234,12 +237,15 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
       mysteryDiagnostics: diagnostics,
       activeMysteryBookId: activeBookId,
       activeMysteryWorkspaceIndex: activeWorkspaceIndex,
-      selectedMysteryDocumentId: selectedDocumentId
+      selectedMysteryResourceId: selectedMysteryResourceId
     },
     navigationPort: {
       activeBookId,
       openBook: (bookId: string, current: () => boolean) =>
         store.openBook(bookId, current),
+      selectStage(stage: MysteryStageId) {
+        overviewStage.value = stage;
+      },
       async selectTarget(
         target: import("@deepwrite/contracts").MysteryDocumentTarget
       ) {
@@ -249,7 +255,8 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
           ? port.selectTarget(target)
           : false;
       },
-      saveActiveEditorBeforeLeaving,
+      saveActiveEditorBeforeLeaving: () =>
+        mysteryWorkspaceNavigation.value?.save() ?? Promise.resolve(true),
       deactivateActiveBook: () => store.deactivateBook()
     },
     featureHostActions: {

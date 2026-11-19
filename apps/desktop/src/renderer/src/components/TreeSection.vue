@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isPinnableCatalogNode } from "../utils/pinnedResources";
 import { useLibraryOrderDrag } from "../composables/useLibraryOrderDrag";
 import { createScopedTranslator } from "../i18n";
 import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
@@ -284,12 +285,7 @@ onBeforeUnmount(() => {
         :node="node"
         :depth="0"
         :selected-id="selectedId"
-        :pinnable="
-          !node.unavailable &&
-          !node.missing &&
-          (node.catalogNodeType === 'book' ||
-            node.catalogNodeType === 'library')
-        "
+        :pinnable="isPinnableCatalogNode(node)"
         :pinned="pinnedIds?.includes(node.id) ?? false"
         :pinned-ids="pinnedIds"
         :resource-domain="section.id"

@@ -97,26 +97,47 @@ export function useModelSettingsDraft(
     modelId: string;
     contextWindow: number;
     maxTokens: number;
+    supportsDeveloperRole?: boolean;
   }): void {
-    const apply = (model: DraftModel): DraftModel => {
+    let developerRoleAutoUpdated = false;
+    const apply = (
+      model: DraftModel,
+      trackDeveloperRole = false
+    ): DraftModel => {
       // Jev has a fixed judgment window; capacity overrides do not apply.
       if (isJevModel(model)) return model;
       if (model.managedBy || model.id !== capacity.modelId) return model;
-      if (model.contextWindow !== undefined && model.maxTokens !== undefined) {
+      const missingCapacity =
+        model.contextWindow === undefined || model.maxTokens === undefined;
+      const shouldDisableDeveloperRole =
+        capacity.supportsDeveloperRole === false &&
+        model.supportsDeveloperRole === undefined;
+      if (!missingCapacity && !shouldDisableDeveloperRole) {
         return model;
+      }
+      if (shouldDisableDeveloperRole && trackDeveloperRole) {
+        developerRoleAutoUpdated = true;
       }
       return {
         ...model,
-        contextWindow: capacity.contextWindow,
-        maxTokens: capacity.maxTokens
+        ...(missingCapacity
+          ? {
+              contextWindow: capacity.contextWindow,
+              maxTokens: capacity.maxTokens
+            }
+          : {}),
+        ...(shouldDisableDeveloperRole ? { supportsDeveloperRole: false } : {})
       };
     };
-    draftModels.value = draftModels.value.map(apply);
+    draftModels.value = draftModels.value.map((model) => apply(model, true));
     if (modelEditor.value) {
       modelEditor.value = apply(modelEditor.value);
     }
     if (advancedConfigModel.value) {
       advancedConfigModel.value = apply(advancedConfigModel.value);
+    }
+    if (developerRoleAutoUpdated && !modelEditor.value && !props.modelSaving) {
+      submitModelSettings();
     }
   }
 
@@ -249,13 +270,20 @@ export function useModelSettingsDraft(
     if (model.managedBy || modelEditor.value) return;
     const cloned = cloneDraftModel(model);
     const tested = settingsStore.lastModelTestCapacity;
-    if (
-      (cloned.contextWindow === undefined || cloned.maxTokens === undefined) &&
-      tested &&
-      tested.modelId === cloned.id
-    ) {
-      cloned.contextWindow = tested.contextWindow;
-      cloned.maxTokens = tested.maxTokens;
+    if (tested && tested.modelId === cloned.id) {
+      if (
+        cloned.contextWindow === undefined ||
+        cloned.maxTokens === undefined
+      ) {
+        cloned.contextWindow = tested.contextWindow;
+        cloned.maxTokens = tested.maxTokens;
+      }
+      if (
+        tested.supportsDeveloperRole === false &&
+        cloned.supportsDeveloperRole === undefined
+      ) {
+        cloned.supportsDeveloperRole = false;
+      }
     }
     advancedConfigModel.value = cloned;
   }
@@ -268,6 +296,7 @@ export function useModelSettingsDraft(
   function saveAdvancedConfig(capacity: {
     contextWindow: number;
     maxTokens: number;
+    supportsDeveloperRole?: boolean;
   }): void {
     const target = advancedConfigModel.value;
     if (!target || target.managedBy) return;
@@ -275,11 +304,17 @@ export function useModelSettingsDraft(
       (model) => model.id === target.id
     );
     if (index < 0) return;
-    draftModels.value[index] = {
+    const next: DraftModel = {
       ...draftModels.value[index]!,
       contextWindow: capacity.contextWindow,
       maxTokens: capacity.maxTokens
     };
+    if (capacity.supportsDeveloperRole === undefined) {
+      delete next.supportsDeveloperRole;
+    } else {
+      next.supportsDeveloperRole = capacity.supportsDeveloperRole;
+    }
+    draftModels.value[index] = next;
     advancedConfigModel.value = null;
     submitModelSettings();
   }

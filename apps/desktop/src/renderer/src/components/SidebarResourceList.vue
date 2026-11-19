@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import type {
   BookResourceDialogMode,
   CatalogLibraryEntryDragPayload,
@@ -20,7 +20,6 @@ import {
   excludePinnedResourceNodes,
   flattenResourceNodes,
   parsePinnedResourceIds,
-  pinnableResourceNodes,
   PINNED_RESOURCE_STORAGE_KEY
 } from "../utils/pinnedResources";
 import AppIcon from "./AppIcon.vue";
@@ -73,21 +72,9 @@ const creationOrder = useCreationResourceOrder({
 
 function loadPinnedResourceIds(): string[] {
   try {
-    const stored = localStorage.getItem(PINNED_RESOURCE_STORAGE_KEY);
-    if (pinnableResourceNodes(creationOrder.orderedSections.value).length) {
-      return parsePinnedResourceIds(
-        stored,
-        creationOrder.orderedSections.value
-      );
-    }
-    const parsed: unknown = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed)
-      ? [
-          ...new Set(
-            parsed.filter((id): id is string => typeof id === "string")
-          )
-        ]
-      : [];
+    return parsePinnedResourceIds(
+      localStorage.getItem(PINNED_RESOURCE_STORAGE_KEY)
+    );
   } catch {
     return [];
   }
@@ -103,7 +90,7 @@ const pinnedResourceNodes = computed(() =>
 const unpinnedSections = computed(() =>
   excludePinnedResourceNodes(
     creationOrder.orderedSections.value,
-    pinnedResourceIds.value
+    pinnedResourceNodes.value.map(({ id }) => id)
   )
 );
 const resourceDomainsByNodeId = computed(
@@ -144,28 +131,6 @@ function resourceDomainFor(node: ResourceTreeNode): ResourceDomain {
 function reorderCreationBook(payload: CreationBookDragPayload): void {
   creationOrder.reorder(payload);
 }
-
-watch(
-  () =>
-    pinnableResourceNodes(creationOrder.orderedSections.value).map(
-      (node) => node.id
-    ),
-  (validIds) => {
-    const validIdSet = new Set(validIds);
-    if (validIdSet.size === 0) return;
-    const nextIds = pinnedResourceIds.value.filter((id) => validIdSet.has(id));
-    if (nextIds.length === pinnedResourceIds.value.length) return;
-    pinnedResourceIds.value = nextIds;
-    try {
-      localStorage.setItem(
-        PINNED_RESOURCE_STORAGE_KEY,
-        JSON.stringify(nextIds)
-      );
-    } catch {
-      // The in-memory state is still kept in sync when storage is unavailable.
-    }
-  }
-);
 </script>
 
 <template>

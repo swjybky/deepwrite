@@ -6,7 +6,6 @@ import type {
   TextViewMode
 } from "@deepwrite/contracts";
 import {
-  isMysteryPlayerVisibleTarget,
   mysteryDocumentRelativePath,
   mysteryDocumentTargetKey,
   mysteryDocumentTitle,
@@ -67,9 +66,6 @@ const document = computed<WorkspaceDocument>(() => {
     content: props.content
   };
 });
-const playerVisible = computed(() =>
-  isMysteryPlayerVisibleTarget(props.target)
-);
 const playerBody = computed(
   () => props.target.kind === "player_act" && props.target.document === "body"
 );
@@ -174,33 +170,12 @@ async function searchEntries(query: string) {
       </button>
     </template>
     <template #document-heading>
-      <div
-        class="mystery-document-heading"
+      <h2
+        class="document-title-input"
         :title="mysteryDocumentRelativePath(target)"
       >
-        <h2 class="document-title-input">{{ document.title }}</h2>
-        <span
-          class="mystery-pill-badge"
-          :class="playerVisible ? 'is-public' : 'is-secret'"
-        >
-          {{
-            target.kind === "player_act" && target.document === "brief"
-              ? mysteryT("briefBadge")
-              : playerVisible
-                ? mysteryT("publicBadge")
-                : mysteryT("secretBadge")
-          }}
-        </span>
-        <span v-if="playerBody" class="mystery-pill-badge is-accent">
-          {{
-            mysteryT(
-              manifest.boardSpec.narrativePerson === "second"
-                ? "secondPersonBadge"
-                : "firstPersonBadge"
-            )
-          }}
-        </span>
-      </div>
+        {{ document.title }}
+      </h2>
     </template>
   </RightEditorPane>
 </template>

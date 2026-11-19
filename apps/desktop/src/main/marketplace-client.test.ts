@@ -583,6 +583,8 @@ describe("MarketplaceClient", () => {
       },
       installPackage: async (input) => {
         operations.push("local-install");
+        expect(input.targetLibraryId).toBeUndefined();
+        expect(input.buckets[0]?.kind).toBe("general");
         return {
           source: {
             contentType: input.source.contentType,
@@ -597,8 +599,7 @@ describe("MarketplaceClient", () => {
     });
 
     const result = await client.install({
-      ref: { contentType: "skill", id: "remote-skill" },
-      targetLibraryId: "local-library"
+      ref: { contentType: "skill", id: "remote-skill" }
     });
 
     expect(operations).toEqual(["detail", "local-install", "download-count"]);
@@ -607,5 +608,107 @@ describe("MarketplaceClient", () => {
       libraryIds: ["local-library"],
       downloadCounted: false
     });
+  });
+
+  it("keeps a legacy marketplace library together under its own category", async () => {
+    const root = await temporaryRoot();
+    const skill = { ...skillSummary(), content: "历史技能正文" };
+    const client = new MarketplaceClient(root, {
+      baseUrl: "https://relay.example.test",
+      fetcher: async () =>
+        Response.json({
+          data: {
+            ...skillSummary(),
+            id: "remote-library",
+            kind: "plot",
+            library_type: "long",
+            skills: [skill, { ...skill, id: "uncategorized", kind: undefined }]
+          }
+        })
+    });
+    const preview = await client.previewInstall({
+      contentType: "library",
+      id: "remote-library"
+    });
+    expect(preview.buckets).toEqual([
+      {
+        kind: "plot",
+        libraryType: "long",
+        availableLibraryTypes: ["long"],
+        entries: ["remote-skill", "uncategorized"].map(
+          (marketplaceSkillId) => ({
+            marketplaceSkillId,
+            title: skill.title,
+            stageId: "draft",
+            content: skill.content
+          })
+        )
+      }
+    ]);
+  });
+
+  it("lists and installs material libraries using the legacy marketplace response", async () => {
+    const root = await temporaryRoot();
+    const legacy = {
+      id: "legacy-material",
+      domain: "material",
+      title: "旧素材库",
+      overview: "素材摘要",
+      kind: "mixed",
+      version: 3,
+      library_type: "script",
+      parent_genre: "悬疑",
+      sub_genre: "推理",
+      entries: [{ stage_id: "intro", title: "开场", body: "原始正文\n" }]
+    };
+    const installMaterial = vi.fn(async () => ({
+      libraryId: "material-local",
+      title: "旧素材库",
+      alreadyInstalled: false
+    }));
+    const client = new MarketplaceClient(root, {
+      baseUrl: "https://relay.example.test",
+      fetcher: async (rawUrl) => {
+        const url = new URL(rawUrl);
+        if (url.pathname === "/market/v1/libraries") {
+          expect(Object.fromEntries(url.searchParams)).toMatchObject({
+            domain: "material",
+            q: "素材",
+            kind: "mixed"
+          });
+          return Response.json({ data: [legacy] });
+        }
+        expect(url.pathname).toBe("/market/v1/libraries/legacy-material");
+        return Response.json({ data: legacy });
+      },
+      installMaterial
+    });
+    await expect(
+      client.listMaterials({ query: "素材", kind: "mixed" })
+    ).resolves.toEqual([
+      {
+        id: legacy.id,
+        title: legacy.title,
+        overview: legacy.overview,
+        kind: legacy.kind,
+        version: legacy.version
+      }
+    ]);
+    await expect(
+      client.installMaterial({ id: legacy.id, version: 2 })
+    ).rejects.toMatchObject({ code: "marketplace.material_version_changed" });
+    expect(installMaterial).not.toHaveBeenCalled();
+    await expect(
+      client.installMaterial({ id: legacy.id, version: 3 })
+    ).resolves.toMatchObject({ libraryId: "material-local" });
+    expect(installMaterial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "mixed",
+        libraryType: "script",
+        parentGenre: "悬疑",
+        subGenre: "推理",
+        entries: [{ stageId: "intro", title: "开场", body: "原始正文\n" }]
+      })
+    );
   });
 });

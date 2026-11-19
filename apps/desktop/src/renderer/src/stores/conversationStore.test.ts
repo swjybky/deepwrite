@@ -387,4 +387,71 @@ describe("conversation store", () => {
     expect(saved).toEqual([{ draft: "尚未确认的内容" }]);
     expect(active.dispose).toHaveBeenCalledOnce();
   });
+
+  it("keeps the remounted workspace's persistence and close listener when old cleanup runs", async () => {
+    const store = useConversationStore();
+    const previousAdapter = {
+      load: async () => undefined,
+      save: vi.fn(async () => undefined)
+    };
+    const stopCloseListener = vi.fn();
+    let close!: () => Promise<void>;
+    const currentAdapter = {
+      load: async () => undefined,
+      save: vi.fn(async () => undefined),
+      onBeforeClose: (handler: () => Promise<void>) => {
+        close = handler;
+        return stopCloseListener;
+      }
+    };
+    const disposePrevious = store.configurePersistenceAdapter(previousAdapter);
+    const disposeCurrent = store.configurePersistenceAdapter(currentAdapter);
+    const active = Object.assign(controller("remounted"), {
+      draft: ref(""),
+      holdPersistenceEmits: vi.fn(),
+      releasePersistenceEmits: vi.fn()
+    });
+    store.registerController("remounted", "scope", active);
+
+    await disposePrevious();
+    expect(active.dispose).not.toHaveBeenCalled();
+    expect(stopCloseListener).not.toHaveBeenCalled();
+    store.schedulePersistence("preferences", { approvalMode: "auto-approve" });
+    await close();
+    expect(currentAdapter.save).toHaveBeenCalledWith("preferences", {
+      approvalMode: "auto-approve"
+    });
+    expect(previousAdapter.save).not.toHaveBeenCalled();
+    await disposeCurrent();
+    expect(active.dispose).toHaveBeenCalledOnce();
+    expect(stopCloseListener).toHaveBeenCalledOnce();
+  });
+
+  it("does not close a new persistence adapter attached during the old flush", async () => {
+    const store = useConversationStore();
+    const pendingSave = deferred<void>();
+    const previousAdapter = {
+      load: async () => undefined,
+      save: vi.fn(() => pendingSave.promise)
+    };
+    const currentAdapter = {
+      load: async () => undefined,
+      save: vi.fn(async () => undefined)
+    };
+    const disposePrevious = store.configurePersistenceAdapter(previousAdapter);
+    store.schedulePersistence("history:previous", { revision: 1 });
+    const disposing = disposePrevious();
+    await Promise.resolve();
+    expect(previousAdapter.save).toHaveBeenCalledOnce();
+    const disposeCurrent = store.configurePersistenceAdapter(currentAdapter);
+    pendingSave.resolve();
+    await disposing;
+
+    store.schedulePersistence("history:current", { revision: 2 });
+    await store.flushPersistence();
+    expect(currentAdapter.save).toHaveBeenCalledWith("history:current", {
+      revision: 2
+    });
+    await disposeCurrent();
+  });
 });

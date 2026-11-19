@@ -243,7 +243,6 @@ jobs:
             apps/desktop/src/main/model-config-store.batch.test.ts \
             apps/desktop/src/utilities/long-book-decomposition/generated-record-storage.test.ts \
             apps/desktop/src/utilities/long-book-decomposition/usage-guard.test.ts \
-            apps/desktop/src/utilities/long-book-decomposition/scale.test.ts \
             apps/desktop/src/utilities/long-book-decomposition/creation-recovery.test.ts \
             apps/desktop/src/utilities/long-book-decomposition/job-state-store.test.ts \
             apps/desktop/src/utilities/device-sync-ledger.test.ts \

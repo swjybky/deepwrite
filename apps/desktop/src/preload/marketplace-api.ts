@@ -141,5 +141,20 @@ export const marketplace: C.DeepWriteApi["marketplace"] = {
         input: C.MarketplaceInstallInputSchema.parse(input)
       })
     );
+  },
+  async listMaterials(filter: C.MarketplaceMaterialFilter = {}) {
+    return C.MarketplaceMaterialListSchema.parse(
+      await invokeMarketplace({ operation: "listMaterials", filter })
+    );
+  },
+  async materialDetail(id: string) {
+    return C.MarketplaceMaterialDetailSchema.parse(
+      await invokeMarketplace({ operation: "materialDetail", id })
+    );
+  },
+  async installMaterial(ref: C.MarketplaceMaterialRef) {
+    return C.MarketplaceMaterialInstallResultSchema.parse(
+      await invokeMarketplace({ operation: "installMaterial", ref })
+    );
   }
 };

@@ -7,6 +7,31 @@
 @import "./styles/context-window-indicator.css";
 @import "./styles/conversation-file-changes.css";
 
+/* Pane widths belong to their grid, not the entire document/chat subtree. */
+@property --left-pane-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 286px;
+}
+
+@property --right-pane-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 410px;
+}
+
+@property --long-entry-list-width {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 38%;
+}
+
+@property --long-story-plot-list-width {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 38%;
+}
+
 :root {
   color: var(--text-primary, #202226);
   background: var(--surface-main, #ffffff);
@@ -25,8 +50,6 @@
   );
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --left-pane-width: 286px;
-  --right-pane-width: clamp(410px, 34vw, 650px);
   --center-pane-min: 320px;
   --line: var(--theme-line, #dedfdf);
   --line-soft: var(--theme-line-soft, #e9e9e7);
@@ -138,6 +161,8 @@ ol {
 }
 
 .desktop-shell {
+  --left-pane-width: 286px;
+  --right-pane-width: clamp(410px, 34vw, 650px);
   position: relative;
   display: grid;
   grid-template-columns:
@@ -204,12 +229,14 @@ html[data-platform="darwin"] .desktop-shell {
 }
 
 .pane-resizer-left {
-  left: var(--left-pane-width);
+  grid-column: 2;
+  left: 0;
 }
 
 .pane-resizer-right {
-  right: var(--right-pane-width);
-  transform: translateX(100%);
+  grid-column: 3;
+  left: 0;
+  transform: none;
 }
 
 .pane-resizer-right::after {
@@ -4228,11 +4255,7 @@ html[data-translucent-sidebar="true"] .left-sidebar {
   backdrop-filter: blur(22px) saturate(1.25);
 }
 
-html[data-theme] .editor-pane,
-html[data-theme] .editor-header,
-html[data-theme] .editor-toolbar,
-html[data-theme] .editor-document,
-html[data-theme] .editor-footer {
+html[data-theme] .editor-header {
   border-color: var(--theme-line);
   background: var(--surface-raised);
   color: var(--text-primary);
@@ -4333,8 +4356,7 @@ html[data-theme]
   :where(
     .nav-row.is-active,
     .more-feature-row.is-active,
-    .tree-row.is-selected,
-    .view-tabs button.is-active
+    .tree-row.is-selected
   ) {
   background: var(--surface-selected);
   color: var(--text-primary);
@@ -4386,7 +4408,6 @@ html[data-theme]
     .message.is-user .message-content,
     .user-message-copy,
     .message-attachment-chip,
-    .view-tabs,
     .readonly-badge,
     .model-empty-state
   ) {
@@ -4454,12 +4475,6 @@ html[data-theme] .composer-context-item > strong {
   color: var(--text-primary);
 }
 
-html[data-theme] .view-tabs button.is-active {
-  border-color: var(--theme-line);
-  background: var(--surface-selected);
-  color: var(--text-primary);
-}
-
 html[data-theme] .send-button:disabled,
 html[data-theme] .save-button:disabled {
   background: var(--surface-selected);
@@ -4506,9 +4521,12 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 
 @media (max-width: 1220px) {
   :root {
+    --center-pane-min: 320px;
+  }
+
+  .desktop-shell {
     --left-pane-width: 262px;
     --right-pane-width: 395px;
-    --center-pane-min: 320px;
   }
 
   .desktop-shell,

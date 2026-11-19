@@ -1,6 +1,7 @@
 import {
   ErrorPayloadSchema,
-  getModelContentBlockReason
+  getModelContentBlockReason,
+  isUnsupportedDeveloperRoleError
 } from "@deepwrite/contracts/renderer";
 import type { ErrorPayload } from "@deepwrite/contracts";
 import type { TranslationKey } from "./messages";
@@ -39,7 +40,11 @@ const MAX_ERROR_DETAIL_LENGTH = 240;
 /** Keep stored provider diagnostics intact and localize only their display. */
 export function formatModelProviderError(message: string): string {
   const reason = getModelContentBlockReason(message);
-  return reason ? t("foundation.modelContentBlocked", { reason }) : message;
+  if (reason) return t("foundation.modelContentBlocked", { reason });
+  if (isUnsupportedDeveloperRoleError(message)) {
+    return t("foundation.devRoleError");
+  }
+  return message;
 }
 
 /**
@@ -62,6 +67,9 @@ export function formatError(error: unknown, fallback: string): string {
   const contentBlockReason = getModelContentBlockReason(error);
   if (contentBlockReason)
     return t("foundation.modelContentBlocked", { reason: contentBlockReason });
+  if (isUnsupportedDeveloperRoleError(error)) {
+    return t("foundation.devRoleError");
+  }
   const payload = getErrorPayload(error);
   if (payload) {
     if (payload.code === "session.prompt_budget_exceeded") {

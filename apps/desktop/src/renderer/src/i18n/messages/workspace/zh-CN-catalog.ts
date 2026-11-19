@@ -403,7 +403,7 @@ export default {
     updatedTheLinkForButTheProjectListCould:
       "已更新“{label}”的{bindingLabel}绑定，但作品列表刷新失败；稍后将自动重试。",
     theBookSLibraryLinksWereUpdatedElsewhereAnd:
-      "书籍绑定已在外部更新，已重新加载；请确认后再次保存",
+      "书籍绑定已在外部更新。请重新打开绑定弹窗后再保存。",
     couldNotUpdateTheLibraryLinks: "更新资料库绑定失败。",
     thisBookHasAlreadyBeenRemovedFromTheCurrent:
       "该书籍已经从当前创作空间移除。",

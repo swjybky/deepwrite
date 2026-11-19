@@ -4,6 +4,7 @@ import {
   flattenSkillIdsByKind,
   materialIdsToByKind,
   skillIdsToByKind,
+  type CatalogIndexSnapshot,
   type LinkedMaterialIdsByKind,
   type LinkedSkillIdsByKind,
   type MaterialKind,
@@ -20,8 +21,10 @@ import {
 } from "../components/librarySharingLabels";
 
 export interface BookLibrarySelectionProps {
-  materials: readonly MaterialLibrary[];
-  skills: readonly SkillLibrary[];
+  materials: readonly (
+    MaterialLibrary | CatalogIndexSnapshot["materials"][number]
+  )[];
+  skills: readonly (SkillLibrary | CatalogIndexSnapshot["skills"][number])[];
   materialGroups: readonly MaterialLibraryGroup[];
   skillGroups: readonly SkillLibraryGroup[];
   workspaceType: "short" | "script" | "long" | "academic" | "mystery";

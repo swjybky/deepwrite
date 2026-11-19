@@ -87,6 +87,7 @@ export const CreateUnboundEntryInputSchema = z
     /** Legacy metadata, retained for older clients; libraries are shared. */
     libraryType: z.enum(["short", "script", "long"]).optional(),
     stageId: z.string().min(1).max(120),
+    /** Accepted for clients that formerly selected a category for loose skills. */
     skillKind: z.enum(["general", "plot", "style", "other"]).optional()
   })
   .strict();

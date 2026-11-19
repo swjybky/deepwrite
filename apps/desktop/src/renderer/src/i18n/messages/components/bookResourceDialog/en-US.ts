@@ -4,56 +4,23 @@ export default {
   renameValue: "Rename {arg0}",
   removeValue: "Remove {arg0}",
   deleteValue: "Delete {arg0}",
-  skillLibraryLinks: "Skill library links",
-  materialLibraryLinks: "Material library links",
   enterABookName: "Enter a book name",
   close: "Close",
-  name: "Name",
   valueName: "{arg0} name",
   theSidebarAndManuscriptDisplayPathsWillUpdateThe:
     "The sidebar and manuscript display paths will update. The local folder name will stay the same.",
-  confirm: "Confirm",
   delete: "Delete",
   remove: "Remove",
   willBeRemovedFromTheWorkspaceAndItsLocal:
     " will be removed from the workspace, and its local project folder and all files will be permanently deleted. This cannot be undone.",
-  willOnlyBeUnregisteredFromTheWorkspaceItsLocal:
-    " will only be unregistered from the workspace. Its local folder will be kept and can be reopened with “Open existing ",
-  text: "”.",
-  linkSkillLibraries: "Link skill libraries",
-  linkMaterialLibraries: "Link material libraries",
-  linkedSkillsCanBeLoadedAsNeededAtAny:
-    "Linked skills can be loaded as needed at any stage.",
-  linkedMaterialsCanBeLoadedAsNeededAtAny:
-    "Linked materials can be loaded as needed at any stage. You can add missing categories later.",
-  skillLibraryLinking: "Skill library linking",
-  materialLibraryLinking: "Material library linking",
-  chooseByCategory: "Choose by category",
-  noValueGroupsAvailable: "No {arg0} groups available",
-  skill: "Skill",
-  material: "Material",
-  selectGroup: "Select group",
-  skillGroup: "Skill group",
-  materialGroup: "Material group",
-  notConfigured: "Not configured",
-  selectingAGroupWill: "Selecting a group will ",
-  link: "link",
-  linkLabel: "link",
-  allConfiguredCategoriesOf: " all configured categories of ",
-  skillLibrary: "Skill library",
-  materialLibrary: "Material library",
-  loadingMaterialAndSkillLibraries: "Loading material and skill libraries…",
   cancel: "Cancel",
   processing: "Processing…",
   saving: "Saving…",
   deleteLabel: "Delete",
   confirmRemoval: "Confirm removal",
   saveName: "Save name",
-  saveLinks: "Save links",
   nameMessage: "{arg0} name",
   summaryMessage: "{arg0} “{arg1}”?",
   thisOnlyUnregistersTheWorkFromTheMessage:
-    "This only unregisters the work from the workspace. Its local folder is kept. Use Open existing {arg0} to restore it later.",
-  selectingAGroupWillAllConfiguredCategoriesMessage:
-    "Selecting a group will {arg0} all configured {arg1} categories in it."
+    "This only unregisters the work from the workspace. Its local folder is kept. Use Open existing {arg0} to restore it later."
 };

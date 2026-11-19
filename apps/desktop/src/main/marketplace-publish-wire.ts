@@ -11,7 +11,8 @@ export function requestBody(
       title: input.title,
       overview: input.overview,
       stage_id: input.stageId,
-      kind: input.kind,
+      // The published API still requires a value for older desktop clients.
+      kind: input.kind ?? "general",
       library_type: input.libraryType,
       content: input.content,
       metadata: { source: "deepwrite-desktop" }

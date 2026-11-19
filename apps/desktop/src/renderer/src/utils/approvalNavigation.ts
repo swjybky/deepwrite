@@ -533,12 +533,22 @@ export function resolveAgentEditApprovalTarget(
     };
   }
   if (proposal.longPlotDesignTarget) {
+    const targetKind = proposal.longPlotDesignTarget.review?.targetKind;
+    const fallbackRoot =
+      targetKind === "character" || targetKind === "character_overview"
+        ? "character_design"
+        : targetKind === "worldbuilding_category" ||
+            targetKind === "worldbuilding_item"
+          ? "worldbuilding"
+          : targetKind === "continuity_file"
+            ? "continuity_ledger"
+            : "plot_design";
     return {
       kind: "long",
       bookId: proposal.longPlotDesignTarget.bookId,
       candidates: longApprovalCandidatesForBatch(
         proposal.longPlotDesignTarget.batch,
-        "plot_design"
+        fallbackRoot
       )
     };
   }

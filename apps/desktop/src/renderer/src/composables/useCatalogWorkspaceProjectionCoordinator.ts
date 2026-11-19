@@ -226,7 +226,13 @@ export function useCatalogWorkspaceProjectionCoordinator(
     projection: CatalogWorkspaceProjection,
     resourceId: string
   ): boolean {
-    if (!resourceId || longBookIdFromResourceId(resourceId)) return true;
+    if (
+      !resourceId ||
+      longBookIdFromResourceId(resourceId) ||
+      resourceId.startsWith("mystery-book:") ||
+      resourceId.startsWith("mystery-document:")
+    )
+      return true;
     return projection.index.workspaceDocumentById.has(
       resolveProjectedResourceTargetDocumentId(projection, resourceId)
     );

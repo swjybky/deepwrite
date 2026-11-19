@@ -1,5 +1,12 @@
 import { conversationVersionOrigin } from "./proposal-coordinator/version-origin";
 import {
+  authorizeProposalEvent,
+  isShortProposalConversationActive,
+  resolveLongProposalConversation,
+  resolveProposalApprovalMode,
+  resolveShortProposalConversation
+} from "./proposal-coordinator/event-authorization";
+import {
   stageLibraryStructureProposal as stageLibraryStructure,
   acceptLibraryStructureProposal
 } from "./proposal-coordinator/library-structure";
@@ -29,6 +36,7 @@ import {
   type LongWorkspaceOperationBatch,
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
+import { longWorkspaceOperationsRequireImpactConfirmation } from "@deepwrite/contracts/renderer";
 import type { CatalogWorkspaceProjection } from "../data/catalogWorkspace";
 import type {
   AgentApprovalMode,
@@ -57,6 +65,12 @@ import {
 } from "../utils/catalogSaveReconciliation";
 import { draftCharacterStateTitle } from "../utils/draftFileTitles";
 import { resolveProvisionalWriteStagingMode } from "../utils/provisionalExpertSectionStaging";
+import {
+  deriveLongMutationReviewFromBatch,
+  findSameRunLongPrerequisites,
+  longMutationProposalDiff,
+  longProposalCreatedEntityIds
+} from "../utils/longMutationProposal";
 import { textEditDiscardSnapshot } from "../utils/acceptedEditDiscard";
 import {
   longCharacterBatchForFiles,
@@ -235,8 +249,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     activeLong: activeLongConversation,
     all: allConversations,
     remove: removeConversation,
-    legacyDraftSectionKeys: legacyDraftSectionConversationKeys,
-    forLongProposal: longConversationForProposalEvent
+    legacyDraftSectionKeys: legacyDraftSectionConversationKeys
   } = context.conversations;
   const {
     activeBookId: activeLongBookId,
@@ -425,9 +438,14 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       return;
     }
     if (acceptingAgentEditWorkspaceIds.value.has(proposal.workspaceId)) {
-      uiMessage.info(
-        t("proposalCoordinator.otherEditsToThisLibraryAreBeingSavedWait")
+      const message = t(
+        "proposalCoordinator.otherEditsToThisLibraryAreBeingSavedWait"
       );
+      conversation.updateEditProposal(request.runId, request.proposalId, {
+        status: automatic ? "error" : "pending",
+        statusMessage: message
+      });
+      uiMessage.info(message);
       return;
     }
 
@@ -758,6 +776,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
   ): number {
     const proposal = conversation.getEditProposal(runId, proposalId);
     if (!proposal) return 2;
+    if (proposal.libraryStructureTarget) return 3;
     if (proposal.academicMutationTarget) {
       const t = proposal.academicMutationTarget;
       if (t.kind === "chapter-mutation" && t.mutation.type === "create")
@@ -791,7 +810,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       return proposal.predecessorProposalId ? 1 : 2;
     }
     if (proposal.longPlotDesignTarget) {
-      return 2;
+      return proposal.longPlotDesignTarget.review?.action === "create" &&
+        !proposal.predecessorProposalId
+        ? 0
+        : proposal.predecessorProposalId
+          ? 2
+          : 1;
     }
     if (proposal.longDraftTarget) {
       return proposal.predecessorProposalId ? 1 : 2;
@@ -866,6 +890,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
 
   function canReviewAgentEditDuringRun(proposal: AgentEditProposal): boolean {
     return (
+      Boolean(proposal.libraryStructureTarget) ||
       Boolean(proposal.academicMutationTarget) ||
       Boolean(proposal.libraryTarget) ||
       Boolean(proposal.longWorldbuildingTarget) ||
@@ -1061,16 +1086,14 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
   async function stageAgentEditProposal(
     event: WorkspaceEditorMutationEvent
   ): Promise<void> {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = allConversations().find((conversation) =>
-      conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
-    );
+    const sourceConversation = resolveShortProposalConversation(context, event);
     if (!sourceConversation) return;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
 
     const mutationTarget = event.payload.mutationTarget;
     if (
@@ -1576,9 +1599,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       }
       if (
         proposalQueue.isDisposed() ||
-        !sourceConversation.acceptsRunEvent(
-          event.payload.sessionId,
-          event.payload.runId
+        !isShortProposalConversationActive(
+          context,
+          sourceConversation,
+          event.payload.sessionId
         )
       )
         return;
@@ -2204,36 +2228,27 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
-  function longPlotDesignProposalText(
-    batch: LongWorkspaceOperationBatch
-  ): string {
-    return JSON.stringify(
-      {
-        structureOperations: batch.operations,
-        documentWrites: batch.documentWrites
-      },
-      null,
-      2
-    );
-  }
-
   function stageLongPlotDesignEditProposal(
     event: LongPlotDesignMutationEvent
   ): void {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = longConversationForProposalEvent(event);
+    const sourceConversation = resolveLongProposalConversation(context, event);
     if (!sourceConversation) return;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
+    const batch = LongWorkspaceOperationBatchSchema.parse(event.payload.batch);
+    const review =
+      event.payload.review ?? deriveLongMutationReviewFromBatch(batch);
     const workspaceId = `long:${event.payload.bookId}`;
+    const laneDocumentId = review?.targetKey ?? "plot-design";
     const laneId = agentEditProposalId(
       event.payload.runId,
       workspaceId,
       "long-plot-design",
-      "plot-design"
+      laneDocumentId
     );
     const existing = latestProposalForLane(
       sourceConversation,
@@ -2250,24 +2265,58 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       );
       return;
     }
+    const prerequisites = findSameRunLongPrerequisites(
+      sourceConversation.listEditProposals(event.payload.runId),
+      batch
+    );
+    const blockedPrerequisite = prerequisites.find(
+      (candidate) =>
+        candidate.status === "rejected" || candidate.status === "conflict"
+    );
+    if (blockedPrerequisite) {
+      sourceConversation.markToolConflict(
+        event.payload.runId,
+        event.payload.toolCallId,
+        t("proposalCoordinator.anEarlierAgentEditCouldNotBeSavedThis")
+      );
+      return;
+    }
+    const activePrerequisite = [...prerequisites]
+      .reverse()
+      .find((candidate) => candidate.status !== "accepted");
+    const predecessorProposalId = existing?.id ?? activePrerequisite?.id;
     const generation = existing ? (existing.generation ?? 1) + 1 : 1;
     const proposalId = agentEditProposalGenerationId(laneId, generation);
-    const proposalText = longPlotDesignProposalText(event.payload.batch);
-    const diff = buildAgentTextDiff("", proposalText);
+    const diff = longMutationProposalDiff(review);
+    const noChanges =
+      batch.operations.length === 0 &&
+      Boolean(review?.content) &&
+      review!.content!.operation !== "create" &&
+      review!.content!.beforeText === review!.content!.afterText;
     const proposal: AgentEditProposal = {
       id: proposalId,
       laneId,
       generation,
       approvalMode: runApprovalMode,
-      ...(existing ? { predecessorProposalId: existing.id } : {}),
+      ...(predecessorProposalId ? { predecessorProposalId } : {}),
       runId: event.payload.runId,
       workspaceId,
       stageId: "long-plot-design",
-      documentId: "plot-design",
-      title: t("proposalCoordinator.plotDesignChanges"),
+      documentId: laneDocumentId,
+      title: review?.title ?? t("proposalCoordinator.plotDesignChanges"),
       summary: event.payload.summary,
-      status: "pending",
-      proposedText: proposalText,
+      status: noChanges ? "accepted" : "pending",
+      ...(noChanges
+        ? {
+            statusMessage: t(
+              "proposalCoordinator.theTextHasNotChangedNoSaveIsNeeded"
+            )
+          }
+        : {
+            proposedText: review?.content
+              ? review.content.afterText
+              : event.payload.summary
+          }),
       toolCallIds: [event.payload.toolCallId],
       additions: diff.additions,
       deletions: diff.deletions,
@@ -2277,11 +2326,12 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       updatedAt: event.timestamp,
       longPlotDesignTarget: {
         bookId: event.payload.bookId,
-        batch: LongWorkspaceOperationBatchSchema.parse(event.payload.batch)
+        batch,
+        ...(review ? { review } : {})
       }
     };
     sourceConversation.upsertEditProposal(event.payload.runId, proposal);
-    if (runApprovalMode === "auto-approve") {
+    if (!noChanges && runApprovalMode === "auto-approve") {
       queueAgentEdit(
         sourceConversation,
         event.payload.sessionId,
@@ -2290,14 +2340,55 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         true,
         true
       );
+      return;
+    }
+    const hasUnsettledPredecessor =
+      (existing !== undefined && existing.status !== "accepted") ||
+      activePrerequisite !== undefined;
+    if (!noChanges && !hasUnsettledPredecessor) {
+      const longApi = resolveLongWorkspaceApi();
+      if (longApi) {
+        void previewLongProposalImpact(
+          longApi,
+          event.payload.bookId,
+          batch,
+          proposal.title
+        )
+          .then((expectedImpact) => {
+            const current = sourceConversation.getEditProposal(
+              event.payload.runId,
+              proposal.id
+            );
+            if (
+              !current?.longPlotDesignTarget ||
+              current.status !== "pending" ||
+              current.userEditedText !== undefined ||
+              current.longPlotDesignTarget.expectedImpact !== undefined
+            ) {
+              return;
+            }
+            sourceConversation.updateEditProposal(
+              event.payload.runId,
+              proposal.id,
+              {
+                longPlotDesignTarget: {
+                  ...current.longPlotDesignTarget,
+                  expectedImpact
+                }
+              }
+            );
+          })
+          .catch(() => undefined);
+      }
     }
   }
 
   function stageLongWorldbuildingEditProposal(
     event: LongWorldbuildingFileMutationEvent
   ): void {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = longConversationForProposalEvent(event);
+    const sourceConversation = resolveLongProposalConversation(context, event);
     if (!sourceConversation) return;
     const file = event.payload.files[0];
     const batch = longWorldbuildingBatchForFile(event);
@@ -2313,11 +2404,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       uiMessage.warning(message);
       return;
     }
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
     const workspaceId = `long:${event.payload.bookId}`;
     const laneDocumentId =
       file.operation === "create" ? `create:${file.fileId}` : file.fileId;
@@ -2410,8 +2500,9 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
   function stageLongCharacterEditProposal(
     event: LongCharacterFileMutationEvent
   ): void {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = longConversationForProposalEvent(event);
+    const sourceConversation = resolveLongProposalConversation(context, event);
     if (!sourceConversation) return;
     const files = event.payload.files;
     const batch = longCharacterBatchForFiles(event);
@@ -2429,11 +2520,10 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
     const isCreation = files.every(({ operation }) => operation === "create");
     const primaryFile = files[0]!;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
     const workspaceId = `long:${event.payload.bookId}`;
     const laneDocumentId = isCreation
       ? `create:${primaryFile.characterId}`
@@ -2534,15 +2624,15 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
   }
 
   function stageLongDraftEditProposal(event: LongDraftMutationEvent): void {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return;
-    const sourceConversation = longConversationForProposalEvent(event);
+    const sourceConversation = resolveLongProposalConversation(context, event);
     if (!sourceConversation) return;
     const file = event.payload.file;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
     const workspaceId = `long:${event.payload.bookId}`;
     const laneId = agentEditProposalId(
       event.payload.runId,
@@ -3418,6 +3508,41 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
     }
   }
 
+  function conflictDependentLongPlotDesignProposals(
+    conversation: AgentConversationController,
+    proposal: AgentEditProposal,
+    message: string
+  ): void {
+    const createdIds = longProposalCreatedEntityIds(proposal);
+    if (!createdIds.size) return;
+    for (const candidate of conversation.listEditProposals(proposal.runId)) {
+      if (
+        candidate.id === proposal.id ||
+        (candidate.status !== "pending" && candidate.status !== "error")
+      ) {
+        continue;
+      }
+      const candidateBatch =
+        candidate.longPlotDesignTarget?.batch ??
+        candidate.longCharacterTarget?.batch ??
+        candidate.longWorldbuildingTarget?.batch ??
+        candidate.longDraftTarget?.batch;
+      if (
+        !candidateBatch ||
+        findSameRunLongPrerequisites([proposal], candidateBatch, candidate.id)
+          .length === 0
+      ) {
+        continue;
+      }
+      removeQueuedAgentEdit(conversation, candidate.runId, candidate.id);
+      conversation.updateEditProposal(candidate.runId, candidate.id, {
+        status: "conflict",
+        proposedText: undefined,
+        statusMessage: message
+      });
+    }
+  }
+
   async function acceptLongPlotDesignProposal(
     conversation: AgentConversationController,
     request: AgentEditReviewRequest,
@@ -3484,6 +3609,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
+          requiresConfirmation:
+            longWorkspaceOperationsRequireImpactConfirmation(
+              batch.operations,
+              expectedImpact
+            ),
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -3761,6 +3891,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
+          requiresConfirmation:
+            longWorkspaceOperationsRequireImpactConfirmation(
+              batch.operations,
+              expectedImpact
+            ),
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -3978,6 +4113,11 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
+          requiresConfirmation:
+            longWorkspaceOperationsRequireImpactConfirmation(
+              batch.operations,
+              expectedImpact
+            ),
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,
@@ -4186,6 +4326,13 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
           )
         );
       }
+      if (proposal.longPlotDesignTarget) {
+        conflictDependentLongPlotDesignProposals(
+          conversation,
+          proposal,
+          t("proposalCoordinator.anEarlierAgentEditCouldNotBeSavedThis")
+        );
+      }
       if (proposal.academicMutationTarget) {
         academicProposalLane.handleAcademicProposalRejected(
           conversation,
@@ -4251,6 +4398,48 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
                   })
                 : t("proposalCoordinator.reviewPredecessorFirst", {
                     title: predecessor.title
+                  })
+        });
+        return;
+      }
+    }
+
+    if (proposal.longPlotDesignTarget) {
+      const prerequisites = findSameRunLongPrerequisites(
+        conversation.listEditProposals(request.runId),
+        proposal.longPlotDesignTarget.batch,
+        proposal.id
+      );
+      const blocked = prerequisites.find(
+        (candidate) =>
+          candidate.status === "rejected" || candidate.status === "conflict"
+      );
+      if (blocked) {
+        conversation.updateEditProposal(request.runId, request.proposalId, {
+          status: "conflict",
+          proposedText: undefined,
+          statusMessage: t(
+            "proposalCoordinator.anEarlierAgentEditCouldNotBeSavedThis"
+          )
+        });
+        return;
+      }
+      const pendingPrerequisite = prerequisites.find(
+        (candidate) => candidate.status !== "accepted"
+      );
+      if (pendingPrerequisite) {
+        conversation.updateEditProposal(request.runId, request.proposalId, {
+          status: "pending",
+          statusMessage:
+            pendingPrerequisite.status === "accepting"
+              ? t("proposalCoordinator.waitingForEarlierEditsToFinishSaving")
+              : pendingPrerequisite.status === "error"
+                ? t("proposalCoordinator.predecessorSaveFailed", {
+                    title: pendingPrerequisite.title,
+                    detail: pendingPrerequisite.statusMessage ?? ""
+                  })
+                : t("proposalCoordinator.reviewPredecessorFirst", {
+                    title: pendingPrerequisite.title
                   })
         });
         return;

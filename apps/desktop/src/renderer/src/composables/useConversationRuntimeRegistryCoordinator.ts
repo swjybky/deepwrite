@@ -63,14 +63,17 @@ export function useConversationRuntimeRegistryCoordinator(
     );
   }
 
-  options.store.configurePersistenceAdapter(options.persistenceAdapter, {
-    onError: (_key, error) => {
-      warnPersistenceError(
-        error,
-        t("conversationHistoryCouldNotBeSavedLocallyYouCan")
-      );
+  const disposePersistence = options.store.configurePersistenceAdapter(
+    options.persistenceAdapter,
+    {
+      onError: (_key, error) => {
+        warnPersistenceError(
+          error,
+          t("conversationHistoryCouldNotBeSavedLocallyYouCan")
+        );
+      }
     }
-  });
+  );
 
   function trackHydrate<Value>(operation: Promise<Value>): Promise<Value> {
     const tracked = operation.then(
@@ -285,6 +288,7 @@ export function useConversationRuntimeRegistryCoordinator(
     captureAgentRunSettings,
     conversationForKey,
     dispose,
+    disposePersistence,
     drain,
     hydrateConversationPreferences,
     persistAgentRunPreferences,

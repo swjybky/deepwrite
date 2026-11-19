@@ -5,7 +5,10 @@ import {
   mysteryDocumentTargetKey
 } from "@deepwrite/contracts";
 import type { ResourceTreeNode } from "../types/workspace";
-import { buildMysteryWorkspaceResourceTree } from "./mysteryWorkspaceResourceTree";
+import {
+  buildMysteryWorkspaceResourceTree,
+  mysteryStructureItems
+} from "./mysteryWorkspaceResourceTree";
 
 function fixture() {
   return buildEmptyMysteryWorkspaceIndex({
@@ -44,7 +47,7 @@ function flatten(nodes: readonly ResourceTreeNode[]): ResourceTreeNode[] {
 }
 
 describe("mystery resource tree", () => {
-  it("makes every document reachable once through the shared recursive tree", () => {
+  it("lists each manuscript once and leaves the writing context in management", () => {
     const index = fixture();
     const stages = buildMysteryWorkspaceResourceTree(index);
     expect(stages.map(({ icon }) => icon)).toEqual([
@@ -54,12 +57,22 @@ describe("mystery resource tree", () => {
       "search",
       "ledger"
     ]);
+    expect(stages.map(({ mysteryStage }) => mysteryStage)).toEqual([
+      "truth",
+      "characters",
+      "scripts",
+      "clues",
+      "dm"
+    ]);
+    expect(stages.every(({ selectableBranch }) => selectableBranch)).toBe(true);
     const nodes = flatten(stages);
+    expect(nodes.every(({ badge }) => badge === undefined)).toBe(true);
     expect(new Set(nodes.map(({ id }) => id)).size).toBe(nodes.length);
     const targets = nodes.flatMap(({ mysteryTarget }) =>
       mysteryTarget ? [mysteryTarget] : []
     );
-    expect(targets).toHaveLength(21);
+    expect(targets).toHaveLength(20);
+    expect(targets).not.toContainEqual({ kind: "agents_md" });
     expect(new Set(targets.map(mysteryDocumentTargetKey)).size).toBe(
       targets.length
     );
@@ -80,7 +93,7 @@ describe("mystery resource tree", () => {
     ).toBe(true);
   });
 
-  it("preserves role and act identity when names change, with counts on the correct leaf", () => {
+  it("preserves role and act identity when names change, without adding document counters to the tree", () => {
     const index = fixture();
     index.actMatrix[0]!.bodyChars = 123;
     const before = flatten(buildMysteryWorkspaceResourceTree(index));
@@ -95,11 +108,33 @@ describe("mystery resource tree", () => {
         mysteryTarget.actId === "act_one" &&
         mysteryTarget.document === "body"
     );
-    expect(body?.badge).toBe("123");
+    expect(body).toBeDefined();
+    expect(body?.badge).toBeUndefined();
     expect(
       after.find(({ mysteryItem }) => mysteryItem?.kind === "role")?.mysteryItem
         ?.tag
     ).toBe("医生");
+  });
+
+  it("shares movement boundaries between the tree and structure manager", () => {
+    const index = fixture();
+    const { role, act, clue_round } = mysteryStructureItems(index);
+    expect(role[0]).toMatchObject({
+      moveUpDisabled: true,
+      moveDownDisabled: false
+    });
+    expect(role[1]).toMatchObject({
+      moveUpDisabled: false,
+      moveDownDisabled: true
+    });
+    expect(clue_round[0]).toMatchObject({
+      moveUpDisabled: true,
+      moveDownDisabled: true
+    });
+    const lastActs = flatten(buildMysteryWorkspaceResourceTree(index)).flatMap(
+      ({ mysteryItem }) => (mysteryItem?.id === act[1]?.id ? [mysteryItem] : [])
+    );
+    expect(lastActs).toEqual(index.roles.map(() => act[1]));
   });
 
   it("keeps built-in truth documents immutable and protects the last role and act", () => {

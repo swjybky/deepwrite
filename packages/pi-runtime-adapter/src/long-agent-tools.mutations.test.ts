@@ -1,3 +1,4 @@
+import { validateToolArguments, type JsonObject } from "@earendil-works/pi-ai";
 import {
   committedFixtureIndex,
   describe,
@@ -12,7 +13,10 @@ import {
   toolByName,
   vi
 } from "./long-agent-tools.test-support";
-import { LongChapterBodyChangeSchema } from "@deepwrite/contracts";
+import {
+  LongChapterBodyChangeSchema,
+  longChapterCardFileId
+} from "@deepwrite/contracts";
 
 describe("unified long-form tools: mutations", () => {
   it("creates a list-item worldbuilding file plus a volume record", async () => {
@@ -504,5 +508,211 @@ describe("unified long-form tools: mutations", () => {
     );
     expect(resultText(result)).toContain('"id": "tone"');
     expect(resultText(result)).toContain('"restrained"');
+  });
+
+  it("attaches structured review metadata with real titles and text diffs for plot, chapter card, character meta, and delete proposals", async () => {
+    const index = fixtureIndex();
+    index.plot.arcs.push({
+      id: "arc_two",
+      volumeId: "volume_one",
+      title: "暗夜伏击",
+      order: 2,
+      summary: "旧剧情点概要",
+      outline: ""
+    });
+    index.plot.foreshadowing.push({
+      id: "foreshadow_seal",
+      title: "蜡封密信",
+      coreQuestion: "谁伪造了蜡封",
+      hiddenTruth: "港务副手",
+      expectedReaderEffect: "引起怀疑",
+      truthEventId: null,
+      status: "planned",
+      beats: []
+    });
+    const tools = longTools({
+      executor: documentExecutor(index, {
+        [longChapterCardFileId("chapter_one")]: "## 目标\n旧章卡内容"
+      })
+    });
+    const createTool = toolByName(tools, "create");
+    const readTool = toolByName(tools, "read");
+    const editTool = toolByName(tools, "edit");
+    const deleteTool = toolByName(tools, "delete");
+
+    const invoke = async (
+      tool: typeof editTool,
+      id: string,
+      args: JsonObject
+    ) => {
+      const validated = validateToolArguments(tool, {
+        type: "toolCall",
+        id,
+        name: tool.name,
+        arguments: args
+      });
+      return tool.execute(id, validated);
+    };
+
+    const createdCard = await invoke(createTool, "create-card", {
+      kind: "chapter_card",
+      meta: {
+        title: "第二章 破局",
+        volume_id: "volume_one",
+        primary_arc_id: "arc_two"
+      },
+      content: "## 目标\n夜探码头"
+    });
+    expect(createdCard.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKind: "chapter_card",
+        action: "create",
+        title: "新建章卡 · 第二章 破局",
+        content: {
+          operation: "create",
+          beforeText: "",
+          afterText: "## 目标\n夜探码头"
+        }
+      }
+    });
+
+    await invoke(readTool, "read-card", {
+      id: "chapter_one",
+      document: "card"
+    });
+    const editedCard = await invoke(editTool, "edit-card", {
+      id: "chapter_one",
+      document: "card",
+      replacements: [{ original_text: "旧章卡内容", new_text: "潜入青州驿站" }],
+      summary: "细化章卡冲突"
+    });
+    expect(editedCard.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: `doc:${longChapterCardFileId("chapter_one")}`,
+        targetKind: "chapter_card",
+        targetId: "chapter_one",
+        action: "edit",
+        title: "第一章 / 章卡",
+        content: {
+          fileId: longChapterCardFileId("chapter_one"),
+          filePath: "long/chapters/one/card.md",
+          operation: "edit",
+          beforeText: "## 目标\n旧章卡内容",
+          afterText: "## 目标\n潜入青州驿站"
+        }
+      }
+    });
+
+    const reboundCard = await invoke(editTool, "rebind-card", {
+      id: "chapter_one",
+      meta: { primary_arc_id: "arc_two" }
+    });
+    expect(reboundCard.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: "meta:chapter_one",
+        targetKind: "chapter_card",
+        targetId: "chapter_one",
+        action: "meta",
+        title: "章卡 · 第一章"
+      }
+    });
+
+    await invoke(readTool, "read-arc", { id: "arc_two" });
+    const editedArc = await invoke(editTool, "edit-arc", {
+      id: "arc_two",
+      replacements: [
+        { original_text: "旧剧情点概要", new_text: "新剧情点概要" }
+      ]
+    });
+    expect(editedArc.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: "entity:arc_two",
+        targetKind: "arc",
+        targetId: "arc_two",
+        action: "edit",
+        title: "剧情点 · 暗夜伏击",
+        content: {
+          operation: "edit",
+          beforeText: "旧剧情点概要",
+          afterText: "新剧情点概要"
+        }
+      }
+    });
+
+    const createdForeshadow = await invoke(createTool, "create-foreshadow", {
+      kind: "foreshadowing",
+      meta: { title: "铜锁暗号" },
+      content:
+        "## 核心问题\n谁留下了铜锁\n\n## 隐藏真相\n守夜人\n\n## 预期读者效果\n铺垫反转"
+    });
+    expect(createdForeshadow.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKind: "foreshadowing",
+        action: "create",
+        title: "新建伏笔线 · 铜锁暗号",
+        content: {
+          operation: "create",
+          beforeText: "",
+          afterText:
+            "## 核心问题\n\n谁留下了铜锁\n\n## 隐藏真相\n\n守夜人\n\n## 预期读者效果\n\n铺垫反转"
+        }
+      }
+    });
+
+    await invoke(readTool, "read-foreshadow", { id: "foreshadow_seal" });
+    const editedForeshadow = await invoke(editTool, "edit-foreshadow", {
+      id: "foreshadow_seal",
+      replacements: [{ original_text: "引起怀疑", new_text: "收束反转" }]
+    });
+    expect(editedForeshadow.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: "entity:foreshadow_seal",
+        targetKind: "foreshadowing",
+        action: "edit",
+        title: "伏笔线 · 蜡封密信",
+        content: {
+          operation: "edit",
+          beforeText:
+            "## 核心问题\n\n谁伪造了蜡封\n\n## 隐藏真相\n\n港务副手\n\n## 预期读者效果\n\n引起怀疑",
+          afterText:
+            "## 核心问题\n\n谁伪造了蜡封\n\n## 隐藏真相\n\n港务副手\n\n## 预期读者效果\n\n收束反转"
+        }
+      }
+    });
+
+    const movedCharacter = await invoke(editTool, "move-character", {
+      id: "character_alice",
+      meta: { type_id: "major_supporting", name: "林沉" }
+    });
+    expect(movedCharacter.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: "meta:character_alice",
+        targetKind: "character",
+        targetId: "character_alice",
+        action: "meta",
+        title: "人物信息 · 林岚"
+      }
+    });
+
+    const deletedArc = await invoke(deleteTool, "delete-arc", {
+      id: "arc_two"
+    });
+    expect(deletedArc.details).toMatchObject({
+      kind: "long-mutation-proposal",
+      review: {
+        targetKey: "delete:arc_two",
+        targetKind: "arc",
+        targetId: "arc_two",
+        action: "delete",
+        title: "删除剧情点 · 暗夜伏击"
+      }
+    });
   });
 });

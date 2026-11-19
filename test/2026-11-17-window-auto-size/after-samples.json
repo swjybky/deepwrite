@@ -1,0 +1,122 @@
+[
+  {
+    "scheme": "light",
+    "uiFontSize": 14,
+    "cardRect": {
+      "x": 340,
+      "y": 127,
+      "width": 760,
+      "height": 97.75,
+      "top": 127,
+      "right": 1100,
+      "bottom": 224.75,
+      "left": 340
+    },
+    "buttons": [
+      {
+        "text": "自动记住大小",
+        "width": 112,
+        "height": 36,
+        "overflow": false
+      },
+      {
+        "text": "默认大小 1200 × 800",
+        "width": 154.1328125,
+        "height": 36,
+        "overflow": false
+      }
+    ],
+    "heading": "1200 × 800",
+    "help": "选择“自动记住大小”时，拖动调整窗口后会自动保存为下次启动大小；选择“默认大小 1200 × 800”时，每次启动固定使用默认尺寸。"
+  },
+  {
+    "scheme": "dark",
+    "uiFontSize": 14,
+    "cardRect": {
+      "x": 340,
+      "y": 127,
+      "width": 760,
+      "height": 97.75,
+      "top": 127,
+      "right": 1100,
+      "bottom": 224.75,
+      "left": 340
+    },
+    "buttons": [
+      {
+        "text": "自动记住大小",
+        "width": 112,
+        "height": 36,
+        "overflow": false
+      },
+      {
+        "text": "默认大小 1200 × 800",
+        "width": 154.1328125,
+        "height": 36,
+        "overflow": false
+      }
+    ],
+    "heading": "1200 × 800",
+    "help": "选择“自动记住大小”时，拖动调整窗口后会自动保存为下次启动大小；选择“默认大小 1200 × 800”时，每次启动固定使用默认尺寸。"
+  },
+  {
+    "scheme": "light",
+    "uiFontSize": 24,
+    "cardRect": {
+      "x": 266,
+      "y": 142,
+      "width": 698,
+      "height": 259.421875,
+      "top": 142,
+      "right": 964,
+      "bottom": 401.421875,
+      "left": 266
+    },
+    "buttons": [
+      {
+        "text": "自动记住大小",
+        "width": 160.4453125,
+        "height": 46,
+        "overflow": false
+      },
+      {
+        "text": "默认大小 1200 × 800",
+        "width": 235.359375,
+        "height": 46,
+        "overflow": false
+      }
+    ],
+    "heading": "1000 × 680",
+    "help": "选择“自动记住大小”时，拖动调整窗口后会自动保存为下次启动大小；选择“默认大小 1200 × 800”时，每次启动固定使用默认尺寸。"
+  },
+  {
+    "scheme": "dark",
+    "uiFontSize": 24,
+    "cardRect": {
+      "x": 266,
+      "y": 142,
+      "width": 698,
+      "height": 259.421875,
+      "top": 142,
+      "right": 964,
+      "bottom": 401.421875,
+      "left": 266
+    },
+    "buttons": [
+      {
+        "text": "自动记住大小",
+        "width": 160.4453125,
+        "height": 46,
+        "overflow": false
+      },
+      {
+        "text": "默认大小 1200 × 800",
+        "width": 235.359375,
+        "height": 46,
+        "overflow": false
+      }
+    ],
+    "heading": "1000 × 680",
+    "help": "选择“自动记住大小”时，拖动调整窗口后会自动保存为下次启动大小；选择“默认大小 1200 × 800”时，每次启动固定使用默认尺寸。"
+  }
+]

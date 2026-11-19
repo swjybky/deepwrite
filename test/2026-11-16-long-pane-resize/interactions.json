@@ -1,0 +1,73 @@
+{
+  "samples": [
+    {
+      "kind": "native-outer-drag",
+      "swap": false,
+      "side": "left",
+      "before": 280,
+      "after": 320,
+      "released": true
+    },
+    {
+      "kind": "native-outer-drag",
+      "swap": false,
+      "side": "right",
+      "before": 544,
+      "after": 579,
+      "released": true
+    },
+    {
+      "kind": "native-outer-drag",
+      "swap": true,
+      "side": "left",
+      "before": 280,
+      "after": 320,
+      "released": true
+    },
+    {
+      "kind": "native-outer-drag",
+      "swap": true,
+      "side": "right",
+      "before": 544,
+      "after": 579,
+      "released": true
+    },
+    {
+      "kind": "native-internal-drag",
+      "variant": "chapter-list",
+      "selector": ".long-entry-list-resizer",
+      "before": 221,
+      "after": 254,
+      "keyboard": 266,
+      "persisted": {
+        "version": 1,
+        "entryListWidth": 266
+      }
+    },
+    {
+      "kind": "native-internal-drag",
+      "variant": "story",
+      "selector": ".long-entry-list-resizer",
+      "before": 377,
+      "after": 410,
+      "keyboard": 422,
+      "persisted": {
+        "version": 1,
+        "entryListWidth": 422
+      }
+    },
+    {
+      "kind": "native-internal-drag",
+      "variant": "story",
+      "selector": ".long-story-plot-resizer",
+      "before": 217,
+      "after": 244,
+      "keyboard": 232,
+      "persisted": {
+        "version": 1,
+        "entryListWidth": 422,
+        "storyPlotListWidth": 232
+      }
+    }
+  ]
+}

@@ -5,6 +5,8 @@ export async function verifyLibraryEntryDialog(
 ) {
   if (/创作类型/.test(form.textContent ?? ""))
     throw new Error("Entry dialog still asks for a writing type.");
+  if (/技能库分类|素材库分类/.test(form.textContent ?? ""))
+    throw new Error("Entry dialog still asks for a library category.");
   const root = document.documentElement;
   const previousStyle = root.style.cssText;
   const previousTheme = root.dataset.theme;

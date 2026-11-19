@@ -15,7 +15,9 @@ import {
   longChapterFilePath,
   longChapterForeshadowingChangesFileId,
   longWorldbuildingItemContentPath,
-  longWorldbuildingItemFileId
+  longWorldbuildingItemFileId,
+  parseLongForeshadowingBody,
+  serializeLongForeshadowingBody
 } from "./index";
 
 const runtime = {
@@ -436,5 +438,92 @@ describe("long proposal event contracts", () => {
     expect(() =>
       LongLedgerCommitProposalEventEnvelopeSchema.parse(ledger)
     ).toThrow(/runId must match/u);
+  });
+
+  it("validates optional structured review metadata on long mutation proposals", () => {
+    const withReview = createEnvelope(
+      "long.mutation_proposal",
+      {
+        ...common,
+        batch: {
+          updatedAt: "2026-07-26T12:00:00.000Z",
+          operations: [],
+          documentWrites: [
+            {
+              proposalId: "proposal_card_edit",
+              fileId: "file_chapter_one:card",
+              content: "新章卡内容",
+              mode: "replace" as const,
+              updatedAt: "2026-07-26T12:00:00.000Z",
+              reason: "改章卡"
+            }
+          ]
+        },
+        review: {
+          targetKey: "doc:file_chapter_one:card",
+          targetKind: "chapter_card" as const,
+          targetId: "chapter_one",
+          action: "edit" as const,
+          title: "第一章 / 章卡",
+          content: {
+            fileId: "file_chapter_one:card",
+            filePath: longChapterFilePath("chapter_one", "card.md"),
+            operation: "edit" as const,
+            beforeText: "旧章卡内容",
+            afterText: "新章卡内容"
+          }
+        }
+      },
+      { id: "event-long-mutation-review", context }
+    );
+    expect(
+      LongMutationProposalEventEnvelopeSchema.parse(withReview).payload.review
+    ).toMatchObject({
+      targetKey: "doc:file_chapter_one:card",
+      title: "第一章 / 章卡"
+    });
+
+    for (const badReview of [
+      {
+        targetKey: "   ",
+        targetKind: "chapter_card",
+        targetId: "chapter_one",
+        action: "edit",
+        title: "第一章 / 章卡"
+      },
+      {
+        targetKey: "doc:file_chapter_one:card",
+        targetKind: "unknown_kind",
+        targetId: "chapter_one",
+        action: "edit",
+        title: "第一章 / 章卡"
+      },
+      {
+        targetKey: "doc:file_chapter_one:card",
+        targetKind: "chapter_card",
+        targetId: "chapter_one",
+        action: "edit",
+        title: "第一章 / 章卡",
+        extraField: true
+      }
+    ]) {
+      expect(
+        LongMutationProposalEventEnvelopeSchema.safeParse({
+          ...withReview,
+          payload: { ...withReview.payload, review: badReview }
+        }).success
+      ).toBe(false);
+    }
+
+    const body = serializeLongForeshadowingBody({
+      coreQuestion: "谁调包了账册",
+      hiddenTruth: "沈青",
+      expectedReaderEffect: "悬念拉满"
+    });
+    expect(parseLongForeshadowingBody(body)).toEqual({
+      coreQuestion: "谁调包了账册",
+      hiddenTruth: "沈青",
+      expectedReaderEffect: "悬念拉满"
+    });
   });
 });

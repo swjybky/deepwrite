@@ -1,5 +1,5 @@
 export default {
-  marketplace: "Skills and teams",
+  marketplace: "Marketplace",
   discoverSkillsAndTeams:
     "Discover, install, and publish skills and agent teams",
   chat: "Chat",

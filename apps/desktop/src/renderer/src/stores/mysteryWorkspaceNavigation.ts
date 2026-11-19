@@ -8,6 +8,7 @@ export interface MysteryWorkspaceNavigationPort {
   busy(): boolean;
   save(): Promise<boolean>;
   send(): Promise<void>;
+  duplicateBook(): Promise<void>;
   selectTarget(target: MysteryDocumentTarget): Promise<boolean>;
   openDialog(dialog: MysteryDialogState): void;
   moveItem(

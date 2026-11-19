@@ -5,7 +5,7 @@
 
 .plot-structure-dialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   width: min(1040px, 96vw);
   max-height: min(880px, 92vh);
   overflow: hidden;

@@ -188,4 +188,64 @@ describe("write approval gate", () => {
       expect(events.at(-1)?.type).toBe("agent.completed");
     }
   });
+
+  it("does not pause the parent write-approval gate for child_tool_details updates", async () => {
+    const childUpdateTool: AgentTool = {
+      name: "spawn_subagent",
+      label: "Spawn",
+      description: "Forwards child write proposal via update.",
+      parameters: Type.Object({}),
+      async execute(_id, _params, _signal, onUpdate) {
+        onUpdate?.({
+          content: [{ type: "text", text: "子智能体写入提案已同步。" }],
+          details: {
+            kind: "subagent-progress",
+            progress: {
+              type: "child_tool_details",
+              parentToolCallId: "spawn_parent",
+              subagentRunId: "subrun_1",
+              subagentId: "writer",
+              name: "writer",
+              toolCallId: "subrun_1:tool:1",
+              toolName: "write",
+              result: {
+                content: [{ type: "text", text: "已形成修改，等待用户审阅。" }],
+                details: {
+                  kind: "workspace-editor-mutation",
+                  workspaceId: "book",
+                  stageId: "character_design",
+                  text: "林岚，二十七岁。",
+                  baseRevision: "revision",
+                  summary: "补充人物年龄"
+                }
+              },
+              isError: false
+            }
+          }
+        });
+        return {
+          content: [{ type: "text", text: "子任务完成。" }],
+          details: { kind: "subagent-result" }
+        };
+      }
+    };
+    const events = await run({
+      pauses: true,
+      tool: childUpdateTool,
+      responses: [
+        fauxAssistantMessage(fauxToolCall("spawn_subagent", {}), {
+          stopReason: "toolUse"
+        }),
+        fauxAssistantMessage("已汇总。")
+      ]
+    });
+
+    expect(
+      events.some((event) => event.type === "workspace.editor_mutation")
+    ).toBe(true);
+    expect(
+      events.some((event) => event.type === "agent.user_input_requested")
+    ).toBe(false);
+    expect(events.at(-1)?.type).toBe("agent.completed");
+  });
 });

@@ -1,0 +1,518 @@
+{
+  "rendererErrors": [],
+  "consoleErrorsPhaseA": [],
+  "consoleErrorsPhaseB": [],
+  "themeState": {
+    "lightInit": {
+      "varFont": "14px",
+      "theme": "light",
+      "fontSize": "14px"
+    },
+    "dark24": {
+      "varFont": "24px",
+      "theme": "dark",
+      "fontSize": "24px"
+    }
+  },
+  "checks": {
+    "createBook_1440_light": {
+      ".create-short-book-dialog": {
+        "clientWidth": 758,
+        "scrollWidth": 758,
+        "overflowPx": 0,
+        "rectLeft": 340,
+        "rectRight": 1100,
+        "children": [
+          {
+            "text": "创作空间 · 学术写作新建学术作品 ×",
+            "x": 341,
+            "y": 68,
+            "w": 758,
+            "h": 82,
+            "right": 1099
+          },
+          {
+            "text": "创作类型短篇人物、剧情、导语、大纲与正文剧本人物",
+            "x": 341,
+            "y": 150,
+            "w": 758,
+            "h": 636,
+            "right": 1099
+          }
+        ]
+      },
+      ".create-workspace-type-options": {
+        "clientWidth": 672,
+        "scrollWidth": 672,
+        "overflowPx": 0,
+        "rectLeft": 379,
+        "rectRight": 1053,
+        "children": [
+          {
+            "text": "短篇人物、剧情、导语、大纲与正文",
+            "x": 383,
+            "y": 220,
+            "w": 331,
+            "h": 49,
+            "right": 714
+          },
+          {
+            "text": "剧本人物、剧情、大纲与分集正文",
+            "x": 718,
+            "y": 220,
+            "w": 331,
+            "h": 49,
+            "right": 1049
+          },
+          {
+            "text": "长篇世界观、人物、情节、正文与连续性",
+            "x": 383,
+            "y": 273,
+            "w": 331,
+            "h": 49,
+            "right": 714
+          },
+          {
+            "text": "学术写作研究底座、论证框架、文献证据卡与单层/章",
+            "x": 718,
+            "y": 273,
+            "w": 331,
+            "h": 49,
+            "right": 1049
+          },
+          {
+            "text": "剧本杀真相与统筹、角色与选角、分幕人物本、线索与",
+            "x": 383,
+            "y": 326,
+            "w": 331,
+            "h": 49,
+            "right": 714
+          }
+        ]
+      },
+      ".academic-subtype-grid": {
+        "clientWidth": 674,
+        "scrollWidth": 674,
+        "overflowPx": 0,
+        "rectLeft": 379,
+        "rectRight": 1053,
+        "children": [
+          {
+            "text": "实证 / 理工论文单层节结构（含摘要与参考文献）",
+            "x": 379,
+            "y": 551,
+            "w": 219,
+            "h": 71,
+            "right": 598
+          },
+          {
+            "text": "人文社科论文单层节结构（含摘要与参考文献），适合",
+            "x": 606,
+            "y": 551,
+            "w": 219,
+            "h": 71,
+            "right": 826
+          },
+          {
+            "text": "文献综述单层节结构，聚焦学术演进脉络、分类体系与",
+            "x": 834,
+            "y": 551,
+            "w": 219,
+            "h": 71,
+            "right": 1053
+          },
+          {
+            "text": "硕博学位论文默认初始化「章 → 节」两级目录（含",
+            "x": 379,
+            "y": 630,
+            "w": 219,
+            "h": 86,
+            "right": 598
+          },
+          {
+            "text": "开题 / 基金申报立项依据、研究内容、技术路线与",
+            "x": 606,
+            "y": 630,
+            "w": 219,
+            "h": 86,
+            "right": 826
+          },
+          {
+            "text": "学术解读 / 技术报告核心洞见与降维叙事提纲，默",
+            "x": 834,
+            "y": 630,
+            "w": 219,
+            "h": 86,
+            "right": 1053
+          }
+        ]
+      }
+    },
+    "sidebarHasBothBooks": {
+      "hasAcademic": true,
+      "hasMystery": true
+    },
+    "agentTeams_1440_light": {
+      ".active-slots": {
+        "clientWidth": 980,
+        "scrollWidth": 980,
+        "overflowPx": 0,
+        "rectLeft": 370,
+        "rectRight": 1350,
+        "children": [
+          {
+            "text": "短篇未启用",
+            "x": 370,
+            "y": 138,
+            "w": 188,
+            "h": 67,
+            "right": 558
+          },
+          {
+            "text": "剧本未启用",
+            "x": 568,
+            "y": 138,
+            "w": 188,
+            "h": 67,
+            "right": 756
+          },
+          {
+            "text": "长篇未启用",
+            "x": 766,
+            "y": 138,
+            "w": 188,
+            "h": 67,
+            "right": 954
+          },
+          {
+            "text": "学术写作未启用",
+            "x": 964,
+            "y": 138,
+            "w": 188,
+            "h": 67,
+            "right": 1152
+          },
+          {
+            "text": "剧本杀未启用",
+            "x": 1162,
+            "y": 138,
+            "w": 188,
+            "h": 67,
+            "right": 1350
+          }
+        ]
+      }
+    },
+    "agentSettings_1440_light": {
+      ".workspace-agent-settings": {
+        "clientWidth": 974,
+        "scrollWidth": 974,
+        "overflowPx": 0,
+        "rectLeft": 357,
+        "rectRight": 1331,
+        "children": [
+          {
+            "text": "创作空间智能体设置配置主智能体提示词、欢迎快捷按",
+            "x": 357,
+            "y": 162,
+            "w": 974,
+            "h": 79,
+            "right": 1331
+          },
+          {
+            "text": "短篇剧本长篇学术写作剧本杀",
+            "x": 357,
+            "y": 255,
+            "w": 974,
+            "h": 48,
+            "right": 1331
+          },
+          {
+            "text": "统一智能体短篇智能体统一负责人物、动态剧情阶段和",
+            "x": 357,
+            "y": 321,
+            "w": 974,
+            "h": 1543,
+            "right": 1331
+          },
+          {
+            "text": "新建模板新建模板配置保存题材、人物样式、剧情阶段",
+            "x": 357,
+            "y": 1887,
+            "w": 974,
+            "h": 115,
+            "right": 1331
+          }
+        ]
+      },
+      ".workspace-agent-settings .workspace-tabs": {
+        "clientWidth": 972,
+        "scrollWidth": 972,
+        "overflowPx": 0,
+        "rectLeft": 357,
+        "rectRight": 1331,
+        "children": [
+          {
+            "text": "短篇",
+            "x": 363,
+            "y": 261,
+            "w": 104,
+            "h": 36,
+            "right": 467
+          },
+          {
+            "text": "剧本",
+            "x": 473,
+            "y": 261,
+            "w": 104,
+            "h": 36,
+            "right": 577
+          },
+          {
+            "text": "长篇",
+            "x": 583,
+            "y": 261,
+            "w": 104,
+            "h": 36,
+            "right": 687
+          },
+          {
+            "text": "学术写作",
+            "x": 693,
+            "y": 261,
+            "w": 104,
+            "h": 36,
+            "right": 797
+          },
+          {
+            "text": "剧本杀",
+            "x": 803,
+            "y": 261,
+            "w": 104,
+            "h": 36,
+            "right": 907
+          }
+        ]
+      }
+    },
+    "createBook_1000x680_dark_24px": {
+      ".create-short-book-dialog": {
+        "clientWidth": 758,
+        "scrollWidth": 758,
+        "overflowPx": 0,
+        "rectLeft": 180,
+        "rectRight": 940,
+        "children": [
+          {
+            "text": "创作空间 · 剧本杀新建剧本杀 ×",
+            "x": 181,
+            "y": 31,
+            "w": 758,
+            "h": 113,
+            "right": 939
+          },
+          {
+            "text": "创作类型短篇人物、剧情、导语、大纲与正文剧本人物",
+            "x": 181,
+            "y": 144,
+            "w": 758,
+            "h": 526,
+            "right": 939
+          }
+        ]
+      },
+      ".create-workspace-type-options": {
+        "clientWidth": 672,
+        "scrollWidth": 672,
+        "overflowPx": 0,
+        "rectLeft": 219,
+        "rectRight": 893,
+        "children": [
+          {
+            "text": "短篇人物、剧情、导语、大纲与正文",
+            "x": 223,
+            "y": 227,
+            "w": 331,
+            "h": 73,
+            "right": 554
+          },
+          {
+            "text": "剧本人物、剧情、大纲与分集正文",
+            "x": 558,
+            "y": 227,
+            "w": 331,
+            "h": 73,
+            "right": 889
+          },
+          {
+            "text": "长篇世界观、人物、情节、正文与连续性",
+            "x": 223,
+            "y": 303,
+            "w": 331,
+            "h": 96,
+            "right": 554
+          },
+          {
+            "text": "学术写作研究底座、论证框架、文献证据卡与单层/章",
+            "x": 558,
+            "y": 303,
+            "w": 331,
+            "h": 96,
+            "right": 889
+          },
+          {
+            "text": "剧本杀真相与统筹、角色与选角、分幕人物本、线索与",
+            "x": 223,
+            "y": 403,
+            "w": 331,
+            "h": 96,
+            "right": 554
+          }
+        ]
+      }
+    },
+    "agentTeams_1000x680_dark_24px": {
+      ".active-slots": {
+        "clientWidth": 753,
+        "scrollWidth": 753,
+        "overflowPx": 0,
+        "rectLeft": 314,
+        "rectRight": 1067,
+        "children": [
+          {
+            "text": "短篇未启用",
+            "x": 314,
+            "y": 160,
+            "w": 181,
+            "h": 90,
+            "right": 495
+          },
+          {
+            "text": "剧本未启用",
+            "x": 505,
+            "y": 160,
+            "w": 181,
+            "h": 90,
+            "right": 686
+          },
+          {
+            "text": "长篇未启用",
+            "x": 696,
+            "y": 160,
+            "w": 181,
+            "h": 90,
+            "right": 876
+          },
+          {
+            "text": "学术写作未启用",
+            "x": 886,
+            "y": 160,
+            "w": 181,
+            "h": 90,
+            "right": 1067
+          },
+          {
+            "text": "剧本杀未启用",
+            "x": 314,
+            "y": 260,
+            "w": 181,
+            "h": 90,
+            "right": 495
+          }
+        ]
+      }
+    },
+    "agentSettings_1000x680_dark_24px": {
+      ".workspace-agent-settings": {
+        "clientWidth": 699,
+        "scrollWidth": 699,
+        "overflowPx": 0,
+        "rectLeft": 334,
+        "rectRight": 1034,
+        "children": [
+          {
+            "text": "创作空间智能体设置配置主智能体提示词、欢迎快捷按",
+            "x": 334,
+            "y": 199,
+            "w": 699,
+            "h": 166,
+            "right": 1034
+          },
+          {
+            "text": "短篇剧本长篇学术写作剧本杀",
+            "x": 334,
+            "y": 378,
+            "w": 699,
+            "h": 60,
+            "right": 1034
+          },
+          {
+            "text": "统一智能体短篇智能体统一负责人物、动态剧情阶段和",
+            "x": 334,
+            "y": 456,
+            "w": 699,
+            "h": 2500,
+            "right": 1034
+          },
+          {
+            "text": "新建模板新建模板配置保存题材、人物样式、剧情阶段",
+            "x": 334,
+            "y": 2980,
+            "w": 699,
+            "h": 193,
+            "right": 1034
+          }
+        ]
+      },
+      ".workspace-agent-settings .workspace-tabs": {
+        "clientWidth": 697,
+        "scrollWidth": 697,
+        "overflowPx": 0,
+        "rectLeft": 334,
+        "rectRight": 1034,
+        "children": [
+          {
+            "text": "短篇",
+            "x": 340,
+            "y": 384,
+            "w": 104,
+            "h": 48,
+            "right": 444
+          },
+          {
+            "text": "剧本",
+            "x": 450,
+            "y": 384,
+            "w": 104,
+            "h": 48,
+            "right": 554
+          },
+          {
+            "text": "长篇",
+            "x": 560,
+            "y": 384,
+            "w": 104,
+            "h": 48,
+            "right": 664
+          },
+          {
+            "text": "学术写作",
+            "x": 670,
+            "y": 384,
+            "w": 123,
+            "h": 48,
+            "right": 794
+          },
+          {
+            "text": "剧本杀",
+            "x": 800,
+            "y": 384,
+            "w": 104,
+            "h": 48,
+            "right": 904
+          }
+        ]
+      }
+    }
+  }
+}

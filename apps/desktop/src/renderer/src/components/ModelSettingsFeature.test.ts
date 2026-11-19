@@ -318,4 +318,13 @@ describe("ModelSettingsFeature advanced capacity", () => {
     expect(modelDraftSource).toContain("contextWindow: model.contextWindow");
     expect(modelDraftSource).toContain("maxTokens: model.maxTokens");
   });
+
+  it("exposes the disable-developer-role switch in advanced settings", () => {
+    expect(advancedConfigSource).toContain("<AgentTeamSwitch");
+    expect(advancedConfigSource).toContain("devRoleOff");
+    expect(advancedConfigSource).toContain(
+      "model?.supportsDeveloperRole === false"
+    );
+    expect(draftSource).toContain("capacity.supportsDeveloperRole");
+  });
 });

@@ -496,6 +496,15 @@ function createDeferredApi(): {
       },
       async install() {
         throw new Error("Marketplace is not used by conversation tests.");
+      },
+      async listMaterials() {
+        throw new Error("Marketplace is not used by conversation tests.");
+      },
+      async materialDetail() {
+        throw new Error("Marketplace is not used by conversation tests.");
+      },
+      async installMaterial() {
+        throw new Error("Marketplace is not used by conversation tests.");
       }
     },
     feedback: {

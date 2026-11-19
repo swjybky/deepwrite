@@ -71,12 +71,12 @@ export function useLongEditorPaneResize(options: {
   let storyPlotListResizeObserver: ResizeObserver | undefined;
 
   const entryListGridStyle = computed(() =>
-    entryListWidth.value === undefined
+    !currentUsesAnyRightEntryList.value || entryListWidth.value === undefined
       ? undefined
       : { "--long-entry-list-width": `${entryListWidth.value}px` }
   );
   const storyPlotListGridStyle = computed(() =>
-    storyPlotListWidth.value === undefined
+    !currentIsPlotPointStoryline.value || storyPlotListWidth.value === undefined
       ? undefined
       : { "--long-story-plot-list-width": `${storyPlotListWidth.value}px` }
   );
@@ -87,6 +87,12 @@ export function useLongEditorPaneResize(options: {
     return pane === "entry-list"
       ? longEditorDocumentElement.value
       : storyPlotLayoutElement.value;
+  }
+
+  function longEditorPaneActive(pane: LongEditorResizablePane): boolean {
+    return pane === "entry-list"
+      ? currentUsesAnyRightEntryList.value
+      : currentIsPlotPointStoryline.value;
   }
 
   function longEditorPaneContentMinWidth(
@@ -112,11 +118,9 @@ export function useLongEditorPaneResize(options: {
 
   function resolveLongEditorPaneWidth(
     pane: LongEditorResizablePane,
+    containerWidth: number,
     requestedWidth?: number
   ): { width: number; max: number } | undefined {
-    const container = longEditorPaneContainer(pane);
-    if (!container) return undefined;
-    const containerWidth = container.getBoundingClientRect().width;
     if (!Number.isFinite(containerWidth) || containerWidth <= 0)
       return undefined;
     const availableMax = Math.max(
@@ -144,7 +148,26 @@ export function useLongEditorPaneResize(options: {
     pane: LongEditorResizablePane,
     requestedWidth?: number
   ): void {
-    const resolved = resolveLongEditorPaneWidth(pane, requestedWidth);
+    if (!longEditorPaneActive(pane)) return;
+    const container = longEditorPaneContainer(pane);
+    if (!container) return;
+    applyLongEditorPaneWidth(
+      pane,
+      container.getBoundingClientRect().width,
+      requestedWidth
+    );
+  }
+
+  function applyLongEditorPaneWidth(
+    pane: LongEditorResizablePane,
+    containerWidth: number,
+    requestedWidth?: number
+  ): void {
+    const resolved = resolveLongEditorPaneWidth(
+      pane,
+      containerWidth,
+      requestedWidth
+    );
     if (!resolved) return;
     if (pane === "entry-list") {
       entryListWidth.value = resolved.width;
@@ -187,9 +210,9 @@ export function useLongEditorPaneResize(options: {
   function handleLongEditorPaneResizeMove(event: PointerEvent): void {
     const pane = resizingLongEditorPane.value;
     const container = pane ? longEditorPaneContainer(pane) : null;
-    if (!pane || !container) return;
+    if (!pane || !container || !longEditorPaneActive(pane)) return;
     const bounds = container.getBoundingClientRect();
-    setDisplayedLongEditorPaneWidth(pane, bounds.right - event.clientX);
+    applyLongEditorPaneWidth(pane, bounds.width, bounds.right - event.clientX);
   }
 
   function stopLongEditorPaneResize(): void {
@@ -232,46 +255,61 @@ export function useLongEditorPaneResize(options: {
   }
 
   watch(
-    longEditorDocumentElement,
-    (current, previous) => {
+    [
+      longEditorDocumentElement,
+      currentUsesAnyRightEntryList,
+      currentIsPlotPointStoryline
+    ],
+    ([current, active], [previous]) => {
       if (previous) entryListResizeObserver?.unobserve(previous);
-      if (current) entryListResizeObserver?.observe(current);
-      void nextTick(() => setDisplayedLongEditorPaneWidth("entry-list"));
+      if (current && active) {
+        entryListResizeObserver?.observe(current);
+        void nextTick(() => setDisplayedLongEditorPaneWidth("entry-list"));
+      }
     },
     { flush: "post" }
   );
 
   watch(
-    storyPlotLayoutElement,
-    (current, previous) => {
+    [storyPlotLayoutElement, currentIsPlotPointStoryline],
+    ([current, active], [previous]) => {
       if (previous) storyPlotListResizeObserver?.unobserve(previous);
-      if (current) storyPlotListResizeObserver?.observe(current);
-      void nextTick(() => setDisplayedLongEditorPaneWidth("story-plot-list"));
+      if (current && active) {
+        storyPlotListResizeObserver?.observe(current);
+        void nextTick(() => setDisplayedLongEditorPaneWidth("story-plot-list"));
+      }
     },
     { flush: "post" }
   );
 
-  watch(
-    [currentUsesAnyRightEntryList, currentIsPlotPointStoryline],
-    () => void nextTick(reconcileLongEditorPaneWidths),
-    { flush: "post" }
-  );
+  function handleObservedResize(
+    pane: LongEditorResizablePane,
+    entries: ResizeObserverEntry[]
+  ): void {
+    if (!longEditorPaneActive(pane) || resizingLongEditorPane.value === pane)
+      return;
+    const entry = entries.find(
+      ({ target }) => target === longEditorPaneContainer(pane)
+    );
+    if (entry) {
+      applyLongEditorPaneWidth(
+        pane,
+        entry.borderBoxSize[0]?.inlineSize ?? entry.contentRect.width
+      );
+    }
+  }
 
   onMounted(() => {
-    entryListResizeObserver = new ResizeObserver(() => {
-      if (resizingLongEditorPane.value !== "entry-list") {
-        setDisplayedLongEditorPaneWidth("entry-list");
-      }
-    });
-    storyPlotListResizeObserver = new ResizeObserver(() => {
-      if (resizingLongEditorPane.value !== "story-plot-list") {
-        setDisplayedLongEditorPaneWidth("story-plot-list");
-      }
-    });
-    if (longEditorDocumentElement.value) {
+    entryListResizeObserver = new ResizeObserver((entries) =>
+      handleObservedResize("entry-list", entries)
+    );
+    storyPlotListResizeObserver = new ResizeObserver((entries) =>
+      handleObservedResize("story-plot-list", entries)
+    );
+    if (longEditorDocumentElement.value && currentUsesAnyRightEntryList.value) {
       entryListResizeObserver.observe(longEditorDocumentElement.value);
     }
-    if (storyPlotLayoutElement.value) {
+    if (storyPlotLayoutElement.value && currentIsPlotPointStoryline.value) {
       storyPlotListResizeObserver.observe(storyPlotLayoutElement.value);
     }
     reconcileLongEditorPaneWidths();

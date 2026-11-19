@@ -75,7 +75,8 @@ describe("PiAgentRuntimeAdapter connection-test thinking options", () => {
     expect(runtimeMocks.buildProviderRuntime).toHaveBeenCalledWith(
       config,
       0.6,
-      "off"
+      "off",
+      { onDeveloperRoleFallback: expect.any(Function) }
     );
     expect(runtimeMocks.streamFn).toHaveBeenCalledWith(
       expect.anything(),
@@ -106,7 +107,8 @@ describe("PiAgentRuntimeAdapter connection-test thinking options", () => {
       expect(runtimeMocks.buildProviderRuntime).toHaveBeenCalledWith(
         config,
         undefined,
-        configuredLevel
+        configuredLevel,
+        { onDeveloperRoleFallback: expect.any(Function) }
       );
       expect(runtimeMocks.streamFn.mock.calls[0]?.[2]).toMatchObject({
         reasoning: carrier,

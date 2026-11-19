@@ -31,6 +31,21 @@ describe("structured application errors", () => {
     ).toContain("content restriction");
   });
 
+  it("explains unsupported developer role errors and points to advanced settings", () => {
+    const raw =
+      "messages[0].role: Input should be 'system', 'user', 'assistant' or 'tool'";
+    const error = { code: "pi_agent.provider_error", message: raw };
+    expect(formatError(error, "fallback")).toContain("developer");
+    expect(formatError(error, "fallback")).toContain("高级配置");
+    expect(formatError(error, "fallback")).toContain("不支持 developer 角色");
+    expect(formatModelProviderError(raw)).toContain("高级配置");
+    expect(getErrorDetail(error)).toContain("高级配置");
+    setAppLanguage("en-US", "zh-CN");
+    expect(formatError(error, "fallback")).toContain("Advanced settings");
+    expect(formatError(error, "fallback")).toContain("Disable developer role");
+    expect(getErrorDetail(error)).not.toContain("…");
+  });
+
   it("localizes the authoritative prompt budget without exposing diagnostic text", () => {
     const error = {
       code: "session.prompt_budget_exceeded",

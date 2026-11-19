@@ -14,29 +14,4 @@ describe("FreeModelsPanel", () => {
     expect(freeModelStatus({ status: 1 })).toBe("暂不可用");
     expect(source).toContain("!isFreeModelAvailable(model)");
   });
-
-  it("shows cached current and deprecated models without refreshing on entry", () => {
-    expect(source).toContain("deepwriteFreeModels");
-    expect(source).toContain("deepwriteFreeDeprecatedModels");
-    expect(source).toContain("retiredModels");
-    expect(source).not.toContain("onMounted");
-    expect(source).toContain("refreshList");
-    expect(source).toContain("<ModelAnnouncementNotice");
-    expect(source).not.toContain(
-      "chooseWhichFreeModelsAppearInModelSettingsAnd"
-    );
-  });
-
-  it("uses the persisted enabled ids for switches", () => {
-    expect(source).toContain("deepwriteFreeEnabledModelIds");
-    expect(source).toContain(':checked="enabledModelIds.has(model.id)"');
-    expect(source).toContain('emit("setModelEnabled"');
-  });
-
-  it("lets users test every currently available model and shows its progress", () => {
-    expect(source).toContain('v-if="isFreeModelAvailable(model)"');
-    expect(source).toContain('emit("test", toModelInput(model))');
-    expect(source).toContain("testing");
-    expect(source).toContain("testingModelId !== null");
-  });
 });

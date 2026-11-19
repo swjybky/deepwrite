@@ -7,134 +7,80 @@ import {
   openMysteryWorkspaceDialog
 } from "../../stores/mysteryWorkspaceNavigation";
 import type { ResourceTreeNode } from "../../types/workspace";
-import type { MysteryDialogState } from "./MysteryDialogs.vue";
-import { mysteryT } from "./messages";
 
 const props = defineProps<{ node: ResourceTreeNode }>();
-const emit = defineEmits<{ close: []; bindAgentTeams: [] }>();
-const treeT = createScopedTranslator("components.treeNodeItem");
+const emit = defineEmits<{
+  close: [];
+}>();
+const t = createScopedTranslator("components.treeNodeItem");
 const disabled = computed(() => {
+  if (props.node.unavailable) return false;
   const port = mysteryWorkspaceNavigation.value;
   return !port || port.bookId() !== props.node.mysteryBookId || port.busy();
 });
 
-function open(dialog: MysteryDialogState): void {
+function open(kind: "renameStructure" | "deleteStructure"): void {
+  const { mysteryBookId, mysteryItem: item } = props.node;
+  if (!mysteryBookId || !item) return;
   emit("close");
-  if (props.node.mysteryBookId)
-    openMysteryWorkspaceDialog(props.node.mysteryBookId, dialog);
+  openMysteryWorkspaceDialog(mysteryBookId, {
+    kind,
+    targetKind: item.kind,
+    id: item.id,
+    title: item.title,
+    tag: item.tag
+  });
 }
 
-async function move(): Promise<void> {
+function move(direction: "up" | "down"): void {
   const item = props.node.mysteryItem;
-  const port = mysteryWorkspaceNavigation.value;
-  if (!item || !port || disabled.value) return;
+  if (!item || disabled.value) return;
   emit("close");
-  await port.moveItem({ kind: item.kind, id: item.id, move: "up" });
+  void mysteryWorkspaceNavigation.value?.moveItem({
+    kind: item.kind,
+    id: item.id,
+    move: direction
+  });
 }
 </script>
 
 <template>
-  <template v-if="node.catalogNodeType === 'mystery-book'">
+  <template v-if="node.mysteryItem">
     <button
       class="tree-node-action-menu-item"
       type="button"
       role="menuitem"
       :disabled="disabled"
-      @click.stop="open({ kind: 'boardSpec' })"
+      @click.stop="open('renameStructure')"
     >
-      <AppIcon name="settings" :size="16" /><span>{{
-        mysteryT("boardSpecButton")
-      }}</span>
-    </button>
-    <button
-      class="tree-node-action-menu-item"
-      type="button"
-      role="menuitem"
-      :disabled="disabled"
-      @click.stop="open({ kind: 'bindings' })"
-    >
-      <AppIcon name="library" :size="16" /><span>{{
-        mysteryT("bindingsButton")
-      }}</span>
-    </button>
-    <button
-      class="tree-node-action-menu-item"
-      type="button"
-      role="menuitem"
-      :disabled="disabled"
-      @click.stop="emit('bindAgentTeams')"
-    >
-      <AppIcon name="brain" :size="16" /><span>{{
-        treeT("agentTeamLinks")
-      }}</span>
-    </button>
-    <button
-      class="tree-node-action-menu-item"
-      type="button"
-      role="menuitem"
-      :disabled="disabled"
-      @click.stop="open({ kind: 'export' })"
-    >
-      <AppIcon name="download" :size="16" /><span>{{
-        mysteryT("exportButton")
-      }}</span>
-    </button>
-    <button
-      class="tree-node-action-menu-item"
-      type="button"
-      role="menuitem"
-      :disabled="disabled"
-      @click.stop="open({ kind: 'manageBook' })"
-    >
-      <AppIcon name="more" :size="16" /><span>{{
-        mysteryT("manageButton")
-      }}</span>
-    </button>
-  </template>
-  <template v-else-if="node.mysteryItem">
-    <button
-      class="tree-node-action-menu-item"
-      type="button"
-      role="menuitem"
-      :disabled="disabled"
-      @click.stop="
-        open({
-          kind: 'renameStructure',
-          targetKind: node.mysteryItem.kind,
-          id: node.mysteryItem.id,
-          title: node.mysteryItem.title,
-          tag: node.mysteryItem.tag
-        })
-      "
-    >
-      <AppIcon name="edit" :size="16" /><span>{{ mysteryT("rename") }}</span>
+      <AppIcon name="edit" :size="16" /><span>{{ t("rename") }}</span>
     </button>
     <button
       class="tree-node-action-menu-item"
       type="button"
       role="menuitem"
       :disabled="disabled || node.mysteryItem.moveUpDisabled"
-      @click.stop="move"
+      @click.stop="move('up')"
     >
-      <AppIcon name="arrow-up" :size="16" /><span>{{
-        mysteryT("moveUp")
-      }}</span>
+      <span>↑</span><span>{{ t("moveUp") }}</span>
+    </button>
+    <button
+      class="tree-node-action-menu-item"
+      type="button"
+      role="menuitem"
+      :disabled="disabled || node.mysteryItem.moveDownDisabled"
+      @click.stop="move('down')"
+    >
+      <span>↓</span><span>{{ t("moveDown") }}</span>
     </button>
     <button
       class="tree-node-action-menu-item is-danger"
       type="button"
       role="menuitem"
       :disabled="disabled || node.mysteryItem.deleteDisabled"
-      @click.stop="
-        open({
-          kind: 'deleteStructure',
-          targetKind: node.mysteryItem.kind,
-          id: node.mysteryItem.id,
-          title: node.mysteryItem.title
-        })
-      "
+      @click.stop="open('deleteStructure')"
     >
-      <AppIcon name="trash" :size="16" /><span>{{ mysteryT("delete") }}</span>
+      <AppIcon name="trash" :size="16" /><span>{{ t("delete") }}</span>
     </button>
   </template>
 </template>

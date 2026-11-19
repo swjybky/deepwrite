@@ -12,9 +12,6 @@ if (
   throw new Error("DEEPWRITE_TEST_MAX_WORKERS must be a positive integer.");
 }
 
-const scaleTest =
-  "apps/desktop/src/utilities/long-book-decomposition/scale.test.ts";
-
 // Durable filesystem, SQLite, and native diagnostics run on one worker.
 // In-memory unit tests keep the normal timeout and parallel scheduling.
 const diskIntegrationTests = [
@@ -143,22 +140,12 @@ const diskIntegrationTests = [
   "apps/desktop/src/extras/agents/sources/long-book-source-commands.test.ts",
   ...[
     "briefs",
-    "chronicle-rewrite",
-    "completion-recovery",
     "creation-recovery",
     "evidence-validation",
     "generated-record-storage",
     "job-state-store",
-    "overview-recovery",
-    "process-recovery",
     "query",
-    "quota-recovery",
     "read-cache",
-    "recovery",
-    "reuse-recovery",
-    "registry-flow",
-    "service",
-    "shared-ref-recovery",
     "source-version",
     "usage-guard",
     "workflow-replanning"
@@ -226,12 +213,12 @@ export default defineConfig({
   test: {
     maxWorkers,
     // A failed suite already blocks packaging; avoid running the slow
-    // scale project afterwards just to report the same failed verification.
+    // disk project afterwards just to report the same failed verification.
     bail: process.env.CI === "true" ? 1 : 0,
     globalSetup: ["./tools/setup-i18n-fixtures.ts"],
     setupFiles: ["./tools/setup-renderer-i18n.ts"],
     environment: "node",
-    // Separate regular, disk integration, and scale phases so expensive durable
+    // Separate regular and disk integration phases so expensive durable
     // writes do not compete with other workers, especially on Windows.
     projects: [
       {
@@ -239,11 +226,7 @@ export default defineConfig({
         test: {
           name: "regular",
           include: testFiles,
-          exclude: [
-            ...configDefaults.exclude,
-            scaleTest,
-            ...diskIntegrationTests
-          ],
+          exclude: [...configDefaults.exclude, ...diskIntegrationTests],
           sequence: { groupOrder: 0 }
         }
       },
@@ -256,15 +239,6 @@ export default defineConfig({
           testTimeout: 30_000,
           hookTimeout: 30_000,
           sequence: { groupOrder: 1 }
-        }
-      },
-      {
-        extends: true,
-        test: {
-          name: "scale",
-          include: [scaleTest],
-          maxWorkers: 1,
-          sequence: { groupOrder: 2 }
         }
       }
     ]

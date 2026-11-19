@@ -226,3 +226,44 @@ describe("ModelConfigStore disabled site models", () => {
     }
   );
 });
+
+describe("ModelConfigStore developer role fallback persistence", () => {
+  it("persists supportsDeveloperRole=false only when the custom model has no explicit setting", async () => {
+    const root = await mkdtemp(join(tmpdir(), "deepwrite-model-dev-role-"));
+    temporaryRoots.push(root);
+    const store = createStore(root);
+    await store.save({
+      models: [
+        customModel(),
+        {
+          ...customModel(),
+          id: "explicit-true",
+          supportsDeveloperRole: true
+        }
+      ],
+      defaultModelId: "custom-writer"
+    });
+
+    const updated = await store.disableDeveloperRole("custom-writer");
+    expect(
+      updated?.models.find((model) => model.id === "custom-writer")
+        ?.supportsDeveloperRole
+    ).toBe(false);
+    expect((await store.resolve("custom-writer"))?.supportsDeveloperRole).toBe(
+      false
+    );
+
+    await expect(
+      store.disableDeveloperRole("custom-writer")
+    ).resolves.toBeUndefined();
+    await expect(
+      store.disableDeveloperRole("explicit-true")
+    ).resolves.toBeUndefined();
+    expect((await store.resolve("explicit-true"))?.supportsDeveloperRole).toBe(
+      true
+    );
+    await expect(
+      store.disableDeveloperRole("missing-model")
+    ).resolves.toBeUndefined();
+  });
+});

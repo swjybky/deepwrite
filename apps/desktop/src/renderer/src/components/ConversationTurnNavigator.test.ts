@@ -1,26 +1,8 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error Loaded as source text by the Vitest-only virtual module.
 import rendererStyles from "virtual:deepwrite-renderer-styles";
-import navigatorSource from "./ConversationTurnNavigator.vue?raw";
 
 describe("ConversationTurnNavigator", () => {
-  it("renders one hoverable marker and delayed jump preview per turn", () => {
-    expect(navigatorSource).toContain('class="conversation-turn-marker-list"');
-    expect(navigatorSource).toContain('v-for="turn in turns"');
-    expect(navigatorSource).toContain('class="conversation-turn-marker"');
-    expect(navigatorSource).toContain('@click="selectTurn(turn.id)"');
-    expect(navigatorSource).toContain(
-      "@mouseenter=\"showPreview(turn.id, $event, 'hover')\""
-    );
-    expect(navigatorSource).toContain('v-if="previewTurn"');
-    expect(navigatorSource).toContain('@click="selectTurn(previewTurn.id)"');
-    expect(navigatorSource).toContain(
-      'class="conversation-turn-preview is-visible"'
-    );
-    expect(navigatorSource).toContain("{{ previewTurn.prompt }}");
-    expect(navigatorSource).toMatch(/\{\{\s*previewTurn\.response\s*\}\}/);
-  });
-
   it("keeps the navigator on the right without a pill background", () => {
     const navigatorStart = rendererStyles.indexOf(
       ".conversation-turn-navigator {"

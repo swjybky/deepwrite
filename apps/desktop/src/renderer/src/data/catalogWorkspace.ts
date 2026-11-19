@@ -1216,7 +1216,8 @@ function createSkillLibraryNode(library: SkillLibrary): ResourceTreeNode {
 }
 
 function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
-  const typeLabel = () => t("catalogWorkspace.skill");
+  const libraryLabel = () =>
+    `${t("catalogWorkspace.skill")} · ${library.isUnbound ? t("catalogWorkspace.unbound") : (library.customTag ?? SKILL_KIND_LABELS[library.skillKind])}`;
   const readOnly = library.isBuiltin ? { readOnly: true as const } : {};
   return [
     {
@@ -1228,7 +1229,7 @@ function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
         });
       },
       get eyebrow() {
-        return `${typeLabel()} · ${library.customTag ?? SKILL_KIND_LABELS[library.skillKind]}`;
+        return libraryLabel();
       },
       get path() {
         return [library.title, t("catalogWorkspace.libraryDescription")];
@@ -1251,15 +1252,10 @@ function createSkillDocuments(library: SkillLibrary): WorkspaceDocument[] {
         return entry.title;
       },
       get eyebrow() {
-        return `${typeLabel()} · ${library.customTag ?? SKILL_KIND_LABELS[library.skillKind]}`;
+        return libraryLabel();
       },
       get path() {
-        return [
-          library.title,
-          library.customTag ?? SKILL_KIND_LABELS[library.skillKind],
-          SKILL_STAGE_LABELS[entry.stageId],
-          entry.title
-        ];
+        return [library.title, SKILL_STAGE_LABELS[entry.stageId], entry.title];
       },
       content: entry.body,
       ...catalogContentState(entry),

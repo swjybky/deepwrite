@@ -116,6 +116,7 @@ const LibraryStructureOperationUnionSchema = z.discriminatedUnion("action", [
       content: z.string().max(40000),
       stageId: z.string().min(1).max(120),
       libraryType: LibraryType.optional(),
+      /** Accepted when replaying proposals generated before loose skills were shared. */
       skillKind: z.enum(["general", "plot", "style", "other"]).optional()
     })
     .strict(),

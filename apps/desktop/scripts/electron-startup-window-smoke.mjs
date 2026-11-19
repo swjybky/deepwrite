@@ -71,7 +71,7 @@ try {
     });
   }
   console.log(
-    "Startup window smoke passed: native capture, fixed size after resize, restart restoration and default reset through Preload and Main."
+    "Startup window smoke passed: auto size capture on resize, restart restoration, default mode lock on resize and default reset through Renderer, Preload and Main."
   );
 } finally {
   await rm(root, {

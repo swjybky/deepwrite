@@ -14,7 +14,7 @@ export function useMysteryDocument(options: {
   target(): MysteryDocumentTarget;
   selectTarget?(target: MysteryDocumentTarget): void;
   autoSaveEnabled(): boolean;
-  refreshBook(summary: MysteryBookSummary): Promise<void>;
+  refreshBook(bookId: string, summary?: MysteryBookSummary): Promise<void>;
   onLoadError(error: unknown): void;
   onSaveError(error: unknown): void;
 }) {
@@ -128,7 +128,10 @@ export function useMysteryDocument(options: {
       if (disposed || key !== documentKey()) return false;
       savedContent.value = content;
       revision = result.revision;
-      if ("summary" in result) await options.refreshBook(result.summary);
+      await options.refreshBook(
+        bookId,
+        "summary" in result ? result.summary : undefined
+      );
       return !disposed && key === documentKey();
     } catch (error: unknown) {
       if (disposed || key !== documentKey()) return false;
@@ -218,6 +221,7 @@ export function useMysteryDocument(options: {
     reloadConflict,
     overwriteConflict,
     docContent,
+    savedContent,
     docDirty,
     docLoading,
     docReady,

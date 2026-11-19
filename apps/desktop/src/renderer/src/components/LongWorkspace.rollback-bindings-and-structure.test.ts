@@ -2,10 +2,8 @@ import continuityTreeSource from "../utils/longWorkspaceContinuityTree.ts?raw";
 import continuitySelectionSource from "../types/longContinuitySelection.ts?raw";
 import {
   appSource,
-  bindingsSource,
   conversationStoreSource,
   describe,
-  editorSessionSource,
   editorSource,
   expect,
   it,
@@ -135,27 +133,6 @@ describe("long-form renderer vertical slice: bindings-and-structure", () => {
       "await catalog.loadBookList({ force: true })"
     );
     expect(longWorkspaceSessionSource).toContain("catalogRetryAttempts < 2");
-  });
-
-  it("updates long resource bindings through the isolated command", () => {
-    expect(workspaceDialogLayerSource).toContain("<LongBookBindingsDialog");
-    expect(appSource).toContain(
-      '@submit-long-bindings="updateLongBookBindings"'
-    );
-    expect(longBookLifecycleSource).toContain("api.updateBindings({");
-    expect(longBookLifecycleSource).not.toContain("expectedProjectRevision");
-    expect(appSource).not.toContain("synchronizeProjectRevisions");
-    expect(editorSessionSource).not.toContain("synchronizeProjectRevisions");
-    expect(bindingsSource).toContain("<PopupSelect");
-    expect(bindingsSource).toContain("create-short-binding-panel");
-    expect(bindingsSource).toContain("lib-picker-list");
-    expect(bindingsSource).not.toContain("生效阶段");
-    expect(bindingsSource).not.toContain("<LongBindingStageScopes");
-    expect(longBookLifecycleSource).toContain("linkedResourceStageScopes:");
-    expect(bindingsSource).toContain("valueMissingFromCatalog");
-    expect(bindingsSource).not.toContain('library.materialType === "long"');
-    expect(bindingsSource).not.toContain('library.skillType === "long"');
-    expect(bindingsSource).not.toContain("catalog.updateBook");
   });
 
   it("applies manual structure changes directly after an internal impact check", () => {

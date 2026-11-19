@@ -1,6 +1,10 @@
 import { createScopedTranslator } from "../i18n";
 import { createConversationPreferenceState } from "./conversationPreferenceState";
 import { createConversationPersistenceState } from "./conversationPersistenceState";
+import type {
+  ConversationPersistenceAdapter,
+  ConversationPersistenceOptions
+} from "./conversationPersistenceTypes";
 import { flushConversationsBeforeClose } from "./conversationClose";
 import { watchConversationCheckpoints } from "../composables/watchConversationCheckpoints";
 import { conversationHistoryPersistenceKey } from "../utils/conversationPersistenceKeys";
@@ -29,6 +33,7 @@ const t = createScopedTranslator("workspace");
 export interface DisposeConversationStoreOptions {
   flush?: boolean;
   clearControllerPersistence?: boolean;
+  expectedPersistenceAdapter?: ConversationPersistenceAdapter | null;
 }
 
 export const useConversationStore = defineStore("conversation", () => {
@@ -66,7 +71,6 @@ export const useConversationStore = defineStore("conversation", () => {
     persistenceBusy,
     persistenceProgress,
     scheduleControllerPersistence,
-    configurePersistenceAdapter,
     schedulePersistence,
     schedulePersistenceFactory,
     flushPersistence,
@@ -213,9 +217,15 @@ export const useConversationStore = defineStore("conversation", () => {
   async function dispose(
     options: DisposeConversationStoreOptions = {}
   ): Promise<void> {
+    const ownsPersistence = () =>
+      options.expectedPersistenceAdapter === undefined ||
+      persistence.isPersistenceAdapter(options.expectedPersistenceAdapter);
+    if (!ownsPersistence()) return;
     // A failed flush leaves the live controllers and recovery queue available.
     if (options.flush !== false) await flushPersistence();
     else persistence.discardPendingPersistence();
+    // A remounted workspace may take ownership while the previous one flushes.
+    if (!ownsPersistence()) return;
     persistence.stopScheduling();
     disposeAllControllers(
       options.clearControllerPersistence === undefined
@@ -223,6 +233,18 @@ export const useConversationStore = defineStore("conversation", () => {
         : { clearPersistence: options.clearControllerPersistence }
     );
     persistence.disconnect();
+  }
+
+  function configurePersistenceAdapter(
+    adapter: ConversationPersistenceAdapter | null,
+    options?: ConversationPersistenceOptions
+  ): () => Promise<void> {
+    persistence.configurePersistenceAdapter(adapter, options);
+    return () =>
+      dispose({
+        flush: adapter !== null,
+        expectedPersistenceAdapter: adapter
+      });
   }
 
   onScopeDispose(() => {

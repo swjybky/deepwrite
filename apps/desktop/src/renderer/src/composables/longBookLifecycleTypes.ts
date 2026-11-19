@@ -1,9 +1,6 @@
 import type {
   ExportLongManuscriptInput,
   ExportLongManuscriptResult,
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  LongLinkedResourceStageScopes,
   LongApplyLegacySyncResult,
   LongBookSummary,
   LongChooseContinuationImportSourceResult,
@@ -27,7 +24,6 @@ import type { LongManuscriptExportRequest } from "../utils/longManuscriptExport"
 
 export type MaybePromise<Value> = Value | Promise<Value>;
 export type PendingLane = "mutation" | "book-action" | "manuscript-export";
-export type LongBindingsDialogMode = "skill" | "material";
 
 export interface LongBookLifecycleNotifications {
   error(message: string): void;
@@ -51,7 +47,6 @@ export interface LongBookLifecycleState {
   structureDialogOpen: Ref<boolean>;
   structureAgentsMd: Ref<string | null>;
   structureAgentsMdPending: Ref<boolean>;
-  bindingsDialogMode: Ref<LongBindingsDialogMode | null>;
   exportTarget: Ref<LongBookRenameTarget | null>;
   bookRenameTarget: Ref<LongBookRenameTarget | null>;
   bookRemovalTarget: Ref<LongBookRemovalTarget | null>;
@@ -129,10 +124,4 @@ export interface LongBookLifecycleCoordinatorOptions {
   manuscript: LongBookLifecycleManuscriptPort;
   scheduler: LongBookLifecycleSchedulerPort;
   notifications: LongBookLifecycleNotifications;
-}
-
-export interface LongBookBindingsUpdate {
-  readonly linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
-  readonly linkedSkillIdsByKind: LinkedSkillIdsByKind;
-  readonly linkedResourceStageScopes?: LongLinkedResourceStageScopes;
 }

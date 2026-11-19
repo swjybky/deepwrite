@@ -71,12 +71,15 @@ export function applyBatchModelSettings(
       delete model.requestModelId;
       delete model.contextWindow;
       delete model.maxTokens;
+      delete model.supportsDeveloperRole;
       if (previous?.requestModelId)
         model.requestModelId = previous.requestModelId;
       if (previous?.contextWindow !== undefined)
         model.contextWindow = previous.contextWindow;
       if (previous?.maxTokens !== undefined)
         model.maxTokens = previous.maxTokens;
+      if (previous?.supportsDeveloperRole !== undefined)
+        model.supportsDeveloperRole = previous.supportsDeveloperRole;
     }
     delete model.sourceApiKeyId;
     if (

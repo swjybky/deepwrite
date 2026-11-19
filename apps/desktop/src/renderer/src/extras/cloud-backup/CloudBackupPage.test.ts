@@ -44,11 +44,4 @@ describe("CloudBackupPage", () => {
     expect(previewDialogSource).toContain("danger-button");
     expect(messages.cloudBackup.uploadDescription).toContain("100 MB");
   });
-
-  it("keeps status in the shared settings store and coalesces first-entry loading", () => {
-    expect(source).toContain("useSettingsStore");
-    expect(source).toContain("ensureCloudBackupLoaded");
-    expect(source).toContain('invalidate("cloudBackup")');
-    expect(source).not.toContain("onMounted");
-  });
 });

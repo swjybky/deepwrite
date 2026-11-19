@@ -11,19 +11,11 @@ export default {
     "Maximum output length cannot exceed context length.",
   modelSettings: "Model settings",
   advancedSettings: "Advanced settings",
-  generateASubagentDraftFor: "Generate a subagent draft for “",
-  defaultsMatchTheCurrentRequestSavedChangesApplyTo:
-    "”. Defaults match the current request; saved changes apply to future requests.",
   contextLength: "Context length",
   readingActualRequestCapacity: "Reading actual request capacity…",
-  totalTokensPerRequestIncludingInputAndOutput:
-    "Total tokens per request, including input and output.",
   maximumOutputLength: "Maximum output length",
-  maximumTokensGeneratedInASingleReply:
-    "Maximum tokens generated in a single reply.",
+  devRoleOff: "Disable developer role",
   cancel: "Cancel",
   saving: "Saving…",
-  save: "Save",
-  setRequestCapacityForDefaultsMatchTheMessage:
-    "Set request capacity for “{arg0}”. Defaults match the current request; saved changes apply to future requests."
+  save: "Save"
 };

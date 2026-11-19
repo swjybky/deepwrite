@@ -1,3 +1,4 @@
+import { bookBindingsTarget } from "../stores/bookBindingsDialog";
 import {
   createCatalogDraftDirectory,
   createDefaultBookPlotStages,
@@ -135,7 +136,7 @@ function fixtureTarget(
 interface HarnessOptions {
   book?: Book | null;
   target?: ShortBookLifecycleTarget;
-  mode?: "rename" | "bind-skill" | "bind-material" | "remove" | "delete";
+  mode?: "rename" | "bind" | "remove" | "delete";
   catalogPending?: boolean;
   refreshResult?: boolean;
   prepareResult?: boolean;
@@ -147,9 +148,9 @@ function createHarness(options: HarnessOptions = {}) {
   if (initialBook) books.set(initialBook.id, initialBook);
   const target = options.target ?? fixtureTarget();
   const dialogIntent = ref(target.requestId);
-  const bookDialogMode = ref<
-    "rename" | "bind-skill" | "bind-material" | "remove" | "delete" | null
-  >(options.mode ?? "rename");
+  const bookDialogMode = ref<"rename" | "bind" | "remove" | "delete" | null>(
+    options.mode ?? "rename"
+  );
   const activeBook = shallowRef<ShortBookLifecycleTarget | null>(target);
   const exportBookTarget = shallowRef<ShortBookLifecycleTarget | null>(null);
   const manuscriptExportPending = ref(false);
@@ -372,12 +373,13 @@ describe("useShortBookLifecycleCoordinator", () => {
   });
 
   it("keeps a newer binding dialog when an older update completes", async () => {
-    const harness = createHarness({ mode: "bind-skill" });
+    const harness = createHarness({ mode: "bind" });
     const update = deferred<Book>();
     harness.apiMocks.updateBook.mockImplementationOnce(() => update.promise);
-    const operation = harness.coordinator.updateBookBindings({
-      bookId: "book-1",
+    harness.coordinator.openBookBindings(harness.target);
+    const operation = bookBindingsTarget.value?.saveLibrary({
       domain: "skill",
+      ids: ["skill-example"],
       linksByKind: {
         general: ["skill-example"],
         plot: [],
@@ -388,13 +390,16 @@ describe("useShortBookLifecycleCoordinator", () => {
     await waitFor(() => harness.apiMocks.updateBook.mock.calls.length === 1);
 
     const newer = fixtureTarget({ requestId: 2, label: "另一目标" });
-    harness.showDialog(newer, "bind-material");
+    harness.showDialog(newer, "bind");
+    harness.coordinator.openBookBindings(newer);
     update.resolve(fixtureBook("book-1", 5));
     await operation;
 
     expect(harness.activeBook.value).toBe(newer);
-    expect(harness.bookDialogMode.value).toBe("bind-material");
+    expect(harness.bookDialogMode.value).toBe("bind");
+    expect(bookBindingsTarget.value?.title).toBe("另一目标");
     expect(harness.notifications.success).not.toHaveBeenCalled();
+    await harness.coordinator.dispose();
   });
 
   it("does not acquire or clear a foreign catalog pending flag", async () => {
@@ -671,10 +676,11 @@ describe("useShortBookLifecycleCoordinator", () => {
       requestId: 2,
       projectRevision: undefined
     });
-    harness.showDialog(bindingsTarget, "bind-material");
-    await harness.coordinator.updateBookBindings({
-      bookId: "book-1",
+    harness.showDialog(bindingsTarget, "bind");
+    harness.coordinator.openBookBindings(bindingsTarget);
+    await bookBindingsTarget.value?.saveLibrary({
       domain: "material",
+      ids: ["material-example"],
       linksByKind: {
         character: ["material-example"],
         gimmick: [],
@@ -684,6 +690,7 @@ describe("useShortBookLifecycleCoordinator", () => {
       }
     });
     expect(harness.legacy.updateBindings).toHaveBeenCalledTimes(1);
+    bookBindingsTarget.value?.close?.();
 
     const removeTarget = fixtureTarget({
       requestId: 3,

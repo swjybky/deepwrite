@@ -56,6 +56,7 @@ export type IconName =
 
 import type {
   MysteryDocumentTarget,
+  MysteryStageId,
   AcademicBookSubtype,
   AcademicCitationStyle,
   AcademicReferenceCardType,
@@ -175,13 +176,7 @@ export interface LongTreeItemTarget {
 export type LongTreeItemAction = "move-up" | "move-down" | "delete";
 
 export type BookResourceDialogMode =
-  | "manage-structure"
-  | "rename"
-  | "duplicate"
-  | "remove"
-  | "delete"
-  | "bind-skill"
-  | "bind-material";
+  "manage-structure" | "rename" | "duplicate" | "remove" | "delete" | "bind";
 
 export interface ResourceTreeNode {
   canMoveLibraryUp?: boolean;
@@ -260,13 +255,16 @@ export interface ResourceTreeNode {
   /** Mystery books use a dedicated 5-stage workspace store. */
   mysteryBookId?: string;
   mysteryTarget?: MysteryDocumentTarget;
+  mysteryStage?: MysteryStageId;
   mysteryCollection?: "truth_doc" | "role" | "act" | "clue_round";
   mysteryItem?: {
     kind: "truth_doc" | "role" | "act" | "clue_round";
     id: string;
     title: string;
     tag?: string | undefined;
+    renameDisabled?: boolean;
     moveUpDisabled: boolean;
+    moveDownDisabled: boolean;
     deleteDisabled: boolean;
   };
   /** Long-form navigation nodes reuse the standard resource tree styling. */

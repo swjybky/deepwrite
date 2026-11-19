@@ -16,11 +16,13 @@ import { installSkill, listSkillTargets } from "./skill-install";
 import { createClientApproval } from "./client-approval";
 import {
   createExternalControlServer,
+  endpointAnswers,
   type ExternalControlServer
 } from "./control-server";
 import type { ExternalControlPaths } from "./control-paths";
 import {
   ensurePrivateDirectory,
+  readExternalControlState,
   removeExternalControlState,
   writeExternalControlState
 } from "./control-state-file";
@@ -164,7 +166,26 @@ export function createExternalControl(options: ExternalControlOptions) {
     });
   }
 
+  /**
+   * Smoke and probe profiles bypass the single-instance lock but share this
+   * home directory, so a running development app's endpoint is not ours.
+   */
+  async function servedByAnotherInstance(): Promise<boolean> {
+    const state = await readExternalControlState(options.paths.stateFile);
+    if (state?.status !== "ready" || state.pid === pid) return false;
+    return endpointAnswers(options.paths.endpoint);
+  }
+
+  async function removeOwnState(): Promise<void> {
+    if (await servedByAnotherInstance()) return;
+    await removeExternalControlState(options.paths.stateFile);
+  }
+
   async function startServer(): Promise<void> {
+    if (await servedByAnotherInstance()) {
+      warn("DeepWrite external control is served by another instance");
+      return;
+    }
     const token = createToken();
     const created = createExternalControlServer({
       endpoint: options.paths.endpoint,
@@ -187,6 +208,7 @@ export function createExternalControl(options: ExternalControlOptions) {
   }
 
   async function publishStopped(): Promise<void> {
+    if (await servedByAnotherInstance()) return;
     if (updating) {
       // Holds bridges back until the next app start replaces this file.
       await writeExternalControlState(options.paths.stateFile, {
@@ -225,9 +247,7 @@ export function createExternalControl(options: ExternalControlOptions) {
         }`
       );
       await stopServer().catch(() => undefined);
-      await removeExternalControlState(options.paths.stateFile).catch(
-        () => undefined
-      );
+      await removeOwnState().catch(() => undefined);
     });
     return queue;
   }

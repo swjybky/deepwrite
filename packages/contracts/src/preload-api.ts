@@ -201,6 +201,13 @@ import type {
   MarketplaceUpdateInput
 } from "./marketplace";
 import type {
+  MarketplaceMaterialDetail,
+  MarketplaceMaterialFilter,
+  MarketplaceMaterialInstallResult,
+  MarketplaceMaterialRef,
+  MarketplaceMaterialSummary
+} from "./material-marketplace";
+import type {
   AgentTeamMarketplaceDetail,
   AgentTeamMarketplaceInstallResult,
   AgentTeamMarketplaceLikeInput,
@@ -272,6 +279,13 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
       ref: MarketplaceContentRef
     ): Promise<MarketplaceInstallPreview>;
     install(input: MarketplaceInstallInput): Promise<MarketplaceInstallResult>;
+    listMaterials(
+      filter?: MarketplaceMaterialFilter
+    ): Promise<MarketplaceMaterialSummary[]>;
+    materialDetail(id: string): Promise<MarketplaceMaterialDetail>;
+    installMaterial(
+      ref: MarketplaceMaterialRef
+    ): Promise<MarketplaceMaterialInstallResult>;
   };
   /** The signed-in user's feedback; sign-in goes through `marketplace`. */
   feedback: {

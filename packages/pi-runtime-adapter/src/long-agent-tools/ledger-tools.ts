@@ -2,7 +2,7 @@ import { proposeContinuityReview } from "./review-continuity";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import {
-  LongCommitChapterInputSchema,
+  LongTextFilesBatchCommitInputSchema,
   type LongContinuityFileRole,
   type LongWorkspaceFileReference,
   type LongWorkspaceIndexSnapshot
@@ -334,7 +334,7 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
         );
       }
 
-      const commitInput = LongCommitChapterInputSchema.parse({
+      const commitInput = LongTextFilesBatchCommitInputSchema.parse({
         mode: "text_files_batch",
         bookId: workspace.bookId,
         chapterCardIds,
@@ -361,16 +361,18 @@ export function buildLedgerCommitTool(ctx: LongToolContext): AgentTool {
           : {})
       });
       if (
+        commitInput.preparation &&
         combined?.changes &&
         combined.result.details.kind === "long-continuity-file-proposal"
       ) {
         ctx.rememberProposal({
           operations: combined.result.details.batch.operations,
           changes: combined.changes,
-          timestamp: combined.timestamp
+          timestamp: combined.timestamp,
+          fromContinuityProposal: true
         });
         return textResult(
-          "已形成连续性文件与账本的合并提案，客户端接受后将原子保存；未接受前尚未落盘。",
+          `已形成连续性文件与账本的合并提案，等待客户端原子保存。通过 list(scope_id="${activeChapterCardId}", view="continuity") 查到本批账本 ${commitInput.preparation.commitId} 后，才可确认已归档。`,
           {
             kind: "long-continuity-commit-proposal",
             bookId: workspace.bookId,

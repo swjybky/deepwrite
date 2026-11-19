@@ -166,11 +166,32 @@ const resolvedScheme = computed<ColorScheme>(() =>
 );
 const activeTheme = computed(() => state[resolvedScheme.value]);
 let initialized = false;
+let hydrated = false;
 let suppressPersist = false;
+let pendingWindowSizeCapture = false;
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 let persistChain: Promise<void> = Promise.resolve();
 let persistFailed = false;
 let hydratePromise: Promise<void> | undefined;
+
+function readWindowOuterSize(): { width: number; height: number } | null {
+  if (typeof window === "undefined") return null;
+  const width = Math.round(window.outerWidth || window.innerWidth || 0);
+  const height = Math.round(window.outerHeight || window.innerHeight || 0);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+function handleWindowResize(): void {
+  if (!hydrated || state.startupWindowSize === null) return;
+  const nextSize = readWindowOuterSize();
+  if (nextSize) {
+    suppressPersist = true;
+    state.startupWindowSize = nextSize;
+    suppressPersist = false;
+  }
+  pendingWindowSizeCapture = true;
+  persist();
+}
 
 function applyToDocument(): void {
   applyAppearanceThemeToDocument({
@@ -181,7 +202,10 @@ function applyToDocument(): void {
   });
 }
 
-function queueDesktopPersist(settings: AppearanceSettings): void {
+function queueDesktopPersist(
+  settings: AppearanceSettings,
+  captureCurrentWindowSize = false
+): void {
   const api = window.deepwrite?.appearance;
   if (!api) {
     persistToLegacyStorage();
@@ -190,12 +214,28 @@ function queueDesktopPersist(settings: AppearanceSettings): void {
   persistChain = persistChain
     .catch(() => undefined)
     .then(async () => {
-      await api.save(settings);
+      const snapshot = captureCurrentWindowSize
+        ? await api.save(settings, { captureCurrentWindowSize: true })
+        : await api.save(settings);
+      if (
+        captureCurrentWindowSize &&
+        persistTimer === undefined &&
+        !pendingWindowSizeCapture &&
+        state.startupWindowSize !== null &&
+        snapshot?.settings?.startupWindowSize
+      ) {
+        suppressPersist = true;
+        state.startupWindowSize = snapshot.settings.startupWindowSize;
+        suppressPersist = false;
+      }
       persistFailed = false;
       clearLegacyStorage();
     })
     .catch(() => {
       persistFailed = true;
+      if (captureCurrentWindowSize && state.startupWindowSize !== null) {
+        pendingWindowSizeCapture = true;
+      }
       persistToLegacyStorage();
     });
 }
@@ -208,16 +248,20 @@ function persist(): void {
   persistTimer = setTimeout(() => {
     persistTimer = undefined;
     if (typeof window === "undefined") return;
-    queueDesktopPersist(captureSettings());
+    const captureWindowSize = pendingWindowSizeCapture;
+    pendingWindowSizeCapture = false;
+    queueDesktopPersist(captureSettings(), captureWindowSize);
   }, PERSIST_DEBOUNCE_MS);
 }
 
 async function flush(): Promise<void> {
   await nextTick();
-  if (persistTimer !== undefined || persistFailed) {
+  if (persistTimer !== undefined || pendingWindowSizeCapture || persistFailed) {
     clearTimeout(persistTimer);
     persistTimer = undefined;
-    queueDesktopPersist(captureSettings());
+    const captureWindowSize = pendingWindowSizeCapture;
+    pendingWindowSizeCapture = false;
+    queueDesktopPersist(captureSettings(), captureWindowSize);
   }
   let pending: Promise<void>;
   do {
@@ -286,7 +330,10 @@ async function applyDesktopSettings(
 
 async function hydrateFromDesktop(): Promise<void> {
   const api = window.deepwrite?.appearance;
-  if (!api) return;
+  if (!api) {
+    hydrated = true;
+    return;
+  }
   try {
     const [snapshot] = await Promise.all([
       api.list(),
@@ -313,6 +360,8 @@ async function hydrateFromDesktop(): Promise<void> {
     clearLegacyStorage();
   } catch {
     // Keep the bootstrapped theme (legacy localStorage or defaults) if hydration fails.
+  } finally {
+    hydrated = true;
   }
 }
 
@@ -320,13 +369,15 @@ function initialize(): void {
   if (initialized) return;
   initialized = true;
   media.addEventListener("change", handleSystemSchemeChange);
+  window.addEventListener?.("resize", handleWindowResize);
   watch(
     state,
     () => {
+      if (suppressPersist) return;
       applyToDocument();
-      if (!suppressPersist) persist();
+      persist();
     },
-    { deep: true }
+    { deep: true, flush: "sync" }
   );
   applyToDocument();
   hydratePromise = hydrateFromDesktop();
@@ -402,6 +453,7 @@ export function resetTheme(scheme: ColorScheme): void {
 }
 
 async function saveStartupWindowSize(capture: boolean): Promise<void> {
+  pendingWindowSizeCapture = false;
   await flush();
   const api = window.deepwrite?.appearance;
   if (!api) throw new Error("Desktop appearance API unavailable");
@@ -410,7 +462,9 @@ async function saveStartupWindowSize(capture: boolean): Promise<void> {
   const snapshot = await api.save(settings, {
     captureCurrentWindowSize: capture
   });
+  suppressPersist = true;
   state.startupWindowSize = snapshot.settings.startupWindowSize;
+  suppressPersist = false;
 }
 
 export function useAppearance() {

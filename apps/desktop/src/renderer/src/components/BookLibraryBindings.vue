@@ -15,7 +15,11 @@ import {
 
 const t = createScopedTranslator("components.bookLibraryBindings");
 const props = defineProps<
-  BookLibrarySelectionProps & { loading?: boolean; submitting?: boolean }
+  BookLibrarySelectionProps & {
+    loading?: boolean;
+    submitting?: boolean;
+    domain?: "skill" | "material";
+  }
 >();
 const emit = defineEmits<{
   change: [
@@ -86,6 +90,7 @@ watch(
 
 <template>
   <section
+    v-if="domain !== 'material'"
     class="create-short-binding-panel lib-picker-stack"
     aria-labelledby="create-short-skill-heading"
   >
@@ -208,6 +213,7 @@ watch(
   </section>
 
   <section
+    v-if="domain !== 'skill'"
     class="create-short-binding-panel lib-picker-stack"
     aria-labelledby="create-short-material-heading"
   >

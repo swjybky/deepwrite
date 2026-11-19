@@ -4,7 +4,6 @@ import conversationListSource from "./ConversationMessageList.vue?raw";
 import conversationItemSource from "./ConversationMessageItem.vue?raw";
 import processingTimelineSource from "./ConversationProcessingTimeline.vue?raw";
 import processingItemSource from "./ConversationProcessingItem.vue?raw";
-import bindingsSource from "./LongBookBindingsDialog.vue?raw";
 import chapterCardDialogSource from "./CreateLongChapterCardDialog.vue?raw";
 import characterDialogSource from "./CreateLongCharacterDialog.vue?raw";
 import characterNavigationSource from "./LongCharacterNavigation.vue?raw";
@@ -88,7 +87,6 @@ export {
   agentConversationSource,
   agentRunPreferencesSource,
   appSource,
-  bindingsSource,
   chapterCardDialogSource,
   characterDialogSource,
   characterNavigationSource,

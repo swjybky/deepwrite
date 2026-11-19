@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch
+} from "vue";
 import type {
   LongWorkspaceIndexSnapshot,
   LongWorkspaceOperationBatch
@@ -11,9 +18,11 @@ import type {
   LongWorldbuildingSyncRequest
 } from "../types/longWorkspace";
 import AppIcon from "./AppIcon.vue";
+import BookManagementName from "./BookManagementName.vue";
 import LongStructureManager from "./LongStructureManager.vue";
 
 const t = createScopedTranslator("components.longStructureDialog");
+const actionT = createScopedTranslator("components.longBookActionMenu");
 
 const props = defineProps<{
   open: boolean;
@@ -28,10 +37,17 @@ const props = defineProps<{
   }>;
   snapshot: LongWorkspaceIndexSnapshot | null;
   pending?: boolean;
+  heading?: string;
+  childOpen?: boolean;
+  showBookActions?: boolean;
+  showRename?: boolean;
 }>();
+
+type BookManagementAction = "rename" | "sync-legacy" | "resolve-conflicts";
 
 const emit = defineEmits<{
   close: [];
+  bookAction: [action: BookManagementAction];
   mutation: [
     batch: LongWorkspaceOperationBatch,
     completion: LongStructureMutationCompletion
@@ -48,7 +64,10 @@ const closeButton = ref<HTMLButtonElement | null>(null);
 const manager = ref<{
   flushAgentsMdIfNeeded(): Promise<boolean>;
 } | null>(null);
-const childModalActive = ref(false);
+const managerModalActive = ref(false);
+const childModalActive = computed(
+  () => props.childOpen || managerModalActive.value
+);
 let previousFocus: HTMLElement | null = null;
 
 async function close(): Promise<void> {
@@ -57,6 +76,17 @@ async function close(): Promise<void> {
     return;
   }
   emit("close");
+}
+
+async function activateBookAction(action: BookManagementAction): Promise<void> {
+  if (props.pending) return;
+  if (
+    action !== "resolve-conflicts" &&
+    manager.value &&
+    !(await manager.value.flushAgentsMdIfNeeded())
+  )
+    return;
+  emit("bookAction", action);
 }
 
 function forwardMutation(
@@ -138,7 +168,8 @@ watch(
     previousFocus = null;
     await nextTick();
     if (target?.isConnected) target.focus({ preventScroll: true });
-  }
+  },
+  { immediate: true }
 );
 
 onMounted(() => document.addEventListener("keydown", handleKeydown));
@@ -155,7 +186,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
       <section
         ref="dialogElement"
         class="long-structure-dialog"
-        :class="{ 'is-suspended': childModalActive }"
+        :class="{
+          'is-suspended': childModalActive,
+          'has-book-name': showBookActions || showRename,
+          'has-book-actions': showBookActions
+        }"
         :role="childModalActive ? undefined : 'dialog'"
         :aria-modal="childModalActive ? undefined : 'true'"
         :aria-hidden="childModalActive ? 'true' : undefined"
@@ -165,9 +200,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
       >
         <header class="long-structure-dialog-header">
           <div>
-            <span>{{ t("novelSettings") }}</span>
+            <span>{{ heading ? bookTitle : t("novelSettings") }}</span>
             <strong id="long-structure-dialog-title">
               {{
+                heading ??
                 t("structureManagementMessage", {
                   arg0: bookTitle ?? ""
                 })
@@ -184,20 +220,50 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
             <AppIcon name="close" :size="16" />
           </button>
         </header>
-        <LongStructureManager
-          v-if="snapshot"
-          ref="manager"
-          :snapshot="snapshot"
-          :current-book-id="bookId"
-          :agents-md="agentsMd"
-          :agents-md-pending="agentsMdPending"
-          :sync-book-options="syncBookOptions"
-          :disabled="pending"
-          @mutation="forwardMutation"
-          @modal-active-change="childModalActive = $event"
-          @sync-worldbuilding="forwardSyncWorldbuilding"
-          @save-agents-md="forwardSaveAgentsMd"
+        <BookManagementName
+          v-if="showBookActions || showRename"
+          :title="bookTitle"
+          :pending="pending"
+          @rename="activateBookAction('rename')"
         />
+        <slot>
+          <LongStructureManager
+            v-if="snapshot"
+            ref="manager"
+            :snapshot="snapshot"
+            :current-book-id="bookId"
+            :agents-md="agentsMd"
+            :agents-md-pending="agentsMdPending"
+            :sync-book-options="syncBookOptions"
+            :disabled="pending"
+            @mutation="forwardMutation"
+            @modal-active-change="managerModalActive = $event"
+            @sync-worldbuilding="forwardSyncWorldbuilding"
+            @save-agents-md="forwardSaveAgentsMd"
+          />
+        </slot>
+        <footer
+          v-if="showBookActions"
+          class="dialog-actions book-management-actions"
+        >
+          <button
+            class="dialog-secondary-button"
+            type="button"
+            :disabled="pending"
+            @click="activateBookAction('sync-legacy')"
+          >
+            {{ actionT("syncLegacyVersion") }}
+          </button>
+          <button
+            class="dialog-secondary-button"
+            type="button"
+            :title="actionT('keepChangesOnDiskResolveFileConflictsAndRefresh')"
+            :disabled="pending"
+            @click="activateBookAction('resolve-conflicts')"
+          >
+            {{ actionT("resolveConflicts") }}
+          </button>
+        </footer>
       </section>
     </div>
   </Teleport>
@@ -221,6 +287,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
   box-shadow: 0 22px 70px
     color-mix(in srgb, var(--text-primary) 18%, transparent);
   color: var(--text-primary);
+}
+
+.long-structure-dialog.has-book-name {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.long-structure-dialog.has-book-actions {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .long-structure-dialog.is-suspended {
@@ -288,5 +362,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
     max-height: calc(100vh - 16px);
     border-radius: 12px;
   }
+}
+
+.book-management-actions {
+  flex: none;
+  margin: 0;
+  padding: 10px 22px;
+  border-top: 1px solid var(--theme-line-soft);
 }
 </style>

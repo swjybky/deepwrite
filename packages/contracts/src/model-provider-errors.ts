@@ -13,6 +13,9 @@ const CONTENT_BLOCK_MESSAGE =
   /(?:Provider (?:stopped with|finish_reason):\s*|["'](?:finishReason|finish_reason|blockReason)["']\s*:\s*["'])(PROHIBITED_CONTENT|SAFETY|BLOCKLIST|SPII|RECITATION|content_filter)\b/iu;
 const CONTENT_BLOCK_MARKER = /\b(PROHIBITED_CONTENT|content_filter)\b/iu;
 
+const DEVELOPER_ROLE_REJECTED =
+  /(?:\brole\b|角色)[^.\n]{0,80}['"`]?\bdeveloper\b['"`]?[^.\n]{0,80}(?:invalid|unsupported|not\s+support(?:ed)?|not\s+allowed|unknown|unrecognized|illegal|unexpected|must\s+be|should\s+be|one\s+of|permitted|expected|enum|不支持|无效|非法|不允许)|(?:invalid|unsupported|not\s+support(?:ed)?|not\s+allowed|unknown|unrecognized|illegal|unexpected|不支持|无效|非法|不允许)[^.\n]{0,80}(?:\brole\b|角色)[^.\n]{0,40}['"`]?\bdeveloper\b['"`]?|(?:invalid|unsupported|not\s+support(?:ed)?|not\s+allowed|unknown|unrecognized|illegal|unexpected|不支持|无效|非法|不允许)[^.\n]{0,40}['"`]?\bdeveloper\b['"`]?[^.\n]{0,40}(?:\brole\b|角色)|['"`]?\bdeveloper\b['"`]?\s+(?:role\s+)?is\s+not\s+(?:a\s+valid|supported|allowed|one\s+of\b)|(?:\brole\b|messages(?:\[\d+\]|\.\d+)?\.role)[^.\n]{0,120}(?:must\s+be\s+one\s+of|should\s+be|permitted|expected|supported\s+values(?:\s+are)?)\s*:?\s*[[(]?\s*['"]?system['"]?\s*(?:,|\|)\s*['"]?user['"]?\s*(?:,|\|)\s*['"]?assistant['"]?/iu;
+
 /** Content restrictions remain terminal even inside a transient gateway error. */
 export function getModelContentBlockReason(
   cause: unknown,
@@ -63,4 +66,28 @@ export function isModelQuotaExhausted(cause: unknown, depth = 0): boolean {
   return [value.code, value.type, value.message, value.error, value.cause].some(
     (part) => isModelQuotaExhausted(part, depth + 1)
   );
+}
+
+/**
+ * Some OpenAI-compatible endpoints reject the `developer` instruction role
+ * used for reasoning models and require `system` instead.
+ */
+export function isUnsupportedDeveloperRoleError(
+  cause: unknown,
+  depth = 0
+): boolean {
+  if (typeof cause === "string") {
+    return DEVELOPER_ROLE_REJECTED.test(cause);
+  }
+  if (!cause || typeof cause !== "object" || depth >= 4) return false;
+  const value = cause as Record<string, unknown>;
+  return [
+    value.code,
+    value.type,
+    value.errorMessage,
+    value.message,
+    value.error,
+    value.cause,
+    value.details
+  ].some((part) => isUnsupportedDeveloperRoleError(part, depth + 1));
 }

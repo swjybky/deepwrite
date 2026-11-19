@@ -8,6 +8,7 @@ import {
   type LongBookSummary,
   type LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
+import { longWorkspaceOperationsRequireImpactConfirmation } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
 import {
   replaceLongBookSummary,
@@ -202,6 +203,11 @@ export function createLongWorldbuildingProposalLane(
         holdLongProposalForManualReview({
           automatic,
           hadExpectedImpact: Boolean(target.expectedImpact),
+          requiresConfirmation:
+            longWorkspaceOperationsRequireImpactConfirmation(
+              batch.operations,
+              expectedImpact
+            ),
           conversation,
           runId: request.runId,
           proposalId: request.proposalId,

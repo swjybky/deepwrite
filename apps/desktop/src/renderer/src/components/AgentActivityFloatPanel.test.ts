@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import rendererStyles from "virtual:deepwrite-renderer-styles";
 import conversationSource from "./AgentConversation.vue?raw";
 import panelSource from "./AgentActivityFloatPanel.vue?raw";
-import workspaceSource from "../WorkspaceShell.vue?raw";
 
 describe("agent activity floating panel", () => {
   it("renders the status list outside normal conversation layout", () => {
@@ -39,27 +38,6 @@ describe("agent activity floating panel", () => {
     expect(rendererStyles).toContain(
       ".agent-activity-toggle.is-collapsed .agent-activity-toggle-icon"
     );
-  });
-
-  it("injects one workspace-level coordinator without changing IPC", () => {
-    expect(workspaceSource).toContain("useAgentActivityCoordinator({");
-    expect(workspaceSource).toContain(
-      "provide(AGENT_ACTIVITY_CONTEXT_KEY, agentActivity.context)"
-    );
-    expect(workspaceSource).toContain(
-      "resolveAgentActivityDescriptor(conversationKey"
-    );
-    expect(workspaceSource).toMatch(
-      /resolveAgentActivityNavigationNode\(\s*item/u
-    );
-    expect(workspaceSource).toContain(
-      "selectLongChapterCardTab(item.chapterCardId)"
-    );
-    expect(workspaceSource).toContain("preferCenteredReveal()");
-    expect(workspaceSource).toContain(
-      "await leftSidebar.value?.revealSelection()"
-    );
-    expect(workspaceSource).toContain('return "missing"');
   });
 
   it("honors reduced-motion preferences for the running spinner", () => {

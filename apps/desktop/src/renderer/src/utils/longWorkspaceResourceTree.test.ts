@@ -3,7 +3,6 @@ import type {
   LongBookSummary,
   LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
-import source from "./longWorkspaceResourceTree.ts?raw";
 import {
   longNavigationNodeId,
   projectLongWorkspaceNavigation
@@ -343,17 +342,6 @@ describe("long workspace resource-tree projection", () => {
     expect(
       fileRows.every(({ longLedgerCommit }) => longLedgerCommit === undefined)
     ).toBe(true);
-  });
-
-  it("indexes repeated group and volume relationships before projection", () => {
-    expect(source).toContain("const characterCountByGroup = new Map");
-    expect(source).toContain("const arcCountByVolume = new Map");
-    expect(source).toContain("const chaptersByVolume = new Map");
-    expect(source).not.toContain("book.navigation.characters.filter(");
-    expect(source).not.toContain("book.navigation.arcs.filter(");
-    expect(source).not.toContain(
-      "book.navigation.chapterCards\n        .filter("
-    );
   });
 
   it("projects configured collections into stable left-tree children", () => {

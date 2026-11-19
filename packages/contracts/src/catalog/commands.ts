@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { EnvelopeBaseSchema } from "../envelope";
 import { CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema } from "../marketplace";
+import { CatalogInstallMarketplaceMaterialCommandEnvelopeSchema } from "../material-marketplace";
 import {
   CatalogOpenProjectInputSchema,
   CatalogReadDocumentInputSchema,
@@ -295,6 +296,7 @@ export const CatalogCommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
+  CatalogInstallMarketplaceMaterialCommandEnvelopeSchema,
   CatalogChooseExternalLibraryEntriesCommandEnvelopeSchema,
   CatalogImportLibraryEntriesCommandEnvelopeSchema
 ]);

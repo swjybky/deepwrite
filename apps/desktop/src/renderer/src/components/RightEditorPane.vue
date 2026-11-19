@@ -48,6 +48,7 @@ import {
   workspaceDocumentHasFixedTitle
 } from "../utils/fixedWorkspaceDocumentTitle";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { handleHorizontalOverflowWheel } from "../utils/horizontalOverflow";
 import { uiMessage } from "../ui-feedback";
 import { useEditorSelectionInsertion } from "../composables/useEditorSelectionInsertion";
 import { useEditorSaveViewport } from "../composables/useEditorSaveViewport";
@@ -737,14 +738,6 @@ function selectViewMode(view: EditorScrollView): void {
   void restoreDocumentScroll(activeScrollMemoryKey.value, view);
 }
 
-function handleAcademicExport(): void {
-  const bookId = props.document.workspaceId;
-  if (!bookId) return;
-  void import("../stores/academicWorkspaceDialog").then((m) =>
-    m.openExportAcademicManuscriptDialog(bookId, props.document.workspaceTitle)
-  );
-}
-
 watch(
   () => props.defaultViewMode,
   (mode) => selectViewMode(mode)
@@ -812,6 +805,7 @@ onBeforeUnmount(() => {
     <nav
       v-if="showDraftFileTabs || $slots['related-files']"
       class="editor-file-tabs-bar"
+      @wheel="handleHorizontalOverflowWheel"
     >
       <div
         class="draft-file-tabs"
@@ -881,8 +875,15 @@ onBeforeUnmount(() => {
     </nav>
 
     <div class="editor-toolbar">
-      <div class="editor-toolbar-actions">
+      <div
+        class="editor-toolbar-actions"
+        @wheel="handleHorizontalOverflowWheel"
+      >
         <slot name="toolbar-start" />
+        <span
+          v-if="showDraftFileTabs || $slots['related-files']"
+          class="toolbar-separator"
+        />
         <div class="view-tabs" role="tablist" :aria-label="t('textView')">
           <button
             type="button"
@@ -923,18 +924,11 @@ onBeforeUnmount(() => {
                 ? t('formatAllManuscriptBodies')
                 : undefined
             "
-            :export-visible="
-              document.workspaceType === 'academic' &&
-              Boolean(document.workspaceId)
-            "
-            :export-disabled="locked"
-            :export-label="academicTreeT('exportManuscript')"
             @undo="undo"
             @redo="redo"
             @toggle-find="toggleFindPanel"
             @format="handleFormatBody"
             @versions="versionOpen = true"
-            @export="handleAcademicExport"
           />
           <PreviewOutlinePopover
             v-if="viewMode === 'preview'"
@@ -944,14 +938,13 @@ onBeforeUnmount(() => {
             :document-key="activeScrollMemoryKey"
           />
         </div>
-
-        <EditorPaneToggle
-          :right-pane="rightPane"
-          :right-pane-collapsed="rightPaneCollapsed"
-          @collapse="emit('collapse')"
-          @toggle-right="emit('toggleRight')"
-        />
       </div>
+      <EditorPaneToggle
+        :right-pane="rightPane"
+        :right-pane-collapsed="rightPaneCollapsed"
+        @collapse="emit('collapse')"
+        @toggle-right="emit('toggleRight')"
+      />
 
       <EditorFindReplacePanel
         v-if="findPanelOpen"

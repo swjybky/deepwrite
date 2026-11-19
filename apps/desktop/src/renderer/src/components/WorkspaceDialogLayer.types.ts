@@ -15,9 +15,6 @@ import type {
   LibraryPackageImportChoices,
   LibraryPackagePreview,
   LibraryPackageSourceKind,
-  LinkedMaterialIdsByKind,
-  LinkedSkillIdsByKind,
-  LongLinkedResourceStageScopes,
   LongApplyLegacySyncResult,
   LongChooseContinuationImportSourceResult,
   LongChooseLegacySyncSourceResult,
@@ -41,7 +38,7 @@ import type {
 } from "./BookTransferDialog.vue";
 import type { PopupSelectOption } from "./PopupSelect.vue";
 import type {
-  BookResourceDialogMode,
+  LongBookResourceNodeActionPayload,
   ResourceTreeNode
 } from "../types/workspace";
 import type {
@@ -58,19 +55,6 @@ export interface DialogMutationCompletion {
   fail(): void;
 }
 
-export type BookBindingPayload =
-  | {
-      bookId: string;
-      domain: "skill";
-      linksByKind: LinkedSkillIdsByKind;
-    }
-  | {
-      bookId: string;
-      domain: "material";
-      linksByKind: LinkedMaterialIdsByKind;
-    };
-
-/** Teams are a device-local choice, bound once the book exists. */
 export interface BookAgentTeamChoice {
   linkedAgentTeamIds?: string[] | undefined;
 }
@@ -101,13 +85,8 @@ export type CreateLibraryEntryDraft =
 
 export interface BookResourceDialogModule {
   kind: "book-resource";
-  mode: BookResourceDialogMode;
+  mode: "rename" | "remove" | "delete";
   book: ResourceTreeNode | null;
-  skillLibraries: ResourceTreeNode[];
-  materialLibraries: ResourceTreeNode[];
-  materialGroups: readonly MaterialLibraryGroup[];
-  skillGroups: readonly SkillLibraryGroup[];
-  loading: boolean;
   submitting: boolean;
 }
 
@@ -245,20 +224,6 @@ export interface CreateLongVolumeDialogModule {
   pending: boolean;
 }
 
-export interface LongBindingsDialogModule {
-  kind: "long-bindings";
-  mode: "skill" | "material";
-  bookTitle: string;
-  materials: readonly MaterialLibrary[];
-  skills: readonly SkillLibrary[];
-  materialGroups: readonly MaterialLibraryGroup[];
-  skillGroups: readonly SkillLibraryGroup[];
-  linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
-  linkedSkillIdsByKind: LinkedSkillIdsByKind;
-  linkedResourceStageScopes: LongLinkedResourceStageScopes;
-  submitting: boolean;
-}
-
 export interface LongRenameDialogModule {
   kind: "long-rename";
   title: string;
@@ -372,7 +337,6 @@ export type WorkspaceDialogModule =
   | DeleteLongTreeDialogModule
   | DeleteLongLedgerCommitDialogModule
   | CreateLongVolumeDialogModule
-  | LongBindingsDialogModule
   | LongRenameDialogModule
   | LongRemovalDialogModule
   | LibraryProjectDialogModule
@@ -407,7 +371,6 @@ export const WORKSPACE_DIALOG_KINDS = [
   "delete-long-tree",
   "delete-long-ledger-commit",
   "create-long-volume",
-  "long-bindings",
   "long-rename",
   "long-removal",
   "library-project",
@@ -426,8 +389,8 @@ export interface WorkspaceDialogLayerEmits {
   renameBook: [payload: { bookId: string; label: string }];
   removeBook: [bookId: string];
   deleteBook: [bookId: string];
-  updateBookBindings: [payload: BookBindingPayload];
   closePlotStructure: [];
+  openBookRename: [bookId: string];
   plotStructureMutation: [
     mutation: PlotStructureMutation,
     completion: DialogMutationCompletion
@@ -455,6 +418,7 @@ export interface WorkspaceDialogLayerEmits {
   closeLegacySync: [];
   confirmLegacySync: [modules: LongLegacySyncModule[]];
   closeLongStructure: [];
+  longBookAction: [payload: LongBookResourceNodeActionPayload];
   longStructureMutation: [
     batch: LongWorkspaceOperationBatch,
     completion: LongStructureMutationCompletion
@@ -488,14 +452,6 @@ export interface WorkspaceDialogLayerEmits {
   confirmDeleteLongLedgerCommit: [];
   closeCreateLongVolume: [];
   submitCreateLongVolume: [input: { title: string; summary: string }];
-  closeLongBindings: [];
-  submitLongBindings: [
-    payload: {
-      linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
-      linkedSkillIdsByKind: LinkedSkillIdsByKind;
-      linkedResourceStageScopes: LongLinkedResourceStageScopes;
-    }
-  ];
   closeLongRename: [];
   submitLongRename: [title: string];
   closeLongRemoval: [];

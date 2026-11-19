@@ -1904,7 +1904,7 @@ onBeforeUnmount(() =>
   justify-content: space-between;
   min-width: 0;
   gap: 16px;
-  padding: 18px 20px 15px;
+  padding: 14px 20px 15px;
   border-bottom: 1px solid var(--theme-line-soft);
   background: var(--surface-raised);
 }

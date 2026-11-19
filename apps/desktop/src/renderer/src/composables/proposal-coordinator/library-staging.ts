@@ -1,5 +1,11 @@
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
+import {
+  authorizeProposalEvent,
+  isShortProposalConversationActive,
+  resolveProposalApprovalMode,
+  resolveShortProposalConversation
+} from "./event-authorization";
 import { hydrateLibraryProposalDocument } from "./library-hydration";
 import type { ProposalCoordinatorContext } from "../useProposalCoordinator";
 import type { AgentConversationController } from "../useAgentConversation";
@@ -40,16 +46,17 @@ export function createLibraryProposalStager(
     liveDocuments: liveWorkspaceDocuments,
     rememberWorkspaceMutationEvent
   } = context.editor;
-  const { all: allConversations } = context.conversations;
   let chain: Promise<void> = Promise.resolve();
   async function stage(event: LibraryEditorMutationEvent): Promise<void> {
     if (disposed()) return;
     await drainSaves();
     if (disposed()) return;
-    const sourceConversation = allConversations().find((conversation) =>
-      conversation.acceptsRunEvent(event.payload.sessionId, event.payload.runId)
-    );
+    const sourceConversation = resolveShortProposalConversation(context, event);
     if (!sourceConversation) return;
+    const runApprovalMode = resolveProposalApprovalMode(
+      sourceConversation,
+      event
+    );
     if (event.payload.operation === "create" && event.payload.creationId) {
       const payload = event.payload;
       const id = agentEditProposalId(
@@ -72,12 +79,15 @@ export function createLibraryProposalStager(
       }
     }
     await hydrateLibraryProposalDocument(context, event, disposed);
-    if (disposed()) return;
-    const runApprovalMode =
-      sourceConversation.approvalModeForRun(
-        event.payload.sessionId,
-        event.payload.runId
-      ) ?? "request-approval";
+    if (
+      disposed() ||
+      !isShortProposalConversationActive(
+        context,
+        sourceConversation,
+        event.payload.sessionId
+      )
+    )
+      return;
 
     const library = findCatalogLibrary(
       event.payload.domain,
@@ -256,6 +266,7 @@ export function createLibraryProposalStager(
   }
 
   return (event: LibraryEditorMutationEvent): Promise<void> => {
+    authorizeProposalEvent(context, event);
     if (!rememberWorkspaceMutationEvent(event.id)) return chain;
     chain = chain
       .then(() => stage(event))
@@ -264,18 +275,11 @@ export function createLibraryProposalStager(
           error,
           t("libraryStaging.theLibraryChangesCouldNotBeSubmittedForReview")
         );
-        allConversations()
-          .find((conversation) =>
-            conversation.acceptsRunEvent(
-              event.payload.sessionId,
-              event.payload.runId
-            )
-          )
-          ?.markToolConflict(
-            event.payload.runId,
-            event.payload.toolCallId,
-            message
-          );
+        resolveShortProposalConversation(context, event)?.markToolConflict(
+          event.payload.runId,
+          event.payload.toolCallId,
+          message
+        );
         uiMessage.warning(message);
       });
     return chain;

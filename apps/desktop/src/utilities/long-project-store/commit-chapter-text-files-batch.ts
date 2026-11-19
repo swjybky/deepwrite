@@ -59,6 +59,16 @@ export async function commitTextFilesBatch(
     throw new Error(`批量提交前必须完成章节正文：${emptyBody.reference.path}`);
   }
 
+  const prepared = input.preparation
+    ? await prepareContinuityCommit(
+        loaded,
+        input.preparation,
+        input.chapterCardIds
+      )
+    : undefined;
+  // Preparation replaces the index, including the objects changed by the commit.
+  if (prepared)
+    chapterEntries = resolveBatchEntries(loaded.index, input.chapterCardIds);
   const targets = collectChapterBatchCommitTargets(
     loaded.index,
     input.chapterCardIds
@@ -68,16 +78,6 @@ export async function commitTextFilesBatch(
     targets.beats.map(({ id }) => id),
     Object.keys(input.foreshadowingBeatDecisions)
   );
-
-  const prepared = input.preparation
-    ? await prepareContinuityCommit(
-        loaded,
-        input.preparation,
-        input.chapterCardIds
-      )
-    : undefined;
-  if (prepared)
-    chapterEntries = resolveBatchEntries(loaded.index, input.chapterCardIds);
   const checkpointEntry = chapterEntries.at(-1)!;
   const continuityReferences = [
     checkpointEntry.characterState,

@@ -11,6 +11,17 @@ export function flattenResourceNodes(
   ]);
 }
 
+export function isPinnableCatalogNode(node: ResourceTreeNode): boolean {
+  return (
+    !node.unavailable &&
+    !node.missing &&
+    (node.catalogNodeType === "book" ||
+      node.catalogNodeType === "long-book" ||
+      node.catalogNodeType === "mystery-book" ||
+      node.catalogNodeType === "library")
+  );
+}
+
 export function pinnableResourceNodes(
   sections: readonly ResourceTreeSection[]
 ): ResourceTreeNode[] {
@@ -18,10 +29,7 @@ export function pinnableResourceNodes(
     const topLevel = new Set(section.nodes);
     return flattenResourceNodes(section.nodes).filter(
       (node) =>
-        (node.catalogNodeType === "book" && !node.unavailable) ||
-        (node.catalogNodeType === "library" &&
-          !node.missing &&
-          !node.unavailable) ||
+        isPinnableCatalogNode(node) ||
         (node.catalogNodeType === undefined && topLevel.has(node))
     );
   });
@@ -29,7 +37,7 @@ export function pinnableResourceNodes(
 
 export function parsePinnedResourceIds(
   storedValue: string | null,
-  sections: ResourceTreeSection[]
+  sections?: ResourceTreeSection[]
 ): string[] {
   if (!storedValue) {
     return [];
@@ -41,12 +49,14 @@ export function parsePinnedResourceIds(
       return [];
     }
 
+    const ids = [
+      ...new Set(value.filter((id): id is string => typeof id === "string"))
+    ];
+    if (!sections) return ids;
     const validIds = new Set(
       pinnableResourceNodes(sections).map((node) => node.id)
     );
-    return [
-      ...new Set(value.filter((id): id is string => typeof id === "string"))
-    ].filter((id) => validIds.has(id));
+    return ids.filter((id) => validIds.has(id));
   } catch {
     return [];
   }
@@ -57,11 +67,7 @@ export function collectPinnedResourceNodes(
   pinnedIds: string[]
 ): ResourceTreeNode[] {
   const nodesById = new Map(
-    sections.flatMap((section) =>
-      flattenResourceNodes(section.nodes).map(
-        (node) => [node.id, node] as const
-      )
-    )
+    pinnableResourceNodes(sections).map((node) => [node.id, node])
   );
   return pinnedIds.flatMap((id) => {
     const node = nodesById.get(id);

@@ -23,12 +23,15 @@ import type {
 } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
 import { createLongTreeItemBoundaries } from "../utils/longTreeItemBoundaries";
-import LongBookActionMenu from "./LongBookActionMenu.vue";
-import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog";
+import BookActionMenu from "./BookActionMenu.vue";
 import LibraryGroupActionMenu from "./LibraryGroupActionMenu.vue";
 import { useTreeNodeDisclosure } from "../composables/useTreeNodeDisclosure";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
-import { openMysteryWorkspaceDialog } from "../stores/mysteryWorkspaceNavigation";
+import { isPinnableCatalogNode } from "../utils/pinnedResources";
+import {
+  mysteryWorkspaceNavigation,
+  openMysteryWorkspaceDialog
+} from "../stores/mysteryWorkspaceNavigation";
 
 import { registerTreeNodeActionListeners } from "../utils/treeNodeActionListeners";
 
@@ -37,6 +40,9 @@ const AcademicTreeNodeMenuItems = defineAsyncComponent(
 );
 const MysteryTreeNodeMenuItems = defineAsyncComponent(
   () => import("../features/mystery/MysteryTreeNodeMenuItems.vue")
+);
+const MysteryUnavailableRemoval = defineAsyncComponent(
+  () => import("../features/mystery/MysteryUnavailableRemoval.vue")
 );
 
 const t = createScopedTranslator("components.treeNodeItem");
@@ -138,13 +144,23 @@ const hasLongBookAction = computed(
     props.node.workspaceType === "long" &&
     Boolean(props.node.longBookId)
 );
-const hasMysteryAction = computed(
+const hasMysteryBookAction = computed(
   () =>
     props.resourceDomain === "creation" &&
-    !props.node.unavailable &&
-    (props.node.catalogNodeType === "mystery-book" ||
-      Boolean(props.node.mysteryItem))
+    props.node.catalogNodeType === "mystery-book"
 );
+const hasUnifiedBookMenu = computed(
+  () =>
+    hasBookAction.value || hasLongBookAction.value || hasMysteryBookAction.value
+);
+const mysteryBusy = computed(() => {
+  const port = mysteryWorkspaceNavigation.value;
+  return (
+    hasMysteryBookAction.value &&
+    (!port || port.bookId() !== props.node.mysteryBookId || port.busy())
+  );
+});
+const mysteryRemovalOpen = ref(false);
 const isExpertDraftParent = computed(
   () =>
     props.resourceDomain === "creation" &&
@@ -227,9 +243,8 @@ const hasActionMenu = computed(
     Boolean(props.pinnable) ||
     hasLibraryAction.value ||
     hasGroupAction.value ||
-    hasBookAction.value ||
-    hasLongBookAction.value ||
-    hasMysteryAction.value ||
+    hasUnifiedBookMenu.value ||
+    (props.resourceDomain === "creation" && Boolean(props.node.mysteryItem)) ||
     isAcademicCardsCollection.value ||
     isAcademicManuscriptRoot.value ||
     isAcademicChapter.value ||
@@ -319,7 +334,11 @@ function updateActionMenuPlacement(): void {
 
 function toggleActionMenu(): void {
   const willOpen = !actionMenuOpen.value;
-  if (willOpen && props.node.catalogNodeType === "mystery-book")
+  if (
+    willOpen &&
+    !props.node.unavailable &&
+    props.node.catalogNodeType === "mystery-book"
+  )
     emit("select", props.node);
   if (willOpen) actionMenuOpensUpward.value = false;
   actionMenuOpen.value = willOpen;
@@ -336,40 +355,29 @@ function createMysteryItem(): void {
   }
 }
 
-function openBookAction(mode: BookResourceDialogMode): void {
+function activateBookAction(action: LongBookResourceNodeAction): void {
+  if (action === "sync-legacy" || action === "resolve-conflicts") return;
+  actionArea.value?.querySelector("button")?.focus({ preventScroll: true });
   actionMenuOpen.value = false;
-  emit("bookAction", mode, props.node);
-}
-
-function openAgentTeamBinding(): void {
-  actionMenuOpen.value = false;
-  const { id, label, longBookId, mysteryBookId, workspaceType } = props.node;
-  bookAgentTeamBindingTarget.value = {
-    bookId: mysteryBookId ?? longBookId ?? id,
-    title: label,
-    workspaceType: workspaceType ?? "short"
-  };
-}
-
-function exportBook(): void {
-  actionMenuOpen.value = false;
-  emit("exportBook", props.node);
-}
-
-function activateLongBookAction(action: LongBookResourceNodeAction): void {
   const node = props.node;
-  if (
-    node.catalogNodeType !== "long-book" ||
-    node.workspaceType !== "long" ||
-    !node.longBookId
-  ) {
-    return;
+  if (hasMysteryBookAction.value && node.mysteryBookId) {
+    if (node.unavailable || node.missing) {
+      mysteryRemovalOpen.value = true;
+    } else if (action === "duplicate") {
+      void mysteryWorkspaceNavigation.value?.duplicateBook();
+    } else {
+      openMysteryWorkspaceDialog(node.mysteryBookId, { kind: action });
+    }
+  } else if (hasLongBookAction.value) {
+    emit("longBookAction", {
+      action,
+      node: node as LongBookResourceNodeActionPayload["node"]
+    });
+  } else if (action === "export") {
+    emit("exportBook", node);
+  } else {
+    emit("bookAction", action === "unregister" ? "remove" : action, node);
   }
-  actionMenuOpen.value = false;
-  emit("longBookAction", {
-    action,
-    node: node as LongBookResourceNodeActionPayload["node"]
-  });
 }
 
 function activateResourceNodeAction(action: CatalogResourceNodeAction): void {
@@ -706,7 +714,7 @@ onBeforeUnmount(() => {
         role="menu"
       >
         <button
-          v-if="pinnable"
+          v-if="pinnable && !hasUnifiedBookMenu"
           class="tree-node-action-menu-item"
           type="button"
           role="menuitem"
@@ -878,106 +886,22 @@ onBeforeUnmount(() => {
           :resource-domain="resourceDomain"
           @close="actionMenuOpen = false"
         />
+        <BookActionMenu
+          v-else-if="hasUnifiedBookMenu"
+          :unavailable="node.unavailable || node.missing"
+          :pending="
+            mysteryBusy || (hasLongBookAction && longTreeActionsDisabled)
+          "
+          :pinned="pinned"
+          @action="activateBookAction"
+          @toggle-pin="togglePin"
+        />
         <MysteryTreeNodeMenuItems
-          v-else-if="hasMysteryAction"
+          v-else-if="resourceDomain === 'creation' && node.mysteryItem"
           :node="node"
+          @vue:mounted="updateActionMenuPlacement"
           @close="actionMenuOpen = false"
-          @bind-agent-teams="openAgentTeamBinding"
         />
-        <LongBookActionMenu
-          v-else-if="hasLongBookAction"
-          :unavailable="node.unavailable"
-          :pending="longTreeActionsDisabled"
-          @action="activateLongBookAction"
-          @bind-agent-teams="openAgentTeamBinding"
-        />
-        <template v-else-if="hasBookAction">
-          <template v-if="!node.unavailable">
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openBookAction('manage-structure')"
-            >
-              <AppIcon name="settings" :size="16" />
-              <span>{{ t("manageStructure") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openBookAction('rename')"
-            >
-              <AppIcon name="edit" :size="16" />
-              <span>{{ t("rename") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openBookAction('duplicate')"
-            >
-              <AppIcon name="copy" :size="16" />
-              <span>{{ t("duplicate") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openBookAction('bind-skill')"
-            >
-              <AppIcon name="library" :size="16" />
-              <span>{{ t("skillLibraryLinks") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openBookAction('bind-material')"
-            >
-              <AppIcon name="archive" :size="16" />
-              <span>{{ t("materialLibraryLinks") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="openAgentTeamBinding"
-            >
-              <AppIcon name="brain" :size="16" />
-              <span>{{ t("agentTeamLinks") }}</span>
-            </button>
-            <button
-              class="tree-node-action-menu-item"
-              type="button"
-              role="menuitem"
-              @click.stop="exportBook"
-            >
-              <AppIcon name="download" :size="16" />
-              <span>{{ t("exportManuscript") }}</span>
-            </button>
-          </template>
-          <div class="tree-node-action-menu-divider" role="separator" />
-          <button
-            class="tree-node-action-menu-item is-danger"
-            type="button"
-            role="menuitem"
-            @click.stop="openBookAction('remove')"
-          >
-            <AppIcon name="trash" :size="16" />
-            <span>{{ t("remove") }}</span>
-          </button>
-          <button
-            v-if="!node.unavailable"
-            class="tree-node-action-menu-item is-danger"
-            type="button"
-            role="menuitem"
-            @click.stop="openBookAction('delete')"
-          >
-            <AppIcon name="trash" :size="16" />
-            <span>{{ t("delete") }}</span>
-          </button>
-        </template>
         <template
           v-else-if="node.catalogNodeType === 'library' && libraryDomain"
         >
@@ -1126,6 +1050,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <MysteryUnavailableRemoval
+      v-if="mysteryRemovalOpen"
+      :node="node"
+      @close="mysteryRemovalOpen = false"
+    />
+
     <ul v-if="node.children?.length && open" class="tree-children">
       <TreeNodeItem
         v-for="(child, childIndex) in node.children"
@@ -1135,12 +1065,7 @@ onBeforeUnmount(() => {
         :selected-id="selectedId"
         :resource-domain="resourceDomain"
         :library-entry-clipboard-domain="libraryEntryClipboardDomain"
-        :pinnable="
-          !child.unavailable &&
-          !child.missing &&
-          (child.catalogNodeType === 'book' ||
-            child.catalogNodeType === 'library')
-        "
+        :pinnable="isPinnableCatalogNode(child)"
         :pinned="pinnedIds?.includes(child.id) ?? false"
         :pinned-ids="pinnedIds"
         :long-tree-actions-disabled="longTreeActionsDisabled"

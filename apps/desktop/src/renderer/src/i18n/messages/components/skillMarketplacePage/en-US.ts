@@ -47,8 +47,6 @@ export default {
     "Deleted. The server retains it for about 10 days.",
   retainedUntilValue: "Retained until {arg0}",
   couldNotLoadInstallationPreview: "Could not load installation preview.",
-  selectALocalSkillLibraryToInstallInto:
-    "Select a local skill library to install into.",
   thisVersionIsAlreadyInstalled: "This version is already installed.",
   skillsWereInstalledLocallyButTheRemoteDownloadCount:
     "Skills were installed locally, but the remote download count could not be updated.",
@@ -95,7 +93,7 @@ export default {
   publishContent: "Publish content",
   searchNamesDescriptionsOrAuthors: "Search names, descriptions, or authors",
   contentType: "Content type",
-  skillCategory: "Skill category",
+  skillCategory: "Skill library category",
   writingType: "Writing type",
   sortBy: "Sort by",
   refreshing: "Refreshing…",
@@ -174,11 +172,8 @@ export default {
   currentV: "Current v",
   isInstalledNewRemoteVersionsAreInstalledAsSeparate:
     " is installed. New remote versions are installed as separate copies.",
-  installIntoSkillLibrary: "Install into skill library",
-  selectTargetLibraryForTheSkill: "Select target library for the skill",
-  selectASkillLibrary: "Select a skill library",
-  noWritableSkillLibrariesCreateOneInTheSidebar:
-    "No writable skill libraries. Create one in the sidebar first.",
+  installLocation: "Install location",
+  installAsUnboundSkill: "Leave unfiled",
   localTargetType: "Local target type",
   valueLocalTargetType: "{arg0} local target type",
   cancel: "Cancel",

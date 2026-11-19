@@ -1,5 +1,5 @@
 import { createScopedTranslator } from "../i18n";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   BUILT_IN_REASONING_LEVELS,
   type BuiltInReasoningLevel,
@@ -60,10 +60,41 @@ function isValidCustomThinkingLevel(level: string): boolean {
 export function useModelEditor(
   initialModel: DraftModel,
   actions: ModelEditorActions,
-  options?: { knownUserProviders?: () => readonly string[] }
+  options?: {
+    model?: () => DraftModel;
+    knownUserProviders?: () => readonly string[];
+  }
 ) {
   const editor = ref(cloneDraftModel(initialModel));
   const createdUserProviders = ref<string[]>([]);
+
+  watch(
+    () => {
+      const current = options?.model?.() ?? initialModel;
+      return [
+        current.contextWindow,
+        current.maxTokens,
+        current.supportsDeveloperRole
+      ] as const;
+    },
+    ([contextWindow, maxTokens, supportsDeveloperRole]) => {
+      if (
+        editor.value.contextWindow === undefined &&
+        contextWindow !== undefined
+      ) {
+        editor.value.contextWindow = contextWindow;
+      }
+      if (editor.value.maxTokens === undefined && maxTokens !== undefined) {
+        editor.value.maxTokens = maxTokens;
+      }
+      if (
+        editor.value.supportsDeveloperRole === undefined &&
+        supportsDeveloperRole !== undefined
+      ) {
+        editor.value.supportsDeveloperRole = supportsDeveloperRole;
+      }
+    }
+  );
   const reasoningOptions = BUILT_IN_REASONING_LEVELS.map((value) => ({
     value,
     label: builtInThinkingLabels[value]

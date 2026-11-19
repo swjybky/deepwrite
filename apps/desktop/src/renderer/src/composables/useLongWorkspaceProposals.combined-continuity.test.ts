@@ -117,22 +117,33 @@ describe("combined continuity approvals", () => {
     expect(h.commitChapter).toHaveBeenCalledOnce();
     expect(h.applyOperations).not.toHaveBeenCalled();
   });
-  it("keeps failed atomic saves retryable without separately applying files", async () => {
-    const h = harness();
-    const event = combinedEvent();
-    await h.controller.handleEvent(event);
-    h.commitChapter.mockRejectedValueOnce(new Error("事务暂时失败"));
-    await h.controller.approve(proposalBase.bookId, event.id);
-    expect(h.controller.itemsForBook(proposalBase.bookId)[0]!.status).toBe(
-      "error"
-    );
-    await h.controller.approve(proposalBase.bookId, event.id);
-    expect(h.commitChapter).toHaveBeenCalledTimes(2);
-    expect(h.applyOperations).not.toHaveBeenCalled();
-    expect(h.controller.itemsForBook(proposalBase.bookId)[0]!.status).toBe(
-      "accepted"
-    );
-  });
+  it.each(["request-approval", "auto-approve"] as const)(
+    "reports a failed %s save and retries the same proposal",
+    async (approvalMode) => {
+      const h = harness(true, approvalMode);
+      const event = combinedEvent();
+      h.commitChapter.mockRejectedValueOnce(new Error("事务暂时失败"));
+      await h.controller.handleEvent(event);
+      if (approvalMode === "request-approval")
+        await h.controller.approve(proposalBase.bookId, event.id);
+      expect(h.controller.itemsForBook(proposalBase.bookId)[0]!.status).toBe(
+        "error"
+      );
+      expect(h.notifications.error).toHaveBeenCalledOnce();
+      expect(h.notifications.success).not.toHaveBeenCalled();
+      expect(h.onApplied).not.toHaveBeenCalled();
+      await h.controller.approve(proposalBase.bookId, event.id);
+      expect(h.commitChapter).toHaveBeenCalledTimes(2);
+      expect(h.commitChapter.mock.calls[1]).toEqual(
+        h.commitChapter.mock.calls[0]
+      );
+      expect(h.applyOperations).not.toHaveBeenCalled();
+      expect(h.controller.itemsForBook(proposalBase.bookId)[0]!.status).toBe(
+        "accepted"
+      );
+      expect(h.onApplied).toHaveBeenCalledOnce();
+    }
+  );
   it("does not save after a failed preview and supports manual preview retry", async () => {
     const h = harness();
     h.previewOperations.mockRejectedValueOnce(new Error("预览失败"));

@@ -8,6 +8,7 @@ import type {
   LongCharacterFileChange,
   LongCommitChapterInput,
   LongContinuityFileChange,
+  LongMutationReview,
   LongWorkspaceCommandEnvelope,
   LongWorkspaceOperationBatch,
   LongWorkspaceRuntimeContext,
@@ -50,6 +51,7 @@ export type LongAgentToolDetails =
       agentId: LongAgentProfile["id"];
       batch: LongWorkspaceOperationBatch;
       summary: string;
+      review?: LongMutationReview;
     }
   | {
       kind: "long-worldbuilding-file-proposal";

@@ -21,11 +21,7 @@ import type {
 } from "@deepwrite/contracts";
 import { createDefaultMoreFeaturesSettings } from "@deepwrite/contracts/renderer";
 import AppIcon from "./AppIcon.vue";
-import {
-  AcademicWorkspaceDialogs,
-  BookAgentTeamDialog
-} from "./lazyAppComponents";
-import { bookAgentTeamBindingTarget } from "../stores/bookAgentTeamBindingDialog";
+import { AcademicWorkspaceDialogs } from "./lazyAppComponents";
 import {
   academicDialogTarget,
   useAcademicDialogHostClaim
@@ -451,7 +447,6 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
       @marketplace-session-change="emit('marketplaceSessionChange', $event)"
       @marketplace-signed-out="emit('marketplaceSignedOut', $event)"
     />
-    <BookAgentTeamDialog v-if="bookAgentTeamBindingTarget" />
     <AcademicWorkspaceDialogs
       v-if="ownsAcademicDialogHost && academicDialogTarget"
     />

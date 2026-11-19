@@ -38,6 +38,54 @@ afterEach(async () => {
 });
 
 describe("MysteryWorkspaceService", () => {
+  it("gives new mysteries the same context and saves edits separately by revision", async () => {
+    const userDataPath = await makeTempDir();
+    const booksParent = await makeTempDir();
+    const service = new MysteryWorkspaceService({ userDataPath });
+    const boardSpec = {
+      playerCount: 4,
+      actCountTarget: 2,
+      narrativePerson: "second"
+    };
+    const first = await service.createAtPath(booksParent, {
+      title: "第一部推理本",
+      genre: "硬核推理",
+      boardSpec
+    });
+    const second = await service.createAtPath(booksParent, {
+      title: "第二部推理本",
+      genre: "硬核推理",
+      boardSpec: { ...boardSpec, playerCount: 6 }
+    });
+    const bookId = first.book.id;
+    const initial = await service.readAgentsMd({ bookId });
+    expect(initial.content).toMatch(/^# 剧本杀上下文\n\n/);
+    expect(
+      (await service.readAgentsMd({ bookId: second.book.id })).content
+    ).toBe(initial.content);
+
+    const content = "# 作者自定义约定\n\n保留开场线索。";
+    const result = await service.writeAgentsMd({
+      bookId,
+      content,
+      expectedRevision: initial.revision
+    });
+    await expect(
+      service.writeAgentsMd({
+        bookId,
+        content: "旧草稿",
+        expectedRevision: initial.revision
+      })
+    ).rejects.toBeInstanceOf(MysteryDocumentConflictError);
+    expect(await service.readAgentsMd({ bookId })).toMatchObject({
+      content,
+      revision: result.revision
+    });
+    expect(
+      (await service.readAgentsMd({ bookId: second.book.id })).content
+    ).toBe(initial.content);
+  });
+
   it("requires the registered identity before deletion and restores the folder if unregistering fails", async () => {
     const userDataPath = await makeTempDir();
     const booksParent = await makeTempDir();

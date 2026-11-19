@@ -16,6 +16,7 @@ import {
   type AcademicCitationStyle
 } from "@deepwrite/contracts/renderer";
 import AppIcon from "../AppIcon.vue";
+import BookManagementName from "../BookManagementName.vue";
 import PopupSelect, { type PopupSelectValue } from "../PopupSelect.vue";
 import WritingContextPanel, {
   type WritingContextSaveCompletion
@@ -39,6 +40,7 @@ import {
 } from "../../composables/useAcademicBookLifecycleCoordinator";
 import {
   academicMutationPending,
+  getAcademicLifecyclePort,
   type AcademicFrameworkDialogTab
 } from "../../stores/academicWorkspaceDialog";
 import { uiMessage } from "../../ui-feedback";
@@ -153,6 +155,33 @@ async function requestClose(): Promise<void> {
     if (!flushed) return;
   }
   emit("close");
+}
+
+async function openRename(): Promise<void> {
+  const current = book.value;
+  const launch = getAcademicLifecyclePort()?.openBookRename;
+  if (
+    !current ||
+    !launch ||
+    locked.value ||
+    stageFormOpen.value ||
+    deletingStageId.value
+  )
+    return;
+  if (
+    activeTab.value === "context" &&
+    !(await writingContextPanel.value?.flushIfNeeded())
+  )
+    return;
+  emit("close");
+  launch({
+    id: current.id,
+    label: current.title,
+    workspaceType: "academic",
+    ...(current.projectRevision !== undefined
+      ? { projectRevision: current.projectRevision }
+      : {})
+  });
 }
 
 function openCreateStage(): void {
@@ -358,6 +387,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
           <AppIcon name="close" :size="16" />
         </button>
       </header>
+      <BookManagementName
+        :title="book.title"
+        :pending="locked || stageFormOpen || Boolean(deletingStageId)"
+        @rename="openRename"
+      />
 
       <div class="academic-framework-tabs" role="tablist">
         <button

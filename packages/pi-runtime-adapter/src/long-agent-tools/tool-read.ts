@@ -17,6 +17,9 @@ import {
   WRITING_READ_CONTENT_COUNT_DESCRIPTION
 } from "../writing-content-counts";
 
+const continuityProposalSource =
+  "内容来自本轮连续性归档提案。归档结果以账本状态为准。";
+
 function metaLines(meta: Record<string, unknown>): string[] {
   return Object.entries(meta).flatMap(([key, value]) => {
     if (value === undefined || value === "" || value === null) return [];
@@ -98,6 +101,7 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
       const header = `${target.title}（${id}${document ? `／${document}` : ""}）`;
       let content: string;
       let key: string;
+      let source: string | undefined;
       if (target.addressing === "field") {
         content = target.content;
         key = `record:${target.id}`;
@@ -106,17 +110,21 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
         content = target.inlineContent;
         key = `inline:${id}/${document ?? ""}@${params.chapter_id ?? ""}`;
       } else if (params.range) {
-        content = await ctx.readDocumentRange(
+        const excerpt = await ctx.readDocumentRange(
           target.file,
           params.range,
           maximum,
           signal
         );
+        content = excerpt.content;
         return result(
           [
             "片段，修改前须完整读取。",
             header,
             ...meta,
+            ...(excerpt.fromContinuityProposal
+              ? [continuityProposalSource]
+              : []),
             writingReadContentCountLine(content),
             "",
             content || "（正文为空）"
@@ -126,6 +134,7 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
         const live = await ctx.readWholeDocument(target.file, signal);
         content = live.content;
         key = `file:${live.file.id}`;
+        if (live.fromContinuityProposal) source = continuityProposalSource;
         ctx.fullyReadDocuments.set(live.file.id, live);
       }
       if (params.range) {
@@ -149,13 +158,20 @@ export function buildReadTool(ctx: LongToolContext): AgentTool {
       const text = [
         header,
         ...meta,
+        ...(source ? [source] : []),
         writingReadContentCountLine(content),
         "",
         content || "（正文为空）"
       ].join("\n");
       const fingerprint = createHash("sha256").update(text).digest("hex");
       if (ctx.retainedReads.get(key)?.fingerprint === fingerprint)
-        return result(`${header}\n该文档自上次读取后未变化，原文仍在上文。`);
+        return result(
+          [
+            header,
+            ...(source ? [source] : []),
+            "该文档自上次读取后未变化，原文仍在上文。"
+          ].join("\n")
+        );
       ctx.retainedReads.set(key, { fingerprint, toolCallId });
       return result(
         text +

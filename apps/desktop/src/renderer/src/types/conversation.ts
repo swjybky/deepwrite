@@ -11,6 +11,7 @@ import type {
   CharacterStructureMutation,
   LongCharacterFileChange,
   LongChapterBodyChange,
+  LongMutationReview,
   LongWorkspaceImpactConfirmation,
   LongWorkspaceOperationBatch,
   LongWorldbuildingFileChange,
@@ -145,6 +146,7 @@ export interface AgentEditProposal {
   longPlotDesignTarget?: {
     bookId: string;
     batch: LongWorkspaceOperationBatch;
+    review?: LongMutationReview;
     expectedImpact?: LongWorkspaceImpactConfirmation;
   };
   longDraftTarget?: {

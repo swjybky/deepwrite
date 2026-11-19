@@ -17,3 +17,4 @@ export * from "./long-workspace/navigation";
 export * from "./long-workspace/book";
 export * from "./long-workspace/latest-continuity";
 export * from "./long-workspace/workspace-files";
+export * from "./long-workspace/foreshadowing-markdown";

@@ -50,6 +50,11 @@ import {
   type ManagedMaterialEntryInput
 } from "./folder-catalog-store/managed-entry";
 import { registerCatalogProject } from "./folder-catalog-store/project-registration";
+import {
+  MarketplaceMaterialDetailSchema,
+  type MarketplaceMaterialDetail,
+  type MarketplaceMaterialInstallResult
+} from "@deepwrite/contracts";
 import { deleteRegisteredProject } from "./folder-catalog-store/project-deletion";
 import {
   assertAcademicBookLibraryReferences,
@@ -712,11 +717,7 @@ export class FolderCatalogStore {
       const existing =
         input.domain === "material"
           ? snapshot.materials.find((library) => ids.has(library.id))
-          : snapshot.skills.find(
-              (library) =>
-                ids.has(library.id) &&
-                library.skillKind === (input.skillKind ?? "general")
-            );
+          : snapshot.skills.find((library) => ids.has(library.id));
       const library =
         existing ??
         (
@@ -732,7 +733,7 @@ export class FolderCatalogStore {
               : {
                   domain: "skill",
                   name: "未绑定技能",
-                  skillKind: input.skillKind ?? "general",
+                  skillKind: "general",
                   libraryType: input.libraryType ?? "short",
                   unbound: true
                 }
@@ -4645,6 +4646,66 @@ export class FolderCatalogStore {
     });
   }
 
+  async installMarketplaceMaterial(
+    rawInput: MarketplaceMaterialDetail
+  ): Promise<MarketplaceMaterialInstallResult> {
+    const input = MarketplaceMaterialDetailSchema.parse(rawInput);
+    const identity = createHash("sha256")
+      .update(JSON.stringify([input.id, input.version]))
+      .digest("hex");
+    const libraryId = `material-marketplace-${identity}`;
+    return this.mutate(async () => {
+      const registry = await this.ensureRegistry();
+      const snapshot = await this.aggregateIndexSnapshot(registry);
+      const existing = snapshot.materials.find(({ id }) => id === libraryId);
+      if (existing) {
+        return { libraryId, title: existing.title, alreadyInstalled: true };
+      }
+      if (
+        registry.projects.some(
+          ({ id, domain }) => id === libraryId && domain === "material-library"
+        )
+      ) {
+        throw new Error("此素材库版本已注册，本地目录不可读。");
+      }
+      const now = this.now();
+      const title = nextMarketplaceTitle(
+        input.title,
+        snapshot.materials.map(({ title }) => title)
+      );
+      const library = MaterialLibrarySchema.parse({
+        id: libraryId,
+        title,
+        overview: input.overview,
+        materialKind: input.kind,
+        materialType: input.libraryType,
+        parentGenre: input.parentGenre,
+        subGenre: input.subGenre,
+        entries: input.entries.map((entry) => ({
+          ...entry,
+          id: createCatalogId("material-entry"),
+          createdAt: now,
+          updatedAt: now
+        })),
+        createdAt: now,
+        updatedAt: now
+      });
+      await this.writeAndRegisterNewProjects(
+        registry,
+        [
+          {
+            domain: "material-library",
+            parentDirectory: this.defaultProjectParents["material-library"],
+            resource: library
+          }
+        ],
+        now,
+        "素材广场导入失败，且无法完整清理未注册目录。"
+      );
+      return { libraryId, title, alreadyInstalled: false };
+    });
+  }
+
   async installMarketplaceSkillContent(
     rawInput: MarketplaceInstallPackage
   ): Promise<CatalogInstallMarketplaceSkillContentResult> {
@@ -4698,7 +4759,7 @@ export class FolderCatalogStore {
         });
       }
 
-      if (input.targetLibraryId) {
+      if (input.source.contentType === "skill" || input.targetLibraryId) {
         if (
           input.source.contentType !== "skill" ||
           input.createGroup ||
@@ -4707,13 +4768,71 @@ export class FolderCatalogStore {
         ) {
           throw new Error("只有单技能可以安装到已有技能库。");
         }
-        const targetLibrary = snapshot.skills.find(
-          ({ id }) => id === input.targetLibraryId
-        );
-        if (!targetLibrary || targetLibrary.isBuiltin) {
+        const targetLibrary = input.targetLibraryId
+          ? snapshot.skills.find(({ id }) => id === input.targetLibraryId)
+          : snapshot.skills.find(({ isUnbound }) => isUnbound);
+        if (
+          targetLibrary?.isBuiltin ||
+          (input.targetLibraryId && !targetLibrary)
+        ) {
           throw new Error("目标技能库不存在或不可写。");
         }
         const bucket = input.buckets[0]!;
+        const remoteEntry = bucket.entries[0]!;
+        const now = this.now();
+        const installedEntry = {
+          id: createCatalogId("skill-entry"),
+          stageId: remoteEntry.stageId,
+          title: remoteEntry.title,
+          createdAt: now,
+          updatedAt: now,
+          marketplaceSource: { ...input.source, installedAt: now },
+          sourceSkillId: remoteEntry.marketplaceSkillId
+        };
+        if (!targetLibrary) {
+          const library = SkillLibrarySchema.parse({
+            id: createCatalogId("skill"),
+            title: "未绑定技能",
+            skillType: bucket.libraryType,
+            skillKind: "general",
+            overview: "",
+            isBuiltin: false,
+            entries: [{ ...installedEntry, body: remoteEntry.content }],
+            createdAt: now,
+            updatedAt: now
+          });
+          const organization =
+            registry.libraryOrganization ?? emptyLibraryOrganization();
+          await this.writeAndRegisterNewProjects(
+            {
+              ...registry,
+              libraryOrganization: {
+                ...organization,
+                revision: organization.revision + 1,
+                unboundLibraryIds: [
+                  ...organization.unboundLibraryIds,
+                  library.id
+                ]
+              }
+            },
+            [
+              {
+                domain: "skill-library",
+                parentDirectory: this.defaultProjectParents["skill-library"],
+                resource: library
+              }
+            ],
+            now,
+            "技能广场安装失败，且无法完整清理未注册目录。"
+          );
+          return CatalogInstallMarketplaceSkillContentResultSchema.parse({
+            source: sourceRef,
+            version: input.source.version,
+            title: remoteEntry.title,
+            alreadyInstalled: false,
+            libraryIds: [library.id]
+          });
+        }
         const registration = findRegistration(
           registry,
           targetLibrary.id,
@@ -4727,13 +4846,10 @@ export class FolderCatalogStore {
           "deepwrite.skill-library",
           targetLibrary.id
         );
-        const remoteEntry = bucket.entries[0]!;
-        const now = this.now();
-        const id = createCatalogId("skill-entry");
         const path = await uniqueRelativeMarkdownPath(
           projectDirectory,
           "entries",
-          id,
+          installedEntry.id,
           new Set(
             manifest.entries.map((entry) => portableContentPathKey(entry.path))
           )
@@ -4742,26 +4858,11 @@ export class FolderCatalogStore {
           remoteEntry.title,
           manifest.entries.map((entry) => entry.title)
         );
-        const entry = {
-          id,
-          stageId: remoteEntry.stageId,
-          title,
-          path,
-          createdAt: now,
-          updatedAt: now,
-          marketplaceSource: {
-            contentType: input.source.contentType,
-            contentId: input.source.contentId,
-            version: input.source.version,
-            installedAt: now
-          },
-          sourceSkillId: remoteEntry.marketplaceSkillId
-        };
         const next = FolderSkillProjectManifestSchema.parse({
           ...manifest,
           revision: manifest.revision + 1,
           updatedAt: now,
-          entries: [...manifest.entries, entry]
+          entries: [...manifest.entries, { ...installedEntry, title, path }]
         });
         await commitProjectMarkdownUpdate(
           await secureWritableProjectPath(projectDirectory, path),
@@ -5786,14 +5887,15 @@ function nextMarketplaceTitle(
   const normalized = new Set(
     existingTitles.map((title) => title.trim().toLocaleLowerCase())
   );
-  if (!normalized.has(baseTitle.trim().toLocaleLowerCase())) return baseTitle;
-  let suffix = 2;
-  while (
-    normalized.has(`${baseTitle} (${suffix})`.trim().toLocaleLowerCase())
-  ) {
-    suffix += 1;
+  for (let counter = 1; ; counter += 1) {
+    const suffix = counter === 1 ? "" : ` (${counter})`;
+    const truncated = baseTitle
+      .slice(0, CATALOG_TITLE_MAX_LENGTH - suffix.length)
+      .replace(/[\uD800-\uDBFF]$/u, "")
+      .trimEnd();
+    const title = `${truncated}${suffix}`;
+    if (!normalized.has(title.trimStart().toLocaleLowerCase())) return title;
   }
-  return `${baseTitle} (${suffix})`;
 }
 
 const DRAFT_CHARACTER_STATE_TITLE_SUFFIX = " · 状态";

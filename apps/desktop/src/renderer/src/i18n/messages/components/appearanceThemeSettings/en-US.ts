@@ -1,11 +1,11 @@
 export default {
   startupWindowSize: "Startup window size",
   startupWindowSizeHelp:
-    "Resize the window, then choose “Use current size” to save it for future launches. Later resizing does not update this setting. Restore the default to launch at 1200 × 800.",
+    "When “Remember size automatically” is selected, resizing the window saves its size for future launches. Choose “Default size 1200 × 800” to always launch at the default size.",
   defaultWindowSize: "Default: 1200 × 800",
-  useCurrentWindowSize: "Use current size",
-  restoreDefaultWindowSize: "Restore default size",
-  windowSizeSaved: "Current window size saved for future launches",
+  useCurrentWindowSize: "Remember size automatically",
+  restoreDefaultWindowSize: "Default size 1200 × 800",
+  windowSizeSaved: "Window size will be remembered automatically",
   windowSizeReset: "Future launches will use the default window size",
   windowSizeSaveFailed: "Could not save the startup window size. Try again.",
 

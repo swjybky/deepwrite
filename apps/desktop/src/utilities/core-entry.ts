@@ -280,7 +280,8 @@ async function handleCatalogCommand(
       if (command.payload.managementScope) {
         const service = new LibraryManagementService(
           catalogStore,
-          longWorkspaceService
+          longWorkspaceService,
+          mysteryWorkspaceService
         );
         await service.assertStructureTargets(
           command.payload.managementScope,
@@ -643,6 +644,13 @@ async function handleCatalogCommand(
         payload: CatalogInstallMarketplaceSkillContentResultSchema.parse(
           await catalogStore.installMarketplaceSkillContent(command.payload)
         )
+      };
+    }
+    if (command.type === "catalog.installMarketplaceMaterial") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: await catalogStore.installMarketplaceMaterial(command.payload)
       };
     }
     return {

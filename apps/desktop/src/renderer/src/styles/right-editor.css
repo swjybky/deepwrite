@@ -18,6 +18,12 @@
     minmax(0, 1fr) minmax(36px, auto);
 }
 
+.editor-pane:has(> .academic-card-bar) {
+  grid-template-rows:
+    minmax(40px, auto) auto minmax(0, 1fr)
+    minmax(36px, auto);
+}
+
 .section-tabs-bar {
   display: flex;
   align-items: stretch;
@@ -85,6 +91,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  min-height: 42px;
   padding: 5px 13px;
   overflow-x: auto;
   border-bottom: 1px solid var(--theme-line-soft);
@@ -142,6 +149,7 @@
   align-items: center;
   gap: 3px;
   min-width: 0;
+  min-height: 40px;
   padding: 5px 13px;
   border-bottom: 1px solid var(--theme-line-soft);
   background: var(--surface-muted);
@@ -195,7 +203,14 @@
   box-shadow: 0 1px 2px rgba(24, 26, 28, 0.08);
 }
 
+.view-tabs button:disabled,
+.draft-file-tabs button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .toolbar-separator {
+  flex-shrink: 0;
   width: 1px;
   height: 19px;
   margin: 0 4px;
@@ -365,7 +380,11 @@
 
 .editor-document.without-metadata {
   grid-template-rows: auto minmax(0, 1fr);
-  padding-top: 28px;
+}
+
+.editor-document.without-metadata,
+.long-editor-writing-surface {
+  padding-top: 14px;
 }
 
 .editor-document.is-readonly {
@@ -427,6 +446,10 @@
 
 .document-title-input[readonly] {
   color: var(--text-primary);
+}
+
+.editor-document.without-metadata > .document-title-input {
+  margin-top: 0;
 }
 
 .document-editor,

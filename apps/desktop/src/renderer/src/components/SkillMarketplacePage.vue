@@ -18,7 +18,8 @@ import {
   type MarketplaceSession,
   type MarketplaceSkillDetail,
   type MarketplaceSkillKind,
-  type MarketplaceSkillStage
+  type MarketplaceSkillStage,
+  type MarketplaceSource
 } from "@deepwrite/contracts/renderer";
 import MarketplaceAuthForm from "./MarketplaceAuthForm.vue";
 import MarketplaceBindEmail from "./MarketplaceBindEmail.vue";
@@ -57,7 +58,7 @@ type PageTab = "browse" | "mine" | "publish";
 type DetailSkillSection = {
   id: string;
   title: string;
-  kind: MarketplaceSkillKind;
+  kind?: MarketplaceSkillKind;
   skills: MarketplaceSkillDetail[];
 };
 
@@ -232,6 +233,7 @@ const publishSourceId = ref("");
 const publishTitle = ref("");
 const publishOverview = ref("");
 const publishKind = ref<MarketplaceSkillKind>("other");
+const legacyPublishSkillKind = ref<MarketplaceSkillKind>();
 const publishLibraryType = ref<MarketplaceLibraryType>("short");
 const publishStageId = ref<MarketplaceSkillStage>("draft");
 const publishBody = ref("");
@@ -260,12 +262,28 @@ const visibleMineItems = computed(() =>
       !("source_group_id" in item.metadata)
   )
 );
+const installedMarketplaceVersions = computed(() => {
+  const versions = new Set<string>();
+  function add(source: MarketplaceSource | undefined) {
+    if (source) {
+      versions.add(
+        `${source.contentType}:${source.contentId}:${source.version}`
+      );
+    }
+  }
+  for (const library of props.catalogSnapshot?.skills ?? []) {
+    add(library.marketplaceSource);
+    for (const entry of library.entries) add(entry.marketplaceSource);
+  }
+  for (const group of props.catalogSnapshot?.skillGroups ?? []) {
+    add(group.marketplaceSource);
+  }
+  return versions;
+});
 const installTargetLibraryOptions = computed<PopupSelectOption[]>(() => {
-  const preview = installPreview.value;
-  const bucket = preview?.buckets[0];
-  if (!preview || preview.ref.contentType !== "skill" || !bucket) return [];
-  return (props.catalogSnapshot?.skills ?? [])
-    .filter((library) => !library.isBuiltin)
+  if (installPreview.value?.ref.contentType !== "skill") return [];
+  const libraries = (props.catalogSnapshot?.skills ?? [])
+    .filter((library) => !library.isBuiltin && !library.isUnbound)
     .map((library) => ({
       value: library.id,
       label: library.title,
@@ -274,6 +292,7 @@ const installTargetLibraryOptions = computed<PopupSelectOption[]>(() => {
         arg2: library.entries.length
       })
     }));
+  return [{ value: "", label: t("installAsUnboundSkill") }, ...libraries];
 });
 
 const localSkillEntryOptions = computed<PopupSelectOption[]>(() =>
@@ -283,14 +302,17 @@ const localSkillEntryOptions = computed<PopupSelectOption[]>(() =>
       library.entries.map((entry) => ({
         value: `${library.id}\u0000${entry.id}`,
         label: entry.title,
-        description: `${library.title} · ${library.customTag ?? KIND_LABELS[library.skillKind]}`
+        ...(library.isUnbound ? {} : { description: library.title })
       }))
     )
 );
 
 const localSkillLibraryOptions = computed<PopupSelectOption[]>(() =>
   (props.catalogSnapshot?.skills ?? [])
-    .filter((library) => !library.isBuiltin && library.entries.length > 0)
+    .filter(
+      (library) =>
+        !library.isBuiltin && !library.isUnbound && library.entries.length > 0
+    )
     .map((library) => ({
       value: library.id,
       label: library.title,
@@ -448,7 +470,9 @@ function listFilter(page = browsePage.value): MarketplaceListFilter {
     ...(contentType.value
       ? { contentType: contentType.value as MarketplaceContentType }
       : {}),
-    ...(kind.value ? { kind: kind.value as MarketplaceSkillKind } : {}),
+    ...(contentType.value === "library" && kind.value
+      ? { kind: kind.value as MarketplaceSkillKind }
+      : {}),
     sort: sort.value as MarketplaceListFilter["sort"],
     page,
     pageSize: PAGE_SIZE
@@ -548,7 +572,6 @@ async function openDetail(
             {
               id: `skill:${memberDetail.id}`,
               title: memberDetail.title,
-              kind: memberDetail.kind,
               skills: [memberDetail]
             }
           ];
@@ -686,8 +709,18 @@ function deletedRetentionText(item: MarketplaceContentSummary): string {
   });
 }
 
-async function prepareInstall(item: MarketplaceContentSummary): Promise<void> {
-  if (!apiAvailable.value || installPending.value) return;
+function isInstalled(
+  item: MarketplaceContentRef & { version: number }
+): boolean {
+  return installedMarketplaceVersions.value.has(
+    `${item.contentType}:${item.id}:${item.version}`
+  );
+}
+
+async function prepareInstall(
+  item: MarketplaceContentRef & { version: number }
+): Promise<void> {
+  if (!apiAvailable.value || installPending.value || isInstalled(item)) return;
   installPending.value = true;
   try {
     const preview = await window.deepwrite!.marketplace.previewInstall({
@@ -706,38 +739,17 @@ async function prepareInstall(item: MarketplaceContentSummary): Promise<void> {
 async function confirmInstall(): Promise<void> {
   if (!installPreview.value || !apiAvailable.value || installPending.value)
     return;
-  if (
-    installPreview.value.ref.contentType === "skill" &&
-    !installTargetLibraryId.value
-  ) {
-    uiMessage.warning(t("selectALocalSkillLibraryToInstallInto"));
-    return;
-  }
   installPending.value = true;
   try {
-    const targetLibrary = props.catalogSnapshot?.skills.find(
-      ({ id }) => id === installTargetLibraryId.value
-    );
     const result = await window.deepwrite!.marketplace.install({
       ref: {
         contentType: installPreview.value.ref.contentType,
         id: installPreview.value.ref.id
       },
-      ...(installPreview.value.ref.contentType === "skill"
+      ...(installPreview.value.ref.contentType === "skill" &&
+      installTargetLibraryId.value
         ? { targetLibraryId: installTargetLibraryId.value }
-        : {}),
-      libraryTypesByKind: {
-        // Keep the remote metadata so exported content remains readable by older clients.
-        ...Object.fromEntries(
-          installPreview.value.buckets.map((bucket) => [
-            bucket.kind,
-            bucket.libraryType
-          ])
-        ),
-        ...(targetLibrary
-          ? { [targetLibrary.skillKind]: targetLibrary.skillType }
-          : {})
-      }
+        : {})
     });
     if (result.alreadyInstalled) {
       uiMessage.info(t("thisVersionIsAlreadyInstalled"));
@@ -772,6 +784,7 @@ function resetPublishForm(
   publishTitle.value = "";
   publishOverview.value = "";
   publishKind.value = "other";
+  legacyPublishSkillKind.value = undefined;
   publishLibraryType.value = "short";
   publishStageId.value = "draft";
   publishBody.value = "";
@@ -803,7 +816,6 @@ async function applyPublishSource(value: PopupSelectValue): Promise<void> {
       const entry = library?.entries.find(({ id }) => id === entryId);
       if (!library || !entry || !libraryId || !entryId) return;
       publishTitle.value = entry.title;
-      publishKind.value = library.skillKind;
       publishLibraryType.value = library.skillType;
       publishStageId.value = entry.stageId;
       const [overview, content] = await Promise.all([
@@ -901,7 +913,9 @@ function buildPublishInput(): MarketplacePublishInput | null {
       contentType: "skill",
       title,
       overview: publishOverview.value.trim(),
-      kind: publishKind.value,
+      ...(legacyPublishSkillKind.value
+        ? { kind: legacyPublishSkillKind.value }
+        : {}),
       libraryType: publishLibraryType.value,
       stageId: publishStageId.value,
       content: publishBody.value
@@ -1127,7 +1141,7 @@ async function editPublished(item: MarketplaceContentSummary): Promise<void> {
     publishTitle.value = owned.title;
     publishOverview.value = owned.overview;
     if (owned.contentType === "skill") {
-      publishKind.value = owned.kind;
+      legacyPublishSkillKind.value = owned.kind;
       publishLibraryType.value = owned.libraryType;
       publishStageId.value = owned.stageId;
       publishBody.value = owned.content;
@@ -1283,6 +1297,7 @@ onMounted(() => {
             variant="compact"
           />
           <PopupSelect
+            v-if="contentType === 'library'"
             v-model="kind"
             :options="kindOptions"
             :accessible-label="t('skillCategory')"
@@ -1331,9 +1346,11 @@ onMounted(() => {
               <span class="type-badge">{{
                 CONTENT_TYPE_LABELS[item.contentType]
               }}</span>
-              <span v-if="item.kind" class="meta-badge">{{
-                KIND_LABELS[item.kind]
-              }}</span>
+              <span
+                v-if="item.contentType === 'library' && item.kind"
+                class="meta-badge"
+                >{{ KIND_LABELS[item.kind] }}</span
+              >
             </div>
             <button class="card-title" type="button" @click="openDetail(item)">
               {{ item.title }}
@@ -1369,10 +1386,10 @@ onMounted(() => {
               <button
                 type="button"
                 class="primary-button compact"
-                :disabled="installPending"
+                :disabled="installPending || isInstalled(item)"
                 @click="prepareInstall(item)"
               >
-                {{ t("install") }}
+                {{ isInstalled(item) ? t("installed") : t("install") }}
               </button>
             </div>
           </article>
@@ -1658,7 +1675,6 @@ onMounted(() => {
 
           <template v-if="publishType === 'skill'">
             <div class="publish-metadata">
-              <span>{{ KIND_LABELS[publishKind] }}</span>
               <span>{{ publishStageId }}</span>
             </div>
             <label class="full-field">
@@ -1797,7 +1813,7 @@ onMounted(() => {
                 :class="{ active: selectedDetailSection?.id === section.id }"
                 @click="selectDetailSection(section)"
               >
-                <span class="detail-category-kind">{{
+                <span v-if="section.kind" class="detail-category-kind">{{
                   KIND_LABELS[section.kind]
                 }}</span>
                 <span class="detail-category-label">{{ section.title }}</span>
@@ -1863,12 +1879,13 @@ onMounted(() => {
               v-if="detailSummary?.status === 'published'"
               type="button"
               class="primary-button"
+              :disabled="installPending || isInstalled(detail)"
               @click="
-                prepareInstall(detailSummary);
+                prepareInstall(detail);
                 detail = null;
               "
             >
-              {{ t("install") }}
+              {{ isInstalled(detail) ? t("installed") : t("install") }}
             </button>
           </footer>
         </section>
@@ -1910,31 +1927,21 @@ onMounted(() => {
               {{ installPreview.orderNotice }}
             </p>
             <label v-if="installPreview.ref.contentType === 'skill'">
-              <span>{{ t("installIntoSkillLibrary") }}</span>
+              <span>{{ t("installLocation") }}</span>
               <PopupSelect
                 v-model="installTargetLibraryId"
                 :options="installTargetLibraryOptions"
-                :accessible-label="t('selectTargetLibraryForTheSkill')"
-                :placeholder="t('selectASkillLibrary')"
-                :disabled="installTargetLibraryOptions.length === 0"
+                :accessible-label="t('installLocation')"
+                :disabled="installPending"
                 :menu-z-index="2200"
               />
             </label>
-            <p
-              v-if="
-                installPreview.ref.contentType === 'skill' &&
-                installTargetLibraryOptions.length === 0
-              "
-              class="stable-help"
-            >
-              {{ t("noWritableSkillLibrariesCreateOneInTheSidebar") }}
-            </p>
             <article
               v-for="bucket in installPreview.buckets"
               :key="bucket.kind"
               class="install-bucket"
             >
-              <div>
+              <div v-if="installPreview.ref.contentType !== 'skill'">
                 <strong>{{ KIND_LABELS[bucket.kind] }}</strong
                 ><span>{{
                   t("skillsMessageDetail", {
@@ -1963,12 +1970,7 @@ onMounted(() => {
             ><button
               class="primary-button"
               type="button"
-              :disabled="
-                installPending ||
-                installPreview.alreadyInstalled ||
-                (installPreview.ref.contentType === 'skill' &&
-                  !installTargetLibraryId)
-              "
+              :disabled="installPending || installPreview.alreadyInstalled"
               @click="confirmInstall"
             >
               {{

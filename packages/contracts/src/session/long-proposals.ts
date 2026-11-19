@@ -21,9 +21,59 @@ const LongProposalBasePayloadSchema = z.object({
   runtime: AgentRuntimeRefSchema
 });
 
+export const LONG_MUTATION_REVIEW_TARGET_KINDS = [
+  "worldbuilding_category",
+  "worldbuilding_item",
+  "character",
+  "character_overview",
+  "book_line",
+  "volume",
+  "arc",
+  "story_plot",
+  "chapter_card",
+  "story_event",
+  "event_connection",
+  "narrative_placement",
+  "foreshadowing",
+  "foreshadowing_beat",
+  "continuity_file"
+] as const;
+export const LongMutationReviewTargetKindSchema = z.enum(
+  LONG_MUTATION_REVIEW_TARGET_KINDS
+);
+export type LongMutationReviewTargetKind = z.infer<
+  typeof LongMutationReviewTargetKindSchema
+>;
+
+export const LongMutationContentChangeSchema = z
+  .object({
+    fileId: LongFileIdSchema.optional(),
+    filePath: LongProjectRelativePathSchema.optional(),
+    operation: z.enum(["create", "write", "edit"]),
+    beforeText: z.string().max(10_000_000),
+    afterText: z.string().max(10_000_000)
+  })
+  .strict();
+export type LongMutationContentChange = z.infer<
+  typeof LongMutationContentChangeSchema
+>;
+
+export const LongMutationReviewSchema = z
+  .object({
+    targetKey: z.string().trim().min(1).max(320),
+    targetKind: LongMutationReviewTargetKindSchema,
+    targetId: z.string().trim().min(1).max(200),
+    action: z.enum(["create", "edit", "meta", "delete"]),
+    title: z.string().trim().min(1).max(600),
+    content: LongMutationContentChangeSchema.optional()
+  })
+  .strict();
+export type LongMutationReview = z.infer<typeof LongMutationReviewSchema>;
+
 export const LongMutationProposalPayloadSchema =
   LongProposalBasePayloadSchema.extend({
-    batch: LongWorkspaceOperationBatchSchema
+    batch: LongWorkspaceOperationBatchSchema,
+    review: LongMutationReviewSchema.optional()
   });
 export type LongMutationProposalPayload = z.infer<
   typeof LongMutationProposalPayloadSchema

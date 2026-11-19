@@ -2,14 +2,19 @@ import type {
   AgentProviderRuntimeConfig,
   ModelApi
 } from "@deepwrite/contracts";
-import { Type } from "@earendil-works/pi-ai";
+import { Type, type Tool } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
+import { buildSkillDraftTools } from "./extras/tools/skill-draft";
 import { buildProviderRuntime } from "./provider-runtime";
 import { findDeepWriteRuntimeModel } from "./runtime-model-catalog";
 import {
   SITE_OFFICIAL_MODEL_ROUTES,
   findSiteOfficialRuntimeModel
 } from "./site-official-model-catalog";
+import { createTeamManagementRuntime } from "./team-management-runtime";
+import { buildWebFetchTool } from "./web-search/fetch-tool";
+import type { WebSearchSession } from "./web-search/session";
+import { buildWebSearchTool } from "./web-search/tool";
 
 const routes: Array<[string, ModelApi]> = [
   ["claude-opus-5-5", "anthropic-messages"],
@@ -50,7 +55,14 @@ function configFor(modelId: string, api: ModelApi): AgentProviderRuntimeConfig {
 
 async function payloadFor(
   config: AgentProviderRuntimeConfig,
-  thinking: "high" | "xhigh" = "high"
+  thinking: "high" | "xhigh" = "high",
+  tools: Tool[] = [
+    {
+      name: "read",
+      description: "Read a document by stable id.",
+      parameters: Type.Object({ id: Type.String() })
+    }
+  ]
 ): Promise<Record<string, unknown>> {
   const { model, streamFn } = buildProviderRuntime(config, undefined, thinking);
   let payload: Record<string, unknown> | undefined;
@@ -62,13 +74,7 @@ async function payloadFor(
         messages: [
           { role: "user", content: "Read the chapter.", timestamp: 1 }
         ],
-        tools: [
-          {
-            name: "read",
-            description: "Read a document by stable id.",
-            parameters: Type.Object({ id: Type.String() })
-          }
-        ]
+        tools
       },
       {
         reasoning: thinking,
@@ -260,5 +266,75 @@ describe("dedicated official-site runtime model catalog", () => {
       new Set(SITE_OFFICIAL_MODEL_ROUTES.map((route) => route.id.toLowerCase()))
         .size
     ).toBe(routes.length);
+  });
+
+  it("disables strict tool mode on site DeepSeek models when strict and non-strict tools coexist", async () => {
+    const searchSession: WebSearchSession = {
+      providerId: "deepseek",
+      maxResults: 8,
+      queryHint: "",
+      canFetch: true,
+      fetchUrlMaxChars: 8192,
+      search: async () => ({
+        hits: [],
+        cached: false,
+        callIndex: 1,
+        callLimit: 10
+      }),
+      fetchPage: async () => ({
+        page: {
+          url: "https://example.test",
+          title: "",
+          content: "",
+          totalChars: 0
+        },
+        cached: false,
+        callIndex: 1,
+        callLimit: 10
+      })
+    };
+    const teamTools = createTeamManagementRuntime(
+      {
+        runId: "run_strict_check",
+        sessionId: "session_strict_check",
+        prompt: "检查团队与联网工具",
+        teamManagement: {
+          scope: { bookType: "short", bookId: "book_strict_check" },
+          description: "管理生效团队"
+        }
+      },
+      async () => ({
+        sessionId: "session_strict_check",
+        runId: "run_strict_check",
+        requestId: "req_1",
+        answers: []
+      })
+    ).tools;
+    const skillDraftTools = buildSkillDraftTools({
+      agentId: "revision-analysis",
+      jobId: "job_strict_check"
+    });
+    const mixedTools: Tool[] = [
+      buildWebSearchTool(searchSession),
+      buildWebFetchTool(searchSession),
+      ...teamTools,
+      ...skillDraftTools
+    ];
+
+    const config = configFor("deepseek-flash", "openai-completions");
+    expect(buildProviderRuntime(config).model.compat).toMatchObject({
+      supportsStrictMode: false
+    });
+    const payload = await payloadFor(config, "high", mixedTools);
+    const serializedTools = payload.tools as Array<{
+      type: string;
+      function: Record<string, unknown>;
+    }>;
+    expect(serializedTools.map((tool) => tool.function.name)).toEqual(
+      mixedTools.map((tool) => tool.name)
+    );
+    for (const tool of serializedTools) {
+      expect(tool.function).not.toHaveProperty("strict");
+    }
   });
 });

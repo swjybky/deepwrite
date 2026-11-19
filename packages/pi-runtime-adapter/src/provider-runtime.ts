@@ -3,8 +3,11 @@ import type {
   ThinkingLevel as PiThinkingLevel
 } from "@earendil-works/pi-agent-core";
 import {
+  createAssistantMessageEventStream,
   normalizeContext,
   type Api,
+  type AssistantMessage,
+  type AssistantMessageEvent,
   type Context,
   type Model,
   type ProviderStreams,
@@ -18,6 +21,7 @@ import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.l
 import {
   DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
   DEFAULT_CUSTOM_MODEL_MAX_TOKENS,
+  isUnsupportedDeveloperRoleError,
   type AgentProviderRuntimeConfig,
   type ThinkingLevel as ConfiguredThinkingLevel
 } from "@deepwrite/contracts";
@@ -129,7 +133,16 @@ export function buildProviderRuntime(
   const thinkingLevelMap: ThinkingLevelMap = {
     ...(builtin?.thinkingLevelMap ?? {})
   };
-  const compat = resolveOpenAICompletionsCompat(config, builtin);
+  const compat =
+    config.api === "openai-completions"
+      ? resolveOpenAICompletionsCompat(config, builtin)
+      : config.api === "openai-responses" &&
+          config.supportsDeveloperRole !== undefined
+        ? {
+            ...(builtin?.api === "openai-responses" ? builtin.compat : {}),
+            supportsDeveloperRole: config.supportsDeveloperRole
+          }
+        : undefined;
   // Pi's Z.AI serializer emits `thinking: disabled` whenever reasoning is
   // absent, even when the catalog marks off as unsupported. GLM-5.3 rejects
   // that payload, so stale/off run settings must degrade to its lowest valid
@@ -230,11 +243,201 @@ export function buildProviderRuntime(
       })
     );
   };
+  const baseStreamFn = isGeminiOpenAIConfig(config)
+    ? withGeminiOpenAIToolSignatures(streamFn)
+    : streamFn;
   return {
     model,
-    streamFn: isGeminiOpenAIConfig(config)
-      ? withGeminiOpenAIToolSignatures(streamFn)
-      : streamFn
+    streamFn: withDeveloperRoleFallback(
+      config,
+      model,
+      baseStreamFn,
+      compatibility.onDeveloperRoleFallback
+    )
+  };
+}
+
+function isAssistantOutputEvent(event: AssistantMessageEvent): boolean {
+  return (
+    event.type === "text_start" ||
+    event.type === "text_delta" ||
+    event.type === "text_end" ||
+    event.type === "thinking_start" ||
+    event.type === "thinking_delta" ||
+    event.type === "thinking_end" ||
+    event.type === "toolcall_start" ||
+    event.type === "toolcall_delta" ||
+    event.type === "toolcall_end" ||
+    event.type === "done"
+  );
+}
+
+function createDeveloperRoleFallbackErrorMessage(
+  model: Model<Api>,
+  error: unknown,
+  aborted: boolean
+): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: "" }],
+    api: model.api,
+    provider: model.provider,
+    model: model.id,
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
+    stopReason: aborted ? "aborted" : "error",
+    errorMessage: aborted
+      ? "模型请求已中止。"
+      : error instanceof Error
+        ? error.message
+        : String(error),
+    timestamp: Date.now()
+  };
+}
+
+type DeveloperRoleAwareModel = Model<"openai-completions" | "openai-responses">;
+
+function disableDeveloperRoleCompat(
+  target: Model<Api>
+): DeveloperRoleAwareModel["compat"] {
+  const compatible = target as DeveloperRoleAwareModel;
+  const nextCompat = {
+    ...(compatible.compat ?? {}),
+    supportsDeveloperRole: false
+  };
+  compatible.compat = nextCompat;
+  return nextCompat;
+}
+
+function withDeveloperRoleFallback(
+  config: AgentProviderRuntimeConfig,
+  model: Model<Api>,
+  sourceStreamFn: ProviderStreamFn,
+  onFallback?: () => void
+): ProviderStreamFn {
+  if (
+    (config.api !== "openai-completions" &&
+      config.api !== "openai-responses") ||
+    config.supportsDeveloperRole === true ||
+    (model as DeveloperRoleAwareModel).compat?.supportsDeveloperRole === false
+  ) {
+    return sourceStreamFn;
+  }
+
+  return (requestModel, context, options) => {
+    if (
+      (requestModel as DeveloperRoleAwareModel).compat
+        ?.supportsDeveloperRole === false
+    ) {
+      return sourceStreamFn(requestModel, context, options);
+    }
+
+    const initialSource = sourceStreamFn(requestModel, context, options);
+    const forwarded = createAssistantMessageEventStream();
+    void (async () => {
+      let sawStart = false;
+      let emittedOutput = false;
+      let terminalSeen = false;
+
+      const forwardStream = async (
+        sourcePromise: ReturnType<ProviderStreamFn>,
+        targetModel: Model<Api>,
+        allowFallback: boolean
+      ): Promise<boolean> => {
+        try {
+          const source = await sourcePromise;
+          for await (const event of source) {
+            if (event.type === "start") {
+              if (sawStart) continue;
+              sawStart = true;
+              forwarded.push(event);
+              continue;
+            }
+            if (
+              allowFallback &&
+              !emittedOutput &&
+              !options?.signal?.aborted &&
+              event.type === "error" &&
+              isUnsupportedDeveloperRoleError(event.error)
+            ) {
+              return true;
+            }
+            if (isAssistantOutputEvent(event)) {
+              emittedOutput = true;
+            }
+            if (event.type === "done" || event.type === "error") {
+              terminalSeen = true;
+            }
+            forwarded.push(event);
+          }
+          return false;
+        } catch (error: unknown) {
+          if (
+            allowFallback &&
+            !emittedOutput &&
+            !options?.signal?.aborted &&
+            isUnsupportedDeveloperRoleError(error)
+          ) {
+            return true;
+          }
+          const aborted = options?.signal?.aborted === true;
+          terminalSeen = true;
+          forwarded.push({
+            type: "error",
+            reason: aborted ? "aborted" : "error",
+            error: createDeveloperRoleFallbackErrorMessage(
+              targetModel,
+              error,
+              aborted
+            )
+          });
+          return false;
+        }
+      };
+
+      const shouldFallback = await forwardStream(
+        initialSource,
+        requestModel,
+        true
+      );
+      if (shouldFallback) {
+        const modelCompat = disableDeveloperRoleCompat(model);
+        const nextCompat =
+          requestModel === model
+            ? modelCompat
+            : disableDeveloperRoleCompat(requestModel);
+        onFallback?.();
+        const fallbackModel = {
+          ...(requestModel as DeveloperRoleAwareModel),
+          compat: nextCompat
+        } as Model<Api>;
+        await forwardStream(
+          sourceStreamFn(fallbackModel, context, options),
+          fallbackModel,
+          false
+        );
+      }
+
+      if (!terminalSeen) {
+        const aborted = options?.signal?.aborted === true;
+        forwarded.push({
+          type: "error",
+          reason: aborted ? "aborted" : "error",
+          error: createDeveloperRoleFallbackErrorMessage(
+            requestModel,
+            "Model stream ended without a terminal event.",
+            aborted
+          )
+        });
+      }
+    })();
+    return forwarded;
   };
 }
 

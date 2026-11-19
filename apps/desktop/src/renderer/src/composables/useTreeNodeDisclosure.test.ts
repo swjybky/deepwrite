@@ -4,6 +4,60 @@ import type { ResourceTreeNode } from "../types/workspace";
 import { useTreeNodeDisclosure } from "./useTreeNodeDisclosure";
 
 describe("useTreeNodeDisclosure", () => {
+  it.each([false, true])(
+    "preserves explicit book disclosure when selecting another work (manually opened %s)",
+    async (manual) => {
+      const selection = ref("outside");
+      const scope = effectScope();
+      const { open } = scope.run(() =>
+        useTreeNodeDisclosure(
+          () => ({
+            id: "short",
+            catalogNodeType: "book",
+            label: "短篇",
+            children: [{ id: "short-text", label: "正文" }]
+          }),
+          () => selection.value
+        )
+      )!;
+      if (manual) open.value = true;
+      selection.value = "short-text";
+      await nextTick();
+      expect(open.value).toBe(true);
+      selection.value = "mystery-document:other:truth_doc:core_truth";
+      await nextTick();
+      expect(open.value).toBe(manual);
+      scope.stop();
+    }
+  );
+
+  it("keeps a book collapsed when its row is selected from an active descendant", async () => {
+    const selectedId = ref("document");
+    const scope = effectScope();
+    const { open } = scope.run(() =>
+      useTreeNodeDisclosure(
+        () => ({
+          id: "book",
+          label: "作品",
+          selectableBranch: true,
+          children: [{ id: "document", label: "正文" }]
+        }),
+        () => selectedId.value
+      )
+    )!;
+    expect(open.value).toBe(true);
+    open.value = false;
+    selectedId.value = "book";
+    await nextTick();
+    expect(open.value).toBe(false);
+    selectedId.value = "other-book";
+    await nextTick();
+    selectedId.value = "book";
+    await nextTick();
+    expect(open.value).toBe(true);
+    scope.stop();
+  });
+
   it.each(["character-b", "characters"])(
     "keeps a manually collapsed directory closed after deletion selects %s",
     async (fallback) => {

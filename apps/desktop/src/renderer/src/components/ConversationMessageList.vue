@@ -139,7 +139,7 @@ const { handleConversationContextMenu } = useConversationSelectionInsertion({
       </div>
     </slot>
 
-    <div v-else :ref="setMessageList" class="message-list">
+    <div v-else-if="messages.length" :ref="setMessageList" class="message-list">
       <div
         v-for="group in groups"
         :key="group.id"

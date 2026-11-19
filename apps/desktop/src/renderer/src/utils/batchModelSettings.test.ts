@@ -69,7 +69,8 @@ describe("batch model configuration", () => {
       ...source,
       id: "reader-config",
       modelId: "reader",
-      contextWindow: 64000
+      contextWindow: 64000,
+      supportsDeveloperRole: false
     };
     const payload = {
       model: source,
@@ -80,7 +81,8 @@ describe("batch model configuration", () => {
     expect(applyBatchModelSettings(models, payload)).toEqual(models);
     expect(models[1]).toMatchObject({
       id: "reader-config",
-      contextWindow: 64000
+      contextWindow: 64000,
+      supportsDeveloperRole: false
     });
   });
   it("applies explicit credentials or clearing without referencing a saved key", () => {

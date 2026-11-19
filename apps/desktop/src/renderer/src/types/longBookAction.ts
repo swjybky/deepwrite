@@ -6,8 +6,7 @@ export type LongBookResourceNodeAction =
   | "rename"
   | "duplicate"
   | "export"
-  | "bind-skill"
-  | "bind-material"
+  | "bind"
   | "unregister"
   | "delete";
 

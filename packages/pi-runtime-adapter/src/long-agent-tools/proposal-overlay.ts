@@ -9,6 +9,7 @@ import { allEntityIds } from "./shared";
 export interface OverlayDocument {
   content: string;
   file: LongWorkspaceFileReference;
+  fromContinuityProposal?: true;
 }
 
 type Creation = Extract<LongWorkspaceOperation, { type: `${string}.create` }>;

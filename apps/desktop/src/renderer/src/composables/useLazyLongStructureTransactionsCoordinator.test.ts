@@ -8,9 +8,6 @@ import {
 } from "@deepwrite/contracts";
 import { computed, ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
-import facadeSource from "./useLazyLongStructureTransactionsCoordinator.ts?raw";
-import heavySource from "./useLongStructureTransactionsCoordinator.ts?raw";
-import syncSource from "./long-structure-transactions/sync.ts?raw";
 import {
   useLazyLongStructureTransactionsCoordinator,
   type LongStructureTransactionsCoordinatorModule
@@ -202,26 +199,6 @@ function moduleFor(coordinator: LongStructureTransactionsCoordinator) {
 }
 
 describe("useLazyLongStructureTransactionsCoordinator", () => {
-  it("keeps the heavy coordinator and its runtime helpers behind a type-only dynamic boundary", () => {
-    expect(facadeSource).toContain(
-      "import type {\n  LongStructureTransactionsCoordinator,"
-    );
-    expect(facadeSource).not.toContain(
-      "import { useLongStructureTransactionsCoordinator }"
-    );
-    expect(facadeSource).toContain(
-      'return import("./useLongStructureTransactionsCoordinator")'
-    );
-    expect(facadeSource).not.toContain('from "../types/longWorkspace"');
-    expect(facadeSource).not.toContain(
-      'from "../types/longStructureMutations"'
-    );
-    expect(heavySource).toContain('import("../types/longStructureMutations")');
-    expect(syncSource).toContain(
-      'await import("../../utils/longWorldbuildingSync")'
-    );
-  });
-
   it("projects worldbuilding book options synchronously without loading", () => {
     const loadModule =
       vi.fn<() => Promise<LongStructureTransactionsCoordinatorModule>>();

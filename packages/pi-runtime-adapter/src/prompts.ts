@@ -3,7 +3,7 @@ import {
   buildWorkspaceMaterialContext,
   materialCatalogNotes
 } from "./prompts-material";
-import type { LongAgentProfile } from "@deepwrite/contracts";
+import { type LongAgentProfile } from "@deepwrite/contracts";
 import {
   buildLongFixedContextLines,
   buildLongFollowUpContextLines

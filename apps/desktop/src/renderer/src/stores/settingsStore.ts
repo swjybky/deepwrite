@@ -133,6 +133,7 @@ export const useSettingsStore = defineStore("settings", () => {
     modelId: string;
     contextWindow: number;
     maxTokens: number;
+    supportsDeveloperRole?: boolean;
   } | null>(null);
   const modelAlertMessages = shallowRef<string[]>([]);
   const startupAlertMessages = shallowRef<string[]>([]);

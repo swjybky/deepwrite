@@ -47,7 +47,10 @@ function event(
     { id }
   ) as LibraryEditorMutationEventEnvelope;
 }
-function harness(autoApprove = false) {
+function harness(
+  autoApprove = false,
+  options: { drainSaves?: () => Promise<void> } = {}
+) {
   const proposals = new Map<string, AgentEditProposal>();
   const documents = shallowRef<WorkspaceDocument[]>([]);
   const warning = vi.fn();
@@ -57,11 +60,13 @@ function harness(autoApprove = false) {
     content: "已保存素材",
     projectRevision: 1
   }));
+  let runActive = true;
+  let approvalMode: "auto-approve" | "request-approval" | undefined =
+    autoApprove ? "auto-approve" : "request-approval";
   const conversation = {
     acceptsRunEvent: (sessionId: string, runId: string) =>
-      sessionId === "session" && runId === "run",
-    approvalModeForRun: () =>
-      autoApprove ? "auto-approve" : "request-approval",
+      runActive && sessionId === "session" && runId === "run",
+    approvalModeForRun: () => approvalMode,
     getEditProposal: (_run: string, id: string) => proposals.get(id),
     upsertEditProposal: (_run: string, proposal: AgentEditProposal) =>
       proposals.set(proposal.id, proposal),
@@ -97,7 +102,12 @@ function harness(autoApprove = false) {
     },
     conversations: { all: () => [conversation] }
   } as unknown as ProposalCoordinatorContext;
-  const stage = createLibraryProposalStager(context, queue, () => false);
+  const stage = createLibraryProposalStager(
+    context,
+    queue,
+    () => false,
+    options.drainSaves
+  );
   return {
     stage,
     proposals,
@@ -105,7 +115,11 @@ function harness(autoApprove = false) {
     warning,
     conflict,
     queue,
-    readDocument
+    readDocument,
+    endRun: () => {
+      runActive = false;
+      approvalMode = undefined;
+    }
   };
 }
 function document(content: string, loaded = true): WorkspaceDocument {
@@ -279,5 +293,50 @@ describe("library proposals in the originating writing conversation", () => {
     expect(test.proposals.size).toBe(0);
     expect(test.conflict).toHaveBeenCalledOnce();
     expect(test.documents.value[0]?.content).toBe("用户新内容");
+  });
+
+  it("retains and auto-queues a proposal when the run ends during drainSaves or readDocument", async () => {
+    let drainStarted = false;
+    let releaseSaves!: () => void;
+    const drainSaves = () => {
+      drainStarted = true;
+      return new Promise<void>((resolve) => {
+        releaseSaves = resolve;
+      });
+    };
+    const test = harness(true, { drainSaves });
+    let releaseRead!: () => void;
+    test.readDocument.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseRead = () =>
+            resolve({ content: "已保存素材", projectRevision: 1 });
+        })
+    );
+    test.documents.value = [document("", false)];
+
+    const staging = test.stage(
+      event({
+        operation: "edit",
+        creationId: undefined,
+        entryId: "entry",
+        documentId: "doc",
+        baseRevision: revision("已保存素材"),
+        text: "改进素材"
+      })
+    );
+    test.endRun();
+    await vi.waitFor(() => expect(drainStarted).toBe(true));
+    releaseSaves();
+    await vi.waitFor(() => expect(test.readDocument).toHaveBeenCalledOnce());
+    releaseRead();
+    await staging;
+
+    expect(test.proposals.size).toBe(1);
+    expect([...test.proposals.values()][0]).toMatchObject({
+      approvalMode: "auto-approve",
+      status: "pending"
+    });
+    expect(test.queue).toHaveBeenCalledOnce();
   });
 });

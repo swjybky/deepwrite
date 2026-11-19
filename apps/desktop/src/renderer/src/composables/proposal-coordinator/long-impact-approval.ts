@@ -26,6 +26,7 @@ interface ManualReviewInput {
 interface HoldForManualReviewInput extends ManualReviewInput {
   automatic: boolean;
   hadExpectedImpact: boolean;
+  requiresConfirmation?: boolean;
 }
 
 export function moveLongProposalToManualReview(input: ManualReviewInput): void {
@@ -49,7 +50,12 @@ export function moveLongProposalToManualReview(input: ManualReviewInput): void {
 export function holdLongProposalForManualReview(
   input: HoldForManualReviewInput
 ): boolean {
-  if (input.hadExpectedImpact || input.automatic) return false;
+  if (
+    input.hadExpectedImpact ||
+    input.automatic ||
+    input.requiresConfirmation === false
+  )
+    return false;
   moveLongProposalToManualReview(input);
   return true;
 }

@@ -52,7 +52,7 @@ export function parseTarget(args) {
     : undefined;
   if (!selected) {
     throw new Error(
-      "Usage: node tools/run-test-package.mjs <all | desktop | desktop arm64 | linux x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64>"
+      "Usage: node tools/run-test-package.mjs <all | desktop | desktop arm64 | linux x64 | mac arm64 | mac x64 | mac all | win x64 | win arm64> [--skip-verify]"
     );
   }
   return Object.fromEntries(
@@ -160,7 +160,9 @@ async function buildLinux(target, version) {
 }
 
 async function main() {
-  const target = parseTarget(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const skipVerify = args.includes("--skip-verify");
+  const target = parseTarget(args.filter((arg) => arg !== "--skip-verify"));
   const windowsArch = target.buildWinArm64
     ? "arm64"
     : target.buildWinX64
@@ -183,7 +185,13 @@ async function main() {
     const windowsArchive = windowsArch
       ? await resolveWindowsElectronArchive(version, { arch: windowsArch })
       : undefined;
-    await run(["verify"]);
+    // 跳过时仍要重新构建 out，避免把旧产物打进安装包。
+    if (skipVerify) {
+      console.log("PACKAGE_VERIFY_SKIPPED");
+      await run(["build"]);
+    } else {
+      await run(["verify"]);
+    }
     await buildLinux(target, version);
     await buildMac(target, version);
     await buildWindows(windowsArch, version, windowsArchive);

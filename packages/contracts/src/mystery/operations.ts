@@ -430,7 +430,7 @@ export function mysteryDocumentTitle(
 ): string {
   switch (target.kind) {
     case "agents_md":
-      return "AGENTS.md 创作约定";
+      return "剧本杀上下文";
     case "truth_doc":
       return (
         manifest.truthDocuments.find((doc) => doc.id === target.docId)?.title ??

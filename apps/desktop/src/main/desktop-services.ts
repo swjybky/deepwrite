@@ -1,5 +1,6 @@
 import {
   CatalogInstallMarketplaceSkillContentResultSchema,
+  MarketplaceMaterialInstallResultSchema,
   CatalogSnapshotSchema,
   CommandEnvelopeSchema,
   createEnvelope,
@@ -103,6 +104,19 @@ export function createDesktopServices(options: DesktopServiceOptions) {
       return CatalogInstallMarketplaceSkillContentResultSchema.parse(
         result.payload
       );
+    },
+    installMaterial: async (input) => {
+      const id = createId("cmd_marketplace_material_install");
+      const result = await command(
+        CommandEnvelopeSchema.parse(
+          createEnvelope("catalog.installMarketplaceMaterial", input, {
+            id,
+            correlationId: id
+          })
+        )
+      );
+      if (result.status === "rejected") throw new Error(result.error.message);
+      return MarketplaceMaterialInstallResultSchema.parse(result.payload);
     }
   });
   return {

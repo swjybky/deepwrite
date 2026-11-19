@@ -8,6 +8,7 @@ defineProps<{
   draftContent: string;
   diskContent: string;
   submitting?: boolean;
+  nested?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,7 +20,11 @@ const emit = defineEmits<{
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="dialog-backdrop">
+    <div
+      v-if="open"
+      class="dialog-backdrop"
+      :class="{ 'save-conflict-nested': nested }"
+    >
       <section
         class="workspace-dialog save-conflict-dialog"
         role="dialog"
@@ -96,6 +101,10 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+.save-conflict-nested {
+  z-index: 2300;
+}
+
 .save-conflict-dialog {
   width: min(820px, calc(100vw - 40px));
 }

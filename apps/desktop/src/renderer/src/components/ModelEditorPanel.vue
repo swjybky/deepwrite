@@ -64,7 +64,10 @@ const {
     save: (payload) => emit("save", payload),
     test: (model) => emit("test", model)
   },
-  { knownUserProviders: () => props.knownUserProviders }
+  {
+    model: () => props.model,
+    knownUserProviders: () => props.knownUserProviders
+  }
 );
 
 function openCreateProvider(): void {

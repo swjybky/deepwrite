@@ -505,7 +505,9 @@ export class AgentRunKernel {
             runtime,
             messageId
           )) {
-            writeApprovalGate?.observe(runtimeEvent);
+            if (event.type !== "tool_execution_update") {
+              writeApprovalGate?.observe(runtimeEvent);
+            }
             if (runtimeEvent.type === "agent.completed")
               completedEvent = runtimeEvent;
             else emit(runtimeEvent);

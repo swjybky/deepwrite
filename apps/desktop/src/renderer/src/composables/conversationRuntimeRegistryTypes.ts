@@ -36,7 +36,7 @@ export interface ConversationRuntimeRegistryStorePort {
   configurePersistenceAdapter(
     adapter: ConversationPersistenceAdapter | null,
     options?: ConversationPersistenceOptions
-  ): void;
+  ): () => Promise<void>;
   registerController(
     key: string,
     scope: string,

@@ -9,7 +9,7 @@ import type {
   WorkspaceDialogKind,
   WorkspaceDialogModule
 } from "../components/WorkspaceDialogLayer.types";
-import type { ResourceTreeNode } from "../types/workspace";
+import type { BookResourceDialogMode } from "../types/workspace";
 import type { LongWorldbuildingSyncBookOption } from "../utils/longWorldbuildingSync";
 import type {
   LibraryGroupDialogState,
@@ -58,7 +58,6 @@ export const WORKSPACE_DIALOG_PRIORITY = [
   "delete-long-tree",
   "delete-long-ledger-commit",
   "create-long-volume",
-  "long-bindings",
   "long-rename",
   "long-removal",
   "long-structure",
@@ -124,7 +123,6 @@ export interface WorkspaceDialogLongLifecycleState {
   activeBookSummary: Readonly<Ref<LongBookSummary | null>>;
   activeBookId: Readonly<Ref<string | null>>;
   workspaceIndex: Readonly<Ref<LongWorkspaceIndexSnapshot | null>>;
-  bindingsMode: Readonly<Ref<"skill" | "material" | null>>;
   bookActionPending: Readonly<Ref<boolean>>;
   renameTarget: Readonly<Ref<LongBookRenameTarget | null>>;
   removalTarget: Readonly<Ref<LongBookRemovalTarget | null>>;
@@ -138,7 +136,7 @@ export interface WorkspaceDialogShortLifecycleState {
   createDialogOpen: Readonly<Ref<boolean>>;
   createFromTemplate?: Readonly<Ref<boolean>>;
   transferMode: Readonly<Ref<DialogModule<"book-transfer">["mode"] | null>>;
-  resourceMode: Readonly<Ref<DialogModule<"book-resource">["mode"] | null>>;
+  resourceMode: Readonly<Ref<BookResourceDialogMode | null>>;
   activeBookTarget: Readonly<Ref<ShortBookLifecycleTarget | null>>;
 }
 
@@ -160,8 +158,6 @@ export interface WorkspaceDialogCatalogState {
   snapshot: Readonly<Ref<CatalogIndexSnapshot | null>>;
   loading: Readonly<Ref<boolean>>;
   mutationPending: Readonly<Ref<boolean>>;
-  skillLibraries: Readonly<Ref<ResourceTreeNode[]>>;
-  materialLibraries: Readonly<Ref<ResourceTreeNode[]>>;
   materialStageOptions(
     materialKind: PendingLibraryEntryMove["targetMaterialKind"]
   ): DialogModule<"library-entry-move">["options"];
@@ -324,30 +320,6 @@ export function useWorkspaceDialogModuleCoordinator(
         source: volumeCreation.source,
         pending: options.longLifecycle.bookActionPending.value
       };
-    }
-
-    const bindingsMode = options.longLifecycle.bindingsMode.value;
-    if (bindingsMode) {
-      const summary = options.longLifecycle.activeBookSummary.value;
-      if (summary) {
-        const snapshot = options.catalog.snapshot.value;
-        return {
-          kind: "long-bindings",
-          mode: bindingsMode,
-          bookTitle: summary.title,
-          materials: snapshot?.materials ?? [],
-          skills: snapshot?.skills ?? [],
-          materialGroups: snapshot?.materialGroups ?? [],
-          skillGroups: snapshot?.skillGroups ?? [],
-          linkedMaterialIdsByKind: summary.linkedMaterialIdsByKind,
-          linkedSkillIdsByKind: summary.linkedSkillIdsByKind,
-          linkedResourceStageScopes: summary.linkedResourceStageScopes ?? {
-            materials: {},
-            skills: {}
-          },
-          submitting: options.longLifecycle.bookActionPending.value
-        };
-      }
     }
 
     const renameTarget = options.longLifecycle.renameTarget.value;
@@ -567,17 +539,15 @@ export function useWorkspaceDialogModuleCoordinator(
     }
 
     const resourceMode = options.shortLifecycle.resourceMode.value;
-    if (resourceMode) {
-      const snapshot = options.catalog.snapshot.value;
+    if (
+      resourceMode === "rename" ||
+      resourceMode === "remove" ||
+      resourceMode === "delete"
+    ) {
       return {
         kind: "book-resource",
         mode: resourceMode,
         book: options.shortLifecycle.activeBookTarget.value?.node ?? null,
-        skillLibraries: options.catalog.skillLibraries.value,
-        materialLibraries: options.catalog.materialLibraries.value,
-        materialGroups: snapshot?.materialGroups ?? [],
-        skillGroups: snapshot?.skillGroups ?? [],
-        loading: options.catalog.loading.value,
         submitting: options.catalog.mutationPending.value
       };
     }

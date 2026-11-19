@@ -90,6 +90,7 @@ describe("shared library entry creation", () => {
         })
       );
       expect(emit.mock.calls.at(-1)?.[1]).not.toHaveProperty("libraryType");
+      expect(emit.mock.calls.at(-1)?.[1]).not.toHaveProperty("skillKind");
       for (const destination of ["short", "script", "long"]) {
         form.destination.value = destination;
         await nextTick();

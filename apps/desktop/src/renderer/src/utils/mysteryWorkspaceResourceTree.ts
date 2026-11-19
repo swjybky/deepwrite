@@ -4,8 +4,14 @@ import type {
   MysteryWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
 import { mysteryLabels } from "../features/mystery/mysterySharedLabels";
-import { mysteryDocumentResourceId } from "../stores/mysteryWorkspaceStore";
+import {
+  mysteryDocumentResourceId,
+  mysteryStageResourceId
+} from "../stores/mysteryWorkspaceStore";
 import type { IconName, ResourceTreeNode } from "../types/workspace";
+
+type StructureItem = NonNullable<ResourceTreeNode["mysteryItem"]>;
+type Collection = StructureItem["kind"];
 
 const stagePresentation = {
   truth: ["stageTruth", "brain"],
@@ -23,19 +29,84 @@ export function mysteryStagePresentation(stage: MysteryStageId) {
   return { label: mysteryLabels(label), icon };
 }
 
+export function mysteryStructureItems(
+  index: MysteryWorkspaceIndexSnapshot
+): Record<Collection, StructureItem[]> {
+  function item(
+    kind: Collection,
+    id: string,
+    title: string,
+    position: number,
+    length: number,
+    deleteDisabled = false
+  ): StructureItem {
+    return {
+      kind,
+      id,
+      title,
+      moveUpDisabled: position === 0,
+      moveDownDisabled: position === length - 1,
+      deleteDisabled
+    };
+  }
+
+  return {
+    truth_doc: index.truthDocuments.map((doc, position) => ({
+      ...item(
+        "truth_doc",
+        doc.id,
+        doc.title,
+        position,
+        index.truthDocuments.length,
+        doc.builtin
+      ),
+      renameDisabled: doc.builtin
+    })),
+    role: index.roles.map((role, position) => ({
+      ...item(
+        "role",
+        role.id,
+        role.name,
+        position,
+        index.roles.length,
+        index.roles.length <= 1
+      ),
+      tag: role.tag
+    })),
+    act: index.acts.map((act, position) =>
+      item(
+        "act",
+        act.id,
+        act.title,
+        position,
+        index.acts.length,
+        index.acts.length <= 1
+      )
+    ),
+    clue_round: index.clueRounds.map((round, position) =>
+      item(
+        "clue_round",
+        round.id,
+        round.title,
+        position,
+        index.clueRounds.length
+      )
+    )
+  };
+}
+
 export function buildMysteryWorkspaceResourceTree(
   index: MysteryWorkspaceIndexSnapshot
 ): ResourceTreeNode[] {
   const bookId = index.bookId;
+  const items = mysteryStructureItems(index);
   const document = (
     target: MysteryDocumentTarget,
-    label: string,
-    count: number
+    label: string
   ): ResourceTreeNode => ({
     id: mysteryDocumentResourceId(bookId, target),
     label,
     icon: "file",
-    badge: String(count),
     workspaceType: "mystery",
     mysteryBookId: bookId,
     mysteryTarget: target
@@ -43,48 +114,25 @@ export function buildMysteryWorkspaceResourceTree(
   const stage = (
     id: MysteryStageId,
     children: ResourceTreeNode[],
-    collection?: ResourceTreeNode["mysteryCollection"]
+    collection?: Collection
   ): ResourceTreeNode => ({
-    id: `mystery-stage:${encodeURIComponent(bookId)}:${id}`,
+    id: mysteryStageResourceId(bookId, id),
     ...mysteryStagePresentation(id),
     workspaceType: "mystery",
     mysteryBookId: bookId,
+    mysteryStage: id,
+    selectableBranch: true,
     children,
     ...(collection ? { mysteryCollection: collection } : {})
   });
-  const item = (
-    kind: NonNullable<ResourceTreeNode["mysteryItem"]>["kind"],
-    id: string,
-    title: string,
-    position: number,
-    deleteDisabled = false
-  ): NonNullable<ResourceTreeNode["mysteryItem"]> => ({
-    kind,
-    id,
-    title,
-    moveUpDisabled: position === 0,
-    deleteDisabled
-  });
+
   return [
     stage(
       "truth",
-      [
-        ...index.truthDocuments.map((doc, position) => ({
-          ...document(
-            { kind: "truth_doc", docId: doc.id },
-            doc.title,
-            doc.charCount
-          ),
-          ...(!doc.builtin
-            ? { mysteryItem: item("truth_doc", doc.id, doc.title, position) }
-            : {})
-        })),
-        document(
-          { kind: "agents_md" },
-          mysteryLabels("agentsMdItem"),
-          index.agentsMdChars
-        )
-      ],
+      items.truth_doc.map((doc) => ({
+        ...document({ kind: "truth_doc", docId: doc.id }, doc.title),
+        ...(!doc.renameDisabled ? { mysteryItem: doc } : {})
+      })),
       "truth_doc"
     ),
     stage(
@@ -92,35 +140,23 @@ export function buildMysteryWorkspaceResourceTree(
       [
         document(
           { kind: "character_relations" },
-          mysteryLabels("characterRelationsItem"),
-          index.characterRelations.charCount
+          mysteryLabels("characterRelationsItem")
         ),
-        ...index.roles.map((role, position) => ({
+        ...items.role.map((role) => ({
           id: `mystery-role:${encodeURIComponent(bookId)}:${role.id}`,
-          label: role.name,
+          label: role.title,
           icon: "folder" as const,
           workspaceType: "mystery" as const,
           mysteryBookId: bookId,
-          mysteryItem: {
-            ...item(
-              "role",
-              role.id,
-              role.name,
-              position,
-              index.roles.length <= 1
-            ),
-            tag: role.tag
-          },
+          mysteryItem: role,
           children: [
             document(
               { kind: "role", roleId: role.id, document: "profile" },
-              mysteryLabels("roleProfileTab"),
-              role.profileChars
+              mysteryLabels("roleProfileTab")
             ),
             document(
               { kind: "role", roleId: role.id, document: "pitch" },
-              mysteryLabels("rolePitchTab"),
-              role.pitchChars
+              mysteryLabels("rolePitchTab")
             )
           ]
         }))
@@ -129,53 +165,40 @@ export function buildMysteryWorkspaceResourceTree(
     ),
     stage(
       "scripts",
-      index.roles.map((role) => ({
+      items.role.map((role) => ({
         id: `mystery-scripts:${encodeURIComponent(bookId)}:${role.id}`,
-        label: role.name,
+        label: role.title,
         icon: "folder",
         workspaceType: "mystery",
         mysteryBookId: bookId,
-        children: index.acts.map((act, position) => {
-          const cell = index.actMatrix.find(
-            (entry) => entry.roleId === role.id && entry.actId === act.id
-          );
-          return {
-            id: `mystery-act:${encodeURIComponent(bookId)}:${role.id}:${act.id}`,
-            label: act.title,
-            icon: "folder",
-            workspaceType: "mystery",
-            mysteryBookId: bookId,
-            mysteryItem: item(
-              "act",
-              act.id,
-              act.title,
-              position,
-              index.acts.length <= 1
+        children: items.act.map((act) => ({
+          id: `mystery-act:${encodeURIComponent(bookId)}:${role.id}:${act.id}`,
+          label: act.title,
+          icon: "folder",
+          workspaceType: "mystery",
+          mysteryBookId: bookId,
+          mysteryItem: act,
+          children: [
+            document(
+              {
+                kind: "player_act",
+                roleId: role.id,
+                actId: act.id,
+                document: "brief"
+              },
+              mysteryLabels("actBriefTab")
             ),
-            children: [
-              document(
-                {
-                  kind: "player_act",
-                  roleId: role.id,
-                  actId: act.id,
-                  document: "brief"
-                },
-                mysteryLabels("actBriefTab"),
-                cell?.briefChars ?? 0
-              ),
-              document(
-                {
-                  kind: "player_act",
-                  roleId: role.id,
-                  actId: act.id,
-                  document: "body"
-                },
-                mysteryLabels("actBodyTab"),
-                cell?.bodyChars ?? 0
-              )
-            ]
-          };
-        })
+            document(
+              {
+                kind: "player_act",
+                roleId: role.id,
+                actId: act.id,
+                document: "body"
+              },
+              mysteryLabels("actBodyTab")
+            )
+          ]
+        }))
       })),
       "act"
     ),
@@ -184,31 +207,21 @@ export function buildMysteryWorkspaceResourceTree(
       [
         document(
           { kind: "public_doc", docId: "public_openings" },
-          mysteryLabels("publicOpeningsItem"),
-          index.publicOpenings.charCount
+          mysteryLabels("publicOpeningsItem")
         ),
-        ...index.clueRounds.map((round, position) => ({
-          ...document(
-            { kind: "clue_round", roundId: round.id },
-            round.title,
-            round.charCount
-          ),
-          mysteryItem: item("clue_round", round.id, round.title, position)
+        ...items.clue_round.map((round) => ({
+          ...document({ kind: "clue_round", roundId: round.id }, round.title),
+          mysteryItem: round
         })),
         document(
           { kind: "public_doc", docId: "endings" },
-          mysteryLabels("endingsItem"),
-          index.endings.charCount
+          mysteryLabels("endingsItem")
         )
       ],
       "clue_round"
     ),
     stage("dm", [
-      document(
-        { kind: "dm_manual" },
-        mysteryLabels("dmManualItem"),
-        index.dmManual.charCount
-      )
+      document({ kind: "dm_manual" }, mysteryLabels("dmManualItem"))
     ])
   ];
 }

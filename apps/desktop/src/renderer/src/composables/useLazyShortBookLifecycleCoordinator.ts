@@ -21,7 +21,6 @@ import type {
 import type { ShortManuscriptExportTarget } from "../utils/shortManuscriptExport";
 import type {
   CreateShortOrScriptBookInput,
-  ShortBookBindingsUpdate,
   ShortBookLifecycleCoordinator,
   ShortBookLifecycleCoordinatorOptions,
   ShortBookLifecycleState,
@@ -66,7 +65,6 @@ export interface LazyShortBookLifecycleCoordinator {
   closeBookExportDialog(): void;
   createBook(input: CreateShortOrScriptBookInput): Promise<void>;
   renameBook(payload: { bookId: string; label: string }): Promise<void>;
-  updateBookBindings(payload: ShortBookBindingsUpdate): Promise<void>;
   removeBook(bookId: string): Promise<void>;
   deleteBook(bookId: string): Promise<void>;
   exportBookManuscript(target: ShortManuscriptExportTarget): Promise<void>;
@@ -172,6 +170,9 @@ export function useLazyShortBookLifecycleCoordinator(
     api: () => options.catalog.api(),
     manuscriptApi: () => options.manuscript.api(),
     book: (bookId) => options.catalog.book(bookId),
+    openBookRename: (book) => {
+      void openBookDialog("rename", book);
+    },
     refresh: () => options.catalog.refresh(),
     prepareBookMutation: (bookId) =>
       options.preparation.prepareBookMutation(bookId),
@@ -302,6 +303,8 @@ export function useLazyShortBookLifecycleCoordinator(
     }
     activeBook.value = target;
     bookDialogMode.value = mode;
+    if (mode === "bind")
+      return invoke((loaded) => loaded.openBookBindings(target), requestId);
     return Promise.resolve();
   }
 
@@ -346,12 +349,6 @@ export function useLazyShortBookLifecycleCoordinator(
     const requestId = activeBook.value?.requestId;
     if (requestId === undefined) return Promise.resolve();
     return invoke((loaded) => loaded.renameBook(payload), requestId);
-  }
-
-  function updateBookBindings(payload: ShortBookBindingsUpdate): Promise<void> {
-    const requestId = activeBook.value?.requestId;
-    if (requestId === undefined) return Promise.resolve();
-    return invoke((loaded) => loaded.updateBookBindings(payload), requestId);
   }
 
   function removeBook(bookId: string): Promise<void> {
@@ -426,7 +423,6 @@ export function useLazyShortBookLifecycleCoordinator(
     closeBookExportDialog,
     createBook,
     renameBook,
-    updateBookBindings,
     removeBook,
     deleteBook,
     exportBookManuscript,

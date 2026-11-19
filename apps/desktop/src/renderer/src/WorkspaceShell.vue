@@ -22,6 +22,7 @@ import type {
   BookTransferAction,
   BookTransferDialogMode
 } from "./components/BookTransferDialog.vue";
+import { bookBindingsTarget } from "./stores/bookBindingsDialog";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import ToastHost from "./components/ToastHost.vue";
 import WritingWorkspaceModule from "./components/WritingWorkspaceModule.vue";
@@ -30,6 +31,7 @@ import { systemEventCenter } from "./events/systemEventCenter";
 import {
   ChatAssistantOverlay,
   LongWorkspaceModule,
+  BookBindingsDialog,
   WorkspaceDialogLayer,
   WorkspaceFeatureModules
 } from "./components/lazyAppComponents";
@@ -95,7 +97,6 @@ import type {
   DraftFileKind,
   EditorDraftState,
   ResourceSectionActionPayload,
-  ResourceTreeNode,
   WorkspaceDocument
 } from "./types/workspace";
 import {
@@ -382,7 +383,6 @@ const {
   treeItemDeleteTarget: longTreeItemDelete,
   ledgerCommitDeleteTarget: longLedgerCommitDelete,
   volumeCreateTarget: longVolumeCreate,
-  bindingsDialogMode: longBindingsDialogMode,
   bookActionPending: longBookActionPending,
   manuscriptExportPending: longManuscriptExportPending,
   continuationImportPreview,
@@ -492,8 +492,8 @@ const {
   applyModelSettingsToConversations,
   conversationForKey,
   dispose: disposeConversationRuntimeRegistry,
+  disposePersistence: disposeConversationPersistence,
   hydrateConversationPreferences,
-  persistenceEnabled: conversationPersistenceEnabled,
   removeAgentRunPreferences,
   synchronizeAgentRunPreferences,
   synchronizeSessionAgentModelSelection
@@ -563,7 +563,9 @@ const featureHost = useWorkspaceFeatureHostCoordinator({
         saveLong: () => saveActiveLongEditorBeforeLeaving()
       });
     },
-    saveActiveEditorBeforeLeaving: mysteryBridge.saveEditorsBeforeLeaving,
+    saveActiveEditorBeforeLeaving: async () =>
+      (await mysteryBridge.navigationPort.saveActiveEditorBeforeLeaving()) &&
+      saveActiveLongEditorBeforeLeaving(),
     newShortConversation: () => newShortConversation(),
     newLongConversation: () => newLongConversation(),
     ...mysteryBridge.featureHostActions
@@ -860,8 +862,6 @@ const {
   exportLongBookManuscript,
   closeLongBookRenameDialog,
   renameLongBook,
-  closeLongBookBindingsDialog,
-  updateLongBookBindings,
   closeLongBookRemovalDialog,
   confirmLongBookRemoval,
   saveLongAgentsMd,
@@ -883,7 +883,6 @@ const {
     structureDialogOpen: longStructureDialogOpen,
     structureAgentsMd: longStructureAgentsMd,
     structureAgentsMdPending: longStructureAgentsMdPending,
-    bindingsDialogMode: longBindingsDialogMode,
     exportTarget: longExportTarget,
     bookRenameTarget: longBookRenameDialog,
     bookRemovalTarget: longBookRemovalDialog,
@@ -1275,56 +1274,11 @@ const {
   openBookExportDialog,
   closeBookExportDialog,
   renameBook,
-  updateBookBindings,
   removeBook,
   deleteBook,
   exportBookManuscript,
   dispose: disposeShortBookLifecycle
 } = shortBookLifecycle;
-const skillLibraries = computed<ResourceTreeNode[]>(() => {
-  if (catalogSnapshot.value) {
-    return catalogSnapshot.value.skills.map((library) => ({
-      id: library.id,
-      label: library.title,
-      icon: "library",
-      ...(library.isBuiltin ? { badge: t("official") } : {}),
-      catalogNodeType: "library",
-      libraryId: library.id,
-      skillKind: library.skillKind,
-      workspaceType: library.skillType
-    }));
-  }
-  return (
-    resourceTreeSections.value.find((section) => section.id === "skill")
-      ?.nodes ?? []
-  );
-});
-const materialLibraries = computed<ResourceTreeNode[]>(() => {
-  if (catalogSnapshot.value) {
-    return catalogSnapshot.value.materials.map((library) => ({
-      id: library.id,
-      label: library.title,
-      icon: "archive",
-      ...([library.parentGenre, library.subGenre].filter(Boolean).join(" / ")
-        ? {
-            badge: [library.parentGenre, library.subGenre]
-              .filter(Boolean)
-              .join(" / ")
-          }
-        : {}),
-      catalogNodeType: "library",
-      libraryId: library.id,
-      materialKind: library.materialKind,
-      workspaceType: library.materialType,
-      ...(library.parentGenre ? { parentGenre: library.parentGenre } : {}),
-      ...(library.subGenre ? { subGenre: library.subGenre } : {})
-    }));
-  }
-  return (
-    resourceTreeSections.value.find((section) => section.id === "material")
-      ?.nodes ?? []
-  );
-});
 const {
   createFromTemplate,
   closeCreateBookDialog,
@@ -1384,7 +1338,6 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
     activeBookSummary: activeLongBookSummary,
     activeBookId: activeLongBookId,
     workspaceIndex: activeLongWorkspaceIndex,
-    bindingsMode: longBindingsDialogMode,
     bookActionPending: longBookActionPending,
     renameTarget: longBookRenameDialog,
     removalTarget: longBookRemovalDialog,
@@ -1415,8 +1368,6 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
     snapshot: catalogSnapshot,
     loading: catalogLoading,
     mutationPending: catalogMutationPending,
-    skillLibraries,
-    materialLibraries,
     materialStageOptions(materialKind) {
       return (MATERIAL_KIND_ALLOWED_STAGES[materialKind] ?? []).map(
         (value) => ({
@@ -2414,10 +2365,7 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   ],
   cleanup: [
     disposeGeneralSettings,
-    () =>
-      conversationStore.dispose({
-        flush: conversationPersistenceEnabled
-      }),
+    disposeConversationPersistence,
     () => disposeAnalysisFeatures(),
     decompositionWorkspace.dispose,
     () => subagentAuthoringFeature.dispose()
@@ -2714,6 +2662,11 @@ onBeforeUnmount(() => {
     />
   </Teleport>
 
+  <BookBindingsDialog
+    v-if="bookBindingsTarget"
+    :key="bookBindingsTarget.bookId"
+    :target="bookBindingsTarget"
+  />
   <WorkspaceDialogLayer
     v-if="workspaceDialogModule"
     :module="workspaceDialogModule"
@@ -2721,8 +2674,13 @@ onBeforeUnmount(() => {
     @rename-book="renameBook"
     @remove-book="removeBook"
     @delete-book="deleteBook"
-    @update-book-bindings="updateBookBindings"
     @close-plot-structure="closeShortStructureDialog"
+    @open-book-rename="
+      (id) => {
+        const node = resourceNode(id);
+        if (node) void openBookDialog('rename', node);
+      }
+    "
     @plot-structure-mutation="mutatePlotStructure"
     @character-structure-mutation="mutateCharacterStructure"
     @save-writing-context="saveWritingContext"
@@ -2744,6 +2702,7 @@ onBeforeUnmount(() => {
     @close-legacy-sync="closeLegacySyncDialog"
     @confirm-legacy-sync="confirmLegacySync"
     @close-long-structure="closeLongStructureDialog"
+    @long-book-action="handleLongBookAction"
     @long-structure-mutation="handleActiveLongStructureMutation"
     @save-long-agents-md="saveLongAgentsMd"
     @sync-long-worldbuilding="handleLongWorldbuildingSync"
@@ -2763,8 +2722,6 @@ onBeforeUnmount(() => {
     @confirm-delete-long-ledger-commit="confirmDeleteLongLedgerCommit"
     @close-create-long-volume="closeLongVolumeCreate"
     @submit-create-long-volume="createLongVolume"
-    @close-long-bindings="closeLongBookBindingsDialog"
-    @submit-long-bindings="updateLongBookBindings"
     @close-long-rename="closeLongBookRenameDialog"
     @submit-long-rename="renameLongBook"
     @close-long-removal="closeLongBookRemovalDialog"

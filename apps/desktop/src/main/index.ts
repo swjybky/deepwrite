@@ -167,6 +167,7 @@ import {
   createDefaultAppearanceSettings,
   createDefaultGeneralSettings,
   createEnvelope,
+  isUnsupportedDeveloperRoleError,
   type AgentRuntimeRef,
   type AppearanceSettings,
   type AppAlertSnapshot,
@@ -637,6 +638,17 @@ function handleUtilityEvent(
       validated.type === "agent.message_completed" ||
       validated.type === "agent.error"
     ) {
+      if (
+        validated.type === "agent.error" &&
+        isUnsupportedDeveloperRoleError(validated.payload.message) &&
+        validated.payload.runtime?.mode === "provider" &&
+        validated.payload.runtime.configId &&
+        modelConfigStore
+      ) {
+        void modelConfigStore
+          .disableDeveloperRole(validated.payload.runtime.configId)
+          .catch(() => undefined);
+      }
       const activeRun = activeRuns.get(runId);
       const previouslyTerminal = terminalRuns.has(runId);
       rememberTerminalRun(runId);
@@ -1414,7 +1426,8 @@ function registerIpc(): void {
         command.type === "catalog.readLibraryPackageSource" ||
         command.type === "catalog.previewLibraryPackageAtPath" ||
         command.type === "catalog.importLibraryPackageAtPath" ||
-        command.type === "catalog.installMarketplaceSkillContent"
+        command.type === "catalog.installMarketplaceSkillContent" ||
+        command.type === "catalog.installMarketplaceMaterial"
       ) {
         return {
           status: "rejected",

@@ -1,0 +1,14 @@
+{
+  "sharedTree": true,
+  "bookCollapse": true,
+  "roleSelection": true,
+  "actSelection": true,
+  "editorTabSelection": true,
+  "saveBeforeNavigation": true,
+  "collectionAddDialog": true,
+  "bookSettingsMenu": true,
+  "sidebarCollapse": true,
+  "bothPaneOrders": true,
+  "rightPaneCollapse": true,
+  "keyboardResize": true
+}

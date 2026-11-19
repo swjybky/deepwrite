@@ -10,7 +10,13 @@ import {
 
 describe("right pane preferences", () => {
   it("isolates widths by book and writing type", () => {
-    for (const workspaceType of ["short", "script", "long"] as const) {
+    for (const workspaceType of [
+      "short",
+      "script",
+      "long",
+      "academic",
+      "mystery"
+    ] as const) {
       expect(
         rightPanePreferenceKey({
           domain: "creation",

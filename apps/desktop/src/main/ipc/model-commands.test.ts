@@ -350,4 +350,43 @@ describe("model commands", () => {
       10_000
     );
   });
+
+  it("persists supportsDeveloperRole=false when a custom model test detects fallback", async () => {
+    const custom = {
+      ...freeModel,
+      id: "custom-modelscope",
+      managedBy: undefined,
+      provider: "custom",
+      modelId: "qwen3-writer"
+    };
+    const resolveDraft = vi.fn(async () => ({ ...custom, apiKey: "test-key" }));
+    const disableDeveloperRole = vi.fn(async () => undefined);
+    const requestCommand = vi.fn(async () => ({
+      status: "accepted" as const,
+      requestId: "cmd_test",
+      payload: {
+        modelId: custom.id,
+        ok: true,
+        message:
+          "连接成功，检测到接口不支持 developer 角色，已自动开启兼容配置。",
+        testedAt: "2026-10-01T00:00:00.000Z",
+        contextWindow: 272_000,
+        maxTokens: 128_000,
+        supportsDeveloperRole: false
+      }
+    }));
+    const ctx = {
+      requireModelConfigStore: () => ({ resolveDraft, disableDeveloperRole }),
+      supervisor: { requestCommand }
+    } as unknown as IpcCommandContext;
+    const command = CommandEnvelopeSchema.parse(
+      createEnvelope("models.test", { model: custom }, { id: "cmd_test" })
+    );
+
+    await expect(handleModelCommands(ctx, command)).resolves.toMatchObject({
+      status: "accepted",
+      payload: { supportsDeveloperRole: false }
+    });
+    expect(disableDeveloperRole).toHaveBeenCalledWith(custom.id);
+  });
 });

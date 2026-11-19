@@ -2,11 +2,15 @@ import {
   MarketplaceContentDetailSchema,
   MarketplaceContentPageSchema,
   MarketplaceContentSummarySchema,
+  MarketplaceMaterialDetailSchema,
+  MarketplaceMaterialSummarySchema,
   MarketplaceUserSchema,
   type MarketplaceContentDetail,
   type MarketplaceContentPage,
   type MarketplaceContentRef,
   type MarketplaceContentSummary,
+  type MarketplaceMaterialDetail,
+  type MarketplaceMaterialSummary,
   type MarketplaceSkillDetail,
   type MarketplaceUser
 } from "@deepwrite/contracts";
@@ -194,7 +198,7 @@ export function normalizeSkillDetail(raw: unknown): MarketplaceSkillDetail {
     ...normalizeDetailBase(value),
     contentType: "skill",
     stageId: requiredString(value, "stage_id"),
-    kind: requiredString(value, "kind"),
+    kind: optionalString(value, "kind"),
     libraryType: requiredString(value, "library_type"),
     content: requiredString(value, "content")
   }) as MarketplaceSkillDetail;
@@ -221,5 +225,47 @@ export function normalizeDetail(
     ...normalizeDetailBase(value),
     contentType,
     items: items.map(normalizeSummary)
+  });
+}
+
+export function normalizeMaterialSummary(
+  raw: unknown
+): MarketplaceMaterialSummary {
+  const value = asRecord(raw, "素材库");
+  if (value.domain !== "material") {
+    throw new MarketplaceClientError(
+      "marketplace.invalid_response",
+      "素材广场返回了其他类型的库。"
+    );
+  }
+  return MarketplaceMaterialSummarySchema.parse({
+    id: value.id,
+    title: value.title,
+    overview: value.overview,
+    kind: value.kind,
+    version: value.version
+  });
+}
+
+export function normalizeMaterialDetail(
+  raw: unknown
+): MarketplaceMaterialDetail {
+  const summary = normalizeMaterialSummary(raw);
+  const value = asRecord(raw, "素材库详情");
+  return MarketplaceMaterialDetailSchema.parse({
+    ...summary,
+    libraryType: value.library_type,
+    parentGenre: value.parent_genre,
+    subGenre: value.sub_genre,
+    entries: Array.isArray(value.entries)
+      ? value.entries.map((rawEntry) => {
+          const entry = asRecord(rawEntry, "素材条目");
+          return {
+            stageId: entry.stage_id,
+            title: entry.title,
+            body: entry.body
+          };
+        })
+      : value.entries
   });
 }

@@ -276,8 +276,14 @@ describe("long-form renderer vertical slice: editor-and-layout", () => {
   it("uses the shared writing-editor layout without exposing internal revisions", () => {
     expect(editorSource).not.toContain('class="long-editor-breadcrumbs"');
     expect(editorSource).toContain("<EditorPaneToggle");
-    expect(editorSource).toContain('class="long-editor-file-tabs"');
-    expect(editorSource).toContain('class="long-editor-view-tabs"');
+    const fileTabs = editorSource.indexOf('class="editor-file-tabs-bar"');
+    const toolbar = editorSource.indexOf('class="editor-toolbar"');
+    expect(fileTabs).toBeGreaterThan(-1);
+    expect(toolbar).toBeGreaterThan(fileTabs);
+    expect(editorSource.slice(fileTabs, toolbar)).toContain(
+      'class="draft-file-tabs"'
+    );
+    expect(editorSource.slice(toolbar)).toContain('class="view-tabs"');
     expect(editorSource).toContain('class="long-document-title"');
     expect(editorSource).toContain('class="long-editor-footer"');
     expect(editorSource).toContain("<LongEditorFooterMeta");

@@ -10,7 +10,7 @@ description: 在 DeepWrite 创建 Git 提交、推送、Pull Request 或合并�
 ## 提交前
 
 1. 检查当前分支、工作树、暂存区、未跟踪文件和相关 worktree；涉及同步或推送时再检查远端与待推送提交。保留已有改动和 stash，只暂存本次任务经审阅的文件，不使用 `git add .`、`git add -A` 或会夹带其他改动的提交方式。
-2. 审阅拟提交的 diff，特别检查新增或修改的测试、夹具、快照和日志中是否有真实地址、IP、密钥或凭据。对代码提交从仓库根目录运行 `pnpm verify`；失败时先修复本次改动导致的问题，未通过时不得宣称验证成功或继续提交。文档或技能改动也要检查格式和 diff。
+2. 审阅拟提交的 diff，特别检查新增或修改的测试、夹具、快照和日志中是否有真实地址、IP、密钥或凭据。代码提交只对本次暂存的文件跑 TEST.md 的 L1：`pnpm vitest related --run <文件>`、`pnpm exec eslint <文件>`、`pnpm exec prettier --check <文件>`，改了类型或契约再加 `pnpm typecheck`；用户说过已验证、本会话测过且之后未改时不再重复。不跑全量 `pnpm verify`，全量由 CI 在推送后执行，只有用户明确要求才本地跑。失败时只修本次改动导致的问题，未通过时不得宣称验证成功或继续提交。文档或技能改动只检查格式和 diff。
 3. 本仓库的 commit 身份固定为 `carswj <wenjia@wenjiadeMacBook-Air.local>`。检查仓库级 Git 配置；缺失或不符时只用 `git config --local user.name carswj` 与 `git config --local user.email wenjia@wenjiadeMacBook-Air.local` 修正，不改全局身份。
 
 ## 提交、PR 与合并

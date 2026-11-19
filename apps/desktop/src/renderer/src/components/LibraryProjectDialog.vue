@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MaterialStageId, SkillKind } from "@deepwrite/contracts";
+import type { MaterialStageId } from "@deepwrite/contracts";
 import { createScopedTranslator } from "../i18n";
 import {
   useLibraryProjectDialog,
@@ -19,7 +19,6 @@ const {
   entryDestinations,
   title,
   stageId,
-  libraryKind,
   libraryTagChoice,
   customTagDraft,
   isCustomTagSelected,
@@ -27,7 +26,6 @@ const {
   customTagInput,
   domainLabel,
   heading,
-  libraryKindOptions,
   libraryTagOptions,
   stageOptions,
   showEntryStageField,
@@ -217,26 +215,6 @@ const {
                   :accessible-label="t('destinationLibrary')"
                   size="large"
                   :disabled="submitting"
-                />
-              </label>
-              <label
-                v-if="domain === 'skill' && !destination"
-                class="book-resource-name-field"
-              >
-                <span>{{
-                  t("libraryCategoryMessage", { arg0: domainLabel })
-                }}</span>
-                <PopupSelect
-                  :model-value="libraryKind"
-                  :options="libraryKindOptions"
-                  size="large"
-                  :disabled="submitting"
-                  :accessible-label="
-                    t('valueLibraryCategory', { arg0: domainLabel })
-                  "
-                  @update:model-value="
-                    libraryKind = String($event) as SkillKind
-                  "
                 />
               </label>
             </template>

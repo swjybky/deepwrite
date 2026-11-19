@@ -36,6 +36,7 @@ export interface PlotStructureDialogProps {
 
 export type PlotStructureDialogEmit = {
   (event: "close"): void;
+  (event: "openRename", bookId: string): void;
   (
     event: "mutation",
     mutation: PlotStructureMutation,
@@ -372,6 +373,7 @@ export function usePlotStructureDialog(
     dialogElement,
     form,
     formMode,
+    flushWritingContext,
     isBuiltinCreativePlotStageId,
     locked,
     move,

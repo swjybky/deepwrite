@@ -1,9 +1,11 @@
+import {
+  bookBindingsTarget,
+  type BookBindingsTarget
+} from "../stores/bookBindingsDialog";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { createShortBookCreator } from "./short-book-creation";
 import {
-  flattenMaterialIdsByKind,
-  flattenSkillIdsByKind,
   type Book,
   type CreateAcademicBookInput,
   type CreateScriptBookInput,
@@ -250,13 +252,13 @@ export function useShortBookLifecycleCoordinator(
     }
   }
 
-  async function runWithLease(
+  async function runWithLease<Value>(
     lease: PendingLease,
-    task: () => Promise<void>
-  ): Promise<void> {
-    await runTracked(async () => {
+    task: () => Promise<Value>
+  ): Promise<Value> {
+    return runTracked(async () => {
       try {
-        await task();
+        return await task();
       } finally {
         releasePendingLease(lease);
       }
@@ -629,19 +631,10 @@ export function useShortBookLifecycleCoordinator(
     });
   }
 
-  function updateBookBindings(payload: ShortBookBindingsUpdate): Promise<void> {
-    const target = state.activeBook.value;
-    const expectedMode =
-      payload.domain === "skill" ? "bind-skill" : "bind-material";
-    if (
-      !target ||
-      target.bookId !== payload.bookId ||
-      !activeTargetIsCurrent(target, [expectedMode]) ||
-      target.unavailable
-    ) {
-      return Promise.resolve();
-    }
-    const api = catalog.api();
+  let bindingsTarget: BookBindingsTarget | null = null;
+
+  function openBookBindings(target: ShortBookLifecycleTarget): void {
+    if (!activeTargetIsCurrent(target, ["bind"]) || target.unavailable) return;
     const catalogBook = catalog.book(target.bookId);
     if (!catalogBook && !legacy.hasBook(target)) {
       closeActiveTarget(target);
@@ -650,120 +643,76 @@ export function useShortBookLifecycleCoordinator(
           "shortBookLifecycleCoordinator.couldNotFindTheBookWhoseLibraryLinksShould"
         )
       );
-      return Promise.resolve();
+      return;
     }
-    if (catalogBook && !api) return Promise.resolve();
-    if (
-      catalogBook &&
-      !requireVersionedCatalogTarget(
-        target,
-        t("shortBookLifecycleCoordinator.updateLinks")
-      )
-    ) {
-      return Promise.resolve();
-    }
-    const lease = acquirePendingLease("catalog");
-    if (!lease) return Promise.resolve();
-    const bindingLabel =
-      payload.domain === "skill"
-        ? t("catalogWorkspace.skillLibrary")
-        : t("catalogWorkspace.materialLibrary");
-    return runWithLease(lease, async () => {
-      try {
-        if (!(await prepareTargetMutation(target, lease, [expectedMode])))
-          return;
-        if (!catalogBook) {
-          await legacy.updateBindings(target, payload);
-          if (!leaseIsOwned(lease)) return;
-          if (activeTargetIsCurrent(target, [expectedMode])) {
-            closeActiveTarget(target);
-            notifications.success(
-              t("shortBookLifecycleCoordinator.updatedTheLinkFor", {
-                label: target.label,
-                bindingLabel: bindingLabel
-              })
-            );
-          }
-          return;
-        }
-        const authoritativeBook = catalog.book(target.bookId);
-        if (authoritativeBook?.projectRevision === undefined) {
-          if (leaseCanPublish(lease)) {
-            notifications.error(
+    let revision = target.projectRevision;
+    const binding: BookBindingsTarget = {
+      bookId: target.bookId,
+      title: target.label,
+      workspaceType: target.workspaceType,
+      initialSkills: target.node.boundSkillLibraryIdsByKind,
+      initialMaterials: target.node.boundMaterialLibraryIdsByKind,
+      initialSkillIds: target.node.boundSkillLibraryIdsByKind
+        ? undefined
+        : target.node.boundSkillLibraryIds,
+      initialMaterialIds: target.node.boundMaterialLibraryIdsByKind
+        ? undefined
+        : target.node.boundMaterialLibraryIds,
+      close() {
+        closeActiveTarget(target);
+        if (bindingsTarget === binding) bindingsTarget = null;
+      },
+      async saveLibrary(payload) {
+        if (!activeTargetIsCurrent(target, ["bind"])) return false;
+        const api = catalog.api();
+        if (catalogBook) {
+          if (!api || revision === undefined) return false;
+          if (catalog.book(target.bookId)?.projectRevision !== revision) {
+            throw new Error(
               t(
-                "shortBookLifecycleCoordinator.theCurrentBookHasNoVersionIdentifierItsLibrary"
+                "shortBookLifecycleCoordinator.theBookSLibraryLinksWereUpdatedElsewhereAnd"
               )
             );
           }
-          return;
         }
-        await api!.updateBook({
-          bookId: target.bookId,
-          baseProjectRevision: authoritativeBook.projectRevision,
-          ...(authoritativeBook.bookType === "academic"
-            ? payload.domain === "skill"
-              ? { linkedSkillIds: flattenSkillIdsByKind(payload.linksByKind) }
-              : {
-                  linkedMaterialIds: flattenMaterialIdsByKind(
-                    payload.linksByKind
-                  )
-                }
-            : payload.domain === "skill"
-              ? { linkedSkillIdsByKind: payload.linksByKind }
-              : { linkedMaterialIdsByKind: payload.linksByKind })
-        });
-        if (!leaseIsOwned(lease)) return;
-        const refreshed = await refreshAfterDurableMutation();
-        if (!leaseIsOwned(lease)) return;
-        const targetCurrent = activeTargetIsCurrent(target, [expectedMode]);
-        if (targetCurrent) closeActiveTarget(target);
-        if (!leaseCanPublish(lease) || !targetCurrent) return;
-        if (!refreshed) {
-          notifications.warning(
-            t(
-              "shortBookLifecycleCoordinator.updatedTheLinkForButTheProjectListCould",
-              { label: target.label, bindingLabel: bindingLabel }
-            )
-          );
-        } else {
-          notifications.success(
-            t("shortBookLifecycleCoordinator.updatedTheLinkFor", {
-              label: target.label,
-              bindingLabel: bindingLabel
-            })
-          );
-        }
-      } catch (error: unknown) {
-        if (
-          !leaseCanPublish(lease) ||
-          !activeTargetIsCurrent(target, [expectedMode])
-        ) {
-          return;
-        }
-        if (catalog.isConflict(error)) {
-          await refreshAfterDurableMutation();
-          if (
-            !leaseCanPublish(lease) ||
-            !activeTargetIsCurrent(target, [expectedMode])
-          ) {
-            return;
+        const lease = acquirePendingLease("catalog");
+        if (!lease) return false;
+        return runWithLease(lease, async () => {
+          if (!(await prepareTargetMutation(target, lease, ["bind"])))
+            return false;
+          if (!catalogBook) {
+            await legacy.updateBindings(target, {
+              ...payload,
+              bookId: target.bookId
+            });
+            return true;
           }
-          closeActiveTarget(target);
-          notifications.warning(
-            t(
-              "shortBookLifecycleCoordinator.theBookSLibraryLinksWereUpdatedElsewhereAnd"
-            )
-          );
-        } else {
-          notifications.error(
-            errorMessage(
-              error,
-              t("shortBookLifecycleCoordinator.couldNotUpdateTheLibraryLinks")
-            )
-          );
-        }
+          const authoritativeBook = catalog.book(target.bookId);
+          if (authoritativeBook?.projectRevision === undefined) return false;
+          try {
+            const updated = await api!.updateBook({
+              bookId: target.bookId,
+              baseProjectRevision: authoritativeBook.projectRevision,
+              ...(authoritativeBook.bookType === "academic"
+                ? payload.domain === "skill"
+                  ? { linkedSkillIds: payload.ids }
+                  : { linkedMaterialIds: payload.ids }
+                : payload.domain === "skill"
+                  ? { linkedSkillIdsByKind: payload.linksByKind }
+                  : { linkedMaterialIdsByKind: payload.linksByKind })
+            });
+            revision = updated.projectRevision;
+          } catch (error: unknown) {
+            if (catalog.isConflict(error)) await refreshAfterDurableMutation();
+            throw error;
+          }
+          await refreshAfterDurableMutation();
+          return true;
+        });
       }
-    });
+    };
+    bindingsTarget = binding;
+    bookBindingsTarget.value = binding;
   }
 
   function removeOrDeleteBook(
@@ -1073,6 +1022,9 @@ export function useShortBookLifecycleCoordinator(
     if (disposePromise) return disposePromise;
     if (disposed) return;
     disposed = true;
+    if (bookBindingsTarget.value === bindingsTarget)
+      bookBindingsTarget.value = null;
+    bindingsTarget = null;
     disposePromise = (async () => {
       await drain();
       for (const lease of [...ownedPendingLeases.values()]) {
@@ -1087,7 +1039,7 @@ export function useShortBookLifecycleCoordinator(
     duplicateBook,
     manageStructure,
     renameBook,
-    updateBookBindings,
+    openBookBindings,
     removeBook,
     deleteBook,
     exportBookManuscript,

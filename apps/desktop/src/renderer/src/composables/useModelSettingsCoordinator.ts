@@ -229,7 +229,10 @@ export function useModelSettingsCoordinator(
         settingsStore.lastModelTestCapacity = {
           modelId: result.modelId,
           contextWindow: result.contextWindow,
-          maxTokens: result.maxTokens
+          maxTokens: result.maxTokens,
+          ...(result.supportsDeveloperRole !== undefined
+            ? { supportsDeveloperRole: result.supportsDeveloperRole }
+            : {})
         };
       }
       uiMessage.success(result.message);

@@ -98,7 +98,6 @@ import longAgentSettingsPanel from "./longAgentSettingsPanel/zh-CN";
 import longAgentTeamSettingsPanel from "./longAgentTeamSettingsPanel/zh-CN";
 import longBookActionMenu from "./longBookActionMenu/zh-CN";
 import longBookBindingOptions from "./longBookBindingOptions/zh-CN";
-import longBookBindingsDialog from "./longBookBindingsDialog/zh-CN";
 import longBookRemovalDialog from "./longBookRemovalDialog/zh-CN";
 import longBookRenameDialog from "./longBookRenameDialog/zh-CN";
 import longCharacterNavigation from "./longCharacterNavigation/zh-CN";
@@ -296,7 +295,6 @@ export default {
   longAgentTeamSettingsPanel,
   longBookActionMenu,
   longBookBindingOptions,
-  longBookBindingsDialog,
   longBookRemovalDialog,
   longBookRenameDialog,
   longCharacterNavigation,

@@ -1,7 +1,9 @@
 import {
   type CatalogInstallMarketplaceSkillContentResult,
   type CatalogSnapshot,
-  type MarketplaceInstallPackage
+  type MarketplaceInstallPackage,
+  type MarketplaceMaterialDetail,
+  type MarketplaceMaterialInstallResult
 } from "@deepwrite/contracts";
 
 export type MarketplaceFetcher = (
@@ -30,4 +32,7 @@ export interface MarketplaceClientOptions {
   installPackage?: (
     input: MarketplaceInstallPackage
   ) => Promise<CatalogInstallMarketplaceSkillContentResult>;
+  installMaterial?: (
+    input: MarketplaceMaterialDetail
+  ) => Promise<MarketplaceMaterialInstallResult>;
 }

@@ -1,0 +1,650 @@
+[
+  {
+    "theme": "light",
+    "size": 14,
+    "panes": [
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 75,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 75,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 529,
+            "height": 25
+          },
+          {
+            "top": 529,
+            "height": 25
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 525.5,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "top": 487,
+            "height": 25
+          },
+          {
+            "top": 487,
+            "height": 25
+          },
+          {
+            "top": 484.5,
+            "height": 30
+          },
+          {
+            "top": 483.5,
+            "height": 32
+          },
+          {
+            "top": 484.5,
+            "height": 30
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "size": 14,
+    "panes": [
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 75,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 78.5,
+            "height": 25
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 77.5,
+            "height": 27
+          },
+          {
+            "top": 75,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 529,
+            "height": 25
+          },
+          {
+            "top": 529,
+            "height": 25
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 528,
+            "height": 27
+          },
+          {
+            "top": 525.5,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 43,
+        "overflow": false,
+        "body": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "top": 487,
+            "height": 25
+          },
+          {
+            "top": 487,
+            "height": 25
+          },
+          {
+            "top": 484.5,
+            "height": 30
+          },
+          {
+            "top": 483.5,
+            "height": 32
+          },
+          {
+            "top": 484.5,
+            "height": 30
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "theme": "light",
+    "size": 24,
+    "panes": [
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 81.5625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 81.5625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(255, 255, 255)",
+        "buttons": [
+          {
+            "top": 422.2109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 422.2109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 422.0625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 54,
+        "overflow": false,
+        "body": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "top": 379.140625,
+            "height": 31.7109375
+          },
+          {
+            "top": 379.140625,
+            "height": 31.7109375
+          },
+          {
+            "top": 377.5,
+            "height": 35
+          },
+          {
+            "top": 373.5,
+            "height": 43
+          },
+          {
+            "top": 380,
+            "height": 30
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "size": 24,
+    "panes": [
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 81.5625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 81.7109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 84.0625,
+            "height": 27
+          },
+          {
+            "top": 81.5625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 46.7109375,
+        "overflow": false,
+        "body": "rgb(23, 25, 28)",
+        "buttons": [
+          {
+            "top": 422.2109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 422.2109375,
+            "height": 31.7109375
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 424.5625,
+            "height": 27
+          },
+          {
+            "top": 422.0625,
+            "height": 32
+          }
+        ]
+      },
+      {
+        "toolbarHeight": 54,
+        "overflow": false,
+        "body": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "top": 379.140625,
+            "height": 31.7109375
+          },
+          {
+            "top": 379.140625,
+            "height": 31.7109375
+          },
+          {
+            "top": 377.5,
+            "height": 35
+          },
+          {
+            "top": 373.5,
+            "height": 43
+          },
+          {
+            "top": 380,
+            "height": 30
+          }
+        ]
+      }
+    ]
+  }
+]

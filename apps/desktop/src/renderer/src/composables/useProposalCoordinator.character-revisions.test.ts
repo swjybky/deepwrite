@@ -327,4 +327,38 @@ describe("same-conversation character revision safety", () => {
     expect(fixture.markToolConflict).not.toHaveBeenCalled();
     expect(fixture.saveDocument).toHaveBeenCalledOnce();
   });
+
+  it("retains and auto-saves a proposal when the run ends during async body load", async () => {
+    const fixture = await createdCharacter();
+    fixture.loader.invalidate(CHARACTER_DOCUMENT_ID, { discardContent: true });
+    const read = fixture.readDocument.getMockImplementation()!;
+    let release!: () => void;
+    const pendingRead = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fixture.readDocument.mockImplementationOnce(async (input) => {
+      await pendingRead;
+      return read(input);
+    });
+    const staging =
+      fixture.coordinator.stageAgentEditProposal(editCharacterEvent());
+    await vi.waitFor(() =>
+      expect(fixture.readDocument).toHaveBeenCalledTimes(2)
+    );
+    vi.spyOn(fixture.conversation, "acceptsRunEvent").mockReturnValue(false);
+    vi.spyOn(fixture.conversation, "approvalModeForRun").mockReturnValue(
+      undefined
+    );
+
+    release();
+    await staging;
+    await fixture.coordinator.drain();
+
+    expect(contentProposals(fixture)).toHaveLength(1);
+    expect(contentProposals(fixture)[0]).toMatchObject({
+      status: "accepted",
+      approvalMode: "auto-approve"
+    });
+    expect(fixture.diskContent()).toBe(REVISED_CHARACTER);
+  });
 });

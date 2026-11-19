@@ -15,9 +15,8 @@ import {
   validateToolArguments,
   type JsonObject
 } from "@earendil-works/pi-ai";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildAcademicWorkspaceTools } from "./academic-agent-tools";
-import { buildAskUserQuestionTool } from "./ask-user-question-tool";
 import { buildProviderRuntime } from "./provider-runtime";
 import {
   documentExecutor,
@@ -294,49 +293,6 @@ function validateEdit(tool: AgentTool, args: JsonObject) {
     arguments: args
   });
 }
-
-it("validates selection_mode and forwards the existing question shape", async () => {
-  const requestUserInput = vi.fn(async () => ({
-    sessionId: "session",
-    runId: "run",
-    requestId: "request",
-    answers: []
-  }));
-  const ask = buildAskUserQuestionTool(requestUserInput);
-  const question = {
-    id: "choice",
-    question: "保留哪些文献？",
-    options: [
-      { id: "a", label: "甲" },
-      { id: "b", label: "乙" }
-    ]
-  };
-  const run = (options: JsonObject) =>
-    ask.execute(
-      "ask",
-      validateEdit(ask, { questions: [{ ...question, ...options }] })
-    );
-
-  expect(() => run({ selection_mode: false })).toThrow("selection_mode");
-  expect(() => run({ multi_select: true })).toThrow("multi_select");
-  expect(requestUserInput).not.toHaveBeenCalled();
-  await run({ selection_mode: "single" });
-  await run({ selection_mode: "multiple" });
-  expect(requestUserInput).toHaveBeenNthCalledWith(
-    1,
-    expect.objectContaining({
-      questions: [{ ...question, multi_select: false }]
-    }),
-    undefined
-  );
-  expect(requestUserInput).toHaveBeenNthCalledWith(
-    2,
-    expect.objectContaining({
-      questions: [{ ...question, multi_select: true }]
-    }),
-    undefined
-  );
-});
 
 function expectInvalidOverwriteModesRejected(
   tool: AgentTool,

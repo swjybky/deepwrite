@@ -62,6 +62,12 @@ export function registerMarketplaceIpc(options: {
           return marketplaceClient.previewInstall(request.ref);
         case "install":
           return marketplaceClient.install(request.input);
+        case "listMaterials":
+          return marketplaceClient.listMaterials(request.filter);
+        case "materialDetail":
+          return marketplaceClient.materialDetail(request.id);
+        case "installMaterial":
+          return marketplaceClient.installMaterial(request.ref);
       }
     }
   );

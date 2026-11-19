@@ -137,12 +137,29 @@ describe("libraries shared across legacy writing types", () => {
     async (domain) => {
       const root = await makeTemporaryRoot("deepwrite-shared-unbound-");
       const store = new FolderCatalogStore({ userDataPath: root });
-      const legacy = await store.createUnboundEntry({
+      const container = await store.createLibrary(
+        domain === "material"
+          ? {
+              domain,
+              name: "未绑定素材",
+              materialKind: "other",
+              libraryType: "script",
+              unbound: true
+            }
+          : {
+              domain,
+              name: "未绑定技能",
+              skillKind: "plot",
+              libraryType: "script",
+              unbound: true
+            }
+      );
+      const libraryId = container.resource.id;
+      await store.createLibraryEntry({
         domain,
-        libraryType: "script",
+        libraryId,
         title: "旧条目",
-        content: "旧内容",
-        stageId: domain === "material" ? "other" : "draft"
+        content: "旧内容"
       });
       for (const libraryType of ["short", "long", undefined] as const) {
         const entry = await store.createUnboundEntry({
@@ -150,9 +167,10 @@ describe("libraries shared across legacy writing types", () => {
           title: `新条目-${libraryType}`,
           content: "新内容",
           stageId: domain === "material" ? "other" : "draft",
+          ...(domain === "skill" ? { skillKind: "style" } : {}),
           ...(libraryType ? { libraryType } : {})
         });
-        expect(entry.libraryId).toBe(legacy.libraryId);
+        expect(entry.libraryId).toBe(libraryId);
       }
       const plan = await store.previewLibraryStructure({
         domain,
@@ -163,7 +181,8 @@ describe("libraries shared across legacy writing types", () => {
             ref: "new",
             title: "智能体新增",
             content: "提案正文",
-            stageId: domain === "material" ? "other" : "draft"
+            stageId: domain === "material" ? "other" : "draft",
+            ...(domain === "skill" ? { skillKind: "plot" } : {})
           }
         ]
       });
@@ -174,6 +193,10 @@ describe("libraries shared across legacy writing types", () => {
       const pool = domain === "material" ? snapshot.materials : snapshot.skills;
       expect(pool).toHaveLength(1);
       expect(pool[0]?.entries).toHaveLength(5);
+      expect(pool[0]?.entries[0]).toMatchObject({
+        title: "旧条目",
+        body: "旧内容"
+      });
       expect(pool[0]).toMatchObject({
         [domain === "material" ? "materialType" : "skillType"]: "script"
       });

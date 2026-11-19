@@ -164,6 +164,8 @@ export type * from "./long-project-recovery";
 export type * from "./long-worldbuilding-markdown";
 export type * from "./long-workspace-operations";
 export type * from "./marketplace";
+export type * from "./marketplace-ipc";
+export type * from "./material-marketplace";
 export type * from "./material-markdown";
 export type * from "./material-query";
 export { MATERIAL_STAGE_KINDS } from "./material-stages";
@@ -171,7 +173,8 @@ export type * from "./models";
 export type * from "./model-usage";
 export {
   getModelContentBlockReason,
-  isModelQuotaExhausted
+  isModelQuotaExhausted,
+  isUnsupportedDeveloperRoleError
 } from "./model-provider-errors";
 export type * from "./preload-api";
 export type * from "./renderer-state";
@@ -482,7 +485,9 @@ export {
   longWorldbuildingOverviewContentPath,
   longWorldbuildingOverviewFileId,
   LONG_WORKSPACE_ROOTS,
-  resolveLongAgentIdForRoot
+  parseLongForeshadowingBody,
+  resolveLongAgentIdForRoot,
+  serializeLongForeshadowingBody
 } from "./long-workspace";
 export {
   BUILT_IN_REASONING_LEVELS,
@@ -522,8 +527,11 @@ export {
 } from "./session/context-compaction-defaults";
 export { ConversationCheckpointSchema } from "./session/context-compaction-state";
 export {
+  LONG_MUTATION_REVIEW_TARGET_KINDS,
   LongChapterBodyChangeSchema,
   LongCharacterFileChangeSchema,
+  LongMutationContentChangeSchema,
+  LongMutationReviewSchema,
   LongWorldbuildingFileChangeSchema
 } from "./session/long-proposals";
 export { LongMutationProposalEventEnvelopeSchema } from "./session/envelopes";
@@ -672,6 +680,7 @@ export {
 } from "./mystery/agent-settings";
 export { MysteryAgentTeamSettingsSchema } from "./mystery/agent-team";
 export {
+  MYSTERY_AGENTS_MD_MAX_CHARACTERS,
   MYSTERY_BOOK_GENRES,
   MYSTERY_BUILTIN_TRUTH_DOC_IDS,
   MYSTERY_BUILTIN_TRUTH_DOC_TITLES,

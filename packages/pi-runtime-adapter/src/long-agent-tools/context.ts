@@ -17,7 +17,10 @@ import {
   textResult,
   throwIfAborted
 } from "./shared";
-import { createProposalOverlay } from "./proposal-overlay";
+import {
+  createProposalOverlay,
+  type OverlayDocument
+} from "./proposal-overlay";
 import { AUTO_APPROVE_PROPOSAL_SUBMITTED } from "../write-approval";
 import type {
   BuildLongWorkspaceToolsInput,
@@ -179,9 +182,9 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
   const readWholeDocument = async (
     file: LongWorkspaceFileReference,
     signal?: AbortSignal
-  ): Promise<{ content: string; file: LongWorkspaceFileReference }> => {
+  ): Promise<OverlayDocument> => {
     const pending = proposalOverlay.document(file.id);
-    if (pending) return { content: pending.content, file: pending.file };
+    if (pending) return { ...pending };
     let offset = 0;
     let content = "";
     for (;;) {
@@ -199,15 +202,17 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     range: "head" | "tail",
     maximum: number,
     signal?: AbortSignal
-  ): Promise<string> => {
+  ): Promise<Pick<OverlayDocument, "content" | "fromContinuityProposal">> => {
     const pending = proposalOverlay.document(file.id);
     if (pending) {
       const characters = Array.from(pending.content);
-      return (
-        range === "head"
+      return {
+        ...pending,
+        content: (range === "head"
           ? characters.slice(0, maximum)
           : characters.slice(-maximum)
-      ).join("");
+        ).join("")
+      };
     }
     const first = await readDocumentPage(
       file,
@@ -215,7 +220,8 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
       range === "head" ? maximum : 1,
       signal
     );
-    if (range === "head" || first.totalCharacters <= 1) return first.content;
+    if (range === "head" || first.totalCharacters <= 1)
+      return { content: first.content };
     const offset = Math.max(0, first.totalCharacters - maximum);
     const tail = await readDocumentPage(file, offset, maximum, signal);
     if (
@@ -224,7 +230,7 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     ) {
       throw new Error("文档在范围读取时已有改动，请重新读取。");
     }
-    return tail.content;
+    return { content: tail.content };
   };
 
   const loadActiveChapterMutationContext = async (
@@ -290,9 +296,11 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
       afterText: string;
     }[];
     timestamp: string;
+    fromContinuityProposal?: true;
   }): void => {
-    const writes = input.changes.map((change) => ({
+    const writes = input.changes.map<OverlayDocument>((change) => ({
       content: change.afterText,
+      ...(input.fromContinuityProposal ? { fromContinuityProposal: true } : {}),
       file: {
         ...change.file,
         updatedAt: input.timestamp

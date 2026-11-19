@@ -43,7 +43,8 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "catalog.readLibraryAgentLibrary",
   "catalog.previewLibraryPackageAtPath",
   "catalog.importLibraryPackageAtPath",
-  "catalog.installMarketplaceSkillContent"
+  "catalog.installMarketplaceSkillContent",
+  "catalog.installMarketplaceMaterial"
 ]);
 
 export function isForbiddenRendererCommand(type: string): boolean {

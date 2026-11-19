@@ -1,7 +1,12 @@
-import type { LongCommandExecutor } from "./long-agent-tools";
+import {
+  createLongWorkspaceToolSharedState,
+  type LongCommandExecutor
+} from "./long-agent-tools";
 import { describe, expect, it } from "vitest";
 import { validateToolArguments, type JsonObject } from "@earendil-works/pi-ai";
 import {
+  committedFixtureIndex,
+  indexResult,
   longTools,
   twoWrittenChaptersIndex,
   fixtureWorldbuildingIndex,
@@ -120,6 +125,64 @@ describe("long phase two and three tools", () => {
       (await call(tools, "propose_continuity_commit", args)).details.kind
     ).toBe("long-continuity-commit-proposal");
   });
+
+  it("identifies full and ranged reads from an uncommitted archive proposal", async () => {
+    const index = twoWrittenChaptersIndex();
+    const chapter = index.chapters[0]!;
+    const executor = documentExecutor(index, { [chapter.body.id]: "正文" });
+    const sharedState = createLongWorkspaceToolSharedState();
+    const proposer = longTools({
+      index,
+      executor,
+      sharedState,
+      activeChapterCardId: chapter.chapterCardId
+    });
+    const tools = longTools({ index, executor, sharedState });
+    const target = { id: chapter.chapterCardId, document: "handoff" };
+    const source = "内容来自本轮连续性归档提案";
+    expect(resultText(await call(tools, "read", target))).not.toContain(source);
+    const proposal = await call(proposer, "propose_continuity_commit", {
+      summary: "归档",
+      foreshadowing_touchpoint_decisions: [],
+      documents: { chapter_end_state: "状态", handoff: "下一章接续" }
+    });
+    expect(resultText(proposal)).toContain('view="continuity"');
+    expect(resultText(proposal)).toMatch(/本批账本 commit_[a-f0-9]{24}/);
+    expect(resultText(await call(tools, "read", target))).toContain(source);
+    expect(resultText(await call(tools, "read", target))).toContain(source);
+    const excerpt = resultText(
+      await call(tools, "read", { ...target, range: "tail", max_chars: 2 })
+    );
+    expect(excerpt).toContain(source);
+    expect(excerpt).toContain("接续");
+    const status = resultText(
+      await call(tools, "list", {
+        scope_id: chapter.chapterCardId,
+        view: "continuity"
+      })
+    );
+    expect(status).toContain("未提交");
+    expect(index.ledger.commits).toHaveLength(0);
+  });
+
+  it.each([{ view: "continuity" }, { stage: "continuity" }])(
+    "checks Core again for ledger status with %j",
+    async (selector) => {
+      let index = twoWrittenChaptersIndex();
+      const executor = vi.fn<LongCommandExecutor>(async () =>
+        indexResult(index)
+      );
+      const tools = longTools({ index, executor });
+      const args = { scope_id: "chapter_one", ...selector };
+      expect(resultText(await call(tools, "list", args))).toContain("未提交");
+      index = committedFixtureIndex();
+      expect(resultText(await call(tools, "list", args))).toContain(
+        "已提交；正文版本未核验；账本 commit_one"
+      );
+      expect(executor).toHaveBeenCalledTimes(2);
+    }
+  );
+
   it("infers list views and retains legacy stage while rejecting conflicting views", async () => {
     const index = fixtureWorldbuildingIndex();
     const tools = longTools({ index, executor: documentExecutor(index) });

@@ -2,6 +2,7 @@
 import { createScopedTranslator } from "../i18n";
 import { computed, ref, watch } from "vue";
 import {
+  MYSTERY_AGENTS_MD_MAX_CHARACTERS,
   WRITING_CONTEXT_MAX_CHARACTERS,
   writingContextCharacterCount,
   type WritingContextWorkspaceType
@@ -20,7 +21,7 @@ const props = defineProps<{
   content: string | null;
   loading: boolean;
   pending: boolean;
-  workspaceType: WritingContextWorkspaceType;
+  workspaceType: WritingContextWorkspaceType | "mystery";
 }>();
 
 const emit = defineEmits<{
@@ -29,14 +30,26 @@ const emit = defineEmits<{
 
 const draft = ref("");
 const saved = ref("");
-const count = computed(() => writingContextCharacterCount(draft.value));
+const isMystery = computed(() => props.workspaceType === "mystery");
+const maxCharacters = computed(() =>
+  isMystery.value
+    ? MYSTERY_AGENTS_MD_MAX_CHARACTERS
+    : WRITING_CONTEXT_MAX_CHARACTERS
+);
+const count = computed(() =>
+  isMystery.value
+    ? draft.value.length
+    : writingContextCharacterCount(draft.value)
+);
 const dirty = computed(() => draft.value !== saved.value);
 const label = computed(() =>
   props.workspaceType === "academic"
     ? academicTreeT("academicContext")
-    : props.workspaceType === "script"
-      ? t("screenplayContext")
-      : t("shortStoryContext")
+    : isMystery.value
+      ? t("mysteryContext")
+      : props.workspaceType === "script"
+        ? t("screenplayContext")
+        : t("shortStoryContext")
 );
 
 watch(
@@ -54,11 +67,11 @@ watch(
 async function flushIfNeeded(): Promise<boolean> {
   if (!dirty.value) return true;
   if (props.loading || props.pending) return false;
-  if (count.value > WRITING_CONTEXT_MAX_CHARACTERS) {
+  if (count.value > maxCharacters.value) {
     uiMessage.warning(
       t("valueSupportsUpToValueCharacters", {
         arg0: label.value,
-        arg1: WRITING_CONTEXT_MAX_CHARACTERS
+        arg1: maxCharacters.value
       })
     );
     return false;
@@ -108,13 +121,11 @@ defineExpose({ flushIfNeeded });
         :disabled="pending"
         spellcheck="false"
       />
-      <footer
-        :class="{ 'is-over-limit': count > WRITING_CONTEXT_MAX_CHARACTERS }"
-      >
+      <footer :class="{ 'is-over-limit': count > maxCharacters }">
         <span>{{
           t("unsavedChangesAreSavedAutomaticallyWhenSwitchingTabsOr")
         }}</span>
-        <strong>{{ count }} / {{ WRITING_CONTEXT_MAX_CHARACTERS }}</strong>
+        <strong>{{ count }} / {{ maxCharacters }}</strong>
       </footer>
     </template>
   </section>

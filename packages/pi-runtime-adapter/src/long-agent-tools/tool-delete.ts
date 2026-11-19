@@ -8,7 +8,7 @@ import {
   strictObject,
   summaryParameter
 } from "./schemas";
-import { LONG_STAGE_ROOTS } from "./entity-registry";
+import { LONG_ENTITY_KIND_LABELS, LONG_STAGE_ROOTS } from "./entity-registry";
 import { resolveLongEntityTarget } from "./entity-target";
 import { resolveLongTarget } from "./target";
 import {
@@ -70,6 +70,13 @@ export function buildDeleteTool(ctx: LongToolContext): AgentTool {
           timestamp,
           summary,
           message: `已形成《${target.title}》删除提案，等待客户端确认关联影响。`,
+          review: {
+            targetKey: `delete:${target.file.id}`,
+            targetKind: "continuity_file",
+            targetId: target.id,
+            action: "delete",
+            title: `删除连续性文件 · ${target.title}`.slice(0, 600)
+          },
           index
         });
       }
@@ -93,6 +100,17 @@ export function buildDeleteTool(ctx: LongToolContext): AgentTool {
         timestamp,
         summary,
         message: `已形成《${target.title}》删除提案，等待客户端确认关联影响。`,
+        review: {
+          targetKey: `delete:${target.id}`,
+          targetKind: target.kind,
+          targetId: target.id,
+          action: "delete",
+          title:
+            `删除${LONG_ENTITY_KIND_LABELS[target.kind]} · ${target.title}`.slice(
+              0,
+              600
+            )
+        },
         index
       });
     }

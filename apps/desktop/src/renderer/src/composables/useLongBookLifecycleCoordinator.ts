@@ -1,3 +1,7 @@
+import {
+  bookBindingsTarget,
+  type BookBindingsTarget
+} from "../stores/bookBindingsDialog";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import type {
@@ -21,9 +25,7 @@ import type { LongManuscriptExportRequest } from "../utils/longManuscriptExport"
 import type {
   MaybePromise,
   PendingLane,
-  LongBindingsDialogMode,
-  LongBookLifecycleCoordinatorOptions,
-  LongBookBindingsUpdate
+  LongBookLifecycleCoordinatorOptions
 } from "./longBookLifecycleTypes";
 export type * from "./longBookLifecycleTypes";
 import { useLongConflictResolution } from "./useLongConflictResolution";
@@ -41,12 +43,6 @@ interface PendingLease {
   readonly lane: PendingLane;
   readonly requestId: number;
   readonly pending: Ref<boolean>;
-}
-
-interface BindingsTarget {
-  readonly requestId: number;
-  readonly bookId: string;
-  readonly mode: LongBindingsDialogMode;
 }
 
 /**
@@ -73,7 +69,7 @@ export function useLongBookLifecycleCoordinator(
   let disposePromise: Promise<void> | null = null;
   let pendingRequestClock = 0;
   let dialogRequestEpoch = 0;
-  let bindingsTarget: BindingsTarget | null = null;
+  let bindingsTarget: BookBindingsTarget | null = null;
   const ownedPendingLeases = new Map<PendingLane, PendingLease>();
   const dialogTargetRequests = new WeakMap<object, number>();
   const inFlightOperations = new Set<Promise<unknown>>();
@@ -119,13 +115,13 @@ export function useLongBookLifecycleCoordinator(
     }
   }
 
-  async function runWithLease(
+  async function runWithLease<Value>(
     lease: PendingLease,
-    task: () => Promise<void>
-  ): Promise<void> {
-    await runTracked(async () => {
+    task: () => Promise<Value>
+  ): Promise<Value> {
+    return runTracked(async () => {
       try {
-        await task();
+        return await task();
       } finally {
         releasePendingLease(lease);
       }
@@ -800,8 +796,6 @@ export function useLongBookLifecycleCoordinator(
     payload: LongBookResourceNodeActionPayload
   ): Promise<void> {
     const bookId = payload.node.longBookId;
-    const mode: LongBindingsDialogMode =
-      payload.action === "bind-skill" ? "skill" : "material";
     const requestId = beginDialogRequest();
     if (requestId === null) return Promise.resolve();
     return runTracked(async () => {
@@ -815,114 +809,73 @@ export function useLongBookLifecycleCoordinator(
       if (state.activeBookId.value !== bookId) {
         await session.openBook(bookId);
       }
+      const summary = state.activeBookSummary.value;
       if (
         !dialogRequestIsCurrent(requestId) ||
         state.activeBookId.value !== bookId ||
-        state.activeBookSummary.value?.id !== bookId
-      ) {
+        summary?.id !== bookId
+      )
         return;
-      }
-      bindingsTarget = { requestId, bookId, mode };
-      state.bindingsDialogMode.value = mode;
-    });
-  }
 
-  function closeLongBookBindingsDialog(): void {
-    if (disposed) return;
-    cancelDialogRequests();
-    bindingsTarget = null;
-    state.bindingsDialogMode.value = null;
-  }
-
-  function updateLongBookBindings(
-    payload: LongBookBindingsUpdate
-  ): Promise<void> {
-    const api = options.api();
-    const target = bindingsTarget;
-    if (
-      !api ||
-      !target ||
-      state.bindingsDialogMode.value !== target.mode ||
-      state.activeBookId.value !== target.bookId
-    ) {
-      return Promise.resolve();
-    }
-    const bindingLabel =
-      target.mode === "skill"
-        ? t("longBookLifecycleCoordinator.skillLibraryLinks")
-        : t("longBookLifecycleCoordinator.materialLibraryLinks");
-    const lease = acquirePendingLease("book-action");
-    if (!lease) return Promise.resolve();
-    return runWithLease(lease, async () => {
-      try {
-        if (!(await session.saveActiveEditorChanges())) return;
-        if (
-          !leaseIsCurrent(lease) ||
-          bindingsTarget !== target ||
-          !dialogRequestIsCurrent(target.requestId)
-        ) {
-          return;
-        }
-        if (!(await session.refreshActiveWorkspace(target.bookId))) {
-          if (leaseIsCurrent(lease)) {
-            uiMessage.error(
-              t(
-                "longBookLifecycleCoordinator.theNovelWorkspaceCouldNotBeReadLibraryLinks"
-              )
-            );
-          }
-          return;
-        }
-        const summary = state.activeBookSummary.value;
-        if (
-          !leaseIsCurrent(lease) ||
-          bindingsTarget !== target ||
-          !dialogRequestIsCurrent(target.requestId) ||
-          summary?.id !== target.bookId
-        ) {
-          return;
-        }
-        const updated = await api.updateBindings({
-          bookId: target.bookId,
-          linkedMaterialIdsByKind: payload.linkedMaterialIdsByKind,
-          linkedSkillIdsByKind: payload.linkedSkillIdsByKind,
-          linkedResourceStageScopes: payload.linkedResourceStageScopes ??
-            summary.linkedResourceStageScopes ?? {
-              materials: {},
-              skills: {}
-            }
-        });
-        if (!leaseIsCurrent(lease)) return;
-        publishOpenedBookResult(updated);
-        const targetCurrent =
-          bindingsTarget === target &&
-          dialogRequestIsCurrent(target.requestId) &&
-          state.bindingsDialogMode.value === target.mode;
-        if (targetCurrent) {
-          bindingsTarget = null;
-          state.bindingsDialogMode.value = null;
-        }
-        await catalog.loadBookList({ force: true });
-        if (leaseIsCurrent(lease) && targetCurrent) {
-          uiMessage.success(
-            t("longBookLifecycleCoordinator.updatedForNovel", {
-              title: updated.book.title,
-              bindingLabel: bindingLabel
-            })
-          );
-        }
-      } catch (error: unknown) {
-        if (leaseIsCurrent(lease) && dialogRequestIsCurrent(target.requestId)) {
-          uiMessage.error(
-            errorMessage(
-              error,
-              t("longBookLifecycleCoordinator.failedToUpdateNovel", {
-                bindingLabel: bindingLabel
-              })
+      const binding: BookBindingsTarget = {
+        bookId,
+        title: summary.title,
+        workspaceType: "long",
+        initialMaterials: summary.linkedMaterialIdsByKind,
+        initialSkills: summary.linkedSkillIdsByKind,
+        async saveLibrary(change) {
+          const api = options.api();
+          if (
+            !api ||
+            bindingsTarget !== binding ||
+            !dialogRequestIsCurrent(requestId) ||
+            state.activeBookId.value !== bookId
+          )
+            return false;
+          const lease = acquirePendingLease("book-action");
+          if (!lease) return false;
+          return runWithLease(lease, async () => {
+            if (
+              !(await session.saveActiveEditorChanges()) ||
+              !(await session.refreshActiveWorkspace(bookId))
             )
-          );
+              return false;
+            const latest = state.activeBookSummary.value;
+            if (
+              !leaseIsCurrent(lease) ||
+              bindingsTarget !== binding ||
+              !dialogRequestIsCurrent(requestId) ||
+              latest?.id !== bookId
+            )
+              return false;
+            const updated = await api.updateBindings({
+              bookId,
+              linkedMaterialIdsByKind:
+                change.domain === "material"
+                  ? change.linksByKind
+                  : latest.linkedMaterialIdsByKind,
+              linkedSkillIdsByKind:
+                change.domain === "skill"
+                  ? change.linksByKind
+                  : latest.linkedSkillIdsByKind,
+              linkedResourceStageScopes: latest.linkedResourceStageScopes ?? {
+                materials: {},
+                skills: {}
+              }
+            });
+            if (leaseIsCurrent(lease)) {
+              publishOpenedBookResult(updated);
+              await catalog.loadBookList({ force: true });
+            }
+            return true;
+          });
+        },
+        close() {
+          if (bindingsTarget === binding) bindingsTarget = null;
         }
-      }
+      };
+      bindingsTarget = binding;
+      bookBindingsTarget.value = binding;
     });
   }
 
@@ -937,7 +890,12 @@ export function useLongBookLifecycleCoordinator(
         state.activeBookId.value === bookId
           ? await session.saveActiveEditorChanges()
           : await session.saveActiveEditorBeforeLeaving(bookId);
-      if (!saved || !dialogRequestIsCurrent(requestId)) return;
+      if (!dialogRequestIsCurrent(requestId)) return;
+      if (
+        !saved &&
+        (state.activeBookId.value !== bookId || !state.workspaceIndex.value)
+      )
+        return;
       state.selectedResourceId.value = payload.node.id;
       resources.showConversation();
       if (state.activeBookId.value !== bookId || !state.workspaceIndex.value) {
@@ -1177,8 +1135,7 @@ export function useLongBookLifecycleCoordinator(
         return Promise.resolve();
       case "manage-structure":
         return openStructureDialog(payload);
-      case "bind-skill":
-      case "bind-material":
+      case "bind":
         return openBindingsDialog(payload);
       case "unregister":
       case "delete":
@@ -1228,6 +1185,8 @@ export function useLongBookLifecycleCoordinator(
     if (disposed) return;
     disposed = true;
     cancelDialogRequests();
+    if (bookBindingsTarget.value === bindingsTarget)
+      bookBindingsTarget.value = null;
     bindingsTarget = null;
     disposePromise = (async () => {
       await drain();
@@ -1255,8 +1214,6 @@ export function useLongBookLifecycleCoordinator(
     exportLongBookManuscript,
     closeLongBookRenameDialog,
     renameLongBook,
-    closeLongBookBindingsDialog,
-    updateLongBookBindings,
     closeLongBookRemovalDialog,
     confirmLongBookRemoval,
     saveLongAgentsMd,

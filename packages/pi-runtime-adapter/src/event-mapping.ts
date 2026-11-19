@@ -492,6 +492,7 @@ export function toRuntimeEvents(
             agentId: details.agentId,
             batch: details.batch,
             summary: details.summary,
+            ...(details.review ? { review: details.review } : {}),
             runtime
           }
         });

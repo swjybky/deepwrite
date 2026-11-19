@@ -38,6 +38,41 @@ describe("pinned resources", () => {
     ]);
   });
 
+  it("restores long and mystery pins as their catalogs load and skips unavailable books", () => {
+    const ids = parsePinnedResourceIds(
+      '["mystery-book:2","long-book:1","book-missing"]'
+    );
+    const sections = [
+      {
+        id: "creation" as const,
+        label: "创作空间",
+        icon: "book" as const,
+        nodes: [
+          {
+            id: "long-book:1",
+            label: "长篇",
+            catalogNodeType: "long-book" as const
+          },
+          {
+            id: "mystery-book:2",
+            label: "剧本杀",
+            catalogNodeType: "mystery-book" as const
+          },
+          {
+            id: "book-missing",
+            label: "无法打开",
+            catalogNodeType: "book" as const,
+            unavailable: true
+          }
+        ]
+      }
+    ];
+    expect(collectPinnedResourceNodes([], ids)).toEqual([]);
+    expect(
+      collectPinnedResourceNodes(sections, ids).map(({ id }) => id)
+    ).toEqual(ids.slice(0, 2));
+  });
+
   it("ignores malformed persisted state", () => {
     expect(parsePinnedResourceIds("not-json", resourceSections)).toEqual([]);
     expect(

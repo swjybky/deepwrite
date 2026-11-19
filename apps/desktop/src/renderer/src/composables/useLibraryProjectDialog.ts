@@ -113,7 +113,6 @@ export function useLibraryProjectDialog(
   ]);
   const title = ref("");
   const stageId = ref<MaterialStageId>("other");
-  const libraryKind = ref<SkillKind>("general");
   const libraryTagChoice = ref("preset:文献");
   const customTagDraft = ref("");
   const titleInput = ref<HTMLInputElement | null>(null);
@@ -143,30 +142,16 @@ export function useLibraryProjectDialog(
       arg0: props.entryTitle ?? t("entry")
     });
   });
-  const libraryKindOptions = computed(() =>
-    options.libraryKindOptions(props.domain)
-  );
   const libraryTagOptions = computed(() =>
     buildLibraryTagSelectOptions(
       props.domain,
       props.operation === "rename-library" && props.materialKind === "mixed"
     )
   );
-  const stageOptions = computed(() => {
-    const destinationKind = catalog.snapshot?.materials.find(
-      (library) => library.id === (props.libraryId ?? destination.value)
-    )?.materialKind;
-    return options.entryStageOptions(
-      destinationKind ?? props.materialKind ?? "mixed"
-    );
-  });
+  const stageOptions = computed(options.entryStageOptions);
   watch(entryDestinations, (opts) => {
     if (!opts.some((option) => option.value === destination.value))
       destination.value = "";
-  });
-  watch(stageOptions, (opts) => {
-    if (!opts.some((option) => option.value === stageId.value))
-      stageId.value = (opts[0]?.value as MaterialStageId) ?? "other";
   });
   const showEntryStageField = computed(
     () => props.operation === "create-entry" && props.domain === "material"
@@ -312,8 +297,7 @@ export function useLibraryProjectDialog(
         unbound: true,
         domain: props.domain,
         title: normalizedTitle,
-        stageId: props.domain === "material" ? stageId.value : "draft",
-        ...(props.domain === "skill" ? { skillKind: libraryKind.value } : {})
+        stageId: props.domain === "material" ? stageId.value : "draft"
       });
       return;
     }
@@ -357,7 +341,6 @@ export function useLibraryProjectDialog(
           : props.operation === "rename-entry"
             ? (props.entryTitle ?? "")
             : "";
-      libraryKind.value = "general";
       if (props.operation === "rename-library") {
         const currentLibrary =
           props.domain === "material"
@@ -407,7 +390,6 @@ export function useLibraryProjectDialog(
     entryDestinations,
     title,
     stageId,
-    libraryKind,
     libraryTagChoice,
     customTagDraft,
     isCustomTagSelected,
@@ -415,7 +397,6 @@ export function useLibraryProjectDialog(
     customTagInput,
     domainLabel,
     heading,
-    libraryKindOptions,
     libraryTagOptions,
     stageOptions,
     showEntryStageField,

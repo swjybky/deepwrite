@@ -45,6 +45,9 @@ export function useLazyLongWorkspaceProposals(
       approvalMode: ReturnType<
         NonNullable<typeof options.approvalModeForEvent>
       >;
+      versionOrigin: ReturnType<
+        NonNullable<typeof options.versionOriginForEvent>
+      >;
     }
   >();
   let controller: LongWorkspaceProposalController | undefined;
@@ -69,7 +72,11 @@ export function useLazyLongWorkspaceProposals(
           approvalModeForEvent: (event) =>
             acceptedEvents.has(event)
               ? acceptedEvents.get(event)?.approvalMode
-              : options.approvalModeForEvent?.(event)
+              : options.approvalModeForEvent?.(event),
+          versionOriginForEvent: (event) =>
+            acceptedEvents.has(event)
+              ? acceptedEvents.get(event)?.versionOrigin
+              : options.versionOriginForEvent?.(event)
         });
         for (const bookId of discardedBooks) controller.discardBook(bookId);
         for (const { bookId, sessionId } of quarantinedSessions.values()) {
@@ -121,7 +128,8 @@ export function useLazyLongWorkspaceProposals(
     // A run may finish while its first proposal chunk loads. Preserve its
     // already-authorized event and approval mode, without reviving removed books.
     acceptedEvents.set(event, {
-      approvalMode: options.approvalModeForEvent?.(event)
+      approvalMode: options.approvalModeForEvent?.(event),
+      versionOrigin: options.versionOriginForEvent?.(event)
     });
     try {
       const loaded = await load();

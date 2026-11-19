@@ -5,9 +5,6 @@ import type { AcademicBook } from "@deepwrite/contracts/renderer";
 import { createAcademicBookProjection } from "../../data/academicBookProjection";
 import { executeExportAcademicManuscript } from "../../composables/useAcademicBookLifecycleCoordinator";
 import { registerAcademicLifecyclePort } from "../../stores/academicWorkspaceDialog";
-import dialogSource from "./ExportAcademicManuscriptDialog.vue?raw";
-import dialogsHostSource from "./AcademicWorkspaceDialogs.vue?raw";
-import menuSource from "./AcademicTreeNodeMenuItems.vue?raw";
 
 const NOW = "2026-11-17T12:00:00.000Z";
 
@@ -96,21 +93,6 @@ function makeFixtureBook(): AcademicBook {
 describe("ExportAcademicManuscriptDialog & coordinator", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-  });
-
-  it("keeps lazy loading, scoped acad-export-* classes, chapter hierarchy toggle, and md image mode options", () => {
-    expect(dialogsHostSource).toContain(
-      'defineAsyncComponent(\n  () => import("./ExportAcademicManuscriptDialog.vue")\n)'
-    );
-    expect(menuSource).toContain("openExportAcademicManuscriptDialog");
-    expect(dialogSource).toContain('value="docx"');
-    expect(dialogSource).toContain('value="md"');
-    expect(dialogSource).toContain('value="assets_folder"');
-    expect(dialogSource).toContain('value="single_file"');
-    expect(dialogSource).toContain("includeChapterHeadings");
-    expect(dialogSource).toContain("toggleChapter");
-    expect(dialogSource).not.toContain(".tree-row");
-    expect(dialogSource).not.toContain(".section-tab");
   });
 
   it("loads unloaded section body documents via ensureDocumentsLoaded and calls exportAcademic", async () => {

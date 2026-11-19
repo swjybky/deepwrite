@@ -1,8 +1,13 @@
 import {
   createShortWorkspaceContentRevision,
+  parseLongForeshadowingBody,
+  serializeLongForeshadowingBody,
   WRITE_APPROVAL_EDITED_TEXT_MAX_LENGTH
 } from "@deepwrite/contracts/renderer";
-import type { LongWorkspaceOperationBatch } from "@deepwrite/contracts";
+import type {
+  LongWorkspaceOperation,
+  LongWorkspaceOperationBatch
+} from "@deepwrite/contracts";
 import type {
   AgentEditProposal,
   AgentTextDiffHunk
@@ -48,9 +53,147 @@ function longDocumentWrite(
   return write && write.mode !== "append" ? write : undefined;
 }
 
+function isEditableIndexProseOperation(
+  operation: LongWorkspaceOperation
+): boolean {
+  switch (operation.type) {
+    case "volume.create":
+    case "volume.update":
+    case "arc.create":
+    case "arc.update":
+    case "event.create":
+    case "event.update":
+    case "connection.create":
+    case "connection.update":
+    case "placement.create":
+    case "placement.update":
+    case "foreshadowing.create":
+    case "foreshadowing.update":
+    case "foreshadowingBeat.create":
+    case "foreshadowingBeat.update":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function withEditedIndexOperationProse(
+  operation: LongWorkspaceOperation,
+  text: string
+): { operation: LongWorkspaceOperation; afterText: string } {
+  switch (operation.type) {
+    case "volume.create":
+      return {
+        operation: {
+          ...operation,
+          volume: { ...operation.volume, summary: text }
+        },
+        afterText: text
+      };
+    case "volume.update":
+      return {
+        operation: {
+          ...operation,
+          patch: { ...operation.patch, summary: text }
+        },
+        afterText: text
+      };
+    case "arc.create":
+      return {
+        operation: { ...operation, arc: { ...operation.arc, summary: text } },
+        afterText: text
+      };
+    case "arc.update":
+      return {
+        operation: {
+          ...operation,
+          patch: { ...operation.patch, summary: text }
+        },
+        afterText: text
+      };
+    case "event.create":
+      return {
+        operation: {
+          ...operation,
+          event: { ...operation.event, summary: text }
+        },
+        afterText: text
+      };
+    case "event.update":
+      return {
+        operation: {
+          ...operation,
+          patch: { ...operation.patch, summary: text }
+        },
+        afterText: text
+      };
+    case "connection.create":
+      return {
+        operation: {
+          ...operation,
+          connection: { ...operation.connection, note: text }
+        },
+        afterText: text
+      };
+    case "connection.update":
+      return {
+        operation: { ...operation, patch: { ...operation.patch, note: text } },
+        afterText: text
+      };
+    case "placement.create":
+      return {
+        operation: {
+          ...operation,
+          placement: { ...operation.placement, writingPrompt: text }
+        },
+        afterText: text
+      };
+    case "placement.update":
+      return {
+        operation: {
+          ...operation,
+          patch: { ...operation.patch, writingPrompt: text }
+        },
+        afterText: text
+      };
+    case "foreshadowing.create": {
+      const parsed = parseLongForeshadowingBody(text);
+      return {
+        operation: {
+          ...operation,
+          thread: { ...operation.thread, ...parsed }
+        },
+        afterText: serializeLongForeshadowingBody(parsed)
+      };
+    }
+    case "foreshadowing.update": {
+      const parsed = parseLongForeshadowingBody(text);
+      return {
+        operation: {
+          ...operation,
+          patch: { ...operation.patch, ...parsed }
+        },
+        afterText: serializeLongForeshadowingBody(parsed)
+      };
+    }
+    case "foreshadowingBeat.create":
+      return {
+        operation: { ...operation, beat: { ...operation.beat, note: text } },
+        afterText: text
+      };
+    case "foreshadowingBeat.update":
+      return {
+        operation: { ...operation, patch: { ...operation.patch, note: text } },
+        afterText: text
+      };
+    default:
+      return { operation, afterText: text };
+  }
+}
+
 function longEditTarget(
   proposal: AgentEditProposal
-): { fileId: string; beforeText: string } | undefined {
+): { beforeText: string } | undefined {
   const draft = proposal.longDraftTarget;
   if (draft) return draft.file;
   const world = proposal.longWorldbuildingTarget;
@@ -60,6 +203,23 @@ function longEditTarget(
   if (character?.files.length === 1) {
     const file = character.files[0]!;
     return longDocumentWrite(character.batch, file.fileId) && file;
+  }
+  const plot = proposal.longPlotDesignTarget;
+  const content = plot?.review?.content;
+  if (!plot || !content) return undefined;
+  if (
+    content.fileId &&
+    plot.batch.documentWrites.length === 1 &&
+    longDocumentWrite(plot.batch, content.fileId)
+  ) {
+    return content;
+  }
+  if (
+    plot.batch.documentWrites.length === 0 &&
+    plot.batch.operations.length === 1 &&
+    isEditableIndexProseOperation(plot.batch.operations[0]!)
+  ) {
+    return content;
   }
   return undefined;
 }
@@ -80,8 +240,7 @@ export function proposalEditBaseText(
     proposal.plotStructureTarget ||
     proposal.draftSectionCreationTarget ||
     proposal.draftSectionRenameTarget ||
-    proposal.draftSectionDeletionTarget ||
-    proposal.longPlotDesignTarget
+    proposal.draftSectionDeletionTarget
   ) {
     return undefined;
   }
@@ -91,6 +250,7 @@ export function proposalEditBaseText(
     proposal.longDraftTarget ||
     proposal.longWorldbuildingTarget ||
     proposal.longCharacterTarget ||
+    proposal.longPlotDesignTarget ||
     proposal.truncated
   ) {
     return undefined;
@@ -147,6 +307,40 @@ function editedLongTargets(
         ...target,
         batch: withEditedWrite(character.batch, file.fileId, text),
         files: [{ ...file, afterText: text }]
+      }
+    };
+  }
+  const plot = proposal.longPlotDesignTarget;
+  if (plot?.review?.content) {
+    const { expectedImpact: _impact, ...target } = plot;
+    const content = plot.review.content;
+    if (content.fileId) {
+      return {
+        longPlotDesignTarget: {
+          ...target,
+          batch: withEditedWrite(plot.batch, content.fileId, text),
+          review: {
+            ...plot.review,
+            content: { ...content, afterText: text }
+          }
+        }
+      };
+    }
+    const edited = withEditedIndexOperationProse(
+      plot.batch.operations[0]!,
+      text
+    );
+    return {
+      longPlotDesignTarget: {
+        ...target,
+        batch: {
+          ...plot.batch,
+          operations: [edited.operation]
+        },
+        review: {
+          ...plot.review,
+          content: { ...content, afterText: edited.afterText }
+        }
       }
     };
   }

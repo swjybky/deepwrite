@@ -319,6 +319,19 @@ describe("useCatalogWorkspaceProjectionCoordinator", () => {
     );
   });
 
+  it.each(["mystery-book:one", "mystery-document:one:role:two:profile"])(
+    "preserves an active mystery resource %s when the catalog refreshes",
+    async (selectedResourceId) => {
+      const harness = createHarness({
+        snapshots: [catalogSnapshot(1)],
+        projections: new Map([[1, projection()]]),
+        selectedResourceId
+      });
+      await harness.coordinator.loadSnapshot();
+      expect(harness.selectedResourceId.value).toBe(selectedResourceId);
+    }
+  );
+
   it("loads and applies the legacy migrator only after a matching aggregate snapshot", async () => {
     const legacyKey = legacyBookDraftRecoveryKey("book-1");
     const document = workspaceDocument("document-1", "book-1", "disk");

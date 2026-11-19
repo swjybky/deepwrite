@@ -22,10 +22,14 @@ export function useEditorSelectionInsertion(options: {
   insert(reference: EditorTextReference): void;
 }) {
   const menu = useSelectionInsertionMenu({ insert: options.insert });
-  watch(() => {
-    const source = options.source();
-    return [source?.resourceId, source?.document.id, source?.document.content];
-  }, menu.closeSelectionAction);
+  watch(
+    [
+      () => options.source()?.resourceId,
+      () => options.source()?.document.id,
+      () => options.source()?.document.content
+    ],
+    menu.closeSelectionAction
+  );
 
   function sourceIsCurrent(source: EditorSelectionReferenceSource): boolean {
     const current = options.source();

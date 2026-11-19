@@ -1,7 +1,6 @@
 import type { LongBookSummary } from "@deepwrite/contracts";
 import { computed, ref, shallowRef } from "vue";
 import { describe, expect, it, vi } from "vitest";
-import lazySource from "./useLazyLongBookLifecycleCoordinator.ts?raw";
 import type {
   LongBookLifecycleCoordinator,
   LongBookLifecycleCoordinatorOptions
@@ -52,7 +51,6 @@ function createContext(): LongBookLifecycleCoordinatorOptions {
       structureDialogOpen: ref(false),
       structureAgentsMd: ref<string | null>(null),
       structureAgentsMdPending: ref(false),
-      bindingsDialogMode: ref(null),
       exportTarget: shallowRef(null),
       bookRenameTarget: shallowRef(null),
       bookRemovalTarget: shallowRef(null),
@@ -119,8 +117,6 @@ function createCoordinatorStub(
     exportLongBookManuscript: vi.fn(async () => undefined),
     closeLongBookRenameDialog: vi.fn(),
     renameLongBook: vi.fn(async () => undefined),
-    closeLongBookBindingsDialog: vi.fn(),
-    updateLongBookBindings: vi.fn(async () => undefined),
     closeLongBookRemovalDialog: vi.fn(),
     confirmLongBookRemoval: vi.fn(async () => undefined),
     saveLongAgentsMd: vi.fn(async () => undefined),
@@ -144,16 +140,6 @@ function action(action: "rename" | "duplicate") {
 }
 
 describe("useLazyLongBookLifecycleCoordinator", () => {
-  it("keeps the implementation behind a type-only import and dynamic chunk", () => {
-    expect(lazySource).toContain(
-      'import type {\n  LongBookBindingsUpdate,\n  LongBookLifecycleCoordinator,\n  LongBookLifecycleCoordinatorOptions\n} from "./useLongBookLifecycleCoordinator"'
-    );
-    expect(lazySource).not.toContain(
-      'import { useLongBookLifecycleCoordinator } from "./useLongBookLifecycleCoordinator"'
-    );
-    expect(lazySource).toContain('import("./useLongBookLifecycleCoordinator")');
-  });
-
   it("does not load for synchronous dialog closes or dispose before first use", async () => {
     const context = createContext();
     context.state.bookRenameTarget.value = {

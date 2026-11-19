@@ -22,13 +22,68 @@ dialog.showErrorBox = () => {
   app.exit(1);
 };
 
-async function updateSize(capture) {
+async function openAppearanceSettings() {
+  const waitFor = async (check, message) => {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      const value = await check();
+      if (value) return value;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(message);
+  };
+
+  const trigger = await waitFor(
+    () => globalThis.document.querySelector(".account-identity-button"),
+    "Account trigger did not mount"
+  );
+  trigger.click();
+  const settingsMenuItem = await waitFor(
+    () =>
+      Array.from(
+        globalThis.document.querySelectorAll('#account-menu [role="menuitem"]')
+      ).find((button) => /设置|Settings/i.test(button.textContent ?? "")),
+    "Settings menu item did not render"
+  );
+  settingsMenuItem.click();
+  const appearanceCategory = await waitFor(
+    () =>
+      Array.from(
+        globalThis.document.querySelectorAll(".settings-category")
+      ).find((button) => /外观|Appearance/i.test(button.textContent ?? "")),
+    "Appearance category did not render"
+  );
+  appearanceCategory.click();
+  await waitFor(() => {
+    const fieldset = globalThis.document.querySelector(
+      ".appearance-settings-content"
+    );
+    return (
+      fieldset &&
+      !fieldset.disabled &&
+      globalThis.document.querySelector(".startup-window-settings")
+    );
+  }, "Startup window settings did not hydrate");
+}
+
+async function waitForPersistedSize(expected) {
   const api = globalThis.deepwrite.appearance;
-  const settings = (await api.list()).settings;
-  if (capture)
-    return (await api.save(settings, { captureCurrentWindowSize: true }))
-      .settings.startupWindowSize;
-  await api.save({ ...settings, startupWindowSize: null });
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const current = (await api.list()).settings.startupWindowSize;
+    if (
+      expected === null
+        ? current === null
+        : current?.width === expected.width &&
+          current?.height === expected.height
+    ) {
+      return current;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+  throw new Error(
+    `Timed out waiting for startupWindowSize=${JSON.stringify(expected)}`
+  );
 }
 
 let started = false;
@@ -38,8 +93,9 @@ app.on("browser-window-created", (_event, window) => {
   window.webContents.once("did-finish-load", () => {
     void (async () => {
       try {
-        // Let the application's load listeners settle before the fixture can exit.
-        await new Promise((resolve) => setImmediate(resolve));
+        await window.webContents.executeJavaScript(
+          `(${openAppearanceSettings.toString()})()`
+        );
         const area = screen.getPrimaryDisplay().workAreaSize;
         const bounds = window.getBounds();
         if (phase === "restore") {
@@ -48,9 +104,35 @@ app.on("browser-window-created", (_event, window) => {
           );
           assert.equal(bounds.width, saved.width);
           assert.equal(bounds.height, saved.height);
+          const beforeState = await window.webContents
+            .executeJavaScript(`(() => {
+            const radios = document.querySelectorAll('.startup-window-settings [role="radio"]');
+            return {
+              label: document.querySelector('.startup-window-settings strong')?.textContent?.trim(),
+              autoChecked: radios[0]?.getAttribute('aria-checked'),
+              defaultChecked: radios[1]?.getAttribute('aria-checked')
+            };
+          })()`);
+          assert.equal(beforeState.label, `${saved.width} × ${saved.height}`);
+          assert.equal(beforeState.autoChecked, "true");
+          assert.equal(beforeState.defaultChecked, "false");
+          await window.webContents.executeJavaScript(`(async () => {
+            const radios = document.querySelectorAll('.startup-window-settings [role="radio"]');
+            radios[1].click();
+          })()`);
           await window.webContents.executeJavaScript(
-            `(${updateSize.toString()})(false)`
+            `(${waitForPersistedSize.toString()})(null)`
           );
+          window.setSize(
+            Math.min(1300, area.width),
+            Math.min(850, area.height)
+          );
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const afterResizeInDefault =
+            await window.webContents.executeJavaScript(
+              "globalThis.deepwrite.appearance.list().then((snapshot) => snapshot.settings.startupWindowSize)"
+            );
+          assert.equal(afterResizeInDefault, null);
         } else {
           assert.equal(bounds.width, Math.min(1200, area.width));
           assert.equal(bounds.height, Math.min(800, area.height));
@@ -60,18 +142,24 @@ app.on("browser-window-created", (_event, window) => {
               Math.min(900, area.height)
             );
             const current = window.getBounds();
+            const expected = { width: current.width, height: current.height };
             const saved = await window.webContents.executeJavaScript(
-              `(${updateSize.toString()})(true)`
+              `(${waitForPersistedSize.toString()})(${JSON.stringify(expected)})`
             );
-            assert.deepEqual(saved, {
-              width: current.width,
-              height: current.height
-            });
+            assert.deepEqual(saved, expected);
+            const uiState = await window.webContents.executeJavaScript(`(() => {
+              const radios = document.querySelectorAll('.startup-window-settings [role="radio"]');
+              return {
+                label: document.querySelector('.startup-window-settings strong')?.textContent?.trim(),
+                autoChecked: radios[0]?.getAttribute('aria-checked')
+              };
+            })()`);
+            assert.equal(
+              uiState.label,
+              `${expected.width} × ${expected.height}`
+            );
+            assert.equal(uiState.autoChecked, "true");
             await writeFile(join(root, "expected.json"), JSON.stringify(saved));
-            window.setSize(
-              Math.min(1200, area.width),
-              Math.min(800, area.height)
-            );
             const after = await window.webContents.executeJavaScript(
               "(async () => { const api = globalThis.deepwrite.appearance; const settings = (await api.list()).settings; return (await api.save({ ...settings, mode: 'dark' })).settings.startupWindowSize; })()"
             );

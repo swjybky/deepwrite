@@ -452,6 +452,7 @@ export type AgentRuntimeEvent =
         agentId: import("@deepwrite/contracts").LongAgentId;
         batch: import("@deepwrite/contracts").LongWorkspaceOperationBatch;
         summary: string;
+        review?: import("@deepwrite/contracts").LongMutationReview;
         runtime: AgentRuntimeRef;
       };
     }

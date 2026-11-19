@@ -2,6 +2,7 @@ import type { LongCharacterFileChange } from "@deepwrite/contracts";
 import {
   LongCharacterFileChangeSchema,
   LongChapterBodyChangeSchema,
+  LongMutationReviewSchema,
   LongWorkspaceImpactConfirmationSchema,
   LongWorldbuildingFileChangeSchema,
   LongWorkspaceOperationBatchSchema
@@ -87,18 +88,24 @@ export function parseStoredLongPlotDesignTarget(
     return undefined;
   }
   const batch = LongWorkspaceOperationBatchSchema.safeParse(value.batch);
+  const review =
+    value.review === undefined
+      ? undefined
+      : LongMutationReviewSchema.safeParse(value.review);
   const expectedImpact =
     value.expectedImpact === undefined
       ? undefined
       : LongWorkspaceImpactConfirmationSchema.safeParse(value.expectedImpact);
   if (
     !batch.success ||
+    (review !== undefined && !review.success) ||
     (expectedImpact !== undefined && !expectedImpact.success)
   )
     return undefined;
   return {
     bookId: value.bookId,
     batch: batch.data,
+    ...(review?.success ? { review: review.data } : {}),
     ...(expectedImpact?.success ? { expectedImpact: expectedImpact.data } : {})
   };
 }

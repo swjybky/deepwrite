@@ -1,5 +1,8 @@
 import { initializeTestTranslations } from "../../../test-utils/rendererI18n";
-import { createDefaultAppearanceSettings } from "@deepwrite/contracts/renderer";
+import {
+  createDefaultAppearanceSettings,
+  type AppearanceSettings
+} from "@deepwrite/contracts/renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./appearanceThemeRuntime", async (original) => ({
@@ -23,11 +26,24 @@ afterEach(() => {
 });
 
 async function setup() {
-  const save = vi.fn(async () => ({
-    settings: createDefaultAppearanceSettings(),
-    persisted: true
-  }));
-  vi.stubGlobal("window", {
+  const listeners = new Map<string, Set<() => void>>();
+  const save = vi.fn(
+    async (
+      _settings: AppearanceSettings,
+      _options?: { captureCurrentWindowSize?: boolean }
+    ) => ({
+      settings: createDefaultAppearanceSettings(),
+      persisted: true
+    })
+  );
+  const mockWindow = {
+    outerWidth: 1200,
+    outerHeight: 800,
+    addEventListener: vi.fn((event: string, listener: () => void) => {
+      const group = listeners.get(event) ?? new Set<() => void>();
+      group.add(listener);
+      listeners.set(event, group);
+    }),
     localStorage: {
       getItem: () => null,
       setItem: vi.fn(),
@@ -43,11 +59,22 @@ async function setup() {
         save
       }
     }
-  });
+  };
+  vi.stubGlobal("window", mockWindow);
   const { useAppearance } = await import("./useAppearance");
   const appearance = useAppearance();
   await appearance.whenReady();
-  return { appearance, save };
+  return {
+    appearance,
+    save,
+    triggerResize(width: number, height: number) {
+      mockWindow.outerWidth = width;
+      mockWindow.outerHeight = height;
+      for (const listener of listeners.get("resize") ?? []) {
+        listener();
+      }
+    }
+  };
 }
 
 describe("appearance persistence before close", () => {
@@ -103,6 +130,57 @@ describe("appearance persistence before close", () => {
       "disk unavailable"
     );
     expect(appearance.state.startupWindowSize).toBeUndefined();
+  });
+
+  it("automatically captures window size on resize by default and stops after switching to default size", async () => {
+    const { appearance, save, triggerResize } = await setup();
+    let capturedSize = { width: 1200, height: 800 };
+    save.mockImplementation(async (settings, options) => ({
+      persisted: true,
+      settings: {
+        ...settings,
+        startupWindowSize: options?.captureCurrentWindowSize
+          ? capturedSize
+          : settings.startupWindowSize
+      }
+    }));
+
+    capturedSize = { width: 1440, height: 920 };
+    triggerResize(1440, 920);
+    expect(appearance.state.startupWindowSize).toEqual({
+      width: 1440,
+      height: 920
+    });
+    expect(save).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        startupWindowSize: { width: 1440, height: 920 }
+      }),
+      { captureCurrentWindowSize: true }
+    );
+
+    capturedSize = { width: 1500, height: 960 };
+    triggerResize(1500, 960);
+    await appearance.flush();
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        startupWindowSize: { width: 1500, height: 960 }
+      }),
+      { captureCurrentWindowSize: true }
+    );
+
+    await appearance.saveStartupWindowSize(false);
+    expect(appearance.state.startupWindowSize).toBeNull();
+    save.mockClear();
+
+    triggerResize(1600, 1000);
+    await vi.advanceTimersByTimeAsync(300);
+    await appearance.flush();
+    expect(appearance.state.startupWindowSize).toBeNull();
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("blocks close on failed persistence and retries without discarding the live theme", async () => {

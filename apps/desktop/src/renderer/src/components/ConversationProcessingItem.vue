@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createScopedTranslator, locale } from "../i18n";
-import type { AgentToolTrace } from "../types/conversation";
+import type { AgentEditProposal, AgentToolTrace } from "../types/conversation";
 import type { LongWorkspaceIndexSnapshot } from "@deepwrite/contracts";
 import type { ProcessingDisplayItem } from "./conversationToolPresentation";
 import {
@@ -38,11 +38,13 @@ const props = withDefaults(
     allowLiveEditReview?: boolean;
     longWorkspaceIndex?: LongWorkspaceIndexSnapshot | null;
     detailIdPrefix?: string;
+    peerProposals?: readonly AgentEditProposal[];
   }>(),
   {
     allowLiveEditReview: false,
     longWorkspaceIndex: null,
-    detailIdPrefix: ""
+    detailIdPrefix: "",
+    peerProposals: () => []
   }
 );
 
@@ -178,6 +180,7 @@ function detailId(id: string): string {
     :allow-live-edit-review="allowLiveEditReview"
     :discardable="item.canDiscard"
     :remote-device="item.remoteDevice"
+    :peer-proposals="peerProposals"
     @review="emit('reviewEdit', $event)"
     @locate="emit('locateEditProposal', $event)"
     @discard="emit('discardEditProposal', $event)"

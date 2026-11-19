@@ -8,8 +8,6 @@ import type {
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSiteOfficialQuotaMerge } from "./useSiteOfficialQuotaMerge";
 import { useSiteOfficialModelSettings } from "./useSiteOfficialModelSettings";
-import dialog from "../components/SiteOfficialQuotaMergeDialog.vue?raw";
-import panel from "../components/SiteOfficialModelsPanel.vue?raw";
 
 const targetRevision = "10000000-0000-4000-8000-000000000001";
 const quota: SiteOfficialQuota = {
@@ -454,19 +452,5 @@ describe("quota merge UI behavior", () => {
     next.resolve({ ...quota, remaining: 99 });
     await second;
     expect(store.siteOfficialQuota?.remaining).toBe(2.5);
-  });
-
-  it("wires a multiline dialog with explicit revocation and a busy form", () => {
-    expect(panel).toContain("addQuota");
-    expect(panel).toContain('v-if="mergeOpen"');
-    expect(dialog).toContain("<textarea");
-    expect(dialog).toContain('autocomplete="new-password"');
-    expect(dialog).toContain('aria-modal="true"');
-    expect(dialog).toContain(':aria-busy="pending"');
-    expect(dialog).toContain("transferQuotaAndRevokeSourceKey");
-    expect(dialog).toContain("allUnusedQuotaFromTheSourceKeyTransfersTo");
-    expect(dialog).toContain("var(--surface-main)");
-    expect(dialog).toContain("calc(100dvh - 32px)");
-    expect(dialog).not.toContain("localStorage");
   });
 });

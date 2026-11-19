@@ -25,6 +25,7 @@ import {
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
   MarketplaceSourceSchema
 } from "./marketplace";
+import { CatalogInstallMarketplaceMaterialCommandEnvelopeSchema } from "./material-marketplace";
 import {
   DraftSectionIdSchema,
   DraftSectionTitleSchema,
@@ -3222,6 +3223,7 @@ export const CatalogCommandEnvelopeSchema =
     CatalogDeleteProjectCommandEnvelopeSchema,
     CatalogDuplicateProjectCommandEnvelopeSchema,
     CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
+    CatalogInstallMarketplaceMaterialCommandEnvelopeSchema,
     CatalogChooseExternalLibraryEntriesCommandEnvelopeSchema,
     CatalogImportLibraryEntriesCommandEnvelopeSchema,
     CatalogWriteWritingContextCommandEnvelopeSchema

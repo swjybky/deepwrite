@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { createScopedTranslator } from "../i18n";
 import { useAppearance } from "../composables/useAppearance";
 import { uiMessage } from "../ui-feedback";
@@ -7,6 +7,26 @@ import { uiMessage } from "../ui-feedback";
 const t = createScopedTranslator("components.appearanceThemeSettings");
 const appearance = useAppearance();
 const pending = ref<"capture" | "reset" | null>(null);
+const isAutoWindowSize = computed(
+  () => appearance.state.startupWindowSize !== null
+);
+const currentSizeLabel = computed(() => {
+  if (!isAutoWindowSize.value) {
+    return t("defaultWindowSize");
+  }
+  const saved = appearance.state.startupWindowSize;
+  const width =
+    saved?.width ??
+    (typeof window !== "undefined"
+      ? Math.round(window.outerWidth || window.innerWidth || 1200)
+      : 1200);
+  const height =
+    saved?.height ??
+    (typeof window !== "undefined"
+      ? Math.round(window.outerHeight || window.innerHeight || 800)
+      : 800);
+  return `${width} × ${height}`;
+});
 
 async function save(capture: boolean): Promise<void> {
   if (pending.value) return;
@@ -31,19 +51,19 @@ async function save(capture: boolean): Promise<void> {
     <div class="window-size-card">
       <div class="window-size-row">
         <span class="window-size-copy">
-          <strong>
-            {{
-              appearance.state.startupWindowSize
-                ? `${appearance.state.startupWindowSize.width} × ${appearance.state.startupWindowSize.height}`
-                : t("defaultWindowSize")
-            }}
-          </strong>
+          <strong>{{ currentSizeLabel }}</strong>
           <small>{{ t("startupWindowSizeHelp") }}</small>
         </span>
-        <div class="window-size-actions">
+        <div
+          class="window-size-actions"
+          role="radiogroup"
+          aria-labelledby="window-size-heading"
+        >
           <button
             type="button"
-            class="primary"
+            role="radio"
+            :aria-checked="isAutoWindowSize"
+            :class="{ primary: isAutoWindowSize }"
             :disabled="pending === 'capture'"
             @click="save(true)"
           >
@@ -51,6 +71,9 @@ async function save(capture: boolean): Promise<void> {
           </button>
           <button
             type="button"
+            role="radio"
+            :aria-checked="!isAutoWindowSize"
+            :class="{ primary: !isAutoWindowSize }"
             :disabled="pending === 'reset'"
             @click="save(false)"
           >
@@ -104,7 +127,8 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  flex: 0 1 240px;
+  justify-content: flex-end;
+  flex: 0 1 auto;
   gap: 8px;
 }
 button {

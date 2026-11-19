@@ -1,6 +1,6 @@
-import { authorizeProposalEvent } from "./proposal-coordinator/event-authorization";
 import { formatError } from "../i18n/errors";
 import { t } from "../i18n";
+import { authorizeProposalEvent } from "./proposal-coordinator/event-authorization";
 import type {
   ProposalCoordinator,
   ProposalCoordinatorContext
@@ -69,6 +69,14 @@ export function useLazyProposalCoordinator(
     void enqueue(operation).catch(reportFailure);
   }
 
+  function enqueueAuthorizedVoid(
+    event: unknown,
+    operation: (loadedCoordinator: ProposalCoordinator) => void | Promise<void>
+  ): void {
+    if (!disposed) authorizeProposalEvent(context, event);
+    enqueueVoid(operation);
+  }
+
   const resumeRecoveredAutomaticAgentEdits: ProposalCoordinator["resumeRecoveredAutomaticAgentEdits"] =
     (...args) => {
       enqueueVoid((loaded) =>
@@ -92,38 +100,51 @@ export function useLazyProposalCoordinator(
       enqueueVoid((loaded) => loaded.scheduleQueuedAgentEdits(...args));
     };
   const stageAgentEditProposal: ProposalCoordinator["stageAgentEditProposal"] =
-    (...args) =>
-      enqueue((loaded) => loaded.stageAgentEditProposal(...args)).catch(
-        reportFailure
-      );
-  const stageAcademicWorkspaceProposal: ProposalCoordinator["stageAcademicWorkspaceProposal"] =
     (...args) => {
       if (!disposed) authorizeProposalEvent(context, args[0]);
-      enqueueVoid((loaded) => loaded.stageAcademicWorkspaceProposal(...args));
+      return enqueue((loaded) => loaded.stageAgentEditProposal(...args)).catch(
+        reportFailure
+      );
+    };
+  const stageAcademicWorkspaceProposal: ProposalCoordinator["stageAcademicWorkspaceProposal"] =
+    (...args) => {
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageAcademicWorkspaceProposal(...args)
+      );
     };
   const stageLibraryStructureProposal: ProposalCoordinator["stageLibraryStructureProposal"] =
     (...args) => {
-      enqueueVoid((loaded) => loaded.stageLibraryStructureProposal(...args));
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageLibraryStructureProposal(...args)
+      );
     };
   const stageLibraryEditProposal: ProposalCoordinator["stageLibraryEditProposal"] =
     (...args) => {
-      enqueueVoid((loaded) => loaded.stageLibraryEditProposal(...args));
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageLibraryEditProposal(...args)
+      );
     };
   const stageLongCharacterEditProposal: ProposalCoordinator["stageLongCharacterEditProposal"] =
     (...args) => {
-      enqueueVoid((loaded) => loaded.stageLongCharacterEditProposal(...args));
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageLongCharacterEditProposal(...args)
+      );
     };
   const stageLongDraftEditProposal: ProposalCoordinator["stageLongDraftEditProposal"] =
     (...args) => {
-      enqueueVoid((loaded) => loaded.stageLongDraftEditProposal(...args));
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageLongDraftEditProposal(...args)
+      );
     };
   const stageLongPlotDesignEditProposal: ProposalCoordinator["stageLongPlotDesignEditProposal"] =
     (...args) => {
-      enqueueVoid((loaded) => loaded.stageLongPlotDesignEditProposal(...args));
+      enqueueAuthorizedVoid(args[0], (loaded) =>
+        loaded.stageLongPlotDesignEditProposal(...args)
+      );
     };
   const stageLongWorldbuildingEditProposal: ProposalCoordinator["stageLongWorldbuildingEditProposal"] =
     (...args) => {
-      enqueueVoid((loaded) =>
+      enqueueAuthorizedVoid(args[0], (loaded) =>
         loaded.stageLongWorldbuildingEditProposal(...args)
       );
     };

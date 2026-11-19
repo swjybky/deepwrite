@@ -10,11 +10,12 @@ import {
 } from "@deepwrite/contracts/external-control";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { chmod, rm } from "node:fs/promises";
-import { createServer, type Server, type Socket } from "node:net";
+import { connect, createServer, type Server, type Socket } from "node:net";
 import { ExternalControlError } from "./errors";
 import { createLineReader, encodeLine } from "./line-framing";
 
 const HELLO_TIMEOUT_MS = 5_000;
+const PROBE_TIMEOUT_MS = 1_000;
 const MAX_CONNECTIONS = 16;
 const UNIDENTIFIED_REQUEST = "unidentified";
 
@@ -49,6 +50,20 @@ function rejected(
   message: string
 ): ExternalControlResult {
   return { status: "rejected", requestId, error: { code, message } };
+}
+
+export function endpointAnswers(endpoint: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect(endpoint);
+    const finish = (answered: boolean) => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(answered);
+    };
+    const timer = setTimeout(() => finish(false), PROBE_TIMEOUT_MS);
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
 }
 
 export function createExternalControlServer(
@@ -207,7 +222,7 @@ export function createExternalControlServer(
   return {
     async start(): Promise<void> {
       if (server) return;
-      // Single-instance locking means a leftover socket has no live owner.
+      // The caller has checked that no other instance answers here.
       if (platform !== "win32") await rm(options.endpoint, { force: true });
       const instance = createServer(serve);
       instance.maxConnections = MAX_CONNECTIONS;

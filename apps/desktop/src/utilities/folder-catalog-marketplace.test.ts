@@ -53,9 +53,9 @@ describe("FolderCatalogStore marketplace installation", () => {
     });
     const target = await store.createLibrary({
       domain: "skill",
-      name: "我的文风库",
+      name: "我的剧情库",
       libraryType: "short",
-      skillKind: "style"
+      skillKind: "plot"
     });
     const input = {
       ...singlePackage(),
@@ -79,7 +79,7 @@ describe("FolderCatalogStore marketplace installation", () => {
       libraryIds: [target.resource.id]
     });
     expect(snapshot.skills).toHaveLength(1);
-    expect(library.title).toBe("我的文风库");
+    expect(library).toMatchObject({ title: "我的剧情库", skillKind: "plot" });
     expect(library.entries[0]).toMatchObject({
       title: "转折留白",
       body: "转折前先留出一个短场景。",
@@ -119,18 +119,19 @@ describe("FolderCatalogStore marketplace installation", () => {
     });
     expect(snapshot.skills).toHaveLength(1);
     expect(library).toMatchObject({
-      title: "转折留白",
-      marketplaceSource: {
-        contentType: "skill",
-        contentId: "remote-skill",
-        version: 1,
-        installedAt: NOW
-      },
+      isUnbound: true,
+      skillKind: "general",
       entries: [
         {
           title: "转折留白",
           body: "转折前先留出一个短场景。",
-          sourceSkillId: "remote-skill"
+          sourceSkillId: "remote-skill",
+          marketplaceSource: {
+            contentType: "skill",
+            contentId: "remote-skill",
+            version: 1,
+            installedAt: NOW
+          }
         }
       ]
     });
@@ -147,13 +148,73 @@ describe("FolderCatalogStore marketplace installation", () => {
     const snapshot = await store.snapshot();
 
     expect(next.alreadyInstalled).toBe(false);
-    expect(snapshot.skills.map(({ title }) => title)).toEqual([
+    expect(snapshot.skills).toHaveLength(1);
+    expect(snapshot.skills[0]?.entries.map(({ title }) => title)).toEqual([
       "转折留白",
       "转折留白 (2)"
     ]);
     expect(
-      snapshot.skills.map(({ marketplaceSource }) => marketplaceSource?.version)
+      snapshot.skills[0]?.entries.map(
+        ({ marketplaceSource }) => marketplaceSource?.version
+      )
     ).toEqual([1, 2]);
+  });
+
+  it("adds legacy material libraries without changing their stages or existing local libraries", async () => {
+    const root = await temporaryRoot();
+    const options = { userDataPath: join(root, "user-data"), now: () => NOW };
+    const store = new FolderCatalogStore(options);
+    const original = await store.createLibrary({
+      domain: "material",
+      name: "旧素材库",
+      materialKind: "draft"
+    });
+    const input = {
+      id: "legacy-material",
+      title: "旧素材库",
+      overview: "旧说明",
+      version: 3,
+      kind: "plot",
+      libraryType: "long",
+      parentGenre: "悬疑",
+      subGenre: "推理",
+      entries: [
+        { stageId: "character", title: "人物", body: "人物正文\n" },
+        { stageId: "intro", title: "引子", body: "引子正文" }
+      ]
+    } as const;
+    const legacy = { ...input, entries: [...input.entries] };
+    const imported = await store.installMarketplaceMaterial(legacy);
+    const reopened = new FolderCatalogStore(options);
+    await expect(reopened.installMarketplaceMaterial(legacy)).resolves.toEqual({
+      ...imported,
+      alreadyInstalled: true
+    });
+    const update = await reopened.installMarketplaceMaterial({
+      ...legacy,
+      version: 4
+    });
+    expect(update.libraryId).not.toBe(imported.libraryId);
+    const snapshot = await reopened.snapshot();
+    expect(snapshot.materials).toHaveLength(3);
+    expect(
+      snapshot.materials.find(({ id }) => id === original.resource.id)
+    ).toMatchObject({
+      title: "旧素材库",
+      materialKind: "draft",
+      entries: []
+    });
+    expect(
+      snapshot.materials.find(({ id }) => id === imported.libraryId)
+    ).toMatchObject({
+      title: "旧素材库 (2)",
+      materialKind: "plot",
+      materialType: "long",
+      parentGenre: "悬疑",
+      subGenre: "推理",
+      overview: "旧说明",
+      entries: legacy.entries
+    });
   });
 
   it("buckets a mixed group into ordered local libraries and creates a source group", async () => {

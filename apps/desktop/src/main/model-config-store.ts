@@ -3,6 +3,7 @@ import { withConfigurationLock } from "./configuration-lock";
 import {
   ModelConfigInputSchema,
   ModelSettingsInputSchema,
+  isDeepWriteSiteOfficialModel,
   type AgentProviderRuntimeConfig,
   type SyncedModelChange,
   type SyncModelEntry,
@@ -113,6 +114,37 @@ export class ModelConfigStore {
     );
   }
 
+  async disableDeveloperRole(
+    modelId: string
+  ): Promise<ModelSettings | undefined> {
+    const trimmedId = modelId.trim();
+    if (!trimmedId) return undefined;
+    const snapshot = await this.runOperation({}, (prepared) => {
+      const index = prepared.settings.models.findIndex(
+        (model) =>
+          !model.managedBy &&
+          !isDeepWriteSiteOfficialModel(model) &&
+          model.id === trimmedId
+      );
+      if (
+        index < 0 ||
+        prepared.settings.models[index]!.supportsDeveloperRole !== undefined
+      ) {
+        return undefined;
+      }
+      const nextModels = [...prepared.settings.models];
+      nextModels[index] = {
+        ...nextModels[index]!,
+        supportsDeveloperRole: false
+      };
+      return {
+        settings: { ...prepared.settings, models: nextModels },
+        secrets: prepared.secrets
+      };
+    });
+    return snapshot ? publicSettings(snapshot) : undefined;
+  }
+
   async listSyncModels(): Promise<SyncModelEntry[]> {
     const { settings, secrets } = await this.update();
     return customSyncEntries(settings.models, secrets);
@@ -184,6 +216,15 @@ export class ModelConfigStore {
     options: CatalogRefreshOptions = {},
     mutate?: (state: ModelConfigSnapshot) => ModelConfigState
   ): Promise<ModelConfigSnapshot> {
+    return (await this.runOperation(options, (prepared) =>
+      mutate ? mutate(prepared) : prepared
+    ))!;
+  }
+
+  private async runOperation(
+    options: CatalogRefreshOptions,
+    mutate: (state: ModelConfigSnapshot) => ModelConfigState | undefined
+  ): Promise<ModelConfigSnapshot | undefined> {
     const operation = this.writeChain.then(async () => {
       const freeCatalog =
         options.refreshFree && this.freeModelCatalog.refreshCatalog
@@ -196,7 +237,8 @@ export class ModelConfigStore {
           freeCatalog,
           secrets: withDeepWriteFreeApiKeys(freeCatalog, stored.secrets)
         };
-        const requested = mutate ? mutate(prepared) : prepared;
+        const requested = mutate(prepared);
+        if (!requested) return undefined;
         const [settings, secrets] = synchronizeState(
           requested.settings,
           requested.secrets,

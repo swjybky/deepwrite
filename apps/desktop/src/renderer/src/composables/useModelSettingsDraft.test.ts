@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { effectScope, nextTick, reactive } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DraftModel } from "../components/modelSettingsDraft";
+import { useSettingsStore } from "../stores/settingsStore";
 import {
   useModelSettingsDraft,
   type ModelSettingsDraftProps
@@ -148,5 +149,53 @@ describe("model configuration persistence", () => {
     expect(draft.draftModels.value.map((entry) => entry.id)).toEqual([
       "existing"
     ]);
+  });
+
+  it("saves supportsDeveloperRole=false from advanced settings and clears it when turned off", () => {
+    const { draft, saveModels } = setup();
+    draft.openAdvancedConfig(model("existing"));
+    draft.saveAdvancedConfig({
+      contextWindow: 128_000,
+      maxTokens: 16_000,
+      supportsDeveloperRole: false
+    });
+    expect(saveModels.mock.calls[0]![0].models[0]).toMatchObject({
+      id: "existing",
+      contextWindow: 128_000,
+      maxTokens: 16_000,
+      supportsDeveloperRole: false
+    });
+
+    draft.openAdvancedConfig(draft.draftModels.value[0]!);
+    draft.saveAdvancedConfig({
+      contextWindow: 128_000,
+      maxTokens: 16_000
+    });
+    expect(saveModels.mock.calls[1]![0].models[0]).not.toHaveProperty(
+      "supportsDeveloperRole"
+    );
+  });
+
+  it("auto-persists supportsDeveloperRole=false when a connection test reports fallback", async () => {
+    const { draft, saveModels } = setup();
+    const settingsStore = useSettingsStore();
+    settingsStore.lastModelTestCapacity = {
+      modelId: "existing",
+      contextWindow: 272_000,
+      maxTokens: 128_000,
+      supportsDeveloperRole: false
+    };
+    await nextTick();
+    expect(draft.draftModels.value[0]?.supportsDeveloperRole).toBe(false);
+    expect(saveModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        models: [
+          expect.objectContaining({
+            id: "existing",
+            supportsDeveloperRole: false
+          })
+        ]
+      })
+    );
   });
 });

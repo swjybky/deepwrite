@@ -1,9 +1,4 @@
-import {
-  MarketplaceEmailSchema,
-  MarketplaceEmailCodeInputSchema,
-  MarketplaceBindEmailInputSchema,
-  MarketplaceEmailLoginInputSchema
-} from "./marketplace-email";
+import { MarketplaceEmailSchema } from "./marketplace-email";
 export * from "./marketplace-email";
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
@@ -12,7 +7,6 @@ const MarketplaceIdSchema = z.string().trim().min(1).max(512);
 const MarketplaceTitleSchema = z.string().trim().min(1).max(256);
 const MarketplaceTimestampSchema = z.string().datetime();
 
-export const MARKETPLACE_IPC_CHANNEL = "deepwrite:marketplace" as const;
 export const MARKETPLACE_CONTENT_MAX_CHARACTERS = 100_000;
 
 export const MARKETPLACE_CONTENT_TYPES = ["group", "library", "skill"] as const;
@@ -208,7 +202,7 @@ const MarketplaceDetailBaseSchema = z.object({
 export const MarketplaceSkillDetailSchema = MarketplaceDetailBaseSchema.extend({
   contentType: z.literal("skill"),
   stageId: MarketplaceSkillStageSchema,
-  kind: MarketplaceSkillKindSchema,
+  kind: MarketplaceSkillKindSchema.optional(),
   libraryType: MarketplaceLibraryTypeSchema,
   content: z.string()
 }).strict();
@@ -267,7 +261,7 @@ export const MarketplacePublishSkillInputSchema =
   MarketplacePublishBaseSchema.extend({
     contentType: z.literal("skill"),
     stageId: MarketplaceSkillStageSchema,
-    kind: MarketplaceSkillKindSchema,
+    kind: MarketplaceSkillKindSchema.optional(),
     libraryType: MarketplaceLibraryTypeSchema,
     content: z.string().min(1).max(MARKETPLACE_CONTENT_MAX_CHARACTERS)
   }).strict();
@@ -464,102 +458,3 @@ export const CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema =
     type: z.literal("catalog.installMarketplaceSkillContent"),
     payload: MarketplaceInstallPackageSchema
   });
-
-export const MarketplaceIpcRequestSchema = z.discriminatedUnion("operation", [
-  z
-    .object({
-      operation: z.literal("sendEmailCode"),
-      input: MarketplaceEmailCodeInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("bindEmail"),
-      input: MarketplaceBindEmailInputSchema
-    })
-    .strict(),
-  z.object({ operation: z.literal("session") }).strict(),
-  z
-    .object({
-      operation: z.literal("register"),
-      input: MarketplaceRegisterInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("login"),
-      input: MarketplaceLoginInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("loginWithEmailCode"),
-      input: MarketplaceEmailLoginInputSchema
-    })
-    .strict(),
-  z.object({ operation: z.literal("logout") }).strict(),
-  z
-    .object({
-      operation: z.literal("list"),
-      filter: MarketplaceListFilterSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("detail"),
-      ref: MarketplaceContentRefSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("listMine"),
-      filter: MarketplaceListFilterSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("myDetail"),
-      ref: MarketplaceContentRefSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("publish"),
-      input: MarketplacePublishInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("update"),
-      input: MarketplaceUpdateInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("setEnabled"),
-      input: MarketplaceSetEnabledInputSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("delete"),
-      ref: MarketplaceContentRefSchema
-    })
-    .strict(),
-  z
-    .object({ operation: z.literal("like"), input: MarketplaceLikeInputSchema })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("previewInstall"),
-      ref: MarketplaceContentRefSchema
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("install"),
-      input: MarketplaceInstallInputSchema
-    })
-    .strict()
-]);
-export type MarketplaceIpcRequest = z.infer<typeof MarketplaceIpcRequestSchema>;

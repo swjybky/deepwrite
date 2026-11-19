@@ -1,3 +1,4 @@
+import { bookBindingsTarget } from "../stores/bookBindingsDialog";
 import type {
   ExportLongManuscriptInput,
   LongBookSummary,
@@ -68,6 +69,14 @@ function bookSummary(
     id: bookId,
     title,
     updatedAt: NOW,
+    linkedMaterialIdsByKind: {
+      character: ["material-existing"],
+      gimmick: [],
+      plot: [],
+      draft: [],
+      other: []
+    },
+    linkedSkillIdsByKind: { general: [], plot: [], style: [], other: [] },
     navigation: {
       bookId,
       updatedAt: NOW,
@@ -196,7 +205,6 @@ function createHarness(overrides: HarnessOverrides = {}) {
     structureDialogOpen: ref(false),
     structureAgentsMd: ref<string | null>(null),
     structureAgentsMdPending: ref(false),
-    bindingsDialogMode: ref(null),
     exportTarget: shallowRef(null),
     bookRenameTarget: shallowRef(null),
     bookRemovalTarget: shallowRef(null),
@@ -424,19 +432,30 @@ describe("useLongBookLifecycleCoordinator", () => {
       }
     );
 
-    await test.coordinator.handleLongBookAction(bookAction("bind-skill"));
-    await test.coordinator.updateLongBookBindings({
-      linkedMaterialIdsByKind: {} as never,
-      linkedSkillIdsByKind: {} as never
-    });
+    await test.coordinator.handleLongBookAction(bookAction("bind"));
+    const binding = bookBindingsTarget.value;
+    expect(binding?.workspaceType).toBe("long");
+    await expect(
+      binding?.saveLibrary({
+        domain: "skill",
+        ids: ["skill-new"],
+        linksByKind: { general: ["skill-new"], plot: [], style: [], other: [] }
+      })
+    ).resolves.toBe(true);
 
     expect(updateBindings).toHaveBeenCalledWith({
       bookId: BOOK_A,
-      linkedMaterialIdsByKind: {},
-      linkedSkillIdsByKind: {},
+      linkedMaterialIdsByKind: bookSummary(BOOK_A, 9).linkedMaterialIdsByKind,
+      linkedSkillIdsByKind: {
+        general: ["skill-new"],
+        plot: [],
+        style: [],
+        other: []
+      },
       linkedResourceStageScopes: { materials: {}, skills: {} }
     });
-    expect(test.state.bindingsDialogMode.value).toBeNull();
+    await test.coordinator.dispose();
+    expect(bookBindingsTarget.value).toBeNull();
   });
 
   it.each(["delete", "unregister"] as const)(
@@ -689,6 +708,17 @@ describe("useLongBookLifecycleCoordinator", () => {
     expect(test.state.exportTarget.value).toBe(laterTarget);
     expect(test.notifications.success).not.toHaveBeenCalled();
     expect(test.state.manuscriptExportPending.value).toBe(false);
+  });
+
+  it("opens management for the active novel even when its editor save is blocked", async () => {
+    const test = createHarness({
+      session: { saveActiveEditorChanges: vi.fn(async () => false) }
+    });
+
+    await test.coordinator.handleLongBookAction(bookAction("manage-structure"));
+
+    expect(test.state.structureDialogOpen.value).toBe(true);
+    expect(test.session.openBook).not.toHaveBeenCalled();
   });
 
   it("loads AGENTS.md when opening structure management and saves it without a structure mutation", async () => {

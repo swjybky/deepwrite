@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import { useBookPanePreferenceKey } from "./useBookPanePreferenceKey";
 
 describe("book pane preference navigation", () => {
+  it("isolates mystery widths from the previous document and from other mystery books", () => {
+    const mysteryBookId = ref<string | null>("mystery-one");
+    const key = useBookPanePreferenceKey({
+      document: ref({
+        domain: "creation",
+        workspaceType: "short",
+        workspaceId: "short-one"
+      }),
+      longWorkspaceActive: ref(false),
+      longBookId: ref(null),
+      mysteryBookId
+    });
+    expect(key.value).toBe("mystery:book:mystery-one");
+    mysteryBookId.value = "mystery-two";
+    expect(key.value).toBe("mystery:book:mystery-two");
+    mysteryBookId.value = null;
+    expect(key.value).toBe("short:book:short-one");
+  });
+
   it.each(["short", "script"] as const)(
     "shares all %s stages and sections within a book, but isolates books",
     (workspaceType) => {

@@ -66,8 +66,12 @@ export async function handleAppearanceCommands(
       const settings = AppearanceSettingsSchema.parse(command.payload);
       if (command.payload.captureCurrentWindowSize) {
         const window = ctx.getMainWindow();
-        const { width, height } = window.getBounds();
-        settings.startupWindowSize = { width, height };
+        if (!window.isMinimized?.()) {
+          const { width, height } = window.getBounds();
+          if (width > 0 && height > 0) {
+            settings.startupWindowSize = { width, height };
+          }
+        }
       }
       const snapshot = AppearanceSettingsSnapshotSchema.parse(
         await ctx.requireAppearanceService().save(settings)

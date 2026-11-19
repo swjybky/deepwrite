@@ -3,6 +3,7 @@ import { plotStageLabel } from "../i18n/plotStageLabels";
 import { createScopedTranslator } from "../i18n";
 import { type Book } from "@deepwrite/contracts/renderer";
 import AppIcon from "./AppIcon.vue";
+import BookManagementName from "./BookManagementName.vue";
 import PopupSelect from "./PopupSelect.vue";
 import WritingContextPanel from "./WritingContextPanel.vue";
 import {
@@ -45,6 +46,7 @@ const {
   dialogElement,
   form,
   formMode,
+  flushWritingContext,
   isBuiltinCreativePlotStageId,
   locked,
   move,
@@ -61,6 +63,12 @@ const {
   toggleEnabled,
   writingContextPanel
 } = usePlotStructureDialog(props, emit);
+async function openRename(): Promise<void> {
+  const book = props.book;
+  if (!book || locked.value || !(await flushWritingContext())) return;
+  emit("close");
+  emit("openRename", book.id);
+}
 </script>
 
 <template>
@@ -104,6 +112,11 @@ const {
             <AppIcon name="close" :size="16" />
           </button>
         </header>
+        <BookManagementName
+          :title="book.title"
+          :pending="locked"
+          @rename="openRename"
+        />
 
         <section
           class="plot-structure-manager"

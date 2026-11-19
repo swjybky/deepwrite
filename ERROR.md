@@ -9,13 +9,13 @@
 
 | 改动区域 | 预读条目 |
 | --- | --- |
-| Renderer 界面、样式、组件 | [ui-flicker](error/ui-flicker.md)、[css-class-collision](error/css-class-collision.md)、[cross-process-error](error/cross-process-error.md)、[budget-exceeded](error/budget-exceeded.md) |
+| Renderer 界面、样式、组件 | [ui-flicker](error/ui-flicker.md)、[css-class-collision](error/css-class-collision.md)、[pane-resize-performance](error/pane-resize-performance.md)、[cross-process-error](error/cross-process-error.md)、[budget-exceeded](error/budget-exceeded.md)、[workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
 | 文案、多语言、`WorkspaceShell.vue` | [budget-exceeded](error/budget-exceeded.md) |
 | 智能体工具、子智能体、拆书等批量输出 | [tool-args-validation](error/tool-args-validation.md)、[output-truncation](error/output-truncation.md)、[limit-mismatch](error/limit-mismatch.md) |
 | 内置智能体提示词 | [builtin-prompt-fingerprint](error/builtin-prompt-fingerprint.md) |
 | contracts schema、作品存储、长篇索引、双端同步 | [schema-compat](error/schema-compat.md)、[limit-mismatch](error/limit-mismatch.md)、[windows-path](error/windows-path.md) |
 | Main / Utility 错误路径、IPC | [cross-process-error](error/cross-process-error.md) |
-| 拉起 Electron、冒烟、探针、开发服务器 | [electron-sandbox](error/electron-sandbox.md)、[process-kill](error/process-kill.md) |
+| 拉起 Electron、冒烟、探针、开发服务器 | [electron-sandbox](error/electron-sandbox.md)、[process-kill](error/process-kill.md)、[mcp-dev-endpoint](error/mcp-dev-endpoint.md) |
 | 提交、多会话共用工作区 | [mixed-worktree](error/mixed-worktree.md) |
 | R2 更新源、版本指针条件写入 | [r2-weak-etag](error/r2-weak-etag.md) |
 
@@ -32,8 +32,10 @@
 | 症状 / 关键词 | 条目 |
 | --- | --- |
 | `DEEPWRITE_ELECTRON_SANDBOX`、Electron 起不来 | [electron-sandbox](error/electron-sandbox.md) |
+| 热更新后会话保存队列关闭、退出等待保存超时 | [workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
 | 界面显示 `[object Object]`、按错误文字分支 | [cross-process-error](error/cross-process-error.md) |
 | 点开关整页变灰、按钮位移、打字被吞、光标跳 | [ui-flicker](error/ui-flicker.md) |
+| 分栏拖动卡顿、长篇比短篇慢、目录越多越卡 | [pane-resize-performance](error/pane-resize-performance.md) |
 | `stopReason: "length"`、“没有生成可交接的摘要” | [output-truncation](error/output-truncation.md) |
 | `too_big` / `maximum`、写入成功读取失败、恢复失败 | [limit-mismatch](error/limit-mismatch.md) |
 | 工具参数整批被拒、`must have required properties`、子智能体反复重交 | [tool-args-validation](error/tool-args-validation.md) |
@@ -43,6 +45,7 @@
 | 改内置提示词后用户旧版被当成自定义 | [builtin-prompt-fingerprint](error/builtin-prompt-fingerprint.md) |
 | 作用域样式无效、元素莫名隐藏 | [css-class-collision](error/css-class-collision.md) |
 | 端口被占、要 `kill` 进程 | [process-kill](error/process-kill.md) |
+| 开发版在运行但 MCP 报“启动超时”、`control.json` 缺失 | [mcp-dev-endpoint](error/mcp-dev-endpoint.md) |
 | `typecheck` 报与本次无关的错、工作区有他人改动 | [mixed-worktree](error/mixed-worktree.md) |
 | R2 激活 HTTP 412、`If-Match` 使用 `W/` ETag | [r2-weak-etag](error/r2-weak-etag.md) |
 

@@ -10,7 +10,6 @@ import type {
 import type { LongBookResourceNodeActionPayload } from "../types/workspace";
 import type { LongStructureMutationCompletion } from "../types/longWorkspace";
 import type {
-  LongBookBindingsUpdate,
   LongBookLifecycleCoordinator,
   LongBookLifecycleCoordinatorOptions
 } from "./useLongBookLifecycleCoordinator";
@@ -44,8 +43,6 @@ export interface LazyLongBookLifecycleCoordinator {
   }): Promise<void>;
   closeLongBookRenameDialog(): void;
   renameLongBook(title: string): Promise<void>;
-  closeLongBookBindingsDialog(): void;
-  updateLongBookBindings(payload: LongBookBindingsUpdate): Promise<void>;
   closeLongBookRemovalDialog(): void;
   confirmLongBookRemoval(): Promise<void>;
   saveLongAgentsMd(
@@ -243,23 +240,6 @@ export function useLazyLongBookLifecycleCoordinator(
     return invoke((loaded) => loaded.renameLongBook(title), intent);
   }
 
-  function closeLongBookBindingsDialog(): void {
-    if (disposed) return;
-    cancelDialogIntent();
-    if (coordinator) {
-      coordinator.closeLongBookBindingsDialog();
-      return;
-    }
-    context.state.bindingsDialogMode.value = null;
-  }
-
-  function updateLongBookBindings(
-    payload: LongBookBindingsUpdate
-  ): Promise<void> {
-    const intent = dialogIntent();
-    return invoke((loaded) => loaded.updateLongBookBindings(payload), intent);
-  }
-
   function closeLongBookRemovalDialog(): void {
     if (disposed) return;
     cancelDialogIntent();
@@ -328,8 +308,6 @@ export function useLazyLongBookLifecycleCoordinator(
     exportLongBookManuscript,
     closeLongBookRenameDialog,
     renameLongBook,
-    closeLongBookBindingsDialog,
-    updateLongBookBindings,
     closeLongBookRemovalDialog,
     confirmLongBookRemoval,
     saveLongAgentsMd,

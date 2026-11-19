@@ -5,8 +5,7 @@ export const loadFeedbackDialog = () =>
   import("../extras/feedback/FeedbackDialog.vue");
 export const loadMarketplaceLoginDialog = () =>
   import("./MarketplaceLoginDialog.vue");
-export const loadBookAgentTeamDialog = () =>
-  import("./BookAgentTeamDialog.vue");
+export const loadBookBindingsDialog = () => import("./BookBindingsDialog.vue");
 export const loadAgentTeamSettingsPanel = () =>
   import("./AgentTeamCatalogFeature.vue");
 export const loadShortBookAnalysisPage = async () =>
@@ -72,8 +71,6 @@ export const loadLibraryProjectDialog = () =>
   import("./LibraryProjectDialog.vue");
 export const loadLibraryRemovalDialog = () =>
   import("./LibraryRemovalDialog.vue");
-export const loadLongBookBindingsDialog = () =>
-  import("./LongBookBindingsDialog.vue");
 export const loadLongBookRemovalDialog = () =>
   import("./LongBookRemovalDialog.vue");
 export const loadLongBookRenameDialog = () =>

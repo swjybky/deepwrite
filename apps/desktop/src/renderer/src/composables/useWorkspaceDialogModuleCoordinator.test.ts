@@ -6,7 +6,6 @@ import {
 } from "../components/WorkspaceDialogLayer.types";
 import type { ResourceTreeNode } from "../types/workspace";
 import type { ShortBookLifecycleTarget } from "./useShortBookLifecycleCoordinator";
-import coordinatorSource from "./useWorkspaceDialogModuleCoordinator.ts?raw";
 import {
   WORKSPACE_DIALOG_PRIORITY,
   useWorkspaceDialogModuleCoordinator,
@@ -122,7 +121,6 @@ function createHarness() {
     shallowRef<WorkspaceDialogLongLifecycleState["workspaceIndex"]["value"]>(
       null
     );
-  const bindingsMode = shallowRef<"skill" | "material" | null>(null);
   const bookActionPending = shallowRef(false);
   const renameTarget =
     shallowRef<WorkspaceDialogLongLifecycleState["renameTarget"]["value"]>(
@@ -185,8 +183,6 @@ function createHarness() {
     >(null);
   const catalogLoading = shallowRef(false);
   const catalogMutationPending = shallowRef(false);
-  const skillLibraries = shallowRef<ResourceTreeNode[]>([]);
-  const materialLibraries = shallowRef<ResourceTreeNode[]>([]);
   const materialStageOptions = vi.fn(
     () => [{ value: "other", label: "其他" }] as const
   );
@@ -223,7 +219,6 @@ function createHarness() {
       activeBookSummary,
       activeBookId,
       workspaceIndex,
-      bindingsMode,
       bookActionPending,
       renameTarget,
       removalTarget,
@@ -253,8 +248,6 @@ function createHarness() {
       snapshot: catalogSnapshot,
       loading: catalogLoading,
       mutationPending: catalogMutationPending,
-      skillLibraries,
-      materialLibraries,
       materialStageOptions
     }
   } satisfies WorkspaceDialogModuleCoordinatorOptions;
@@ -287,7 +280,6 @@ function createHarness() {
       activeBookSummary,
       activeBookId,
       workspaceIndex,
-      bindingsMode,
       bookActionPending,
       renameTarget,
       removalTarget,
@@ -309,8 +301,6 @@ function createHarness() {
       catalogSnapshot,
       catalogLoading,
       catalogMutationPending,
-      skillLibraries,
-      materialLibraries,
       materialStageOptions
     }
   };
@@ -439,27 +429,6 @@ function setKindActive(
         ? { bookId: "long-1", source: "book-line" }
         : null;
       return;
-    case "long-bindings":
-      state.bindingsMode.value = active ? "skill" : null;
-      state.activeBookSummary.value = active
-        ? fixture({
-            title: "长篇测试书",
-            linkedMaterialIdsByKind: {
-              character: [],
-              gimmick: [],
-              plot: [],
-              draft: [],
-              other: []
-            },
-            linkedSkillIdsByKind: {
-              general: [],
-              plot: [],
-              style: [],
-              other: []
-            }
-          })
-        : state.activeBookSummary.value;
-      return;
     case "long-rename":
       state.renameTarget.value = active
         ? { bookId: "long-1", title: "长篇测试书" }
@@ -569,8 +538,8 @@ function trackedRef<Value>(
 
 describe("useWorkspaceDialogModuleCoordinator", () => {
   it("covers every dialog kind and preserves the complete strict priority", () => {
-    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(31);
-    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(31);
+    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(30);
+    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(30);
     expect(new Set(WORKSPACE_DIALOG_PRIORITY)).toEqual(
       new Set(WORKSPACE_DIALOG_KINDS)
     );
@@ -624,9 +593,7 @@ describe("useWorkspaceDialogModuleCoordinator", () => {
       activeGroup: vi.fn(),
       catalogSnapshot: vi.fn(),
       catalogLoading: vi.fn(),
-      catalogMutationPending: vi.fn(),
-      skillLibraries: vi.fn(),
-      materialLibraries: vi.fn()
+      catalogMutationPending: vi.fn()
     };
     harness.options.save.submitting = trackedRef(false, reads.saveSubmitting);
     harness.options.shortStructure.plotBook = trackedRef(null, reads.plotBook);
@@ -672,14 +639,6 @@ describe("useWorkspaceDialogModuleCoordinator", () => {
     harness.options.catalog.mutationPending = trackedRef(
       false,
       reads.catalogMutationPending
-    );
-    harness.options.catalog.skillLibraries = trackedRef(
-      [],
-      reads.skillLibraries
-    );
-    harness.options.catalog.materialLibraries = trackedRef(
-      [],
-      reads.materialLibraries
     );
 
     expect(
@@ -727,7 +686,6 @@ describe("useWorkspaceDialogModuleCoordinator", () => {
 
   it("keeps nullable targets and conditional gates compatible with fallback", () => {
     const bindings = createHarness();
-    bindings.refs.bindingsMode.value = "skill";
     bindings.refs.renameTarget.value = {
       bookId: "long-1",
       title: "回退重命名"
@@ -761,20 +719,5 @@ describe("useWorkspaceDialogModuleCoordinator", () => {
     expect(
       useWorkspaceDialogModuleCoordinator(legacy.options).value?.kind
     ).toBe("legacy-sync");
-  });
-
-  it("stays static-safe for the app-ready graph", () => {
-    expect(coordinatorSource).not.toContain("lazyAppComponents");
-    expect(coordinatorSource).not.toContain("$attrs");
-    expect(coordinatorSource).not.toMatch(/\bany\b/);
-    expect(coordinatorSource).not.toMatch(
-      /(?:from|import\()\s*["'][^"']*\.vue/
-    );
-    expect(coordinatorSource.match(/^import (?!type).*$/gm)).toEqual([
-      'import { computed, type Ref } from "vue";'
-    ]);
-    expect(coordinatorSource).toContain(
-      "Readonly<Ref<WorkspaceDialogModule | null>>"
-    );
   });
 });

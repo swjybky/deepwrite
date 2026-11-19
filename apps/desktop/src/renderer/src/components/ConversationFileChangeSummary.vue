@@ -43,6 +43,11 @@ const collapsed = useConversationDisclosure(() => "file-changes-collapsed");
 const showAll = useConversationDisclosure(() => "file-changes-all");
 
 const summary = computed(() => fileChangeSummary(props.approvals));
+const peerProposals = computed(() =>
+  props.approvals.flatMap((approval) =>
+    approval.type === "edit-proposal" ? [approval.proposal] : []
+  )
+);
 const rows = computed(() =>
   visibleFileChangeRows(summary.value, showAll.value)
 );
@@ -139,6 +144,7 @@ const overall = computed<{ label: string; tone: string }>(() => {
         :message-status="messageStatus"
         :allow-live-edit-review="allowLiveEditReview"
         :long-workspace-index="longWorkspaceIndex"
+        :peer-proposals="peerProposals"
         @review-edit="emit('reviewEdit', $event)"
         @locate-edit-proposal="emit('locateEditProposal', $event)"
         @discard-edit-proposal="emit('discardEditProposal', $event)"

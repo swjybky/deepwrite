@@ -50,7 +50,7 @@ function chapterFiles(chapterCardId: string) {
 }
 
 describe("LongProjectStore: batch continuity commits", () => {
-  it("stores contiguous chapters in one record, pins their order and invalidates the batch together", async () => {
+  it.each(["split", "combined"])("archives via %s", async (mode) => {
     const { projectStore, created } = await createFixture("batch-commit");
     const firstChapterId = created.book.workspaceIndex.plot.chapterCards[0]!.id;
     const volumeId = created.book.workspaceIndex.plot.volumes[0]!.id;
@@ -81,17 +81,56 @@ describe("LongProjectStore: batch continuity commits", () => {
     const firstFiles = opened.book.workspaceIndex.chapters.find(
       ({ chapterCardId }) => chapterCardId === firstChapterId
     )!;
+    const firstBody = "第一章正文已写完，但不生成单独连续性文件。";
+    const secondBody = "第二章正文承接并结束这一批。";
+    const characterState = "两章结束后的汇总章末状态。";
+    const handoff = "下一章从整批结束后的状态继续。";
     await projectStore.writeDocument(created.projectDirectory, {
       fileId: firstFiles.body.id,
-      content: "第一章正文已写完，但不生成单独连续性文件。"
+      content: firstBody
     });
-    await projectStore.writeChapter(created.projectDirectory, {
-      chapterCardId: secondChapterId,
-      body: { content: "第二章正文承接并结束这一批。" },
-      characterState: { content: "两章结束后的汇总章末状态。" },
-      handoff: { content: "下一章从整批结束后的状态继续。" }
-    });
+    if (mode === "split") {
+      await projectStore.writeChapter(created.projectDirectory, {
+        chapterCardId: secondChapterId,
+        body: { content: secondBody },
+        characterState: { content: characterState },
+        handoff: { content: handoff }
+      });
+    } else {
+      await projectStore.writeDocument(created.projectDirectory, {
+        fileId: secondFiles.body.id,
+        content: secondBody
+      });
+    }
 
+    const preparation = {
+      commitId: "commit_combined_two_chapters",
+      bodyVersions: [
+        {
+          fileId: firstFiles.body.id,
+          expectedSha256: projectTransactionContentSha256(firstBody)
+        },
+        {
+          fileId: secondFiles.body.id,
+          expectedSha256: projectTransactionContentSha256(secondBody)
+        }
+      ],
+      batch: {
+        updatedAt: FIXED_NOW,
+        operations: [],
+        documentWrites: [
+          { fileId: secondFiles.characterState.id, content: characterState },
+          { fileId: secondFiles.handoff.id, content: handoff }
+        ].map((document, index) => ({
+          ...document,
+          mode: "replace" as const,
+          proposalId: `proposal_combined_two_chapters_${index}`,
+          expectedSha256: projectTransactionContentSha256(""),
+          updatedAt: FIXED_NOW,
+          reason: "生成末章连续性文件"
+        }))
+      }
+    };
     const committed = await projectStore.commitChapter(
       created.projectDirectory,
       {
@@ -99,7 +138,8 @@ describe("LongProjectStore: batch continuity commits", () => {
         chapterCardIds: [firstChapterId, secondChapterId],
         checkpointChapterCardId: secondChapterId,
         foreshadowingBeatDecisions: {},
-        commitMessage: "一次归档连续写完的两章"
+        commitMessage: "一次归档连续写完的两章",
+        ...(mode === "combined" ? { preparation } : {})
       }
     );
     expect(committed.record).toMatchObject({

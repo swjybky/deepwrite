@@ -5,9 +5,7 @@ import longWorkspaceEditorSource from "./LongWorkspaceEditor.vue?raw";
 describe("scoped global style selectors", () => {
   it("keeps the complete descendant selector inside :global()", () => {
     for (const source of [longProposalSource, longWorkspaceEditorSource]) {
-      expect(source).not.toMatch(
-        /:global\(html\[data-(?:platform|theme)="[^"]+"\]\)\s+\./
-      );
+      expect(source).not.toMatch(/:global\((?:[^()]|\([^)]*\))+\)\s+(?:\.|:)/);
     }
   });
 });

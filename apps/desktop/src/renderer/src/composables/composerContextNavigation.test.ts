@@ -74,6 +74,24 @@ function setup() {
   return { navigation, selectedResourceId, selectResource, sections, error };
 }
 describe("composer context navigation", () => {
+  it("lists a mystery book and follows its role and act to the selected document", async () => {
+    const h = setup();
+    const target = { id: "body-one", label: "人物本正文" };
+    h.sections.value[0]!.nodes.push({
+      id: "mystery-book:one",
+      label: "测试剧本杀",
+      catalogNodeType: "mystery-book",
+      children: [{ id: "act-one", label: "第一幕", children: [target] }]
+    });
+    expect(await h.navigation.select("book", "mystery-book:one")).toBe(true);
+    expect(h.navigation.currentBook.value?.catalogNodeType).toBe(
+      "mystery-book"
+    );
+    expect(h.navigation.stages.value[0]).toMatchObject({
+      id: target.id,
+      current: true
+    });
+  });
   it("collects grouped libraries once and marks the owning book for a nested selection", () => {
     const { navigation } = setup();
     expect(navigation.books.value.map(({ id }) => id)).toEqual([

@@ -1,5 +1,6 @@
 import { createScopedTranslator } from "../i18n";
 import type { AgentEditProposal, ChatMessage } from "../types/conversation";
+import { longProposalRequiresConfirmation } from "../utils/longProposalChangePresentation";
 import {
   approvalDiscardStatusLabel,
   approvalDiscardStatusMessage,
@@ -139,7 +140,7 @@ export function longExpectedImpact(proposal: AgentEditProposal) {
 export function proposalAcceptLabel(proposal: AgentEditProposal): string {
   if (proposal.status === "accepting") return t("savingLabel");
   if (isStaleProposal(proposal)) return t("overwriteWithAgentVersion");
-  if (isLongProposal(proposal)) {
+  if (isLongProposal(proposal) && longProposalRequiresConfirmation(proposal)) {
     if (!longExpectedImpact(proposal)) return t("reviewImpact");
     return proposal.status === "error"
       ? t("confirmAgain")

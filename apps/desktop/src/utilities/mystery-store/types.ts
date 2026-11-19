@@ -17,7 +17,7 @@ export const MYSTERY_MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 export const MYSTERY_MAX_AGENTS_MD_BYTES = 256 * 1024;
 
 export const DEFAULT_MYSTERY_AGENTS_MD = [
-  "# 剧本杀创作约定（AGENTS.md）",
+  "# 剧本杀上下文",
   "",
   "- 保持上帝视角（truth/、角色底牌、视角任务卡、DM 手册）与玩家视角（选角页、人物本正文、搜证卡面、公共序幕）严格隔离。",
   "- 撰写任意人物本正文前，必须先核对对应角色的公开人设腔调与该幕视角任务卡（brief）。",
