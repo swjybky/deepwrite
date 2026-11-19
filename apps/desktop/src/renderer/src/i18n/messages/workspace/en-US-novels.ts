@@ -100,7 +100,6 @@ export default {
       "Character design overview: a summary of all characters to help the agent locate relevant profiles.",
     manageCharactersOfType: "Manage characters of type {title}.",
     theMainStorylineOfTheEntireNovel: "The main storyline of the entire novel.",
-    overallOutline: "Overall outline",
     manageForeshadowingThreadsAndReviewBeatsAcrossVolumesAnd:
       "Manage foreshadowing threads and review beats across volumes and plot points.",
     containsPlotPoints: "{title} contains {plotPointCount} plot points.",

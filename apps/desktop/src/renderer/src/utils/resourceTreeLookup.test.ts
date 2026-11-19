@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ResourceTreeSection } from "../types/workspace";
-import { createResourceTreeLookup } from "./resourceTreeLookup";
+import type { ResourceTreeNode, ResourceTreeSection } from "../types/workspace";
+import {
+  createResourceTreeLookup,
+  resourceTreeOwnerId
+} from "./resourceTreeLookup";
 
 describe("resource tree lookup", () => {
   it("indexes nested resources and their body/state documents", () => {
@@ -69,5 +72,32 @@ describe("resource tree lookup", () => {
     expect(
       createResourceTreeLookup(sections).resourceIdByDocumentId.get("shared")
     ).toBe("first");
+  });
+
+  it("highlights the branch that opens an overview selected by document id", () => {
+    const nodes: ResourceTreeNode[] = [
+      {
+        id: "book",
+        label: "作品",
+        icon: "book",
+        children: [
+          {
+            id: "character-directory",
+            label: "人物",
+            icon: "user",
+            selectableBranch: true,
+            targetDocumentId: "overview-document",
+            children: [{ id: "character-item", label: "角色", icon: "file" }]
+          }
+        ]
+      }
+    ];
+
+    expect(resourceTreeOwnerId(nodes, "overview-document")).toBe(
+      "character-directory"
+    );
+    expect(resourceTreeOwnerId(nodes, "character-item")).toBe("character-item");
+    expect(resourceTreeOwnerId(nodes, "unknown")).toBe("unknown");
+    expect(resourceTreeOwnerId(nodes, "")).toBe("");
   });
 });

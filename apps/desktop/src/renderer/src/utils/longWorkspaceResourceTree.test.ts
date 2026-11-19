@@ -231,10 +231,10 @@ describe("long workspace resource-tree projection", () => {
   it("keeps group counts and ordered volume/chapter output", () => {
     const roots = projectLongWorkspaceNavigation(summaryFixture());
     const characters = roots.find(({ label }) => label === "人物设计");
+    // The root opens the overview itself, so only the groups are children.
+    expect(characters?.longWorkspaceSelection?.key).toBe("character-overview");
     expect(
-      characters?.children
-        ?.slice(1)
-        .map(({ label, badge }) => ({ label, badge }))
+      characters?.children?.map(({ label, badge }) => ({ label, badge }))
     ).toEqual([
       { label: "主角", badge: "1" },
       { label: "配角", badge: "2" }
@@ -368,12 +368,15 @@ describe("long workspace resource-tree projection", () => {
       kind: "worldbuilding-item",
       parentId: "world_geography"
     });
+    expect(geography?.longWorkspaceSelection).toMatchObject({
+      worldbuildingItemId: null,
+      preferredRole: "overview"
+    });
     expect(geography?.children?.map(({ label }) => label)).toEqual([
-      "概览",
       "平原",
       "港口"
     ]);
-    expect(geography?.children?.[1]).toMatchObject({
+    expect(geography?.children?.[0]).toMatchObject({
       id: "long-book:longbook_tree:worldbuilding:world_geography:item:worlditem_plain",
       longTreeItem: {
         kind: "worldbuilding-item",
@@ -407,12 +410,14 @@ describe("long workspace resource-tree projection", () => {
       ({ label }) => label === "全书故事线"
     );
     expect(bookLine?.longTreeCollection).toEqual({ kind: "volume" });
+    expect(bookLine?.longWorkspaceSelection).toMatchObject({
+      bookLineVolumeId: null
+    });
     expect(bookLine?.children?.map(({ label }) => label)).toEqual([
-      "全书总纲",
       "第一卷",
       "第二卷"
     ]);
-    expect(bookLine?.children?.[1]).toMatchObject({
+    expect(bookLine?.children?.[0]).toMatchObject({
       id: "long-book:longbook_tree:plot-design:book-line:volume:volume_one",
       longTreeItem: { kind: "volume", id: "volume_one" },
       longWorkspaceSelection: { bookLineVolumeId: "volume_one" }
@@ -468,7 +473,11 @@ describe("long workspace resource-tree projection", () => {
     const geography = roots
       .find(({ label }) => label === "世界观")
       ?.children?.find(({ label }) => label === "地理");
-    expect(geography?.children?.map(({ label }) => label)).toEqual(["概览"]);
+    expect(geography?.children).toBeUndefined();
+    expect(geography?.longWorkspaceSelection).toMatchObject({
+      worldbuildingItemId: null,
+      preferredRole: "overview"
+    });
     expect(geography?.longTreeCollection).toEqual({
       kind: "worldbuilding-item",
       parentId: "world_geography"

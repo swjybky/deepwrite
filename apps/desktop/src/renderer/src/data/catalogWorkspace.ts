@@ -485,17 +485,6 @@ function catalogContentState(
       };
 }
 
-function catalogContentPresent(
-  value: object,
-  content: string,
-  field: "contentBytes" | "overviewContentBytes" = "contentBytes"
-): boolean {
-  const contentBytes = indexedContentBytes(value, field);
-  return contentBytes === undefined
-    ? content.trim().length > 0
-    : contentBytes > 0;
-}
-
 function materialEntryDocumentId(libraryId: string, entryId: string): string {
   return catalogNodeId("material-entry", libraryId, entryId);
 }
@@ -910,15 +899,8 @@ function createBookProjection(book: Book): {
         targetDocumentId: character.id,
         shortAgentId: book.bookType === "short" ? "short" : "script",
         characterDirectory: true,
-        children: [
-          {
-            ...character,
-            get label() {
-              return t("catalogWorkspace.overview");
-            }
-          },
-          ...characterItemNodes
-        ]
+        // The directory itself opens the overview; only items are listed.
+        children: characterItemNodes
       });
     } else {
       children.push(character);
@@ -1003,25 +985,10 @@ function createMaterialLibraryNode(library: MaterialLibrary): ResourceTreeNode {
       ? { parentGenre: library.parentGenre.trim() }
       : {}),
     ...(library.subGenre.trim() ? { subGenre: library.subGenre.trim() } : {}),
+    // Selecting the library opens its introduction; only entries are listed.
+    selectableBranch: true,
+    targetDocumentId: materialOverviewDocumentId(library.id),
     children: [
-      {
-        id: materialOverviewDocumentId(library.id),
-        get label() {
-          return t("catalogWorkspace.libraryIntroduction");
-        },
-        icon: "file",
-        muted: !catalogContentPresent(
-          library,
-          library.overview,
-          "overviewContentBytes"
-        ),
-        catalogNodeType: "document",
-        libraryId: library.id,
-        workspaceType: library.materialType,
-        ...(library.materialKind === "mixed"
-          ? {}
-          : { materialKind: library.materialKind })
-      },
       ...library.entries.map((entry) => ({
         id: materialEntryDocumentId(library.id, entry.id),
         get label() {
@@ -1226,24 +1193,10 @@ function createSkillLibraryNode(library: SkillLibrary): ResourceTreeNode {
     skillKind: library.skillKind,
     ...(library.customTag ? { customTag: library.customTag } : {}),
     workspaceType: library.skillType,
+    // Selecting the library opens its description; only entries are listed.
+    selectableBranch: true,
+    targetDocumentId: skillOverviewDocumentId(library.id),
     children: [
-      {
-        id: skillOverviewDocumentId(library.id),
-        get label() {
-          return t("catalogWorkspace.libraryDescription");
-        },
-        icon: "file",
-        muted: !catalogContentPresent(
-          library,
-          library.overview,
-          "overviewContentBytes"
-        ),
-        catalogNodeType: "document",
-        libraryId: library.id,
-        workspaceType: library.skillType,
-        readOnly: library.isBuiltin,
-        skillKind: library.skillKind
-      },
       ...library.entries.map((entry) => ({
         id: skillEntryDocumentId(library.id, entry.id),
         get label() {

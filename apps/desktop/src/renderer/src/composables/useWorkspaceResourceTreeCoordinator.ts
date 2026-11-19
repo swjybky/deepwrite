@@ -301,14 +301,12 @@ export function useWorkspaceResourceTreeCoordinator(
             `worldbuilding:${categoryId}:item:${selection.worldbuildingItemId}`
           );
         }
-        if (selection.worldbuildingItemId === null) {
-          return longNavigationNodeId(
-            bookId,
-            `worldbuilding:${categoryId}:overview`
-          );
-        }
       }
+      // A list category's overview is opened by the category node itself.
       return longNavigationNodeId(bookId, selection.key);
+    }
+    if (selection.key === "character-overview") {
+      return longNavigationNodeId(bookId, "root:character_design");
     }
     if (selection.key.startsWith("character-group:")) {
       if (
@@ -323,12 +321,13 @@ export function useWorkspaceResourceTreeCoordinator(
       return longNavigationNodeId(bookId, selection.key);
     }
     if (selection.key === "plot-design:book-line") {
-      if (settings.plotItemLayout === "left-tree") {
+      if (
+        settings.plotItemLayout === "left-tree" &&
+        selection.bookLineVolumeId
+      ) {
         return longNavigationNodeId(
           bookId,
-          selection.bookLineVolumeId
-            ? `plot-design:book-line:volume:${selection.bookLineVolumeId}`
-            : "plot-design:book-line:overview"
+          `plot-design:book-line:volume:${selection.bookLineVolumeId}`
         );
       }
       return longNavigationNodeId(bookId, selection.key);

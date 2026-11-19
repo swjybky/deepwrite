@@ -186,66 +186,55 @@ export function projectLongWorkspaceNavigation(
               ? t("longWorkspaceResourceTree.listBasedWorldbuilding")
               : t("longWorkspaceResourceTree.textBasedWorldbuilding")
         };
-        const selection = reconcile(baseSelection);
         const indexedCategory = index?.worldbuilding.find(
           ({ id }) => id === category.id
         );
         const readonly = isLongMigrationEvidenceCategoryId(category.id);
-        const itemChildren =
-          worldbuildingUsesLeftTree && indexedCategory?.format === "list"
-            ? [
-                ...(() => {
-                  const overviewSelection = reconcile({
-                    ...baseSelection,
-                    worldbuildingItemId: null,
-                    preferredRole: "overview"
-                  });
-                  return overviewSelection
-                    ? [
-                        node(overviewSelection, {
-                          nodeKey: `worldbuilding:${category.id}:overview`,
-                          icon: "file",
-                          label: t("catalogWorkspace.overview"),
-                          readOnly: readonly
-                        })
-                      ]
-                    : [];
-                })(),
-                ...[...indexedCategory.items]
-                  .sort(
-                    (left, right) =>
-                      left.order - right.order ||
-                      left.id.localeCompare(right.id)
-                  )
-                  .flatMap((item) => {
-                    const itemSelection = reconcile({
-                      ...baseSelection,
-                      worldbuildingItemId: item.id,
-                      preferredFileId: item.file.id,
-                      preferredRole: "content"
-                    });
-                    return itemSelection
-                      ? [
-                          node(itemSelection, {
-                            nodeKey: `worldbuilding:${category.id}:item:${item.id}`,
-                            icon: "file",
-                            label: item.title,
-                            readOnly: readonly,
-                            ...(!readonly
-                              ? {
-                                  longTreeItem: {
-                                    kind: "worldbuilding-item" as const,
-                                    id: item.id,
-                                    parentId: category.id
-                                  }
-                                }
-                              : {})
-                          })
-                        ]
-                      : [];
-                  })
-              ]
-            : undefined;
+        const listUsesLeftTree =
+          worldbuildingUsesLeftTree && indexedCategory?.format === "list";
+        // In the left tree the category itself opens its overview, so the
+        // items are its only children.
+        const selection = listUsesLeftTree
+          ? (reconcile({
+              ...baseSelection,
+              worldbuildingItemId: null,
+              preferredRole: "overview"
+            }) ?? reconcile(baseSelection))
+          : reconcile(baseSelection);
+        const itemChildren = listUsesLeftTree
+          ? [...indexedCategory.items]
+              .sort(
+                (left, right) =>
+                  left.order - right.order || left.id.localeCompare(right.id)
+              )
+              .flatMap((item) => {
+                const itemSelection = reconcile({
+                  ...baseSelection,
+                  worldbuildingItemId: item.id,
+                  preferredFileId: item.file.id,
+                  preferredRole: "content"
+                });
+                return itemSelection
+                  ? [
+                      node(itemSelection, {
+                        nodeKey: `worldbuilding:${category.id}:item:${item.id}`,
+                        icon: "file",
+                        label: item.title,
+                        readOnly: readonly,
+                        ...(!readonly
+                          ? {
+                              longTreeItem: {
+                                kind: "worldbuilding-item" as const,
+                                id: item.id,
+                                parentId: category.id
+                              }
+                            }
+                          : {})
+                      })
+                    ]
+                  : [];
+              })
+          : undefined;
         return selection
           ? [
               node(selection, {
@@ -255,9 +244,8 @@ export function projectLongWorkspaceNavigation(
                     ? t("longWorkspaceResourceTree.list")
                     : t("longWorkspaceResourceTree.text"),
                 ...(itemChildren ? { children: itemChildren } : {}),
-                ...(worldbuildingUsesLeftTree &&
-                indexedCategory?.format === "list" &&
-                !readonly
+                ...(listUsesLeftTree ? { selectableBranch: true } : {}),
+                ...(listUsesLeftTree && !readonly
                   ? {
                       longTreeCollection: {
                         kind: "worldbuilding-item" as const,
@@ -371,17 +359,6 @@ export function projectLongWorkspaceNavigation(
           : {})
       });
     });
-  const characterChildren = [
-    ...(characterOverviewSelection
-      ? [
-          node(characterOverviewSelection, {
-            icon: "file",
-            label: t("catalogWorkspace.overview")
-          })
-        ]
-      : []),
-    ...characterGroupChildren
-  ];
 
   const bookLineBaseSelection: LongWorkspaceSelection = {
     key: "plot-design:book-line",
@@ -400,44 +377,28 @@ export function projectLongWorkspaceNavigation(
     ...bookLineBaseSelection,
     ...(plotUsesLeftTree ? { bookLineVolumeId: null } : {})
   });
+  // The storyline node itself opens the full outline; volumes are its children.
   const bookLineChildren = plotUsesLeftTree
-    ? [
-        ...(() => {
-          const overviewSelection = reconcile({
-            ...bookLineBaseSelection,
-            bookLineVolumeId: null
-          });
-          return overviewSelection
-            ? [
-                node(overviewSelection, {
-                  nodeKey: "plot-design:book-line:overview",
-                  icon: "file",
-                  label: t("longWorkspaceResourceTree.overallOutline")
-                })
-              ]
-            : [];
-        })(),
-        ...sortedVolumes.flatMap((volume) => {
-          const volumeSelection = reconcile({
-            ...bookLineBaseSelection,
-            bookLineVolumeId: volume.id,
-            title: volume.title
-          });
-          return volumeSelection
-            ? [
-                node(volumeSelection, {
-                  nodeKey: `plot-design:book-line:volume:${volume.id}`,
-                  icon: "file",
-                  label: volume.title,
-                  longTreeItem: {
-                    kind: "volume",
-                    id: volume.id
-                  }
-                })
-              ]
-            : [];
-        })
-      ]
+    ? sortedVolumes.flatMap((volume) => {
+        const volumeSelection = reconcile({
+          ...bookLineBaseSelection,
+          bookLineVolumeId: volume.id,
+          title: volume.title
+        });
+        return volumeSelection
+          ? [
+              node(volumeSelection, {
+                nodeKey: `plot-design:book-line:volume:${volume.id}`,
+                icon: "file",
+                label: volume.title,
+                longTreeItem: {
+                  kind: "volume",
+                  id: volume.id
+                }
+              })
+            ]
+          : [];
+      })
     : undefined;
   const foreshadowingSelection = reconcile({
     key: "plot-design:foreshadowing",
@@ -617,6 +578,7 @@ export function projectLongWorkspaceNavigation(
             icon: "file",
             badge: t("longWorkspaceResourceTree.storyline"),
             ...(bookLineChildren ? { children: bookLineChildren } : {}),
+            ...(plotUsesLeftTree ? { selectableBranch: true } : {}),
             ...(plotUsesLeftTree
               ? {
                   longTreeCollection: {
@@ -703,11 +665,19 @@ export function projectLongWorkspaceNavigation(
       badge: String(counts.worldbuildingCategories),
       children: worldChildren
     }),
-    node(createLongRootSelection(book, "character_design"), {
-      icon: "user",
-      badge: String(counts.characters),
-      children: characterChildren
-    }),
+    // The character root opens the overview; groups are its only children.
+    node(
+      characterOverviewSelection ??
+        createLongRootSelection(book, "character_design"),
+      {
+        nodeKey: "root:character_design",
+        icon: "user",
+        label: LONG_WORKSPACE_ROOT_LABELS.character_design,
+        badge: String(counts.characters),
+        children: characterGroupChildren,
+        selectableBranch: true
+      }
+    ),
     node(createLongRootSelection(book, "plot_design"), {
       icon: "history",
       badge: String(counts.arcs + counts.volumes + counts.chapterCards),

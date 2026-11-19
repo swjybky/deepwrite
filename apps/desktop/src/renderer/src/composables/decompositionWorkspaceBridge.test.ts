@@ -68,10 +68,11 @@ function fixture() {
   const group = projection.resourceSections.find(
     (section) => section.id === "material"
   )!.nodes[0]!;
-  const overview = group.children![1]!.children![0]!;
+  // The library node itself opens its overview; entries are its only children.
+  const overview = group.children![1]!;
   const nodes = [
     group,
-    group.children![1]!.children![1]!,
+    overview.children![0]!,
     {
       id: "long-book:book_fixture",
       label: "合成长篇作品",

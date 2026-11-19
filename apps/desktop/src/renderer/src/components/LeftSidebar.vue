@@ -35,6 +35,7 @@ import SidebarProfileMenu from "./SidebarProfileMenu.vue";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { useSidebarSelectionReveal } from "../composables/useSidebarSelectionReveal";
 import { SIDEBAR_SELECTION_ACTIVE } from "../composables/sidebarSelectionContext";
+import { resourceTreeOwnerId } from "../utils/resourceTreeLookup";
 
 const identityT = createScopedTranslator("extras.bookIdentity");
 const packT = createScopedTranslator("extras.longMaterialPack");
@@ -117,8 +118,14 @@ const selectionActive = computed(
   () => props.activePrimaryFeature === undefined
 );
 provide(SIDEBAR_SELECTION_ACTIVE, selectionActive);
+const visibleSelectedId = computed(() =>
+  resourceTreeOwnerId(
+    props.sections.flatMap(({ nodes }) => nodes),
+    props.selectedId
+  )
+);
 const { revealSelection, preferCenteredReveal } = useSidebarSelectionReveal({
-  selectedId: () => props.selectedId,
+  selectedId: () => visibleSelectedId.value,
   sections: () => props.sections,
   selectionActive,
   scroller: sidebarScroll
@@ -404,7 +411,7 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
 
       <SidebarResourceList
         :sections="sections"
-        :selected-id="selectedId"
+        :selected-id="visibleSelectedId"
         :long-tree-actions-disabled="longTreeActionsDisabled"
         :library-entry-clipboard-domain="libraryEntryClipboardDomain"
         @select-resource="emit('selectResource', $event)"

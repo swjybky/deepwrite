@@ -368,8 +368,13 @@ describe("catalog workspace projection", () => {
       catalogContentLoaded: false
     });
     expect(
-      projection.index.resourceNodeById.get(overviewResourceId)?.muted
-    ).toBe(false);
+      projection.index.resourceNodeById.get(overviewResourceId)
+    ).toMatchObject({
+      catalogNodeType: "library",
+      libraryId: "material-plot",
+      selectableBranch: true,
+      targetDocumentId: materialOverview.id
+    });
   });
 
   it("prefers the virtual draft directory for a newly selected book", () => {
@@ -708,12 +713,17 @@ describe("catalog workspace projection", () => {
       characterDirectory: true,
       shortAgentId: "short"
     });
+    // The directory opens the overview itself instead of listing it as a row.
     expect(characterNode?.children?.map(({ label }) => label)).toEqual([
-      "概览",
       "林默",
       "苏遥"
     ]);
-    expect(characterNode?.children?.[1]).toMatchObject({
+    expect(
+      projection.workspaceDocuments.find(
+        ({ id }) => id === characterNode?.targetDocumentId
+      )
+    ).toMatchObject({ characterFileKind: "overview" });
+    expect(characterNode?.children?.[0]).toMatchObject({
       characterItemId: "character-linmo"
     });
     expect(
@@ -1015,8 +1025,8 @@ describe("catalog workspace projection", () => {
     expect(nodes.filter((node) => node.id === "skill-general")).toHaveLength(1);
     expect(generalLibrary?.categoryTag).toBe("通用");
     expect(generalLibrary?.badge).toBeUndefined();
+    expect(generalLibrary).toMatchObject({ selectableBranch: true });
     expect(generalLibrary?.children?.map((node) => node.label)).toEqual([
-      "库说明",
       "人物方法",
       "正文方法"
     ]);

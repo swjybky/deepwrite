@@ -273,7 +273,7 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
       )
     );
     expect(
-      longRootProjection.match(/node\(createLongRootSelection/gu)
+      longRootProjection.match(/createLongRootSelection\(book, "/gu)
     ).toHaveLength(5);
     expect(longRootProjection).not.toContain('title: "章卡"');
     expect(editorSource).toContain("overallOutline");

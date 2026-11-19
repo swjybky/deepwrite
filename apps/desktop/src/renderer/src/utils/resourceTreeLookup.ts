@@ -19,6 +19,36 @@ export function resourceTreeContainsResource(
   );
 }
 
+/**
+ * Resolves the visible tree node for a selection. Overviews have no row of
+ * their own; a selection made by document id belongs to the branch that
+ * opens that document.
+ */
+export function resourceTreeOwnerId(
+  nodes: readonly ResourceTreeNode[],
+  resourceId: string
+): string {
+  if (!resourceId) return resourceId;
+  let owner: string | undefined;
+  const stack = [...nodes].reverse();
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (node.id === resourceId) return resourceId;
+    if (
+      owner === undefined &&
+      (node.targetDocumentId === resourceId ||
+        node.characterStateDocumentId === resourceId)
+    ) {
+      owner = node.id;
+    }
+    const children = node.children ?? [];
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]!);
+    }
+  }
+  return owner ?? resourceId;
+}
+
 export interface ResourceTreeLookup {
   nodeById: ReadonlyMap<string, ResourceTreeNode>;
   resourceIdByDocumentId: ReadonlyMap<string, string>;

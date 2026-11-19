@@ -370,8 +370,21 @@ describe("useWorkspaceResourceTreeCoordinator", () => {
         value: selection("worldbuilding:geography", "worldbuilding", {
           worldbuildingItemId: null
         }),
-        leftTreeKey: "worldbuilding:geography:overview",
+        // The category node itself opens its overview.
+        leftTreeKey: "worldbuilding:geography",
         branchKey: "worldbuilding:geography"
+      },
+      {
+        value: selection("plot-design:book-line", "plot_design", {
+          bookLineVolumeId: null
+        }),
+        leftTreeKey: "plot-design:book-line",
+        branchKey: "plot-design:book-line"
+      },
+      {
+        value: selection("character-overview", "character_design"),
+        leftTreeKey: "root:character_design",
+        branchKey: "root:character_design"
       },
       {
         value: selection("character-group:protagonist", "character_design", {

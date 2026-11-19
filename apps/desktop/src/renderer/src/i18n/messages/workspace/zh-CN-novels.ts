@@ -90,7 +90,6 @@ export default {
       "人物设计阶段概览；统计全部人物的简单信息，供智能体先读后定位。",
     manageCharactersOfType: "管理{title}人物。",
     theMainStorylineOfTheEntireNovel: "全书级情节主线。",
-    overallOutline: "全书总纲",
     manageForeshadowingThreadsAndReviewBeatsAcrossVolumesAnd:
       "集中管理伏笔线，并查看各卷、各剧情点中的伏笔触点。",
     containsPlotPoints: "{title}共有 {plotPointCount} 个剧情点。",
