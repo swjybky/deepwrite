@@ -2,19 +2,18 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.8.5",
-  "title": "DeepWrite 1.8.5",
-  "publishedAt": "2026-11-15T17:28:08+08:00",
+  "version": "1.8.6",
+  "title": "DeepWrite 1.8.6",
+  "publishedAt": "2026-11-19T23:02:05+08:00",
   "releaseNotes": [
-    "优化短篇与剧本创作工具、篇幅反馈和长文分段读取。",
-    "长篇支持全文检索与按需读取，连续性文件和账本可合并审阅、一起保存。",
-    "完善智能体团队配置审阅，以及资料库批量整理、删除与恢复。",
-    "增加文稿版本记录，改进作者插图编辑与文稿导出。",
-    "增加公告本地历史和时间轴，改进编辑器搜索高亮。",
-    "改进 MCP 运行恢复与 Windows 更新时的文件占用处理。"
+    "新增学术写作和剧本杀工作空间，支持专用智能体、资料管理和稿件导出。",
+    "统一五类作品的编辑器、资源树操作和作品管理弹窗，简化书籍与资料库的绑定。",
+    "集市新增素材浏览与安装，技能页面显示已安装状态。",
+    "优化长篇章节情节显示、提案审阅和连续性资料归档，改进模型兼容性。",
+    "桌面自动更新接入 Cloudflare R2 下载源。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.5",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.6",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
