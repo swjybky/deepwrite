@@ -97,10 +97,37 @@ describe("conversation file change summary", () => {
     const chapter4 = summary.rows[0]!;
     expect(chapter4.writes).toHaveLength(3);
     expect(chapter4.additions).toBe(61);
-    // The current generation decides the row's state.
+    // The latest generation decides unless an earlier write still needs action.
     expect(chapter4.status).toBe("action");
     expect(summary.fileCount).toBe(2);
     expect(summary.counts).toMatchObject({ action: 1, accepted: 1 });
+  });
+
+  it("issue #79：前序人工审批优先于后代自动等待", () => {
+    const first = lane("plot_touch", 1);
+    const second = lane("plot_touch", 2, {
+      approvalMode: "auto-approve",
+      predecessorProposalId: first.id
+    });
+    const third = lane("plot_touch", 3, {
+      approvalMode: "auto-approve",
+      predecessorProposalId: second.id
+    });
+    const fourth = lane("plot_touch", 4, {
+      approvalMode: "auto-approve",
+      predecessorProposalId: third.id
+    });
+
+    const summary = fileChangeSummary([
+      edit(first),
+      edit(second),
+      edit(third),
+      edit(fourth)
+    ]);
+
+    expect(summary.rows[0]?.status).toBe("action");
+    expect(summary.counts.action).toBe(1);
+    expect(summary.counts.progress).toBe(0);
   });
 
   it("keeps row order when statuses change", () => {
