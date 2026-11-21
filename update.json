@@ -2,18 +2,19 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.8.6",
-  "title": "DeepWrite 1.8.6",
-  "publishedAt": "2026-11-19T23:02:05+08:00",
+  "version": "1.9.0",
+  "title": "DeepWrite 1.9.0",
+  "publishedAt": "2026-11-21T17:10:53+08:00",
   "releaseNotes": [
-    "新增学术写作和剧本杀工作空间，支持专用智能体、资料管理和稿件导出。",
-    "统一五类作品的编辑器、资源树操作和作品管理弹窗，简化书籍与资料库的绑定。",
-    "集市新增素材浏览与安装，技能页面显示已安装状态。",
-    "优化长篇章节情节显示、提案审阅和连续性资料归档，改进模型兼容性。",
-    "桌面自动更新接入 Cloudflare R2 下载源。"
+    "统一短篇、剧本、长篇、学术写作、剧本杀和资料库的导出弹窗，新增带内嵌图片的 Markdown 导出。",
+    "所有写作空间共用分栏拖拽，长篇编辑器调整宽度更流畅。",
+    "重新设计作品绑定弹窗：实时显示当前绑定，技能列表分组，悬停可看完整名称。",
+    "长篇章卡移入正文章节标签页，侧栏与学术框架统一长按拖动排序。",
+    "停用设备间对话同步，已同步的消息仍可查看；云备份暂时隐藏。",
+    "修复资料库概览标题显示问题。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.8.6",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.9.0",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
