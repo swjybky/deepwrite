@@ -8,11 +8,7 @@ import type {
   ConversationHistoryPurgeQuery,
   ConversationHistoryPurgeResult,
   ConversationHistoryStage,
-  ConversationHistoryStageResult,
-  DeviceSyncConversationApplyResult,
-  DeviceSyncConversationExport,
-  DeviceSyncConversationInventory,
-  DeviceSyncConversationSessionWrite
+  ConversationHistoryStageResult
 } from "@deepwrite/contracts";
 import { openConversationDatabase, Statements } from "./schema";
 import { JsonNodes } from "./json-nodes";
@@ -24,11 +20,6 @@ import { ConversationRuntimeRecovery } from "./runtime-recovery";
 import { setMetadata, setStagedMetadata } from "./metadata-mutations";
 import { ConversationScopeMerger } from "./scope-merger";
 import { purgeArchivedConversation } from "./purge";
-import {
-  applySyncSessions,
-  exportSyncSessions,
-  inventorySyncSessions
-} from "./sync-sessions";
 export { ConversationStorageError } from "./errors";
 
 export class ConversationDatabase extends ConversationQueries {
@@ -208,31 +199,6 @@ export class ConversationDatabase extends ConversationQueries {
       this.database.exec("ROLLBACK");
       throw error;
     }
-  }
-
-  syncInventory(keys: readonly string[]): DeviceSyncConversationInventory {
-    return inventorySyncSessions(this.sql, keys);
-  }
-  syncExport(
-    key: string,
-    sessionIds: readonly string[]
-  ): DeviceSyncConversationExport {
-    return exportSyncSessions(this.sql, this.nodes, key, sessionIds);
-  }
-  /** Device sync writes through the same batches, revisions and receipts as the window. */
-  syncApply(
-    key: string,
-    writes: readonly DeviceSyncConversationSessionWrite[]
-  ): DeviceSyncConversationApplyResult {
-    return applySyncSessions(
-      {
-        sql: this.sql,
-        nodes: this.nodes,
-        commit: (batch) => this.commit(batch)
-      },
-      key,
-      writes
-    );
   }
 
   purge(query: ConversationHistoryPurgeQuery): ConversationHistoryPurgeResult {

@@ -21,17 +21,11 @@ const props = defineProps<{
   open: boolean;
   volumeTitle: string;
   arcOptions: readonly PopupSelectOption[];
-  source?: "chapter-card" | "draft";
   pending?: boolean;
 }>();
 
-const fromDraft = computed(() => props.source === "draft");
-const unitLabel = computed(() =>
-  fromDraft.value ? t("section") : t("chapterCard")
-);
-const titleFieldLabel = computed(() =>
-  fromDraft.value ? t("sectionName") : t("chapterCardTitle")
-);
+const unitLabel = computed(() => t("section"));
+const titleFieldLabel = computed(() => t("sectionName"));
 
 const emit = defineEmits<{
   close: [];
@@ -154,10 +148,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
         <form @submit.prevent="submit">
           <header>
             <div>
-              <span
-                >{{ fromDraft ? t("manuscript") : t("plotDesign") }} ·
-                {{ volumeTitle }}</span
-              >
+              <span>{{ t("manuscript") }} · {{ volumeTitle }}</span>
               <h2 id="create-long-chapter-card-title">
                 {{
                   t("newMessage", {
@@ -208,11 +199,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
                 @update:model-value="selectArc"
               />
             </label>
-            <p v-if="fromDraft">
+            <p>
               {{ t("aMatchingChapterCardWillBeCreatedConsiderPreparing") }}
-            </p>
-            <p v-else>
-              {{ t("youCanCompleteTheChapterCardAfterCreatingIt") }}
             </p>
           </fieldset>
 
@@ -221,13 +209,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
               {{ t("cancel") }}
             </button>
             <button class="primary-button" type="submit" :disabled="pending">
-              {{
-                pending
-                  ? t("creating")
-                  : fromDraft
-                    ? t("create")
-                    : t("createChapterCard")
-              }}
+              {{ pending ? t("creating") : t("create") }}
             </button>
           </footer>
         </form>

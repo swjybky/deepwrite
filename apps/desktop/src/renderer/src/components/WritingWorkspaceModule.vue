@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { t } from "../i18n";
 import { provideBookImageContext } from "../composables/bookImageContext";
 import type {
   AgentTeamRunMode,
@@ -22,6 +21,7 @@ import {
   useAcademicDialogHostClaim
 } from "../stores/academicWorkspaceDialog";
 import RightEditorPane from "./RightEditorPane.vue";
+import WorkspacePaneResizer from "./WorkspacePaneResizer.vue";
 import type { EditorCompositionChange } from "../composables/useEditorComposition";
 
 type AgentConversationPublicProps = InstanceType<
@@ -88,12 +88,7 @@ const props = defineProps<{
   conversationContext: WritingConversationContext;
   editor: WritingEditorViewModel;
   paneLayout: WorkspacePaneLayout;
-  rightPane: Readonly<{
-    collapsed: boolean;
-    minWidth: number;
-    maxWidth: number;
-    width: number;
-  }>;
+  rightCollapsed: boolean;
 }>();
 
 provideBookImageContext(() => {
@@ -148,8 +143,6 @@ const emit = defineEmits<{
   selectDraftFile: [fileKind: DraftFileKind];
   selectEntrySearchResult: [documentId: string];
   prepareEntrySearch: [];
-  resizeStart: [event: PointerEvent];
-  resizeKeydown: [event: KeyboardEvent];
 }>();
 
 const ownsAcademicDialogHost = useAcademicDialogHostClaim();
@@ -157,7 +150,7 @@ const ownsAcademicDialogHost = useAcademicDialogHostClaim();
 
 <template>
   <AgentConversation
-    v-if="paneLayout === 'agent-editor' || !rightPane.collapsed"
+    v-if="paneLayout === 'agent-editor' || !rightCollapsed"
     v-bind="conversationContext"
     :right-pane="paneLayout === 'editor-agent'"
     :messages="conversationController.messages.value"
@@ -207,10 +200,10 @@ const ownsAcademicDialogHost = useAcademicDialogHostClaim();
   />
 
   <RightEditorPane
-    v-if="paneLayout === 'editor-agent' || !rightPane.collapsed"
+    v-if="paneLayout === 'editor-agent' || !rightCollapsed"
     v-bind="editor"
     :right-pane="paneLayout === 'agent-editor'"
-    :right-pane-collapsed="rightPane.collapsed"
+    :right-pane-collapsed="rightCollapsed"
     @collapse="emit('collapse')"
     @toggle-right="emit('toggleRight')"
     @save="emit('save', $event)"
@@ -226,19 +219,7 @@ const ownsAcademicDialogHost = useAcademicDialogHostClaim();
     @prepare-entry-search="emit('prepareEntrySearch')"
   />
 
-  <div
-    v-if="!rightPane.collapsed"
-    class="pane-resizer pane-resizer-right"
-    role="separator"
-    :aria-label="t('components.writingWorkspaceModule.resizeRightPane')"
-    aria-orientation="vertical"
-    :aria-valuemin="rightPane.minWidth"
-    :aria-valuemax="rightPane.maxWidth"
-    :aria-valuenow="rightPane.width"
-    tabindex="0"
-    @pointerdown="emit('resizeStart', $event)"
-    @keydown="emit('resizeKeydown', $event)"
-  />
+  <WorkspacePaneResizer />
   <AcademicWorkspaceDialogs
     v-if="ownsAcademicDialogHost && academicDialogTarget"
   />

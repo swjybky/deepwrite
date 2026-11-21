@@ -145,6 +145,7 @@ export function configuredMoreFeatures(settings: MoreFeaturesSettings) {
   );
   let marketplaceAdded = false;
   return settings.flatMap((preference) => {
+    if (preference.id === "cloud-backup") return [];
     if (
       preference.id === "skill-marketplace" ||
       preference.id === "agent-team-marketplace"

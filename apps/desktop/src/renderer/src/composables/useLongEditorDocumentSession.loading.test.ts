@@ -78,6 +78,8 @@ function setupEditor(initial = selection("rules")) {
     locked: false
   });
   const activeFileId = ref(initial.files[0]!.file.id);
+  const pendingFileId = ref<string | null>(null);
+  const emit = vi.fn();
   const documentStates = ref<Record<string, LongDocumentState>>({});
   const pending: Array<{
     input: LongReadDocumentInput;
@@ -97,7 +99,8 @@ function setupEditor(initial = selection("rules")) {
       setup() {
         session = useLongEditorDocumentSession({
           props,
-          emit: () => {},
+          emit,
+          pendingFileId,
           documentStates,
           volumeOutlineDrafts: ref({}),
           plotPointSummaryDrafts: ref({}),
@@ -154,6 +157,8 @@ function setupEditor(initial = selection("rules")) {
     props,
     activeFileId,
     documentStates,
+    pendingFileId,
+    emit,
     session,
     readDocument,
     pending,
@@ -162,6 +167,47 @@ function setupEditor(initial = selection("rules")) {
 }
 
 describe("long editor document loading", () => {
+  it("publishes chapter context only for the selected, loaded tab", async () => {
+    const base = selection("chapter:chapter_one", 1);
+    const [body, card] = base.files;
+    const editor = setupEditor({
+      key: base.key,
+      root: "draft",
+      chapterCardId: "chapter_one",
+      title: "第一章",
+      breadcrumbs: [],
+      files: [
+        { ...body!, role: "body" },
+        { ...card!, role: "card" }
+      ],
+      preferredRole: "body"
+    });
+    const bodyId = body!.file.id;
+    const cardId = card!.file.id;
+    await flush();
+    expect(editor.emit).toHaveBeenLastCalledWith("contextChange", null);
+    editor.finish(bodyId);
+    await flush();
+    expect(editor.emit).toHaveBeenLastCalledWith("contextChange", {
+      bookId: editor.props.bookId,
+      fileId: bodyId
+    });
+
+    editor.pendingFileId.value = cardId;
+    await flush();
+    expect(editor.emit).toHaveBeenLastCalledWith("contextChange", null);
+    editor.finish(cardId);
+    await flush();
+    expect(editor.emit).toHaveBeenLastCalledWith("contextChange", null);
+
+    editor.activeFileId.value = cardId;
+    editor.pendingFileId.value = null;
+    await flush();
+    expect(editor.emit).toHaveBeenLastCalledWith("contextChange", {
+      bookId: editor.props.bookId,
+      fileId: cardId
+    });
+  });
   it("loads visible content first and bounds speculative reads for a large list", async () => {
     const editor = setupEditor();
     await flush();

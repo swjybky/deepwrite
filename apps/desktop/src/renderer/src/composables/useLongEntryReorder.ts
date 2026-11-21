@@ -3,10 +3,7 @@ import type {
   LongWorkspaceIndexSnapshot,
   LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
-import {
-  longVolumeChapterOrderMovesRecordedChapters,
-  previewLongWorkspaceOperations
-} from "@deepwrite/contracts/renderer";
+import { previewLongWorkspaceOperations } from "@deepwrite/contracts/renderer";
 import type {
   LongStructureMutationCompletion,
   LongWorkspaceSelection
@@ -16,7 +13,6 @@ import {
   type LongEntryGroup
 } from "../utils/longEntryReorder";
 import type { LongPressReorderOptions } from "../utils/longPressReorder";
-import { orderLongChapterNavigationItems } from "../utils/orderLongChapterNavigationItems";
 
 export function useLongEntryReorder(options: {
   props: {
@@ -51,9 +47,6 @@ export function useLongEntryReorder(options: {
       character: selection?.characterTabs ?? [],
       volume: options.volumes.value,
       plotPoint: selection?.plotPointTabs ?? [],
-      chapter: orderLongChapterNavigationItems(
-        selection?.chapterCardTabs ?? []
-      ),
       storyPlot: options.storyPlots.value
     };
     function batch(
@@ -71,18 +64,7 @@ export function useLongEntryReorder(options: {
       return;
     }
     function canReorder(group: string, ids: string[]): boolean {
-      if (group !== "chapter" && group !== "volume") return true;
-      if (group === "chapter") {
-        return Boolean(
-          workspaceIndex &&
-          selection?.chapterCardVolumeId &&
-          !longVolumeChapterOrderMovesRecordedChapters(
-            workspaceIndex,
-            selection.chapterCardVolumeId,
-            ids
-          )
-        );
-      }
+      if (group !== "volume") return true;
       const next = batch(group, ids);
       if (!next || !workspaceIndex) return false;
       try {

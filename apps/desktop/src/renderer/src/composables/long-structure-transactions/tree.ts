@@ -3,12 +3,16 @@ import { createScopedTranslator } from "../../i18n";
 import type {
   LongBookSummary,
   LongWorkspaceIndexSnapshot,
+  LongWorkspaceOperation,
   LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
 import type {
+  CreationTreeReorderPayload,
   LongTreeItemAction,
   ResourceTreeNode
 } from "../../types/workspace";
+import { isLongMigrationEvidenceCategoryId } from "../../types/longWorkspace";
+import { moveLongEntry } from "../../utils/longEntryReorder";
 import { longNavigationNodeId } from "../../utils/longWorkspaceResourceTree";
 import { longDeletionDescription } from "../../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../../utils/longImpactConfirmation";
@@ -106,23 +110,7 @@ export function resolveLongTreeItemDetails(
         longNavigationNodeId(bookId, `plot-design:plot-point:${id}`)
     };
   }
-  const chapter = index.plot.chapterCards.find(({ id }) => id === target.id);
-  if (!chapter) return null;
-  return {
-    label: t("longImpactConfirmation.chapterCard"),
-    title: chapter.title,
-    description: longDeletionDescription(index, "chapterCard", chapter.id),
-    orderedIds: index.plot.chapterCards
-      .filter(({ volumeId }) => volumeId === chapter.volumeId)
-      .sort((left, right) => left.narrativeOrder - right.narrativeOrder)
-      .map(({ id }) => id),
-    parentResourceId: longNavigationNodeId(
-      bookId,
-      `plot-design:chapter-cards:${chapter.volumeId}`
-    ),
-    resourceIdForItem: (id) =>
-      longNavigationNodeId(bookId, `plot-design:chapter-card:${id}`)
-  };
+  return null;
 }
 
 export function isActiveLongTreeItem(
@@ -132,7 +120,6 @@ export function isActiveLongTreeItem(
     characterId?: string | null;
     bookLineVolumeId?: string | null;
     plotPointId?: string | null;
-    chapterCardId?: string | null;
   } | null
 ): boolean {
   const target = node.longTreeItem;
@@ -146,10 +133,7 @@ export function isActiveLongTreeItem(
   if (target.kind === "volume") {
     return selection.bookLineVolumeId === target.id;
   }
-  if (target.kind === "plot-point") {
-    return selection.plotPointId === target.id;
-  }
-  return selection.chapterCardId === target.id;
+  return selection.plotPointId === target.id;
 }
 
 export function createLongStructureTree(
@@ -173,7 +157,6 @@ export function createLongStructureTree(
   const {
     openLongWorldbuildingItemCreateForCategoryInternal,
     openLongPlotPointCreateForVolumeInternal,
-    openLongChapterCardCreateInternal,
     openLongVolumeCreateInternal
   } = created;
   const {
@@ -293,13 +276,6 @@ export function createLongStructureTree(
         );
         return;
       }
-      if (target.kind === "chapter-card" && target.parentId) {
-        await openLongChapterCardCreateInternal(requestId, {
-          bookId: prepared.bookId,
-          volumeId: target.parentId,
-          source: "chapter-card"
-        });
-      }
     });
   }
 
@@ -343,10 +319,8 @@ export function createLongStructureTree(
             batch = builder.deleteCharacter(target.id);
           } else if (target.kind === "volume") {
             batch = builder.deleteVolume(target.id);
-          } else if (target.kind === "plot-point") {
-            batch = builder.deleteArc(target.id);
           } else {
-            batch = builder.deleteChapter(target.id);
+            batch = builder.deleteArc(target.id);
           }
           const expectedImpact = await previewLongStructureImpact(
             prepared.bookId,
@@ -399,10 +373,8 @@ export function createLongStructureTree(
               batch = builder.reorderCharacter(target.id, direction);
             } else if (target.kind === "volume") {
               batch = builder.reorderVolume(target.id, direction);
-            } else if (target.kind === "plot-point") {
-              batch = builder.reorderArc(target.id, direction);
             } else {
-              batch = builder.reorderChapter(target.id, direction);
+              batch = builder.reorderArc(target.id, direction);
             }
           } catch (error: unknown) {
             if (isDisposed()) return;
@@ -432,11 +404,238 @@ export function createLongStructureTree(
     });
   }
 
+  function buildLongReorderOperation(
+    index: LongWorkspaceIndexSnapshot,
+    payload: Extract<
+      CreationTreeReorderPayload,
+      {
+        kind:
+          | "long-worldbuilding-category"
+          | "long-worldbuilding-item"
+          | "long-character-group"
+          | "long-character"
+          | "long-volume"
+          | "long-plot-point"
+          | "long-draft-chapter";
+      }
+    >
+  ): LongWorkspaceOperation | null {
+    switch (payload.kind) {
+      case "long-worldbuilding-category": {
+        const allIds = [...index.worldbuilding]
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const mutableIds = allIds.filter(
+          (id) => !isLongMigrationEvidenceCategoryId(id)
+        );
+        const reorderedMutable = moveLongEntry(
+          mutableIds,
+          payload.categoryId,
+          payload.anchorId,
+          payload.position
+        );
+        if (reorderedMutable.every((id, idx) => id === mutableIds[idx])) {
+          return null;
+        }
+        let cursor = 0;
+        const orderedIds = allIds.map((id) =>
+          isLongMigrationEvidenceCategoryId(id)
+            ? id
+            : reorderedMutable[cursor++]!
+        );
+        return { type: "worldbuilding.reorder", orderedIds };
+      }
+      case "long-worldbuilding-item": {
+        const category = index.worldbuilding.find(
+          ({ id }) => id === payload.categoryId
+        );
+        if (
+          !category ||
+          category.format !== "list" ||
+          isLongMigrationEvidenceCategoryId(category.id)
+        ) {
+          return null;
+        }
+        const currentIds = [...category.items]
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.itemId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return {
+          type: "worldbuildingItem.reorder",
+          categoryId: payload.categoryId,
+          orderedIds
+        };
+      }
+      case "long-character-group": {
+        const currentIds = [...index.characterTypes]
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.groupId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return { type: "characterType.reorder", orderedIds };
+      }
+      case "long-character": {
+        const currentIds = index.characters
+          .filter((candidate) => candidate.group === payload.groupId)
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.characterId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return {
+          type: "character.reorder",
+          group: payload.groupId,
+          orderedIds
+        };
+      }
+      case "long-volume": {
+        const currentIds = [...index.plot.volumes]
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.volumeId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return { type: "volume.reorder", orderedIds };
+      }
+      case "long-plot-point": {
+        const currentIds = index.plot.arcs
+          .filter((candidate) => candidate.volumeId === payload.volumeId)
+          .sort((left, right) => left.order - right.order)
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.plotPointId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return {
+          type: "arc.reorder",
+          volumeId: payload.volumeId,
+          orderedIds
+        };
+      }
+      case "long-draft-chapter": {
+        const currentIds = index.plot.chapterCards
+          .filter((candidate) => candidate.volumeId === payload.volumeId)
+          .sort(
+            (left, right) =>
+              left.narrativeOrder - right.narrativeOrder ||
+              left.id.localeCompare(right.id)
+          )
+          .map(({ id }) => id);
+        const orderedIds = moveLongEntry(
+          currentIds,
+          payload.chapterCardId,
+          payload.anchorId,
+          payload.position
+        );
+        if (orderedIds.every((id, idx) => id === currentIds[idx])) {
+          return null;
+        }
+        return {
+          type: "chapter.reorder",
+          volumeId: payload.volumeId,
+          orderedIds
+        };
+      }
+    }
+  }
+
+  async function handleReorderLongTreeNode(
+    payload: Extract<
+      CreationTreeReorderPayload,
+      {
+        kind:
+          | "long-worldbuilding-category"
+          | "long-worldbuilding-item"
+          | "long-character-group"
+          | "long-character"
+          | "long-volume"
+          | "long-plot-point"
+          | "long-draft-chapter";
+      }
+    >
+  ): Promise<void> {
+    const requestId = beginDialogRequest();
+    if (requestId === null) return;
+    await runTracked(async () => {
+      if (activeLongBookId.value !== payload.bookId) {
+        if (!(await saveActiveLongEditorBeforeLeaving(payload.bookId))) return;
+        if (!dialogRequestIsCurrent(requestId)) return;
+        await openLongBook(payload.bookId, null);
+      }
+      if (!dialogRequestIsCurrent(requestId)) return;
+      const summary = activeLongBookSummary.value;
+      const index = activeLongWorkspaceIndex.value;
+      if (!summary || !index || summary.id !== payload.bookId) {
+        uiMessage.warning(
+          t("longBookLifecycleCoordinator.theCurrentNovelStructureIsNotReady")
+        );
+        return;
+      }
+      await withMutation(
+        payload.bookId,
+        (message) => uiMessage.info(message),
+        async (lease) => {
+          const operation = buildLongReorderOperation(
+            lease.target.index,
+            payload
+          );
+          if (!operation) return;
+          const batch: LongWorkspaceOperationBatch = {
+            updatedAt: new Date().toISOString(),
+            operations: [operation],
+            documentWrites: []
+          };
+          await executeLongStructureMutation(
+            lease,
+            batch,
+            NOOP_COMPLETION,
+            { saveEditor: false },
+            lease.target.index
+          );
+        },
+        { blockUi: false }
+      );
+    });
+  }
+
   return {
     resolveLongTreeItemDetails,
     ensureLongTreeTargetBook,
     handleCreateLongTreeItem,
-    handleLongTreeItemAction
+    handleLongTreeItemAction,
+    handleReorderLongTreeNode
   };
 }
 

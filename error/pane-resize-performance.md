@@ -9,10 +9,10 @@
 **处理：**
 
 - `styles.css` 用 `@property` 将四个分栏宽度注册为不继承，默认值写在所属 grid；外层拖动把手按 grid 列定位。
-- `useLongEditorPaneResize.ts` 只观察启用的列表，停用后忽略遗留回调；使用 `ResizeObserverEntry` 的尺寸，避免回调内重新读取布局。
+- 长篇条目和剧情列表由 CSS grid 计算显示宽度，`useLongEditorPaneResize.ts` 在内部把手交互时测量范围、保存宽度偏好。
 
 **预防：**
 
 - 不把高频布局状态放进继承到整页的变量；隔离宽度时同步检查拖动把手、折叠和响应式默认宽度。
 - 性能验证同时采集样式重算、布局、组件更新与帧间隔；比较同样的正文与聊天，增加合成目录节点，不能只测空页或只看 JS 耗时。
-- 回归见 `useLongEditorPaneResize.test.ts`；前后采样见 [验证报告](../test/2026-11-16-long-pane-resize.md)。
+- 回归见 `useLongEditorPaneResize.test.ts`；前后采样见 [验证报告](../test/2026-11-20-unified-pane-resize.md)。

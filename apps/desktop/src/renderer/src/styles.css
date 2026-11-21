@@ -396,7 +396,9 @@ html[data-platform="darwin"] .desktop-shell {
 }
 
 .desktop-shell.is-editor-agent-layout > .editor-pane,
-.desktop-shell.is-editor-agent-layout > .long-workspace-editor,
+.desktop-shell.is-editor-agent-layout
+  > .long-workspace-editor-host
+  > .long-workspace-editor,
 .desktop-shell.is-editor-agent-layout > .long-workspace-editor-loading-state {
   grid-row: 1;
   grid-column: 2;

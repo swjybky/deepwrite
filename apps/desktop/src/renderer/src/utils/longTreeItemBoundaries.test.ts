@@ -12,28 +12,28 @@ function node(id: string, kind?: LongTreeCollectionKind): ResourceTreeNode {
 it("keeps first and last boundaries per kind, including singleton and interleaved groups", () => {
   const boundaries = createLongTreeItemBoundaries([
     node("ignored"),
-    node("chapter-a", "chapter-card"),
+    node("point-a", "plot-point"),
     node("character-a", "character"),
-    node("chapter-b", "chapter-card"),
+    node("point-b", "plot-point"),
     node("volume-a", "volume"),
-    node("chapter-c", "chapter-card"),
+    node("point-c", "plot-point"),
     node("character-b", "character")
   ]);
   expect([...boundaries]).toEqual([
-    ["chapter-a", { first: true, last: false }],
-    ["chapter-c", { first: false, last: true }],
+    ["point-a", { first: true, last: false }],
+    ["point-c", { first: false, last: true }],
     ["character-a", { first: true, last: false }],
     ["character-b", { first: false, last: true }],
     ["volume-a", { first: true, last: true }]
   ]);
-  expect(boundaries.has("chapter-b")).toBe(false);
+  expect(boundaries.has("point-b")).toBe(false);
   expect(createLongTreeItemBoundaries([]).size).toBe(0);
 });
 
 it("does not copy accumulated sibling-id arrays when indexing a large parent", () => {
   const count = 1000;
   const children = Array.from({ length: count }, (_, index) =>
-    node(`boundary-test-${index}`, "chapter-card")
+    node(`boundary-test-${index}`, "plot-point")
   );
   const descriptor = Object.getOwnPropertyDescriptor(
     Array.prototype,

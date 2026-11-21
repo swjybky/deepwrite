@@ -6,6 +6,7 @@ import type {
   CatalogLibraryEntryDragPayload,
   CatalogResourceNodeActionPayload,
   CreationBookDragPayload,
+  CreationTreeReorderPayload,
   LongBookResourceNodeActionPayload,
   LongTreeItemAction,
   ResourceDomain,
@@ -15,6 +16,7 @@ import type {
 } from "../types/workspace";
 import { uiMessage } from "../ui-feedback";
 import { useCreationResourceOrder } from "../composables/useCreationResourceOrder";
+import { useSidebarOrderDrag } from "../composables/useSidebarOrderDrag";
 import {
   collectPinnedResourceNodes,
   excludePinnedResourceNodes,
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   resourceAction: [payload: ResourceSectionActionPayload];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   moveLibraryEntry: [payload: CatalogLibraryEntryDragPayload];
+  reorderCreationTreeNode: [payload: CreationTreeReorderPayload];
   createExpertSection: [node: ResourceTreeNode];
   createLongDraftSection: [node: ResourceTreeNode];
   longDraftSectionAction: [
@@ -131,10 +134,23 @@ function resourceDomainFor(node: ResourceTreeNode): ResourceDomain {
 function reorderCreationBook(payload: CreationBookDragPayload): void {
   creationOrder.reorder(payload);
 }
+
+const sidebarOrderDrag = useSidebarOrderDrag({
+  sections: () => unpinnedSections.value,
+  pinnedNodes: () => pinnedResourceNodes.value,
+  domainForPinnedNode: resourceDomainFor,
+  longTreeActionsDisabled: () => Boolean(props.longTreeActionsDisabled),
+  onReorderLibrary: (payload) => emit("resourceNodeAction", payload),
+  onReorderCreationNode: (payload) => emit("reorderCreationTreeNode", payload)
+});
 </script>
 
 <template>
-  <div class="resource-list">
+  <div
+    class="resource-list"
+    @pointerdown="sidebarOrderDrag.start"
+    @click.capture="sidebarOrderDrag.click"
+  >
     <section
       v-if="pinnedResourceNodes.length"
       class="resource-section pinned-resource-section"

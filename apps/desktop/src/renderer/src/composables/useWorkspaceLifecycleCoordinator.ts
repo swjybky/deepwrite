@@ -137,12 +137,16 @@ export function useWorkspaceLifecycleCoordinator<Feature>(
     }
   }
 
+  function refreshAfterWindowFocus(): void {
+    if (ready.value) requestFocusRefresh();
+  }
+
   function installWindowListeners(): void {
     if (listenersInstalled) return;
     listenersInstalled = true;
     options.windowTarget.addEventListener("keydown", options.handleKeydown);
     options.windowTarget.addEventListener("resize", options.reconcileLayout);
-    options.windowTarget.addEventListener("focus", requestFocusRefresh);
+    options.windowTarget.addEventListener("focus", refreshAfterWindowFocus);
     options.windowTarget.addEventListener(
       "beforeunload",
       options.draftRecovery.beforeUnload
@@ -154,7 +158,7 @@ export function useWorkspaceLifecycleCoordinator<Feature>(
     listenersInstalled = false;
     options.windowTarget.removeEventListener("keydown", options.handleKeydown);
     options.windowTarget.removeEventListener("resize", options.reconcileLayout);
-    options.windowTarget.removeEventListener("focus", requestFocusRefresh);
+    options.windowTarget.removeEventListener("focus", refreshAfterWindowFocus);
     options.windowTarget.removeEventListener(
       "beforeunload",
       options.draftRecovery.beforeUnload
@@ -200,12 +204,15 @@ export function useWorkspaceLifecycleCoordinator<Feature>(
         await settle("draft-recovery-notification", () =>
           options.notifyRecoveredDrafts()
         );
-        ready.value = true;
+        if (!disposed) ready.value = true;
         return;
       }
 
       void settle("desktop-side-effects", () =>
         options.startDesktopSideEffects()
+      );
+      const longBookList = settle("long-book-list", () =>
+        options.loadLongBookList()
       );
       await Promise.all([
         settle("catalog-load", () => options.loadCatalog()),
@@ -216,11 +223,11 @@ export function useWorkspaceLifecycleCoordinator<Feature>(
       if (disposed || currentGeneration !== generation) return;
 
       options.scheduleDirtyDraftAutoSave();
-      void settle("long-book-list", () => options.loadLongBookList());
       await settle("draft-recovery-notification", () =>
         options.notifyRecoveredDrafts()
       );
-      ready.value = true;
+      await longBookList;
+      if (!disposed) ready.value = true;
     })();
 
     startPromise = operation;

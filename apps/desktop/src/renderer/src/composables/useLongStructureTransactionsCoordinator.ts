@@ -312,11 +312,11 @@ export function useLongStructureTransactionsCoordinator(
 
   return {
     longWorldbuildingSyncBookOptions,
-    openLongChapterCardCreate: created.openLongChapterCardCreate,
     requestCreateLongDraftSection: created.requestCreateLongDraftSection,
     handleLongDraftSectionAction,
     handleCreateLongTreeItem: tree.handleCreateLongTreeItem,
     handleLongTreeItemAction: tree.handleLongTreeItemAction,
+    handleReorderLongTreeNode: tree.handleReorderLongTreeNode,
     confirmDeleteLongTreeItem: deletion.confirmDeleteLongTreeItem,
     confirmDeleteLongDraftSection: deletion.confirmDeleteLongDraftSection,
     renameLongCharacter: renameSave.renameLongCharacter,

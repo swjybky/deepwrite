@@ -122,6 +122,9 @@ export const ExportShortManuscriptDialog = lazyFeature((features) =>
 export const ExternalSkillImportDialog = lazyFeature((features) =>
   features.loadExternalSkillImportDialog()
 );
+export const ExportLibraryPackageDialog = lazyFeature((features) =>
+  features.loadExportLibraryPackageDialog()
+);
 export const ImportLibraryPackageDialog = lazyFeature((features) =>
   features.loadImportLibraryPackageDialog()
 );

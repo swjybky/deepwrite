@@ -1,6 +1,11 @@
 export default {
-  imageExportDescription:
-    "Images use text placeholders. Folder exports also copy referenced images to the images folder.",
+  txtFolderImages:
+    "TXT uses text placeholders. Image files are saved in the images folder.",
+  txtSingleFileImages: "TXT uses text placeholders for images.",
+  markdownFolderImages:
+    "Markdown links to images in the export’s images folder.",
+  markdownSingleFileImages:
+    "Markdown links to images in a matching .assets folder.",
   worldbuilding: "Worldbuilding",
   categoryContentAndAllEntries: "Category content and all entries",
   characters: "Characters",
@@ -10,25 +15,17 @@ export default {
   volumesPlotPointsChapterCardsAndForeshadowing:
     "Volumes, plot points, chapter cards, and foreshadowing",
   manuscript: "Manuscript",
-  selectOneOrMoreChaptersEachExportsAsA:
-    "Select one or more chapters; each exports as a TXT file",
-  selectedChaptersMergeIntoOneTxt:
-    "Select one or more chapters to merge in order",
+  selectedChaptersExportAsSeparateFiles:
+    "Select one or more chapters. Each exports as a separate file.",
+  selectedChaptersMergeIntoOneFile:
+    "Select one or more chapters to merge in order.",
   couldNotLoadManuscriptChapters: "Could not load manuscript chapters.",
+  scopeDescription:
+    "Choose which book materials and manuscript chapters to export.",
   exportNovel: "Export novel",
-  close: "Close",
-  selectedContentExportsToOneFolderAsTXTFiles:
-    "Selected content exports to one folder as TXT files named using visible titles, without internal IDs. Select one or more manuscript chapters to export.",
-  selectedContentExportsToOneTXTFile:
-    "Selected content is merged into one TXT file in worldbuilding, characters, plot, and manuscript order, using visible titles as headings.",
-  exportMode: "Export format",
+  exportMode: "Export layout",
   folderMode: "Separate files",
-  folderModeDescription: "One TXT per entry",
-  singleTxtMode: "Single TXT file",
-  singleTxtModeDescription: "All content in one file",
-  selectContentToExport: "Select content to export",
-  cancel: "Cancel",
-  preparingAndExporting: "Preparing and exporting…",
-  selectExportLocation: "Select export location",
-  selectExportFile: "Choose file location"
+  singleFileMode: "Merge into one file",
+  selectContentToExport: "Content to export",
+  selectExportFile: "Choose export file"
 };

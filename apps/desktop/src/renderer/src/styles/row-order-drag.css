@@ -1,0 +1,33 @@
+.row-order-source {
+  opacity: 0.32;
+  background: var(--surface-muted);
+  outline: 1px dashed var(--theme-line);
+  outline-offset: -1px;
+}
+
+.row-order-ghost[aria-hidden="true"] {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  margin: 0;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow:
+    0 0 0 1px var(--theme-line),
+    0 8px 24px color-mix(in srgb, var(--theme-foreground) 18%, transparent);
+}
+
+html.row-order-dragging,
+html.row-order-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.row-order-marker {
+  position: fixed;
+  z-index: 10001;
+  height: 2px;
+  pointer-events: none;
+  background: var(--accent);
+  transform: translateY(-1px);
+}

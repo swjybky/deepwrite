@@ -64,7 +64,6 @@ import {
 } from "./ipc/conversation-operation-guard";
 import { releaseDrainedAgentRun } from "./ipc/agent-run-drain";
 import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
-import { createConversationSyncLeaseCoordinator } from "../extras/device-sync/conversations/lease";
 import {
   EXTERNAL_CONTROL_LAUNCH_FLAG,
   createClientConfirmDialog,
@@ -404,9 +403,6 @@ let feedbackClient: FeedbackClient | undefined;
 let cloudBackupService: CloudBackupService | undefined;
 let deviceSyncService: ReturnType<typeof createDesktopDeviceSync> | undefined;
 const rendererStateFlush = createRendererStateFlushCoordinator();
-const conversationSyncLease = createConversationSyncLeaseCoordinator(
-  () => mainWindow
-);
 const continuationImportPreviews = new ContinuationImportPreviewRegistry();
 const libraryPackagePreviews =
   new ImportPreviewRegistry<LibraryPackagePreviewSource>({
@@ -1394,7 +1390,6 @@ function registerIpc(): void {
       if (
         command.type === "externalControl.locateProject" ||
         command.type === "deviceSync.workspace" ||
-        command.type === "deviceSync.conversations" ||
         command.type === "agent.prompt" ||
         command.type === "agent.extras_run" ||
         command.type === "agent.abort" ||
@@ -2329,11 +2324,6 @@ function registerIpc(): void {
         command
       );
       if (rendererFlushResult) return rendererFlushResult;
-      const conversationLeaseResult = conversationSyncLease.handleCommand(
-        event.sender.id,
-        command
-      );
-      if (conversationLeaseResult) return conversationLeaseResult;
 
       const rendererStateResult = await handleRendererStateCommands(
         { supervisor, activeRuns },
@@ -2982,7 +2972,6 @@ if (!hasSingleInstanceLock) {
         appVersion: app.getVersion(),
         command: (command) => supervisor.requestCommand("core", command, 0),
         busy: () => activeRuns.size > 0,
-        conversationLease: conversationSyncLease,
         installUpdate: () => beginGracefulShutdown({ installUpdate: true }),
         confirmUpdateInstall: () => confirmUpdateInstall(mainWindow)
       })

@@ -18,4 +18,4 @@ export * from "./initialization";
 
 export * from "./display-text";
 
-export * from "./conversation";
+export * from "./conversation-remote";

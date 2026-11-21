@@ -291,7 +291,7 @@ describe("long workspace store", () => {
     await Promise.resolve();
     expect(store.workspaceLoading).toBe(true);
 
-    store.dispose();
+    store.$dispose();
     pending.resolve({
       bookId: "book-a",
       workspaceIndex: index("book-a", 3),
@@ -324,7 +324,7 @@ describe("long workspace store", () => {
     expect(store.proposalApprovalPending).toBe(false);
     expect(store.activeBookId).toBeNull();
 
-    store.dispose();
+    store.$dispose();
     await expect(
       store.ensureWorkspace("book-a", async () => ({
         bookId: "book-a",

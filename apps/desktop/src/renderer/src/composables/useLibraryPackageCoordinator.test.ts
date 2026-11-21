@@ -126,7 +126,7 @@ describe("useLibraryPackageCoordinator", () => {
       const { api, prepare, notifications, coordinator } = harness({
         packageApiAvailable: false
       });
-      await coordinator.exportPackage({
+      coordinator.openExport({
         domain,
         action: "export-library",
         node: { id: "n", label: "资料库", libraryId: "library-1" }
@@ -148,7 +148,7 @@ describe("useLibraryPackageCoordinator", () => {
       packageApiAvailable: false,
       desktop: false
     });
-    await coordinator.exportPackage({
+    coordinator.openExport({
       domain: "material",
       action: "export-group",
       node: groupNode
@@ -164,11 +164,15 @@ describe("useLibraryPackageCoordinator", () => {
 
   it("saves member drafts before exporting a group", async () => {
     const { api, prepare, notifications, coordinator } = harness();
-    await coordinator.exportPackage({
+    coordinator.openExport({
       domain: "material",
       action: "export-group",
       node: groupNode
     });
+    expect(coordinator.exportDialog.value?.memberCount).toBe(2);
+    expect(api.exportPackage).not.toHaveBeenCalled();
+    await coordinator.submitExport();
+    expect(coordinator.exportDialog.value).toBeNull();
     expect([...prepare.mock.calls[0]![0]]).toEqual([
       "material-1",
       "material-2"
@@ -177,6 +181,9 @@ describe("useLibraryPackageCoordinator", () => {
       domain: "material",
       target: { type: "group", id: "group-1" }
     });
+    expect(() =>
+      structuredClone(api.exportPackage.mock.calls[0]?.[0])
+    ).not.toThrow();
     expect(notifications.success).toHaveBeenCalledWith(
       expect.stringContaining("/导出/都市素材组.zip")
     );
@@ -194,11 +201,18 @@ describe("useLibraryPackageCoordinator", () => {
         libraryId: "material-1"
       } as ResourceTreeNode
     };
-    await coordinator.exportPackage(payload);
+    coordinator.openExport(payload);
+    await coordinator.submitExport();
     expect(api.exportPackage).not.toHaveBeenCalled();
     api.exportPackage.mockResolvedValueOnce({ status: "cancelled" });
-    await coordinator.exportPackage(payload);
-    expect(notifications.success).not.toHaveBeenCalled();
+    await coordinator.submitExport();
+    expect(coordinator.exportDialog.value?.target).toEqual({
+      type: "library",
+      id: "material-1"
+    });
+    await coordinator.submitExport();
+    expect(coordinator.exportDialog.value).toBeNull();
+    expect(notifications.success).toHaveBeenCalledOnce();
     expect(notifications.error).not.toHaveBeenCalled();
   });
 

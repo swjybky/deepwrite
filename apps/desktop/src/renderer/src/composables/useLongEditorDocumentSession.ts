@@ -79,6 +79,7 @@ export function useLongEditorDocumentSession(options: {
   volumeOutlineDrafts: Ref<Record<string, LongVolumeOutlineDraft>>;
   plotPointSummaryDrafts: Ref<Record<string, LongVolumeOutlineDraft>>;
   currentSelectionFile: ComputedRef<LongWorkspaceSelectionFile | undefined>;
+  pendingFileId?: Readonly<Ref<string | null>>;
   currentReadOnly: ComputedRef<boolean>;
   currentDirty: ComputedRef<boolean>;
   currentIsStructuredText: ComputedRef<boolean>;
@@ -484,6 +485,7 @@ export function useLongEditorDocumentSession(options: {
         }
         if (
           props.bookId === bookId &&
+          !props.selection?.key.startsWith("chapter:") &&
           options.currentSelectionFile.value?.file.id === firstPage.file.id
         ) {
           emit("contextChange", {
@@ -623,6 +625,7 @@ export function useLongEditorDocumentSession(options: {
       emit("saved", result);
       if (
         props.bookId === bookId &&
+        !props.selection?.key.startsWith("chapter:") &&
         options.currentSelectionFile.value?.file.id === result.file.id
       ) {
         emit("contextChange", {
@@ -979,6 +982,24 @@ export function useLongEditorDocumentSession(options: {
   );
 
   watch(
+    [
+      () => props.bookId,
+      () => {
+        const file = options.currentSelectionFile.value?.file;
+        const chapter = props.selection?.key.startsWith("chapter:");
+        return file &&
+          (!chapter ||
+            (!options.pendingFileId?.value && currentState.value?.loaded))
+          ? file.id
+          : null;
+      }
+    ],
+    ([bookId, fileId]) =>
+      emit("contextChange", fileId ? { bookId, fileId } : null),
+    { immediate: true }
+  );
+
+  watch(
     () =>
       [
         props.bookId,
@@ -987,15 +1008,6 @@ export function useLongEditorDocumentSession(options: {
       ] as const,
     () => {
       const selectedFile = options.currentSelectionFile.value;
-      emit(
-        "contextChange",
-        selectedFile
-          ? {
-              bookId: props.bookId,
-              fileId: selectedFile.file.id
-            }
-          : null
-      );
       const snapshot = pendingSaveViewport;
       const selectedKey = selectedFile
         ? stateKey(selectedFile.file.id)

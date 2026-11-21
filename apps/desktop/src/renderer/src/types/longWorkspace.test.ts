@@ -3,7 +3,6 @@ import { file, fixture } from "./longWorkspace.test-support";
 import {
   createLongCharacterGroupSelection,
   createLongCharacterOverviewSelection,
-  createLongChapterCardVolumeSelection,
   createLongChapterSelection,
   latestCommittedContinuityChapter,
   longBookIdFromResourceId,
@@ -12,38 +11,32 @@ import {
 } from "./longWorkspace";
 
 describe("long workspace chapter navigation", () => {
-  it("keeps chapter cards in right-side volume tabs", () => {
+  it.each([
+    "plot-design:chapter-cards:volume_one",
+    "plot-design:chapter-card:chapter_one"
+  ])("reconciles the old %s selection to the chapter card tab", (key) => {
     const { summary, workspaceIndex } = fixture(null);
-    summary.navigation.chapterCards.push({
-      ...summary.navigation.chapterCards[0]!,
-      id: "chapter_two",
-      title: "第二章",
-      narrativeOrder: 2
+    const selection = reconcileLongWorkspaceSelection(summary, workspaceIndex, {
+      key,
+      root: "plot_design",
+      title: "",
+      breadcrumbs: [],
+      files: [],
+      preferredRole: "book-line"
     });
-    workspaceIndex.plot.chapterCards.push({
-      ...workspaceIndex.plot.chapterCards[0]!,
-      id: "chapter_two",
-      narrativeOrder: 2
-    });
-
-    const selection = createLongChapterCardVolumeSelection(
-      summary,
-      workspaceIndex,
-      "volume_one",
-      "chapter_two"
-    );
-
     expect(selection).toMatchObject({
-      key: "plot-design:chapter-cards:volume_one",
-      chapterCardVolumeId: "volume_one",
-      chapterCardId: "chapter_two",
-      title: "第二章",
-      breadcrumbs: ["长篇生命周期", "剧情设计", "章卡", "第一卷", "第二章"],
-      chapterCardTabs: [
-        { id: "chapter_one", label: "第一章" },
-        { id: "chapter_two", label: "第二章" }
-      ]
+      key: "chapter:chapter_one",
+      root: "draft",
+      chapterCardId: "chapter_one",
+      preferredRole: "card"
     });
+    expect(selection?.files.find(({ role }) => role === "card")?.file).toBe(
+      workspaceIndex.chapters[0]!.card
+    );
+    expect(
+      reconcileLongWorkspaceSelection(summary, workspaceIndex, selection!)
+        ?.preferredRole
+    ).toBe("card");
   });
 
   it("binds one volume to multiple plot-point tabs", () => {
@@ -252,10 +245,12 @@ describe("long workspace chapter navigation", () => {
       chapterCardId: "chapter_one",
       title: "第一章"
     });
-    expect(selection?.files[0]?.file.id).toBe("file_chapter_body");
+    expect(selection?.files.find(({ role }) => role === "body")?.file.id).toBe(
+      "file_chapter_body"
+    );
   });
 
-  it("keeps only the body editable before continuity generates projections", () => {
+  it("opens the body by default alongside the editable card and read-only continuity files", () => {
     const { summary, workspaceIndex } = fixture(null);
     const selection = createLongChapterSelection(
       summary,
@@ -268,14 +263,20 @@ describe("long workspace chapter navigation", () => {
       root: "draft",
       chapterCardId: "chapter_one"
     });
+    expect(selection?.preferredRole).toBe("body");
     expect(
-      selection?.files.find(({ role }) => role === "body")?.readOnly
-    ).toBeUndefined();
-    expect(
-      selection?.files
-        .filter(({ role }) => role !== "body")
-        .every((entry) => entry.readOnly)
-    ).toBe(true);
+      selection?.files.map(({ role, label, readOnly }) => [
+        role,
+        label,
+        Boolean(readOnly)
+      ])
+    ).toEqual([
+      ["card", "章卡", false],
+      ["body", "正文", false],
+      ["character-state", "章末状态", true],
+      ["handoff", "下一章接续包", true]
+    ]);
+    expect(selection?.files[0]?.file).toBe(workspaceIndex.chapters[0]!.card);
     expect(selection?.description).toContain("正文已完成");
   });
 

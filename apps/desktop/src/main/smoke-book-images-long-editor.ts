@@ -1,4 +1,5 @@
 import type { BrowserWindow } from "electron";
+import { join } from "node:path";
 import type { DeepWriteApi } from "@deepwrite/contracts";
 import { exerciseRichMarkdownPreview } from "./smoke-rich-markdown-preview";
 
@@ -44,12 +45,39 @@ async function prepareLongImageChapter() {
     content,
     expectedUpdatedAt: chapter.body.updatedAt
   });
+  const exportInput = {
+    book: { projectType: "long" as const, projectId: bookId },
+    title: opened.book.title,
+    format: "md" as const,
+    sections: ["manuscript" as const],
+    files: [{ path: ["正文", "第一卷", "第一章"], content }]
+  };
+  const single = await api.manuscript.exportLong({
+    ...exportInput,
+    mode: "single-file"
+  });
+  const folder = await api.manuscript.exportLong({
+    ...exportInput,
+    mode: "folder"
+  });
+  if (
+    single.status !== "saved" ||
+    !("filePath" in single) ||
+    single.missingImages ||
+    folder.status !== "saved" ||
+    !("directoryPath" in folder) ||
+    folder.missingImages
+  ) {
+    throw new Error("Long Markdown export smoke failed.");
+  }
   return {
     bookId,
     volumeId: card.volumeId,
     chapterCardId: card.id,
     fileId: chapter.body.id,
-    characters: content.length
+    characters: content.length,
+    singleExportPath: single.filePath,
+    folderExportPath: folder.directoryPath
   };
 }
 
@@ -155,5 +183,12 @@ export async function runBookImageLongEditorSmoke(window: BrowserWindow) {
   const result = await window.webContents.executeJavaScript(
     `(${exerciseLongImageChapter.toString()})(${JSON.stringify(fixture)}, ${exerciseRichMarkdownPreview.toString()})`
   );
-  return { ...result, characters: fixture.characters };
+  return {
+    ...result,
+    characters: fixture.characters,
+    markdownExports: [
+      fixture.singleExportPath,
+      join(fixture.folderExportPath, "正文", "第一卷", "第一章.md")
+    ]
+  };
 }

@@ -7,7 +7,7 @@ import type {
   LibraryPackagePreview,
   LibraryPackageSourceKind
 } from "@deepwrite/contracts";
-import { ref, type Ref, type ShallowRef } from "vue";
+import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
 import type {
   CatalogResourceNodeActionPayload,
   WorkspaceDocument
@@ -20,6 +20,13 @@ export interface LibraryPackageImportDialogState {
   domain: "material" | "skill";
   previewId?: string;
   preview?: LibraryPackagePreview;
+}
+
+export interface LibraryPackageExportDialogState {
+  domain: "material" | "skill";
+  target: { type: "group" | "library"; id: string };
+  title: string;
+  memberCount?: number;
 }
 
 interface LibraryPackageContext {
@@ -52,7 +59,8 @@ export function useLibraryPackageCoordinator(context: LibraryPackageContext) {
   const importDialog = ref<LibraryPackageImportDialogState | null>(null);
   const choosing = ref(false);
   const importing = ref(false);
-  let exporting = false;
+  const exportDialog = shallowRef<LibraryPackageExportDialogState | null>(null);
+  const exporting = ref(false);
 
   function notifyUnavailable(operation: "export" | "import"): void {
     notify.warning(
@@ -66,42 +74,59 @@ export function useLibraryPackageCoordinator(context: LibraryPackageContext) {
     );
   }
 
-  function exportedLibraryIds(
-    payload: CatalogResourceNodeActionPayload
-  ): Set<string> {
-    if (payload.action === "export-library") {
-      return new Set(payload.node.libraryId ? [payload.node.libraryId] : []);
-    }
+  function groupMemberIds(
+    domain: LibraryPackageExportDialogState["domain"],
+    id: string
+  ): string[] | undefined {
     const snapshot = context.snapshot.value;
-    const group =
-      payload.domain === "material"
-        ? snapshot?.materialGroups.find(({ id }) => id === payload.node.groupId)
-        : snapshot?.skillGroups.find(({ id }) => id === payload.node.groupId);
-    return new Set(group?.memberIds ?? []);
+    const groups =
+      domain === "material" ? snapshot?.materialGroups : snapshot?.skillGroups;
+    return groups?.find((group) => group.id === id)?.memberIds;
   }
 
-  async function exportPackage(
-    payload: CatalogResourceNodeActionPayload
-  ): Promise<void> {
+  function openExport(payload: CatalogResourceNodeActionPayload): void {
+    if (exporting.value) return;
+    if (!context.api()) {
+      notifyUnavailable("export");
+      return;
+    }
+
+    const { domain, node } = payload;
+    const isGroup = payload.action === "export-group";
+    const id = isGroup ? node.groupId : node.libraryId;
+    if (!id) return;
+    const members = isGroup ? groupMemberIds(domain, id) : undefined;
+    exportDialog.value = {
+      domain,
+      target: { type: isGroup ? "group" : "library", id },
+      title: node.label,
+      ...(members ? { memberCount: new Set(members).size } : {})
+    };
+  }
+
+  function closeExport(): void {
+    if (!exporting.value) exportDialog.value = null;
+  }
+
+  async function submitExport(): Promise<void> {
+    if (exporting.value || !exportDialog.value) return;
     const api = context.api();
     if (!api) {
       notifyUnavailable("export");
       return;
     }
-    const isGroup = payload.action === "export-group";
-    const id = isGroup ? payload.node.groupId : payload.node.libraryId;
-    if (!id || exporting) return;
-    exporting = true;
+
+    const { domain, target } = exportDialog.value;
+    const ids =
+      target.type === "library"
+        ? [target.id]
+        : groupMemberIds(domain, target.id);
+    exporting.value = true;
     try {
-      if (
-        !(await context.prepareProjectsForExport(exportedLibraryIds(payload)))
-      )
-        return;
-      const result = await api.exportPackage({
-        domain: payload.domain,
-        target: { type: isGroup ? "group" : "library", id }
-      });
+      if (!(await context.prepareProjectsForExport(new Set(ids)))) return;
+      const result = await api.exportPackage({ domain, target });
       if (result.status === "cancelled") return;
+      exportDialog.value = null;
       notify.success(
         result.skippedLibraryCount > 0
           ? t("exportedToWithSkipped", {
@@ -113,7 +138,7 @@ export function useLibraryPackageCoordinator(context: LibraryPackageContext) {
     } catch (error: unknown) {
       notify.error(withReason(t("exportFailed"), error));
     } finally {
-      exporting = false;
+      exporting.value = false;
     }
   }
 
@@ -219,7 +244,11 @@ export function useLibraryPackageCoordinator(context: LibraryPackageContext) {
     importDialog,
     choosing,
     importing,
-    exportPackage,
+    exportDialog,
+    exporting,
+    openExport,
+    closeExport,
+    submitExport,
     openImport,
     closeImport,
     restartImport,

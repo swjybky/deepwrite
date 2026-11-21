@@ -218,4 +218,130 @@ describe("mystery contracts", () => {
     );
     expect(cmd.type).toBe("mystery.createBook");
   });
+
+  it("reorders truth docs, roles, acts, and clue rounds by anchor while protecting builtins", () => {
+    const manifest = sampleManifest();
+    const withMore = previewMysteryWorkspaceOperations(
+      manifest,
+      buildEmptyMysteryWorkspaceIndex(manifest),
+      {
+        operations: [
+          { type: "truthDoc.create", doc: { id: "td_a", title: "补充A" } },
+          { type: "truthDoc.create", doc: { id: "td_b", title: "补充B" } },
+          {
+            type: "role.create",
+            role: { id: "role_3", name: "沈星", tag: "" }
+          },
+          { type: "act.create", act: { id: "act_3", title: "第三幕" } },
+          {
+            type: "clueRound.create",
+            round: { id: "round_2", title: "第二轮搜证" }
+          }
+        ],
+        documentWrites: []
+      }
+    );
+
+    const reordered = previewMysteryWorkspaceOperations(
+      withMore.manifest,
+      withMore.workspaceIndex,
+      {
+        operations: [
+          {
+            type: "truthDoc.updateMeta",
+            docId: "td_b",
+            reorder: { anchorId: "td_a", position: "before" }
+          },
+          {
+            type: "role.updateMeta",
+            roleId: "role_3",
+            reorder: { anchorId: "role_1", position: "after" }
+          },
+          {
+            type: "act.updateMeta",
+            actId: "act_1",
+            reorder: { anchorId: "act_3", position: "after" }
+          },
+          {
+            type: "clueRound.updateMeta",
+            roundId: "round_2",
+            reorder: { anchorId: "round_1", position: "before" }
+          }
+        ],
+        documentWrites: []
+      }
+    );
+
+    expect(
+      reordered.manifest.truthDocuments
+        .filter((d) => d.id.startsWith("td_"))
+        .map((d) => d.id)
+    ).toEqual(["td_b", "td_a"]);
+    expect(reordered.manifest.roles.map((r) => r.id)).toEqual([
+      "role_1",
+      "role_3",
+      "role_2"
+    ]);
+    expect(reordered.manifest.acts.map((a) => a.id)).toEqual([
+      "act_2",
+      "act_3",
+      "act_1"
+    ]);
+    expect(reordered.manifest.clueRounds.map((c) => c.id)).toEqual([
+      "round_2",
+      "round_1"
+    ]);
+
+    expect(() =>
+      previewMysteryWorkspaceOperations(
+        withMore.manifest,
+        withMore.workspaceIndex,
+        {
+          operations: [
+            {
+              type: "truthDoc.updateMeta",
+              docId: "core_truth",
+              reorder: { anchorId: "td_a", position: "before" }
+            }
+          ],
+          documentWrites: []
+        }
+      )
+    ).toThrow(MysteryWorkspaceOperationError);
+
+    expect(() =>
+      previewMysteryWorkspaceOperations(
+        withMore.manifest,
+        withMore.workspaceIndex,
+        {
+          operations: [
+            {
+              type: "truthDoc.updateMeta",
+              docId: "td_a",
+              reorder: { anchorId: "core_truth", position: "after" }
+            }
+          ],
+          documentWrites: []
+        }
+      )
+    ).toThrow(MysteryWorkspaceOperationError);
+
+    expect(() =>
+      previewMysteryWorkspaceOperations(
+        withMore.manifest,
+        withMore.workspaceIndex,
+        {
+          operations: [
+            {
+              type: "role.updateMeta",
+              roleId: "role_1",
+              move: "down",
+              reorder: { anchorId: "role_2", position: "after" }
+            }
+          ],
+          documentWrites: []
+        }
+      )
+    ).toThrow(MysteryWorkspaceOperationError);
+  });
 });

@@ -27,15 +27,6 @@ function setup(group: LongEntryGroup = "worldbuilding") {
   };
   apply(builder().createCharacterType({ title: "主要人物" }));
   const characterType = index.characterTypes[0]!.id;
-  for (let i = 0; i < 4; i++) {
-    apply(
-      builder().createChapter({
-        volumeId: "volume_one",
-        primaryArcId: "arc_one",
-        title: `章节 ${i + 1}`
-      })
-    );
-  }
   apply(builder().createWorldbuilding({ title: "世界观", format: "list" }));
   const category = index.worldbuilding[0]!;
   for (let i = 0; i < 3; i++) {
@@ -66,10 +57,6 @@ function setup(group: LongEntryGroup = "worldbuilding") {
       id,
       label: title
     })),
-    chapterCardVolumeId: "volume_one",
-    chapterCardTabs: index.plot.chapterCards.map(
-      ({ id, title, narrativeOrder }) => ({ id, label: title, narrativeOrder })
-    ),
     title: "排序测试",
     breadcrumbs: [],
     files: [],
@@ -109,7 +96,6 @@ describe("long entry drag reorder", () => {
     ["character", "character.reorder"],
     ["volume", "volume.reorder"],
     ["plotPoint", "arc.reorder"],
-    ["chapter", "chapter.reorder"],
     ["storyPlot", "storyPlot.reorder"]
   ] as const)(
     "saves a nonadjacent %s move through existing workspace operations",
@@ -137,7 +123,6 @@ describe("long entry drag reorder", () => {
         character: saved.characters,
         volume: saved.plot.volumes,
         plotPoint: saved.plot.arcs,
-        chapter: saved.plot.chapterCards,
         storyPlot: saved.plot.storyPlots
       }[group];
       expect(values.map(({ id }) => id)).toEqual(moved);
@@ -172,18 +157,6 @@ describe("long entry drag reorder", () => {
     expect(mutate).toHaveBeenCalledTimes(2);
     mutate.mock.calls[1]![1].succeed();
     expect(order.value.disabled).toBe(false);
-  });
-
-  it("rejects moving a recorded chapter and crossing it while allowing moves within a gap", () => {
-    const { props, order, mutate } = setup("chapter");
-    props.workspaceIndex.chapters[1]!.commitId = "commit_recorded_test";
-    const group = order.value.groups.chapter!;
-    const [a, b, c, d] = group.ids as [string, string, string, string];
-    expect(group.canReorder!([b, a, c, d])).toBe(false);
-    expect(group.canReorder!([c, a, b, d])).toBe(false);
-    order.value.reorder("chapter", [b, a, c, d]);
-    expect(mutate).not.toHaveBeenCalled();
-    expect(group.canReorder!([a, b, d, c])).toBe(true);
   });
 
   it("disables sorting when the editor is locked", () => {

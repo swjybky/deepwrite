@@ -8,7 +8,6 @@ import {
   type Ref
 } from "vue";
 import type {
-  LongChapterCardId,
   LongWorkspaceImpactConfirmation,
   LongWorkspaceIndexSnapshot,
   LongWorkspaceOperationBatch
@@ -91,7 +90,6 @@ export function useLongEditorDeleteDialogs(options: {
   closeNavigationDelete: () => void;
   handleNavigationDeleteKeydown: (event: KeyboardEvent) => void;
   confirmNavigationDelete: () => void;
-  openChapterCardDelete: (chapterCardId: LongChapterCardId) => void;
 } {
   const { props } = options;
   const worldbuildingDeleteDialog = ref<HTMLElement>();
@@ -105,7 +103,6 @@ export function useLongEditorDeleteDialogs(options: {
   let worldbuildingDeleteUpdatedAt: string | undefined;
   const navigationDelete = useLongNavigationDeleteConfirmation({
     locked: () => Boolean(props.locked),
-    workspaceIndex: () => props.workspaceIndex,
     currentReadOnly: options.currentReadOnly,
     currentTarget: options.currentNavigationDeleteTarget,
     preview: options.emitPreviewDeleteStructure,

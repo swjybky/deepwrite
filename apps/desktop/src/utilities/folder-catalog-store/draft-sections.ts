@@ -30,6 +30,7 @@ import {
   type MoveDraftSectionResult,
   type SaveDocumentResult
 } from "@deepwrite/contracts";
+import { reorderItemsByAnchor } from "@deepwrite/shared";
 import { assertBaseRevision } from "./assertions";
 import { assertTextByteLength } from "./paths-io";
 import {
@@ -1005,26 +1006,48 @@ export async function moveDraftSection(
     if (!input.force) {
       assertBaseRevision(input.baseProjectRevision, manifest.revision);
     }
-    const sections = [...manifest.draft.sections];
+    let sections = [...manifest.draft.sections];
     const sectionIndex = sections.findIndex(({ id }) => id === input.sectionId);
     if (sectionIndex < 0) {
       throw new Error("该正文小节已删除或不存在。");
     }
-    const targetIndex =
-      input.direction === "up" ? sectionIndex - 1 : sectionIndex + 1;
-    if (targetIndex < 0 || targetIndex >= sections.length) {
-      return {
-        bookId: input.bookId,
-        sectionId: input.sectionId,
-        direction: input.direction,
-        moved: false,
-        projectRevision: manifest.revision
-      };
+    if (input.direction !== undefined) {
+      const targetIndex =
+        input.direction === "up" ? sectionIndex - 1 : sectionIndex + 1;
+      if (targetIndex < 0 || targetIndex >= sections.length) {
+        return {
+          bookId: input.bookId,
+          sectionId: input.sectionId,
+          direction: input.direction,
+          moved: false,
+          projectRevision: manifest.revision
+        };
+      }
+      [sections[sectionIndex], sections[targetIndex]] = [
+        sections[targetIndex]!,
+        sections[sectionIndex]!
+      ];
+    } else {
+      const anchorSectionId = input.anchorSectionId!;
+      if (!sections.some(({ id }) => id === anchorSectionId)) {
+        throw new Error("目标正文小节已删除或不存在。");
+      }
+      const reordered = reorderItemsByAnchor(
+        sections,
+        input.sectionId,
+        anchorSectionId,
+        input.position!
+      );
+      if (!reordered.moved) {
+        return {
+          bookId: input.bookId,
+          sectionId: input.sectionId,
+          moved: false,
+          projectRevision: manifest.revision
+        };
+      }
+      sections = reordered.items;
     }
-    [sections[sectionIndex], sections[targetIndex]] = [
-      sections[targetIndex]!,
-      sections[sectionIndex]!
-    ];
     const now = store.now();
     const next = FolderCurrentBookProjectManifestSchema.parse({
       ...manifest,
@@ -1045,7 +1068,7 @@ export async function moveDraftSection(
     return {
       bookId: input.bookId,
       sectionId: input.sectionId,
-      direction: input.direction,
+      ...(input.direction !== undefined ? { direction: input.direction } : {}),
       moved: true,
       projectRevision: next.revision
     };

@@ -212,6 +212,9 @@ export function useAgentActivityCoordinator(
       const chapterCardId = freezeLocation
         ? current?.chapterCardId
         : view.chapterCardId;
+      const chapterCardView = freezeLocation
+        ? current?.chapterCardView
+        : view.chapterCardView;
       const descriptor: AgentActivityDescriptor = {
         conversationKey: entry[0],
         agentLabel: view.agentLabel,
@@ -220,7 +223,8 @@ export function useAgentActivityCoordinator(
           freezeLocation && current
             ? current.targetResourceId
             : view.targetResourceId,
-        ...(chapterCardId ? { chapterCardId } : {})
+        ...(chapterCardId ? { chapterCardId } : {}),
+        ...(chapterCardView ? { chapterCardView } : {})
       };
       descriptorByKey.set(entry[0], descriptor);
       if (!current) return;

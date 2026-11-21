@@ -3,7 +3,12 @@ import { z } from "zod";
 import { EnvelopeBaseSchema } from "./envelope";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "./expert-draft";
 
-export const SHORT_MANUSCRIPT_EXPORT_FORMATS = ["docx", "txt", "epub"] as const;
+export const SHORT_MANUSCRIPT_EXPORT_FORMATS = [
+  "docx",
+  "txt",
+  "epub",
+  "md"
+] as const;
 export const ShortManuscriptExportFormatSchema = z.enum(
   SHORT_MANUSCRIPT_EXPORT_FORMATS
 );

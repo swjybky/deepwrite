@@ -169,7 +169,7 @@ function semanticSelectionSignature(input: {
   return [
     input.bookId ?? "",
     selection?.key ?? "",
-    selection?.root ?? input.activeRoot,
+    input.activeRoot,
     selection?.preferredRole ?? "",
     selection?.preferredFileId ?? "",
     selection?.chapterCardId ?? "",
@@ -577,6 +577,7 @@ export function useLongConversationCoordinator(
           const plotFocus = buildLongPlotFocusSnapshot({
             selection: options.state.selection.value,
             navigation: baseRuntimeContext.navigation,
+            activeFileId: target.fileId,
             foreshadowing:
               options.state.workspaceIndex.value?.plot.foreshadowing ?? [],
             foreshadowingFocus: options.workspace.captureForeshadowingFocus()

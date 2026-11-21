@@ -18,6 +18,7 @@ import {
   CreateLongVolumeDialog,
   DeleteExpertSectionDialog,
   DeleteLongDraftSectionDialog,
+  ExportLibraryPackageDialog,
   ExportLongManuscriptDialog,
   ExportShortManuscriptDialog,
   ExternalSkillImportDialog,
@@ -290,7 +291,6 @@ function longBookAction(
       open
       :volume-title="module.volumeTitle"
       :arc-options="module.arcOptions"
-      :source="module.source"
       :pending="module.pending"
       @close="emit('closeCreateLongChapterCard')"
       @submit="emit('submitCreateLongChapterCard', $event)"
@@ -397,6 +397,14 @@ function longBookAction(
       @close="emit('closeExternalLibraryImport')"
       @choose="emit('chooseExternalLibraryImport', $event)"
       @submit="emit('submitExternalLibraryImport', $event)"
+    />
+
+    <ExportLibraryPackageDialog
+      v-else-if="module.kind === 'library-package-export'"
+      :target="module.target"
+      :submitting="module.submitting"
+      @close="emit('closeLibraryPackageExport')"
+      @submit="emit('submitLibraryPackageExport')"
     />
 
     <ImportLibraryPackageDialog

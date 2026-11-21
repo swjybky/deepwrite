@@ -623,7 +623,7 @@ describe("useLongBookLifecycleCoordinator", () => {
     expect(test.state.bookActionPending.value).toBe(false);
   });
 
-  it("forwards selected chapter ids when exporting manuscript", async () => {
+  it("forwards the Markdown format, layout, and selected chapter ids", async () => {
     const test = createHarness();
 
     await test.coordinator.handleLongBookAction(
@@ -631,7 +631,8 @@ describe("useLongBookLifecycleCoordinator", () => {
     );
 
     await test.coordinator.exportLongBookManuscript({
-      mode: "single-txt",
+      mode: "single-file",
+      format: "md",
       sections: ["manuscript"],
       manuscriptChapterCardIds: ["chapter_first"]
     });
@@ -643,7 +644,7 @@ describe("useLongBookLifecycleCoordinator", () => {
       })
     );
     expect(test.manuscript.exportLong).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "single-txt" })
+      expect.objectContaining({ mode: "single-file", format: "md" })
     );
   });
 

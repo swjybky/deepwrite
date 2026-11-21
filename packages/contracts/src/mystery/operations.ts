@@ -49,6 +49,13 @@ export class MysteryWorkspaceOperationError extends Error {
   }
 }
 
+export const MysteryReorderAnchorSchema = z
+  .object({
+    anchorId: MysteryIdSchema,
+    position: z.enum(["before", "after"])
+  })
+  .strict();
+
 export const MysteryOperationSchema = z.discriminatedUnion("type", [
   z
     .object({
@@ -73,7 +80,8 @@ export const MysteryOperationSchema = z.discriminatedUnion("type", [
       type: z.literal("truthDoc.updateMeta"),
       docId: MysteryIdSchema,
       title: CatalogTitleSchema.optional(),
-      move: z.enum(["up", "down"]).optional()
+      move: z.enum(["up", "down"]).optional(),
+      reorder: MysteryReorderAnchorSchema.optional()
     })
     .strict(),
   z
@@ -108,7 +116,8 @@ export const MysteryOperationSchema = z.discriminatedUnion("type", [
       roleId: MysteryIdSchema,
       name: CatalogTitleSchema.optional(),
       tag: z.string().trim().max(80).optional(),
-      move: z.enum(["up", "down"]).optional()
+      move: z.enum(["up", "down"]).optional(),
+      reorder: MysteryReorderAnchorSchema.optional()
     })
     .strict(),
   z
@@ -133,7 +142,8 @@ export const MysteryOperationSchema = z.discriminatedUnion("type", [
       type: z.literal("act.updateMeta"),
       actId: MysteryIdSchema,
       title: CatalogTitleSchema.optional(),
-      move: z.enum(["up", "down"]).optional()
+      move: z.enum(["up", "down"]).optional(),
+      reorder: MysteryReorderAnchorSchema.optional()
     })
     .strict(),
   z
@@ -159,7 +169,8 @@ export const MysteryOperationSchema = z.discriminatedUnion("type", [
       type: z.literal("clueRound.updateMeta"),
       roundId: MysteryIdSchema,
       title: CatalogTitleSchema.optional(),
-      move: z.enum(["up", "down"]).optional()
+      move: z.enum(["up", "down"]).optional(),
+      reorder: MysteryReorderAnchorSchema.optional()
     })
     .strict(),
   z
@@ -388,6 +399,39 @@ function moveOrderedItem<T extends { id: string; order: number }>(
   return sorted.map((item, position) => ({ ...item, order: position + 1 }));
 }
 
+function reorderOrderedItem<T extends { id: string; order: number }>(
+  items: T[],
+  id: string,
+  anchorId: string,
+  position: "before" | "after",
+  label: string
+): T[] {
+  const sorted = [...items].sort((a, b) => a.order - b.order);
+  if (!sorted.some((item) => item.id === id)) {
+    throw new MysteryWorkspaceOperationError(
+      "not_found",
+      `${label}不存在：${id}`
+    );
+  }
+  if (!sorted.some((item) => item.id === anchorId)) {
+    throw new MysteryWorkspaceOperationError(
+      "not_found",
+      `目标${label}不存在：${anchorId}`
+    );
+  }
+  if (id === anchorId) {
+    throw new MysteryWorkspaceOperationError(
+      "invalid_order",
+      `不能相对自身调整${label}顺序。`
+    );
+  }
+  const sourceIndex = sorted.findIndex((item) => item.id === id);
+  const [moved] = sorted.splice(sourceIndex, 1);
+  const anchorIndex = sorted.findIndex((item) => item.id === anchorId);
+  sorted.splice(anchorIndex + (position === "after" ? 1 : 0), 0, moved!);
+  return sorted.map((item, idx) => ({ ...item, order: idx + 1 }));
+}
+
 function normalizeOrders<T extends { order: number }>(items: T[]): T[] {
   return [...items]
     .sort((a, b) => a.order - b.order)
@@ -550,11 +594,35 @@ export function previewMysteryWorkspaceOperations(
           }
           nextManifest.truthDocuments[idx]!.title = op.title;
         }
+        if (op.move && op.reorder) {
+          throw new MysteryWorkspaceOperationError(
+            "invalid_order",
+            "不能同时指定方向移动与锚点排序。"
+          );
+        }
         if (op.move) {
           nextManifest.truthDocuments = moveOrderedItem(
             nextManifest.truthDocuments,
             op.docId,
             op.move,
+            "真相文档"
+          );
+        }
+        if (op.reorder) {
+          const anchor = nextManifest.truthDocuments.find(
+            (item) => item.id === op.reorder!.anchorId
+          );
+          if (nextManifest.truthDocuments[idx]!.builtin || anchor?.builtin) {
+            throw new MysteryWorkspaceOperationError(
+              "builtin_protected",
+              "内置真相文档顺序固定，不可拖动排序。"
+            );
+          }
+          nextManifest.truthDocuments = reorderOrderedItem(
+            nextManifest.truthDocuments,
+            op.docId,
+            op.reorder.anchorId,
+            op.reorder.position,
             "真相文档"
           );
         }
@@ -657,11 +725,26 @@ export function previewMysteryWorkspaceOperations(
         }
         if (op.name !== undefined) nextManifest.roles[idx]!.name = op.name;
         if (op.tag !== undefined) nextManifest.roles[idx]!.tag = op.tag;
+        if (op.move && op.reorder) {
+          throw new MysteryWorkspaceOperationError(
+            "invalid_order",
+            "不能同时指定方向移动与锚点排序。"
+          );
+        }
         if (op.move) {
           nextManifest.roles = moveOrderedItem(
             nextManifest.roles,
             op.roleId,
             op.move,
+            "角色"
+          );
+        }
+        if (op.reorder) {
+          nextManifest.roles = reorderOrderedItem(
+            nextManifest.roles,
+            op.roleId,
+            op.reorder.anchorId,
+            op.reorder.position,
             "角色"
           );
         }
@@ -756,11 +839,26 @@ export function previewMysteryWorkspaceOperations(
           );
         }
         if (op.title !== undefined) nextManifest.acts[idx]!.title = op.title;
+        if (op.move && op.reorder) {
+          throw new MysteryWorkspaceOperationError(
+            "invalid_order",
+            "不能同时指定方向移动与锚点排序。"
+          );
+        }
         if (op.move) {
           nextManifest.acts = moveOrderedItem(
             nextManifest.acts,
             op.actId,
             op.move,
+            "幕次"
+          );
+        }
+        if (op.reorder) {
+          nextManifest.acts = reorderOrderedItem(
+            nextManifest.acts,
+            op.actId,
+            op.reorder.anchorId,
+            op.reorder.position,
             "幕次"
           );
         }
@@ -837,11 +935,26 @@ export function previewMysteryWorkspaceOperations(
         if (op.title !== undefined) {
           nextManifest.clueRounds[idx]!.title = op.title;
         }
+        if (op.move && op.reorder) {
+          throw new MysteryWorkspaceOperationError(
+            "invalid_order",
+            "不能同时指定方向移动与锚点排序。"
+          );
+        }
         if (op.move) {
           nextManifest.clueRounds = moveOrderedItem(
             nextManifest.clueRounds,
             op.roundId,
             op.move,
+            "搜证轮次"
+          );
+        }
+        if (op.reorder) {
+          nextManifest.clueRounds = reorderOrderedItem(
+            nextManifest.clueRounds,
+            op.roundId,
+            op.reorder.anchorId,
+            op.reorder.position,
             "搜证轮次"
           );
         }

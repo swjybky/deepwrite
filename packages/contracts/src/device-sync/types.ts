@@ -1,6 +1,4 @@
-import type { z } from "zod";
 import type { SyncDisplayText } from "./display-text";
-import type { syncConversationStatusSchema } from "./api";
 import type {
   SyncInitializationPreview,
   SyncInitializationWorkspacePort
@@ -83,12 +81,7 @@ export interface SyncStatus {
   issues: SyncIssue[];
   devices: SyncDevice[];
   history: (Omit<SyncHistory, "item"> & { canRestore: boolean })[];
-  /** Present on versions that sync conversations. */
-  conversations?: SyncConversationStatus | undefined;
 }
-export type SyncConversationStatus = z.infer<
-  typeof syncConversationStatusSchema
->;
 export interface SyncTransport {
   get(path: string, signal?: AbortSignal): Promise<string | null>;
   put(path: string, content: string, signal?: AbortSignal): Promise<void>;
@@ -156,7 +149,6 @@ export interface SyncApi {
   ): Promise<SyncStatus>;
   cancel(): void;
   restore(historyId: string): Promise<SyncStatus>;
-  configureConversations?(keys: string[]): Promise<SyncStatus>;
 }
 export interface LoadedSyncDevice {
   hash: string;

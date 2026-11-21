@@ -1,4 +1,5 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { availableExportPath } from "./export-file-paths";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { dialog, type BrowserWindow } from "electron";
 import {
@@ -45,24 +46,6 @@ function safeSegment(value: string, fallback = "未命名"): string {
 
 function pad2(index: number): string {
   return String(index).padStart(2, "0");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function uniqueDirectory(basePath: string): Promise<string> {
-  if (!(await pathExists(basePath))) return basePath;
-  for (let index = 2; index < 100_000; index += 1) {
-    const candidate = `${basePath} (${index})`;
-    if (!(await pathExists(candidate))) return candidate;
-  }
-  throw new Error("导出目录存在过多同名文件夹，请更换导出位置。");
 }
 
 interface ExportSection {
@@ -287,8 +270,10 @@ export async function exportMysteryBundle(
     });
   }
 
-  const bundleDirectory = await uniqueDirectory(
-    join(parentDirectory, `${safeSegment(book.title, "剧本杀")}-开本包`)
+  const bundleDirectory = await availableExportPath(
+    join(parentDirectory, `${safeSegment(book.title, "剧本杀")}-开本包`),
+    "",
+    "导出目录存在过多同名文件夹，请更换导出位置。"
   );
   await mkdir(bundleDirectory, { recursive: true });
 

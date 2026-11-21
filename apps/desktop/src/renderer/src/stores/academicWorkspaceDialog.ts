@@ -280,3 +280,51 @@ export async function runAcademicSectionMove(
     direction
   });
 }
+
+export async function runAcademicFrameworkStageReorder(
+  bookId: string,
+  stageId: string,
+  anchorId: string,
+  position: "before" | "after"
+): Promise<void> {
+  const { executeAcademicFrameworkMutation } =
+    await import("../composables/useAcademicBookLifecycleCoordinator");
+  await executeAcademicFrameworkMutation(bookId, {
+    type: "reorder",
+    stageId,
+    anchorId,
+    position
+  });
+}
+
+export async function runAcademicChapterReorder(
+  bookId: string,
+  chapterId: string,
+  anchorChapterId: string,
+  position: "before" | "after"
+): Promise<void> {
+  const { executeAcademicManuscriptMutation } =
+    await import("../composables/useAcademicBookLifecycleCoordinator");
+  await executeAcademicManuscriptMutation(bookId, {
+    type: "reorder-chapter",
+    chapterId,
+    anchorChapterId,
+    position
+  });
+}
+
+export async function runAcademicSectionReorder(
+  bookId: string,
+  sectionId: string,
+  anchorSectionId: string,
+  position: "before" | "after"
+): Promise<void> {
+  const { executeAcademicManuscriptMutation } =
+    await import("../composables/useAcademicBookLifecycleCoordinator");
+  await executeAcademicManuscriptMutation(bookId, {
+    type: "reorder-section",
+    sectionId,
+    anchorSectionId,
+    position
+  });
+}

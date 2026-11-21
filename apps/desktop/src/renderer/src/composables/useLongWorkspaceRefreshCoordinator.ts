@@ -60,6 +60,7 @@ export function useLongWorkspaceRefreshCoordinator(
   const { state, notifications } = options;
   const refreshClock = createLongWorkspaceRefreshClock();
   const savedDocumentRefreshes = new Map<string, SavedDocumentRefresh>();
+  let pendingRefresh: LongWorkspaceRefreshStatus | undefined;
 
   async function refreshActiveWorkspace(
     bookId: string,
@@ -73,12 +74,13 @@ export function useLongWorkspaceRefreshCoordinator(
       state.activeBookId.value === bookId &&
       refreshOptions.publishPending !== false
     ) {
-      state.refreshStatus.value = {
+      pendingRefresh = {
         bookId,
         requestId,
         pending: true,
         error: null
       };
+      state.refreshStatus.value = pendingRefresh;
     }
 
     try {
@@ -208,12 +210,20 @@ export function useLongWorkspaceRefreshCoordinator(
     refreshClock.invalidate(bookId);
   }
 
+  function dispose(): void {
+    if (state.refreshStatus.value === pendingRefresh) {
+      state.refreshStatus.value = null;
+    }
+    pendingRefresh = undefined;
+  }
+
   return {
     refreshActiveWorkspace,
     handleDocumentSaved,
     retryActiveRefresh,
     refreshOnWindowFocus,
     refreshAfterBackgroundWrite,
-    invalidate
+    invalidate,
+    dispose
   };
 }

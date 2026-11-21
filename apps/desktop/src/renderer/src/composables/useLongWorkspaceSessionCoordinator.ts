@@ -10,7 +10,6 @@ import {
 import { shallowRef, type Ref } from "vue";
 import type { LongApprovalEditorFocus } from "../utils/approvalNavigation";
 import {
-  createLongChapterCardVolumeSelection,
   createLongCharacterGroupSelection,
   createLongPlotPointVolumeSelection,
   replaceLongBookSummary,
@@ -280,6 +279,7 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
   async function selectWorkspaceFile(
     nextSelection: LongWorkspaceSelection
   ): Promise<boolean> {
+    if (disposed) return false;
     if (
       (state.selection.value?.key !== nextSelection.key ||
         state.selection.value?.worldbuildingItemId !==
@@ -306,8 +306,17 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
     if (preferredFile) {
       await editor.value?.ensureDocumentsLoaded([preferredFile]);
     }
-    state.fileContext.value = null;
+    if (disposed) return false;
+    if (state.fileContext.value?.fileId !== preferredFile?.file.id) {
+      state.fileContext.value = null;
+    }
+    const sameChapter =
+      nextSelection.key.startsWith("chapter:") &&
+      state.selection.value?.key === nextSelection.key;
     state.selection.value = nextSelection;
+    if (sameChapter && preferredFile) {
+      await editor.value?.focusFile(preferredFile.file.id);
+    }
     return true;
   }
 
@@ -342,23 +351,10 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
     if (nextSelection) await selectWorkspaceFile(nextSelection);
   }
 
-  async function selectChapterCardTab(chapterCardId: string): Promise<void> {
-    const summary = state.activeBookSummary.value;
-    const index = state.workspaceIndex.value;
-    const volumeId = state.selection.value?.chapterCardVolumeId;
-    if (!summary || !index || !volumeId) return;
-    const nextSelection = createLongChapterCardVolumeSelection(
-      summary,
-      index,
-      volumeId,
-      chapterCardId
-    );
-    if (nextSelection) await selectWorkspaceFile(nextSelection);
-  }
-
   function handleFileContextChange(
     nextContext: LongWorkspaceFileContext | null
   ): void {
+    if (disposed) return;
     if (nextContext && nextContext.bookId !== state.activeBookId.value) return;
     state.fileContext.value = nextContext;
   }
@@ -395,7 +391,7 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
     cancelCatalogRetry();
     seenCatalogDiagnosticKeys.clear();
     editor.value = null;
-    store.dispose();
+    refresh.dispose();
   }
 
   return {
@@ -409,7 +405,6 @@ export function useLongWorkspaceSessionCoordinator<TimerHandle>(
     selectWorkspaceFile,
     selectCharacterTab,
     selectPlotPointTab,
-    selectChapterCardTab,
     handleFileContextChange,
     handleDocumentSaved: refresh.handleDocumentSaved,
     retryActiveRefresh: refresh.retryActiveRefresh,

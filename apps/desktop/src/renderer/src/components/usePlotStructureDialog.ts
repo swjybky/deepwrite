@@ -242,6 +242,14 @@ export function usePlotStructureDialog(
     beginMutation({ type: "move", stageId, direction });
   }
 
+  function reorder(
+    stageId: string,
+    anchorId: string,
+    position: "before" | "after"
+  ): void {
+    beginMutation({ type: "reorder", stageId, anchorId, position });
+  }
+
   function toggleEnabled(stageId: string, enabled: boolean): void {
     if (locked.value) return;
     if (
@@ -314,6 +322,7 @@ export function usePlotStructureDialog(
     openDelete,
     openEdit,
     orderedCharacterItems,
+    reorder,
     requestedCharacterFormat,
     rows,
     saveWritingContext,

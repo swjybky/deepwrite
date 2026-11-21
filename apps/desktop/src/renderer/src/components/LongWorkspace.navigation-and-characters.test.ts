@@ -22,7 +22,6 @@ import {
   longWorkspaceDraftTreeSource,
   longWorkspaceResourceTreeSource,
   longWorkspaceTypeSource,
-  manuscriptNavigationSource,
   plotPointDialogSource,
   sectionSource,
   treeNodeSource,
@@ -163,7 +162,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(characterNavigationSource).toContain("deleteCurrentCharacter");
     expect(editorSource).toContain("deleteCurrentVolume");
     expect(editorSource).toContain("deleteCurrentPlotPoint");
-    expect(manuscriptNavigationSource).toContain("deleteCurrentChapterCard");
     expect(worldbuildingNavigationSource).toContain(
       "deleteCurrentWorldbuildingEntry"
     );
@@ -196,10 +194,8 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(editorSource).toContain("emit('createCharacter')");
     expect(editorStructureSource).toContain('emit("createWorldbuildingItem")');
     expect(editorSource).toContain("currentEmptyCollection");
-    expect(editorSource).toContain("noChapterCardsYet");
     expect(editorSource).toContain("createFirstCharacter");
     expect(editorSource).toContain("createFirstPlotPoint");
-    expect(editorSource).toContain("createFirstChapterCard");
     expect(editorSource).toContain('@click="createFirstCollectionItem"');
     expect(appSource).toContain('@create-character="openLongCharacterCreate"');
     expect(appSource).toContain(
@@ -222,27 +218,8 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
       "longImpactConfirmation.plotPoint"
     );
     expect(longWorkspaceResourceTreeSource).toContain(
-      "longImpactConfirmation.chapterCard"
-    );
-    expect(longWorkspaceResourceTreeSource).toContain(
       "catalogWorkspace.manuscript"
     );
-    const chapterCardProjection = longWorkspaceResourceTreeSource.slice(
-      longWorkspaceResourceTreeSource.indexOf(
-        "const chapterCardManagementChildren: ResourceTreeNode[]"
-      ),
-      longWorkspaceResourceTreeSource.indexOf(
-        "const plotChildren: ResourceTreeNode[]"
-      )
-    );
-    expect(chapterCardProjection).toContain(
-      "key: `plot-design:chapter-cards:${volume.id}`"
-    );
-    expect(chapterCardProjection).toContain("chapterCardTabs:");
-    expect(chapterCardProjection).not.toContain(
-      "root:chapter-card-management:"
-    );
-    expect(chapterCardProjection).not.toContain("children: chapters");
     const plotChildrenProjection = longWorkspaceResourceTreeSource.slice(
       longWorkspaceResourceTreeSource.indexOf(
         "const plotChildren: ResourceTreeNode[]"
@@ -262,11 +239,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(plotChildrenProjection).not.toContain(
       "key: `root:plot-arc:${arc.id}`"
     );
-    expect(
-      plotChildrenProjection.indexOf('key: "root:plot-points"')
-    ).toBeLessThan(
-      plotChildrenProjection.indexOf('key: "root:plot-chapter-cards"')
-    );
     const longRootProjection = longWorkspaceResourceTreeSource.slice(
       longWorkspaceResourceTreeSource.indexOf(
         "const counts = book.navigation.counts;"
@@ -281,14 +253,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(editorSource).toContain("currentIsPlotPointWorkspace");
     expect(editorSource).toContain("selection.plotPointTabs");
     expect(editorSource).toContain("emit('selectPlotPoint', plotPoint.id)");
-    expect(editorSource).toContain("currentIsChapterCardWorkspace");
-    expect(editorSource).toContain("props.selection?.chapterCardTabs");
-    expect(manuscriptNavigationSource).toContain(
-      "emit('selectChapter', chapter.id)"
-    );
-    expect(appSource).toContain(
-      '@select-chapter-card="selectLongChapterCardTab"'
-    );
     expect(editorSource).toContain("summary");
     expect(editorSource).toContain("storyEvent");
     expect(editorSource).toContain("selection.plotPointId === plotPoint.id");
@@ -314,9 +278,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     );
     expect(longStructureTransactionsSource).toContain(
       "create.createdSectionAndItsChapterCard"
-    );
-    expect(longStructureTransactionsSource).toContain(
-      "createLongChapterSelection(\n                  summary,\n                  nextIndex,\n                  created.chapterCard.id"
     );
     expect(appSource).not.toContain('worldConstraints: ""');
     expect(workspaceDialogLayerSource).toContain("<CreateLongVolumeDialog");
@@ -347,9 +308,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(workspaceDialogLayerSource).toContain(
       "<CreateLongChapterCardDialog"
     );
-    expect(dialogCoordinatorSource).toContain(
-      "source: chapterCardCreation.source"
-    );
     expect(workspaceDialogLayerSource).toContain(':source="module.source"');
     expect(appSource).toContain(
       '@submit-create-long-chapter-card="createLongChapterCard"'
@@ -366,7 +324,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(longStructureTransactionsSource).toContain(
       "async function confirmDeleteLongDraftSection"
     );
-    expect(longStructureTransactionsSource).toContain('source: "draft"');
     expect(appSource).toContain(
       '@create-long-draft-section="requestCreateLongDraftSection"'
     );
@@ -386,12 +343,6 @@ describe("long-form renderer vertical slice: navigation-and-characters", () => {
     expect(draftChildrenProjection).toContain("longDraftVolumeId: volume.id");
     expect(draftChildrenProjection).not.toContain("return chapters.length");
     expect(chapterCardDialogSource).toContain("newMessage");
-    expect(chapterCardDialogSource).toContain(
-      "youCanCompleteTheChapterCardAfterCreatingIt"
-    );
-    expect(chapterCardDialogSource).toContain(
-      "aMatchingChapterCardWillBeCreatedConsiderPreparing"
-    );
     expect(chapterCardDialogSource).toContain(
       "aMatchingChapterCardWillBeCreatedConsiderPreparing"
     );

@@ -569,6 +569,24 @@ describe("long approval navigation against the latest index", () => {
       chapterSummary,
       chapterIndex
     );
+    for (const candidate of [
+      { kind: "file", fileId: "chapter_card" },
+      { kind: "chapter-card", chapterCardId: "chapter_one", view: "card" }
+    ] as const) {
+      const result = resolveLongApprovalNavigation(
+        { kind: "long", bookId: chapterSummary.id, candidates: [candidate] },
+        chapterSummary,
+        chapterIndex
+      );
+      expect(result).toMatchObject({
+        selection: {
+          key: "chapter:chapter_one",
+          root: "draft",
+          preferredFileId: "chapter_card"
+        },
+        focus: { fileId: "chapter_card" }
+      });
+    }
     expect(draft?.selection.key).toBe("chapter:chapter_one");
     expect(draft?.selection.preferredFileId).toBe(chapterBody.id);
     expect(continuity?.selection.key).toBe("continuity:chapter_one");

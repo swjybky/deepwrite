@@ -13,7 +13,7 @@ defineOptions({ inheritAttrs: false });
 withDefaults(
   defineProps<{
     leftCollapsed: boolean;
-    rightPane: { collapsed: boolean };
+    rightCollapsed: boolean;
     paneLayout: WorkspacePaneLayout;
     pending?: boolean;
   }>(),
@@ -33,14 +33,14 @@ const emit = defineEmits<{ expandLeft: [] }>();
     <AppIcon name="panel-left" :size="18" />
   </button>
   <div
-    v-show="paneLayout === 'agent-editor' || !rightPane.collapsed"
+    v-show="paneLayout === 'agent-editor' || !rightCollapsed"
     class="long-agent-column"
     :aria-label="t('novelWorkspace')"
   >
     <LongWorkspacePanePlaceholder kind="agent" :loading="pending" />
   </div>
   <LongWorkspacePanePlaceholder
-    v-if="paneLayout === 'editor-agent' || !rightPane.collapsed"
+    v-if="paneLayout === 'editor-agent' || !rightCollapsed"
     kind="editor"
     :right-pane="paneLayout === 'agent-editor'"
     :loading="pending"

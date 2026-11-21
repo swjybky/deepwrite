@@ -3,7 +3,6 @@ import {
   createEmptyLongMarkdownFileReference,
   longStoryPlotBodyFileId,
   longStoryPlotFilePath,
-  type LongChapterCardId,
   type LongCharacterId,
   type LongWorkspaceImpactConfirmation,
   type LongWorkspaceIndexSnapshot,
@@ -28,7 +27,6 @@ import {
 } from "../types/longWorkspace";
 import { uiMessage } from "../ui-feedback";
 import type { LongApprovalEditorFocus } from "../utils/approvalNavigation";
-import { orderLongChapterNavigationItems } from "../utils/orderLongChapterNavigationItems";
 import type { LongDocumentState } from "./useLongEditorDocumentSession";
 import { useLongStoryPlotDeleteConfirmation } from "./useLongStoryPlotDeleteConfirmation";
 
@@ -49,7 +47,7 @@ export interface LongEditorStructureHost {
   currentStructureTitleReadOnly: ComputedRef<boolean>;
   currentWorldbuildingItem: ComputedRef<{ id: string; title: string } | null>;
   currentEmptyCollection: ComputedRef<{
-    action: "character" | "plotPoint" | "chapterCard";
+    action: "character" | "plotPoint";
   } | null>;
   currentIsCharacterDocument: ComputedRef<boolean>;
   currentIsBookLineWorkspace: ComputedRef<boolean>;
@@ -79,7 +77,6 @@ export function useLongEditorStructureSelection(options: {
     (event: "createCharacter"): void;
     (event: "createWorldbuildingItem"): void;
     (event: "createPlotPoint"): void;
-    (event: "createChapterCard"): void;
     (event: "createVolume"): void;
     (
       event: "renameCharacter",
@@ -180,10 +177,6 @@ export function useLongEditorStructureSelection(options: {
   reorderStoryPlot: (storyPlotId: string, direction: "up" | "down") => void;
   toggleStoryPlotActionMenu: (storyPlotId: string) => void;
   closeStoryPlotActionMenu: () => void;
-  reorderChapterCard: (
-    chapterCardId: LongChapterCardId,
-    direction: "up" | "down"
-  ) => void;
   runStoryPlotMenuAction: (
     storyPlotId: string,
     action: "up" | "down" | "delete"
@@ -299,7 +292,9 @@ export function useLongEditorStructureSelection(options: {
         return selection.files.find(({ role }) => role === "book-line");
       }
       return (
-        explicitlySelectedFile ??
+        (selection.key.startsWith("chapter:")
+          ? undefined
+          : explicitlySelectedFile) ??
         selection.files.find(({ file }) => file.id === activeFileId.value) ??
         selection.files.find(({ role }) => role === activeRole.value) ??
         selection.files[0]
@@ -313,8 +308,6 @@ export function useLongEditorStructureSelection(options: {
       emit("createCharacter");
     } else if (action === "plotPoint") {
       emit("createPlotPoint");
-    } else if (action === "chapterCard") {
-      emit("createChapterCard");
     }
   }
 
@@ -678,39 +671,6 @@ export function useLongEditorStructureSelection(options: {
     storyPlotActionMenuId.value = null;
   }
 
-  function reorderChapterCard(
-    chapterCardId: LongChapterCardId,
-    direction: "up" | "down"
-  ): void {
-    const tabs = orderLongChapterNavigationItems(
-      props.selection?.chapterCardTabs ?? []
-    );
-    const index = tabs.findIndex(({ id }) => id === chapterCardId);
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (
-      props.locked ||
-      index < 0 ||
-      targetIndex < 0 ||
-      targetIndex >= tabs.length
-    ) {
-      return;
-    }
-    const orderedIds = tabs.map(({ id }) => id);
-    [orderedIds[index], orderedIds[targetIndex]] = [
-      orderedIds[targetIndex]!,
-      orderedIds[index]!
-    ];
-    const volumeId = props.selection?.chapterCardVolumeId;
-    if (!volumeId) return;
-    emitStoryPlotMutation([
-      {
-        type: "chapter.reorder",
-        volumeId,
-        orderedIds
-      }
-    ]);
-  }
-
   function runStoryPlotMenuAction(
     storyPlotId: string,
     action: "up" | "down" | "delete"
@@ -867,7 +827,12 @@ export function useLongEditorStructureSelection(options: {
   }
 
   async function selectWorkspaceFile(fileId: string): Promise<void> {
-    if (fileId === activeFileId.value || fileId === pendingFileId.value) return;
+    if (fileId === pendingFileId.value) return;
+    if (fileId === activeFileId.value) {
+      pendingRole.value = null;
+      pendingFileId.value = null;
+      return;
+    }
     const selectedFile = props.selection?.files.find(
       ({ file }) => file.id === fileId
     );
@@ -974,13 +939,12 @@ export function useLongEditorStructureSelection(options: {
   }
 
   watch(
-    () =>
-      [
-        props.bookId,
-        props.selection?.key,
-        props.selection?.preferredRole,
-        props.selection?.preferredFileId
-      ] as const,
+    [
+      () => props.bookId,
+      () => props.selection?.key,
+      () => props.selection?.preferredRole,
+      () => props.selection?.preferredFileId
+    ],
     () => {
       const preferredRole = props.selection?.preferredRole ?? "content";
       activeRole.value = preferredRole;
@@ -1169,7 +1133,6 @@ export function useLongEditorStructureSelection(options: {
     reorderStoryPlot,
     toggleStoryPlotActionMenu,
     closeStoryPlotActionMenu,
-    reorderChapterCard,
     runStoryPlotMenuAction,
     resetCharacterNameDraft,
     saveCharacterName,

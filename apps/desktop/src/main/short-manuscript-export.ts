@@ -17,6 +17,12 @@ import {
   type ManuscriptImageAssets
 } from "./manuscript-export-images";
 import type { BookImageExportLoader } from "./book-images/export-assets";
+import {
+  loadMarkdownImages,
+  markdownHeading,
+  markdownWithImages,
+  writeMarkdownWithAssets
+} from "./manuscript-markdown";
 
 export { buildDocx, buildEpub };
 
@@ -42,7 +48,31 @@ export function buildShortManuscriptFile(
   const validated = ExportShortManuscriptInputSchema.parse(input);
   if (validated.format === "docx") return buildDocx(validated, assets);
   if (validated.format === "epub") return buildEpub(validated, assets);
+  if (validated.format === "md") {
+    return Buffer.from(
+      buildShortMarkdown(validated, assets, "./images"),
+      "utf8"
+    );
+  }
   return buildTxt(validated);
+}
+
+function buildShortMarkdown(
+  input: ExportShortManuscriptInput,
+  assets: ManuscriptImageAssets | undefined,
+  assetFolderLink: string
+): string {
+  const parts = [markdownHeading(1, input.title)];
+  for (const section of input.sections) {
+    parts.push(markdownHeading(2, section.title));
+    const content = markdownWithImages(
+      section.content,
+      assets,
+      assetFolderLink
+    );
+    if (content.trim()) parts.push(content.replace(/\n+$/u, ""));
+  }
+  return `${parts.join("\n\n")}\n`;
 }
 
 export function safeManuscriptFileName(title: string): string {
@@ -65,7 +95,7 @@ function ensureFormatExtension(
   const current = extname(filePath).toLowerCase();
   const desired = `.${format}`;
   if (current === desired) return filePath;
-  if ([".docx", ".txt", ".epub"].includes(current)) {
+  if ([".docx", ".txt", ".epub", ".md"].includes(current)) {
     return `${filePath.slice(0, -current.length)}${desired}`;
   }
   return `${filePath}${desired}`;
@@ -87,6 +117,10 @@ function formatDialog(): Record<
     epub: {
       title: nativeText("exportEpub"),
       filters: [{ name: nativeText("epubBook"), extensions: ["epub"] }]
+    },
+    md: {
+      title: nativeText("exportMarkdown"),
+      filters: [{ name: nativeText("markdownDocument"), extensions: ["md"] }]
     }
   };
 }
@@ -107,16 +141,24 @@ export async function exportShortManuscript(
     return ExportShortManuscriptResultSchema.parse({ status: "cancelled" });
   }
   const filePath = ensureFormatExtension(selection.filePath, input.format);
+  const loadAssets =
+    input.format === "md" ? loadMarkdownImages : loadManuscriptImages;
   // TXT only writes placeholders, so it never reads or limits image bytes.
   const { assets, missingImages } =
     input.format === "txt"
-      ? { assets: undefined, missingImages: 0 }
-      : await loadManuscriptImages(
+      ? { assets: new Map(), missingImages: 0 }
+      : await loadAssets(
           input.book,
           input.sections.map((section) => section.content),
           loadImages
         );
-  await writeFile(filePath, buildShortManuscriptFile(input, assets));
+  if (input.format === "md") {
+    await writeMarkdownWithAssets(filePath, assets, (link) =>
+      buildShortMarkdown(input, assets, link)
+    );
+  } else {
+    await writeFile(filePath, buildShortManuscriptFile(input, assets));
+  }
   return ExportShortManuscriptResultSchema.parse({
     status: "saved",
     filePath,

@@ -11,7 +11,11 @@ import {
   type CreativePlotStage,
   type MutatePlotStructureInput
 } from "@deepwrite/contracts";
-import { createCatalogId, randomHex8 } from "@deepwrite/shared";
+import {
+  createCatalogId,
+  randomHex8,
+  reorderItemsByAnchor
+} from "@deepwrite/shared";
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
 import { assertBaseRevision, assertProjectRevision } from "./assertions";
@@ -128,21 +132,39 @@ export async function mutatePlotStructure(
     const now = store.now();
     const mutation = input.mutation;
 
-    if (mutation.type === "move") {
-      const plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
+    if (mutation.type === "move" || mutation.type === "reorder") {
+      let plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
       const stageIndex = plotStages.findIndex(
         ({ id }) => id === mutation.stageId
       );
       if (stageIndex < 0) {
         throw new Error("该剧情结构已删除或不存在。");
       }
-      const targetIndex =
-        mutation.direction === "up" ? stageIndex - 1 : stageIndex + 1;
-      if (targetIndex < 0 || targetIndex >= plotStages.length) {
-        throw new Error("该剧情结构已经位于列表边界。");
+      if (mutation.type === "reorder") {
+        if (!plotStages.some(({ id }) => id === mutation.anchorId)) {
+          throw new Error("目标剧情结构已删除或不存在。");
+        }
+        const reordered = reorderItemsByAnchor(
+          plotStages,
+          mutation.stageId,
+          mutation.anchorId,
+          mutation.position
+        );
+        if (!reordered.moved) {
+          return (
+            await readProject(store, projectDirectory, "book", input.bookId)
+          ).resource as Book;
+        }
+        plotStages = reordered.items;
+      } else {
+        const targetIndex =
+          mutation.direction === "up" ? stageIndex - 1 : stageIndex + 1;
+        if (targetIndex < 0 || targetIndex >= plotStages.length) {
+          throw new Error("该剧情结构已经位于列表边界。");
+        }
+        const [stage] = plotStages.splice(stageIndex, 1);
+        plotStages.splice(targetIndex, 0, stage!);
       }
-      const [stage] = plotStages.splice(stageIndex, 1);
-      plotStages.splice(targetIndex, 0, stage!);
       const definitionsById = new Map(
         registry.creativePlotStages.map((definition) => [
           definition.id,

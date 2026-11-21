@@ -1,10 +1,11 @@
 import type {
+  LongFileId,
   LongForeshadowingDirectorySnapshot,
   LongPlotFocusSnapshot,
   LongWorkspaceIndexSnapshot,
   LongWorkspaceNavigationSnapshot
 } from "@deepwrite/contracts";
-import { LONG_FORESHADOWING_DIRECTORY_MAX_ENTRIES } from "@deepwrite/contracts";
+import { LONG_FORESHADOWING_DIRECTORY_MAX_ENTRIES } from "@deepwrite/contracts/renderer";
 import type {
   LongForeshadowingFocus,
   LongWorkspaceSelection
@@ -50,10 +51,32 @@ function buildForeshadowingDirectory(
 export function buildLongPlotFocusSnapshot(input: {
   selection: LongWorkspaceSelection | null;
   navigation: LongWorkspaceNavigationSnapshot;
+  activeFileId?: LongFileId | null;
   foreshadowing?: LongWorkspaceIndexSnapshot["plot"]["foreshadowing"];
   foreshadowingFocus?: LongForeshadowingFocus;
 }): LongPlotFocusSnapshot | undefined {
   const { selection, navigation } = input;
+  if (
+    selection?.root === "draft" &&
+    selection.files.some(
+      ({ role, file }) => role === "card" && file.id === input.activeFileId
+    )
+  ) {
+    const chapterCard = navigation.chapterCards.find(
+      ({ id }) => id === selection.chapterCardId
+    );
+    const volume = navigation.volumes.find(
+      ({ id }) => id === chapterCard?.volumeId
+    );
+    if (!chapterCard || !volume) return undefined;
+    return {
+      section: "chapter_card",
+      volumeId: volume.id,
+      volumeTitle: volume.title,
+      chapterCardId: chapterCard.id,
+      chapterCardTitle: chapterCard.title
+    };
+  }
   if (selection?.root !== "plot_design") return undefined;
   if (selection.key === "plot-design:book-line") {
     return { section: "book_line" };
@@ -92,23 +115,6 @@ export function buildLongPlotFocusSnapshot(input: {
       volumeId: volume.id,
       volumeTitle: volume.title,
       ...(arc ? { arcId: arc.id, arcTitle: arc.title } : {})
-    };
-  }
-  if (selection.key.startsWith("plot-design:chapter-cards:")) {
-    const volume = navigation.volumes.find(
-      ({ id }) => id === selection.chapterCardVolumeId
-    );
-    if (!volume) return undefined;
-    const chapterCard = navigation.chapterCards.find(
-      ({ id }) => id === selection.chapterCardId
-    );
-    return {
-      section: "chapter_card",
-      volumeId: volume.id,
-      volumeTitle: volume.title,
-      ...(chapterCard
-        ? { chapterCardId: chapterCard.id, chapterCardTitle: chapterCard.title }
-        : {})
     };
   }
   return undefined;

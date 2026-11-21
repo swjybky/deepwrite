@@ -1,11 +1,5 @@
-import { t } from "../i18n";
-import type {
-  LongChapterCardId,
-  LongWorkspaceImpactConfirmation,
-  LongWorkspaceIndexSnapshot
-} from "@deepwrite/contracts";
+import type { LongWorkspaceImpactConfirmation } from "@deepwrite/contracts";
 import { nextTick, ref, shallowRef, type ComputedRef } from "vue";
-import { longDeletionDescription } from "../utils/longDeletionImpact";
 import { longImpactConfirmationDescription } from "../utils/longImpactConfirmation";
 
 export interface LongNavigationDeleteTarget {
@@ -20,7 +14,6 @@ export interface LongNavigationDeleteTarget {
 
 interface Options {
   locked: () => boolean;
-  workspaceIndex: () => LongWorkspaceIndexSnapshot | null;
   currentReadOnly: ComputedRef<boolean>;
   currentTarget: ComputedRef<LongNavigationDeleteTarget | null>;
   preview(
@@ -173,22 +166,6 @@ export function useLongNavigationDeleteConfirmation(options: Options) {
     );
   }
 
-  function openChapterCardDelete(chapterCardId: LongChapterCardId): void {
-    if (options.locked() || options.currentReadOnly.value) return;
-    const index = options.workspaceIndex();
-    const chapterCard = index?.plot.chapterCards.find(
-      ({ id }) => id === chapterCardId
-    );
-    if (!index || !chapterCard) return;
-    showNavigationDelete({
-      kind: "chapterCard",
-      id: chapterCard.id,
-      title: chapterCard.title,
-      label: t("workspace.longImpactConfirmation.chapterCard"),
-      description: longDeletionDescription(index, "chapterCard", chapterCard.id)
-    });
-  }
-
   return {
     navigationDeleteTarget,
     navigationDeletePending,
@@ -198,7 +175,6 @@ export function useLongNavigationDeleteConfirmation(options: Options) {
     openNavigationDelete,
     closeNavigationDelete,
     handleNavigationDeleteKeydown,
-    confirmNavigationDelete,
-    openChapterCardDelete
+    confirmNavigationDelete
   };
 }

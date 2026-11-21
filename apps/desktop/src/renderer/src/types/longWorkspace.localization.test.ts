@@ -16,11 +16,14 @@ it("updates cached chapter display labels without changing file identity or sour
     workspaceIndex,
     "chapter_one"
   )!;
-  const file = selection.files[0]!;
+  const file = selection.files.find(({ role }) => role === "body")!;
+  const card = selection.files.find(({ role }) => role === "card")!;
+  expect(card.label).toBe("章卡");
   const reference = file.file;
   expect(file.label).toBe("正文");
   setAppLanguage("en-US", "en-US");
   expect(file.label).toBe("Manuscript");
+  expect(card.label).toBe("Chapter card");
   expect(selection.breadcrumbs).toContain("Manuscript");
   expect(selection.title).toBe("第一章");
   expect(file.file).toBe(reference);

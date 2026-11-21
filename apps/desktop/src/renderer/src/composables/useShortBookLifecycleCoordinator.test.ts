@@ -607,9 +607,10 @@ describe("useShortBookLifecycleCoordinator", () => {
     expect(harness.exportBookTarget.value).toBe(newer);
 
     harness.books.set("book-1", fixtureBook("book-1", 4, "实时书名"));
-    await harness.coordinator.exportBookManuscript("docx");
+    await harness.coordinator.exportBookManuscript("md");
     expect(harness.manuscriptApi.exportShort).toHaveBeenCalledWith(
       expect.objectContaining({
+        format: "md",
         title: "实时书名",
         sections: expect.arrayContaining([
           expect.objectContaining({ content: "编辑器实时正文" })

@@ -7,7 +7,10 @@ import {
   nextTick,
   ssrContextKey
 } from "vue";
-import { bookBindingsTarget } from "../stores/bookBindingsDialog";
+import {
+  bookBindingsTarget,
+  type BookBindingsTarget
+} from "../stores/bookBindingsDialog";
 import BookBindingsDialog from "./BookBindingsDialog.vue";
 
 const component = Object.assign({}, BookBindingsDialog, {
@@ -16,52 +19,42 @@ const component = Object.assign({}, BookBindingsDialog, {
   )
 });
 
-const { saveTeam, toastError } = vi.hoisted(() => ({
+const { saveTeam, toastError, teamCatalog, snapshot } = vi.hoisted(() => ({
   saveTeam: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  teamCatalog: { value: null as unknown },
+  snapshot: { value: {} as unknown }
 }));
 vi.mock("../composables/useBookAgentTeamBinding", async () => {
   const { ref } = await import("vue");
   return {
     saveBookAgentTeamBinding: saveTeam,
-    useBookAgentTeamCatalog: () => ({ catalog: ref(null), loaded: ref(true) })
+    useBookAgentTeamCatalog: () => ({
+      catalog: ref(teamCatalog.value),
+      loaded: ref(true)
+    })
   };
 });
 vi.mock("../ui-feedback", () => ({
   uiMessage: { error: toastError, success: vi.fn() }
 }));
 vi.mock("../stores/catalogIndexStore", () => ({
-  useCatalogIndexStore: () => ({ snapshot: {} })
+  useCatalogIndexStore: () => ({ snapshot: snapshot.value })
 }));
-vi.mock("./BookAgentTeamBindings.vue", () => ({
-  default: defineComponent({ render: () => h("div") })
-}));
-vi.mock("./BookLibraryBindings.vue", async () => {
-  const { defineComponent, h, ref } = await import("vue");
+vi.mock("./BookBindingsPicker.vue", async (importOriginal) => {
+  const { default: picker } =
+    await importOriginal<typeof import("./BookBindingsPicker.vue")>();
   return {
-    default: defineComponent({
-      props: { domain: { type: String, required: true } },
-      emits: ["change"],
-      setup(props, { emit }) {
-        const selected = ref(false);
-        return () =>
-          h("button", {
-            "data-picker": props.domain,
-            "aria-pressed": selected.value,
-            onClick() {
-              selected.value = !selected.value;
-              emit("change", {
-                linkedSkillIds: selected.value ? ["skill-1"] : [],
-                linkedMaterialIds: selected.value ? ["material-1"] : [],
-                linkedSkillIdsByKind: {},
-                linkedMaterialIdsByKind: {}
-              });
-            }
-          });
-      }
+    default: Object.assign({}, picker, {
+      render: compileClientRender(
+        new URL("./BookBindingsPicker.vue", import.meta.url)
+      )
     })
   };
 });
+vi.mock("./PopupSelect.vue", () => ({
+  default: defineComponent({ render: () => h("button") })
+}));
 vi.mock("./AppIcon.vue", () => ({
   default: defineComponent({ render: () => h("svg") })
 }));
@@ -74,7 +67,7 @@ class Node {
   focus = vi.fn();
   constructor(readonly tag: string) {}
   querySelector() {
-    return find(this, (node) => node.props["aria-selected"] === true);
+    return find(this, (node) => node.props["aria-current"] === true);
   }
 }
 
@@ -118,14 +111,15 @@ const renderer = createRenderer<Node, Node>({
   querySelector: () => body
 });
 
-function mount() {
+function mount(initial: Partial<BookBindingsTarget> = {}) {
   vi.stubGlobal("document", { activeElement: null });
   const saveLibrary = vi.fn().mockResolvedValue(true);
   bookBindingsTarget.value = {
     bookId: "book-1",
     title: "示例作品",
     workspaceType: "short",
-    saveLibrary
+    saveLibrary,
+    ...initial
   };
   const app = renderer.createApp({
     render() {
@@ -135,12 +129,17 @@ function mount() {
   });
   app.provide(ssrContextKey, { modules: new Set() });
   app.mount(new Node("root"));
-  function element(key: string, value: unknown) {
-    const node = find(body, (candidate) => candidate.props[key] === value);
+  function element(key: string, value: unknown, parent = body) {
+    const node = find(parent, (candidate) => candidate.props[key] === value);
     if (!node) throw new Error(`Missing ${key}=${value}`);
     return node;
   }
-  return { app, saveLibrary, element };
+  function checkbox(title: string) {
+    const row = element("title", title).parent?.parent;
+    if (!row) throw new Error(`Missing row for ${title}`);
+    return element("type", "checkbox", row);
+  }
+  return { app, saveLibrary, element, checkbox };
 }
 
 function invoke(node: Node, name: string) {
@@ -151,37 +150,48 @@ function invoke(node: Node, name: string) {
 
 afterEach(() => {
   bookBindingsTarget.value = null;
+  teamCatalog.value = null;
+  snapshot.value = null;
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 
-it("keeps selections when switching tabs and saves only the changed tab", async () => {
-  const { app, saveLibrary, element } = mount();
+const skill = {
+  id: "lib-1",
+  title: "风格技能库",
+  skillKind: "style",
+  entries: []
+};
+const material = {
+  id: "material-1",
+  title: "人物素材库",
+  materialKind: "character",
+  parentGenre: "",
+  subGenre: "",
+  entries: []
+};
+
+it("keeps selections when switching sections and saves only the changed one", async () => {
+  snapshot.value = { skills: [skill] };
+  const { app, saveLibrary, element, checkbox } = mount();
   try {
-    const skill = element("data-picker", "skill");
     const submit = element("type", "submit");
     expect(submit.props.disabled).toBe(true);
-    invoke(skill, "onClick");
+    invoke(checkbox(skill.title), "onChange");
     await nextTick();
     invoke(element("id", "book-bindings-tab-material"), "onClick");
     await nextTick();
-    expect(element("id", "book-bindings-panel-skill").style.display).toBe(
-      "none"
+    expect(
+      element("id", "book-bindings-tab-material").props["aria-current"]
+    ).toBe(true);
+    expect(element("id", "book-bindings-tab-skill").props["aria-label"]).toBe(
+      "技能库（未保存）"
     );
-    invoke(element("id", "book-bindings-tab-skill"), "onClick");
-    await nextTick();
-    expect(skill.props["aria-pressed"]).toBe(true);
     expect(submit.props.disabled).toBe(false);
 
-    await invoke(
-      element("class", "dialog-content book-bindings-content"),
-      "onSubmit"
-    );
+    await invoke(element("class", "book-bindings-form"), "onSubmit");
     expect(saveLibrary).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        domain: "skill",
-        ids: ["skill-1"]
-      })
+      expect.objectContaining({ domain: "skill", ids: ["lib-1"] })
     );
     expect(saveTeam).not.toHaveBeenCalled();
     expect(bookBindingsTarget.value).toBeNull();
@@ -190,14 +200,112 @@ it("keeps selections when switching tabs and saves only the changed tab", async 
   }
 });
 
-it("keeps a failed tab dirty and retries it without saving the successful tab again", async () => {
-  const { app, saveLibrary, element } = mount();
+it("lists every binding at once and unbinds from the overview", async () => {
+  snapshot.value = {
+    skills: [{ id: "s1", title: "风格技能", skillKind: "style", entries: [] }],
+    materials: [
+      {
+        id: "m1",
+        title: "人物素材",
+        materialKind: "character",
+        parentGenre: "",
+        subGenre: "",
+        entries: []
+      }
+    ]
+  };
+  teamCatalog.value = {
+    teams: [{ id: "t1", name: "写作团队", workspaceType: "short" }],
+    enabledTeamIds: {},
+    bookBindings: { "book-1": ["t1"] }
+  };
+  const { app, saveLibrary, element } = mount({
+    initialSkillIds: ["s1", "gone"],
+    initialMaterialIds: ["m1"]
+  });
+  try {
+    for (const name of ["风格技能", "gone", "人物素材", "写作团队"])
+      element("aria-label", `解除绑定 ${name}`);
+    invoke(element("aria-label", "解除绑定 gone"), "onClick");
+    invoke(element("aria-label", "解除绑定 写作团队"), "onClick");
+    await nextTick();
+    await invoke(element("class", "book-bindings-form"), "onSubmit");
+    expect(saveLibrary).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ domain: "skill", ids: ["s1"] })
+    );
+    expect(saveTeam).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ bookId: "book-1", teamIds: [] })
+    );
+  } finally {
+    app.unmount();
+  }
+});
+
+it("lists groups, whole skill libraries and loose skills separately", async () => {
+  snapshot.value = {
+    skills: [
+      skill,
+      { ...skill, id: "lib-2", title: "剧情技能库", skillKind: "plot" },
+      {
+        ...skill,
+        id: "loose",
+        title: "未绑定收纳区",
+        isUnbound: true,
+        entries: [{ id: "entry-1", title: "独立校对技能" }]
+      }
+    ],
+    skillGroups: [
+      { id: "group-1", title: "写作预设", memberIds: ["lib-1", "lib-2"] }
+    ]
+  };
+  const { app, saveLibrary, element, checkbox } = mount({
+    initialSkillIds: ["lib-1"]
+  });
+  try {
+    const groups = element("aria-label", "分组");
+    const libraries = element("aria-label", "技能库", groups.parent ?? body);
+    const individuals = element("aria-label", "单个技能");
+    expect(
+      groups.parent?.children.filter((child) => child.tag === "div")
+    ).toEqual([groups, libraries, individuals]);
+    element("title", "写作预设", groups);
+    element("title", "剧情技能库", libraries);
+    element("title", "独立校对技能", individuals);
+    expect(
+      find(individuals, (node) => node.props.type === "checkbox")
+    ).toBeUndefined();
+    expect(
+      find(body, (node) => node.props.title === "未绑定收纳区")
+    ).toBeUndefined();
+
+    const group = checkbox("写作预设");
+    expect(group.props.indeterminate).toBe(true);
+    invoke(group, "onChange");
+    await nextTick();
+    expect(group.props.checked).toBe(true);
+    expect(checkbox("剧情技能库").props.checked).toBe(true);
+    await invoke(element("class", "book-bindings-form"), "onSubmit");
+    expect(saveLibrary).toHaveBeenCalledExactlyOnceWith({
+      domain: "skill",
+      ids: ["lib-1", "lib-2"],
+      linksByKind: { general: [], plot: ["lib-2"], style: ["lib-1"], other: [] }
+    });
+  } finally {
+    app.unmount();
+  }
+});
+
+it("keeps a failed section dirty and retries it without saving the successful one again", async () => {
+  snapshot.value = { skills: [skill], materials: [material] };
+  const { app, saveLibrary, element, checkbox } = mount();
   try {
     saveLibrary.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    invoke(element("data-picker", "skill"), "onClick");
-    invoke(element("data-picker", "material"), "onClick");
+    invoke(checkbox(skill.title), "onChange");
+    invoke(element("id", "book-bindings-tab-material"), "onClick");
     await nextTick();
-    const form = element("class", "dialog-content book-bindings-content");
+    invoke(checkbox(material.title), "onChange");
+    await nextTick();
+    const form = element("class", "book-bindings-form");
     await invoke(form, "onSubmit");
     await nextTick();
     expect(bookBindingsTarget.value).not.toBeNull();

@@ -29,7 +29,13 @@ function moveFeature(index: number, direction: -1 | 1): void {
   if (target < 0 || target >= features.value.length) return;
   const next = features.value.map(({ id, visible }) => ({ id, visible }));
   [next[index], next[target]] = [next[target]!, next[index]!];
-  emit("update", [...next, { id: "agent-team-marketplace", visible: false }]);
+  next.push({ id: "agent-team-marketplace", visible: false });
+  props.settings.forEach((preference, index) => {
+    if (!next.some(({ id }) => id === preference.id)) {
+      next.splice(index, 0, preference);
+    }
+  });
+  emit("update", next);
 }
 </script>
 

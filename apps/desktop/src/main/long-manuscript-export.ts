@@ -1,8 +1,9 @@
+import { availableExportPath } from "./export-file-paths";
 import { nativeText } from "./native-i18n";
 import type { BrowserWindow } from "electron";
 import { dialog } from "electron";
-import { access, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import {
   ExportLongManuscriptInputSchema,
   ExportLongManuscriptResultSchema,
@@ -16,6 +17,12 @@ import {
   type ManuscriptImageAssets
 } from "./manuscript-export-images";
 import type { BookImageExportLoader } from "./book-images/export-assets";
+import {
+  loadMarkdownImages,
+  markdownHeading,
+  markdownWithImages,
+  writeMarkdownWithAssets
+} from "./manuscript-markdown";
 
 const WINDOWS_RESERVED_NAMES =
   /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu;
@@ -34,24 +41,6 @@ export function safeLongExportName(label: string, fallback = "未命名"): strin
   return safe;
 }
 
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function uniquePath(path: string, extension = ""): Promise<string> {
-  if (!(await pathExists(`${path}${extension}`))) return `${path}${extension}`;
-  for (let index = 2; index < 100_000; index += 1) {
-    const candidate = `${path} (${index})${extension}`;
-    if (!(await pathExists(candidate))) return candidate;
-  }
-  throw new Error("导出目录中存在过多同名文件，请更换导出位置。");
-}
-
 export async function writeLongManuscriptExport(
   parentDirectory: string,
   rawInput: ExportLongManuscriptInput,
@@ -62,8 +51,13 @@ export async function writeLongManuscriptExport(
     parentDirectory,
     `${safeLongExportName(input.title, "长篇")}-导出`
   );
-  const directoryPath = await uniquePath(directoryBase);
+  const directoryPath = await availableExportPath(
+    directoryBase,
+    "",
+    "导出目录中存在过多同名文件，请更换导出位置。"
+  );
   await mkdir(directoryPath, { recursive: false });
+  const extension = input.format === "md" ? ".md" : ".txt";
 
   try {
     if (assets?.size) {
@@ -83,21 +77,25 @@ export async function writeLongManuscriptExport(
 
       const relativeBase = join(...directories, filename).toLocaleLowerCase();
       let suffix = 1;
-      let relativeKey = `${relativeBase}.txt`;
+      let relativeKey = `${relativeBase}${extension}`;
       while (usedRelativePaths.has(relativeKey)) {
         suffix += 1;
-        relativeKey = `${relativeBase} (${suffix}).txt`;
+        relativeKey = `${relativeBase} (${suffix})${extension}`;
       }
       usedRelativePaths.add(relativeKey);
       const targetBase = join(
         parentPath,
         suffix === 1 ? filename : `${filename} (${suffix})`
       );
-      await writeFile(
-        `${targetBase}.txt`,
-        `\ufeff${textWithImagePlaceholders(file.content, assets, true)}`,
-        "utf8"
-      );
+      const content =
+        input.format === "md"
+          ? markdownWithImages(
+              file.content,
+              assets,
+              `${"../".repeat(directories.length)}images`
+            )
+          : `\ufeff${textWithImagePlaceholders(file.content, assets, true)}`;
+      await writeFile(`${targetBase}${extension}`, content, "utf8");
     }
 
     return { directoryPath, fileCount: input.files.length };
@@ -131,20 +129,70 @@ export function combinedLongManuscriptText(
   return `\ufeff${parts.join("\n\n")}\n`;
 }
 
+function combinedLongManuscriptMarkdown(
+  input: ExportLongManuscriptInput,
+  assets: ManuscriptImageAssets,
+  assetFolderLink: string
+): string {
+  const parts = [markdownHeading(1, input.title)];
+  let section = "";
+  for (const file of input.files) {
+    const [nextSection = "", ...labels] = file.path;
+    if (nextSection !== section) {
+      section = nextSection;
+      parts.push(markdownHeading(2, section));
+    }
+    parts.push(markdownHeading(3, labels.join(" / ")));
+    const content = markdownWithImages(file.content, assets, assetFolderLink);
+    if (content.trim()) parts.push(content.replace(/\n+$/u, ""));
+  }
+  return `${parts.join("\n\n")}\n`;
+}
+
 export async function exportLongManuscript(
   window: BrowserWindow,
   rawInput: ExportLongManuscriptInput,
   loadImages?: BookImageExportLoader
 ): Promise<ExportLongManuscriptResult> {
   const input = ExportLongManuscriptInputSchema.parse(rawInput);
-  if (input.mode === "single-txt") {
+  const isMarkdown = input.format === "md";
+  if (input.mode && input.mode !== "folder") {
+    const extension = isMarkdown ? "md" : "txt";
     const selection = await dialog.showSaveDialog(window, {
-      title: nativeText("saveLongExport"),
-      defaultPath: `${safeLongExportName(input.title, "长篇")}.txt`,
-      filters: [{ name: "TXT", extensions: ["txt"] }]
+      title: nativeText(isMarkdown ? "exportMarkdown" : "saveLongExport"),
+      defaultPath: `${safeLongExportName(input.title, "长篇")}.${extension}`,
+      filters: [
+        {
+          name: isMarkdown ? nativeText("markdownDocument") : "TXT",
+          extensions: [extension]
+        }
+      ],
+      ...(isMarkdown
+        ? { properties: ["createDirectory", "showOverwriteConfirmation"] }
+        : {})
     });
     if (selection.canceled || !selection.filePath) {
       return ExportLongManuscriptResultSchema.parse({ status: "cancelled" });
+    }
+    if (isMarkdown) {
+      const filePath =
+        extname(selection.filePath).toLowerCase() === ".md"
+          ? selection.filePath
+          : `${selection.filePath}.md`;
+      const { assets, missingImages } = await loadMarkdownImages(
+        input.book,
+        input.files.map((file) => file.content),
+        loadImages
+      );
+      await writeMarkdownWithAssets(filePath, assets, (link) =>
+        combinedLongManuscriptMarkdown(input, assets, link)
+      );
+      return ExportLongManuscriptResultSchema.parse({
+        status: "saved",
+        filePath,
+        fileCount: 1,
+        missingImages
+      });
     }
     // A single TXT only writes placeholders and never reads image bytes.
     await writeFile(
@@ -168,7 +216,8 @@ export async function exportLongManuscript(
   if (selection.canceled || !parentDirectory) {
     return ExportLongManuscriptResultSchema.parse({ status: "cancelled" });
   }
-  const { assets, missingImages } = await loadManuscriptImages(
+  const loadAssets = isMarkdown ? loadMarkdownImages : loadManuscriptImages;
+  const { assets, missingImages } = await loadAssets(
     input.book,
     input.files.map((file) => file.content),
     loadImages

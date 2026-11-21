@@ -274,17 +274,6 @@ export default {
     modelConfig: "Model settings",
     modelConfigNote:
       "Custom models sync with their name, endpoint, parameters, and API key. The key is stored with the model in your own cloud drive, kept encrypted on this device, and shown masked. DeepWrite-managed models are not synced.",
-    conversations: "Conversations",
-    conversationsNote:
-      "Syncs the agent conversation history of each work in your writing space, including thinking, tool and proposal summaries. Off by default. Attachment text and images are not synced, and proposals awaiting review on another device are read-only here. The work itself must be included in sync.",
-    conversationsNoRemoteDevice:
-      "Conversations sync once another device runs a version that supports it and turns it on.",
-    conversationsLastRun:
-      "Last conversation sync: {uploaded} uploaded, {downloaded} downloaded",
-    conversationWorkPaused: "Work not included in sync",
-    conversationLocalSessions: "{count} on this device",
-    conversationRemoteSessions: "{count} on other devices, about {size}",
-    conversationNone: "No conversations yet",
     selectAll: "Select all",
     selectAllGroup: "Select all in {category}",
     expandGroup: "Expand {category}",

@@ -1,3 +1,4 @@
+import type { LibraryPackageExportDialogState } from "../composables/useLibraryPackageCoordinator";
 import type {
   Book,
   CharacterStructureMutation,
@@ -195,7 +196,6 @@ export interface CreateLongChapterCardDialogModule {
   kind: "create-long-chapter-card";
   volumeTitle: string;
   arcOptions: readonly PopupSelectOption[];
-  source: "chapter-card" | "draft";
   pending: boolean;
 }
 
@@ -262,6 +262,12 @@ export interface ExternalLibraryImportDialogModule {
   preselectedLibraryId?: string;
   selection?: ExternalLibrarySelectionResult;
   pending: boolean;
+}
+
+export interface LibraryPackageExportDialogModule {
+  kind: "library-package-export";
+  target: LibraryPackageExportDialogState;
+  submitting: boolean;
 }
 
 export interface LibraryPackageImportDialogModule {
@@ -344,6 +350,7 @@ export type WorkspaceDialogModule =
   | LongRemovalDialogModule
   | LibraryProjectDialogModule
   | ExternalLibraryImportDialogModule
+  | LibraryPackageExportDialogModule
   | LibraryPackageImportDialogModule
   | LibraryEntryMoveDialogModule
   | LibraryGroupDialogModule
@@ -378,6 +385,7 @@ export const WORKSPACE_DIALOG_KINDS = [
   "long-removal",
   "library-project",
   "external-library-import",
+  "library-package-export",
   "library-package-import",
   "library-entry-move",
   "library-group",
@@ -487,6 +495,8 @@ export interface WorkspaceDialogLayerEmits {
       entryId: string;
     }
   ];
+  closeLibraryPackageExport: [];
+  submitLibraryPackageExport: [];
   closeLibraryPackageImport: [];
   chooseLibraryPackageSource: [sourceKind: LibraryPackageSourceKind];
   restartLibraryPackageImport: [];

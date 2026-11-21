@@ -35,6 +35,7 @@ import { createLongContinuitySelection } from "./longContinuitySelection";
 import { latestCommittedContinuityChapter } from "@deepwrite/contracts/renderer";
 
 const t = createScopedTranslator("workspace.selection");
+const tImpact = createScopedTranslator("workspace.longImpactConfirmation");
 
 export { createLongContinuitySelection } from "./longContinuitySelection";
 export { latestCommittedContinuityChapter } from "@deepwrite/contracts/renderer";
@@ -128,14 +129,6 @@ export interface LongWorkspaceSelection {
     title: string;
     order: number;
     file: LongWorkspaceFileReference;
-  }>;
-  chapterCardVolumeId?: LongVolumeId;
-  chapterCardTabs?: Array<{
-    id: LongChapterCardId;
-    label: string;
-    narrativeOrder?: number;
-    /** Recorded in the continuity ledger, so its narrative slot is fixed. */
-    recorded?: boolean;
   }>;
   title: string;
   breadcrumbs: string[];
@@ -515,107 +508,12 @@ export function createLongPlotPointVolumeSelection(
   };
 }
 
-export function createLongChapterCardVolumeSelection(
-  summary: LongBookSummary,
-  workspaceIndex: LongWorkspaceIndexSnapshot,
-  volumeId: LongVolumeId,
-  preferredChapterCardId?: LongChapterCardId,
-  lookup = createLongChapterLookup(summary, workspaceIndex)
-): LongWorkspaceSelection | undefined {
-  const volume = indexedVolume(summary, workspaceIndex, volumeId, lookup);
-  if (!volume) return undefined;
-  const chapterCards = lookup.chaptersByVolume.get(volumeId) ?? [];
-  const chapterCardTabs = lookup.tabsByVolume.get(volumeId) ?? [];
-  const preferred = preferredChapterCardId
-    ? lookup.cardsByVolume.get(volumeId)?.get(preferredChapterCardId)
-    : undefined;
-  const chapterCard = preferred ?? chapterCards[0];
-  const baseSelection = {
-    key: `plot-design:chapter-cards:${volume.id}`,
-    root: "plot_design" as const,
-    chapterCardVolumeId: volume.id,
-    chapterCardTabs,
-    preferredRole: "book-line" as const
-  };
-  if (!chapterCard) {
-    return {
-      ...baseSelection,
-      title: volume.title,
-      get breadcrumbs() {
-        return [
-          summary.title,
-          t("plotDesign"),
-          t("chapterCards"),
-          volume.title
-        ];
-      },
-      files: [],
-      get description() {
-        return t("emptyChapterCards", { title: volume.title });
-      }
-    };
-  }
-  const entry = lookup.entries.get(chapterCard.id);
-  if (!entry) {
-    return {
-      ...baseSelection,
-      chapterCardId: chapterCard.id,
-      title: chapterCard.title || chapterCard.id,
-      get breadcrumbs() {
-        return [
-          summary.title,
-          t("plotDesign"),
-          t("chapterCards"),
-          volume.title,
-          chapterCard.title
-        ];
-      },
-      files: [],
-      get description() {
-        return t("chapterCardIndexPending", { title: chapterCard.title });
-      }
-    };
-  }
-  const committed = entry.commitId !== null;
-  return {
-    ...baseSelection,
-    chapterCardId: chapterCard.id,
-    title: chapterCard.title,
-    get breadcrumbs() {
-      return [
-        summary.title,
-        t("plotDesign"),
-        t("chapterCards"),
-        volume.title,
-        chapterCard.title
-      ];
-    },
-    files: [
-      {
-        role: "card",
-        get label() {
-          return t("chapterCardContent");
-        },
-        file: entry.card
-      }
-    ],
-    preferredRole: "card",
-    get description() {
-      return committed
-        ? t("chapterCardEditable", {
-            title: volume.title,
-            title2: chapterCard.title
-          })
-        : `${volume.title} · ${chapterCard.title}`;
-    }
-  };
-}
-
 export function createLongChapterSelection(
   summary: LongBookSummary,
   workspaceIndex: LongWorkspaceIndexSnapshot,
   chapterCardId: LongChapterCardId,
-  lookup?: LongChapterLookup
+  lookup?: LongChapterLookup,
+  preferredRole: "body" | "card" = "body"
 ): LongWorkspaceSelection | undefined {
   const chapter = indexedChapterCard(
     summary,
@@ -654,6 +552,13 @@ export function createLongChapterSelection(
     },
     files: [
       {
+        role: "card",
+        get label() {
+          return tImpact("chapterCard");
+        },
+        file: entry.card
+      },
+      {
         role: "body",
         get label() {
           return t("manuscript");
@@ -677,7 +582,7 @@ export function createLongChapterSelection(
         readOnly: true
       }
     ],
-    preferredRole: "body",
+    preferredRole,
     get description() {
       return committed
         ? t("continuityEditable")
@@ -719,6 +624,50 @@ export function reconcileLongWorkspaceSelection(
   selection: LongWorkspaceSelection,
   lookup?: LongChapterLookup
 ): LongWorkspaceSelection | undefined {
+  function legacyDraftRoot(): LongWorkspaceSelection {
+    const tWorkspace = createScopedTranslator("workspace");
+    const title = tWorkspace("catalogWorkspace.manuscript");
+    return {
+      key: "root:draft",
+      root: "draft",
+      title,
+      breadcrumbs: [summary.title, title],
+      files: [],
+      preferredRole: "content",
+      description: tWorkspace(
+        "longWorkspaceResourceTree.editTheManuscriptInVolumeAndChapterCardOrder"
+      )
+    };
+  }
+  const legacyVolumePrefix = "plot-design:chapter-cards:";
+  const legacyChapterPrefix = "plot-design:chapter-card:";
+  if (selection.key === "root:plot-chapter-cards") {
+    return legacyDraftRoot();
+  }
+  if (
+    selection.key.startsWith(legacyVolumePrefix) ||
+    selection.key.startsWith(legacyChapterPrefix)
+  ) {
+    const volumeId = selection.key.startsWith(legacyVolumePrefix)
+      ? selection.key.slice(legacyVolumePrefix.length)
+      : undefined;
+    const chapterCardId =
+      selection.chapterCardId ??
+      (volumeId === undefined
+        ? selection.key.slice(legacyChapterPrefix.length)
+        : (
+            lookup ?? createLongChapterLookup(summary, workspaceIndex)
+          ).chaptersByVolume.get(volumeId)?.[0]?.id);
+    return chapterCardId
+      ? createLongChapterSelection(
+          summary,
+          workspaceIndex,
+          chapterCardId,
+          lookup,
+          "card"
+        )
+      : legacyDraftRoot();
+  }
   if (selection.key.startsWith("root:")) {
     return {
       ...selection,
@@ -732,7 +681,8 @@ export function reconcileLongWorkspaceSelection(
         summary,
         workspaceIndex,
         selection.key.slice("chapter:".length),
-        lookup
+        lookup,
+        selection.preferredRole === "card" ? "card" : "body"
       ),
       selection,
       false
@@ -810,22 +760,6 @@ export function reconcileLongWorkspaceSelection(
         workspaceIndex,
         volumeId,
         selection.plotPointId
-      ),
-      selection,
-      false
-    );
-  }
-  if (selection.key.startsWith("plot-design:chapter-cards:")) {
-    const volumeId = selection.key.slice(
-      "plot-design:chapter-cards:".length
-    ) as LongVolumeId;
-    return preserveRequestedLongFile(
-      createLongChapterCardVolumeSelection(
-        summary,
-        workspaceIndex,
-        volumeId,
-        selection.chapterCardId,
-        lookup
       ),
       selection,
       false

@@ -217,16 +217,12 @@ export const academicT = registerFeatureMessages("academic", {
     exportDialogTitle: "导出学术稿件",
     exportScopeNote:
       "仅导出勾选小节的「正文」，不包含研究底座、论证框架、写作指引与节末状态。默认全选非空正文小节（含摘要与参考文献）。",
-    exportSectionsLegend: "勾选导出范围",
-    exportSelectedCount: "已选 {selected} / {total} 节",
+    exportSectionsLegend: "导出小节",
     exportSelectNonEmpty: "全选非空",
-    exportSelectAll: "全选全部",
     exportClearAll: "清空",
-    exportEmptyBadge: "空",
     exportIncludeChapterHeadings: "包含章标题层级",
     exportIncludeChapterHeadingsHint:
       "开启后按「章 → 节」输出标题层级；关闭后所有选中节平铺输出。",
-    exportFormatLegend: "选择导出格式",
     exportFormatDocxTitle: "Word 文档 (.docx)",
     exportFormatDocxDesc:
       "标准多级标题样式、学术三线表、居中插图图注与公式/代码排版",
@@ -239,13 +235,11 @@ export const academicT = registerFeatureMessages("academic", {
       "复制正文插图到同名 .assets 目录并改写相对路径",
     exportMdImageSingleFileTitle: "单文件 (.md)",
     exportMdImageSingleFileDesc: "仅输出单个 Markdown 文本文件，不复制图片目录",
-    exportSelectAtLeastOneSection: "请至少勾选一个要导出的正文小节。",
-    exportConfirmButton: "选择保存位置",
-    exportingButton: "正在导出...",
     exportedDocxToast: "已导出学术稿件「{title}」(.docx)。",
     exportedMdToast: "已导出学术稿件「{title}」(.md)。",
     exportedWithMissingImagesToast:
       "稿件已导出，其中 {count} 张正文插图在本地缺失。",
+    exportSelectAtLeastOneSection: "请至少勾选一个要导出的正文小节。",
     exportManuscriptFailed: "导出学术稿件失败。"
   },
   "en-US": {
@@ -476,16 +470,12 @@ export const academicT = registerFeatureMessages("academic", {
     exportDialogTitle: "Export Academic Manuscript",
     exportScopeNote:
       "Exports only the Body of selected sections (excluding Foundation, Framework, Briefs, and End States). Non-empty sections (including Abstract and References) are selected by default.",
-    exportSectionsLegend: "Select Sections to Export",
-    exportSelectedCount: "{selected} / {total} selected",
+    exportSectionsLegend: "Sections to export",
     exportSelectNonEmpty: "Select non-empty",
-    exportSelectAll: "Select all",
     exportClearAll: "Clear",
-    exportEmptyBadge: "Empty",
     exportIncludeChapterHeadings: "Include chapter heading hierarchy",
     exportIncludeChapterHeadingsHint:
       "Emit Chapter → Section heading hierarchy; uncheck to flatten sections.",
-    exportFormatLegend: "Export Format",
     exportFormatDocxTitle: "Word Document (.docx)",
     exportFormatDocxDesc:
       "Heading1–3 styles, three-line academic tables, centered figures, formulas & code blocks",
@@ -499,14 +489,12 @@ export const academicT = registerFeatureMessages("academic", {
     exportMdImageSingleFileTitle: "Single file (.md)",
     exportMdImageSingleFileDesc:
       "Write a single .md file directly without copying an assets folder",
-    exportSelectAtLeastOneSection:
-      "Select at least one manuscript section to export.",
-    exportConfirmButton: "Choose Save Location",
-    exportingButton: "Exporting...",
     exportedDocxToast: 'Exported "{title}" (.docx).',
     exportedMdToast: 'Exported "{title}" (.md).',
     exportedWithMissingImagesToast:
       "Manuscript exported with {count} missing figure image(s).",
+    exportSelectAtLeastOneSection:
+      "Select at least one manuscript section to export.",
     exportManuscriptFailed: "Failed to export academic manuscript."
   }
 });

@@ -38,7 +38,7 @@ import {
   type UpdateAcademicReferenceCardInput,
   type UpdateAcademicReferenceCardResult
 } from "@deepwrite/contracts";
-import { createCatalogId } from "@deepwrite/shared";
+import { createCatalogId, reorderItemsByAnchor } from "@deepwrite/shared";
 import {
   captureDocumentVersions,
   DocumentVersionStore
@@ -465,13 +465,30 @@ export async function executeMutateAcademicFramework(params: {
         updatedAt: now
       };
     }
-  } else if (mutation.type === "move") {
+  } else if (mutation.type === "move" || mutation.type === "reorder") {
     const stageIndex = stages.findIndex(({ id }) => id === mutation.stageId);
     if (stageIndex < 0) {
       throw new Error("该论证阶段已删除或不存在。");
     }
-    const targetIndex =
-      mutation.direction === "up" ? stageIndex - 1 : stageIndex + 1;
+    let targetIndex: number;
+    if (mutation.type === "reorder") {
+      const anchorIndex = stages.findIndex(
+        ({ id }) => id === mutation.anchorId
+      );
+      if (anchorIndex < 0) {
+        throw new Error("目标论证阶段已删除或不存在。");
+      }
+      targetIndex = anchorIndex;
+      if (stageIndex !== anchorIndex) {
+        if (mutation.position === "after") targetIndex += 1;
+        if (stageIndex < anchorIndex) targetIndex -= 1;
+      }
+      if (targetIndex === stageIndex) {
+        return await driver.readAcademicBook(projectDirectory, input.bookId);
+      }
+    } else {
+      targetIndex = stageIndex + (mutation.direction === "up" ? -1 : 1);
+    }
     if (targetIndex < 0 || targetIndex >= stages.length) {
       throw new Error("该论证阶段已经位于列表边界。");
     }
@@ -912,6 +929,25 @@ export async function executeMutateAcademicManuscript(params: {
     }
     const [moved] = chapters.splice(idx, 1);
     chapters.splice(targetIdx, 0, moved!);
+  } else if (mutation.type === "reorder-chapter") {
+    if (!chapters.some((c) => c.id === mutation.chapterId)) {
+      throw new Error("该章已删除或不存在。");
+    }
+    if (!chapters.some((c) => c.id === mutation.anchorChapterId)) {
+      throw new Error("目标章已删除或不存在。");
+    }
+    const reordered = reorderItemsByAnchor(
+      chapters,
+      mutation.chapterId,
+      mutation.anchorChapterId,
+      mutation.position
+    );
+    if (!reordered.moved) {
+      return MutateAcademicManuscriptResultSchema.parse({
+        book: await driver.readAcademicBook(projectDirectory, input.bookId)
+      });
+    }
+    chapters.splice(0, chapters.length, ...reordered.items);
   } else if (mutation.type === "delete-chapter") {
     const idx = chapters.findIndex((c) => c.id === mutation.chapterId);
     if (idx < 0) throw new Error("该章已删除或不存在。");
@@ -1180,6 +1216,26 @@ export async function executeMutateAcademicManuscript(params: {
         sections.splice(insertAt, 0, updatedSection);
       }
     }
+  } else if (mutation.type === "reorder-section") {
+    const source = sections.find((s) => s.id === mutation.sectionId);
+    if (!source) throw new Error("该正文小节已删除或不存在。");
+    const anchor = sections.find((s) => s.id === mutation.anchorSectionId);
+    if (!anchor) throw new Error("目标正文小节已删除或不存在。");
+    if ((source.chapterId ?? undefined) !== (anchor.chapterId ?? undefined)) {
+      throw new Error("只能在同级目录内调整小节顺序。");
+    }
+    const reordered = reorderItemsByAnchor(
+      sections,
+      mutation.sectionId,
+      mutation.anchorSectionId,
+      mutation.position
+    );
+    if (!reordered.moved) {
+      return MutateAcademicManuscriptResultSchema.parse({
+        book: await driver.readAcademicBook(projectDirectory, input.bookId)
+      });
+    }
+    sections.splice(0, sections.length, ...reordered.items);
   } else if (mutation.type === "update-section-meta") {
     const idx = sections.findIndex((s) => s.id === mutation.sectionId);
     if (idx < 0) throw new Error("该正文小节已删除或不存在。");

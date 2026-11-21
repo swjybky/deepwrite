@@ -830,4 +830,64 @@ describe("CatalogStore", () => {
       ])
     });
   });
+
+  it("reorders plot stages and list character items by anchor", async () => {
+    const root = await makeTemporaryRoot("deepwrite-catalog-anchor-reorder-");
+    const store = new CatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const created = await store.createShortBook({
+      title: "旧版锚点顺序",
+      genre: "悬疑"
+    });
+    const initialStages = created.plotStages.map(({ id }) => id);
+    const reorderedPlot = await store.mutatePlotStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: {
+        type: "reorder",
+        stageId: initialStages.at(-1)!,
+        anchorId: initialStages[0]!,
+        position: "before"
+      }
+    });
+    expect(reorderedPlot.plotStages[0]?.id).toBe(initialStages.at(-1)!);
+
+    await store.mutateCharacterStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: { type: "setFormat", format: "list" }
+    });
+    await store.mutateCharacterStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: { type: "createItem", itemId: "legacy-char-1", title: "甲" }
+    });
+    await store.mutateCharacterStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: { type: "createItem", itemId: "legacy-char-2", title: "乙" }
+    });
+    await store.mutateCharacterStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: { type: "createItem", itemId: "legacy-char-3", title: "丙" }
+    });
+    const reorderedChar = await store.mutateCharacterStructure({
+      bookId: created.id,
+      baseProjectRevision: 0,
+      mutation: {
+        type: "reorderItem",
+        itemId: "legacy-char-3",
+        anchorId: "legacy-char-1",
+        position: "after"
+      }
+    });
+    expect(
+      reorderedChar.characterStructure.format === "list"
+        ? reorderedChar.characterStructure.items.map(({ id }) => id)
+        : []
+    ).toEqual(["legacy-char-1", "legacy-char-3", "legacy-char-2"]);
+  });
 });

@@ -154,13 +154,118 @@ export interface CreationBookDragPayload {
   position: "before" | "after";
 }
 
+export type CreationTreeReorderPayload =
+  | {
+      kind: "short-plot-stage";
+      bookId: string;
+      stageId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "short-character-item";
+      bookId: string;
+      itemId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "short-draft-section";
+      bookId: string;
+      sectionId: string;
+      anchorSectionId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-worldbuilding-category";
+      bookId: string;
+      categoryId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-worldbuilding-item";
+      bookId: string;
+      categoryId: string;
+      itemId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-character-group";
+      bookId: string;
+      groupId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-character";
+      bookId: string;
+      groupId: string;
+      characterId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-volume";
+      bookId: string;
+      volumeId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-plot-point";
+      bookId: string;
+      volumeId: string;
+      plotPointId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "long-draft-chapter";
+      bookId: string;
+      volumeId: string;
+      chapterCardId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "academic-framework-stage";
+      bookId: string;
+      stageId: string;
+      anchorId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "academic-chapter";
+      bookId: string;
+      chapterId: string;
+      anchorChapterId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "academic-section";
+      bookId: string;
+      sectionId: string;
+      anchorSectionId: string;
+      position: "before" | "after";
+    }
+  | {
+      kind: "mystery-item";
+      bookId: string;
+      itemKind: "truth_doc" | "role" | "act" | "clue_round";
+      id: string;
+      anchorId: string;
+      position: "before" | "after";
+    };
+
 export type {
   LongBookResourceNodeAction,
   LongBookResourceNodeActionPayload
 } from "./longBookAction";
 
 export type LongTreeCollectionKind =
-  "worldbuilding-item" | "character" | "volume" | "plot-point" | "chapter-card";
+  "worldbuilding-item" | "character" | "volume" | "plot-point";
 
 export interface LongTreeCollectionTarget {
   kind: LongTreeCollectionKind;
@@ -192,6 +297,8 @@ export interface ResourceTreeNode {
   shortAgentId?: WorkspaceAgentId;
   /** Identifies the expert-draft section selected by this navigation node. */
   expertSectionId?: string;
+  /** Identifies a short/script enabled plot stage represented by this node. */
+  plotStageId?: string;
   /** Identifies a short/script character item represented by this node. */
   characterItemId?: string;
   /** Marks the selectable character directory in list mode. */
@@ -240,6 +347,10 @@ export interface ResourceTreeNode {
     moveUpDisabled: boolean;
     moveDownDisabled: boolean;
   };
+  academicFrameworkStageItem?: {
+    bookId: string;
+    stageId: string;
+  };
   academicSectionItem?: {
     bookId: string;
     sectionId: string;
@@ -271,6 +382,12 @@ export interface ResourceTreeNode {
   longWorkspaceSelection?: LongWorkspaceSelection;
   /** Identifies one of the fixed long-form character folders. */
   longCharacterGroup?: LongCharacterGroup;
+  /** Identifies a long-form worldbuilding category node. */
+  longWorldbuildingCategoryId?: string;
+  /** True when a long-form draft chapter is already recorded in the continuity ledger. */
+  longDraftChapterRecorded?: boolean;
+  /** True when a long-form volume contains chapters recorded in the continuity ledger. */
+  longVolumeHasRecordedChapters?: boolean;
   /** Identifies a long-form draft volume folder that can add a manuscript section. */
   longDraftVolumeId?: string;
   /** Identifies a left-tree collection whose parent row can create an item. */

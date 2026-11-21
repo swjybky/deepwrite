@@ -95,7 +95,11 @@ import {
   sameCreativePlotStageDefinitions,
   persistCreativePlotStageDefinitions
 } from "./folder-catalog-store/plot-stage-definitions";
-import { createCatalogId, randomHex8 } from "@deepwrite/shared";
+import {
+  createCatalogId,
+  randomHex8,
+  reorderItemsByAnchor
+} from "@deepwrite/shared";
 import { createHash, randomUUID } from "node:crypto";
 import {
   lstat,
@@ -1828,21 +1832,40 @@ export class FolderCatalogStore {
       const now = this.now();
       const mutation = input.mutation;
 
-      if (mutation.type === "move") {
-        const plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
+      if (mutation.type === "move" || mutation.type === "reorder") {
+        let plotStages = manifest.plotStages.map((stage) => ({ ...stage }));
         const stageIndex = plotStages.findIndex(
           ({ id }) => id === mutation.stageId
         );
         if (stageIndex < 0) {
           throw new Error("该剧情结构已删除或不存在。");
         }
-        const targetIndex =
-          mutation.direction === "up" ? stageIndex - 1 : stageIndex + 1;
-        if (targetIndex < 0 || targetIndex >= plotStages.length) {
-          throw new Error("该剧情结构已经位于列表边界。");
+        if (mutation.type === "reorder") {
+          if (!plotStages.some(({ id }) => id === mutation.anchorId)) {
+            throw new Error("目标剧情结构已删除或不存在。");
+          }
+          const reordered = reorderItemsByAnchor(
+            plotStages,
+            mutation.stageId,
+            mutation.anchorId,
+            mutation.position
+          );
+          if (!reordered.moved) {
+            return CreativeBookSchema.parse(
+              (await this.readProject(projectDirectory, "book", input.bookId))
+                .resource
+            );
+          }
+          plotStages = reordered.items;
+        } else {
+          const targetIndex =
+            mutation.direction === "up" ? stageIndex - 1 : stageIndex + 1;
+          if (targetIndex < 0 || targetIndex >= plotStages.length) {
+            throw new Error("该剧情结构已经位于列表边界。");
+          }
+          const [stage] = plotStages.splice(stageIndex, 1);
+          plotStages.splice(targetIndex, 0, stage!);
         }
-        const [stage] = plotStages.splice(stageIndex, 1);
-        plotStages.splice(targetIndex, 0, stage!);
         const definitionsById = new Map(
           registry.creativePlotStages.map((definition) => [
             definition.id,
@@ -2343,6 +2366,23 @@ export class FolderCatalogStore {
               throw new Error("人物条目已经位于列表边界。");
             }
             [items[index], items[target]] = [items[target]!, items[index]!];
+          } else if (mutation.type === "reorderItem") {
+            if (!items.some(({ id }) => id === mutation.anchorId)) {
+              throw new Error("目标人物条目已删除或不存在。");
+            }
+            const reordered = reorderItemsByAnchor(
+              items,
+              mutation.itemId,
+              mutation.anchorId,
+              mutation.position
+            );
+            if (!reordered.moved) {
+              return CreativeBookSchema.parse(
+                (await this.readProject(projectDirectory, "book", input.bookId))
+                  .resource
+              );
+            }
+            items.splice(0, items.length, ...reordered.items);
           } else {
             const documentIndex = documents.findIndex(
               ({ id }) => id === mutation.itemId
@@ -3700,28 +3740,50 @@ export class FolderCatalogStore {
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
-      const sections = [...manifest.draft.sections];
+      let sections = [...manifest.draft.sections];
       const sectionIndex = sections.findIndex(
         ({ id }) => id === input.sectionId
       );
       if (sectionIndex < 0) {
         throw new Error("该正文小节已删除或不存在。");
       }
-      const targetIndex =
-        input.direction === "up" ? sectionIndex - 1 : sectionIndex + 1;
-      if (targetIndex < 0 || targetIndex >= sections.length) {
-        return {
-          bookId: input.bookId,
-          sectionId: input.sectionId,
-          direction: input.direction,
-          moved: false,
-          projectRevision: manifest.revision
-        };
+      if (input.direction !== undefined) {
+        const targetIndex =
+          input.direction === "up" ? sectionIndex - 1 : sectionIndex + 1;
+        if (targetIndex < 0 || targetIndex >= sections.length) {
+          return {
+            bookId: input.bookId,
+            sectionId: input.sectionId,
+            direction: input.direction,
+            moved: false,
+            projectRevision: manifest.revision
+          };
+        }
+        [sections[sectionIndex], sections[targetIndex]] = [
+          sections[targetIndex]!,
+          sections[sectionIndex]!
+        ];
+      } else {
+        const anchorSectionId = input.anchorSectionId!;
+        if (!sections.some(({ id }) => id === anchorSectionId)) {
+          throw new Error("目标正文小节已删除或不存在。");
+        }
+        const reordered = reorderItemsByAnchor(
+          sections,
+          input.sectionId,
+          anchorSectionId,
+          input.position!
+        );
+        if (!reordered.moved) {
+          return {
+            bookId: input.bookId,
+            sectionId: input.sectionId,
+            moved: false,
+            projectRevision: manifest.revision
+          };
+        }
+        sections = reordered.items;
       }
-      [sections[sectionIndex], sections[targetIndex]] = [
-        sections[targetIndex]!,
-        sections[sectionIndex]!
-      ];
       const now = this.now();
       const next = FolderCurrentBookProjectManifestSchema.parse({
         ...manifest,
@@ -3742,7 +3804,9 @@ export class FolderCatalogStore {
       return {
         bookId: input.bookId,
         sectionId: input.sectionId,
-        direction: input.direction,
+        ...(input.direction !== undefined
+          ? { direction: input.direction }
+          : {}),
         moved: true,
         projectRevision: next.revision
       };

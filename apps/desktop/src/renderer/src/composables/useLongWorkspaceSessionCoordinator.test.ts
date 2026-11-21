@@ -333,6 +333,47 @@ describe("long workspace session coordinator", () => {
     expect(harness.refs.activeBookId.value).toBeNull();
   });
 
+  it("keeps the shared long workspace usable when a replacement session mounts", async () => {
+    const pendingSave = deferred<boolean>();
+    const pendingRefresh = deferred<{
+      bookId: string;
+      workspaceIndex: LongWorkspaceIndexSnapshot;
+    }>();
+    const previous = createHarness({
+      getWorkspaceIndex: vi.fn(() => pendingRefresh.promise)
+    });
+    previous.store.publishBook(summary("longbook_a"), index("longbook_a"));
+    previous.store.publishSelection("longbook_a", selection("current"));
+    previous.coordinator.editor.value = editorPort({
+      saveAllChanges: vi.fn(() => pendingSave.promise)
+    });
+    const staleNavigation = previous.coordinator.selectWorkspaceFile(
+      selection("stale")
+    );
+    const staleRefresh =
+      previous.coordinator.refreshActiveWorkspace("longbook_a");
+
+    previous.coordinator.dispose();
+    const anotherBook = summary("longbook_b");
+    const replacement = createHarness({
+      list: vi.fn(async () => listResult([summary("longbook_a"), anotherBook]))
+    });
+    await replacement.coordinator.loadBookList({ notify: true, force: true });
+    pendingSave.resolve(true);
+    pendingRefresh.resolve({
+      bookId: "longbook_a",
+      workspaceIndex: index("longbook_a")
+    });
+
+    expect(await staleNavigation).toBe(false);
+    expect(await staleRefresh).toBe(false);
+    expect(replacement.store.longBooks).toContainEqual(anotherBook);
+    expect(replacement.refs.activeBookId.value).toBe("longbook_a");
+    expect(replacement.refs.selection.value?.key).toBe("current");
+    expect(replacement.refs.activeRefreshStatus.value).toBeNull();
+    expect(replacement.notifications.error).not.toHaveBeenCalled();
+  });
+
   it("keeps the editor writable during a passive window-focus refresh", async () => {
     const pendingRefresh = deferred<{
       bookId: string;

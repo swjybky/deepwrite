@@ -1,0 +1,1931 @@
+{
+  "sourceCommit": "accd0006",
+  "environment": {
+    "os": "macOS 26.5.1",
+    "cpu": "Apple M5",
+    "electron": "42.5.0",
+    "windowCssPx": [
+      1400,
+      800
+    ],
+    "deviceScaleFactor": 2,
+    "chapters": 200,
+    "maxChapterCardsPerPage": 50
+  },
+  "input": {
+    "button": "left",
+    "target": "outer right pane separator",
+    "api": "webContents.sendInputEvent",
+    "motion": "triangle",
+    "rightWidthRangePx": [
+      350,
+      690
+    ],
+    "periodMs": 535,
+    "durationMs": 2200,
+    "sendIntervalTargetMs": 4
+  },
+  "units": "All values in metrics with a Duration suffix are milliseconds for the whole sample. Frame intervals are from requestAnimationFrame. Only instrumented runs include vueRenderCounts.",
+  "groups": {
+    "edit-5000": {
+      "characters": 5000,
+      "mode": "edit",
+      "conversationTurns": 0,
+      "cpuSlowdownRate": 1,
+      "runs": [
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            356,
+            684
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 90.618,
+            "RecalcStyleDuration": 46.726,
+            "ScriptDuration": 30.787,
+            "TaskDuration": 437.094
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            353,
+            690
+          ],
+          "frameIntervals": 135,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 133,
+            "RecalcStyleCount": 411,
+            "LayoutDuration": 115.694,
+            "RecalcStyleDuration": 89.73,
+            "ScriptDuration": 31.149,
+            "TaskDuration": 578.391
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 482,
+          "trustedMoves": 134,
+          "widthChanges": 134,
+          "observedWidthRangePx": [
+            352,
+            687
+          ],
+          "frameIntervals": 135,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 16.9,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 232,
+            "RecalcStyleCount": 708,
+            "LayoutDuration": 288.977,
+            "RecalcStyleDuration": 107.876,
+            "ScriptDuration": 27.522,
+            "TaskDuration": 837.932
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            688
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 233,
+            "RecalcStyleCount": 711,
+            "LayoutDuration": 223.802,
+            "RecalcStyleDuration": 89.042,
+            "ScriptDuration": 20.493,
+            "TaskDuration": 680.978
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 479,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            352,
+            689
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.3,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 133,
+            "RecalcStyleCount": 145,
+            "LayoutDuration": 80.561,
+            "RecalcStyleDuration": 42.053,
+            "ScriptDuration": 29.169,
+            "TaskDuration": 423.127
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 479,
+          "trustedMoves": 134,
+          "widthChanges": 134,
+          "observedWidthRangePx": [
+            353,
+            690
+          ],
+          "frameIntervals": 135,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.3,
+          "rafMaxMs": 17.5,
+          "metrics": {
+            "LayoutCount": 134,
+            "RecalcStyleCount": 413,
+            "LayoutDuration": 115.122,
+            "RecalcStyleDuration": 95.04,
+            "ScriptDuration": 30.909,
+            "TaskDuration": 571.507
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 481,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            687
+          ],
+          "frameIntervals": 135,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.4,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 134,
+            "RecalcStyleCount": 415,
+            "LayoutDuration": 119.777,
+            "RecalcStyleDuration": 95.899,
+            "ScriptDuration": 31.692,
+            "TaskDuration": 592.331
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            352,
+            688
+          ],
+          "frameIntervals": 135,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.1,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 231,
+            "RecalcStyleCount": 705,
+            "LayoutDuration": 273.915,
+            "RecalcStyleDuration": 123.901,
+            "ScriptDuration": 25.38,
+            "TaskDuration": 828.6
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            355,
+            683
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.1,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 82.081,
+            "RecalcStyleDuration": 44.767,
+            "ScriptDuration": 28.544,
+            "TaskDuration": 426.993
+          },
+          "commands": {}
+        }
+      ]
+    },
+    "edit-30000": {
+      "characters": 30000,
+      "mode": "edit",
+      "conversationTurns": 60,
+      "cpuSlowdownRate": 1,
+      "runs": [
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 483,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            353,
+            690
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 133,
+            "RecalcStyleCount": 145,
+            "LayoutDuration": 322.652,
+            "RecalcStyleDuration": 24.069,
+            "ScriptDuration": 30.25,
+            "TaskDuration": 694.698
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            357,
+            685
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.1,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 406,
+            "LayoutDuration": 351.126,
+            "RecalcStyleDuration": 69.46,
+            "ScriptDuration": 32.612,
+            "TaskDuration": 846.842
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 484,
+          "trustedMoves": 134,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            354,
+            689
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 16.8,
+          "rafMaxMs": 17.1,
+          "metrics": {
+            "LayoutCount": 231,
+            "RecalcStyleCount": 706,
+            "LayoutDuration": 543.498,
+            "RecalcStyleDuration": 86.984,
+            "ScriptDuration": 30.41,
+            "TaskDuration": 1120.294
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 483,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            354,
+            683
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 16.9,
+          "rafMaxMs": 17.3,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 408,
+            "LayoutDuration": 292.49,
+            "RecalcStyleDuration": 53.089,
+            "ScriptDuration": 30.563,
+            "TaskDuration": 776.405
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 484,
+          "trustedMoves": 134,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            686
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.3,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 229,
+            "RecalcStyleCount": 700,
+            "LayoutDuration": 536.616,
+            "RecalcStyleDuration": 88.411,
+            "ScriptDuration": 31.066,
+            "TaskDuration": 1142.864
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 481,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            354,
+            687
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 362.449,
+            "RecalcStyleDuration": 24.863,
+            "ScriptDuration": 35.344,
+            "TaskDuration": 823.734
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 481,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            356,
+            684
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.1,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 229,
+            "RecalcStyleCount": 696,
+            "LayoutDuration": 544.279,
+            "RecalcStyleDuration": 92.686,
+            "ScriptDuration": 27.122,
+            "TaskDuration": 1142.124
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 483,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            350,
+            688
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 378.667,
+            "RecalcStyleDuration": 25.541,
+            "ScriptDuration": 34.874,
+            "TaskDuration": 844.175
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            359,
+            683
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.2,
+          "rafMaxMs": 17.6,
+          "metrics": {
+            "LayoutCount": 133,
+            "RecalcStyleCount": 408,
+            "LayoutDuration": 356.676,
+            "RecalcStyleDuration": 68.932,
+            "ScriptDuration": 32.625,
+            "TaskDuration": 881.97
+          },
+          "commands": {}
+        }
+      ]
+    },
+    "edit-30000-slow": {
+      "characters": 30000,
+      "mode": "edit",
+      "conversationTurns": 60,
+      "cpuSlowdownRate": 4,
+      "runs": [
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 499,
+          "trustedMoves": 74,
+          "widthChanges": 74,
+          "observedWidthRangePx": [
+            351,
+            687
+          ],
+          "frameIntervals": 73,
+          "framesOver25ms": 56,
+          "rafP50Ms": 33.3,
+          "rafP95Ms": 50,
+          "rafMaxMs": 50.9,
+          "metrics": {
+            "LayoutCount": 127,
+            "RecalcStyleCount": 391,
+            "LayoutDuration": 1127.715,
+            "RecalcStyleDuration": 187.381,
+            "ScriptDuration": 71.669,
+            "TaskDuration": 2260.462
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 497,
+          "trustedMoves": 132,
+          "widthChanges": 131,
+          "observedWidthRangePx": [
+            350,
+            690
+          ],
+          "frameIntervals": 131,
+          "framesOver25ms": 1,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 33.3,
+          "metrics": {
+            "LayoutCount": 130,
+            "RecalcStyleCount": 141,
+            "LayoutDuration": 844.466,
+            "RecalcStyleDuration": 79.694,
+            "ScriptDuration": 88.19,
+            "TaskDuration": 2010.441
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 499,
+          "trustedMoves": 132,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            355,
+            684
+          ],
+          "frameIntervals": 131,
+          "framesOver25ms": 1,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 33.4,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 404,
+            "LayoutDuration": 839.603,
+            "RecalcStyleDuration": 160.828,
+            "ScriptDuration": 80.435,
+            "TaskDuration": 2155.071
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 497,
+          "trustedMoves": 131,
+          "widthChanges": 130,
+          "observedWidthRangePx": [
+            351,
+            690
+          ],
+          "frameIntervals": 130,
+          "framesOver25ms": 1,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 34,
+          "metrics": {
+            "LayoutCount": 129,
+            "RecalcStyleCount": 392,
+            "LayoutDuration": 844.614,
+            "RecalcStyleDuration": 157.278,
+            "ScriptDuration": 82.329,
+            "TaskDuration": 2181.992
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 502,
+          "trustedMoves": 76,
+          "widthChanges": 76,
+          "observedWidthRangePx": [
+            350,
+            686
+          ],
+          "frameIntervals": 76,
+          "framesOver25ms": 54,
+          "rafP50Ms": 33.2,
+          "rafP95Ms": 34.3,
+          "rafMaxMs": 50.5,
+          "metrics": {
+            "LayoutCount": 130,
+            "RecalcStyleCount": 400,
+            "LayoutDuration": 1031.476,
+            "RecalcStyleDuration": 194.427,
+            "ScriptDuration": 69.837,
+            "TaskDuration": 2238.857
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 498,
+          "trustedMoves": 134,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            689
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 1,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 33.4,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 145,
+            "LayoutDuration": 842.911,
+            "RecalcStyleDuration": 79.734,
+            "ScriptDuration": 77.395,
+            "TaskDuration": 1975.187
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 498,
+          "trustedMoves": 134,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            690
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.5,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 145,
+            "LayoutDuration": 839.621,
+            "RecalcStyleDuration": 80.785,
+            "ScriptDuration": 75.585,
+            "TaskDuration": 1978.066
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 498,
+          "trustedMoves": 131,
+          "widthChanges": 130,
+          "observedWidthRangePx": [
+            358,
+            682
+          ],
+          "frameIntervals": 131,
+          "framesOver25ms": 1,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.5,
+          "rafMaxMs": 32.5,
+          "metrics": {
+            "LayoutCount": 129,
+            "RecalcStyleCount": 396,
+            "LayoutDuration": 823.664,
+            "RecalcStyleDuration": 151.951,
+            "ScriptDuration": 75.343,
+            "TaskDuration": 2102.659
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 499,
+          "trustedMoves": 77,
+          "widthChanges": 76,
+          "observedWidthRangePx": [
+            359,
+            687
+          ],
+          "frameIntervals": 76,
+          "framesOver25ms": 54,
+          "rafP50Ms": 32.9,
+          "rafP95Ms": 35.2,
+          "rafMaxMs": 49.3,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 408,
+            "LayoutDuration": 1050.823,
+            "RecalcStyleDuration": 193.184,
+            "ScriptDuration": 65.91,
+            "TaskDuration": 2247.038
+          },
+          "commands": {}
+        }
+      ]
+    },
+    "preview-30000": {
+      "characters": 30000,
+      "mode": "preview",
+      "conversationTurns": 60,
+      "cpuSlowdownRate": 1,
+      "runs": [
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 479,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            357,
+            683
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.4,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 503.515,
+            "RecalcStyleDuration": 21.408,
+            "ScriptDuration": 35.467,
+            "TaskDuration": 1000.388
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 479,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            689
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 408,
+            "LayoutDuration": 482.521,
+            "RecalcStyleDuration": 51.415,
+            "ScriptDuration": 38.426,
+            "TaskDuration": 1054.289
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 484,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            690
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.5,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 232,
+            "RecalcStyleCount": 708,
+            "LayoutDuration": 898.329,
+            "RecalcStyleDuration": 69.266,
+            "ScriptDuration": 26.89,
+            "TaskDuration": 1440.159
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 482,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            353,
+            683
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.5,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 230,
+            "RecalcStyleCount": 702,
+            "LayoutDuration": 869.994,
+            "RecalcStyleDuration": 70.872,
+            "ScriptDuration": 27.439,
+            "TaskDuration": 1423.411
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 478,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            690
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 144,
+            "LayoutDuration": 459.354,
+            "RecalcStyleDuration": 19.974,
+            "ScriptDuration": 35.664,
+            "TaskDuration": 880.787
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 477,
+          "trustedMoves": 133,
+          "widthChanges": 131,
+          "observedWidthRangePx": [
+            352,
+            690
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.7,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 407,
+            "LayoutDuration": 383.969,
+            "RecalcStyleDuration": 39.593,
+            "ScriptDuration": 27.043,
+            "TaskDuration": 786.08
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 479,
+          "trustedMoves": 133,
+          "widthChanges": 133,
+          "observedWidthRangePx": [
+            351,
+            689
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 406,
+            "LayoutDuration": 397.825,
+            "RecalcStyleDuration": 45.899,
+            "ScriptDuration": 29.738,
+            "TaskDuration": 855.708
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 481,
+          "trustedMoves": 133,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            353,
+            686
+          ],
+          "frameIntervals": 133,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.5,
+          "rafMaxMs": 17.7,
+          "metrics": {
+            "LayoutCount": 227,
+            "RecalcStyleCount": 693,
+            "LayoutDuration": 1041.54,
+            "RecalcStyleDuration": 87.316,
+            "ScriptDuration": 42.369,
+            "TaskDuration": 1672.773
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 483,
+          "trustedMoves": 134,
+          "widthChanges": 132,
+          "observedWidthRangePx": [
+            355,
+            684
+          ],
+          "frameIntervals": 134,
+          "framesOver25ms": 0,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 17.6,
+          "rafMaxMs": 17.8,
+          "metrics": {
+            "LayoutCount": 132,
+            "RecalcStyleCount": 145,
+            "LayoutDuration": 434.512,
+            "RecalcStyleDuration": 22.202,
+            "ScriptDuration": 26.864,
+            "TaskDuration": 827.796
+          },
+          "commands": {}
+        }
+      ]
+    },
+    "preview-30000-slow": {
+      "characters": 30000,
+      "mode": "preview",
+      "conversationTurns": 60,
+      "cpuSlowdownRate": 4,
+      "runs": [
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 500,
+          "trustedMoves": 115,
+          "widthChanges": 115,
+          "observedWidthRangePx": [
+            352,
+            687
+          ],
+          "frameIntervals": 115,
+          "framesOver25ms": 18,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 33.7,
+          "rafMaxMs": 34.3,
+          "metrics": {
+            "LayoutCount": 114,
+            "RecalcStyleCount": 125,
+            "LayoutDuration": 1215.053,
+            "RecalcStyleDuration": 71.084,
+            "ScriptDuration": 81.787,
+            "TaskDuration": 2249.891
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 496,
+          "trustedMoves": 102,
+          "widthChanges": 101,
+          "observedWidthRangePx": [
+            352,
+            690
+          ],
+          "frameIntervals": 101,
+          "framesOver25ms": 31,
+          "rafP50Ms": 17.1,
+          "rafP95Ms": 33.9,
+          "rafMaxMs": 34.3,
+          "metrics": {
+            "LayoutCount": 100,
+            "RecalcStyleCount": 310,
+            "LayoutDuration": 1096.998,
+            "RecalcStyleDuration": 126.912,
+            "ScriptDuration": 87.079,
+            "TaskDuration": 2232.852
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 492,
+          "trustedMoves": 46,
+          "widthChanges": 46,
+          "observedWidthRangePx": [
+            356,
+            677
+          ],
+          "frameIntervals": 45,
+          "framesOver25ms": 45,
+          "rafP50Ms": 49.8,
+          "rafP95Ms": 67.2,
+          "rafMaxMs": 67.5,
+          "metrics": {
+            "LayoutCount": 80,
+            "RecalcStyleCount": 250,
+            "LayoutDuration": 1335.276,
+            "RecalcStyleDuration": 186.23,
+            "ScriptDuration": 66.219,
+            "TaskDuration": 2264.218
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-chapter-card-list",
+          "sentMoves": 499,
+          "trustedMoves": 52,
+          "widthChanges": 52,
+          "observedWidthRangePx": [
+            359,
+            687
+          ],
+          "frameIntervals": 51,
+          "framesOver25ms": 49,
+          "rafP50Ms": 49.4,
+          "rafP95Ms": 50.9,
+          "rafMaxMs": 66.7,
+          "metrics": {
+            "LayoutCount": 91,
+            "RecalcStyleCount": 283,
+            "LayoutDuration": 1389.844,
+            "RecalcStyleDuration": 107.046,
+            "ScriptDuration": 52.764,
+            "TaskDuration": 2232.591
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "long-manuscript",
+          "sentMoves": 499,
+          "trustedMoves": 106,
+          "widthChanges": 105,
+          "observedWidthRangePx": [
+            351,
+            690
+          ],
+          "frameIntervals": 105,
+          "framesOver25ms": 28,
+          "rafP50Ms": 16.9,
+          "rafP95Ms": 34.1,
+          "rafMaxMs": 34.3,
+          "metrics": {
+            "LayoutCount": 104,
+            "RecalcStyleCount": 323,
+            "LayoutDuration": 1127.774,
+            "RecalcStyleDuration": 137.892,
+            "ScriptDuration": 82.997,
+            "TaskDuration": 2243.004
+          },
+          "commands": {}
+        },
+        {
+          "workspace": "short-manuscript",
+          "sentMoves": 499,
+          "trustedMoves": 117,
+          "widthChanges": 117,
+          "observedWidthRangePx": [
+            352,
+            685
+          ],
+          "frameIntervals": 116,
+          "framesOver25ms": 16,
+          "rafP50Ms": 16.7,
+          "rafP95Ms": 34,
+          "rafMaxMs": 34.3,
+          "metrics": {
+            "LayoutCount": 116,
+            "RecalcStyleCount": 128,
+            "LayoutDuration": 1229.909,
+            "RecalcStyleDuration": 61.589,
+            "ScriptDuration": 92.706,
+            "TaskDuration": 2251.822
+          },
+          "commands": {}
+        }
+      ]
+    }
+  },
+  "ablation5000EmptyChat": [
+    {
+      "intervention": "short, original",
+      "workspace": "short-manuscript",
+      "sentMoves": 483,
+      "trustedMoves": 133,
+      "widthChanges": 133,
+      "observedWidthRangePx": [
+        356,
+        683
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.1,
+      "rafMaxMs": 17.7,
+      "metrics": {
+        "LayoutCount": 133,
+        "RecalcStyleCount": 145,
+        "LayoutDuration": 82.314,
+        "RecalcStyleDuration": 43.991,
+        "ScriptDuration": 30.705,
+        "TaskDuration": 423.317
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 135,
+        "WritingWorkspaceModule": 133
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 399
+      }
+    },
+    {
+      "intervention": "ordinary, original",
+      "workspace": "long-manuscript",
+      "sentMoves": 482,
+      "trustedMoves": 133,
+      "widthChanges": 133,
+      "observedWidthRangePx": [
+        351,
+        688
+      ],
+      "frameIntervals": 133,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.1,
+      "rafMaxMs": 17.6,
+      "metrics": {
+        "LayoutCount": 133,
+        "RecalcStyleCount": 411,
+        "LayoutDuration": 122.313,
+        "RecalcStyleDuration": 80.035,
+        "ScriptDuration": 35.165,
+        "TaskDuration": 587.084
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 134,
+        "AsyncComponentWrapper": 133,
+        "LongWorkspaceModule": 133,
+        "LongWorkspaceEditor": 133,
+        "LongManuscriptEditor": 133
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 399
+      }
+    },
+    {
+      "intervention": "ordinary, remove the visible editor v-show binding",
+      "workspace": "long-manuscript",
+      "sentMoves": 482,
+      "trustedMoves": 133,
+      "widthChanges": 132,
+      "observedWidthRangePx": [
+        350,
+        688
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.4,
+      "rafMaxMs": 17.6,
+      "metrics": {
+        "LayoutCount": 133,
+        "RecalcStyleCount": 411,
+        "LayoutDuration": 134.539,
+        "RecalcStyleDuration": 79.613,
+        "ScriptDuration": 36.504,
+        "TaskDuration": 569.082
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 133,
+        "AsyncComponentWrapper": 132,
+        "LongWorkspaceModule": 132
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 398
+      }
+    },
+    {
+      "intervention": "ordinary, container-type: normal",
+      "workspace": "long-manuscript",
+      "sentMoves": 481,
+      "trustedMoves": 133,
+      "widthChanges": 132,
+      "observedWidthRangePx": [
+        354,
+        688
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.2,
+      "rafMaxMs": 17.7,
+      "metrics": {
+        "LayoutCount": 132,
+        "RecalcStyleCount": 144,
+        "LayoutDuration": 119.705,
+        "RecalcStyleDuration": 39.342,
+        "ScriptDuration": 37.431,
+        "TaskDuration": 541.018
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 133,
+        "AsyncComponentWrapper": 132,
+        "LongWorkspaceModule": 132,
+        "LongWorkspaceEditor": 132,
+        "LongManuscriptEditor": 132
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 398
+      }
+    },
+    {
+      "intervention": "ordinary, verify both disabled",
+      "workspace": "long-manuscript",
+      "sentMoves": 479,
+      "trustedMoves": 133,
+      "widthChanges": 132,
+      "observedWidthRangePx": [
+        355,
+        684
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.5,
+      "rafMaxMs": 17.8,
+      "metrics": {
+        "LayoutCount": 132,
+        "RecalcStyleCount": 143,
+        "LayoutDuration": 119.79,
+        "RecalcStyleDuration": 36.083,
+        "ScriptDuration": 37.678,
+        "TaskDuration": 542.18
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 133,
+        "AsyncComponentWrapper": 132,
+        "LongWorkspaceModule": 132
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 398
+      }
+    },
+    {
+      "intervention": "ordinary, baseline after restoring both",
+      "workspace": "long-manuscript",
+      "sentMoves": 480,
+      "trustedMoves": 133,
+      "widthChanges": 132,
+      "observedWidthRangePx": [
+        351,
+        690
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.2,
+      "rafMaxMs": 17.7,
+      "metrics": {
+        "LayoutCount": 132,
+        "RecalcStyleCount": 408,
+        "LayoutDuration": 119.177,
+        "RecalcStyleDuration": 81.552,
+        "ScriptDuration": 31.303,
+        "TaskDuration": 603.56
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 133,
+        "AsyncComponentWrapper": 132,
+        "LongWorkspaceModule": 132,
+        "LongWorkspaceEditor": 132,
+        "LongManuscriptEditor": 132
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 398
+      }
+    },
+    {
+      "intervention": "list, original",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 480,
+      "trustedMoves": 133,
+      "widthChanges": 133,
+      "observedWidthRangePx": [
+        354,
+        683
+      ],
+      "frameIntervals": 133,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 16.8,
+      "rafMaxMs": 17.6,
+      "metrics": {
+        "LayoutCount": 230,
+        "RecalcStyleCount": 702,
+        "LayoutDuration": 261.376,
+        "RecalcStyleDuration": 88.99,
+        "ScriptDuration": 30.833,
+        "TaskDuration": 815.717
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 134,
+        "AsyncComponentWrapper": 133,
+        "LongWorkspaceModule": 133,
+        "LongWorkspaceEditor": 244
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 399
+      }
+    },
+    {
+      "intervention": "list, v-show isolated and width resolved by CSS",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 481,
+      "trustedMoves": 133,
+      "widthChanges": 133,
+      "observedWidthRangePx": [
+        352,
+        689
+      ],
+      "frameIntervals": 133,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.2,
+      "rafMaxMs": 17.7,
+      "metrics": {
+        "LayoutCount": 132,
+        "RecalcStyleCount": 408,
+        "LayoutDuration": 213.118,
+        "RecalcStyleDuration": 73.111,
+        "ScriptDuration": 22.107,
+        "TaskDuration": 693.256
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 134,
+        "AsyncComponentWrapper": 133,
+        "LongWorkspaceModule": 133
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 399
+      }
+    },
+    {
+      "intervention": "list, width resolved by CSS only",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 482,
+      "trustedMoves": 134,
+      "widthChanges": 133,
+      "observedWidthRangePx": [
+        351,
+        688
+      ],
+      "frameIntervals": 134,
+      "framesOver25ms": 0,
+      "rafP50Ms": 16.7,
+      "rafP95Ms": 17.4,
+      "rafMaxMs": 17.7,
+      "metrics": {
+        "LayoutCount": 132,
+        "RecalcStyleCount": 408,
+        "LayoutDuration": 213.203,
+        "RecalcStyleDuration": 79.625,
+        "ScriptDuration": 21.885,
+        "TaskDuration": 703.853
+      },
+      "commands": {},
+      "vueRenderCounts": {
+        "WorkspaceShell": 134,
+        "AsyncComponentWrapper": 133,
+        "LongWorkspaceModule": 133,
+        "LongWorkspaceEditor": 133
+      },
+      "rectReads": {
+        "DIV.desktop-shell": 401
+      }
+    }
+  ],
+  "listGeometryCheck": {
+    "outerWidthsPx": [
+      350,
+      380,
+      460,
+      520,
+      690
+    ],
+    "boundsMatchedForChatTextListEditor": true,
+    "baselineAndCss": {
+      "reference": [
+        {
+          "outer": [
+            1050,
+            0,
+            350,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            1051,
+            101.265625,
+            349,
+            399.6015625,
+            "14px",
+            "15px"
+          ],
+          "list": [
+            1051,
+            518.8671875,
+            349,
+            245.1328125,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            714,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            1020,
+            0,
+            380,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            1021,
+            103.953125,
+            202,
+            642.046875,
+            "15.16px",
+            "15px"
+          ],
+          "list": [
+            1230,
+            43,
+            170,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            684,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            940,
+            0,
+            460,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            941,
+            105.8359375,
+            278,
+            640.1640625,
+            "18.36px",
+            "15px"
+          ],
+          "list": [
+            1226,
+            43,
+            174,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            604,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            880,
+            0,
+            520,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            881,
+            105.8359375,
+            315,
+            640.1640625,
+            "20px",
+            "15px"
+          ],
+          "list": [
+            1203,
+            43,
+            197,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            544,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            710,
+            0,
+            690,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            711,
+            109.4140625,
+            420,
+            636.5859375,
+            "24px",
+            "15px"
+          ],
+          "list": [
+            1138,
+            43,
+            262,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            374,
+            800,
+            "0px",
+            "14px"
+          ]
+        }
+      ],
+      "variant": [
+        {
+          "outer": [
+            1050,
+            0,
+            350,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            1051,
+            101.265625,
+            349,
+            399.6015625,
+            "14px",
+            "15px"
+          ],
+          "list": [
+            1051,
+            518.8671875,
+            349,
+            245.1328125,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            714,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            1020,
+            0,
+            380,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            1021,
+            103.953125,
+            202,
+            642.046875,
+            "15.16px",
+            "15px"
+          ],
+          "list": [
+            1230,
+            43,
+            170,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            684,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            940,
+            0,
+            460,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            941,
+            105.8359375,
+            278,
+            640.1640625,
+            "18.36px",
+            "15px"
+          ],
+          "list": [
+            1226,
+            43,
+            174,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            604,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            880,
+            0,
+            520,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            881,
+            105.8359375,
+            315,
+            640.1640625,
+            "20px",
+            "15px"
+          ],
+          "list": [
+            1203,
+            43,
+            197,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            544,
+            800,
+            "0px",
+            "14px"
+          ]
+        },
+        {
+          "outer": [
+            710,
+            0,
+            690,
+            800,
+            "0px",
+            "14px"
+          ],
+          "text": [
+            711,
+            109.4140625,
+            420,
+            636.5859375,
+            "24px",
+            "15px"
+          ],
+          "list": [
+            1138,
+            43,
+            262,
+            721,
+            "0px",
+            "14px"
+          ],
+          "chat": [
+            336,
+            0,
+            374,
+            800,
+            "0px",
+            "14px"
+          ]
+        }
+      ]
+    },
+    "geometryTuple": [
+      "left",
+      "top",
+      "width",
+      "height",
+      "paddingInlineStart",
+      "fontSize"
+    ]
+  },
+  "listPressureAblation": [
+    {
+      "intervention": "original",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 497,
+      "trustedMoves": 72,
+      "widthChanges": 72,
+      "observedWidthRangePx": [
+        350,
+        689
+      ],
+      "frameIntervals": 71,
+      "framesOver25ms": 56,
+      "rafP50Ms": 33.3,
+      "rafP95Ms": 49.2,
+      "rafMaxMs": 50.8,
+      "metrics": {
+        "LayoutCount": 124,
+        "RecalcStyleCount": 381,
+        "LayoutDuration": 1053.912,
+        "RecalcStyleDuration": 198.659,
+        "ScriptDuration": 86.396,
+        "TaskDuration": 2250.647
+      },
+      "commands": {}
+    },
+    {
+      "intervention": "both isolated",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 500,
+      "trustedMoves": 95,
+      "widthChanges": 95,
+      "observedWidthRangePx": [
+        358,
+        689
+      ],
+      "frameIntervals": 94,
+      "framesOver25ms": 37,
+      "rafP50Ms": 17.4,
+      "rafP95Ms": 33.9,
+      "rafMaxMs": 34.3,
+      "metrics": {
+        "LayoutCount": 94,
+        "RecalcStyleCount": 292,
+        "LayoutDuration": 971.061,
+        "RecalcStyleDuration": 186.921,
+        "ScriptDuration": 92.309,
+        "TaskDuration": 2232.284
+      },
+      "commands": {}
+    },
+    {
+      "intervention": "both isolated",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 499,
+      "trustedMoves": 96,
+      "widthChanges": 96,
+      "observedWidthRangePx": [
+        358,
+        687
+      ],
+      "frameIntervals": 96,
+      "framesOver25ms": 37,
+      "rafP50Ms": 17.2,
+      "rafP95Ms": 34,
+      "rafMaxMs": 34.3,
+      "metrics": {
+        "LayoutCount": 95,
+        "RecalcStyleCount": 294,
+        "LayoutDuration": 989.187,
+        "RecalcStyleDuration": 175.225,
+        "ScriptDuration": 88.146,
+        "TaskDuration": 2247.676
+      },
+      "commands": {}
+    },
+    {
+      "intervention": "original",
+      "workspace": "long-chapter-card-list",
+      "sentMoves": 496,
+      "trustedMoves": 68,
+      "widthChanges": 68,
+      "observedWidthRangePx": [
+        352,
+        690
+      ],
+      "frameIntervals": 68,
+      "framesOver25ms": 56,
+      "rafP50Ms": 33.3,
+      "rafP95Ms": 50.1,
+      "rafMaxMs": 51,
+      "metrics": {
+        "LayoutCount": 117,
+        "RecalcStyleCount": 360,
+        "LayoutDuration": 1079.963,
+        "RecalcStyleDuration": 201.123,
+        "ScriptDuration": 75.502,
+        "TaskDuration": 2240.345
+      },
+      "commands": {}
+    }
+  ],
+  "separateUnthrottledTrace": {
+    "durationMs": 1500,
+    "characters": 30000,
+    "conversationTurns": 60,
+    "mode": "edit",
+    "perWorkspace": {
+      "short": {
+        "Layout": {
+          "events": 91,
+          "summedEventMs": 250.723
+        },
+        "UpdateLayoutTree": {
+          "events": 94,
+          "summedEventMs": 17.914
+        },
+        "PrePaint": {
+          "events": 187,
+          "summedEventMs": 90.525
+        },
+        "Paint": {
+          "events": 1112,
+          "summedEventMs": 97.601
+        },
+        "RasterTask": {
+          "events": 1124,
+          "summedEventMs": 14.83
+        }
+      },
+      "long": {
+        "Layout": {
+          "events": 93,
+          "summedEventMs": 238.89
+        },
+        "UpdateLayoutTree": {
+          "events": 95,
+          "summedEventMs": 15.977
+        },
+        "PrePaint": {
+          "events": 186,
+          "summedEventMs": 91.931
+        },
+        "Paint": {
+          "events": 1296,
+          "summedEventMs": 98.166
+        },
+        "RasterTask": {
+          "events": 1213,
+          "summedEventMs": 13.859
+        }
+      },
+      "list": {
+        "Layout": {
+          "events": 156,
+          "summedEventMs": 387.494
+        },
+        "UpdateLayoutTree": {
+          "events": 160,
+          "summedEventMs": 14.69
+        },
+        "PrePaint": {
+          "events": 186,
+          "summedEventMs": 119.676
+        },
+        "Paint": {
+          "events": 11828,
+          "summedEventMs": 112.56
+        },
+        "RasterTask": {
+          "events": 1413,
+          "summedEventMs": 14.607
+        },
+        "chapterCardPaintEvents": {
+          "ARTICLE class='long-story-plot-card is-active'": 75,
+          "BUTTON class='long-story-plot-card-main'": 3605,
+          "ARTICLE class='long-story-plot-card'": 3060,
+          "DIV class='long-story-plot-card-actions long-manuscript-card-actions'": 3655
+        }
+      }
+    }
+  }
+}

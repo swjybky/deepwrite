@@ -12,7 +12,10 @@ import {
 vi.mock("electron", () => ({}));
 
 import { scanLibraryPackageSource } from "../utilities/library-package/scan-source";
-import { availableArchivePath, writeArchive } from "./library-package-export";
+import {
+  availableExportPath,
+  writeExportFileAtomically
+} from "./export-file-paths";
 import { createZip } from "./zip-writer";
 
 const NOW = "2026-10-09T08:00:00.000Z";
@@ -65,8 +68,8 @@ describe("library package ZIP", () => {
       },
       { locale: "zh-CN", generator: "DeepWrite test", exportedAt: NOW }
     );
-    const path = await availableArchivePath(root, layout.rootName);
-    await writeArchive(
+    const path = await availableExportPath(join(root, layout.rootName), ".zip");
+    await writeExportFileAtomically(
       path,
       createZip(
         layout.files.map(({ path: name, content }) => ({
@@ -105,7 +108,7 @@ describe("library package ZIP", () => {
     const root = await temporaryRoot();
     await writeFile(join(root, "人设.zip"), "old");
     await writeFile(join(root, "人设 (2).zip"), "old");
-    expect(await availableArchivePath(root, "人设")).toBe(
+    expect(await availableExportPath(join(root, "人设"), ".zip")).toBe(
       join(root, "人设 (3).zip")
     );
   });

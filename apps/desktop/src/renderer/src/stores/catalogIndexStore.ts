@@ -367,7 +367,6 @@ export const useCatalogIndexStore = defineStore("catalogIndex", () => {
     invalidateDocument,
     clearDocumentCache,
     documentCacheStats,
-    clear,
-    dispose
+    clear
   };
 });

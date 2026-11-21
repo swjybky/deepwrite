@@ -7,6 +7,7 @@ import type {
   BookResourceDialogMode,
   CatalogResourceNodeActionPayload,
   CatalogLibraryEntryDragPayload,
+  CreationTreeReorderPayload,
   DialogMode,
   LongBookResourceNodeActionPayload,
   LongTreeItemAction,
@@ -81,6 +82,7 @@ const emit = defineEmits<{
   resourceAction: [payload: ResourceSectionActionPayload];
   resourceNodeAction: [payload: CatalogResourceNodeActionPayload];
   moveLibraryEntry: [payload: CatalogLibraryEntryDragPayload];
+  reorderCreationTreeNode: [payload: CreationTreeReorderPayload];
   createExpertSection: [node: ResourceTreeNode];
   createLongDraftSection: [node: ResourceTreeNode];
   longDraftSectionAction: [
@@ -417,6 +419,7 @@ function activateNav(id: "create-book" | PrimaryFeatureId): void {
         @resource-action="emit('resourceAction', $event)"
         @resource-node-action="emit('resourceNodeAction', $event)"
         @move-library-entry="emit('moveLibraryEntry', $event)"
+        @reorder-creation-tree-node="emit('reorderCreationTreeNode', $event)"
         @create-expert-section="emit('createExpertSection', $event)"
         @create-long-draft-section="emit('createLongDraftSection', $event)"
         @long-draft-section-action="

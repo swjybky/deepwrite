@@ -568,4 +568,68 @@ describe("useShortWorkspaceStructureCoordinator", () => {
     expect(full.coordinator.pendingExpertSectionCreation.value).toBeNull();
     expect(full.apiMocks.createDraftSection).not.toHaveBeenCalled();
   });
+
+  it("reorders plot stages, character items, and draft sections via reorderShortTreeNode", async () => {
+    const harness = createHarness();
+    harness.apiMocks.moveDraftSection.mockResolvedValue({
+      bookId: "book-1",
+      sectionId: "section-2",
+      moved: true,
+      projectRevision: 2
+    });
+
+    await harness.coordinator.reorderShortTreeNode({
+      kind: "short-plot-stage",
+      bookId: "book-1",
+      stageId: "plot-b",
+      anchorId: "plot-a",
+      position: "before"
+    });
+    expect(harness.apiMocks.mutatePlotStructure).toHaveBeenCalledWith({
+      bookId: "book-1",
+      baseProjectRevision: 1,
+      mutation: {
+        type: "reorder",
+        stageId: "plot-b",
+        anchorId: "plot-a",
+        position: "before"
+      }
+    });
+
+    await harness.coordinator.reorderShortTreeNode({
+      kind: "short-character-item",
+      bookId: "book-1",
+      itemId: "char-2",
+      anchorId: "char-1",
+      position: "before"
+    });
+    expect(harness.apiMocks.mutateCharacterStructure).toHaveBeenCalledWith({
+      bookId: "book-1",
+      baseProjectRevision: 1,
+      mutation: {
+        type: "reorderItem",
+        itemId: "char-2",
+        anchorId: "char-1",
+        position: "before"
+      }
+    });
+
+    const previousSelected = harness.selectedResourceId.value;
+    await harness.coordinator.reorderShortTreeNode({
+      kind: "short-draft-section",
+      bookId: "book-1",
+      sectionId: "section-2",
+      anchorSectionId: "section-1",
+      position: "before"
+    });
+    expect(harness.apiMocks.moveDraftSection).toHaveBeenCalledWith({
+      bookId: "book-1",
+      sectionId: "section-2",
+      anchorSectionId: "section-1",
+      position: "before",
+      baseProjectRevision: 1
+    });
+    expect(harness.selectedResourceId.value).toBe(previousSelected);
+    expect(harness.refresh).toHaveBeenCalledTimes(3);
+  });
 });

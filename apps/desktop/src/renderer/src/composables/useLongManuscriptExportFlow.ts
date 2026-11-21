@@ -143,7 +143,8 @@ export function createLongManuscriptExportFlow(
                 : {})
             }
           )),
-          mode: request.mode ?? "folder"
+          mode: request.mode ?? "folder",
+          ...(request.format ? { format: request.format } : {})
         };
         if (
           !context.leaseIsCurrent(exportLease) ||
@@ -163,12 +164,14 @@ export function createLongManuscriptExportFlow(
             );
             return;
           }
+          const format = request.format === "md" ? "Markdown" : "TXT";
           uiMessage.success(
-            request.mode === "single-txt"
-              ? t("exportedAsSingleTxtFile", { title: target.title })
-              : t("exportedAsTxtFiles", {
+            "filePath" in result
+              ? t("exportedAsSingleFile", { title: target.title, format })
+              : t("exportedAsFiles", {
                   title: target.title,
-                  fileCount: result.fileCount
+                  fileCount: result.fileCount,
+                  format
                 })
           );
         }

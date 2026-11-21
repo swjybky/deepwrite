@@ -37,7 +37,7 @@ export async function runSync(
   direction: SyncDirection,
   signal: AbortSignal,
   adoption?: SyncAdoption
-): Promise<{ works: { key: string; title: string }[] }> {
+): Promise<void> {
   let metadata = await loadSyncMetadata(options);
   const config = metadata.config;
   if (!config?.spaceId) throw new Error("请先连接并选择同步空间。");
@@ -49,10 +49,6 @@ export async function runSync(
   };
   await options.workspace.recover();
   const snapshot = await options.workspace.list();
-  // Conversations follow the works this device held when the run started.
-  const works = snapshot.items
-    .filter((item) => item.kind === "book" || item.kind === "long-book")
-    .map((item) => ({ key: syncKey(item), title: item.title }));
   state.progress = {
     ...state.progress,
     phase: "checking",
@@ -133,7 +129,7 @@ export async function runSync(
       total: keys.length,
       ...syncProgressTitle("confirmFirst")
     };
-    return { works: [] };
+    return;
   }
   metadata = { ...metadata, firstSyncConfirmed: true };
   await options.metadata.write(metadata);
@@ -319,5 +315,4 @@ export async function runSync(
       { uploaded, downloaded, issues: state.issues.length }
     )
   };
-  return { works };
 }

@@ -810,4 +810,74 @@ describe("FolderCatalogStore: drafts-and-imports", () => {
       skills: []
     });
   });
+
+  it("reorders draft sections by anchor before/after and preserves section contents", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-draft-anchor-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createShortBook(
+      { title: "正文锚点排序", genre: "其他" },
+      join(root, "books")
+    );
+    const second = await store.createDraftSection({
+      bookId: opened.resource.id,
+      title: "第二节",
+      baseProjectRevision: 0
+    });
+    const third = await store.createDraftSection({
+      bookId: opened.resource.id,
+      title: "第三节",
+      baseProjectRevision: 1
+    });
+    const initialIds = asCreativeBook(opened.resource).draft.sections.map(
+      ({ id }) => id
+    );
+    const firstId = initialIds[0]!;
+
+    const moved = await store.moveDraftSection({
+      bookId: opened.resource.id,
+      sectionId: third.id,
+      anchorSectionId: firstId,
+      position: "before",
+      baseProjectRevision: 2
+    });
+    expect(moved).toMatchObject({
+      sectionId: third.id,
+      moved: true,
+      projectRevision: 3
+    });
+
+    const afterFirst = asCreativeBook((await store.snapshot()).books[0]);
+    expect(afterFirst.draft.sections.map(({ id }) => id)).toEqual([
+      third.id,
+      ...initialIds,
+      second.id
+    ]);
+
+    const noop = await store.moveDraftSection({
+      bookId: opened.resource.id,
+      sectionId: firstId,
+      anchorSectionId: third.id,
+      position: "after",
+      baseProjectRevision: 3
+    });
+    expect(noop).toMatchObject({ moved: false, projectRevision: 3 });
+
+    const movedAfter = await store.moveDraftSection({
+      bookId: opened.resource.id,
+      sectionId: third.id,
+      anchorSectionId: second.id,
+      position: "after",
+      baseProjectRevision: 3
+    });
+    expect(movedAfter).toMatchObject({ moved: true, projectRevision: 4 });
+    const finalBook = asCreativeBook((await store.snapshot()).books[0]);
+    expect(finalBook.draft.sections.map(({ id }) => id)).toEqual([
+      ...initialIds,
+      second.id,
+      third.id
+    ]);
+  });
 });

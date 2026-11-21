@@ -999,7 +999,7 @@ export function useCatalogLibraryTransactionsCoordinator(
       payload.action === "export-library" ||
       payload.action === "export-group"
     ) {
-      void libraryPackage.exportPackage(payload);
+      libraryPackage.openExport(payload);
       return;
     }
     if (

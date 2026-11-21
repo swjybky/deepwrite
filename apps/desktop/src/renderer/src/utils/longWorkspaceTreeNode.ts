@@ -15,6 +15,8 @@ export function createLongWorkspaceTreeNode(book: LongBookSummary) {
       badge?: string;
       children?: ResourceTreeNode[];
       longCharacterGroup?: LongCharacterGroup;
+      longWorldbuildingCategoryId?: string;
+      longVolumeHasRecordedChapters?: boolean;
       selectableBranch?: boolean;
       readOnly?: boolean;
       longTreeCollection?: ResourceTreeNode["longTreeCollection"];
@@ -29,6 +31,12 @@ export function createLongWorkspaceTreeNode(book: LongBookSummary) {
     ...(options.children?.length ? { children: options.children } : {}),
     ...(options.longCharacterGroup
       ? { longCharacterGroup: options.longCharacterGroup }
+      : {}),
+    ...(options.longWorldbuildingCategoryId
+      ? { longWorldbuildingCategoryId: options.longWorldbuildingCategoryId }
+      : {}),
+    ...(options.longVolumeHasRecordedChapters
+      ? { longVolumeHasRecordedChapters: true }
       : {}),
     ...(options.longTreeCollection
       ? { longTreeCollection: options.longTreeCollection }

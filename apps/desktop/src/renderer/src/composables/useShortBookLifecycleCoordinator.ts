@@ -180,7 +180,8 @@ const MANUSCRIPT_EXPORT_FORMAT_LABELS: Record<
 > = {
   docx: "DOCX",
   txt: "TXT",
-  epub: "EPUB"
+  epub: "EPUB",
+  md: "Markdown"
 };
 
 /** Owns whole-book short/script transactions and their durable cleanup. */

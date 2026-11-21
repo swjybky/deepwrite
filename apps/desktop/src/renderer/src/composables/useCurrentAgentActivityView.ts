@@ -48,7 +48,10 @@ export function useCurrentAgentActivityView(
             LONG_WORKSPACE_ROOT_LABELS[options.longRoot.value]
         ),
         targetResourceId: options.longResourceId.value,
-        ...(chapterCardId ? { chapterCardId } : {})
+        ...(chapterCardId ? { chapterCardId } : {}),
+        ...(chapterCardId && options.longRoot.value === "plot_design"
+          ? { chapterCardView: "card" }
+          : {})
       };
     }
     if (options.activeFeature.value !== "conversation") return null;

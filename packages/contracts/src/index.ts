@@ -93,7 +93,6 @@ export { LibraryManagementScopeSchema } from "./library-management-scope";
 
 export * from "./device-sync";
 export * from "./device-sync-commands";
-export * from "./device-sync-conversation-commands";
 
 export * from "./conversation-history";
 

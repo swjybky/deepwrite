@@ -69,7 +69,6 @@ export interface LongChapterCardCreateTarget {
     readonly value: string;
     readonly label: string;
   }>;
-  readonly source: "chapter-card" | "draft";
 }
 
 export interface LongVolumeCreateTarget {
@@ -651,7 +650,6 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
     clearDialogTargets,
     clearActiveBook,
     resetPendingState,
-    clear,
-    dispose
+    clear
   };
 });

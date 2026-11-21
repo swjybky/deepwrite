@@ -232,6 +232,14 @@ export const PlotStructureMutationSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("reorder"),
+      stageId: CreativePlotStageIdSchema,
+      anchorId: CreativePlotStageIdSchema,
+      position: z.enum(["before", "after"])
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("setEnabled"),
       stageId: CreativePlotStageIdSchema,
       enabled: z.boolean()
@@ -283,6 +291,14 @@ export const CharacterStructureMutationSchema = z.discriminatedUnion("type", [
       type: z.literal("moveItem"),
       itemId: CatalogIdSchema,
       direction: z.enum(["up", "down"])
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("reorderItem"),
+      itemId: CatalogIdSchema,
+      anchorId: CatalogIdSchema,
+      position: z.enum(["before", "after"])
     })
     .strict(),
   z.object({ type: z.literal("deleteItem"), itemId: CatalogIdSchema }).strict()
@@ -452,19 +468,51 @@ export type DeleteDraftSectionResult = z.infer<
   typeof DeleteDraftSectionResultSchema
 >;
 
-export const MoveDraftSectionInputSchema = z.object({
-  bookId: CatalogIdSchema,
-  sectionId: DraftSectionIdSchema,
-  direction: z.enum(["up", "down"]),
-  baseProjectRevision: z.number().int().nonnegative().optional(),
-  force: z.boolean().optional()
-});
+export const MoveDraftSectionInputSchema = z
+  .object({
+    bookId: CatalogIdSchema,
+    sectionId: DraftSectionIdSchema,
+    direction: z.enum(["up", "down"]).optional(),
+    anchorSectionId: DraftSectionIdSchema.optional(),
+    position: z.enum(["before", "after"]).optional(),
+    baseProjectRevision: z.number().int().nonnegative().optional(),
+    force: z.boolean().optional()
+  })
+  .superRefine((input, context) => {
+    const hasDirection = input.direction !== undefined;
+    const hasAnchorId = input.anchorSectionId !== undefined;
+    const hasPosition = input.position !== undefined;
+    const hasAnchor = hasAnchorId || hasPosition;
+    if (hasDirection === hasAnchor) {
+      context.addIssue({
+        code: "custom",
+        path: [hasDirection ? "direction" : "anchorSectionId"],
+        message: "Specify either direction or anchorSectionId with position."
+      });
+      return;
+    }
+    if (hasAnchor && (!hasAnchorId || !hasPosition)) {
+      context.addIssue({
+        code: "custom",
+        path: [hasAnchorId ? "position" : "anchorSectionId"],
+        message: "Both anchorSectionId and position are required together."
+      });
+      return;
+    }
+    if (hasAnchorId && input.anchorSectionId === input.sectionId) {
+      context.addIssue({
+        code: "custom",
+        path: ["anchorSectionId"],
+        message: "Cannot move a section relative to itself."
+      });
+    }
+  });
 export type MoveDraftSectionInput = z.infer<typeof MoveDraftSectionInputSchema>;
 
 export const MoveDraftSectionResultSchema = z.object({
   bookId: CatalogIdSchema,
   sectionId: DraftSectionIdSchema,
-  direction: z.enum(["up", "down"]),
+  direction: z.enum(["up", "down"]).optional(),
   moved: z.boolean(),
   projectRevision: z.number().int().nonnegative()
 });

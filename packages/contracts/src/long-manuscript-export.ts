@@ -15,9 +15,18 @@ export type LongManuscriptExportSection = z.infer<
   typeof LongManuscriptExportSectionSchema
 >;
 
-export const LongManuscriptExportModeSchema = z.enum(["folder", "single-txt"]);
+export const LongManuscriptExportModeSchema = z.enum([
+  "folder",
+  "single-file",
+  "single-txt"
+]);
 export type LongManuscriptExportMode = z.infer<
   typeof LongManuscriptExportModeSchema
+>;
+
+export const LongManuscriptExportFormatSchema = z.enum(["txt", "md"]);
+export type LongManuscriptExportFormat = z.infer<
+  typeof LongManuscriptExportFormatSchema
 >;
 
 export const LongManuscriptExportFileSchema = z
@@ -37,6 +46,7 @@ export const ExportLongManuscriptInputSchema = z
     book: ChatAssistantProjectRefSchema,
     title: z.string().trim().min(1).max(256),
     mode: LongManuscriptExportModeSchema.optional(),
+    format: LongManuscriptExportFormatSchema.optional(),
     sections: z.array(LongManuscriptExportSectionSchema).min(1).max(4),
     files: z.array(LongManuscriptExportFileSchema).max(500_000)
   })

@@ -782,6 +782,9 @@ function createBookProjection(book: Book): {
       icon: "file",
       catalogNodeType: "document",
       stageCategoryId: item.stageId ?? "other",
+      ...(item.stageId && enabledPlotStageById.has(item.stageId)
+        ? { plotStageId: item.stageId }
+        : {}),
       workspaceType: book.bookType,
       ...(item.stageId ? {} : { muted: false })
     };

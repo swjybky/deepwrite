@@ -408,17 +408,6 @@ describe("useWorkspaceResourceTreeCoordinator", () => {
         branchKey: "plot-design:plot-points:volume_one"
       },
       {
-        value: selection(
-          "plot-design:chapter-cards:volume_one",
-          "plot_design",
-          {
-            chapterCardId: "chapter_one"
-          }
-        ),
-        leftTreeKey: "plot-design:chapter-card:chapter_one",
-        branchKey: "plot-design:chapter-cards:volume_one"
-      },
-      {
         value: selection("continuity:snapshot", "continuity_ledger", {
           preferredFileId: "file_snapshot"
         }),

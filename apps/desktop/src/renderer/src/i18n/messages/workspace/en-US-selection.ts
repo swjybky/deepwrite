@@ -23,13 +23,6 @@ export default {
   plotPoints: "Plot points",
   emptyVolumePlot:
     "{title} has no plot points yet. Use the plus button beside the volume to create one.",
-  chapterCards: "Chapter cards",
-  emptyChapterCards:
-    "{title} has no chapter cards yet. Use the plus button beside the chapter card tabs to create one.",
-  chapterCardIndexPending: "The file index for {title} is not ready yet.",
-  chapterCardContent: "Chapter card content",
-  chapterCardEditable:
-    "{title} · {title2}; continuity records exist, and the chapter card remains editable.",
   manuscript: "Manuscript",
   chapterEndState: "Chapter-end state",
   nextChapterHandoff: "Next chapter handoff",

@@ -87,6 +87,7 @@ export interface LongWorkspacePresentationCoordinatorOptions {
 
 export interface LongWorkspacePresentationCoordinator {
   activeLongRoot: ComputedRef<LongWorkspaceRuntimeContext["activeRoot"]>;
+  activeLongAgentRoot: ComputedRef<LongWorkspaceRuntimeContext["activeRoot"]>;
   activeLongChapterWriterEnabled: ComputedRef<boolean>;
   activeLongAgentProfile: ComputedRef<LongAgentProfile | null>;
   activeLongRuntimeContext: ComputedRef<LongWorkspaceRuntimeContext | null>;
@@ -150,6 +151,21 @@ export function useLongWorkspacePresentationCoordinator(
     () => options.long.selection.value?.root ?? "worldbuilding"
   );
 
+  const activeLongSelectionFile = computed(() => {
+    const context = options.long.fileContext.value;
+    if (context?.bookId !== options.long.activeBookSummary.value?.id) {
+      return undefined;
+    }
+    return options.long.selection.value?.files.find(
+      ({ file }) => file.id === context?.fileId
+    );
+  });
+  const activeLongAgentRoot = computed(() =>
+    activeLongSelectionFile.value?.role === "card"
+      ? "plot_design"
+      : activeLongRoot.value
+  );
+
   const chapterPresentation = computed(() => {
     const index = options.long.workspaceIndex.value;
     const byCardId = new Map<
@@ -184,7 +200,7 @@ export function useLongWorkspacePresentationCoordinator(
 
   const activeLongAgentProfile = computed<LongAgentProfile | null>(() => {
     if (!options.long.activeBookSummary.value) return null;
-    const agentId = resolveLongAgentIdForRoot(activeLongRoot.value);
+    const agentId = resolveLongAgentIdForRoot(activeLongAgentRoot.value);
     return (
       options.long.agentSettings.value.agents.find(
         (profile) => profile.id === agentId
@@ -206,22 +222,16 @@ export function useLongWorkspacePresentationCoordinator(
         return null;
       }
       const selection = options.long.selection.value;
-      const candidateFileContext = options.long.fileContext.value;
-      const fileContext =
-        candidateFileContext?.bookId === summary.id &&
-        selection?.files.some(
-          ({ file }) => file.id === candidateFileContext.fileId
-        )
-          ? candidateFileContext
-          : null;
+      const selectionFile = activeLongSelectionFile.value;
+      if (selection?.key.startsWith("chapter:") && !selectionFile) return null;
       return {
         bookId: summary.id,
         title: summary.title,
-        activeRoot: activeLongRoot.value,
+        activeRoot: activeLongAgentRoot.value,
         activeAgentId: profile.id,
-        ...(fileContext
+        ...(selectionFile
           ? {
-              activeFileId: fileContext.fileId
+              activeFileId: selectionFile.file.id
             }
           : {}),
         ...(selection?.chapterCardId
@@ -364,6 +374,7 @@ export function useLongWorkspacePresentationCoordinator(
 
   return {
     activeLongRoot,
+    activeLongAgentRoot,
     activeLongChapterWriterEnabled,
     activeLongAgentProfile,
     activeLongRuntimeContext,

@@ -1057,6 +1057,14 @@ export const AcademicFrameworkMutationSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("reorder"),
+      stageId: AcademicFrameworkStageIdSchema,
+      anchorId: AcademicFrameworkStageIdSchema,
+      position: z.enum(["before", "after"])
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("setEnabled"),
       stageId: AcademicFrameworkStageIdSchema,
       enabled: z.boolean()
@@ -1195,6 +1203,14 @@ export const AcademicManuscriptMutationSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("reorder-chapter"),
+      chapterId: CatalogIdSchema,
+      anchorChapterId: CatalogIdSchema,
+      position: z.enum(["before", "after"])
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("delete-chapter"),
       chapterId: CatalogIdSchema,
       sectionAction: z.enum(["unassign", "reject"]).optional()
@@ -1229,6 +1245,14 @@ export const AcademicManuscriptMutationSchema = z.discriminatedUnion("type", [
       direction: z.enum(["up", "down"]).optional(),
       chapterId: CatalogIdSchema.nullable().optional(),
       afterSectionId: AcademicSectionIdSchema.nullable().optional()
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("reorder-section"),
+      sectionId: AcademicSectionIdSchema,
+      anchorSectionId: AcademicSectionIdSchema,
+      position: z.enum(["before", "after"])
     })
     .strict(),
   z

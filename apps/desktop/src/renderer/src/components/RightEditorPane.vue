@@ -996,6 +996,20 @@ onBeforeUnmount(() => {
 
       <slot name="document-heading">
         <input
+          v-if="isLibraryOverview"
+          :value="
+            translate(
+              document.domain === 'skill'
+                ? 'workspace.catalogWorkspace.libraryDescription'
+                : 'workspace.catalogWorkspace.libraryIntroduction'
+            )
+          "
+          class="document-title-input"
+          readonly
+          :aria-label="t('documentTitle')"
+        />
+        <input
+          v-else
           v-model="title"
           class="document-title-input"
           :readonly="isTitleReadOnly"

@@ -182,6 +182,7 @@ describe("useAgentActivityCoordinator", () => {
       agentLabel: "长篇智能体",
       contextLabel: "测试长篇 · 第二章",
       targetResourceId: "chapter-card-two",
+      chapterCardView: "card",
       chapterCardId: "chapter-two"
     };
     setBusy(test.first, true);
@@ -190,6 +191,7 @@ describe("useAgentActivityCoordinator", () => {
     expect(test.activity.items.value[0]).toMatchObject({
       conversationKey: "first",
       targetResourceId: "chapter-card-two",
+      chapterCardView: "card",
       chapterCardId: "chapter-two",
       status: "running"
     });
@@ -204,6 +206,7 @@ describe("useAgentActivityCoordinator", () => {
     expect(test.activity.items.value[0]).toMatchObject({
       conversationKey: "first",
       targetResourceId: "chapter-card-two",
+      chapterCardView: "card",
       chapterCardId: "chapter-two",
       status: "running"
     });

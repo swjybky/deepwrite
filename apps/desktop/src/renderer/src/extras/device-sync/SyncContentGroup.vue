@@ -10,8 +10,6 @@ const props = defineProps<{
   title: string;
   items: SyncScopeRow[];
   note?: string | undefined;
-  /** Status lines shown under the note. */
-  messages?: string[] | undefined;
 }>();
 const emit = defineEmits<{
   toggle: [key: string, included: boolean];
@@ -22,15 +20,11 @@ const listId = useId();
 const included = computed(
   () => props.items.filter((item) => item.included).length
 );
-const selectable = computed(() => props.items.filter((item) => !item.disabled));
 const allIncluded = computed(
-  () =>
-    selectable.value.length > 0 &&
-    selectable.value.every((item) => item.included)
+  () => props.items.length > 0 && props.items.every((item) => item.included)
 );
 const partlyIncluded = computed(() => included.value > 0 && !allIncluded.value);
 function itemStatus(item: SyncScopeRow): string {
-  if (item.detail) return item.detail;
   if (!item.included) return t("deviceSync.syncPaused");
   if (item.dirty && item.remoteDirty) return t("deviceSync.bothChanged");
   if (item.dirty) return t("deviceSync.awaitingUpload");
@@ -50,7 +44,7 @@ function changeItem(key: string, event: Event) {
 function changeAll(event: Event) {
   const input = event.target as HTMLInputElement;
   const target = !allIncluded.value;
-  const keys = selectable.value
+  const keys = props.items
     .filter((item) => item.included !== target)
     .map((item) => item.key);
   if (keys.length) emit("toggleMany", keys, target);
@@ -95,7 +89,7 @@ function changeAll(event: Event) {
           type="checkbox"
           :checked="allIncluded"
           :indeterminate="partlyIncluded"
-          :disabled="!selectable.length"
+          :disabled="!items.length"
           :aria-label="t('deviceSync.selectAllGroup', { category: title })"
           @change="changeAll"
         />
@@ -104,19 +98,7 @@ function changeAll(event: Event) {
     </header>
     <div v-show="expanded" :id="listId" class="sync-content-body">
       <p v-if="note" class="sync-content-note">{{ note }}</p>
-      <p
-        v-for="message in messages ?? []"
-        :key="message"
-        class="sync-content-note"
-      >
-        {{ message }}
-      </p>
-      <label
-        v-for="item in items"
-        :key="item.key"
-        class="sync-list-row"
-        :class="{ 'is-disabled': item.disabled }"
-      >
+      <label v-for="item in items" :key="item.key" class="sync-list-row">
         <span>
           {{ item.title }}
           <small>{{ itemStatus(item) }}</small>
@@ -124,7 +106,6 @@ function changeAll(event: Event) {
         <input
           type="checkbox"
           :checked="item.included"
-          :disabled="item.disabled"
           :aria-label="t('deviceSync.syncItem', { title: item.title })"
           @change="changeItem(item.key, $event)"
         />
@@ -226,10 +207,6 @@ function changeAll(event: Event) {
 }
 .sync-content-group input:disabled {
   cursor: default;
-}
-.sync-content-group .sync-list-row.is-disabled {
-  cursor: default;
-  color: var(--text-tertiary);
 }
 .sync-content-group .sync-content-empty,
 .sync-content-group .sync-content-note {

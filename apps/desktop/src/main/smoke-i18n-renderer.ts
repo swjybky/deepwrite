@@ -250,6 +250,10 @@ export async function i18nSmokeInRenderer(
     () => select(".more-features-settings"),
     "feature visibility settings"
   );
+  ensure(
+    !featureSettings.querySelector('[data-more-feature-id="cloud-backup"]'),
+    "cloud backup is still configurable"
+  );
   const toggles = featureSettings.querySelectorAll<HTMLInputElement>(
     '[data-more-feature-id] input[role="switch"]'
   );
@@ -272,6 +276,10 @@ export async function i18nSmokeInRenderer(
     ...document.querySelectorAll<HTMLElement>("[data-feature-id]")
   ];
   ensure(
+    !select('[data-feature-id="cloud-backup"]'),
+    "cloud backup is still in the feature menu"
+  );
+  ensure(
     features.length >= 9 && features.length === toggles.length,
     `expected ${toggles.length} more features, found ${features.length}`
   );
@@ -285,7 +293,6 @@ export async function i18nSmokeInRenderer(
     ["long-book-analysis", "Novel analysis"],
     ["style-comparison", "Style comparison"],
     ["device-sync", "Device sync"],
-    ["cloud-backup", "Cloud backup"],
     ["skill-marketplace", "Marketplace"]
   ]) {
     if (!select(`[data-feature-id="${id}"]`)) more.click();

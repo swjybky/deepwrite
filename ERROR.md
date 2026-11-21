@@ -9,7 +9,7 @@
 
 | 改动区域 | 预读条目 |
 | --- | --- |
-| Renderer 界面、样式、组件 | [ui-flicker](error/ui-flicker.md)、[css-class-collision](error/css-class-collision.md)、[pane-resize-performance](error/pane-resize-performance.md)、[cross-process-error](error/cross-process-error.md)、[budget-exceeded](error/budget-exceeded.md)、[workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
+| Renderer 界面、样式、组件 | [ui-flicker](error/ui-flicker.md)、[css-class-collision](error/css-class-collision.md)、[pane-resize-performance](error/pane-resize-performance.md)、[long-editor-resize](error/long-editor-resize.md)、[cross-process-error](error/cross-process-error.md)、[budget-exceeded](error/budget-exceeded.md)、[workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
 | 文案、多语言、`WorkspaceShell.vue` | [budget-exceeded](error/budget-exceeded.md) |
 | 智能体工具、子智能体、拆书等批量输出 | [tool-args-validation](error/tool-args-validation.md)、[output-truncation](error/output-truncation.md)、[limit-mismatch](error/limit-mismatch.md) |
 | 内置智能体提示词 | [builtin-prompt-fingerprint](error/builtin-prompt-fingerprint.md) |
@@ -32,10 +32,11 @@
 | 症状 / 关键词 | 条目 |
 | --- | --- |
 | `DEEPWRITE_ELECTRON_SANDBOX`、Electron 起不来 | [electron-sandbox](error/electron-sandbox.md) |
-| 热更新后会话保存队列关闭、退出等待保存超时 | [workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
+| 热更新后 `Catalog index store has been disposed.`、长篇目录消失、会话保存队列关闭 | [workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
 | 界面显示 `[object Object]`、按错误文字分支 | [cross-process-error](error/cross-process-error.md) |
 | 点开关整页变灰、按钮位移、打字被吞、光标跳 | [ui-flicker](error/ui-flicker.md) |
 | 分栏拖动卡顿、长篇比短篇慢、目录越多越卡 | [pane-resize-performance](error/pane-resize-performance.md) |
+| 短篇流畅，长篇普通章节拖动也卡，章卡右列表更卡 | [long-editor-resize](error/long-editor-resize.md) |
 | `stopReason: "length"`、“没有生成可交接的摘要” | [output-truncation](error/output-truncation.md) |
 | `too_big` / `maximum`、写入成功读取失败、恢复失败 | [limit-mismatch](error/limit-mismatch.md) |
 | 工具参数整批被拒、`must have required properties`、子智能体反复重交 | [tool-args-validation](error/tool-args-validation.md) |

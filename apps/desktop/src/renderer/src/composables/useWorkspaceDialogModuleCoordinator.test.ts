@@ -158,6 +158,11 @@ function createHarness() {
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["library"]["externalLibraryImportDialog"]["value"]
     >(null);
+  const packageExportDialog =
+    shallowRef<
+      WorkspaceDialogModuleCoordinatorOptions["library"]["packageExportDialog"]["value"]
+    >(null);
+  const packageExporting = shallowRef(false);
   const packageImportDialog =
     shallowRef<
       WorkspaceDialogModuleCoordinatorOptions["library"]["packageImportDialog"]["value"]
@@ -237,7 +242,9 @@ function createHarness() {
       removalDialog,
       projectDialog,
       externalLibraryImportDialog,
+      packageExportDialog,
       packageImportDialog,
+      packageExporting,
       packageChoosing,
       packageImporting,
       entryMove,
@@ -294,6 +301,7 @@ function createHarness() {
       removalDialog,
       projectDialog,
       externalLibraryImportDialog,
+      packageExportDialog,
       packageImportDialog,
       entryMove,
       groupDialog,
@@ -395,8 +403,7 @@ function setKindActive(
       state.chapterCardCreation.value = active
         ? fixture({
             volumeTitle: "第一卷",
-            arcOptions: [],
-            source: "chapter-card"
+            arcOptions: []
           })
         : null;
       return;
@@ -488,6 +495,15 @@ function setKindActive(
         ? { domain: "skill", preselectedLibraryId: "skill-1" }
         : null;
       return;
+    case "library-package-export":
+      state.packageExportDialog.value = active
+        ? {
+            domain: "material",
+            target: { type: "library", id: "library-1" },
+            title: "Library"
+          }
+        : null;
+      return;
     case "library-package-import":
       state.packageImportDialog.value = active ? { domain: "material" } : null;
       return;
@@ -538,8 +554,8 @@ function trackedRef<Value>(
 
 describe("useWorkspaceDialogModuleCoordinator", () => {
   it("covers every dialog kind and preserves the complete strict priority", () => {
-    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(30);
-    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(30);
+    expect(WORKSPACE_DIALOG_PRIORITY).toHaveLength(31);
+    expect(new Set(WORKSPACE_DIALOG_PRIORITY).size).toBe(31);
     expect(new Set(WORKSPACE_DIALOG_PRIORITY)).toEqual(
       new Set(WORKSPACE_DIALOG_KINDS)
     );

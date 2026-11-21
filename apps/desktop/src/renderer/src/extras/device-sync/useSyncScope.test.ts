@@ -5,11 +5,7 @@ import type {
   SyncResponse,
   SyncStatus
 } from "@deepwrite/contracts/renderer";
-import {
-  SYNC_SCOPE_SAVE_DELAY_MS,
-  useConversationScope,
-  useSyncScope
-} from "./useSyncScope";
+import { SYNC_SCOPE_SAVE_DELAY_MS, useSyncScope } from "./useSyncScope";
 
 function config(excludedKeys: string[] = []): SyncConfig {
   return {
@@ -149,54 +145,5 @@ describe("sync scope switches", () => {
     scope.dispose();
     await vi.advanceTimersByTimeAsync(0);
     expect(configure).toHaveBeenCalledOnce();
-  });
-});
-
-describe("conversation scope switches", () => {
-  function conversationSetup(enabledKeys: string[] = []) {
-    const state = ref<SyncStatus | null>({
-      ...status(["book:b"]),
-      conversations: {
-        enabledKeys,
-        remoteBooks: { "book:a": { sessions: 3, bytes: 2048 } },
-        remoteDevices: 1,
-        localSessions: {},
-        lastRun: null,
-        issues: []
-      }
-    });
-    const configure = vi.fn(async (keys: string[]): Promise<SyncResponse> => {
-      state.value = {
-        ...state.value!,
-        conversations: { ...state.value!.conversations!, enabledKeys: keys }
-      };
-      return { kind: "status", status: state.value };
-    });
-    const scope = useConversationScope({
-      status: state,
-      idle: () => Promise.resolve(),
-      configure,
-      restore: async () => {}
-    });
-    return { configure, scope };
-  }
-
-  it("start off and follow whether the work itself syncs", () => {
-    const { scope } = conversationSetup();
-    expect(
-      scope.items.value.map((item) => [item.key, item.included, item.disabled])
-    ).toEqual([
-      ["book:a", false, false],
-      ["book:b", false, true]
-    ]);
-    expect(scope.items.value[0]?.remote).toEqual({ sessions: 3, bytes: 2048 });
-  });
-
-  it("save the chosen works together", async () => {
-    const { configure, scope } = conversationSetup();
-    scope.toggle(["book:a"], true);
-    expect(scope.items.value[0]?.included).toBe(true);
-    await wait();
-    expect(configure).toHaveBeenCalledWith(["book:a"]);
   });
 });

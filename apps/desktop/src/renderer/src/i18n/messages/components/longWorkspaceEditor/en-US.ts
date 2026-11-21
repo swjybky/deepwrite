@@ -13,12 +13,6 @@ export default {
   createAPlotPointThenUseEntryNavigationTo:
     "Create a plot point, then use entry navigation to edit.",
   createFirstPlotPoint: "Create first plot point",
-  noChapterCardsYet: "No chapter cards yet",
-  createAChapterCardThenSelectItInThe:
-    "Create a chapter card, then select it in the left tree to edit.",
-  createAChapterCardThenUseEntryNavigationTo:
-    "Create a chapter card, then use entry navigation to edit.",
-  createFirstChapterCard: "Create first chapter card",
   plotPointTitle: "Plot point title",
   plotPointTitleIsRequired: "Plot point title is required.",
   volumeName: "Volume name",
@@ -74,7 +68,6 @@ export default {
   currentVolume: "Current volume",
   addPlotPoint: "Add plot point",
   deleteCurrentPlotPoint: "Delete current plot point",
-  valueChapterCards: "{arg0} chapter cards",
   valueContent: "{arg0} content",
   volumeForeshadowing: "Volume foreshadowing",
   currentPlotPoint: "Current plot point",
@@ -122,7 +115,6 @@ export default {
   resizeRightEntryList: "Resize right entry list",
   overallStorylineList: "Overall storyline list",
   plotPoints: "Plot points",
-  chapterCards: "Chapter cards",
   saving: "Saving…",
   saveNow: "Save now",
   selectANovelFile: "Select a novel file",

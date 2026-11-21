@@ -170,6 +170,32 @@ describe("workspace lifecycle coordinator", () => {
     );
   });
 
+  it("loads both catalogs before accepting focus refreshes", async () => {
+    const catalog = deferred<void>();
+    const longBooks = deferred<void>();
+    const harness = createHarness({
+      loadCatalog: vi.fn(() => catalog.promise),
+      loadLongBookList: vi.fn(() => longBooks.promise)
+    });
+    const starting = harness.coordinator.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    harness.windowTarget.dispatch("focus");
+    expect(harness.options.refreshOnFocus).not.toHaveBeenCalled();
+    expect(harness.options.loadCatalog).toHaveBeenCalledOnce();
+    expect(harness.options.loadLongBookList).toHaveBeenCalledOnce();
+    catalog.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.coordinator.ready.value).toBe(false);
+
+    longBooks.resolve();
+    await starting;
+    expect(harness.coordinator.ready.value).toBe(true);
+    harness.windowTarget.dispatch("focus");
+    expect(harness.options.refreshOnFocus).toHaveBeenCalledOnce();
+    await harness.coordinator.dispose();
+  });
+
   it("runs one focus refresh at a time with at most one trailing refresh", async () => {
     let currentTime = 10_000;
     const firstRefresh = deferred<void>();

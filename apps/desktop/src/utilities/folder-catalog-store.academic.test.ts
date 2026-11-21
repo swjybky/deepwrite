@@ -9,12 +9,60 @@ import {
 } from "./folder-catalog-store.test-support";
 import {
   CurrentAcademicBookProjectManifestSchema,
-  createAcademicSectionDocumentId
+  createAcademicSectionDocumentId,
+  type MutateAcademicFrameworkInput
 } from "@deepwrite/contracts";
 import { FolderCatalogConflictError } from "./folder-catalog-store";
 import { FolderCatalogAcademicCiteKeyConflictError } from "./folder-catalog-store/academic-mutations";
 
 describe("FolderCatalogStore academic book storage & mutations", () => {
+  it("moves a framework stage across multiple rows in one revision", async () => {
+    const root = await makeTemporaryRoot("deepwrite-academic-reorder-");
+    const store = new FolderCatalogStore({ userDataPath: root });
+    const { resource: book } = await store.createAcademicBook({
+      title: "排序测试",
+      subtype: "empirical_paper"
+    });
+    const [first, second, third, last] = book.frameworkStages;
+    const input = {
+      bookId: book.id,
+      baseProjectRevision: book.projectRevision,
+      mutation: {
+        type: "reorder",
+        stageId: first!.id,
+        anchorId: last!.id,
+        position: "after"
+      }
+    } satisfies MutateAcademicFrameworkInput;
+
+    const reordered = await store.mutateAcademicFramework(input);
+    expect(reordered.frameworkStages).toEqual([second, third, last, first]);
+    expect(reordered.documents).toEqual(book.documents);
+    expect(reordered.projectRevision).toBe(book.projectRevision! + 1);
+    await expect(store.mutateAcademicFramework(input)).rejects.toBeInstanceOf(
+      FolderCatalogConflictError
+    );
+
+    const current = {
+      ...input,
+      baseProjectRevision: reordered.projectRevision
+    };
+    const sameOrder = await store.mutateAcademicFramework(current);
+    expect(sameOrder.projectRevision).toBe(reordered.projectRevision);
+    await expect(
+      store.mutateAcademicFramework({
+        ...current,
+        mutation: { ...input.mutation, anchorId: "missing" }
+      })
+    ).rejects.toThrow();
+
+    const restored = await store.mutateAcademicFramework({
+      ...current,
+      mutation: { ...input.mutation, anchorId: second!.id, position: "before" }
+    });
+    expect(restored.frameworkStages).toEqual(book.frameworkStages);
+  });
+
   it("creates flat and chaptered academic books on disk and isolates them from global creative plot stages", async () => {
     const root = await makeTemporaryRoot("deepwrite-academic-books-");
     const store = new FolderCatalogStore({ userDataPath: root });
@@ -310,5 +358,100 @@ describe("FolderCatalogStore academic book storage & mutations", () => {
     );
     expect(preservedSection?.chapterId).toBeUndefined();
     expect(preservedSection?.body.content).toContain("Lipschitz");
+  });
+
+  it("reorders academic chapters and sections by anchor and rejects cross-chapter drops", async () => {
+    const root = await makeTemporaryRoot(
+      "deepwrite-academic-manuscript-reorder-"
+    );
+    const store = new FolderCatalogStore({ userDataPath: root });
+    const { resource: book } = await store.createAcademicBook({
+      title: "章节与小节重排",
+      subtype: "empirical_paper"
+    });
+
+    const ch1 = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      mutation: { type: "create-chapter", chapterId: "ch_one", title: "第一章" }
+    });
+    const ch2 = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: ch1.book.projectRevision,
+      mutation: { type: "create-chapter", chapterId: "ch_two", title: "第二章" }
+    });
+    const s1 = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: ch2.book.projectRevision,
+      mutation: {
+        type: "create-section",
+        sectionId: "sec_a",
+        chapterId: "ch_one",
+        title: "1.1 甲"
+      }
+    });
+    const s2 = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: s1.book.projectRevision,
+      mutation: {
+        type: "create-section",
+        sectionId: "sec_b",
+        chapterId: "ch_one",
+        title: "1.2 乙"
+      }
+    });
+    const s3 = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: s2.book.projectRevision,
+      mutation: {
+        type: "create-section",
+        sectionId: "sec_c",
+        chapterId: "ch_two",
+        title: "2.1 丙"
+      }
+    });
+
+    const chapterReordered = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: s3.book.projectRevision,
+      mutation: {
+        type: "reorder-chapter",
+        chapterId: "ch_one",
+        anchorChapterId: "ch_two",
+        position: "after"
+      }
+    });
+    expect(chapterReordered.book.manuscript.chapters.map((c) => c.id)).toEqual([
+      "ch_two",
+      "ch_one"
+    ]);
+
+    const sectionReordered = await store.mutateAcademicManuscript({
+      bookId: book.id,
+      baseProjectRevision: chapterReordered.book.projectRevision,
+      mutation: {
+        type: "reorder-section",
+        sectionId: "sec_b",
+        anchorSectionId: "sec_a",
+        position: "before"
+      }
+    });
+    expect(
+      sectionReordered.book.manuscript.sections
+        .filter((s) => s.chapterId === "ch_one")
+        .map((s) => s.id)
+    ).toEqual(["sec_b", "sec_a"]);
+
+    await expect(
+      store.mutateAcademicManuscript({
+        bookId: book.id,
+        baseProjectRevision: sectionReordered.book.projectRevision,
+        mutation: {
+          type: "reorder-section",
+          sectionId: "sec_a",
+          anchorSectionId: "sec_c",
+          position: "after"
+        }
+      })
+    ).rejects.toThrow(/同级目录/u);
   });
 });

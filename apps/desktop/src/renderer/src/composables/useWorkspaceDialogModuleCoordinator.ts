@@ -18,7 +18,10 @@ import type {
   PendingLibraryEntryMove
 } from "./useCatalogLibraryTransactionsCoordinator";
 import type { ExternalLibraryImportDialogState } from "./useExternalLibraryImportCoordinator";
-import type { LibraryPackageImportDialogState } from "./useLibraryPackageCoordinator";
+import type {
+  LibraryPackageExportDialogState,
+  LibraryPackageImportDialogState
+} from "./useLibraryPackageCoordinator";
 import type { SaveConflictState } from "./useCatalogDocumentPersistence";
 import type { ShortBookLifecycleTarget } from "./useShortBookLifecycleCoordinator";
 import type {
@@ -68,6 +71,7 @@ export const WORKSPACE_DIALOG_PRIORITY = [
   "library-removal",
   "library-project",
   "external-library-import",
+  "library-package-export",
   "library-package-import",
   "library-entry-move",
   "library-group",
@@ -146,6 +150,8 @@ export interface WorkspaceDialogLibraryState {
   externalLibraryImportDialog: Readonly<
     Ref<ExternalLibraryImportDialogState | null>
   >;
+  packageExportDialog: Readonly<Ref<LibraryPackageExportDialogState | null>>;
+  packageExporting: Readonly<Ref<boolean>>;
   packageImportDialog: Readonly<Ref<LibraryPackageImportDialogState | null>>;
   packageChoosing: Readonly<Ref<boolean>>;
   packageImporting: Readonly<Ref<boolean>>;
@@ -302,7 +308,6 @@ export function useWorkspaceDialogModuleCoordinator(
         kind: "create-long-chapter-card",
         volumeTitle: chapterCardCreation.volumeTitle,
         arcOptions: chapterCardCreation.arcOptions,
-        source: chapterCardCreation.source,
         pending: options.longLifecycle.bookActionPending.value
       };
     }
@@ -493,6 +498,15 @@ export function useWorkspaceDialogModuleCoordinator(
           ? { selection: externalLibraryImport.selection }
           : {}),
         pending: options.catalog.mutationPending.value
+      };
+    }
+
+    const packageExport = options.library.packageExportDialog.value;
+    if (packageExport) {
+      return {
+        kind: "library-package-export",
+        target: packageExport,
+        submitting: options.library.packageExporting.value
       };
     }
 

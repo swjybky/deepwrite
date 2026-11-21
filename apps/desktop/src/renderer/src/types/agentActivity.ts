@@ -9,6 +9,7 @@ export interface AgentActivityDescriptor {
   targetResourceId: string;
   /** Long-form chapter card that was active when the run started. */
   chapterCardId?: string;
+  chapterCardView?: "card";
 }
 
 export interface AgentActivityItem extends AgentActivityDescriptor {
@@ -22,4 +23,5 @@ export interface CurrentAgentActivityView {
   contextLabel: string;
   targetResourceId: string;
   chapterCardId?: string;
+  chapterCardView?: "card";
 }

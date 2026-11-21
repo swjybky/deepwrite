@@ -383,6 +383,9 @@ function activateBookAction(action: LongBookResourceNodeAction): void {
 function activateResourceNodeAction(action: CatalogResourceNodeAction): void {
   const domain = libraryDomain.value;
   if (!domain) return;
+  if (action === "export-library" || action === "export-group") {
+    actionArea.value?.querySelector("button")?.focus({ preventScroll: true });
+  }
   actionMenuOpen.value = false;
   emit("resourceNodeAction", { domain, action, node: props.node });
 }

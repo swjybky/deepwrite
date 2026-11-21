@@ -3,6 +3,7 @@ import {
   bookBindingsTarget,
   type BookBindingsTarget
 } from "../../stores/bookBindingsDialog";
+import WorkspacePaneResizer from "../../components/WorkspacePaneResizer.vue";
 import type {
   CatalogIndexSnapshot,
   CatalogSnapshot,
@@ -32,7 +33,6 @@ import { usePendingEditorReferences } from "../../composables/usePendingEditorRe
 import { provideBookImageContext } from "../../composables/bookImageContext";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
 import { formatError } from "../../i18n/errors";
-import { t } from "../../i18n";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { registerMysteryWorkspaceNavigation } from "../../stores/mysteryWorkspaceNavigation";
 import {
@@ -53,6 +53,7 @@ import {
   resolveMysteryAttachedLibraries
 } from "./mysteryAttachments";
 import { mysteryLabels } from "./mysterySharedLabels";
+import ExportMysteryDialog from "./ExportMysteryDialog.vue";
 import MysteryDialogs, { type MysteryDialogState } from "./MysteryDialogs.vue";
 import MysteryEditorPane from "./MysteryEditorPane.vue";
 import MysteryOverviewPane from "./MysteryOverviewPane.vue";
@@ -81,11 +82,7 @@ onScopeDispose(() => {
 const mysteryStore = useMysteryWorkspaceStore();
 const { selectedTarget, overviewStage } = storeToRefs(mysteryStore);
 const layoutStore = useLayoutStore();
-const {
-  leftCollapsed,
-  rightCollapsed,
-  writingRightPaneViewModel: rightPane
-} = storeToRefs(layoutStore);
+const { leftCollapsed, rightCollapsed } = storeToRefs(layoutStore);
 
 const manifest = computed(() => mysteryStore.activeBook);
 const workspaceIndex = computed(() => mysteryStore.activeWorkspaceIndex);
@@ -430,6 +427,40 @@ async function handleMoveItem(item: {
   }
 }
 
+async function handleReorderItem(item: {
+  kind: "truth_doc" | "role" | "act" | "clue_round";
+  id: string;
+  anchorId: string;
+  position: "before" | "after";
+}): Promise<void> {
+  const reorder = { anchorId: item.anchorId, position: item.position };
+  if (item.kind === "truth_doc") {
+    await runOperation({
+      type: "truthDoc.updateMeta",
+      docId: item.id,
+      reorder
+    });
+  } else if (item.kind === "role") {
+    await runOperation({
+      type: "role.updateMeta",
+      roleId: item.id,
+      reorder
+    });
+  } else if (item.kind === "act") {
+    await runOperation({
+      type: "act.updateMeta",
+      actId: item.id,
+      reorder
+    });
+  } else {
+    await runOperation({
+      type: "clueRound.updateMeta",
+      roundId: item.id,
+      reorder
+    });
+  }
+}
+
 let binding: BookBindingsTarget | undefined;
 
 function openBindings(): void {
@@ -555,7 +586,8 @@ onScopeDispose(
       }
     },
     duplicateBook: handleDuplicateBook,
-    moveItem: handleMoveItem
+    moveItem: handleMoveItem,
+    reorderItem: handleReorderItem
   })
 );
 </script>
@@ -689,19 +721,7 @@ onScopeDispose(
       @toggle-right="layoutStore.togglePane('right')"
     />
 
-    <div
-      v-if="!rightCollapsed"
-      class="pane-resizer pane-resizer-right"
-      role="separator"
-      :aria-label="t('components.writingWorkspaceModule.resizeRightPane')"
-      aria-orientation="vertical"
-      :aria-valuemin="rightPane.minWidth"
-      :aria-valuemax="rightPane.maxWidth"
-      :aria-valuenow="rightPane.width"
-      tabindex="0"
-      @pointerdown="layoutStore.startPaneResize('right', $event)"
-      @keydown="layoutStore.handleResizeKeydown('right', $event)"
-    />
+    <WorkspacePaneResizer />
 
     <SaveConflictDialog
       v-if="conflict"
@@ -730,15 +750,22 @@ onScopeDispose(
       @move="handleMoveItem"
       @apply-operation="runOperation"
     />
+    <ExportMysteryDialog
+      :open="activeDialog?.kind === 'export'"
+      :book-title="manifest.title"
+      :submitting="opBusy"
+      :nested="structureOpen"
+      @close="activeDialog = null"
+      @export-bundle="handleExportBundle"
+    />
     <MysteryDialogs
-      :dialog="activeDialog"
+      :dialog="activeDialog?.kind === 'export' ? null : activeDialog"
       :manifest="manifest"
       :busy="opBusy"
       :nested="structureOpen"
       @close="activeDialog = null"
       @discard-board="discardBoard"
       @apply-operation="runOperation"
-      @export-bundle="handleExportBundle"
       @rename-book="handleRenameBook"
       @unregister-book="handleRemoveOrDelete('unregister')"
       @delete-book="handleRemoveOrDelete('delete')"

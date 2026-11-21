@@ -170,16 +170,6 @@ export function useLazyLongStructureTransactionsCoordinator(
     }
   }
 
-  function openLongChapterCardCreate(
-    ...args: Parameters<Coordinator["openLongChapterCardCreate"]>
-  ): ReturnType<Coordinator["openLongChapterCardCreate"]> {
-    const requestId = beginDialogIntent();
-    return invoke(
-      (loaded) => loaded.openLongChapterCardCreate(...args),
-      captureDialogGuard(requestId)
-    );
-  }
-
   function requestCreateLongDraftSection(
     ...args: Parameters<Coordinator["requestCreateLongDraftSection"]>
   ): ReturnType<Coordinator["requestCreateLongDraftSection"]> {
@@ -215,6 +205,16 @@ export function useLazyLongStructureTransactionsCoordinator(
     const requestId = beginDialogIntent();
     return invoke(
       (loaded) => loaded.handleLongTreeItemAction(...args),
+      captureDialogGuard(requestId)
+    );
+  }
+
+  function handleReorderLongTreeNode(
+    ...args: Parameters<Coordinator["handleReorderLongTreeNode"]>
+  ): ReturnType<Coordinator["handleReorderLongTreeNode"]> {
+    const requestId = beginDialogIntent();
+    return invoke(
+      (loaded) => loaded.handleReorderLongTreeNode(...args),
       captureDialogGuard(requestId)
     );
   }
@@ -548,11 +548,11 @@ export function useLazyLongStructureTransactionsCoordinator(
 
   return {
     longWorldbuildingSyncBookOptions,
-    openLongChapterCardCreate,
     requestCreateLongDraftSection,
     handleLongDraftSectionAction,
     handleCreateLongTreeItem,
     handleLongTreeItemAction,
+    handleReorderLongTreeNode,
     confirmDeleteLongTreeItem,
     confirmDeleteLongDraftSection,
     renameLongCharacter,

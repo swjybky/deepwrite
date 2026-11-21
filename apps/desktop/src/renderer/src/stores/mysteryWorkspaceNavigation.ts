@@ -16,6 +16,12 @@ export interface MysteryWorkspaceNavigationPort {
       move: "up" | "down";
     }
   ): Promise<void>;
+  reorderItem(
+    item: Pick<NonNullable<ResourceTreeNode["mysteryItem"]>, "kind" | "id"> & {
+      anchorId: string;
+      position: "before" | "after";
+    }
+  ): Promise<void>;
 }
 
 export const mysteryWorkspaceNavigation =

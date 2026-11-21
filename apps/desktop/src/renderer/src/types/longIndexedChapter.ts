@@ -47,25 +47,12 @@ export function createLongChapterLookup(
         left.id.localeCompare(right.id)
     );
   }
-  const tabsByVolume = new Map(
-    [...chaptersByVolume].map(([id, chapters]) => [
-      id,
-      chapters.map((chapter) => ({
-        id: chapter.id,
-        label: chapter.title || chapter.id,
-        narrativeOrder: chapter.narrativeOrder,
-        recorded: (entries.get(chapter.id)?.commitId ?? null) !== null
-      }))
-    ])
-  );
   let nextWritable: LongChapterCardId | null | undefined;
   return {
     volumes,
     cards,
     entries,
     chaptersByVolume,
-    cardsByVolume,
-    tabsByVolume,
     commits: new Map(index.ledger.commits.map((commit) => [commit.id, commit])),
     characterNames: new Map(
       summary.navigation.characters.map(({ id, name }) => [id, name])

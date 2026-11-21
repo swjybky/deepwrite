@@ -17,7 +17,7 @@ describe("sidebar more features configuration", () => {
       .reverse()
       .map((entry) => ({ ...entry, visible: entry.id !== "chat-assistant" }));
     const configured = configuredMoreFeatures(preferences);
-    expect(configured).toHaveLength(moreFeatures.length);
+    expect(configured).toHaveLength(moreFeatures.length - 1);
     expect(configured.at(-1)).toMatchObject({
       id: "chat-assistant",
       visible: false,
@@ -29,9 +29,22 @@ describe("sidebar more features configuration", () => {
         .map(({ feature }) => feature.id)
     ).toEqual(
       preferences
-        .filter(({ visible, id }) => visible && id !== "agent-team-marketplace")
+        .filter(
+          ({ visible, id }) =>
+            visible && id !== "agent-team-marketplace" && id !== "cloud-backup"
+        )
         .map(({ id }) => id)
     );
+  });
+
+  it("omits cloud backup even when it was enabled in saved preferences", () => {
+    const preferences = [
+      { id: "cloud-backup", visible: true },
+      { id: "device-sync", visible: true }
+    ] as const;
+    expect(configuredMoreFeatures([...preferences])).toMatchObject([
+      { id: "device-sync", visible: true }
+    ]);
   });
   it("merges legacy marketplace visibility into one entry at the first marketplace position", () => {
     for (const skillVisible of [false, true]) {

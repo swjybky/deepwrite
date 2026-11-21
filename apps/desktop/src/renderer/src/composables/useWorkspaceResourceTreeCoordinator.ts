@@ -341,15 +341,6 @@ export function useWorkspaceResourceTreeCoordinator(
       }
       return longNavigationNodeId(bookId, selection.key);
     }
-    if (selection.key.startsWith("plot-design:chapter-cards:")) {
-      if (settings.plotItemLayout === "left-tree" && selection.chapterCardId) {
-        return longNavigationNodeId(
-          bookId,
-          `plot-design:chapter-card:${selection.chapterCardId}`
-        );
-      }
-      return longNavigationNodeId(bookId, selection.key);
-    }
     if (selection.key.startsWith("continuity:")) {
       if (
         settings.characterAndContinuityItemLayout === "left-tree" &&

@@ -16,7 +16,6 @@ import {
   longWorkspaceSessionSource,
   longWorkspaceStoreSource,
   longWorkspaceTypeSource,
-  manuscriptNavigationSource,
   resourceTreeCoordinatorSource,
   storyPlotDeleteSource,
   workspaceDialogLayerSource,
@@ -169,17 +168,12 @@ describe("long-form renderer vertical slice: editor-and-layout", () => {
     expect(editorSource).toContain("currentUsesRightContinuityList");
     expect(editorSource).toContain("currentUsesRightBookLineList");
     expect(editorSource).toContain("currentUsesRightPlotPointList");
-    expect(editorSource).toContain("currentUsesRightChapterCardList");
     expect(editorSource).toContain("currentUsesLeftTreeCharacter");
     expect(editorSource).toContain("currentUsesLeftTreePlot");
     expect(editorSource).toContain("currentUsesLeftTreeContinuity");
     expect(continuityNavigationSource).toContain("continuityLedgerFiles");
     expect(editorSource).toContain("overallStorylineList");
     expect(editorSource).toContain("plotPoints");
-    expect(manuscriptNavigationSource).toContain("chapterCards");
-    expect(manuscriptNavigationSource).toContain("toggleActionMenu");
-    expect(manuscriptNavigationSource).toContain("runMenuAction");
-    expect(editorStructureSource).toContain('type: "chapter.reorder"');
     expect(editorSource).not.toContain("isChapterCardCommitted");
     expect(editorSource).toContain("!currentUsesRightContinuityList.value");
     expect(editorSource).toContain("long-entry-list-pane");
@@ -351,9 +345,6 @@ describe("long-form renderer vertical slice: editor-and-layout", () => {
     expect(longWorkspaceModuleSource).toContain('<template v-if="book">');
     expect(longWorkspaceModuleSource).toContain(
       "<LongWorkspacePanePlaceholder"
-    );
-    expect(longWorkspaceModuleSource).toContain(
-      '<template v-if="workspaceIndex">'
     );
   });
 });

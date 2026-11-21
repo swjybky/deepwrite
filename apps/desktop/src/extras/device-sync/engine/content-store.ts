@@ -10,7 +10,7 @@ import { syncWorkCheckpoint } from "./work-scheduler";
 
 export class SyncContentIntegrityError extends Error {}
 
-/** Content-addressed packs shared by works and conversation synchronization. */
+/** Content-addressed packs of a sync space. */
 export class SyncContentStore {
   private readonly packs = new Map<string, Record<string, string>>();
   private readonly contents = new Map<string, string>();

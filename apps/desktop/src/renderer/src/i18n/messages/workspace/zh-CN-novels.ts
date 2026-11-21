@@ -74,8 +74,8 @@ export default {
       "维护世界规则、势力、地理、历史、术语、境界与物品。",
     manageCharacterProfilesAndRelationshipsAndReviewCurrentStates:
       "维护人物核心档案与关系，查看最新状态和历史轨迹。",
-    manageTheOverallStorylineVolumesPlotPointsAndChapter:
-      "维护全书故事线、分卷、剧情点与章节卡。",
+    manageStorylinePlotPointsAndForeshadowing:
+      "维护全书故事线、分卷、剧情点与伏笔。",
     editTheManuscriptInVolumeAndChapterCardOrder: "按分卷和章卡顺序编辑正文。",
     checkContinuityForOneChapterOrAConsecutiveBatch:
       "按单章或连续章节批次核验正文；批次只在末章留存汇总人物状态与历史、世界观揭露、既有伏笔触点变化、章末状态和接续包。",
@@ -94,14 +94,10 @@ export default {
       "集中管理伏笔线，并查看各卷、各剧情点中的伏笔触点。",
     containsPlotPoints: "{title}共有 {plotPointCount} 个剧情点。",
     points: "{plotPointCount} 点",
-    hasNoChapterCardsYetUseThePlusButton:
-      "{title}还没有章卡，请使用右侧章卡标签栏的加号新建。",
     chapters: "{length} 章",
     storyline: "故事线",
     organizePlotPointsByVolumeEachVolumeCanContain:
-      "按分卷管理剧情点；一卷可以包含多个剧情点。",
-    manageNovelChapterCardsHereEditProseInManuscript:
-      "直接管理长篇章节卡；正文仍在“正文”中编辑。"
+      "按分卷管理剧情点；一卷可以包含多个剧情点。"
   },
   longWorkspaceDraftTree: {
     completed: "已完成",
@@ -498,8 +494,8 @@ export default {
   },
   longManuscriptExportFlow: {
     exportedWithMissingImages: "已导出，{count} 张图片缺失已跳过。",
-    exportedAsTxtFiles: "已导出“{title}”，共生成 {fileCount} 个 TXT 文件",
-    exportedAsSingleTxtFile: "已将“{title}”导出为一个 TXT 文件",
+    exportedAsFiles: "已导出“{title}”，共生成 {fileCount} 个 {format} 文件",
+    exportedAsSingleFile: "已将“{title}”导出为一个 {format} 文件",
     couldNotExportTheLongFormProject: "导出长篇失败。"
   },
   longStructureDeleteConfirmation: {

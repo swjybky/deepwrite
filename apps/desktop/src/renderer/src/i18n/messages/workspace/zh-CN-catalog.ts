@@ -328,6 +328,14 @@ export default {
     failedToLoadTheNovelLifecycleCoordinator: "加载长篇作品生命周期协调器失败。"
   },
   libraryPackageCoordinator: {
+    exportMaterial: "导出素材库",
+    exportSkill: "导出技能库",
+    exportGroup: "导出分组",
+    exportLibraryScope: "导出此库中的全部条目。",
+    exportGroupScope: "导出此分组内各库的全部条目。",
+    exportGroupScopeWithCount: "导出此分组内 {count} 个库的全部条目。",
+    exportZipFormat: "Markdown 压缩包（.zip）",
+    exportZipDescription: "每个条目一个可读的 Markdown 文件",
     desktopNeedsRestart:
       "资料库导入导出功能尚未就绪，请完整退出并重新启动 DeepWrite 后重试。",
     browserPreviewCannotExport:

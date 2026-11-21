@@ -5,7 +5,6 @@ import type {
 } from "@deepwrite/contracts";
 import { computed, nextTick, ref, watch } from "vue";
 import BookResourceDialog from "../../components/BookResourceDialog.vue";
-import PopupSelect from "../../components/PopupSelect.vue";
 import { createScopedTranslator } from "../../i18n";
 import type { ResourceTreeNode } from "../../types/workspace";
 import { mysteryT } from "./messages";
@@ -26,13 +25,14 @@ export type MysteryDialogState =
   | { kind: "manage-structure" }
   | { kind: "rename" | "unregister" | "delete" }
   | { kind: "bind" }
-  | { kind: "export" | "discardBoard" }
+  | { kind: "export" }
+  | { kind: "discardBoard" }
   | MysteryStructureItemDialog;
 
 const props = defineProps<{
   dialog: Exclude<
     MysteryDialogState,
-    { kind: "manage-structure" | "bind" }
+    { kind: "manage-structure" | "bind" | "export" }
   > | null;
   manifest: MysteryBookManifest;
   busy: boolean;
@@ -43,12 +43,6 @@ const emit = defineEmits<{
   close: [];
   discardBoard: [];
   applyOperation: [op: MysteryOperation];
-  exportBundle: [
-    payload: {
-      format: "md" | "docx";
-      playerScriptLayout: "by-role" | "by-role-act";
-    }
-  ];
   renameBook: [title: string];
   unregisterBook: [];
   deleteBook: [];
@@ -58,8 +52,6 @@ const treeT = createScopedTranslator("components.treeNodeItem");
 const discardT = createScopedTranslator("components.agentTeamCatalogDialogs");
 const titleInput = ref("");
 const tagInput = ref("");
-const exportFormat = ref<"md" | "docx">("docx");
-const exportLayout = ref<"by-role" | "by-role-act">("by-role");
 const dialogElement = ref<HTMLElement>();
 const firstInput = ref<HTMLInputElement>();
 let previousFocus: HTMLElement | null = null;
@@ -83,8 +75,6 @@ const title = computed(() => {
   const dialog = props.dialog;
   if (!dialog) return "";
   switch (dialog.kind) {
-    case "export":
-      return mysteryT("exportDialogTitle");
     case "renameStructure":
       return treeT("rename");
     case "deleteStructure":
@@ -106,14 +96,6 @@ const title = computed(() => {
       return "";
   }
 });
-const formats = computed(() => [
-  { value: "docx" as const, label: mysteryT("exportFormatDocx") },
-  { value: "md" as const, label: mysteryT("exportFormatMd") }
-]);
-const layouts = computed(() => [
-  { value: "by-role" as const, label: mysteryT("exportLayoutByRole") },
-  { value: "by-role-act" as const, label: mysteryT("exportLayoutByRoleAct") }
-]);
 const deleteWarning = computed(() => {
   if (props.dialog?.kind !== "deleteStructure") return "";
   return mysteryT(
@@ -155,12 +137,6 @@ function submit(): void {
   const label = titleInput.value.trim();
   const tag = tagInput.value.trim();
   switch (dialog.kind) {
-    case "export":
-      emit("exportBundle", {
-        format: exportFormat.value,
-        playerScriptLayout: exportLayout.value
-      });
-      break;
     case "createStructure":
       if (!label) return;
       switch (dialog.targetKind) {
@@ -302,38 +278,7 @@ function close(): void {
         </header>
 
         <form class="dialog-content mystery-fields" @submit.prevent="submit">
-          <template v-if="dialog.kind === 'export'">
-            <p class="dialog-description">{{ mysteryT("exportSubtitle") }}</p>
-            <div class="mystery-field-row">
-              <span class="mystery-field-label">{{
-                mysteryT("exportFormatLabel")
-              }}</span>
-              <PopupSelect
-                :model-value="exportFormat"
-                @update:model-value="
-                  exportFormat = $event === 'md' ? 'md' : 'docx'
-                "
-                :options="formats"
-                :accessible-label="mysteryT('exportFormatLabel')"
-              />
-            </div>
-            <div class="mystery-field-row">
-              <span class="mystery-field-label">{{
-                mysteryT("exportLayoutLabel")
-              }}</span>
-              <PopupSelect
-                :model-value="exportLayout"
-                @update:model-value="
-                  exportLayout =
-                    $event === 'by-role-act' ? 'by-role-act' : 'by-role'
-                "
-                :options="layouts"
-                :accessible-label="mysteryT('exportLayoutLabel')"
-              />
-            </div>
-          </template>
-
-          <template v-else-if="isStructureForm && 'targetKind' in dialog">
+          <template v-if="isStructureForm && 'targetKind' in dialog">
             <label class="mystery-field-row">
               <span class="mystery-field-label">{{
                 mysteryT("itemTitleLabel")
@@ -383,15 +328,13 @@ function close(): void {
               :disabled="busy || (isStructureForm && !titleInput.trim())"
             >
               {{
-                dialog.kind === "export"
-                  ? mysteryT("startExport")
-                  : dialog.kind === "deleteStructure"
-                    ? treeT("delete")
-                    : dialog.kind === "discardBoard"
-                      ? discardT("discardAndLeave")
-                      : dialog.kind === "createStructure"
-                        ? treeT("addEntry")
-                        : mysteryT("save")
+                dialog.kind === "deleteStructure"
+                  ? treeT("delete")
+                  : dialog.kind === "discardBoard"
+                    ? discardT("discardAndLeave")
+                    : dialog.kind === "createStructure"
+                      ? treeT("addEntry")
+                      : mysteryT("save")
               }}
             </button>
           </div>

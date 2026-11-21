@@ -76,22 +76,12 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
       expect(longWorkspaceResourceTreeSource).toContain(label);
     }
     expect(longWorkspaceModuleSource).toContain('class="long-agent-column"');
-    expect(longWorkspaceModuleSource).toContain(
-      'class="pane-resizer pane-resizer-right"'
-    );
     expect(appSource).toContain(':left-collapsed="leftCollapsed"');
-    expect(appSource).toContain(':right-pane="writingRightPaneViewModel"');
     expect(appSource).toContain(
       '@toggle-left="leftCollapsed = !leftCollapsed"'
     );
     expect(appSource).toContain(
       '@toggle-right="rightCollapsed = !rightCollapsed"'
-    );
-    expect(appSource).toContain(
-      "@resize-start=\"startPaneResize('right', $event)\""
-    );
-    expect(longWorkspaceModuleSource).toContain(
-      "paneLayout === 'editor-agent' || !rightPane.collapsed"
     );
   });
 
@@ -102,8 +92,7 @@ describe("long-form renderer vertical slice: agents-writing-and-navigation", () 
       "worldbuilding-item",
       "character",
       "volume",
-      "plot-point",
-      "chapter-card"
+      "plot-point"
     ]) {
       expect(workspaceTypeSource).toContain(`"${kind}"`);
     }

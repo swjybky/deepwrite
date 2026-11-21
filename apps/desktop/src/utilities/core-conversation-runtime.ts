@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { RendererStateStore } from "./renderer-state-store";
 import { handleRendererStateCommand } from "./renderer-state-commands";
 import { describeStorageFailure } from "./conversation-storage/storage-failure";
-import { handleConversationSyncCommand } from "./device-sync-conversations";
 import type { UtilityRuntimeOptions } from "./runtime";
 
 /** Keeps conversation routing and the storage worker's lifetime together. */
@@ -32,8 +31,6 @@ export function createCoreConversationRuntime(
       return async (command, ...context) => {
         const exportResult = await exports.handle(command);
         if (exportResult) return exportResult;
-        if (command.type === "deviceSync.conversations")
-          return handleConversationSyncCommand(store, command);
         if (!command.type.startsWith("rendererState."))
           return handler(command, ...context);
         try {

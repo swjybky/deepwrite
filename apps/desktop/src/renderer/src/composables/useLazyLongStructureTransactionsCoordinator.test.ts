@@ -78,7 +78,6 @@ function fakeIndex(): LongWorkspaceIndexSnapshot {
 function createLoadedCoordinator() {
   const raw = {
     longWorldbuildingSyncBookOptions: computed(() => []),
-    openLongChapterCardCreate: vi.fn(async () => undefined),
     requestCreateLongDraftSection: vi.fn(async () => undefined),
     handleLongDraftSectionAction: vi.fn(async () => undefined),
     handleCreateLongTreeItem: vi.fn(async () => undefined),
@@ -178,7 +177,6 @@ function createContext(input: { readonly pending?: boolean } = {}) {
       refreshActiveWorkspace: vi.fn(async () => true),
       refreshWorkspaceAfterProposal: vi.fn(async () => true),
       selectWorkspaceFile: vi.fn(async () => true),
-      selectChapterCardTab: vi.fn(async () => undefined),
       editor: ref(null)
     },
     resources: {

@@ -8,7 +8,6 @@ import type {
   LongArcId,
   LongAgentProfile,
   LongBookSummary,
-  LongChapterCardId,
   LongCharacterId,
   LongWorkspaceImpactConfirmation,
   LongWorkspaceIndexSnapshot,
@@ -44,6 +43,7 @@ import AppIcon from "./AppIcon.vue";
 import LongWorkspaceEditor from "./LongWorkspaceEditor.vue";
 import LongWorkspaceLoading from "./LongWorkspaceLoading.vue";
 import LongWorkspacePanePlaceholder from "./LongWorkspacePanePlaceholder.vue";
+import WorkspacePaneResizer from "./WorkspacePaneResizer.vue";
 
 const t = createScopedTranslator("components.longWorkspaceModule");
 
@@ -67,12 +67,7 @@ const props = defineProps<{
   paneLayout: WorkspacePaneLayout;
   defaultTextViewMode: TextViewMode;
   autoSaveEnabled: boolean;
-  rightPane: Readonly<{
-    collapsed: boolean;
-    minWidth: number;
-    maxWidth: number;
-    width: number;
-  }>;
+  rightCollapsed: boolean;
 }>();
 
 provideBookImageContext(() =>
@@ -88,8 +83,6 @@ const emit = defineEmits<{
   toggleLeft: [];
   toggleRight: [];
   collapseRight: [];
-  resizeStart: [event: PointerEvent];
-  resizeKeydown: [event: KeyboardEvent];
   newConversation: [];
   selectConversation: [sessionId: string];
   send: [
@@ -124,7 +117,6 @@ const emit = defineEmits<{
     done?: (accepted: boolean) => void
   ];
   selectPlotPoint: [plotPointId: LongArcId];
-  selectChapterCard: [chapterCardId: LongChapterCardId];
   selectEntrySearchResult: [fileId: string];
   renameCharacter: [
     input: { characterId: LongCharacterId; name: string },
@@ -141,7 +133,6 @@ const emit = defineEmits<{
   createCharacter: [];
   createWorldbuildingItem: [];
   createPlotPoint: [];
-  createChapterCard: [];
   createVolume: [];
   previewDeleteStructure: [
     input: {
@@ -313,7 +304,7 @@ function forwardPreviewMutation(
 <template>
   <template v-if="book">
     <div
-      v-show="paneLayout === 'agent-editor' || !rightPane.collapsed"
+      v-show="paneLayout === 'agent-editor' || !rightCollapsed"
       class="long-agent-column"
       :aria-label="t('novelWorkspace')"
     >
@@ -376,7 +367,7 @@ function forwardPreviewMutation(
           conversationController.writeApprovalSubmitFailed.value
         "
         :left-collapsed="leftCollapsed"
-        :right-collapsed="rightPane.collapsed"
+        :right-collapsed="rightCollapsed"
         :right-pane="paneLayout === 'editor-agent'"
         @new-conversation="emit('newConversation')"
         @select-conversation="emit('selectConversation', $event)"
@@ -418,9 +409,12 @@ function forwardPreviewMutation(
         </button>
       </section>
     </div>
-    <template v-if="workspaceIndex">
+    <div
+      v-if="workspaceIndex"
+      v-show="paneLayout === 'editor-agent' || !rightCollapsed"
+      class="long-workspace-editor-host"
+    >
       <LongWorkspaceEditor
-        v-show="paneLayout === 'editor-agent' || !rightPane.collapsed"
         :ref="captureEditorPort"
         :book-id="book.id"
         :selection="selection"
@@ -428,7 +422,7 @@ function forwardPreviewMutation(
         :locked="editorLocked"
         :locked-reason="editorLockedReason"
         :right-pane="paneLayout === 'agent-editor'"
-        :right-pane-collapsed="rightPane.collapsed"
+        :right-pane-collapsed="rightCollapsed"
         :default-view-mode="defaultTextViewMode"
         :auto-save-enabled="autoSaveEnabled"
         @insert-selection="insertEditorReference"
@@ -438,14 +432,12 @@ function forwardPreviewMutation(
         @toggle-right="emit('toggleRight')"
         @select-character="forwardSelectCharacter"
         @select-plot-point="emit('selectPlotPoint', $event)"
-        @select-chapter-card="emit('selectChapterCard', $event)"
         @select-entry-search-result="emit('selectEntrySearchResult', $event)"
         @rename-character="forwardRenameCharacter"
         @rename-structure-title="forwardRenameStructureTitle"
         @create-character="emit('createCharacter')"
         @create-worldbuilding-item="emit('createWorldbuildingItem')"
         @create-plot-point="emit('createPlotPoint')"
-        @create-chapter-card="emit('createChapterCard')"
         @create-volume="emit('createVolume')"
         @preview-delete-structure="forwardPreviewDeleteStructure"
         @delete-structure="forwardDeleteStructure"
@@ -454,33 +446,27 @@ function forwardPreviewMutation(
         @preview-mutation="forwardPreviewMutation"
         @mutation="forwardMutation"
       />
-    </template>
+    </div>
     <LongWorkspacePanePlaceholder
-      v-else-if="paneLayout === 'editor-agent' || !rightPane.collapsed"
+      v-else-if="paneLayout === 'editor-agent' || !rightCollapsed"
       kind="editor"
       :right-pane="paneLayout === 'agent-editor'"
       :loading="loading"
     />
-    <div
-      v-if="!rightPane.collapsed"
-      class="pane-resizer pane-resizer-right"
-      role="separator"
-      :aria-label="t('resizeRightPane')"
-      aria-orientation="vertical"
-      :aria-valuemin="rightPane.minWidth"
-      :aria-valuemax="rightPane.maxWidth"
-      :aria-valuenow="rightPane.width"
-      tabindex="0"
-      @pointerdown="emit('resizeStart', $event)"
-      @keydown="emit('resizeKeydown', $event)"
-    />
+    <WorkspacePaneResizer />
   </template>
   <LongWorkspaceLoading
     v-else
     :left-collapsed="leftCollapsed"
-    :right-pane="rightPane"
+    :right-collapsed="rightCollapsed"
     :pane-layout="paneLayout"
     :pending="loading"
     @expand-left="emit('expandLeft')"
   />
 </template>
+
+<style scoped>
+.long-workspace-editor-host {
+  display: contents;
+}
+</style>

@@ -357,6 +357,41 @@ describe("useLongWorkspacePresentationCoordinator", () => {
     ).toBeDefined();
   });
 
+  it("uses the loaded chapter file for agent stage while keeping the chapter writer enabled", () => {
+    const { coordinator, activeSelection, fileContext, contextReady, index } =
+      createHarness();
+    const chapter = index.chapters[0]!;
+    activeSelection.value = selection("draft", {
+      key: "chapter:chapter_one",
+      chapterCardId: chapter.chapterCardId,
+      preferredRole: "card",
+      files: [
+        { role: "card", label: "章卡", file: chapter.card },
+        { role: "body", label: "正文", file: chapter.body },
+        {
+          role: "character-state",
+          label: "章末状态",
+          file: chapter.characterState
+        },
+        { role: "handoff", label: "接续包", file: chapter.handoff }
+      ]
+    });
+    contextReady.value = true;
+    expect(coordinator.activeLongRuntimeContext.value).toBeNull();
+
+    for (const file of activeSelection.value.files) {
+      fileContext.value = { bookId: BOOK_ID, fileId: file.file.id };
+      expect(coordinator.activeLongRoot.value).toBe("draft");
+      expect(coordinator.activeLongChapterWriterEnabled.value).toBe(true);
+      expect(coordinator.activeLongRuntimeContext.value).toMatchObject({
+        activeAgentId: "long",
+        activeRoot: file.role === "card" ? "plot_design" : "draft",
+        activeChapterCardId: chapter.chapterCardId,
+        activeFileId: file.file.id
+      });
+    }
+  });
+
   it("filters readable attachments and preserves Catalog document order", () => {
     const { coordinator, summary, documents } = createHarness();
     const profile: LongAgentProfile = {

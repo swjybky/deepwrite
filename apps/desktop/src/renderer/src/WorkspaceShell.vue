@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useConversationSyncLease } from "./extras/device-sync/useConversationSyncLease";
 import { createDecompositionWorkspaceBridge } from "./composables/decompositionWorkspaceBridge";
 import { formatError } from "./i18n/errors";
 import { createScopedTranslator } from "./i18n";
@@ -94,6 +93,7 @@ import type {
   EditorTextReferenceNavigation
 } from "./types/conversation";
 import type {
+  CreationTreeReorderPayload,
   DraftFileKind,
   EditorDraftState,
   ResourceSectionActionPayload,
@@ -111,7 +111,8 @@ import {
 } from "./utils/editorEntrySearch";
 import {
   resolveAgentActivityDescriptor,
-  resolveAgentActivityNavigationNode
+  resolveAgentActivityNavigationNode,
+  parseLongAgentActivityKey
 } from "./utils/agentActivityDescriptors";
 import { loadGeneralPreferences } from "./utils/generalPreferences";
 import { longNavigationNodeId } from "./utils/longWorkspaceResourceTree";
@@ -140,8 +141,7 @@ const {
   desktopShell,
   leftPaneWidth,
   shellClasses,
-  shellStyle,
-  writingRightPaneViewModel
+  shellStyle
 } = storeToRefs(layoutStore);
 const {
   reconcilePaneWidths,
@@ -622,6 +622,7 @@ const longWorkspacePresentation = useLongWorkspacePresentationCoordinator({
 });
 const {
   activeLongRoot,
+  activeLongAgentRoot,
   activeLongAgentProfile,
   activeLongRuntimeContext,
   longEditorLocked,
@@ -686,7 +687,6 @@ const {
   selectWorkspaceFile: selectLongWorkspaceFile,
   selectCharacterTab: selectLongCharacterTab,
   selectPlotPointTab: selectLongPlotPointTab,
-  selectChapterCardTab: selectLongChapterCardTab,
   handleFileContextChange: handleLongFileContextChange,
   handleDocumentSaved: handleLongDocumentSaved,
   retryActiveRefresh: retryActiveLongWorkspaceRefresh,
@@ -945,11 +945,11 @@ const {
 
 const {
   longWorldbuildingSyncBookOptions,
-  openLongChapterCardCreate,
   requestCreateLongDraftSection,
   handleLongDraftSectionAction,
   handleCreateLongTreeItem,
   handleLongTreeItemAction,
+  handleReorderLongTreeNode,
   confirmDeleteLongTreeItem,
   confirmDeleteLongDraftSection,
   renameLongCharacter,
@@ -1005,7 +1005,6 @@ const {
     refreshActiveWorkspace: refreshActiveLongWorkspace,
     refreshWorkspaceAfterProposal: refreshLongProposalWorkspace,
     selectWorkspaceFile: selectLongWorkspaceFile,
-    selectChapterCardTab: selectLongChapterCardTab,
     editor: longWorkspaceEditor
   },
   resources: {
@@ -1049,6 +1048,7 @@ const {
   confirmCreateExpertSection,
   addExpertSectionFromEditor,
   moveExpertSection,
+  reorderShortTreeNode,
   removeExpertSectionFromEditor,
   requestRemoveExpertSection,
   closeRemoveExpertSectionDialog,
@@ -1113,6 +1113,18 @@ const {
   refreshWorkspaceDirectory: featureHost.loadWorkspaceDirectory,
   notifications: uiMessage
 });
+
+function handleReorderCreationTreeNode(
+  payload: CreationTreeReorderPayload
+): void {
+  void import("./composables/dispatchCreationTreeReorder").then(
+    ({ dispatchCreationTreeReorder }) =>
+      dispatchCreationTreeReorder(payload, {
+        reorderShortTreeNode,
+        handleReorderLongTreeNode
+      })
+  );
+}
 
 const shortBookConversationEntries = createBookConversationEntries(
   () => conversations.entries(),
@@ -1357,6 +1369,8 @@ const workspaceDialogModule = useWorkspaceDialogModuleCoordinator({
     removalDialog: libraryRemovalDialog,
     projectDialog: libraryProjectDialog,
     externalLibraryImportDialog: externalLibraryImport.dialog,
+    packageExportDialog: libraryPackage.exportDialog,
+    packageExporting: libraryPackage.exporting,
     packageImportDialog: libraryPackage.importDialog,
     packageChoosing: libraryPackage.choosing,
     packageImporting: libraryPackage.importing,
@@ -1422,12 +1436,6 @@ const {
 });
 
 conversationForKey("general");
-useConversationSyncLease({
-  api: () => window.deepwrite?.deviceSync,
-  store: conversationStore,
-  registry: conversationRuntimeRegistry
-});
-
 const chatAssistant = useChatAssistant({
   ensureModelSettingsLoaded: loadModelSettings,
   persistenceAdapter: conversationPersistenceAdapter
@@ -1456,7 +1464,7 @@ const {
     workspaceIndex: activeLongWorkspaceIndex,
     selection: activeLongSelection,
     fileContext: activeLongFileContext,
-    activeRoot: activeLongRoot,
+    activeRoot: activeLongAgentRoot,
     activeAgentProfile: activeLongAgentProfile,
     activeRuntimeContext: activeLongRuntimeContext,
     sendPreflightPending: longSendPreflightPending,
@@ -1593,7 +1601,7 @@ const currentAgentActivityView = useCurrentAgentActivityView({
   longProfile: activeLongAgentProfile,
   longBook: activeLongBookSummary,
   longSelection: activeLongSelection,
-  longRoot: activeLongRoot
+  longRoot: activeLongAgentRoot
 });
 const activityContext = computed(() => ({
   documents: documents.value,
@@ -1617,8 +1625,20 @@ const agentActivity = useAgentActivityCoordinator({
     );
     if (!node) return "missing";
     leftSidebar.value?.preferCenteredReveal();
-    await selectResource(node);
-    if (item.chapterCardId) await selectLongChapterCardTab(item.chapterCardId);
+    const selection = node.longWorkspaceSelection;
+    const openCard =
+      selection?.key.startsWith("chapter:") &&
+      (item.chapterCardView === "card" ||
+        parseLongAgentActivityKey(item.conversationKey)?.root ===
+          "plot_design");
+    await selectResource(
+      openCard && selection
+        ? {
+            ...node,
+            longWorkspaceSelection: { ...selection, preferredRole: "card" }
+          }
+        : node
+    );
     const navigated =
       selectedResourceId.value === node.id ||
       (item.chapterCardId !== undefined &&
@@ -2343,7 +2363,6 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   onDraftRecoveryLoaded: recordRecoveredDraftCount,
   notifyRecoveredDrafts,
   cleanupBeforeDraftRecovery: [
-    disposeLayout,
     featureHost.dispose,
     disposeCatalogWorkspaceProjection,
     disposeLazyApprovalNavigationCoordinator,
@@ -2358,10 +2377,8 @@ const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
     disposeShortWorkspaceStructure,
     disposeEditorAutoSave,
     disposeWorkspaceResources,
-    disposeLongWorkspaceSession,
     disposeCatalogDocumentPersistence,
-    () => catalogDocumentLoader.dispose(),
-    () => catalogIndexStore.dispose()
+    () => catalogDocumentLoader.dispose()
   ],
   cleanup: [
     disposeGeneralSettings,
@@ -2382,6 +2399,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposeLayout();
+  disposeLongWorkspaceSession();
   void workspaceLifecycle.dispose();
 });
 </script>
@@ -2473,6 +2492,7 @@ onBeforeUnmount(() => {
       @export-book="openBookExportDialog"
       @resource-action="handleResourceAction"
       @resource-node-action="handleResourceNodeAction"
+      @reorder-creation-tree-node="handleReorderCreationTreeNode"
       @move-library-entry="requestCatalogLibraryEntryMove"
       @long-book-action="handleLongBookAction"
       @create-expert-section="addExpertSection"
@@ -2538,7 +2558,7 @@ onBeforeUnmount(() => {
       :editor-locked-reason="longEditorLockedReason"
       :loading="longWorkspaceLoading"
       :left-collapsed="leftCollapsed"
-      :right-pane="writingRightPaneViewModel"
+      :right-collapsed="rightCollapsed"
       :pane-layout="generalSettings.workspacePaneLayout"
       :default-text-view-mode="generalSettings.defaultTextViewMode"
       :auto-save-enabled="editorAutoSaveEnabled"
@@ -2548,8 +2568,6 @@ onBeforeUnmount(() => {
       @toggle-left="leftCollapsed = !leftCollapsed"
       @toggle-right="rightCollapsed = !rightCollapsed"
       @collapse-right="rightCollapsed = true"
-      @resize-start="startPaneResize('right', $event)"
-      @resize-keydown="handleResizeKeydown('right', $event)"
       @new-conversation="newLongConversation"
       @select-conversation="selectLongConversation"
       @send="sendLongMessage"
@@ -2572,7 +2590,6 @@ onBeforeUnmount(() => {
       @context-change="handleLongFileContextChange"
       @select-character="selectLongCharacterTab"
       @select-plot-point="selectLongPlotPointTab"
-      @select-chapter-card="selectLongChapterCardTab"
       @select-entry-search-result="
         selectLongEntrySearchResult($event, navigateToApprovalTarget)
       "
@@ -2581,7 +2598,6 @@ onBeforeUnmount(() => {
       @create-character="openLongCharacterCreate"
       @create-worldbuilding-item="openLongWorldbuildingItemCreate"
       @create-plot-point="openLongPlotPointCreate"
-      @create-chapter-card="openLongChapterCardCreate"
       @create-volume="openLongVolumeCreate"
       @preview-delete-structure="previewActiveLongNavigationStructure"
       @delete-structure="deleteActiveLongNavigationStructure"
@@ -2596,7 +2612,7 @@ onBeforeUnmount(() => {
       :conversation-controller="activeConversation"
       :conversation-context="writingConversationContext"
       :editor="writingEditorViewModel"
-      :right-pane="writingRightPaneViewModel"
+      :right-collapsed="rightCollapsed"
       :pane-layout="generalSettings.workspacePaneLayout"
       @update:draft="updateComposerDraft"
       @new-conversation="featureHost.newConversation"
@@ -2631,8 +2647,6 @@ onBeforeUnmount(() => {
         selectEditorEntrySearchResult($event, navigateToApprovalTarget)
       "
       @prepare-entry-search="prepareEditorEntrySearch"
-      @resize-start="startPaneResize('right', $event)"
-      @resize-keydown="handleResizeKeydown('right', $event)"
     />
 
     <div
@@ -2732,6 +2746,8 @@ onBeforeUnmount(() => {
     @rename-library="renameCatalogLibrary"
     @rename-library-entry="renameCatalogLibraryEntry"
     @remove-library-entry="removeCatalogLibraryEntry"
+    @close-library-package-export="libraryPackage.closeExport"
+    @submit-library-package-export="libraryPackage.submitExport"
     @close-library-package-import="libraryPackage.closeImport"
     @choose-library-package-source="libraryPackage.chooseSource"
     @restart-library-package-import="libraryPackage.restartImport"

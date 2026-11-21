@@ -29,13 +29,6 @@ import {
 import { readSyncStatus, withSyncScope } from "./status";
 import { preserveSync } from "./persistence";
 import { runSync, type SyncRunState } from "./run";
-import {
-  configureConversations,
-  conversationStatus,
-  refreshConversationRemote,
-  syncConversationsAfterWorks,
-  type ConversationSyncHooks
-} from "../conversations/service";
 
 const IDLE: SyncProgress = { phase: "idle", completed: 0, total: 0, title: "" };
 
@@ -48,10 +41,7 @@ export class DeviceSyncService implements SyncApi {
   private lastStatus: SyncStatus | null = null;
   private statusRead: Promise<SyncStatus> | null = null;
   private statusGeneration = 0;
-  constructor(
-    private readonly options: SyncServiceOptions,
-    private readonly conversations?: ConversationSyncHooks
-  ) {}
+  constructor(private readonly options: SyncServiceOptions) {}
   private async metadata(): Promise<SyncMetadata> {
     await this.options.workspace.recover();
     this.initialization ??= loadSyncMetadata(this.options)
@@ -84,11 +74,6 @@ export class DeviceSyncService implements SyncApi {
       metadata,
       this.state.progress
     );
-    if (this.conversations)
-      status.conversations = await conversationStatus(
-        this.conversations,
-        metadata.config?.spaceId ?? null
-      );
     // A read that started before a later one finished must not replace it.
     if (generation === this.statusGeneration) this.lastStatus = status;
     return status;
@@ -119,13 +104,6 @@ export class DeviceSyncService implements SyncApi {
           devices,
           lastCheckedAt: this.options.runtime.now()
         });
-        if (this.conversations)
-          await refreshConversationRemote(
-            this.conversations,
-            remote,
-            metadata.config.spaceId,
-            metadata.deviceId
-          );
         this.state.progress = {
           ...IDLE,
           ...syncProgressTitle("checkedUpdates")
@@ -205,21 +183,6 @@ export class DeviceSyncService implements SyncApi {
       return { ...this.lastStatus, progress: this.state.progress };
     });
   }
-  async configureConversations(keys: string[]): Promise<SyncStatus> {
-    return this.exclusive(async () => {
-      if (!this.conversations) throw new Error("当前版本不支持同步对话记录。");
-      const metadata = await this.metadata();
-      await configureConversations(this.conversations, metadata, keys);
-      const conversations = await conversationStatus(
-        this.conversations,
-        metadata.config?.spaceId ?? null
-      );
-      if (!this.lastStatus) return this.freshStatus();
-      this.statusGeneration++;
-      this.lastStatus = { ...this.lastStatus, conversations };
-      return { ...this.lastStatus, progress: this.state.progress };
-    });
-  }
   async joinCode(): Promise<string> {
     const metadata = await this.metadata();
     if (!metadata.config) throw new Error("请先连接网盘。");
@@ -291,7 +254,7 @@ export class DeviceSyncService implements SyncApi {
       this.state.issues = [];
       try {
         await this.metadata();
-        const { works } = await runSync(
+        await runSync(
           this.options,
           this.state,
           resolutions,
@@ -300,15 +263,6 @@ export class DeviceSyncService implements SyncApi {
           this.controller.signal,
           adoption
         );
-        if (!adoption && this.conversations && this.controller)
-          await syncConversationsAfterWorks(this.conversations, {
-            options: this.options,
-            metadata: await this.metadata(),
-            direction,
-            works,
-            signal: this.controller.signal,
-            state: this.state
-          });
       } catch (error) {
         this.state.progress = {
           ...this.state.progress,

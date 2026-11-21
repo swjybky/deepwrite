@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { resolveRendererStyles } from "./tools/resolve-renderer-styles.mjs";
@@ -186,6 +187,16 @@ const testFiles = [
 ];
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "vitest-environment-deepwrite-renderer": fileURLToPath(
+        new URL(
+          "./apps/desktop/src/test-utils/rendererEnvironment.ts",
+          import.meta.url
+        )
+      )
+    }
+  },
   plugins: [
     vue({
       template: {

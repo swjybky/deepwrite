@@ -1,0 +1,806 @@
+{
+  "versions": {
+    "electron": "42.5.0",
+    "chrome": "148.0.7778.271"
+  },
+  "samples": [
+    {
+      "target": "short",
+      "rate": 1,
+      "instrument": false,
+      "moves": 438,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 404.147,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 142,
+        "LayoutDuration": 121.851,
+        "RecalcStyleDuration": 24.9,
+        "ScriptDuration": 20.604999999999997
+      }
+    },
+    {
+      "target": "short",
+      "rate": 1,
+      "instrument": false,
+      "moves": 440,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 457.45599999999985,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 142,
+        "LayoutDuration": 117.69199999999996,
+        "RecalcStyleDuration": 25.025000000000006,
+        "ScriptDuration": 18.419999999999998
+      }
+    },
+    {
+      "target": "short",
+      "rate": 1,
+      "instrument": false,
+      "moves": 439,
+      "widthChanges": 133,
+      "trustedMoves": 133,
+      "frames": 132,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 539.4100000000002,
+        "LayoutCount": 133,
+        "RecalcStyleCount": 144,
+        "LayoutDuration": 156.11500000000007,
+        "RecalcStyleDuration": 34.542000000000016,
+        "ScriptDuration": 37.977999999999994
+      }
+    },
+    {
+      "target": "short",
+      "rate": 4,
+      "instrument": false,
+      "moves": 467,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 735.4600000000003,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 138,
+        "LayoutDuration": 210.893,
+        "RecalcStyleDuration": 37.547,
+        "ScriptDuration": 27.45200000000002
+      }
+    },
+    {
+      "target": "short",
+      "rate": 4,
+      "instrument": false,
+      "moves": 469,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 721.0999999999999,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 143,
+        "LayoutDuration": 212.1559999999999,
+        "RecalcStyleDuration": 38.89199999999998,
+        "ScriptDuration": 25.734000000000005
+      }
+    },
+    {
+      "target": "short",
+      "rate": 4,
+      "instrument": false,
+      "moves": 470,
+      "widthChanges": 131,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 763.8549999999999,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 141,
+        "LayoutDuration": 210.90399999999997,
+        "RecalcStyleDuration": 40.45499999999996,
+        "ScriptDuration": 24.927000000000003
+      }
+    },
+    {
+      "target": "short",
+      "rate": 1,
+      "instrument": true,
+      "moves": 440,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {
+        "WorkspaceShell": 133,
+        "WritingWorkspaceModule": 0,
+        "RightEditorPane": 0,
+        "WorkspacePaneResizer": 132
+      },
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 389.64100000000013,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 142,
+        "LayoutDuration": 103.60000000000014,
+        "RecalcStyleDuration": 25.80899999999997,
+        "ScriptDuration": 19.237000000000005
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 1,
+      "instrument": false,
+      "moves": 443,
+      "widthChanges": 133,
+      "trustedMoves": 133,
+      "frames": 132,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 415.8179999999998,
+        "LayoutCount": 133,
+        "RecalcStyleCount": 410,
+        "LayoutDuration": 100.35600000000011,
+        "RecalcStyleDuration": 52.38800000000005,
+        "ScriptDuration": 20.588999999999995
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 1,
+      "instrument": false,
+      "moves": 440,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 439.2430000000003,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 404,
+        "LayoutDuration": 96.37999999999991,
+        "RecalcStyleDuration": 51.057999999999936,
+        "ScriptDuration": 18.080000000000013
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 1,
+      "instrument": false,
+      "moves": 441,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 416.6850000000002,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 406,
+        "LayoutDuration": 101.96099999999997,
+        "RecalcStyleDuration": 53.752000000000024,
+        "ScriptDuration": 22.26
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 4,
+      "instrument": false,
+      "moves": 468,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 817.9130000000008,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 406,
+        "LayoutDuration": 224.69300000000004,
+        "RecalcStyleDuration": 105.53000000000002,
+        "ScriptDuration": 26.541000000000036
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 4,
+      "instrument": false,
+      "moves": 468,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 932.4560000000001,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 406,
+        "LayoutDuration": 250.089,
+        "RecalcStyleDuration": 116.00899999999992,
+        "ScriptDuration": 31.328999999999997
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 4,
+      "instrument": false,
+      "moves": 468,
+      "widthChanges": 131,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 767.7750000000003,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 402,
+        "LayoutDuration": 216.42899999999975,
+        "RecalcStyleDuration": 95.59200000000013,
+        "ScriptDuration": 23.789000000000005
+      }
+    },
+    {
+      "target": "chapter",
+      "rate": 1,
+      "instrument": true,
+      "moves": 441,
+      "widthChanges": 131,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {
+        "WorkspaceShell": 132,
+        "LongWorkspaceModule": 0,
+        "LongWorkspaceEditor": 0,
+        "LongManuscriptEditor": 0,
+        "WorkspacePaneResizer": 131
+      },
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 459.6929999999997,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 402,
+        "LayoutDuration": 99.02200000000016,
+        "RecalcStyleDuration": 54.974000000000075,
+        "ScriptDuration": 20.58500000000002
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 1,
+      "instrument": false,
+      "moves": 441,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 571.2279999999996,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 403,
+        "LayoutDuration": 181.68399999999974,
+        "RecalcStyleDuration": 62.48199999999993,
+        "ScriptDuration": 14.851999999999975
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 1,
+      "instrument": false,
+      "moves": 442,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 560.7919999999992,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 406,
+        "LayoutDuration": 184.55100000000036,
+        "RecalcStyleDuration": 60.98900000000018,
+        "ScriptDuration": 13.656999999999975
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 1,
+      "instrument": false,
+      "moves": 440,
+      "widthChanges": 133,
+      "trustedMoves": 133,
+      "frames": 132,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 654.2130000000004,
+        "LayoutCount": 133,
+        "RecalcStyleCount": 409,
+        "LayoutDuration": 206.06200000000018,
+        "RecalcStyleDuration": 78.86400000000005,
+        "ScriptDuration": 22.200999999999972
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 4,
+      "instrument": false,
+      "moves": 463,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 1471.1560000000006,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 402,
+        "LayoutDuration": 503.10500000000013,
+        "RecalcStyleDuration": 172.35699999999986,
+        "ScriptDuration": 30.722999999999946
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 4,
+      "instrument": false,
+      "moves": 467,
+      "widthChanges": 131,
+      "trustedMoves": 131,
+      "frames": 130,
+      "framesOver25ms": 1,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 1492.7150000000022,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 403,
+        "LayoutDuration": 491.7579999999999,
+        "RecalcStyleDuration": 187.206,
+        "ScriptDuration": 25.520999999999905
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 4,
+      "instrument": false,
+      "moves": 460,
+      "widthChanges": 131,
+      "trustedMoves": 131,
+      "frames": 130,
+      "framesOver25ms": 1,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 1489.2680000000028,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 403,
+        "LayoutDuration": 496.02699999999976,
+        "RecalcStyleDuration": 176.06500000000014,
+        "ScriptDuration": 32.04899999999999
+      }
+    },
+    {
+      "target": "cards",
+      "rate": 1,
+      "instrument": true,
+      "moves": 439,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {
+        "WorkspaceShell": 133,
+        "LongWorkspaceModule": 0,
+        "LongWorkspaceEditor": 0,
+        "WorkspacePaneResizer": 132
+      },
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 555.3360000000005,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 406,
+        "LayoutDuration": 176.2440000000005,
+        "RecalcStyleDuration": 61.30499999999994,
+        "ScriptDuration": 14.656000000000002
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 1,
+      "instrument": false,
+      "moves": 441,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 398.98900000000026,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 143,
+        "LayoutDuration": 103.95999999999984,
+        "RecalcStyleDuration": 29.23700000000018,
+        "ScriptDuration": 20.73600000000009
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 1,
+      "instrument": false,
+      "moves": 438,
+      "widthChanges": 131,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 382.17699999999866,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 141,
+        "LayoutDuration": 98.23800000000027,
+        "RecalcStyleDuration": 25.81699999999998,
+        "ScriptDuration": 20.12499999999995
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 1,
+      "instrument": false,
+      "moves": 439,
+      "widthChanges": 131,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 414.2320000000019,
+        "LayoutCount": 131,
+        "RecalcStyleCount": 139,
+        "LayoutDuration": 100.13499999999986,
+        "RecalcStyleDuration": 21.29599999999998,
+        "ScriptDuration": 18.406000000000034
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 4,
+      "instrument": false,
+      "moves": 465,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 717.8210000000007,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 143,
+        "LayoutDuration": 206.0209999999998,
+        "RecalcStyleDuration": 39.74900000000004,
+        "ScriptDuration": 28.807999999999943
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 4,
+      "instrument": false,
+      "moves": 468,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 1,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 774.9260000000006,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 143,
+        "LayoutDuration": 204.62999999999988,
+        "RecalcStyleDuration": 39.46100000000019,
+        "ScriptDuration": 29.570000000000096
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 4,
+      "instrument": false,
+      "moves": 466,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {},
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 718.1800000000003,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 142,
+        "LayoutDuration": 216.08300000000025,
+        "RecalcStyleDuration": 39.89699999999985,
+        "ScriptDuration": 24.181000000000008
+      }
+    },
+    {
+      "target": "mystery",
+      "rate": 1,
+      "instrument": true,
+      "moves": 438,
+      "widthChanges": 132,
+      "trustedMoves": 132,
+      "frames": 131,
+      "framesOver25ms": 0,
+      "renders": {
+        "WorkspaceShell": 133,
+        "MysteryWorkspaceModule": 0,
+        "MysteryEditorPane": 0,
+        "RightEditorPane": 0,
+        "WorkspacePaneResizer": 132
+      },
+      "commands": 0,
+      "metrics": {
+        "TaskDuration": 432.00399999999917,
+        "LayoutCount": 132,
+        "RecalcStyleCount": 142,
+        "LayoutDuration": 97.1169999999999,
+        "RecalcStyleDuration": 28.00400000000014,
+        "ScriptDuration": 20.519999999999982
+      }
+    }
+  ],
+  "geometry": {
+    "cards": {
+      "350": {
+        "editor": [
+          1050,
+          0,
+          350,
+          800
+        ],
+        "chat": [
+          220,
+          0,
+          830,
+          800
+        ],
+        "document": [
+          1051,
+          43,
+          349,
+          721
+        ],
+        "content": [
+          1051,
+          43,
+          349,
+          475.8671875
+        ],
+        "list": [
+          1051,
+          518.8671875,
+          349,
+          245.1328125
+        ],
+        "handle": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "380": {
+        "editor": [
+          1020,
+          0,
+          380,
+          800
+        ],
+        "chat": [
+          220,
+          0,
+          800,
+          800
+        ],
+        "document": [
+          1021,
+          43,
+          379,
+          721
+        ],
+        "content": [
+          1021,
+          43,
+          202,
+          721
+        ],
+        "list": [
+          1230,
+          43,
+          170,
+          721
+        ],
+        "handle": [
+          1223,
+          43,
+          7,
+          721
+        ]
+      },
+      "460": {
+        "editor": [
+          940,
+          0,
+          460,
+          800
+        ],
+        "chat": [
+          220,
+          0,
+          720,
+          800
+        ],
+        "document": [
+          941,
+          43,
+          459,
+          721
+        ],
+        "content": [
+          941,
+          43,
+          278,
+          721
+        ],
+        "list": [
+          1226,
+          43,
+          174,
+          721
+        ],
+        "handle": [
+          1219,
+          43,
+          7,
+          721
+        ]
+      },
+      "520": {
+        "editor": [
+          880,
+          0,
+          520,
+          800
+        ],
+        "chat": [
+          220,
+          0,
+          660,
+          800
+        ],
+        "document": [
+          881,
+          43,
+          519,
+          721
+        ],
+        "content": [
+          881,
+          43,
+          315,
+          721
+        ],
+        "list": [
+          1203,
+          43,
+          197,
+          721
+        ],
+        "handle": [
+          1196,
+          43,
+          7,
+          721
+        ]
+      },
+      "690": {
+        "editor": [
+          710,
+          0,
+          690,
+          800
+        ],
+        "chat": [
+          220,
+          0,
+          490,
+          800
+        ],
+        "document": [
+          711,
+          43,
+          689,
+          721
+        ],
+        "content": [
+          711,
+          43,
+          420,
+          721
+        ],
+        "list": [
+          1138,
+          43,
+          262,
+          721
+        ],
+        "handle": [
+          1131,
+          43,
+          7,
+          721
+        ]
+      }
+    }
+  },
+  "screenshots": [
+    "after-short-light-1400x800-14-380.png",
+    "after-short-light-1400x800-14-690.png",
+    "after-short-dark-1400x800-14-380.png",
+    "after-short-dark-1400x800-14-690.png",
+    "after-short-light-1000x680-24-380.png",
+    "after-chapter-light-1400x800-14-380.png",
+    "after-chapter-light-1400x800-14-690.png",
+    "after-chapter-dark-1400x800-14-380.png",
+    "after-chapter-dark-1400x800-14-690.png",
+    "after-chapter-light-1000x680-24-380.png",
+    "after-cards-light-1400x800-14-380.png",
+    "after-cards-light-1400x800-14-690.png",
+    "after-cards-dark-1400x800-14-380.png",
+    "after-cards-dark-1400x800-14-690.png",
+    "after-cards-light-1000x680-24-380.png",
+    "after-mystery-light-1400x800-14-380.png",
+    "after-mystery-light-1400x800-14-690.png",
+    "after-mystery-dark-1400x800-14-380.png",
+    "after-mystery-dark-1400x800-14-690.png",
+    "after-mystery-light-1000x680-24-380.png"
+  ]
+}

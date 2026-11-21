@@ -4,6 +4,7 @@ import {
   nextTick,
   onBeforeUnmount,
   onMounted,
+  reactive,
   ref,
   shallowReactive,
   watch
@@ -16,41 +17,90 @@ import {
   saveBookAgentTeamBinding,
   useBookAgentTeamCatalog
 } from "../composables/useBookAgentTeamBinding";
+import { useBookLibrarySelection } from "../composables/useBookLibrarySelection";
 import { createScopedTranslator } from "../i18n";
 import { formatError } from "../i18n/errors";
 import {
   bookBindingsTarget,
-  type BookBindingsTarget,
-  type BookLibraryBindingChange
+  type BookBindingsTarget
 } from "../stores/bookBindingsDialog";
 import { useCatalogIndexStore } from "../stores/catalogIndexStore";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
-import BookAgentTeamBindings from "./BookAgentTeamBindings.vue";
-import BookLibraryBindings from "./BookLibraryBindings.vue";
+import BookBindingsPicker, {
+  type BookBindingsPickerItem,
+  type BookBindingsPickerSection
+} from "./BookBindingsPicker.vue";
+import { bindingsT } from "./bookBindingsLabels";
+import { sharingT } from "./librarySharingLabels";
 
 const props = defineProps<{ target: BookBindingsTarget }>();
 const t = createScopedTranslator("components.bookAgentTeamBindings");
+const libraryT = createScopedTranslator("components.bookLibraryBindings");
 const menuT = createScopedTranslator("components.longBookActionMenu");
 const discardT = createScopedTranslator("components.agentTeamCatalogDialogs");
 const index = useCatalogIndexStore();
 const { catalog, loaded } = useBookAgentTeamCatalog();
+const selection = reactive(
+  useBookLibrarySelection({
+    get skills() {
+      return index.snapshot?.skills ?? [];
+    },
+    get materials() {
+      return index.snapshot?.materials ?? [];
+    },
+    get skillGroups() {
+      return index.snapshot?.skillGroups ?? [];
+    },
+    get materialGroups() {
+      return index.snapshot?.materialGroups ?? [];
+    },
+    workspaceType: props.target.workspaceType,
+    initialSkills: props.target.initialSkills,
+    initialMaterials: props.target.initialMaterials,
+    initialSkillIds: props.target.initialSkillIds,
+    initialMaterialIds: props.target.initialMaterialIds,
+    preserveMissing: true
+  })
+);
 
-const tabs = [
+const sections = [
   { id: "skill", label: "skillLibrary", icon: "library" },
   { id: "material", label: "materialLibrary", icon: "archive" },
   { id: "team", label: "team", icon: "brain" }
 ] as const;
-type Tab = (typeof tabs)[number]["id"];
-const activeTab = ref<Tab>("skill");
+type Section = (typeof sections)[number]["id"];
+const active = ref<Section>("skill");
 const root = ref<HTMLElement>();
 const keepEditingButton = ref<HTMLButtonElement>();
 const confirmDialog = ref<HTMLElement>();
 const saving = ref(false);
 const confirming = ref(false);
 const previousFocus = document.activeElement as HTMLElement | null;
+const overflowingBindingKey = ref<string | null>(null);
+let bindingTitleObserver: ResizeObserver | undefined;
 
-const saved = shallowReactive<Record<Tab, readonly string[]>>({
+function hideBindingName(): void {
+  bindingTitleObserver?.disconnect();
+  bindingTitleObserver = undefined;
+  overflowingBindingKey.value = null;
+}
+
+function showBindingName(event: MouseEvent, key: string): void {
+  hideBindingName();
+  const row = event.currentTarget as HTMLElement;
+  const title = row.querySelector<HTMLElement>(".book-bindings-item-title");
+  if (!title) return;
+  const measure = () => {
+    overflowingBindingKey.value =
+      title.scrollWidth > title.clientWidth ? key : null;
+  };
+  measure();
+  bindingTitleObserver = new ResizeObserver(measure);
+  bindingTitleObserver.observe(title);
+}
+
+const saved = shallowReactive<Record<Section, readonly string[]>>({
   skill:
     props.target.initialSkillIds ??
     flattenSkillIdsByKind(props.target.initialSkills),
@@ -59,9 +109,6 @@ const saved = shallowReactive<Record<Tab, readonly string[]>>({
     flattenMaterialIdsByKind(props.target.initialMaterials),
   team: []
 });
-const drafts = shallowReactive<
-  Partial<Record<"skill" | "material", BookLibraryBindingChange>>
->({});
 const teamIds = ref<string[]>([]);
 watch(
   loaded,
@@ -74,68 +121,254 @@ watch(
   { immediate: true }
 );
 
-function idsFor(tab: Tab): readonly string[] {
-  return tab === "team" ? teamIds.value : (drafts[tab]?.ids ?? saved[tab]);
+const teams = computed(() =>
+  (catalog.value?.teams ?? []).filter(
+    (team) => team.workspaceType === props.target.workspaceType
+  )
+);
+const enabledTeamId = computed(
+  () => catalog.value?.enabledTeamIds[props.target.workspaceType]
+);
+
+function idsFor(section: Section): readonly string[] {
+  if (section === "team") return teamIds.value;
+  return section === "skill"
+    ? selection.selectedFlatSkillIds()
+    : selection.selectedFlatMaterialIds();
 }
 
-function dirty(tab: Tab): boolean {
-  const ids = idsFor(tab);
+function dirty(section: Section): boolean {
+  const ids = idsFor(section);
   return (
-    ids.length !== saved[tab].length ||
-    ids.some((id) => !saved[tab].includes(id))
+    ids.length !== saved[section].length ||
+    ids.some((id) => !saved[section].includes(id))
   );
 }
 
-const changed = computed(() => tabs.some(({ id }) => dirty(id)));
+const changed = computed(() => sections.some(({ id }) => dirty(id)));
 
-function updateLibraries(
-  domain: "skill" | "material",
-  value: {
-    linkedSkillIds: string[];
-    linkedMaterialIds: string[];
-    linkedSkillIdsByKind: Extract<
-      BookLibraryBindingChange,
-      { domain: "skill" }
-    >["linksByKind"];
-    linkedMaterialIdsByKind: Extract<
-      BookLibraryBindingChange,
-      { domain: "material" }
-    >["linksByKind"];
-  }
-): void {
-  drafts[domain] =
-    domain === "skill"
-      ? {
-          domain,
-          ids: value.linkedSkillIds,
-          linksByKind: value.linkedSkillIdsByKind
-        }
-      : {
-          domain,
-          ids: value.linkedMaterialIds,
-          linksByKind: value.linkedMaterialIdsByKind
-        };
+function loadingFor(section: Section): boolean {
+  return section === "team" ? !loaded.value : !index.snapshot;
 }
 
-function focusTab(): void {
-  root.value
-    ?.querySelector<HTMLElement>('[aria-selected="true"]')
-    ?.focus({ preventScroll: true });
+interface BoundItem {
+  id: string;
+  title: string;
+  missing: boolean;
 }
 
-function selectViaKeyboard(event: KeyboardEvent): void {
-  const current = tabs.findIndex(({ id }) => id === activeTab.value);
-  const positions: Record<string, number> = {
-    ArrowLeft: (current + tabs.length - 1) % tabs.length,
-    ArrowRight: (current + 1) % tabs.length,
-    Home: 0,
-    End: tabs.length - 1
+const bound = computed<Record<Section, BoundItem[]>>(() => {
+  const list = (
+    ids: readonly string[],
+    titles: ReadonlyMap<string, string>,
+    fallback: (id: string) => string
+  ) =>
+    ids.map((id) => {
+      const title = titles.get(id);
+      return { id, title: title ?? fallback(id), missing: title === undefined };
+    });
+  const titlesOf = (items: readonly { id: string; title: string }[]) =>
+    new Map(items.map((item) => [item.id, item.title]));
+  return {
+    skill: list(
+      selection.selectedSkillLibraryIds,
+      titlesOf(selection.skillItems),
+      (id) => id
+    ),
+    material: list(
+      selection.selectedMaterialLibraryIds,
+      titlesOf(selection.materialItems),
+      (id) => id
+    ),
+    team: list(
+      teamIds.value,
+      new Map((catalog.value?.teams ?? []).map((team) => [team.id, team.name])),
+      () => t("unavailableTeam")
+    )
   };
-  const next = tabs[positions[event.key] ?? -1];
-  if (!next) return;
-  event.preventDefault();
-  activeTab.value = next.id;
-  void nextTick(focusTab);
+});
+
+function emptyText(section: Section): string {
+  if (section !== "team") return bindingsT("notBound");
+  const name = teams.value.find(
+    (team) => team.id === enabledTeamId.value
+  )?.name;
+  return name
+    ? bindingsT("usesEnabledTeam", { name })
+    : bindingsT("noEnabledTeam");
+}
+
+function toggle(section: Section, id: string): void {
+  if (section === "skill") selection.toggleSkillLibrary(id);
+  else if (section === "material") selection.toggleMaterialLibrary(id);
+  else
+    teamIds.value = teamIds.value.includes(id)
+      ? teamIds.value.filter((candidate) => candidate !== id)
+      : [...teamIds.value, id];
+}
+
+function boundFirst<T extends { id: string }>(
+  items: readonly T[],
+  ids: readonly string[]
+): T[] {
+  return [
+    ...items.filter((item) => ids.includes(item.id)),
+    ...items.filter((item) => !ids.includes(item.id))
+  ];
+}
+
+function skillPickerSections(
+  libraries: readonly BookBindingsPickerItem[]
+): BookBindingsPickerSection[] {
+  const query = selection.skillSearchQuery.trim().toLocaleLowerCase();
+  const tag = selection.skillTagFilter;
+  const matchesName = (title: string) =>
+    title.toLocaleLowerCase().includes(query);
+  const taggedLibraryIds = new Set(
+    selection.skillItems.filter((item) => item.tag === tag).map(({ id }) => id)
+  );
+  const groups = selection.availableSkillGroups.flatMap((group) => {
+    const memberIds = selection.validSkillGroupMemberIds(group);
+    if (
+      !matchesName(group.title) ||
+      (tag && !memberIds.some((id) => taggedLibraryIds.has(id)))
+    )
+      return [];
+    const checked = selection.isSkillGroupSelected(group);
+    return [
+      {
+        id: group.id,
+        title: group.title,
+        meta: sharingT("groupMemberCount", { count: memberIds.length }),
+        checked,
+        indeterminate:
+          !checked && memberIds.some((id) => selection.selectedSkillSet.has(id))
+      }
+    ];
+  });
+  const individualSkills = (index.snapshot?.skills ?? [])
+    .filter((library) => library.isUnbound)
+    .flatMap((library) =>
+      library.entries.map((entry) => ({
+        id: `${library.id}\u0000${entry.id}`,
+        title: entry.title
+      }))
+    );
+  const entries = tag
+    ? []
+    : individualSkills.filter((entry) => matchesName(entry.title));
+
+  return [
+    {
+      id: "group",
+      label: bindingsT("groups"),
+      items: groups,
+      emptyText: selection.availableSkillGroups.length
+        ? bindingsT("noMatches")
+        : libraryT("noSkillGroupsAvailable")
+    },
+    {
+      id: "library",
+      label: t("skillLibrary"),
+      items: libraries,
+      emptyText: sharingT(
+        selection.skillItems.length
+          ? "noMatchingLibraries"
+          : "noLibrariesAvailable"
+      )
+    },
+    {
+      id: "entry",
+      label: bindingsT("individualSkills"),
+      ...(entries.length ? { note: bindingsT("individualSkillHint") } : {}),
+      items: entries,
+      emptyText: bindingsT(
+        individualSkills.length ? "noMatches" : "noIndividualSkills"
+      )
+    }
+  ];
+}
+
+const picker = computed(() => {
+  const section = active.value;
+  const loading = loadingFor(section);
+  if (section === "team") {
+    return {
+      title: t("team"),
+      description: t("optionalBindOneOrMoreTeams"),
+      label: t("bindAgentTeams"),
+      loading,
+      items: boundFirst(teams.value, saved.team).map((team) => ({
+        id: team.id,
+        title: team.name,
+        tag: team.id === enabledTeamId.value ? bindingsT("enabled") : undefined
+      })),
+      selected: new Set(teamIds.value),
+      emptyText: loading ? bindingsT("loading") : bindingsT("noTeams")
+    };
+  }
+  const skill = section === "skill";
+  const all = skill ? selection.skillItems : selection.materialItems;
+  const items = boundFirst(
+    skill ? selection.filteredSkillItems : selection.filteredMaterialItems,
+    saved[section]
+  ).map((item) => ({
+    id: item.id,
+    title: item.title,
+    tag: item.tag,
+    meta: sharingT("entryCount", { count: item.entryCount })
+  }));
+  return {
+    title: t(skill ? "skillLibrary" : "materialLibrary"),
+    description: skill
+      ? libraryT("linkedSkillsCanBeLoadedAsNeededAtAny")
+      : bindingsT("materialHint"),
+    label: skill ? libraryT("linkSkillLibraries") : t("materialLibrary"),
+    loading,
+    items,
+    selected: skill
+      ? selection.selectedSkillSet
+      : selection.selectedMaterialSet,
+    emptyText: loading
+      ? bindingsT("loading")
+      : sharingT(all.length ? "noMatchingLibraries" : "noLibrariesAvailable"),
+    sections: skill && !loading ? skillPickerSections(items) : undefined,
+    groups: skill
+      ? undefined
+      : selection.availableMaterialGroups.map((group) => ({
+          id: group.id,
+          title: group.title,
+          count: selection.validMaterialGroupMemberIds(group).length,
+          active: selection.isMaterialGroupSelected(group)
+        })),
+    search: skill ? selection.skillSearchQuery : selection.materialSearchQuery,
+    searchPlaceholder: skill ? bindingsT("searchSkills") : undefined,
+    tag: skill ? selection.skillTagFilter : selection.materialTagFilter,
+    tagOptions: skill
+      ? selection.skillTagFilterOptions
+      : selection.materialTagFilterOptions
+  };
+});
+
+function setSearch(value: string): void {
+  if (active.value === "skill") selection.skillSearchQuery = value;
+  else if (active.value === "material") selection.materialSearchQuery = value;
+}
+
+function setTag(value: string): void {
+  if (active.value === "skill") selection.skillTagFilter = value;
+  else if (active.value === "material") selection.materialTagFilter = value;
+}
+
+function toggleGroup(id: string): void {
+  if (active.value === "skill") selection.toggleSkillGroup(id);
+  else if (active.value === "material") selection.toggleMaterialGroup(id);
+}
+
+function focusSection(): void {
+  root.value
+    ?.querySelector<HTMLElement>('[aria-current="true"]')
+    ?.focus({ preventScroll: true });
 }
 
 function close(): void {
@@ -156,7 +389,7 @@ function requestClose(): void {
 
 function keepEditing(): void {
   confirming.value = false;
-  void nextTick(focusTab);
+  void nextTick(focusSection);
 }
 
 function handleEscape(event: KeyboardEvent): void {
@@ -191,12 +424,25 @@ async function save(): Promise<void> {
   const { bookId, workspaceType, saveLibrary } = target;
   saving.value = true;
   let failed = false;
-  const changes = tabs
+  const changes = sections
     .filter(({ id }) => dirty(id))
     .map(({ id }) => ({
       id,
       ids: [...idsFor(id)],
-      library: id === "team" ? undefined : drafts[id]
+      library:
+        id === "skill"
+          ? {
+              domain: id,
+              ids: [...idsFor(id)],
+              linksByKind: selection.selectedSkillLinks()
+            }
+          : id === "material"
+            ? {
+                domain: id,
+                ids: [...idsFor(id)],
+                linksByKind: selection.selectedMaterialLinks()
+              }
+            : undefined
     }));
   try {
     for (const { id, ids, library } of changes) {
@@ -227,8 +473,9 @@ async function save(): Promise<void> {
   }
 }
 
-onMounted(focusTab);
+onMounted(focusSection);
 onBeforeUnmount(() => {
+  hideBindingName();
   if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
 });
 </script>
@@ -263,74 +510,125 @@ onBeforeUnmount(() => {
             ×
           </button>
         </header>
-        <form
-          class="dialog-content book-bindings-content"
-          @submit.prevent="save"
-        >
-          <div
-            class="book-bindings-tabs"
-            role="tablist"
-            :aria-label="menuT('bindings')"
-            @keydown="selectViaKeyboard"
-          >
-            <button
-              v-for="{ id, label, icon } in tabs"
-              :id="`book-bindings-tab-${id}`"
-              :key="id"
-              type="button"
-              role="tab"
-              :aria-controls="`book-bindings-panel-${id}`"
-              :aria-selected="activeTab === id"
-              :aria-label="
-                dirty(id) ? t('unsavedTab', { label: t(label) }) : t(label)
-              "
-              :tabindex="activeTab === id ? 0 : -1"
-              @click="activeTab = id"
+        <form class="book-bindings-form" @submit.prevent="save">
+          <div class="book-bindings-layout">
+            <aside
+              class="book-bindings-overview"
+              aria-labelledby="book-bindings-overview-title"
             >
-              <AppIcon :name="icon" :size="14" />
-              {{ t(label) }}
-              <span v-if="idsFor(id).length" class="book-bindings-tab-count">{{
-                idsFor(id).length
-              }}</span>
-              <span
-                v-if="dirty(id)"
-                class="book-bindings-tab-dirty"
-                aria-hidden="true"
+              <h3 id="book-bindings-overview-title">
+                {{ bindingsT("currentBindings") }}
+              </h3>
+              <section
+                v-for="{ id, label, icon } in sections"
+                :key="id"
+                class="book-bindings-card"
+                :class="{ 'is-active': active === id }"
+              >
+                <button
+                  :id="`book-bindings-tab-${id}`"
+                  class="book-bindings-card-head"
+                  type="button"
+                  aria-controls="book-bindings-editor"
+                  :aria-current="active === id || undefined"
+                  :aria-label="
+                    dirty(id) ? t('unsavedTab', { label: t(label) }) : t(label)
+                  "
+                  @click="active = id"
+                >
+                  <AppIcon :name="icon" :size="15" />
+                  <span class="book-bindings-card-label">{{ t(label) }}</span>
+                  <span
+                    class="book-bindings-count"
+                    :class="{ 'is-empty': !bound[id].length }"
+                    >{{ bound[id].length }}</span
+                  >
+                  <span
+                    v-if="dirty(id)"
+                    class="book-bindings-dirty"
+                    aria-hidden="true"
+                  />
+                  <AppIcon
+                    class="book-bindings-card-chevron"
+                    name="chevron"
+                    :size="14"
+                  />
+                </button>
+                <p v-if="loadingFor(id)" class="book-bindings-card-empty">
+                  {{ bindingsT("loading") }}
+                </p>
+                <ul v-else-if="bound[id].length" class="book-bindings-items">
+                  <li
+                    v-for="item in bound[id]"
+                    :key="item.id"
+                    :class="{ 'is-missing': item.missing }"
+                    @mouseenter="showBindingName($event, `${id}:${item.id}`)"
+                    @mouseleave="hideBindingName"
+                  >
+                    <AppIcon
+                      class="book-bindings-item-icon"
+                      :name="item.missing ? 'close' : 'check'"
+                      :size="13"
+                    />
+                    <span class="book-bindings-item-title">{{
+                      item.title
+                    }}</span>
+                    <span v-if="item.missing" class="book-bindings-item-flag">{{
+                      bindingsT("unavailable")
+                    }}</span>
+                    <button
+                      type="button"
+                      :aria-label="t('unbindValue', { name: item.title })"
+                      @click="toggle(id, item.id)"
+                    >
+                      ×
+                    </button>
+                    <span
+                      v-if="overflowingBindingKey === `${id}:${item.id}`"
+                      class="book-bindings-item-tooltip"
+                      aria-hidden="true"
+                    >
+                      {{ item.title }}
+                    </span>
+                  </li>
+                </ul>
+                <p v-else class="book-bindings-card-empty">
+                  {{ emptyText(id) }}
+                </p>
+              </section>
+            </aside>
+            <section
+              id="book-bindings-editor"
+              class="book-bindings-editor"
+              aria-labelledby="book-bindings-editor-title"
+            >
+              <header>
+                <h3 id="book-bindings-editor-title">
+                  {{ picker.title }}
+                </h3>
+                <p>{{ picker.description }}</p>
+              </header>
+              <BookBindingsPicker
+                :key="active"
+                :label="picker.label"
+                :items="picker.items"
+                :selected="picker.selected"
+                :empty-text="picker.emptyText"
+                :sections="picker.sections"
+                :loading="picker.loading"
+                :groups="picker.groups"
+                :search="picker.search"
+                :search-placeholder="picker.searchPlaceholder"
+                :tag="picker.tag"
+                :tag-options="picker.tagOptions"
+                @toggle="toggle(active, $event)"
+                @toggle-group="toggleGroup"
+                @update:search="setSearch"
+                @update:tag="setTag"
               />
-            </button>
+            </section>
           </div>
-          <div
-            v-for="{ id } in tabs"
-            v-show="activeTab === id"
-            :id="`book-bindings-panel-${id}`"
-            :key="id"
-            class="book-bindings-panel"
-            role="tabpanel"
-            :aria-labelledby="`book-bindings-tab-${id}`"
-          >
-            <BookAgentTeamBindings
-              v-if="id === 'team'"
-              v-model="teamIds"
-              :workspace-type="target.workspaceType"
-            />
-            <BookLibraryBindings
-              v-else
-              :domain="id"
-              :workspace-type="target.workspaceType"
-              :loading="!index.snapshot"
-              :skills="index.snapshot?.skills ?? []"
-              :materials="index.snapshot?.materials ?? []"
-              :skill-groups="index.snapshot?.skillGroups ?? []"
-              :material-groups="index.snapshot?.materialGroups ?? []"
-              :initial-skills="target.initialSkills"
-              :initial-materials="target.initialMaterials"
-              :initial-skill-ids="target.initialSkillIds"
-              :initial-material-ids="target.initialMaterialIds"
-              preserve-missing
-              @change="updateLibraries(id, $event)"
-            />
-          </div>
-          <div class="dialog-actions">
+          <div class="dialog-actions book-bindings-actions">
             <button
               class="dialog-secondary-button"
               type="button"
@@ -388,85 +686,4 @@ onBeforeUnmount(() => {
   </Teleport>
 </template>
 
-<style scoped>
-.book-bindings-dialog > header {
-  padding-block: 10px;
-}
-.book-bindings-dialog > header > div {
-  min-width: 0;
-}
-.book-bindings-dialog .dialog-eyebrow {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.book-bindings-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  overflow: hidden;
-  padding-block: 10px;
-}
-.book-bindings-tabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  margin-bottom: 8px;
-  border-radius: 9px;
-  background: var(--surface-hover);
-}
-.book-bindings-tabs > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 12px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.857143rem;
-  white-space: nowrap;
-  transition: background-color 120ms ease;
-}
-.book-bindings-tabs > button:hover,
-.book-bindings-tabs > button[aria-selected="true"] {
-  color: var(--text-primary);
-}
-.book-bindings-tabs > button[aria-selected="true"] {
-  background: var(--surface-main);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 60%, transparent);
-  font-weight: 600;
-}
-.book-bindings-tab-count {
-  color: var(--text-tertiary);
-  font-size: 0.714286rem;
-  font-variant-numeric: tabular-nums;
-}
-.book-bindings-tab-dirty {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.book-bindings-panel {
-  align-self: stretch;
-  height: min(420px, calc(100vh - 260px));
-  min-height: 0;
-  overflow: auto;
-}
-.book-bindings-content > .dialog-actions {
-  align-self: stretch;
-  margin-top: 10px;
-}
-.book-bindings-save {
-  display: grid;
-}
-.book-bindings-save > span {
-  grid-area: 1 / 1;
-}
-.book-bindings-save-hidden {
-  visibility: hidden;
-}
-</style>
+<style scoped src="./book-bindings-dialog.css"></style>

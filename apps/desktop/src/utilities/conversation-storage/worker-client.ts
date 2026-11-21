@@ -30,8 +30,7 @@ import type {
   ConversationHistoryTurnsResult,
   ConversationHistoryStage,
   ConversationHistoryStageResult,
-  RendererStateHistoryMigration,
-  DeviceSyncConversationRequest
+  RendererStateHistoryMigration
 } from "@deepwrite/contracts";
 
 type Pending = {
@@ -213,11 +212,6 @@ export class ConversationStorageWorker implements ConversationHistoryApi {
     payload: ConversationHistoryTurnsQuery
   ): Promise<ConversationHistoryTurnsResult> {
     return this.request("turns", payload);
-  }
-
-  /** Payloads are validated again by the worker before they touch the database. */
-  syncConversations(payload: DeviceSyncConversationRequest): Promise<unknown> {
-    return this.request("syncConversations", payload);
   }
 
   legacyLoad(key: string): Promise<unknown | undefined> {

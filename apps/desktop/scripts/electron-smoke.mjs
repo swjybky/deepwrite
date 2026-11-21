@@ -175,7 +175,8 @@ child.on("close", async (code) => {
       !summary.bookImages.inserted ||
       !summary.bookImages.displayed ||
       summary.bookImages.selectedImages !== 3 ||
-      summary.bookImages.exports !== 3 ||
+      summary.bookImages.exports !== 4 ||
+      summary.bookImages.longMarkdownExports !== 2 ||
       summary.bookImages.editor?.status !== "ok" ||
       summary.bookImages.editor.characters < 100_000 ||
       !summary.bookImages.editor.automaticallySaved ||
@@ -203,7 +204,7 @@ child.on("close", async (code) => {
       throw new Error("Book image smoke returned an invalid summary.");
     }
     console.log(
-      `Electron book image smoke passed: image import, protocol rendering, DOCX/EPUB/TXT exports, and real editor checks: ${JSON.stringify({ short: summary.bookImages.editor, long: summary.bookImages.longEditor })}`
+      `Electron book image smoke passed: image import, protocol rendering, DOCX/EPUB/TXT/Markdown exports, and real editor checks: ${JSON.stringify({ short: summary.bookImages.editor, long: summary.bookImages.longEditor })}`
     );
     return;
   }

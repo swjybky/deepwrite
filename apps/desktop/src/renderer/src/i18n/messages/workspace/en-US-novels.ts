@@ -83,8 +83,8 @@ export default {
       "Manage world rules, factions, geography, history, terminology, progression systems, and items.",
     manageCharacterProfilesAndRelationshipsAndReviewCurrentStates:
       "Manage character profiles and relationships, and review current states and history.",
-    manageTheOverallStorylineVolumesPlotPointsAndChapter:
-      "Manage the overall storyline, volumes, plot points, and chapter cards.",
+    manageStorylinePlotPointsAndForeshadowing:
+      "Manage the overall storyline, volumes, plot points, and foreshadowing.",
     editTheManuscriptInVolumeAndChapterCardOrder:
       "Edit the manuscript in volume and chapter card order.",
     checkContinuityForOneChapterOrAConsecutiveBatch:
@@ -104,14 +104,10 @@ export default {
       "Manage foreshadowing threads and review beats across volumes and plot points.",
     containsPlotPoints: "{title} contains {plotPointCount} plot points.",
     points: "{plotPointCount} points",
-    hasNoChapterCardsYetUseThePlusButton:
-      "{title} has no chapter cards yet. Use the plus button in the chapter card tabs to create one.",
     chapters: "{length} chapters",
     storyline: "Storyline",
     organizePlotPointsByVolumeEachVolumeCanContain:
-      "Organize plot points by volume. Each volume can contain multiple plot points.",
-    manageNovelChapterCardsHereEditProseInManuscript:
-      "Manage novel chapter cards here. Edit prose in Manuscript."
+      "Organize plot points by volume. Each volume can contain multiple plot points."
   },
   longWorkspaceDraftTree: {
     completed: "Completed",
@@ -545,8 +541,8 @@ export default {
   },
   longManuscriptExportFlow: {
     exportedWithMissingImages: "Exported; {count} missing images were skipped.",
-    exportedAsTxtFiles: "Exported “{title}” as {fileCount} TXT files.",
-    exportedAsSingleTxtFile: "Exported “{title}” as one TXT file.",
+    exportedAsFiles: "Exported “{title}” as {fileCount} {format} files.",
+    exportedAsSingleFile: "Exported “{title}” as one {format} file.",
     couldNotExportTheLongFormProject: "Could not export the long-form project."
   },
   longStructureDeleteConfirmation: {

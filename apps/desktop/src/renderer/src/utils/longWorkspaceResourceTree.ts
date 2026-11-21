@@ -11,7 +11,6 @@ import { createLongWorkspaceTreeNode } from "./longWorkspaceTreeNode";
 import { projectLongWorkspaceDraftTree } from "./longWorkspaceDraftTree";
 import { createLongChapterLookup } from "../types/longIndexedChapter";
 import {
-  createLongChapterCardVolumeSelection,
   isLongMigrationEvidenceCategoryId,
   longBookResourceId,
   longCharacterGroupLabel,
@@ -54,7 +53,7 @@ export const LONG_WORKSPACE_ROOT_DESCRIPTIONS: Record<
   },
   get plot_design() {
     return t(
-      "longWorkspaceResourceTree.manageTheOverallStorylineVolumesPlotPointsAndChapter"
+      "longWorkspaceResourceTree.manageStorylinePlotPointsAndForeshadowing"
     );
   },
   get draft() {
@@ -139,6 +138,17 @@ export function projectLongWorkspaceNavigation(
   const sortedVolumes = [...book.navigation.volumes].sort(
     (left, right) => left.order - right.order || left.id.localeCompare(right.id)
   );
+  const recordedVolumeIds = new Set<string>();
+  if (index) {
+    for (const card of index.plot.chapterCards) {
+      const entry = lookup
+        ? lookup.entries.get(card.id)
+        : index.chapters.find(({ chapterCardId }) => chapterCardId === card.id);
+      if (entry && entry.commitId !== null) {
+        recordedVolumeIds.add(card.volumeId);
+      }
+    }
+  }
   const worldbuildingUsesLeftTree =
     index?.featureSettings.worldbuildingItemLayout === "left-tree";
   const characterAndContinuityUseLeftTree =
@@ -243,6 +253,8 @@ export function projectLongWorkspaceNavigation(
                   category.format === "list"
                     ? t("longWorkspaceResourceTree.list")
                     : t("longWorkspaceResourceTree.text"),
+                longWorldbuildingCategoryId: category.id,
+                ...(readonly ? { readOnly: true } : {}),
                 ...(itemChildren ? { children: itemChildren } : {}),
                 ...(listUsesLeftTree ? { selectableBranch: true } : {}),
                 ...(listUsesLeftTree && !readonly
@@ -391,6 +403,9 @@ export function projectLongWorkspaceNavigation(
                 nodeKey: `plot-design:book-line:volume:${volume.id}`,
                 icon: "file",
                 label: volume.title,
+                ...(recordedVolumeIds.has(volume.id)
+                  ? { longVolumeHasRecordedChapters: true }
+                  : {}),
                 longTreeItem: {
                   kind: "volume",
                   id: volume.id
@@ -473,96 +488,14 @@ export function projectLongWorkspaceNavigation(
         badge: t("longWorkspaceResourceTree.points", {
           plotPointCount: plotPointCount
         }),
+        ...(recordedVolumeIds.has(volume.id)
+          ? { longVolumeHasRecordedChapters: true }
+          : {}),
         ...(children ? { children } : {}),
         ...(plotUsesLeftTree
           ? {
               longTreeCollection: {
                 kind: "plot-point" as const,
-                parentId: volume.id
-              }
-            }
-          : {})
-      });
-    }
-  );
-
-  const chapterCardManagementChildren: ResourceTreeNode[] = sortedVolumes.map(
-    (volume) => {
-      const chapters = chaptersByVolume.get(volume.id) ?? [];
-      const fallbackSelection: LongWorkspaceSelection = {
-        key: `plot-design:chapter-cards:${volume.id}`,
-        root: "plot_design",
-        chapterCardVolumeId: volume.id,
-        ...(chapters[0] ? { chapterCardId: chapters[0].id } : {}),
-        chapterCardTabs: chapters.map((chapter) => ({
-          id: chapter.id,
-          label: chapter.title,
-          narrativeOrder: chapter.narrativeOrder
-        })),
-        title: chapters[0]?.title ?? volume.title,
-        breadcrumbs: [
-          book.title,
-          t("catalogWorkspace.plotDesign"),
-          t("longImpactConfirmation.chapterCard"),
-          volume.title,
-          ...(chapters[0] ? [chapters[0].title] : [])
-        ],
-        files: [],
-        preferredRole: "book-line",
-        description: chapters.length
-          ? `${volume.title} · ${chapters[0]!.title}`
-          : t(
-              "longWorkspaceResourceTree.hasNoChapterCardsYetUseThePlusButton",
-              { title: volume.title }
-            )
-      };
-      const selection =
-        (index
-          ? createLongChapterCardVolumeSelection(
-              book,
-              index,
-              volume.id,
-              undefined,
-              lookup
-            )
-          : undefined) ?? fallbackSelection;
-      const children =
-        plotUsesLeftTree && index
-          ? chapters.flatMap((chapter) => {
-              const chapterSelection = createLongChapterCardVolumeSelection(
-                book,
-                index,
-                volume.id,
-                chapter.id,
-                lookup
-              );
-              return chapterSelection
-                ? [
-                    node(chapterSelection, {
-                      nodeKey: `plot-design:chapter-card:${chapter.id}`,
-                      icon: "file",
-                      label: chapter.title,
-                      longTreeItem: {
-                        kind: "chapter-card",
-                        id: chapter.id,
-                        parentId: volume.id
-                      }
-                    })
-                  ]
-                : [];
-            })
-          : undefined;
-      return node(selection, {
-        icon: "folder",
-        label: volume.title,
-        badge: t("longWorkspaceResourceTree.chapters", {
-          length: chapters.length
-        }),
-        ...(children ? { children } : {}),
-        ...(plotUsesLeftTree
-          ? {
-              longTreeCollection: {
-                kind: "chapter-card" as const,
                 parentId: volume.id
               }
             }
@@ -618,29 +551,7 @@ export function projectLongWorkspaceNavigation(
             badge: String(book.navigation.counts.foreshadowingThreads)
           })
         ]
-      : []),
-    node(
-      {
-        key: "root:plot-chapter-cards",
-        root: "plot_design",
-        title: t("longImpactConfirmation.chapterCard"),
-        breadcrumbs: [
-          book.title,
-          t("catalogWorkspace.plotDesign"),
-          t("longImpactConfirmation.chapterCard")
-        ],
-        files: [],
-        preferredRole: "book-line",
-        description: t(
-          "longWorkspaceResourceTree.manageNovelChapterCardsHereEditProseInManuscript"
-        )
-      },
-      {
-        icon: "file",
-        badge: String(book.navigation.counts.chapterCards),
-        children: chapterCardManagementChildren
-      }
-    )
+      : [])
   ];
 
   const draftChildren = projectLongWorkspaceDraftTree({
@@ -649,6 +560,7 @@ export function projectLongWorkspaceNavigation(
     volumes: sortedVolumes,
     chaptersByVolume,
     lookup,
+    recordedVolumeIds,
     nodeId: (key) => longNavigationNodeId(book.id, key)
   });
 
@@ -680,7 +592,7 @@ export function projectLongWorkspaceNavigation(
     ),
     node(createLongRootSelection(book, "plot_design"), {
       icon: "history",
-      badge: String(counts.arcs + counts.volumes + counts.chapterCards),
+      badge: String(counts.arcs + counts.volumes),
       children: plotChildren
     }),
     node(createLongRootSelection(book, "draft"), {

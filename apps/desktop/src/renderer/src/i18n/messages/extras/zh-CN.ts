@@ -258,17 +258,6 @@ export default {
     modelConfig: "模型配置",
     modelConfigNote:
       "同步自定义模型的名称、接口地址、参数和 API Key；Key 会随模型一起存入你自己的网盘，本机只加密保存且界面只显示末尾几位。DeepWrite 托管模型不参与同步。",
-    conversations: "对话记录",
-    conversationsNote:
-      "同步创作空间里各作品的智能体历史对话，包括思考过程、工具与提案摘要，默认关闭。附件正文和图片不同步；另一台设备上待审核的提案在这里只能查看。作品本身需要参与同步。",
-    conversationsNoRemoteDevice:
-      "另一台设备升级到支持对话同步的版本并开启后，才能互相同步。",
-    conversationsLastRun:
-      "上次同步对话：上传 {uploaded} 个，下载 {downloaded} 个",
-    conversationWorkPaused: "作品未参与同步",
-    conversationLocalSessions: "本机 {count} 个会话",
-    conversationRemoteSessions: "其他设备 {count} 个，约 {size}",
-    conversationNone: "暂无对话",
     selectAll: "全选",
     selectAllGroup: "全选{category}",
     expandGroup: "展开{category}",

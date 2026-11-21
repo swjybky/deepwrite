@@ -17,6 +17,8 @@ import type {
   LongWorkspaceRendererApi,
   LongWorkspaceSelection
 } from "../types/longWorkspace";
+import { createLongChapterSelection } from "../types/longWorkspace";
+import { fixture } from "../types/longWorkspace.test-support";
 import type { ChatMessage } from "../types/conversation";
 import type { LibraryAttachmentBuildResult } from "../utils/libraryAttachments";
 
@@ -227,6 +229,28 @@ function controllerFixture() {
   };
 }
 
+function selectChapterFile(
+  test: ReturnType<typeof createHarness>,
+  role: "card" | "body"
+) {
+  const { summary, workspaceIndex } = fixture(null);
+  test.activeSelection.value = createLongChapterSelection(
+    summary,
+    workspaceIndex,
+    "chapter_one"
+  )!;
+  const file = workspaceIndex.chapters[0]![role];
+  test.fileContext.value = { bookId: BOOK_ID, fileId: file.id };
+  test.context.value = {
+    ...test.context.value!,
+    activeRoot: role === "card" ? "plot_design" : "draft",
+    activeFileId: file.id,
+    activeChapterCardId: "chapter_one",
+    navigation: summary.navigation
+  };
+  return file.id;
+}
+
 function createHarness() {
   const summary = shallowRef<LongBookSummary | null>(bookSummary());
   const activeSelection = shallowRef<LongWorkspaceSelection | null>(
@@ -277,9 +301,15 @@ function createHarness() {
       workspaceIndex,
       selection: activeSelection,
       fileContext,
-      activeRoot: computed(
-        () => activeSelection.value?.root ?? "worldbuilding"
-      ),
+      activeRoot: computed(() => {
+        const selection = activeSelection.value;
+        return selection?.files.some(
+          ({ role, file }) =>
+            role === "card" && file.id === fileContext.value?.fileId
+        )
+          ? "plot_design"
+          : (selection?.root ?? "worldbuilding");
+      }),
       activeAgentProfile: profile,
       activeRuntimeContext: context,
       sendPreflightPending,
@@ -717,6 +747,53 @@ describe("useLongConversationCoordinator", () => {
       "请先停止当前长篇回复，再新建对话。"
     );
     expect(test.showConversation).not.toHaveBeenCalled();
+  });
+
+  it.each(["card", "body"] as const)(
+    "sends a chapter's loaded %s with its own stage",
+    async (role) => {
+      const test = createHarness();
+      const fileId = selectChapterFile(test, role);
+      await test.coordinator.sendLongMessage();
+      expect(test.conversation.sendLongMessage).toHaveBeenCalledOnce();
+      const [context] = test.conversation.sendLongMessage.mock.calls[0]!;
+      expect(context).toMatchObject({
+        activeRoot: role === "card" ? "plot_design" : "draft",
+        activeChapterCardId: "chapter_one",
+        activeFileId: fileId
+      });
+      expect(context?.plotFocus).toEqual(
+        role === "card"
+          ? {
+              section: "chapter_card",
+              volumeId: "volume_one",
+              volumeTitle: "第一卷",
+              chapterCardId: "chapter_one",
+              chapterCardTitle: "第一章"
+            }
+          : undefined
+      );
+    }
+  );
+
+  it("rejects a pending chapter tab change and cancels the old preflight", async () => {
+    const test = createHarness();
+    const save = deferred<boolean>();
+    selectChapterFile(test, "card");
+    test.saveActiveEditorChanges.mockReturnValueOnce(save.promise);
+    const sending = test.coordinator.sendLongMessage();
+    await waitForCall(test.saveActiveEditorChanges);
+    test.fileContext.value = null;
+    test.context.value = null;
+    await nextTick();
+    selectChapterFile(test, "body");
+    save.resolve(true);
+    await sending;
+    expect(test.conversation.sendLongMessage).not.toHaveBeenCalled();
+    test.fileContext.value = null;
+    test.context.value = null;
+    await test.coordinator.sendLongMessage();
+    expect(test.conversation.sendLongMessage).not.toHaveBeenCalled();
   });
 
   it("cancels after an awaited save when the semantic selection changes", async () => {

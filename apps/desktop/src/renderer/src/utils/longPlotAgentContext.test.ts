@@ -231,12 +231,24 @@ describe("long plot agent context", () => {
     expect(
       buildLongPlotFocusSnapshot({
         selection: plotSelection({
-          key: "plot-design:chapter-cards:volume_one",
-          chapterCardVolumeId: "volume_one",
+          key: "chapter:chapter_one",
+          root: "draft",
           chapterCardId: "chapter_one",
-          title: "第一章"
+          title: "第一章",
+          files: [
+            {
+              role: "card",
+              label: "章卡",
+              file: {
+                id: "file_card",
+                path: "long/chapters/chapter_one/card.md",
+                updatedAt: navigation.updatedAt
+              }
+            }
+          ]
         }),
-        navigation
+        navigation,
+        activeFileId: "file_card"
       })
     ).toEqual({
       section: "chapter_card",

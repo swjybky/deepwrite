@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { BrowserWindow } from "electron";
 import { dialog } from "electron";
+import { ExportLongManuscriptInputSchema } from "@deepwrite/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   combinedLongManuscriptText,
@@ -142,6 +143,115 @@ describe("long manuscript image export", () => {
     }))
   };
   const exportInput = { ...input, sections: [...input.sections] };
+
+  it("validates the format independently of the export mode", () => {
+    expect(
+      ExportLongManuscriptInputSchema.safeParse({
+        ...exportInput,
+        mode: "single-txt"
+      }).success
+    ).toBe(true);
+    expect(
+      ExportLongManuscriptInputSchema.safeParse({
+        ...exportInput,
+        mode: "single-file",
+        format: "md"
+      }).success
+    ).toBe(true);
+    expect(
+      ExportLongManuscriptInputSchema.safeParse({
+        ...exportInput,
+        mode: "folder",
+        format: "docx"
+      }).success
+    ).toBe(false);
+  });
+
+  it("writes separate Markdown files and resolves links from nested folders", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-markdown-"));
+    temporaryDirectories.push(parent);
+    vi.mocked(dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: [parent]
+    });
+    const loader = vi.fn(async () => ({ assets, missingImages: 1 }));
+    const { content } = exportInput.files[0]!;
+    const result = await exportLongManuscript(
+      {} as BrowserWindow,
+      {
+        ...exportInput,
+        format: "md",
+        files: [
+          { path: ["正文", "第一卷", "潮声"], content },
+          { path: ["正文", "第一卷", "潮声"], content: "**后文**\n" }
+        ]
+      },
+      loader
+    );
+    const directoryPath = join(parent, "插图作品-导出");
+    expect(result).toEqual({
+      status: "saved",
+      directoryPath,
+      fileCount: 2,
+      missingImages: 1
+    });
+    expect(await readdir(join(directoryPath, "images"))).toEqual([
+      "map-1234abcd.png"
+    ]);
+    expect(
+      await readFile(join(directoryPath, "正文", "第一卷", "潮声.md"), "utf8")
+    ).toBe("文字\n![地图](../../images/map-1234abcd.png)\n[图片]");
+    expect(
+      await readFile(
+        join(directoryPath, "正文", "第一卷", "潮声 (2).md"),
+        "utf8"
+      )
+    ).toBe("**后文**\n");
+  });
+
+  it("merges Markdown in section and chapter order with sibling image files", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-markdown-"));
+    temporaryDirectories.push(parent);
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+      canceled: false,
+      filePath: join(parent, "export")
+    });
+    const filePath = join(parent, "export.md");
+    const result = await exportLongManuscript(
+      {} as BrowserWindow,
+      {
+        ...exportInput,
+        mode: "single-file",
+        format: "md",
+        files: [
+          exportInput.files[0]!,
+          { path: ["正文", "第一卷", "第一章"], content: "**前文**" },
+          { path: ["正文", "第一卷", "第二章"], content: "- 后文" }
+        ]
+      },
+      async () => ({ assets, missingImages: 1 })
+    );
+    expect(result).toEqual({
+      status: "saved",
+      filePath,
+      fileCount: 1,
+      missingImages: 1
+    });
+    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        defaultPath: "插图作品.md",
+        filters: [expect.objectContaining({ extensions: ["md"] })]
+      })
+    );
+    expect(await readFile(filePath, "utf8")).toBe(
+      "# 插图作品\n\n## 世界观\n\n### 条目\n\n文字\n![地图](./export.assets/map-1234abcd.png)\n[图片]\n\n" +
+        "## 正文\n\n### 第一卷 / 第一章\n\n**前文**\n\n### 第一卷 / 第二章\n\n- 后文\n"
+    );
+    expect(
+      await readFile(join(parent, "export.assets", "map-1234abcd.png"))
+    ).toEqual(assets.get(imagePath)!.bytes);
+  });
 
   it("copies each referenced image once and adds matching links in every folder section", async () => {
     const parent = await mkdtemp(join(tmpdir(), "deepwrite-long-images-"));

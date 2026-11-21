@@ -8,7 +8,11 @@ import {
   writeFile
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { createCatalogId, randomHex8 } from "@deepwrite/shared";
+import {
+  createCatalogId,
+  randomHex8,
+  reorderItemsByAnchor
+} from "@deepwrite/shared";
 import {
   CreativeBookSchema,
   type CreativeBook,
@@ -1474,7 +1478,11 @@ export class CatalogStore {
           candidate.bookType === "academic" ? [] : candidate.plotStages
         )
       );
-      if (mutation.type === "move" || mutation.type === "setEnabled") {
+      if (
+        mutation.type === "move" ||
+        mutation.type === "reorder" ||
+        mutation.type === "setEnabled"
+      ) {
         const index = book.plotStages.findIndex(
           (stage) => stage.id === mutation.stageId
         );
@@ -1487,6 +1495,18 @@ export class CatalogStore {
               book.plotStages[index]!
             ];
           }
+        } else if (mutation.type === "reorder") {
+          if (!book.plotStages.some(({ id }) => id === mutation.anchorId)) {
+            throw new Error("目标剧情结构项不存在或已被删除。");
+          }
+          const reordered = reorderItemsByAnchor(
+            book.plotStages,
+            mutation.stageId,
+            mutation.anchorId,
+            mutation.position
+          );
+          if (!reordered.moved) return false;
+          book.plotStages = reordered.items;
         } else {
           if (
             !mutation.enabled &&
@@ -1768,6 +1788,18 @@ export class CatalogStore {
               throw new Error("人物条目已经位于列表边界。");
             }
             [items[index], items[target]] = [items[target]!, items[index]!];
+          } else if (mutation.type === "reorderItem") {
+            if (!items.some(({ id }) => id === mutation.anchorId)) {
+              throw new Error("目标人物条目已删除或不存在。");
+            }
+            const reordered = reorderItemsByAnchor(
+              items,
+              mutation.itemId,
+              mutation.anchorId,
+              mutation.position
+            );
+            if (!reordered.moved) return false;
+            items.splice(0, items.length, ...reordered.items);
           } else {
             items.splice(index, 1);
             book.documents = book.documents.filter(

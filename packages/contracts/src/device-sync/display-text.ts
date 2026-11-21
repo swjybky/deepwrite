@@ -49,6 +49,7 @@ export const syncDisplayTextSchema = z
       "preparedUpload",
       "uploaded",
       "legacyHistory",
+      // From the retired conversation sync; pending issues saved before it was removed still carry them.
       "syncingConversations",
       "conversationsBusy",
       "conversationsChanged",

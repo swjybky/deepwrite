@@ -13,8 +13,7 @@ import {
   ConversationHistoryStageSchema,
   RendererStateKeySchema,
   RendererStateSaveCommandEnvelopeSchema,
-  RendererStateHistoryMigrationSchema,
-  DeviceSyncConversationCommandEnvelopeSchema
+  RendererStateHistoryMigrationSchema
 } from "@deepwrite/contracts";
 import { LegacyConversationStore } from "./legacy-store";
 import { initializeConversationStorage } from "./worker-startup";
@@ -118,19 +117,6 @@ port.on(
             ConversationHistoryTurnsQuerySchema.parse(request.payload)
           );
           break;
-        case "syncConversations": {
-          const input =
-            DeviceSyncConversationCommandEnvelopeSchema.shape.payload.parse(
-              request.payload
-            );
-          result =
-            input.operation === "inventory"
-              ? database.syncInventory(input.keys)
-              : input.operation === "export"
-                ? database.syncExport(input.key, input.sessionIds)
-                : database.syncApply(input.key, input.sessions);
-          break;
-        }
         case "close":
           database.close();
           port.postMessage({ id: request.id, result: null });

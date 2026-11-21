@@ -62,6 +62,8 @@ export const loadExportShortManuscriptDialog = () =>
   import("./ExportShortManuscriptDialog.vue");
 export const loadExternalSkillImportDialog = () =>
   import("./ExternalSkillImportDialog.vue");
+export const loadExportLibraryPackageDialog = () =>
+  import("./export/ExportLibraryPackageDialog.vue");
 export const loadImportLibraryPackageDialog = () =>
   import("./ImportLibraryPackageDialog.vue");
 export const loadLibraryEntryMoveDialog = () =>

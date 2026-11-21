@@ -134,39 +134,22 @@ export function parseLongAgentActivityKey(
   };
 }
 
-function nodeMatchesChapterCard(
-  node: ResourceTreeNode,
-  bookId: string,
-  root: LongWorkspaceRoot,
-  chapterCardId: string
-): boolean {
-  const selection = node.longWorkspaceSelection;
-  return Boolean(
-    node.longBookId === bookId &&
-    selection?.root === root &&
-    (selection.chapterCardId === chapterCardId ||
-      selection.chapterCardTabs?.some(({ id }) => id === chapterCardId))
-  );
-}
-
 function findChapterCardNode(
   lookup: ResourceTreeLookup,
   bookId: string,
-  root: LongWorkspaceRoot,
+  root: LongWorkspaceRoot | undefined,
   chapterCardId: string
 ): ResourceTreeNode | undefined {
-  const matches = [...lookup.nodeById.values()].filter((node) =>
-    nodeMatchesChapterCard(node, bookId, root, chapterCardId)
-  );
-  return (
-    matches.find((node) => node.longTreeItem?.kind === "chapter-card") ??
-    matches.find((node) =>
-      node.longWorkspaceSelection?.key.startsWith("plot-design:chapter-cards:")
-    ) ??
-    matches.find((node) =>
-      node.longWorkspaceSelection?.key.startsWith("chapter:")
-    ) ??
-    matches[0]
+  if (!root || root === "plot_design" || root === "draft") {
+    return lookup.nodeById.get(
+      longNavigationNodeId(bookId, `chapter:${chapterCardId}`)
+    );
+  }
+  return [...lookup.nodeById.values()].find(
+    (node) =>
+      node.longBookId === bookId &&
+      node.longWorkspaceSelection?.root === root &&
+      node.longWorkspaceSelection.chapterCardId === chapterCardId
   );
 }
 
@@ -177,13 +160,6 @@ function longStageResourceId(
 ): string {
   const rootResourceId = longNavigationNodeId(bookId, `root:${root}`);
   if (lookup.nodeById.has(rootResourceId)) return rootResourceId;
-  if (root === "plot_design") {
-    const chapterCardsId = longNavigationNodeId(
-      bookId,
-      "root:plot-chapter-cards"
-    );
-    if (lookup.nodeById.has(chapterCardsId)) return chapterCardsId;
-  }
   const bookResourceId = longBookResourceId(bookId);
   return lookup.nodeById.has(bookResourceId) ? bookResourceId : rootResourceId;
 }
@@ -229,7 +205,10 @@ function resolveLongDescriptor(
       (parsed.root
         ? longStageResourceId(sources.resourceTree, parsed.bookId, parsed.root)
         : longBookResourceId(parsed.bookId)),
-    ...(parsed.chapterCardId ? { chapterCardId: parsed.chapterCardId } : {})
+    ...(parsed.chapterCardId ? { chapterCardId: parsed.chapterCardId } : {}),
+    ...(parsed.root === "plot_design" && parsed.chapterCardId
+      ? { chapterCardView: "card" as const }
+      : {})
   };
 }
 
@@ -244,7 +223,7 @@ export function resolveAgentActivityNavigationNode(
   const stored = lookup.nodeById.get(item.targetResourceId);
   const parsed = parseLongAgentActivityKey(item.conversationKey);
   const chapterCardId = item.chapterCardId ?? parsed?.chapterCardId;
-  if (parsed?.root && chapterCardId) {
+  if (parsed && chapterCardId) {
     const chapterNode = findChapterCardNode(
       lookup,
       parsed.bookId,

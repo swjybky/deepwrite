@@ -347,6 +347,15 @@ export default {
       "Failed to load the novel lifecycle coordinator."
   },
   libraryPackageCoordinator: {
+    exportMaterial: "Export material library",
+    exportSkill: "Export skill library",
+    exportGroup: "Export group",
+    exportLibraryScope: "Export every entry in this library.",
+    exportGroupScope: "Export every entry from the libraries in this group.",
+    exportGroupScopeWithCount:
+      "Export every entry from the {count} libraries in this group.",
+    exportZipFormat: "Markdown archive (.zip)",
+    exportZipDescription: "One readable Markdown file per entry",
     desktopNeedsRestart:
       "Library import and export are not ready. Fully quit and restart DeepWrite, then try again.",
     browserPreviewCannotExport:

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRowOrderDrag } from "../composables/useRowOrderDrag";
 import { plotStageLabel } from "../i18n/plotStageLabels";
 import { createScopedTranslator } from "../i18n";
 import { type Book } from "@deepwrite/contracts/renderer";
@@ -58,6 +59,7 @@ const {
   openDelete,
   openEdit,
   orderedCharacterItems,
+  reorder,
   requestedCharacterFormat,
   rows,
   saveWritingContext,
@@ -67,6 +69,45 @@ const {
   toggleEnabled,
   writingContextPanel
 } = usePlotStructureDialog(props, emit);
+const canReorderStages = computed(
+  () =>
+    !locked.value &&
+    !props.childOpen &&
+    !activeSubdialog.value &&
+    rows.value.length > 1
+);
+const stageOrderDrag = useRowOrderDrag<string>(
+  "data-plot-stage-id",
+  "button, input",
+  (stageId) => {
+    if (!canReorderStages.value) return;
+    const currentRows = rows.value;
+    const sourceIndex = currentRows.findIndex((stage) => stage.id === stageId);
+    if (sourceIndex < 0) return;
+    return {
+      findTarget: (id) =>
+        canReorderStages.value &&
+        rows.value === currentRows &&
+        id !== stageId &&
+        currentRows.some((stage) => stage.id === id)
+          ? id
+          : undefined,
+      canDrop: (anchorId, position) => {
+        const targetIndex = currentRows.findIndex(
+          (stage) => stage.id === anchorId
+        );
+        return !(
+          targetIndex < 0 ||
+          (position === "before" && sourceIndex + 1 === targetIndex) ||
+          (position === "after" && targetIndex + 1 === sourceIndex)
+        );
+      },
+      drop: (anchorId, position) => {
+        reorder(stageId, anchorId, position);
+      }
+    };
+  }
+);
 const contextT = createScopedTranslator("components.writingContextPanel");
 const sections = computed<
   BookManagementSection<typeof activeStructureTab.value>[]
@@ -157,11 +198,17 @@ async function openRename(): Promise<void> {
       </div>
     </div>
     <template v-else-if="activeStructureTab === 'plot'">
-      <ol class="book-management-list">
+      <ol
+        class="book-management-list"
+        :class="{ 'plot-stages-reorderable': canReorderStages }"
+        @pointerdown="stageOrderDrag.start"
+        @click.capture="stageOrderDrag.click"
+      >
         <li
           v-for="(stage, index) in rows"
           :key="stage.id"
-          class="book-management-row"
+          class="book-management-row plot-structure-stage"
+          :data-plot-stage-id="stage.id"
         >
           <AgentTeamSwitch
             :model-value="stage.enabled"
@@ -377,6 +424,10 @@ async function openRename(): Promise<void> {
 </template>
 
 <style scoped>
+.plot-stages-reorderable .plot-structure-stage {
+  cursor: grab;
+  user-select: none;
+}
 .book-management-conversion-preview {
   display: grid;
   gap: 6px;

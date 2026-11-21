@@ -9,7 +9,7 @@ import {
   type CatalogIndexSnapshot
 } from "@deepwrite/contracts";
 import { createPinia, setActivePinia, storeToRefs } from "pinia";
-import { computed, isReactive, ref, shallowRef } from "vue";
+import { computed, effectScope, isReactive, ref, shallowRef } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const projectCatalogWorkspaceSpy = vi.hoisted(() => vi.fn());
@@ -185,7 +185,7 @@ describe("catalog index store", () => {
     expect(readDocument).toHaveBeenCalledTimes(1);
     coordinator.dispose();
     loader.dispose();
-    store.dispose();
+    store.$dispose();
   });
   it("projects once and publishes the matching shallow snapshot and indexes", () => {
     const store = useCatalogIndexStore();
@@ -295,6 +295,30 @@ describe("catalog index store", () => {
     await refreshing;
     expect(store.snapshot?.revision).toBe(2);
     expect(store.snapshotLoading).toBe(false);
+  });
+
+  it("keeps catalog data and in-flight reads alive across workspace scopes", async () => {
+    const previousWorkspace = effectScope();
+    const store = previousWorkspace.run(() => useCatalogIndexStore())!;
+    const pending = deferred<CatalogIndexSnapshot>();
+    store.applySnapshot(fixture(1));
+    const refreshing = store.ensureSnapshot(() => pending.promise);
+    previousWorkspace.stop();
+
+    const replacementWorkspace = effectScope();
+    try {
+      const replacement = replacementWorkspace.run(() =>
+        useCatalogIndexStore()
+      )!;
+      expect(replacement).toBe(store);
+      expect(replacement.snapshot?.revision).toBe(1);
+      pending.resolve(fixture(2));
+      await refreshing;
+      expect(replacement.snapshot?.revision).toBe(2);
+    } finally {
+      replacementWorkspace.stop();
+      store.$dispose();
+    }
   });
 
   it("deduplicates read-through loads and serves the immutable cached value", async () => {
@@ -411,7 +435,7 @@ describe("catalog index store", () => {
     await store.ensureSnapshot(async () => fixture(2));
     const late = deferred<CatalogIndexSnapshot>();
     const lateRequest = store.ensureSnapshot(() => late.promise);
-    store.dispose();
+    store.$dispose();
     late.resolve(fixture(3));
 
     await expect(lateRequest).rejects.toThrow("disposed");

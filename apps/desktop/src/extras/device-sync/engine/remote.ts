@@ -17,7 +17,6 @@ import {
   type SyncSpace,
   type SyncTransport
 } from "@deepwrite/contracts";
-import { ConversationRemote } from "../conversations/remote";
 import { SyncContentStore, SyncContentIntegrityError } from "./content-store";
 import { syncWorkCheckpoint } from "./work-scheduler";
 
@@ -268,15 +267,6 @@ export class SyncRemote {
     known: ReadonlyMap<string, SyncFileRef> = new Map()
   ): Promise<Map<string, SyncFileRef>> {
     return this.contents.upload(spaceId, contents, known);
-  }
-  /** The conversation channel shares this space's transport and content packs. */
-  conversations(): ConversationRemote {
-    return new ConversationRemote(
-      this.transport,
-      this.runtime,
-      this,
-      this.signal
-    );
   }
   async publish(commit: SyncCommit): Promise<string> {
     const text = stableSyncJson(syncCommitSchema.parse(commit));

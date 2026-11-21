@@ -115,7 +115,6 @@ import longImpactConfirmationDetails from "./longImpactConfirmationDetails/zh-CN
 import longLedgerFinalizationCard from "./longLedgerFinalizationCard/zh-CN";
 import longLegacySyncDialog from "./longLegacySyncDialog/zh-CN";
 import longManuscriptEditor from "./longManuscriptEditor/zh-CN";
-import longManuscriptNavigation from "./longManuscriptNavigation/zh-CN";
 import longMigrationReportDialog from "./longMigrationReportDialog/zh-CN";
 import longPlotStoryListPane from "./longPlotStoryListPane/zh-CN";
 import longProposalImpactDetails from "./longProposalImpactDetails/zh-CN";
@@ -311,7 +310,6 @@ export default {
   longLedgerFinalizationCard,
   longLegacySyncDialog,
   longManuscriptEditor,
-  longManuscriptNavigation,
   longMigrationReportDialog,
   longPlotStoryListPane,
   longProposalImpactDetails,

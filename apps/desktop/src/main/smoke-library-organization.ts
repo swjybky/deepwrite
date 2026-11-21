@@ -164,13 +164,14 @@ async function verifyOrganization(
         new PointerEvent("pointerdown", {
           bubbles: true,
           button: 0,
+          isPrimary: true,
           clientX: start.x + 45,
           clientY: start.y + start.height / 2
         })
       );
       await new Promise((resolve) => setTimeout(resolve, 400));
-      const ghost = document.querySelector<HTMLElement>(".library-order-ghost");
-      if (!ghost || !second.classList.contains("library-order-source"))
+      const ghost = document.querySelector<HTMLElement>(".row-order-ghost");
+      if (!ghost || !second.classList.contains("row-order-source"))
         throw new Error("Long-press did not lift the source row.");
       const ghostStyle = getComputedStyle(ghost);
       if (
@@ -210,14 +211,26 @@ async function verifyOrganization(
         ) > 1
       )
         throw new Error("Lifted row did not follow the pointer.");
-      if (!first.classList.contains("library-order-before"))
+      const marker = document.querySelector(".row-order-marker:not([hidden])");
+      if (
+        !marker ||
+        Math.abs(marker.getBoundingClientRect().top + 1 - end.top) > 1
+      )
         throw new Error(
           `Long-press marker missing: ${JSON.stringify({ source: second.dataset.resourceId, target: first.dataset.resourceId, rect: end.toJSON(), hit: document.elementFromPoint(end.x + 45, end.y + 2)?.outerHTML.slice(0, 800), section: first.closest(".resource-section")?.querySelector(".section-toggle")?.textContent })}`
         );
-      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      window.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          clientX: end.x + 45,
+          clientY: end.y + 2
+        })
+      );
       if (
-        document.querySelector(".library-order-ghost, .library-order-source") ||
-        document.documentElement.classList.contains("library-order-dragging")
+        document.querySelector(
+          ".row-order-ghost, .row-order-source, .row-order-marker"
+        ) ||
+        document.documentElement.classList.contains("row-order-dragging")
       )
         throw new Error("Lifted row was not cleaned up after drop.");
       await until(async () => {

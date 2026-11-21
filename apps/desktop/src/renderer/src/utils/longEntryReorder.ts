@@ -2,12 +2,7 @@ import type { LongWorkspaceOperation } from "@deepwrite/contracts";
 import type { LongWorkspaceSelection } from "../types/longWorkspace";
 
 export type LongEntryGroup =
-  | "worldbuilding"
-  | "character"
-  | "volume"
-  | "plotPoint"
-  | "chapter"
-  | "storyPlot";
+  "worldbuilding" | "character" | "volume" | "plotPoint" | "storyPlot";
 
 export function moveLongEntry(
   ids: readonly string[],
@@ -61,15 +56,6 @@ export function longEntryReorderOperation(
         return {
           type: "arc.reorder",
           volumeId: selection.plotPointVolumeId,
-          orderedIds
-        };
-      }
-      return;
-    case "chapter":
-      if (selection.chapterCardVolumeId) {
-        return {
-          type: "chapter.reorder",
-          volumeId: selection.chapterCardVolumeId,
           orderedIds
         };
       }

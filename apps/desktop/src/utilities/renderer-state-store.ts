@@ -4,7 +4,6 @@ import {
   RendererStateKeySchema,
   RendererStateHistoryMigrationSchema,
   type ConversationHistoryApi,
-  type DeviceSyncConversationRequest,
   type RendererStateHistoryMigration
 } from "@deepwrite/contracts";
 import { ConversationStorageWorker } from "./conversation-storage/worker-client";
@@ -17,7 +16,6 @@ export interface RendererStateBackend extends ConversationHistoryApi {
   legacyRemove(key: string): Promise<void>;
   legacyListHistoryKeys(): Promise<string[]>;
   legacyMigrateHistory(value: RendererStateHistoryMigration): Promise<boolean>;
-  syncConversations?(payload: DeviceSyncConversationRequest): Promise<unknown>;
   close(): Promise<void>;
 }
 
@@ -81,12 +79,6 @@ export class RendererStateStore {
     return this.backend.legacyMigrateHistory(
       RendererStateHistoryMigrationSchema.parse(value)
     );
-  }
-  /** Device sync reads and writes whole sessions through the storage worker. */
-  syncConversations(payload: DeviceSyncConversationRequest): Promise<unknown> {
-    if (!this.backend.syncConversations)
-      throw new Error("Conversation storage does not support device sync.");
-    return this.backend.syncConversations(payload);
   }
   close(): Promise<void> {
     return this.backend.close();

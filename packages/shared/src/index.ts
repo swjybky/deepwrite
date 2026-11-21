@@ -31,3 +31,28 @@ export function deepFreeze<T>(value: T): T {
   for (const entry of Object.values(value)) deepFreeze(entry);
   return value;
 }
+
+export function reorderItemsByAnchor<T extends { id: string }>(
+  items: readonly T[],
+  sourceId: string,
+  anchorId: string,
+  position: "before" | "after"
+): { items: T[]; moved: boolean } {
+  if (sourceId === anchorId) {
+    return { items: [...items], moved: false };
+  }
+  const sourceIndex = items.findIndex(({ id }) => id === sourceId);
+  const anchorIndex = items.findIndex(({ id }) => id === anchorId);
+  if (sourceIndex < 0 || anchorIndex < 0) {
+    return { items: [...items], moved: false };
+  }
+  const next = items.filter(({ id }) => id !== sourceId);
+  const nextAnchorIndex = next.findIndex(({ id }) => id === anchorId);
+  next.splice(
+    nextAnchorIndex + (position === "after" ? 1 : 0),
+    0,
+    items[sourceIndex]!
+  );
+  const moved = next.some((item, index) => item.id !== items[index]?.id);
+  return { items: next, moved };
+}

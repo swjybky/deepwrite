@@ -27,7 +27,8 @@
 | 磁盘、事务、SQLite、真实文件系统 | 测试登记到 `vitest.config.ts` 的 `disk-integration`；竞态用确定性同步点，不靠速度；临时目录用 `fs.rm` 有界重试 |
 | 持久化 schema、双端同步模块 | 新旧数据双向读写测试；同步检查 deepwrite-app 镜像（[error/schema-compat.md](error/schema-compat.md)） |
 | 智能体工具、提示词、子智能体 | Faux 响应测试；工具测试要经过 Pi 参数校验层，不能只直接调 `execute`；行为依赖模型时再用真实模型跑一次 |
-| 样式、布局、组件外观 | 下节“视觉验证”，必做，截图须在对话中展示 |
+| 涉及界面的功能新增、变更、修复 | 按“界面验收与截图”走完受影响的操作流程，在对话中直接展示代表性过程截图 |
+| 样式、布局、组件外观 | 按“界面验收与截图”做前后对比，在对话中直接展示能说明差异的对比图 |
 | 即时操作、保存状态 | 逐帧采样（[design/feedback.md](design/feedback.md)） |
 | IPC、Utility、进程入口 | `pnpm lint:boundary` + `pnpm build` + `pnpm smoke`（或 `smoke:conversation` / `smoke:shutdown`） |
 | 安装包、`files`、打包脚本 | `windows-macos-test-package` skill；Windows 相关需实机或 CI |
@@ -55,7 +56,8 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 | `out/main` 时间晚于开发版启动（期间跑过 `pnpm build` 或冒烟前的构建） | 重启。构建会清空重写 `out/`，开发版 Main 之后的懒加载与新拉起的 Utility 都从这里读，新旧代码混跑 |
 | `control.json` 缺失，或 pid 不是当前开发版 | 重启。见 [error/mcp-dev-endpoint.md](error/mcp-dev-endpoint.md) |
 | 只改了 Renderer（`.vue`、样式、Renderer 侧逻辑） | 复用，靠热更新 |
-| 热更新后终端报错、界面状态异常，或改了 Pinia store、`WorkspaceShell.vue`、模块级单例 | 重启。开发窗口没有菜单，不能 Cmd+R 刷新；不在出错的热更新状态上继续测或下结论 |
+| 改了 `WorkspaceShell.vue` 或工作台生命周期 | 先验证一次脚本热更新。在同一窗口切回应用，从侧栏重新打开合成样书，确认目录和正文可读。详情见 [workspace-hmr-cleanup](error/workspace-hmr-cleanup.md) |
+| 热更新后终端报错、界面状态异常，或改了 Pinia store、模块级单例 | 重启。开发窗口没有菜单，不能 Cmd+R 刷新；不在出错的热更新状态上继续测或下结论 |
 
 **重启：**
 
@@ -65,6 +67,8 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 
 **就绪：**`control.json` 的 pid 等于新 Electron 的 pid 后，调用 `get_app_status` 看到窗口就绪，再用 `list_works` 成功列出作品，才开始测。刚重启时目录未加载完，`get_agent_run` 等调用可能报“窗口无法打开目标”，等目录加载后重试一次即可，不计为功能失败。
 
+修改工作台的启动、卸载或共享存储后，跑 `App.workspace-lifecycle.test.ts`、`useWorkspaceLifecycleCoordinator.test.ts` 和受影响存储的定向测试。桌面验收用独立 `--user-data-dir` 和合成样书，分别覆盖冷启动和脚本热更新，并从新工作台打开短篇和长篇正文。页面挂载或目录 IPC 返回以后仍要核对侧栏和正文实际可操作。
+
 ## 运行验证（MCP 配合）
 
 - 创作空间、素材库、技能库、智能体团队等运行场景，优先通过项目的 `deepwrite-dev` MCP 配合执行，减少重复的界面操作；按 [deepwrite-dev skill](.codex/skills/deepwrite-dev/SKILL.md) 操作，不连接安装版的 `deepwrite` 服务。
@@ -73,18 +77,27 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 - MCP 发起运行后保存目标 id、runId 和 sessionId，跟踪到终态，核对实际内容、持久化结果及预期失败路径；仅收到 runId 不算通过。等待用户输入或运行失败时，按返回状态处理并在报告中说明。
 - MCP 结果可作为功能运行证据；涉及界面交互、布局、反馈或安装包时，仍执行对应的界面、截图或安装包验证。报告注明 MCP、模型与运行模式，以及通过、失败和未覆盖项，不记录私有正文或密钥。
 
-## 视觉验证（样式改动必做）
+## 界面验收与截图
 
-1. **启动测试环境：**在仓库根目录运行 `pnpm dev`（开发版独立数据目录）。需要可重复的隔离截图时，使用 Electron 探针（参照 `apps/desktop/scripts/analysis-page-probe.mjs`：Vite 起夹具页，临时 userData，`capturePage()` 输出 PNG）。不碰安装版和真实作品。
-2. **截基线：**动手前先截。漏截时在 scratchpad 用 `git worktree add` 检出 HEAD 补截，不 stash 共享工作区。
-3. **同条件截改后：**窗口尺寸、主题、字号、数据都与基线一致。至少截浅色和深色；涉及布局的加最小窗口 1000×680 和 UI 24px；有弹层或状态变化的加对应状态。
-4. **比对：**逐对检查裁切、溢出、换行、对齐、颜色是否跟随主题；需要时在 scratchpad 生成并排图或差异图。每对写一句结论。
-5. **存档：**截图存到 `test/日期-主题/`，命名 `before|after-light|dark-宽x高[-字号].png`，在报告中引用。
-6. **展示给用户（完成门槛）：**最终回复前，把截图发到对话里让用户直接看到，只存文件或只贴路径不算完成。
-   - Claude Code 用 `SendUserFile`（`display: "render"`），其他客户端用图片附件或 Markdown 图片 `![说明](绝对路径)`。
-   - 每个检查条件（主题、尺寸、状态）都发：优先发并排对比图，没有就成对发前后图；每张配一句结论，比对发现的问题也要发出对应截图。
-   - 发出后又改了样式，重新截图并重发最终版；最终回复里写明已展示哪几组、哪些未截及原因。
-7. 测试环境起不来时，申请沙盒外执行或请用户在系统终端启动；仍不行就记为“未验”，在回复里明说没有截图，不用类型检查代替。
+在仓库根目录运行 `pnpm dev`，用开发版和合成数据验收。默认使用常规窗口尺寸与默认字号（UI 14px）；需要可重复的隔离截图时，参照 `apps/desktop/scripts/analysis-page-probe.mjs` 用隐藏窗口（`show: false`）的 Electron 探针、临时 userData 和 `capturePage()` 生成 PNG，不弹前台窗口。若在可见开发窗口中临时改过主题或字号，结束前恢复默认。
+
+### 功能流程截图
+
+1. 实现完成后，在默认字号（UI 14px）下从正常入口走完本次改动影响的主要操作流程。按顺序截取完整窗口，覆盖入口、填写或选择、提交、反馈和最终结果中实际出现的步骤。改动涉及的异常、取消或恢复分支也要跑到可观察的结果并截图。
+2. 需要打开或重新加载才能看到最终结果时，继续操作并截图。导出功能应打开产物核对内容，保存功能应重新打开核对保存结果。需要滚动才能看全的内容，按顺序补截。
+3. 每张图标明当前操作和可见结果。过程图按 `01-入口.png`、`02-选择.png` 等顺序命名，开发者可以照着截图复现流程。
+
+### 样式前后对比
+
+1. 动手前截基线。漏截时在 scratchpad 用 `git worktree add` 检出 HEAD 补截，避免 stash 共享工作区。
+2. 使用相同窗口尺寸、主题、字号和数据截改后。默认用常规窗口与默认字号（UI 14px）覆盖浅色和深色；仅在改动涉及字号缩放、紧凑弹窗／窄栏防溢出或专门排查大字号布局时，再补测最小窗口 1000×680 或 UI 24px；涉及弹层或状态变化时补截对应状态。
+3. 逐对检查裁切、溢出、换行、对齐和主题颜色，为每对写一句结论。对比图优先左右并排，原图命名 `before|after-light|dark-宽x高[-字号].png`。
+
+### 展示与归档
+
+- 最终回复前选出最能说明改动、验证结果或发现问题的代表性截图（优先默认 14px），按操作顺序直接显示在对话里。同一结论优先选最清楚的一张。使用图片附件或 Markdown 图片 `![说明](绝对路径)`，Claude Code 用 `SendUserFile`（`display: "render"`）。
+- 完整流程截图和各条件的前后对比存到 `test/日期-主题/`，在报告里按操作顺序引用。相关流程或样式在展示后再次改动时，重新验证并更新归档，重新展示受影响的代表性截图。
+- 环境阻塞时按“开发环境：复用或重启”排查。确实无法完成的步骤记为“未验”，在最终回复写清未截的步骤和原因。
 
 ## 环境约束
 
@@ -106,6 +119,18 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 
 | 日期 | 主题 | 结论 | 报告 |
 | --- | --- | --- | --- |
+| 2026-11-20 | 左侧创作目录统一长按拖拽排序 | 83项单测、预算与桌面通过 | [报告](test/2026-11-20-sidebar-creation-row-order-drag.md) |
+| 2026-11-20 | 学术框架阶段拖动排序 | 长按、边缘滚动与重开通过 | [报告](test/2026-11-20-academic-framework-drag.md) |
+| 2026-11-20 | 绑定列表技能分区 | 三段展示与保存重开通过 | [报告](test/2026-11-20-book-skill-binding-sections.md) |
+| 2026-11-20 | 开发版工作台启动与热更新 | 冷启动与四轮热更新通过 | [报告](test/2026-11-20-workspace-dev-readiness.md) |
+| 2026-11-20 | 长篇章卡移入正文页签 | 251 项、桌面与构建预算通过 | [报告](test/2026-11-20-chapter-card-tabs.md) |
+| 2026-11-20 | 绑定名称悬浮提示 | 截断检测与右侧提示通过 | [报告](test/2026-11-20-book-bindings-hover.md) |
+| 2026-11-20 | 临时隐藏云端备份 | 28 项与桌面冒烟通过 | [报告](test/2026-11-20-hide-cloud-backup.md) |
+| 2026-11-20 | 绑定弹窗重设计 | 58 项与七组截图通过 | [报告](test/2026-11-20-book-bindings-redesign.md) |
+| 2026-11-20 | 统一导出弹窗 | 124 项、32 组对照与 ZIP 验证 | [报告](test/2026-11-20-unified-export-dialogs.md) |
+| 2026-11-20 | 短篇、剧本和长篇 Markdown 导出 | 95 项、桌面冒烟与四组对比通过 | [报告](test/2026-11-20-manuscript-markdown-export.md) |
+| 2026-11-20 | 工作区统一分栏拖动 | 四页零更新，章卡单次布局 | [报告](test/2026-11-20-unified-pane-resize.md) |
+| 2026-11-20 | 长篇正文与章卡右列表拖动 | 定位组件更新与二次布局 | [报告](test/2026-11-20-long-editor-drag.md) |
 | 2026-11-18 | 五类作品管理弹窗统一 | 73 项与五类桌面对比通过 | [报告](test/2026-11-18-book-management-dialog.md) |
 | 2026-11-18 | 剧本杀上下文移入管理 | 29 项与四组桌面截图通过 | [报告](test/2026-11-18-mystery-context.md) |
 | 2026-11-18 | 长篇合并归档与账本确认 | 110 项与 Core 冒烟通过 | [报告](test/2026-11-18-long-continuity-archive.md) |

@@ -11,11 +11,6 @@ export default {
   createAPlotPointThenUseEntryNavigationTo:
     "新建剧情点后，可通过条目导航切换并编辑内容。",
   createFirstPlotPoint: "新建第一个剧情点",
-  noChapterCardsYet: "还没有章卡",
-  createAChapterCardThenSelectItInThe: "新建章卡后，可从左侧树选择并编辑内容。",
-  createAChapterCardThenUseEntryNavigationTo:
-    "新建章卡后，可通过条目导航切换并编辑内容。",
-  createFirstChapterCard: "新建第一张章卡",
   plotPointTitle: "剧情点标题",
   plotPointTitleIsRequired: "剧情点标题不能为空。",
   volumeName: "分卷名称",
@@ -70,7 +65,6 @@ export default {
   currentVolume: "当前分卷",
   addPlotPoint: "新增剧情点",
   deleteCurrentPlotPoint: "删除当前剧情点",
-  valueChapterCards: "{arg0}章卡",
   valueContent: "{arg0}内容",
   volumeForeshadowing: "本卷伏笔",
   currentPlotPoint: "当前剧情点",
@@ -116,7 +110,6 @@ export default {
   resizeRightEntryList: "调整右侧条目列表宽度",
   overallStorylineList: "全书故事线列表",
   plotPoints: "剧情点列表",
-  chapterCards: "章卡列表",
   saving: "保存中…",
   saveNow: "立即保存",
   selectANovelFile: "选择一个长篇文件",

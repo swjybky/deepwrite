@@ -20,15 +20,8 @@ const props = defineProps<{
   prepareSync(): Promise<boolean>;
   refreshSync(): Promise<void>;
 }>();
-const {
-  status,
-  pending,
-  initialLoading,
-  loadInitialStatus,
-  run,
-  scope,
-  conversationScope
-} = useDeviceSync(props.refreshSync, props.prepareSync);
+const { status, pending, initialLoading, loadInitialStatus, run, scope } =
+  useDeviceSync(props.refreshSync, props.prepareSync);
 const tab = ref("overview");
 const qr = ref("");
 const restoring = ref<Omit<SyncHistory, "item"> | null>(null);
@@ -202,12 +195,9 @@ async function restore() {
       />
       <SyncContentPanel
         v-if="tab === 'content'"
-        :status="status"
         :items="scope.items.value"
-        :conversation-items="conversationScope.items.value"
         @toggle="(key, included) => scope.toggle([key], included)"
         @toggle-many="scope.toggle"
-        @toggle-conversations="conversationScope.toggle"
       />
       <section v-if="tab === 'devices'" class="sync-card">
         <h2>{{ t("deviceSync.connectedDevices") }}</h2>

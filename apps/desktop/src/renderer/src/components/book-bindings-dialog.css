@@ -1,0 +1,231 @@
+.workspace-dialog.book-bindings-dialog {
+  width: min(920px, calc(100vw - 48px));
+  height: min(640px, calc(100vh - 48px));
+  max-height: none;
+}
+.book-bindings-dialog > header {
+  padding-block: 10px;
+}
+.book-bindings-dialog > header > div {
+  min-width: 0;
+}
+.book-bindings-dialog .dialog-eyebrow {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-bindings-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.book-bindings-layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(230px, 32%) minmax(0, 1fr);
+  min-height: 0;
+}
+.book-bindings-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 14px 16px;
+  border-inline-end: 1px solid var(--theme-line-soft);
+  background: var(--surface-muted);
+}
+.book-bindings-overview h3 {
+  margin: 0;
+  padding-inline: 4px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.book-bindings-card {
+  min-width: 0;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-main);
+  transition: border-color 120ms ease;
+}
+.book-bindings-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.book-bindings-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  font-weight: 600;
+  text-align: start;
+}
+.book-bindings-card-head > svg {
+  flex: none;
+}
+.book-bindings-card-head:hover {
+  background: var(--surface-hover);
+}
+.book-bindings-card-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-bindings-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.714286rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.book-bindings-count.is-empty {
+  background: var(--surface-hover);
+  color: var(--text-tertiary);
+}
+.book-bindings-dirty {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+.book-bindings-card-chevron {
+  flex: none;
+  color: var(--text-tertiary);
+}
+.book-bindings-card.is-active .book-bindings-card-chevron {
+  color: var(--accent);
+}
+.book-bindings-items {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 0;
+  padding: 0 6px 6px;
+  list-style: none;
+}
+.book-bindings-items li {
+  anchor-scope: --book-bindings-item;
+  anchor-name: --book-bindings-item;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 4px 2px 6px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+.book-bindings-items li:hover {
+  background: var(--surface-hover);
+}
+.book-bindings-item-icon {
+  flex: none;
+  color: var(--accent);
+}
+.book-bindings-items li.is-missing {
+  color: var(--text-tertiary);
+}
+.book-bindings-items li.is-missing .book-bindings-item-icon {
+  color: var(--warning);
+}
+.book-bindings-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-bindings-item-tooltip {
+  position: fixed;
+  z-index: 1600;
+  position-anchor: --book-bindings-item;
+  position-area: inline-end span-all;
+  align-self: anchor-center;
+  justify-self: start;
+  max-inline-size: 24rem;
+  margin-inline: 8px 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--text-primary);
+  color: var(--surface-main);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.book-bindings-item-flag {
+  flex: none;
+  color: var(--warning);
+  font-size: 0.714286rem;
+}
+.book-bindings-items button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+}
+.book-bindings-items button:hover,
+.book-bindings-items button:focus-visible {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+.book-bindings-card-empty {
+  margin: 0;
+  padding: 0 12px 10px 32px;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+.book-bindings-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 20px 12px;
+}
+.book-bindings-editor > header h3,
+.book-bindings-editor > header p {
+  margin: 0;
+}
+.book-bindings-editor > header h3 {
+  font-size: 1rem;
+}
+.book-bindings-editor > header p {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+}
+.dialog-actions.book-bindings-actions {
+  flex: none;
+  margin: 0;
+  padding: 9px 22px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+.book-bindings-save {
+  display: grid;
+}
+.book-bindings-save > span {
+  grid-area: 1 / 1;
+}
+.book-bindings-save-hidden {
+  visibility: hidden;
+}

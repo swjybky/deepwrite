@@ -8,7 +8,7 @@ import {
   type Book,
   type MutateCharacterStructureInput
 } from "@deepwrite/contracts";
-import { createCatalogId } from "@deepwrite/shared";
+import { createCatalogId, reorderItemsByAnchor } from "@deepwrite/shared";
 import { assertBaseRevision } from "./assertions";
 import {
   bumpRegistry,
@@ -328,6 +328,22 @@ export async function mutateCharacterStructure(
             throw new Error("人物条目已经位于列表边界。");
           }
           [items[index], items[target]] = [items[target]!, items[index]!];
+        } else if (mutation.type === "reorderItem") {
+          if (!items.some(({ id }) => id === mutation.anchorId)) {
+            throw new Error("目标人物条目已删除或不存在。");
+          }
+          const reordered = reorderItemsByAnchor(
+            items,
+            mutation.itemId,
+            mutation.anchorId,
+            mutation.position
+          );
+          if (!reordered.moved) {
+            return (
+              await readProject(store, projectDirectory, "book", input.bookId)
+            ).resource as Book;
+          }
+          items.splice(0, items.length, ...reordered.items);
         } else {
           const documentIndex = documents.findIndex(
             ({ id }) => id === mutation.itemId

@@ -4,7 +4,6 @@ import {
   conversationHistoryKeyFor,
   RendererStateKeySchema
 } from "./renderer-state-key";
-import { conversationSyncBookKeySchema } from "./device-sync/conversation/schemas";
 
 const revision = "v1:0:00000000";
 function workspace() {
@@ -67,7 +66,7 @@ describe("domain library workspace contract", () => {
       }).success
     ).toBe(false);
   });
-  it("stores domain keys locally while keeping work-only sync scope", () => {
+  it("stores domain keys locally", () => {
     expect(
       RendererStateKeySchema.safeParse(
         conversationHistoryKeyFor("library:material")
@@ -78,8 +77,5 @@ describe("domain library workspace contract", () => {
         conversationHistoryKeyFor("library:skill")
       ).success
     ).toBe(true);
-    expect(
-      conversationSyncBookKeySchema.safeParse("library:material").success
-    ).toBe(false);
   });
 });

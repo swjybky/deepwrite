@@ -37,12 +37,6 @@ import { StorageSettingsCommandSchemas } from "./storage-settings";
 import { ConversationExportCommandEnvelopeSchemas } from "./conversation-export";
 import { SiteOfficialModelCommandSchemas } from "./site-official-models";
 import { DeviceSyncWorkspaceCommandEnvelopeSchema } from "./device-sync-commands";
-import {
-  DeviceSyncConversationCommandEnvelopeSchema,
-  DeviceSyncConversationLeaseEventEnvelopeSchema,
-  DeviceSyncConversationLeaseResultCommandEnvelopeSchema,
-  DeviceSyncConversationsChangedEventEnvelopeSchema
-} from "./device-sync-conversation-commands";
 import { AgentTeamsSaveBuiltinsCommandEnvelopeSchema } from "./builtin-subagents";
 import {
   AgentTeamPromptSavedEventEnvelopeSchema,
@@ -318,8 +312,6 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ...WebSearchCommandSchemas,
   ...BookTemplateCommandSchemas,
   DeviceSyncWorkspaceCommandEnvelopeSchema,
-  DeviceSyncConversationCommandEnvelopeSchema,
-  DeviceSyncConversationLeaseResultCommandEnvelopeSchema,
   CatalogQueryMaterialsCommandEnvelopeSchema,
   CatalogPreviewLibraryStructureCommandEnvelopeSchema,
   CatalogApplyLibraryStructureCommandEnvelopeSchema,
@@ -508,8 +500,6 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   BookIdentityUpdatedEventEnvelopeSchema,
   LongMaterialProgressEventEnvelopeSchema,
   RendererStateFlushRequestedEventEnvelopeSchema,
-  DeviceSyncConversationLeaseEventEnvelopeSchema,
-  DeviceSyncConversationsChangedEventEnvelopeSchema,
   SystemReadyEventEnvelopeSchema,
   SystemWorkerRestartingEventEnvelopeSchema,
   SystemNotificationBlockedEventEnvelopeSchema,
@@ -578,8 +568,6 @@ export type SystemEventEnvelope =
   | DecompositionJobSettledEvent
   | ExtrasAgentOutputUpdatedEventEnvelope
   | z.infer<typeof RendererStateFlushRequestedEventEnvelopeSchema>
-  | z.infer<typeof DeviceSyncConversationLeaseEventEnvelopeSchema>
-  | z.infer<typeof DeviceSyncConversationsChangedEventEnvelopeSchema>
   | SystemReadyEventEnvelope
   | SystemWorkerRestartingEventEnvelope
   | SystemNotificationBlockedEventEnvelope

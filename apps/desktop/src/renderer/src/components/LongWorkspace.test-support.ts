@@ -17,7 +17,6 @@ import editorDeleteSource from "../composables/useLongEditorDeleteDialogs.ts?raw
 import storyPlotDeleteSource from "../composables/useLongStoryPlotDeleteConfirmation.ts?raw";
 import editorDeleteDialogsSource from "./LongEditorDeleteDialogs.vue?raw";
 import longWorkspaceModuleSource from "./LongWorkspaceModule.vue?raw";
-import manuscriptNavigationSource from "./LongManuscriptNavigation.vue?raw";
 import worldbuildingNavigationSource from "./LongWorldbuildingNavigation.vue?raw";
 import foreshadowingFiltersSource from "../composables/useForeshadowingFilters.ts?raw";
 import legacySyncSource from "./LongLegacySyncDialog.vue?raw";
@@ -124,7 +123,6 @@ export {
   longWorkspaceSessionSource,
   longWorkspaceStoreSource,
   longWorkspaceTypeSource,
-  manuscriptNavigationSource,
   plotPointDialogSource,
   presentationCoordinatorSource,
   proposalRuntimeSource,

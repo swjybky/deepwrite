@@ -47,12 +47,6 @@ it.each([800, 1200, 3000])(
       );
       expect(node.badge).toBe("待提交");
     }
-    const cards = nodes.filter(
-      (node) => node.longTreeItem?.kind === "chapter-card"
-    );
-    expect(cards[0]!.longWorkspaceSelection!.chapterCardTabs).toBe(
-      cards.at(-1)!.longWorkspaceSelection!.chapterCardTabs
-    );
   }
 );
 
@@ -105,12 +99,11 @@ it("reuses content-only directory nodes while selections resolve the latest file
   const chapter = flatten(after).find(
     (node) => node.longWorkspaceSelection?.key === "chapter:chapter_1"
   )!;
-  expect(chapter.longWorkspaceSelection!.files[0]!.file.updatedAt).toBe(
-    next.updatedAt
-  );
-  expect(chapter.longWorkspaceSelection!.files[0]!.file).toBe(
-    next.chapters[0]!.body
-  );
+  const body = chapter.longWorkspaceSelection?.files.find(
+    ({ role }) => role === "body"
+  )?.file;
+  expect(body?.updatedAt).toBe(next.updatedAt);
+  expect(body).toBe(next.chapters[0]!.body);
   const expected = JSON.stringify(
     projectLongWorkspaceNavigation(nextBook, next)
   );

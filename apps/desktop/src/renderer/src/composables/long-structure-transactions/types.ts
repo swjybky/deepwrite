@@ -1,6 +1,5 @@
 import type {
   LongBookSummary,
-  LongChapterCardId,
   LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
 import type { Ref } from "vue";
@@ -56,7 +55,6 @@ export interface LongStructureTransactionsSessionPort {
   refreshActiveWorkspace(bookId: string): Promise<boolean>;
   refreshWorkspaceAfterProposal(bookId: string): Promise<boolean>;
   selectWorkspaceFile(selection: LongWorkspaceSelection): Promise<boolean>;
-  selectChapterCardTab(chapterCardId: LongChapterCardId): Promise<void>;
   editor: Readonly<Ref<LongWorkspaceEditorPort | null>>;
 }
 

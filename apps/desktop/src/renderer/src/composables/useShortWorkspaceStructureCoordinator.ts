@@ -13,6 +13,7 @@ import type {
   DraftDirectoryProjection
 } from "../data/catalogWorkspace";
 import type {
+  CreationTreeReorderPayload,
   DraftFileKind,
   EditorDraftState,
   ResourceTreeNode,
@@ -486,7 +487,8 @@ export function useShortWorkspaceStructureCoordinator(
                 ? t(
                     "shortWorkspaceStructureCoordinator.characterEntryNameUpdated"
                   )
-                : mutation.type === "moveItem"
+                : mutation.type === "moveItem" ||
+                    mutation.type === "reorderItem"
                   ? t(
                       "shortWorkspaceStructureCoordinator.characterEntriesReordered"
                     )
@@ -719,10 +721,11 @@ export function useShortWorkspaceStructureCoordinator(
 
   async function mutatePlotStructure(
     mutation: PlotStructureMutation,
-    completion: ShortStructureMutationCompletion
+    completion: ShortStructureMutationCompletion,
+    bookIdOverride?: string
   ): Promise<void> {
     const api = options.api();
-    const bookId = plotStructureBookId.value;
+    const bookId = bookIdOverride ?? plotStructureBookId.value;
     if (!api || !bookId) {
       completion.fail();
       return;
@@ -806,7 +809,7 @@ export function useShortWorkspaceStructureCoordinator(
               ? t(
                   "shortWorkspaceStructureCoordinator.plotStructureUpdatedAcrossAllProjects"
                 )
-              : mutation.type === "move"
+              : mutation.type === "move" || mutation.type === "reorder"
                 ? t(
                     "shortWorkspaceStructureCoordinator.plotStructuresReordered"
                   )
@@ -1087,31 +1090,39 @@ export function useShortWorkspaceStructureCoordinator(
     await addExpertSection(draftNode);
   }
 
-  async function moveExpertSection(
-    action: "move-up" | "move-down",
-    node: ResourceTreeNode
-  ): Promise<void> {
-    if (!node.expertSectionId) return;
-    const initialDirectory = resources.draftDirectoryForResourceId(node.id);
-    if (!initialDirectory) return;
-    const bookId = initialDirectory.workspaceId;
-    const sectionId = node.expertSectionId;
+  async function executeDraftSectionMove(moveOptions: {
+    bookId: string;
+    initialDirectoryId: string;
+    sectionId: string;
+    target:
+      | { direction: "up" | "down" }
+      | { anchorSectionId: string; position: "before" | "after" };
+    selectAfterMove?: boolean;
+  }): Promise<void> {
     const api = options.api();
     if (!api) return;
+    const { bookId, initialDirectoryId, sectionId, target, selectAfterMove } =
+      moveOptions;
     const operation = enqueueWorkspaceMutation(bookId, async (context) => {
       if (!(await prepareBookStructureMutation(bookId))) return;
       const directory = catalog.projection.value?.draftDirectories.find(
-        (candidate) => candidate.id === initialDirectory.id
+        (candidate) => candidate.id === initialDirectoryId
       );
       const section = directory?.sections.find(
         (candidate) => candidate.id === sectionId
       );
+      const anchor =
+        "anchorSectionId" in target
+          ? directory?.sections.find(
+              (candidate) => candidate.id === target.anchorSectionId
+            )
+          : section;
       const source = section
         ? state.documents.value.find(
             (document) => document.id === section.bodyDocumentId
           )
         : undefined;
-      if (!directory || !section || !source) {
+      if (!directory || !section || !anchor || !source) {
         if (canPublish(context)) {
           notifications.warning(
             t(
@@ -1136,13 +1147,16 @@ export function useShortWorkspaceStructureCoordinator(
         }
         return;
       }
-      const currentIndex = directory.sections.findIndex(
-        (candidate) => candidate.id === section.id
-      );
-      const direction = action === "move-up" ? "up" : "down";
-      const targetIndex =
-        direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (targetIndex < 0 || targetIndex >= directory.sections.length) return;
+      if ("direction" in target) {
+        const currentIndex = directory.sections.findIndex(
+          (candidate) => candidate.id === section.id
+        );
+        const targetIndex =
+          target.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= directory.sections.length) return;
+      } else if (section.id === anchor.id) {
+        return;
+      }
       const authoritativeBook = catalog.findBook(bookId);
       if (
         !authoritativeBook ||
@@ -1163,27 +1177,31 @@ export function useShortWorkspaceStructureCoordinator(
         const result = await api.moveDraftSection({
           bookId,
           sectionId: section.id,
-          direction,
-          baseProjectRevision: authoritativeBook.projectRevision
+          baseProjectRevision: authoritativeBook.projectRevision,
+          ...("direction" in target
+            ? { direction: target.direction }
+            : { anchorSectionId: anchor.id, position: target.position })
         });
         if (!result.moved) return;
         await catalog.refresh();
         if (!canPublish(context)) return;
-        state.selectedResourceId.value = directory.id;
-        state.activeCreationResourceId.value = directory.id;
-        state.selectedExpertSectionIds.value = {
-          ...state.selectedExpertSectionIds.value,
-          [directory.id]: section.id
-        };
-        notifications.success(
-          t("shortWorkspaceStructureCoordinator.message", {
-            value:
-              direction === "up"
-                ? t("proposalCoordinator.moveUp")
-                : t("proposalCoordinator.moveDown"),
-            title: section.title
-          })
-        );
+        if (selectAfterMove && "direction" in target) {
+          state.selectedResourceId.value = directory.id;
+          state.activeCreationResourceId.value = directory.id;
+          state.selectedExpertSectionIds.value = {
+            ...state.selectedExpertSectionIds.value,
+            [directory.id]: section.id
+          };
+          notifications.success(
+            t("shortWorkspaceStructureCoordinator.message", {
+              value:
+                target.direction === "up"
+                  ? t("proposalCoordinator.moveUp")
+                  : t("proposalCoordinator.moveDown"),
+              title: section.title
+            })
+          );
+        }
       } catch (error: unknown) {
         if (catalog.isConflict(error)) await catalog.refresh();
         if (!canPublish(context)) return;
@@ -1212,6 +1230,87 @@ export function useShortWorkspaceStructureCoordinator(
         )
       );
     await operation;
+  }
+
+  async function moveExpertSection(
+    action: "move-up" | "move-down",
+    node: ResourceTreeNode
+  ): Promise<void> {
+    if (!node.expertSectionId) return;
+    const initialDirectory = resources.draftDirectoryForResourceId(node.id);
+    if (!initialDirectory) return;
+    await executeDraftSectionMove({
+      bookId: initialDirectory.workspaceId,
+      initialDirectoryId: initialDirectory.id,
+      sectionId: node.expertSectionId,
+      target: { direction: action === "move-up" ? "up" : "down" },
+      selectAfterMove: true
+    });
+  }
+
+  async function reorderExpertSection(
+    bookId: string,
+    sectionId: string,
+    anchorSectionId: string,
+    position: "before" | "after"
+  ): Promise<void> {
+    const initialDirectory = catalog.projection.value?.draftDirectories.find(
+      (candidate) => candidate.workspaceId === bookId
+    );
+    if (!initialDirectory) return;
+    await executeDraftSectionMove({
+      bookId,
+      initialDirectoryId: initialDirectory.id,
+      sectionId,
+      target: { anchorSectionId, position }
+    });
+  }
+
+  async function reorderShortTreeNode(
+    payload: Extract<
+      CreationTreeReorderPayload,
+      {
+        kind:
+          "short-plot-stage" | "short-character-item" | "short-draft-section";
+      }
+    >
+  ): Promise<void> {
+    const noopCompletion: ShortStructureMutationCompletion = {
+      succeed: () => undefined,
+      fail: () => undefined
+    };
+    if (payload.kind === "short-plot-stage") {
+      await mutatePlotStructure(
+        {
+          type: "reorder",
+          stageId: payload.stageId,
+          anchorId: payload.anchorId,
+          position: payload.position
+        },
+        noopCompletion,
+        payload.bookId
+      );
+      return;
+    }
+    if (payload.kind === "short-character-item") {
+      await mutateCharacterStructure(
+        {
+          type: "reorderItem",
+          itemId: payload.itemId,
+          anchorId: payload.anchorId,
+          position: payload.position
+        },
+        noopCompletion,
+        payload.bookId
+      );
+      return;
+    }
+    await reorderExpertSection(
+      payload.bookId,
+      payload.sectionId,
+      payload.anchorSectionId,
+      payload.position
+    );
   }
 
   function removeExpertSectionFromEditor(): void {
@@ -1549,6 +1648,7 @@ export function useShortWorkspaceStructureCoordinator(
     confirmCreateExpertSection,
     addExpertSectionFromEditor,
     moveExpertSection,
+    reorderShortTreeNode,
     removeExpertSectionFromEditor,
     requestRemoveExpertSection,
     closeRemoveExpertSectionDialog,

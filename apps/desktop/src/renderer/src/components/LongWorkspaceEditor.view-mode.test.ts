@@ -41,6 +41,8 @@ interface EditorState {
   replacementText: string;
   canUndo: boolean;
   currentVisibleContent: string;
+  currentSelectionFile?: LongWorkspaceSelection["files"][number];
+  selectWorkspaceFile(fileId: string): Promise<void>;
   setViewMode(mode: TextViewMode): void;
   recordProgrammaticChange(
     content: string,
@@ -310,6 +312,40 @@ describe("long editor view mode across document refreshes", () => {
     await nextTick();
 
     expect(state.viewMode).toBe("edit");
+  });
+
+  it("retains the selected chapter card across an equivalent index refresh", async () => {
+    const { props, state } = await setupEditor();
+    const manuscript = selection();
+    const card = {
+      role: "card" as const,
+      label: "章卡",
+      file: {
+        id: "file-chapter-card",
+        path: "long/chapters/chapter_one/card.md",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }
+    };
+    props.selection = {
+      ...manuscript,
+      key: "chapter:chapter_one",
+      chapterCardId: "chapter_one",
+      files: [card, ...manuscript.files]
+    };
+    await nextTick();
+    expect(state.currentSelectionFile?.role).toBe("body");
+    await state.selectWorkspaceFile(card.file.id);
+    expect(state.currentSelectionFile?.role).toBe("card");
+
+    props.selection = {
+      ...props.selection,
+      files: props.selection.files.map((file) => ({
+        ...file,
+        file: { ...file.file }
+      }))
+    };
+    await nextTick();
+    expect(state.currentSelectionFile?.role).toBe("card");
   });
 
   it("applies the default and clears old editing state when the document changes", async () => {

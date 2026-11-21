@@ -1,6 +1,6 @@
 import { app, dialog, nativeImage, type BrowserWindow } from "electron";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { DeepWriteApi } from "@deepwrite/contracts";
 import { runBookImageEditorSmoke } from "./smoke-book-images-editor";
 import { runBookImageLongEditorSmoke } from "./smoke-book-images-long-editor";
@@ -55,7 +55,7 @@ async function insertAndExportInRenderer() {
     }
   }
   const paths: string[] = [];
-  for (const format of ["docx", "epub", "txt"] as const) {
+  for (const format of ["docx", "epub", "txt", "md"] as const) {
     const result = await api.manuscript.exportShort({
       book,
       title: source.title,
@@ -73,6 +73,19 @@ async function insertAndExportInRenderer() {
     selectedImages: picked.images.length,
     exports: paths
   };
+}
+
+async function assertMarkdownImage(path: string, image: Buffer): Promise<void> {
+  const markdown = await readFile(path, "utf8");
+  const link = /^!\[地图\]\(([^()\s]+)\)$/mu.exec(markdown)?.[1];
+  if (
+    !link ||
+    !(await readFile(join(dirname(path), decodeURIComponent(link)))).equals(
+      image
+    )
+  ) {
+    throw new Error("Book image smoke Markdown image link is broken.");
+  }
 }
 
 /** Only native dialogs are stubbed; image bytes cross real Preload/Main/Core. */
@@ -102,14 +115,23 @@ export async function runBookImageSmoke(window: BrowserWindow) {
       return canvas.toDataURL('image/webp').split(',')[1];
     })()`);
     await writeFile(webpPath, Buffer.from(webp, "base64"));
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [sourcePath, jpegPath, webpPath]
-    });
+    dialog.showOpenDialog = async (...args: unknown[]) => {
+      const options = args.at(-1) as Electron.OpenDialogOptions;
+      return {
+        canceled: false,
+        filePaths: options.properties?.includes("openDirectory")
+          ? [root]
+          : [sourcePath, jpegPath, webpPath]
+      };
+    };
     dialog.showSaveDialog = async (...args: unknown[]) => {
       const options = args.at(-1) as Electron.SaveDialogOptions;
       const extension = options.filters?.[0]?.extensions[0] ?? "txt";
-      return { canceled: false, filePath: join(root, `export.${extension}`) };
+      const name =
+        extension === "md"
+          ? basename(options.defaultPath ?? "export.md")
+          : `export.${extension}`;
+      return { canceled: false, filePath: join(root, name) };
     };
     const result = await window.webContents.executeJavaScript(
       `(${insertAndExportInRenderer.toString()})().catch(error => { throw new Error(error instanceof Error ? error.message : JSON.stringify(error)); })`
@@ -120,6 +142,8 @@ export async function runBookImageSmoke(window: BrowserWindow) {
         const text = bytes.toString("utf8");
         if (!text.includes("[图片：地图]") || text.includes("![地图]"))
           throw new Error("Book image smoke TXT placeholder missing.");
+      } else if (path.endsWith(".md")) {
+        await assertMarkdownImage(path, sourceBytes);
       } else {
         const mediaPath = path.endsWith(".docx")
           ? "word/media/"
@@ -132,8 +156,17 @@ export async function runBookImageSmoke(window: BrowserWindow) {
       }
     }
     const editor = await runBookImageEditorSmoke(window);
-    const longEditor = await runBookImageLongEditorSmoke(window);
-    return { ...result, exports: result.exports.length, editor, longEditor };
+    const { markdownExports, ...longEditor } =
+      await runBookImageLongEditorSmoke(window);
+    for (const path of markdownExports)
+      await assertMarkdownImage(path, sourceBytes);
+    return {
+      ...result,
+      exports: result.exports.length,
+      editor,
+      longEditor,
+      longMarkdownExports: markdownExports.length
+    };
   } finally {
     dialog.showOpenDialog = originalOpen;
     dialog.showSaveDialog = originalSave;

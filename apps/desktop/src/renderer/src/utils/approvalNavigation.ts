@@ -9,7 +9,6 @@ import type {
 import type { LongWorkspaceProposalItem } from "../composables/useLongWorkspaceProposals";
 import type { AgentEditProposal } from "../types/conversation";
 import {
-  createLongChapterCardVolumeSelection,
   createLongChapterSelection,
   createLongCharacterGroupSelection,
   createLongCharacterOverviewSelection,
@@ -778,7 +777,7 @@ function resolveLongFileNavigation(
     };
   }
   for (const chapter of index.chapters) {
-    if (chapter.body.id === fileId) {
+    if (chapter.body.id === fileId || chapter.card.id === fileId) {
       const selection = createLongChapterSelection(
         summary,
         index,
@@ -786,25 +785,11 @@ function resolveLongFileNavigation(
       );
       return selection
         ? {
-            selection: { ...selection, preferredFileId: fileId },
-            focus: { fileId }
-          }
-        : undefined;
-    }
-    if (chapter.card.id === fileId) {
-      const card = index.plot.chapterCards.find(
-        ({ id }) => id === chapter.chapterCardId
-      );
-      if (!card) return undefined;
-      const selection = createLongChapterCardVolumeSelection(
-        summary,
-        index,
-        card.volumeId,
-        card.id
-      );
-      return selection
-        ? {
-            selection: { ...selection, preferredFileId: fileId },
+            selection: {
+              ...selection,
+              preferredFileId: fileId,
+              preferredRole: chapter.card.id === fileId ? "card" : "body"
+            },
             focus: { fileId }
           }
         : undefined;
@@ -977,13 +962,12 @@ function resolveLongCandidate(
       );
       if (selection) return { selection };
     }
-    const selection = createLongChapterCardVolumeSelection(
-      summary,
-      index,
-      chapter.volumeId,
-      chapter.id
-    );
-    return selection ? { selection } : undefined;
+    const card = index.chapters.find(
+      ({ chapterCardId }) => chapterCardId === chapter.id
+    )?.card;
+    return card
+      ? resolveLongFileNavigation(summary, index, card.id)
+      : undefined;
   }
   if (candidate.kind === "story-plot") {
     const storyPlot = (index.plot.storyPlots ?? []).find(

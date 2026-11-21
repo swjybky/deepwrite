@@ -12,8 +12,6 @@ import {
   syncSpaceSchema
 } from "./schemas";
 import type { SyncApi } from "./types";
-import { conversationSyncBookKeySchema } from "./conversation/schemas";
-import { conversationSyncIssueSchema } from "./conversation/local-state";
 
 export const syncResolutionSchema = z
   .object({ token: z.string().min(1), item: syncItemSchema.nullable() })
@@ -64,30 +62,8 @@ export const syncRequestSchema = z.discriminatedUnion("operation", [
     })
     .strict(),
   z.object({ operation: z.literal("cancel") }).strict(),
-  z.object({ operation: z.literal("restore"), historyId: z.string() }).strict(),
-  z
-    .object({
-      operation: z.literal("configure-conversations"),
-      keys: z.array(conversationSyncBookKeySchema).max(4096)
-    })
-    .strict()
+  z.object({ operation: z.literal("restore"), historyId: z.string() }).strict()
 ]);
-export const syncConversationStatusSchema = z
-  .object({
-    enabledKeys: z.array(z.string()),
-    remoteBooks: z.record(
-      z.string(),
-      z.object({ sessions: z.number(), bytes: z.number() }).strict()
-    ),
-    remoteDevices: z.number(),
-    localSessions: z.record(z.string(), z.number()),
-    lastRun: z
-      .object({ at: z.string(), uploaded: z.number(), downloaded: z.number() })
-      .strict()
-      .nullable(),
-    issues: z.array(conversationSyncIssueSchema)
-  })
-  .strict();
 export const syncStatusSchema = z
   .object({
     config: syncConfigSchema.nullable(),
@@ -152,8 +128,7 @@ export const syncStatusSchema = z
           canRestore: z.boolean()
         })
         .strict()
-    ),
-    conversations: syncConversationStatusSchema.optional()
+    )
   })
   .strict();
 export const syncResponseSchema = z.discriminatedUnion("kind", [
@@ -218,13 +193,6 @@ export async function dispatchSyncRequest(
       };
     case "restore":
       return { kind: "status", status: await api.restore(request.historyId) };
-    case "configure-conversations":
-      if (!api.configureConversations)
-        throw new Error("当前版本不支持同步对话记录。");
-      return {
-        kind: "status",
-        status: await api.configureConversations(request.keys)
-      };
     case "cancel":
       api.cancel();
       return { kind: "cancelled" };

@@ -327,15 +327,6 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     request(
       input: import("./device-sync").SyncRequest
     ): Promise<import("./device-sync").SyncResponse>;
-    onConversationLease?(
-      handler: (request: {
-        requestId: string;
-        keys: string[];
-      }) => Promise<string[]>
-    ): () => void;
-    onConversationsChanged?(
-      handler: (result: { requestId: string; changed: string[] }) => void
-    ): () => void;
   };
   cloudBackup: {
     status(): Promise<CloudBackupStatus>;

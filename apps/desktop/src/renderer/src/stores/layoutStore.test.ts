@@ -160,14 +160,14 @@ describe("layout store", () => {
     } as unknown as PointerEvent);
     store.handleResizeMove({ clientX: 100 } as PointerEvent);
     expect(store.rightPaneWidth).toBe(1600);
-    expect(store.writingRightPaneViewModel.maxWidth).toBe(1600);
+    expect(store.rightPaneMaxWidth).toBe(1600);
     store.stopPaneResize();
 
     store.desktopShell = shell(1000, 0);
     store.reconcilePaneWidths();
     store.setPaneWidth("right", 1600);
     expect(store.rightPaneWidth).toBe(680);
-    expect(store.writingRightPaneViewModel.maxWidth).toBe(680);
+    expect(store.rightPaneMaxWidth).toBe(680);
   });
 
   it("tracks pointer resizing and removes global listeners on completion", () => {

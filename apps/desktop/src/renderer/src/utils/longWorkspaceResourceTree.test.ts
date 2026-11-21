@@ -240,6 +240,7 @@ describe("long workspace resource-tree projection", () => {
     ]);
 
     const plot = roots.find(({ label }) => label === "剧情设计");
+    expect(plot?.badge).toBe("5");
     const plotPoints = plot?.children?.find(({ label }) => label === "剧情点");
     expect(
       plotPoints?.children?.map(({ label, badge }) => ({ label, badge }))
@@ -420,17 +421,22 @@ describe("long workspace resource-tree projection", () => {
       parentId: "volume_one"
     });
 
-    const chapterCards = plot?.children?.find(({ label }) => label === "章卡");
-    expect(
-      chapterCards?.children?.[0]?.children?.map(({ label }) => label)
-    ).toEqual(["第一章", "第二章"]);
-    expect(chapterCards?.children?.[0]?.longTreeCollection).toEqual({
-      kind: "chapter-card",
-      parentId: "volume_one"
-    });
-
+    expect(plot?.children?.map(({ label }) => label)).toEqual([
+      "全书故事线",
+      "剧情点",
+      "伏笔总览"
+    ]);
     const draft = roots.find(({ label }) => label === "正文");
     expect(draft?.longTreeCollection).toEqual({ kind: "volume" });
+    expect(draft?.children?.[0]?.children?.map(({ label }) => label)).toEqual([
+      "第一章",
+      "第二章"
+    ]);
+    expect(
+      draft?.children?.[0]?.children?.[0]?.longWorkspaceSelection?.files.map(
+        ({ role }) => role
+      )
+    ).toEqual(["card", "body", "character-state", "handoff"]);
 
     const continuity = roots.find(({ label }) => label === "连续性账本");
     const pendingChapter = continuity?.children?.[0]?.children?.[0];

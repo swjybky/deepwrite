@@ -42,6 +42,7 @@ import {
   type AcademicFrameworkDialogTab
 } from "../../stores/academicWorkspaceDialog";
 import { uiMessage } from "../../ui-feedback";
+import { useRowOrderDrag } from "../../composables/useRowOrderDrag";
 
 const props = defineProps<{
   bookId: string;
@@ -100,6 +101,39 @@ const renameOpen = computed(() =>
 const stages = computed(() => book.value?.frameworkStages ?? []);
 const locked = computed(
   () => academicMutationPending.value || writingContextSaving.value
+);
+const childOpen = computed(
+  () =>
+    renameOpen.value || stageFormOpen.value || Boolean(deletingStageId.value)
+);
+const canReorderStages = computed(
+  () => !locked.value && !childOpen.value && stages.value.length > 1
+);
+const stageOrderDrag = useRowOrderDrag<string>(
+  "data-academic-stage-id",
+  "button, input",
+  (stageId) => {
+    if (!canReorderStages.value) return;
+    const bookId = props.bookId;
+    const currentStages = stages.value;
+    return {
+      findTarget: (id) =>
+        canReorderStages.value &&
+        props.bookId === bookId &&
+        stages.value === currentStages &&
+        currentStages.some((stage) => stage.id === id)
+          ? id
+          : undefined,
+      drop: (anchorId, position) => {
+        void executeAcademicFrameworkMutation(bookId, {
+          type: "reorder",
+          stageId,
+          anchorId,
+          position
+        });
+      }
+    };
+  }
 );
 
 const draftSubtype = ref<AcademicBookSubtype>("empirical_paper");
@@ -385,7 +419,7 @@ function closeChild(): void {
     :sections="sections"
     :active="activeTab"
     :pending="locked"
-    :child-open="renameOpen || stageFormOpen || Boolean(deletingStageId)"
+    :child-open="childOpen"
     @close="requestClose"
     @rename="openRename"
     @select="switchTab"
@@ -413,11 +447,18 @@ function closeChild(): void {
       </button>
     </template>
 
-    <ol v-if="activeTab === 'stages'" class="book-management-list">
+    <ol
+      v-if="activeTab === 'stages'"
+      class="book-management-list"
+      :class="{ 'academic-stages-reorderable': canReorderStages }"
+      @pointerdown="stageOrderDrag.start"
+      @click.capture="stageOrderDrag.click"
+    >
       <li
         v-for="(stage, index) in stages"
         :key="stage.id"
-        class="book-management-row"
+        class="book-management-row academic-framework-stage"
+        :data-academic-stage-id="stage.id"
       >
         <AgentTeamSwitch
           :model-value="stage.enabled"
@@ -592,3 +633,15 @@ function closeChild(): void {
     </BookManagementChildDialog>
   </BookManagementDialog>
 </template>
+
+<style scoped>
+.academic-stages-reorderable .academic-framework-stage {
+  cursor: grab;
+  user-select: none;
+}
+
+.academic-framework-stage.row-order-ghost .book-management-copy code {
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+}
+</style>

@@ -35,11 +35,18 @@ export function projectLongWorkspaceDraftTree(input: {
   chaptersByVolume: ReadonlyMap<string, LongNavigationChapter[]>;
   nodeId: (key: string) => string;
   lookup?: LongChapterLookup | undefined;
+  recordedVolumeIds?: ReadonlySet<string> | undefined;
 }): ResourceTreeNode[] {
   return input.volumes.map<ResourceTreeNode>((volume) => {
     const chapters = (
       input.chaptersByVolume.get(volume.id) ?? []
     ).flatMap<ResourceTreeNode>((chapter) => {
+      const files = input.lookup
+        ? input.lookup.entries.get(chapter.id)
+        : input.index?.chapters.find(
+            ({ chapterCardId }) => chapterCardId === chapter.id
+          );
+      const recorded = Boolean(files && files.commitId !== null);
       const selection = input.index
         ? createLongChapterSelection(
             input.book,
@@ -72,7 +79,8 @@ export function projectLongWorkspaceDraftTree(input: {
               longBookId: input.book.id,
               catalogNodeType: "category",
               longWorkspaceSelection: selection,
-              selectableBranch: false
+              selectableBranch: false,
+              ...(recorded ? { longDraftChapterRecorded: true } : {})
             }
           ]
         : [];
@@ -88,6 +96,9 @@ export function projectLongWorkspaceDraftTree(input: {
       longBookId: input.book.id,
       catalogNodeType: "category",
       longDraftVolumeId: volume.id,
+      ...(input.recordedVolumeIds?.has(volume.id)
+        ? { longVolumeHasRecordedChapters: true }
+        : {}),
       ...(chapters.length ? { children: chapters } : {})
     };
   });

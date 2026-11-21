@@ -53,7 +53,6 @@ import LongEditorDeleteDialogs from "./LongEditorDeleteDialogs.vue";
 import LongEditorFindReplaceBar from "./LongEditorFindReplaceBar.vue";
 import LongForeshadowingWorkspace from "./LongForeshadowingWorkspace.vue";
 import LongManuscriptEditor from "./LongManuscriptEditor.vue";
-import LongManuscriptNavigation from "./LongManuscriptNavigation.vue";
 import LongPlotStoryListPane from "./LongPlotStoryListPane.vue";
 import LongWorldbuildingNavigation from "./LongWorldbuildingNavigation.vue";
 import EditableMarkdownPreview from "./EditableMarkdownPreview.vue";
@@ -92,7 +91,6 @@ import {
 import { useTextViewMode } from "../composables/useTextViewMode";
 import { useLongEntryReorder } from "../composables/useLongEntryReorder";
 import { vLongPressReorder } from "../directives/longPressReorder";
-import { orderLongChapterNavigationItems } from "../utils/orderLongChapterNavigationItems";
 
 const DocumentVersionDialog = defineAsyncComponent(
   () => import("./DocumentVersionDialog.vue")
@@ -128,7 +126,6 @@ const emit = defineEmits<{
     done?: (accepted: boolean) => void
   ];
   selectPlotPoint: [plotPointId: LongArcId];
-  selectChapterCard: [chapterCardId: LongChapterCardId];
   selectEntrySearchResult: [fileId: string];
   renameCharacter: [
     input: { characterId: LongCharacterId; name: string },
@@ -145,7 +142,6 @@ const emit = defineEmits<{
   createCharacter: [];
   createWorldbuildingItem: [];
   createPlotPoint: [];
-  createChapterCard: [];
   createVolume: [];
   previewDeleteStructure: [
     input: {
@@ -217,11 +213,6 @@ const currentIsPlotPointWorkspace = computed(
     Boolean(props.selection?.key.startsWith("plot-design:plot-points:")) &&
     props.selection?.root === "plot_design"
 );
-const currentIsChapterCardWorkspace = computed(
-  () =>
-    Boolean(props.selection?.key.startsWith("plot-design:chapter-cards:")) &&
-    props.selection?.root === "plot_design"
-);
 const currentIsForeshadowingWorkspace = computed(
   () =>
     props.selection?.key === "plot-design:foreshadowing" &&
@@ -242,7 +233,7 @@ const currentEmptyCollection = computed<{
   title: string;
   description: string;
   buttonLabel: string;
-  action: "character" | "plotPoint" | "chapterCard";
+  action: "character" | "plotPoint";
 } | null>(() => {
   const selection = props.selection;
   if (currentIsCharacterGroup.value && selection?.characterTabs?.length === 0) {
@@ -272,20 +263,6 @@ const currentEmptyCollection = computed<{
       action: "plotPoint"
     };
   }
-  if (
-    currentIsChapterCardWorkspace.value &&
-    selection?.chapterCardTabs?.length === 0
-  ) {
-    return {
-      icon: "file",
-      title: t("noChapterCardsYet"),
-      description: currentUsesLeftTreePlot.value
-        ? t("createAChapterCardThenSelectItInThe")
-        : t("createAChapterCardThenUseEntryNavigationTo"),
-      buttonLabel: t("createFirstChapterCard"),
-      action: "chapterCard"
-    };
-  }
   return null;
 });
 
@@ -295,8 +272,6 @@ function createFirstCollectionItem(): void {
     emit("createCharacter");
   } else if (action === "plotPoint") {
     emit("createPlotPoint");
-  } else if (action === "chapterCard") {
-    emit("createChapterCard");
   }
 }
 const currentStructureTitleTarget = computed<LongStructureTitleTarget | null>(
@@ -319,11 +294,7 @@ const currentStructureTitleTarget = computed<LongStructureTitleTarget | null>(
         emptyMessage: t("volumeNameIsRequired")
       };
     }
-    if (
-      (currentIsChapterCardWorkspace.value ||
-        props.selection?.root === "draft") &&
-      props.selection?.chapterCardId
-    ) {
+    if (props.selection?.root === "draft" && props.selection?.chapterCardId) {
       const chapter = props.workspaceIndex?.plot.chapterCards.find(
         ({ id }) => id === props.selection?.chapterCardId
       );
@@ -391,7 +362,7 @@ const currentChapterCard = computed(
 const showChapterPlotBinding = computed(
   () =>
     Boolean(currentChapterCard.value && props.workspaceIndex) &&
-    (currentIsChapterCardWorkspace.value || props.selection?.root === "draft")
+    props.selection?.root === "draft"
 );
 const chapterPlotBinding = ref<InstanceType<
   typeof LongChapterPlotBinding
@@ -439,20 +410,6 @@ const currentNavigationDeleteTarget =
         description: longDeletionDescription(index, "plotPoint", plotPoint.id)
       };
     }
-    if (currentIsChapterCardWorkspace.value && currentChapterCard.value) {
-      const chapterCard = currentChapterCard.value;
-      return {
-        kind: "chapterCard",
-        id: chapterCard.id,
-        title: chapterCard.title,
-        label: t("chapterCard"),
-        description: longDeletionDescription(
-          index,
-          "chapterCard",
-          chapterCard.id
-        )
-      };
-    }
     return null;
   });
 const currentVolumeOutlineDraft = computed(() => {
@@ -484,13 +441,11 @@ const currentChapterCardCommitted = computed(() => {
 const currentIsCommittedEditableDocument = computed(
   () =>
     currentChapterCardCommitted.value &&
-    ((props.selection?.root === "draft" &&
-      currentSelectionFile.value?.role === "body") ||
-      (currentIsChapterCardWorkspace.value &&
-        currentSelectionFile.value?.role === "card"))
+    (currentSelectionFile.value?.role === "body" ||
+      currentSelectionFile.value?.role === "card")
 );
 const currentCommittedEditNotice = computed(() =>
-  currentIsChapterCardWorkspace.value
+  currentSelectionFile.value?.role === "card"
     ? t("thisChapterCardHasContinuityRecordsItCanStill")
     : t("thisChapterHasContinuityRecordsTheyAreForReference")
 );
@@ -548,7 +503,7 @@ const currentForeshadowingVolumeId = computed(() => {
   return undefined;
 });
 const currentIsChapterCardContent = computed(
-  () => currentIsChapterCardWorkspace.value && currentChapterCard.value !== null
+  () => currentSelectionFile.value?.role === "card"
 );
 const currentIsStructuredText = computed(
   () => currentIsVolumeOutline.value || currentIsPlotPointSummary.value
@@ -658,9 +613,7 @@ const currentUsesLeftTreeCharacter = computed(
 );
 const currentUsesLeftTreePlot = computed(
   () =>
-    (currentIsBookLineWorkspace.value ||
-      currentIsPlotPointWorkspace.value ||
-      currentIsChapterCardWorkspace.value) &&
+    (currentIsBookLineWorkspace.value || currentIsPlotPointWorkspace.value) &&
     currentPlotItemLayout.value === "left-tree"
 );
 const currentUsesLeftTreeContinuity = computed(
@@ -683,9 +636,7 @@ const currentCharacterNavigationItems = computed(
 );
 const currentUsesTopPlotTabs = computed(
   () =>
-    (currentIsBookLineWorkspace.value ||
-      currentIsPlotPointWorkspace.value ||
-      currentIsChapterCardWorkspace.value) &&
+    (currentIsBookLineWorkspace.value || currentIsPlotPointWorkspace.value) &&
     currentPlotItemLayout.value === "top-tabs"
 );
 const currentUsesRightBookLineList = computed(
@@ -696,11 +647,6 @@ const currentUsesRightBookLineList = computed(
 const currentUsesRightPlotPointList = computed(
   () =>
     currentIsPlotPointWorkspace.value &&
-    currentPlotItemLayout.value === "right-list"
-);
-const currentUsesRightChapterCardList = computed(
-  () =>
-    currentIsChapterCardWorkspace.value &&
     currentPlotItemLayout.value === "right-list"
 );
 const currentUsesTopContinuityTabs = computed(
@@ -727,7 +673,6 @@ const currentUsesAnyRightEntryList = computed(
     currentUsesRightCharacterList.value ||
     currentUsesRightBookLineList.value ||
     currentUsesRightPlotPointList.value ||
-    currentUsesRightChapterCardList.value ||
     currentUsesRightContinuityList.value
 );
 const showGenericFileTabs = computed(
@@ -736,7 +681,6 @@ const showGenericFileTabs = computed(
     !currentIsWorldbuildingList.value &&
     !currentIsPlotPointWorkspace.value &&
     !currentIsBookLineWorkspace.value &&
-    !currentIsChapterCardWorkspace.value &&
     !currentUsesTopContinuityTabs.value &&
     !currentUsesRightContinuityList.value &&
     !currentUsesLeftTreeContinuity.value
@@ -791,9 +735,6 @@ const currentDocumentTitle = computed(
     (currentIsWorldbuildingList.value &&
     activeWorldbuildingItemId.value === null
       ? t("overview")
-      : undefined) ??
-    (currentIsChapterCardWorkspace.value
-      ? currentChapterCard.value?.title
       : undefined) ??
     (currentIsPlotPointWorkspace.value
       ? currentPlotPoint.value?.title
@@ -977,13 +918,12 @@ let volumeDraftBookId = "";
 const {
   longEditorDocumentElement,
   storyPlotLayoutElement,
-  entryListWidth,
-  storyPlotListWidth,
-  entryListMaxWidth,
-  storyPlotListMaxWidth,
+  entryListRange,
+  storyPlotListRange,
   resizingLongEditorPane,
   entryListGridStyle,
   storyPlotListGridStyle,
+  refreshLongEditorPaneRange,
   startLongEditorPaneResize,
   handleLongEditorPaneResizeKeydown
 } = useLongEditorPaneResize({
@@ -1042,7 +982,6 @@ const {
   confirmStoryPlotDelete,
   toggleStoryPlotActionMenu,
   closeStoryPlotActionMenu,
-  reorderChapterCard,
   runStoryPlotMenuAction,
   saveCharacterName,
   handleCharacterNameKeydown,
@@ -1094,10 +1033,6 @@ const entryNavigation = computed(() => ({
     "plotPoint",
     props.selection?.plotPointTabs ?? []
   ),
-  chapter: previewEntryOrder(
-    "chapter",
-    orderLongChapterNavigationItems(props.selection?.chapterCardTabs ?? [])
-  ).map((chapter, index) => ({ ...chapter, narrativeOrder: index + 1 })),
   storyPlot: previewEntryOrder("storyPlot", currentStoryPlots.value)
 }));
 
@@ -1121,6 +1056,7 @@ const {
   volumeOutlineDrafts,
   plotPointSummaryDrafts,
   currentSelectionFile,
+  pendingFileId,
   currentReadOnly,
   currentDirty,
   currentIsStructuredText,
@@ -1424,8 +1360,7 @@ const {
   openNavigationDelete,
   closeNavigationDelete,
   handleNavigationDeleteKeydown,
-  confirmNavigationDelete,
-  openChapterCardDelete
+  confirmNavigationDelete
 } = useLongEditorDeleteDialogs({
   props,
   currentReadOnly,
@@ -1813,24 +1748,6 @@ onBeforeUnmount(() => {
         </button>
       </nav>
 
-      <LongManuscriptNavigation
-        v-if="currentIsChapterCardWorkspace && currentUsesTopPlotTabs"
-        mode="top-tabs"
-        :label="
-          t('valueChapterCards', {
-            arg0: selection.breadcrumbs[3] ?? t('currentVolume')
-          })
-        "
-        :items="entryNavigation.chapter"
-        :active-chapter-id="selection.chapterCardId ?? null"
-        :locked="locked"
-        :committed="currentChapterCardCommitted"
-        @select-chapter="emit('selectChapterCard', $event)"
-        @create-chapter="emit('createChapterCard')"
-        @delete-chapter="openChapterCardDelete"
-        @reorder-chapter="reorderChapterCard"
-      />
-
       <LongWorldbuildingNavigation
         v-if="currentUsesTopWorldbuildingTabs"
         mode="top-tabs"
@@ -2086,6 +2003,7 @@ onBeforeUnmount(() => {
         :style="entryListGridStyle"
         :class="{
           'is-entry-right-list': currentUsesAnyRightEntryList,
+          'is-plot-point-storyline': currentIsPlotPointStoryline,
           'is-resizing-entry-list': resizingLongEditorPane === 'entry-list'
         }"
       >
@@ -2161,9 +2079,10 @@ onBeforeUnmount(() => {
               :aria-label="t('resizeCurrentPlotPointEventList')"
               aria-orientation="vertical"
               :aria-valuemin="LONG_EDITOR_LIST_MIN_WIDTH"
-              :aria-valuemax="storyPlotListMaxWidth"
-              :aria-valuenow="storyPlotListWidth ?? LONG_EDITOR_LIST_MIN_WIDTH"
+              :aria-valuemax="storyPlotListRange.max"
+              :aria-valuenow="storyPlotListRange.width"
               tabindex="0"
+              @focus="refreshLongEditorPaneRange('story-plot-list')"
               @pointerdown="
                 startLongEditorPaneResize('story-plot-list', $event)
               "
@@ -2382,6 +2301,7 @@ onBeforeUnmount(() => {
         <LongManuscriptEditor
           v-else-if="
             selection.root === 'draft' &&
+            !currentIsChapterCardContent &&
             (currentState?.loaded ||
               Boolean(currentState?.content) ||
               isDocumentSwitchPending)
@@ -2426,7 +2346,7 @@ onBeforeUnmount(() => {
             <LongChapterPlotChip
               :chapter-card-id="currentChapterCard.id"
               :snapshot="workspaceIndex"
-              :editable="!currentUsesRightChapterCardList"
+              editable
               :disabled="locked"
               @edit="editChapterPlotBinding(currentChapterCard.id)"
             />
@@ -2437,8 +2357,7 @@ onBeforeUnmount(() => {
             currentState?.loaded ||
             Boolean(currentState?.content) ||
             isDocumentSwitchPending ||
-            currentIsWorldbuildingList ||
-            (currentIsChapterCardWorkspace && currentChapterCard)
+            currentIsWorldbuildingList
           "
           class="long-editor-writing-surface"
           :class="{
@@ -2527,7 +2446,7 @@ onBeforeUnmount(() => {
                 "
                 :chapter-card-id="currentChapterCard.id"
                 :snapshot="workspaceIndex"
-                :editable="!currentUsesRightChapterCardList"
+                editable
                 :disabled="locked"
                 @edit="editChapterPlotBinding(currentChapterCard.id)"
               />
@@ -2651,9 +2570,10 @@ onBeforeUnmount(() => {
           :aria-label="t('resizeRightEntryList')"
           aria-orientation="vertical"
           :aria-valuemin="LONG_EDITOR_LIST_MIN_WIDTH"
-          :aria-valuemax="entryListMaxWidth"
-          :aria-valuenow="entryListWidth ?? LONG_EDITOR_LIST_MIN_WIDTH"
+          :aria-valuemax="entryListRange.max"
+          :aria-valuenow="entryListRange.width"
           tabindex="0"
+          @focus="refreshLongEditorPaneRange('entry-list')"
           @pointerdown="startLongEditorPaneResize('entry-list', $event)"
           @keydown="handleLongEditorPaneResizeKeydown('entry-list', $event)"
         />
@@ -2824,20 +2744,6 @@ onBeforeUnmount(() => {
             </article>
           </div>
         </aside>
-        <LongManuscriptNavigation
-          v-if="currentUsesRightChapterCardList"
-          mode="right-list"
-          :label="t('chapterCards')"
-          :items="entryNavigation.chapter"
-          :active-chapter-id="selection.chapterCardId ?? null"
-          :locked="locked"
-          :committed="currentChapterCardCommitted"
-          @select-chapter="emit('selectChapterCard', $event)"
-          @create-chapter="emit('createChapterCard')"
-          @edit-chapter="editChapterPlotBinding"
-          @delete-chapter="openChapterCardDelete"
-          @reorder-chapter="reorderChapterCard"
-        />
         <LongContinuityLedgerNavigation
           v-if="currentUsesRightContinuityList"
           mode="right-list"
@@ -3002,10 +2908,19 @@ onBeforeUnmount(() => {
 }
 
 .long-editor-document.is-entry-right-list {
+  --long-entry-content-min: 240px;
   display: grid;
   grid-template-columns:
     minmax(0, 1fr) 7px
-    minmax(170px, var(--long-entry-list-width, 38%));
+    clamp(
+      170px,
+      round(nearest, var(--long-entry-list-width), 1px),
+      min(1600px, round(down, 100% - var(--long-entry-content-min) - 7px, 1px))
+    );
+}
+
+.long-editor-document.is-plot-point-storyline {
+  --long-entry-content-min: calc(320px + 170px + 7px);
 }
 
 .long-editor-document.is-entry-right-list
@@ -3435,7 +3350,11 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns:
     minmax(0, 1fr) 7px
-    minmax(170px, var(--long-story-plot-list-width, 38%));
+    clamp(
+      170px,
+      round(nearest, var(--long-story-plot-list-width), 1px),
+      min(1600px, round(down, 100% - 320px - 7px, 1px))
+    );
   min-width: 0;
   min-height: 0;
   overflow: hidden;

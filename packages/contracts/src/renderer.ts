@@ -605,7 +605,7 @@ export {
   syncJoinCodeSchema
 } from "./device-sync/connection-schemas";
 export { syncVersionPreview, resolveSyncVersion } from "./device-sync/preview";
-export { conversationSyncRemoteSchema } from "./device-sync/conversation/schemas";
+export { conversationSyncRemoteSchema } from "./device-sync/conversation-remote";
 export {
   bookConversationLogicalKey,
   conversationHistoryKeyFor

@@ -1,6 +1,10 @@
 import {
+  DEFAULT_LONG_CHARACTER_TYPES,
   LONG_BOOK_LINE_FILE_ID,
   LongWorkspaceIndexSnapshotSchema,
+  longWorldbuildingFileId,
+  longWorldbuildingItemFileId,
+  longWorldbuildingOverviewFileId,
   type LongBookSummary,
   type LongWorkspaceImpactConfirmation,
   type LongWorkspaceIndexSnapshot,
@@ -257,7 +261,6 @@ function createHarness(
       ),
       refreshWorkspaceAfterProposal,
       selectWorkspaceFile: vi.fn(async () => true),
-      selectChapterCardTab: vi.fn(async () => undefined),
       editor: shallowRef(null)
     },
     resources: {
@@ -610,5 +613,288 @@ describe("useLongStructureTransactionsCoordinator", () => {
       "结构修改已保存，但界面未能同步最新结构。"
     );
     expect(harness.structureDialogOpen.value).toBe(false);
+  });
+
+  it("reorders all 7 long creation node kinds with blockUi: false and saveEditor: false", async () => {
+    const saveActiveEditorChanges = vi.fn(async () => true);
+    const harness = createHarness({ saveActiveEditorChanges });
+    const migId = "world_migration-evidence-notes";
+    harness.workspaceIndex.value = LongWorkspaceIndexSnapshotSchema.parse({
+      schemaVersion: 1,
+      bookId: BOOK_ID,
+      updatedAt: NOW,
+      bookLine: {
+        id: LONG_BOOK_LINE_FILE_ID,
+        path: "long/plot/book-line.md",
+        updatedAt: NOW
+      },
+      worldbuilding: [
+        {
+          id: "world_cat_a",
+          title: "规则",
+          order: 1,
+          format: "list",
+          contentAuthority: "files",
+          overview: {
+            id: longWorldbuildingOverviewFileId("world_cat_a"),
+            path: "long/worldbuilding/world_cat_a/overview.md",
+            updatedAt: NOW
+          },
+          items: [
+            {
+              id: "worlditem_1",
+              title: "规则一",
+              order: 1,
+              file: {
+                id: longWorldbuildingItemFileId("worlditem_1"),
+                path: "long/worldbuilding/world_cat_a/items/worlditem_1.md",
+                updatedAt: NOW
+              }
+            },
+            {
+              id: "worlditem_2",
+              title: "规则二",
+              order: 2,
+              file: {
+                id: longWorldbuildingItemFileId("worlditem_2"),
+                path: "long/worldbuilding/world_cat_a/items/worlditem_2.md",
+                updatedAt: NOW
+              }
+            }
+          ]
+        },
+        {
+          id: migId,
+          title: "迁移证据",
+          order: 2,
+          format: "text",
+          contentAuthority: "markdown",
+          file: {
+            id: longWorldbuildingFileId(migId),
+            path: `long/worldbuilding/${migId}.md`,
+            updatedAt: NOW
+          }
+        },
+        {
+          id: "world_cat_b",
+          title: "地理",
+          order: 3,
+          format: "text",
+          contentAuthority: "markdown",
+          file: {
+            id: longWorldbuildingFileId("world_cat_b"),
+            path: "long/worldbuilding/world_cat_b.md",
+            updatedAt: NOW
+          }
+        }
+      ],
+      characterTypes: DEFAULT_LONG_CHARACTER_TYPES.map((item) => ({ ...item })),
+      characters: [
+        {
+          id: "character_1",
+          name: "甲",
+          group: "protagonist",
+          order: 1,
+          aliases: []
+        },
+        {
+          id: "character_2",
+          name: "乙",
+          group: "protagonist",
+          order: 2,
+          aliases: []
+        }
+      ],
+      characterFiles: ["character_1", "character_2"].map((id) => ({
+        characterId: id,
+        coreProfile: {
+          id: `file_${id}:core-profile`,
+          path: `long/characters/${id}/core-profile.md`,
+          updatedAt: NOW
+        },
+        relationships: {
+          id: `file_${id}:relationships`,
+          path: `long/characters/${id}/relationships.md`,
+          updatedAt: NOW
+        },
+        currentState: {
+          id: `file_${id}:current-state`,
+          path: `long/characters/${id}/current-state.md`,
+          updatedAt: NOW
+        },
+        history: {
+          id: `file_${id}:history`,
+          path: `long/characters/${id}/history.md`,
+          updatedAt: NOW
+        }
+      })),
+      plot: {
+        volumes: [
+          { id: "volume_1", title: "一", order: 1, summary: "" },
+          { id: "volume_2", title: "二", order: 2, summary: "" }
+        ],
+        arcs: [
+          {
+            id: "arc_1",
+            volumeId: "volume_1",
+            title: "线一",
+            order: 1,
+            outline: ""
+          },
+          {
+            id: "arc_2",
+            volumeId: "volume_1",
+            title: "线二",
+            order: 2,
+            outline: ""
+          }
+        ],
+        chapterCards: [
+          {
+            id: "chapter_1",
+            volumeId: "volume_1",
+            primaryArcId: null,
+            title: "一章",
+            narrativeOrder: 1
+          },
+          {
+            id: "chapter_2",
+            volumeId: "volume_1",
+            primaryArcId: null,
+            title: "二章",
+            narrativeOrder: 2
+          }
+        ],
+        storyEvents: [],
+        storyPlots: [],
+        eventConnections: [],
+        narrativePlacements: [],
+        foreshadowing: []
+      },
+      chapters: ["chapter_1", "chapter_2"].map((id) => ({
+        chapterCardId: id,
+        bodyStatus: "empty",
+        body: {
+          id: `file_${id}:body`,
+          path: `long/chapters/${id}/body.md`,
+          updatedAt: NOW
+        },
+        card: {
+          id: `file_${id}:card`,
+          path: `long/chapters/${id}/card.md`,
+          updatedAt: NOW
+        },
+        characterState: {
+          id: `file_${id}:character-state`,
+          path: `long/chapters/${id}/character-state.md`,
+          updatedAt: NOW
+        },
+        handoff: {
+          id: `file_${id}:handoff`,
+          path: `long/chapters/${id}/handoff.md`,
+          updatedAt: NOW
+        },
+        worldReveals: null,
+        characterContinuity: [],
+        commitId: null
+      })),
+      ledger: { committedThroughChapterId: null, commits: [] }
+    });
+
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-worldbuilding-category",
+      bookId: BOOK_ID,
+      categoryId: "world_cat_b",
+      anchorId: "world_cat_a",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-worldbuilding-item",
+      bookId: BOOK_ID,
+      categoryId: "world_cat_a",
+      itemId: "worlditem_2",
+      anchorId: "worlditem_1",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-character-group",
+      bookId: BOOK_ID,
+      groupId: "passerby",
+      anchorId: "protagonist",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-character",
+      bookId: BOOK_ID,
+      groupId: "protagonist",
+      characterId: "character_2",
+      anchorId: "character_1",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-volume",
+      bookId: BOOK_ID,
+      volumeId: "volume_2",
+      anchorId: "volume_1",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-plot-point",
+      bookId: BOOK_ID,
+      volumeId: "volume_1",
+      plotPointId: "arc_2",
+      anchorId: "arc_1",
+      position: "before"
+    });
+    await harness.coordinator.handleReorderLongTreeNode({
+      kind: "long-draft-chapter",
+      bookId: BOOK_ID,
+      volumeId: "volume_1",
+      chapterCardId: "chapter_2",
+      anchorId: "chapter_1",
+      position: "before"
+    });
+
+    const operations = harness.applyOperations.mock.calls.map(
+      ([call]) => call.batch.operations[0]
+    );
+    expect(operations).toEqual([
+      {
+        type: "worldbuilding.reorder",
+        orderedIds: ["world_cat_b", migId, "world_cat_a"]
+      },
+      {
+        type: "worldbuildingItem.reorder",
+        categoryId: "world_cat_a",
+        orderedIds: ["worlditem_2", "worlditem_1"]
+      },
+      {
+        type: "characterType.reorder",
+        orderedIds: [
+          "passerby",
+          "protagonist",
+          "major_supporting",
+          "minor_supporting"
+        ]
+      },
+      {
+        type: "character.reorder",
+        group: "protagonist",
+        orderedIds: ["character_2", "character_1"]
+      },
+      { type: "volume.reorder", orderedIds: ["volume_2", "volume_1"] },
+      {
+        type: "arc.reorder",
+        volumeId: "volume_1",
+        orderedIds: ["arc_2", "arc_1"]
+      },
+      {
+        type: "chapter.reorder",
+        volumeId: "volume_1",
+        orderedIds: ["chapter_2", "chapter_1"]
+      }
+    ]);
+    expect(saveActiveEditorChanges).not.toHaveBeenCalled();
+    expect(harness.mutationPending.value).toBe(false);
   });
 });

@@ -4,11 +4,11 @@ import type {
   CreateLongBookInput,
   LongImportContinuationInput,
   LongLegacySyncModule,
-  LongManuscriptExportSection,
   LongOpenBookResult
 } from "@deepwrite/contracts";
 import type { LongBookResourceNodeActionPayload } from "../types/workspace";
 import type { LongStructureMutationCompletion } from "../types/longWorkspace";
+import type { LongManuscriptExportRequest } from "../utils/longManuscriptExport";
 import type {
   LongBookLifecycleCoordinator,
   LongBookLifecycleCoordinatorOptions
@@ -37,10 +37,7 @@ export interface LazyLongBookLifecycleCoordinator {
   closeLegacySyncDialog(): void;
   confirmLegacySync(modules: LongLegacySyncModule[]): Promise<void>;
   closeLongExportDialog(): void;
-  exportLongBookManuscript(request: {
-    readonly sections: readonly LongManuscriptExportSection[];
-    readonly manuscriptChapterCardIds: readonly string[];
-  }): Promise<void>;
+  exportLongBookManuscript(request: LongManuscriptExportRequest): Promise<void>;
   closeLongBookRenameDialog(): void;
   renameLongBook(title: string): Promise<void>;
   closeLongBookRemovalDialog(): void;
@@ -217,10 +214,9 @@ export function useLazyLongBookLifecycleCoordinator(
     }
   }
 
-  function exportLongBookManuscript(request: {
-    readonly sections: readonly LongManuscriptExportSection[];
-    readonly manuscriptChapterCardIds: readonly string[];
-  }): Promise<void> {
+  function exportLongBookManuscript(
+    request: LongManuscriptExportRequest
+  ): Promise<void> {
     const intent = dialogIntent();
     return invoke((loaded) => loaded.exportLongBookManuscript(request), intent);
   }

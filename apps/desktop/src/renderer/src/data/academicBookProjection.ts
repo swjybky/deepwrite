@@ -364,7 +364,11 @@ export function createAcademicBookProjection(book: AcademicBook): {
       catalogNodeType: "document",
       stageCategoryId: stage.id,
       workspaceType: "academic",
-      academicZone: "framework"
+      academicZone: "framework",
+      academicFrameworkStageItem: {
+        bookId: book.id,
+        stageId: stage.id
+      }
     };
     return [{ doc, node }];
   });

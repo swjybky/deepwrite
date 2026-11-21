@@ -3,7 +3,6 @@ import { file, fixture } from "./longWorkspace.test-support";
 import {
   createLongContinuitySelection,
   createLongChapterSelection,
-  createLongChapterCardVolumeSelection,
   reconcileLongWorkspaceSelection
 } from "./longWorkspace";
 
@@ -31,7 +30,7 @@ describe("continuity selection permissions", () => {
     )!;
     expect(
       historical.files
-        .filter(({ role }) => role !== "body")
+        .filter(({ role }) => role !== "body" && role !== "card")
         .every(({ readOnly }) => readOnly)
     ).toBe(true);
     workspaceIndex.ledger.commits.pop();
@@ -67,7 +66,7 @@ describe("continuity selection permissions", () => {
     ]);
     expect(
       selection?.files
-        .filter(({ role }) => role !== "body")
+        .filter(({ role }) => role !== "body" && role !== "card")
         .every((entry) => !entry.readOnly)
     ).toBe(true);
     expect(selection?.files.find(({ role }) => role === "body")?.readOnly).toBe(
@@ -94,20 +93,13 @@ describe("continuity selection permissions", () => {
     ).toBeUndefined();
     expect(
       chapter?.files
-        .filter(({ role }) => role !== "body")
+        .filter(({ role }) => role !== "body" && role !== "card")
         .every((entry) => entry.readOnly)
     ).toBe(true);
     expect(chapter?.description).toContain("记录仅供参考");
-    const chapterCard = createLongChapterCardVolumeSelection(
-      summary,
-      workspaceIndex,
-      "volume_one",
-      "chapter_one"
-    );
     expect(
-      chapterCard?.files.find(({ role }) => role === "card")?.readOnly
+      chapter?.files.find(({ role }) => role === "card")?.readOnly
     ).toBeUndefined();
-    expect(chapterCard?.description).toContain("章卡仍可自由修改");
     expect(
       createLongContinuitySelection(summary, workspaceIndex, "chapter_one")
     ).toMatchObject({

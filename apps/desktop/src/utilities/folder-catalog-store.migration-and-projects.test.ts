@@ -1175,4 +1175,68 @@ describe("FolderCatalogStore: migration-and-projects", () => {
       "episode-2"
     ]);
   });
+
+  it("reorders plot stages and list character items by anchor", async () => {
+    const root = await makeTemporaryRoot("deepwrite-folder-anchor-reorder-");
+    const store = new FolderCatalogStore({
+      userDataPath: join(root, "user-data"),
+      now: tickingClock()
+    });
+    const opened = await store.createShortBook(
+      { title: "锚点顺序测试", genre: "悬疑" },
+      join(root, "books")
+    );
+    const initialStages = opened.resource.plotStages.map(({ id }) => id);
+    const sourceStageId = initialStages.at(-1)!;
+    const anchorStageId = initialStages[1]!;
+
+    const plotReordered = await store.mutatePlotStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: 0,
+      mutation: {
+        type: "reorder",
+        stageId: sourceStageId,
+        anchorId: anchorStageId,
+        position: "before"
+      }
+    });
+    expect(plotReordered.plotStages[1]?.id).toBe(sourceStageId);
+
+    const listed = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: plotReordered.projectRevision!,
+      mutation: { type: "setFormat", format: "list" }
+    });
+    const first = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: listed.projectRevision!,
+      mutation: { type: "createItem", itemId: "char-a", title: "人物甲" }
+    });
+    const second = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: first.projectRevision!,
+      mutation: { type: "createItem", itemId: "char-b", title: "人物乙" }
+    });
+    const third = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: second.projectRevision!,
+      mutation: { type: "createItem", itemId: "char-c", title: "人物丙" }
+    });
+
+    const charReordered = await store.mutateCharacterStructure({
+      bookId: opened.resource.id,
+      baseProjectRevision: third.projectRevision!,
+      mutation: {
+        type: "reorderItem",
+        itemId: "char-c",
+        anchorId: "char-a",
+        position: "before"
+      }
+    });
+    expect(
+      charReordered.characterStructure.format === "list"
+        ? charReordered.characterStructure.items.map(({ id }) => id)
+        : []
+    ).toEqual(["char-c", "char-a", "char-b"]);
+  });
 });
