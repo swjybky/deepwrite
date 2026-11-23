@@ -148,9 +148,14 @@ it("starts with the preferred model's configured thinking level", () => {
   expect(workbench.thinkingLevel.value).toBe("high");
 });
 
-it("applies each model's default when switching, including reasoning off", () => {
+it("applies each model's default when switching, including temperature mode", () => {
   const low = { ...model, id: "model_low", defaultThinkingLevel: "low" };
-  const plain = { ...model, id: "model_plain", reasoning: false };
+  const plain = {
+    ...model,
+    id: "model_plain",
+    reasoning: false,
+    defaultThinkingLevel: "off"
+  };
   const { workbench } = harness([model, low, plain]);
   workbench.modelId.value = low.id;
   expect(workbench.thinkingLevel.value).toBe("low");
@@ -195,13 +200,18 @@ it.each(["off", "medium"])(
   }
 );
 
-it("resets an unsupported selection and disables thinking for non-reasoning models", async () => {
+it("preserves supported levels in temperature mode and falls back when they are removed", async () => {
   const { props, workbench } = harness();
   workbench.thinkingLevel.value = "medium";
-  props.models = [{ ...model, thinkingLevelOptions: ["high"] }];
+  const temperatureModel = {
+    ...model,
+    reasoning: false,
+    defaultThinkingLevel: "off"
+  };
+  props.models = [temperatureModel];
   await nextTick();
-  expect(workbench.thinkingLevel.value).toBe("high");
-  props.models = [{ ...model, reasoning: false }];
+  expect(workbench.thinkingLevel.value).toBe("medium");
+  props.models = [{ ...temperatureModel, thinkingLevelOptions: ["high"] }];
   await nextTick();
   expect(workbench.thinkingLevel.value).toBe("off");
 });

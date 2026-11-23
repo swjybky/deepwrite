@@ -170,6 +170,17 @@ const material = {
   subGenre: "",
   entries: []
 };
+const sceneMaterial = {
+  ...material,
+  id: "material-2",
+  title: "场景素材库",
+  materialKind: "other"
+};
+const materialGroup = {
+  id: "material-group-1",
+  title: "创作素材分组",
+  memberIds: [material.id, sceneMaterial.id]
+};
 
 it("keeps selections when switching sections and saves only the changed one", async () => {
   snapshot.value = { skills: [skill] };
@@ -290,6 +301,92 @@ it("lists groups, whole skill libraries and loose skills separately", async () =
       ids: ["lib-1", "lib-2"],
       linksByKind: { general: [], plot: ["lib-2"], style: ["lib-1"], other: [] }
     });
+  } finally {
+    app.unmount();
+  }
+});
+
+it("lists material groups separately and binds every member from a partially selected group", async () => {
+  snapshot.value = {
+    materials: [sceneMaterial, material],
+    materialGroups: [materialGroup]
+  };
+  const { app, saveLibrary, element, checkbox } = mount({
+    initialMaterialIds: [material.id]
+  });
+  try {
+    invoke(element("id", "book-bindings-tab-material"), "onClick");
+    await nextTick();
+    const groups = element("aria-label", "分组");
+    const libraries = element("aria-label", "素材库", groups.parent ?? body);
+    expect(
+      groups.parent?.children.filter((child) => child.tag === "div")
+    ).toEqual([groups, libraries]);
+    const firstLibrary = find(libraries, (node) => node.tag === "label");
+    expect(firstLibrary).toBeDefined();
+    element("title", material.title, firstLibrary);
+
+    const group = checkbox(materialGroup.title);
+    expect(group.props.checked).toBe(false);
+    expect(group.props.indeterminate).toBe(true);
+    invoke(group, "onChange");
+    await nextTick();
+    expect(group.props.checked).toBe(true);
+    expect(group.props.indeterminate).toBe(false);
+    expect(checkbox(sceneMaterial.title).props.checked).toBe(true);
+
+    invoke(group, "onChange");
+    await nextTick();
+    expect(group.props.checked).toBe(false);
+    expect(group.props.indeterminate).toBe(false);
+    expect(checkbox(material.title).props.checked).toBe(false);
+    expect(checkbox(sceneMaterial.title).props.checked).toBe(false);
+
+    invoke(group, "onChange");
+    await nextTick();
+    await invoke(element("class", "book-bindings-form"), "onSubmit");
+    expect(saveLibrary).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        domain: "material",
+        ids: [material.id, sceneMaterial.id]
+      })
+    );
+  } finally {
+    app.unmount();
+  }
+});
+
+it("filters material groups by group name independently of library names", async () => {
+  const sceneGroup = {
+    id: "material-group-2",
+    title: "地点素材分组",
+    memberIds: [sceneMaterial.id]
+  };
+  snapshot.value = {
+    materials: [material, sceneMaterial],
+    materialGroups: [materialGroup, sceneGroup]
+  };
+  const { app, element } = mount();
+  try {
+    invoke(element("id", "book-bindings-tab-material"), "onClick");
+    await nextTick();
+    const groups = element("aria-label", "分组");
+    element("title", materialGroup.title, groups);
+    element("title", sceneGroup.title, groups);
+
+    const search = element("type", "search");
+    const input = search.props.onInput as (event: {
+      target: { value: string };
+    }) => void;
+    input({ target: { value: " 地点 " } });
+    await nextTick();
+    element("title", sceneGroup.title, groups);
+    expect(
+      find(groups, (node) => node.props.title === materialGroup.title)
+    ).toBeUndefined();
+    expect(
+      find(body, (node) => node.props.title === sceneMaterial.title)
+    ).toBeUndefined();
   } finally {
     app.unmount();
   }

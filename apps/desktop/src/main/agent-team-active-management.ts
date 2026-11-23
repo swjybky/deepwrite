@@ -224,8 +224,7 @@ function validated(
     if (
       kind === "llm" &&
       config.thinkingLevel !== "off" &&
-      (!model.reasoning ||
-        !model.thinkingLevelOptions.includes(config.thinkingLevel ?? ""))
+      !model.thinkingLevelOptions.includes(config.thinkingLevel ?? "")
     )
       throw new Error("所选模型不支持该思考等级。");
     if (

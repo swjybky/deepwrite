@@ -29,7 +29,7 @@ const models: AgentTeamModelChoice[] = [
     id: "test-model",
     label: "Test model",
     kind: "llm",
-    reasoning: true,
+    reasoning: false,
     thinkingLevelOptions: ["low", "high"],
     temperatureOptions: [0.7]
   }
@@ -282,7 +282,7 @@ describe("effective team management", () => {
     }
   );
 
-  it("updates all member settings, adds/removes members and switches parallel in one review", async () => {
+  it("updates member settings and accepts a configured evaluator level in temperature mode", async () => {
     const f = await fixture();
     const snapshot = await f.store.list();
     const preview = previewActiveTeamChange(
@@ -345,6 +345,9 @@ describe("effective team management", () => {
     expect(saved.settings.teams[0]!.subagents).toEqual(
       change.members.map((m) => m.after)
     );
+    expect(
+      saved.settings.teams[0]!.subagents[0]?.draw?.evaluator
+    ).toMatchObject({ modelId: "test-model", thinkingLevel: "high" });
     const removal = previewActiveTeamChange(
       await f.store.list(),
       {
@@ -385,6 +388,18 @@ describe("effective team management", () => {
             modelMode: "custom",
             modelId: "missing",
             thinkingLevel: "high"
+          }
+        }
+      ],
+      [
+        {
+          action: "update-member",
+          parentAgentId: f.target.parentAgentId,
+          memberId: "editor",
+          set: {
+            modelMode: "custom",
+            modelId: "test-model",
+            thinkingLevel: "medium"
           }
         }
       ],

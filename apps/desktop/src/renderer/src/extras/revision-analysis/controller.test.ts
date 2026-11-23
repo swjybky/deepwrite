@@ -16,8 +16,9 @@ import {
 import { useRevisionAnalysis } from "./useRevisionAnalysis";
 const model = {
   id: "model",
+  reasoning: false,
   defaultThinkingLevel: "off",
-  thinkingLevelOptions: ["off"],
+  thinkingLevelOptions: ["medium"],
   contextWindow: 200000,
   maxTokens: 16000
 } as ModelConfig;
@@ -103,13 +104,20 @@ describe("revision analysis controller", () => {
     expect(f.c.beforeText.value).toBe("仍在分析");
     f.c.dispose();
   });
-  it("compares the current documents when starting without a separate preview", async () => {
+  it("compares the documents on start and submits the selected level in temperature mode", async () => {
     const f = fixture();
+    await nextTick();
+    f.c.selectedThinkingLevel.value = "medium";
     expect(f.c.changes.value).toEqual([]);
     expect(f.c.canStart.value).toBe(true);
     await f.c.start();
     expect(f.c.comparisonCurrent.value).toBe(true);
-    expect(revisionInput(f.run.mock.calls[0]![0]).changes).toMatchObject([
+    const request = f.run.mock.calls[0]![0];
+    expect(request).toMatchObject({
+      modelId: model.id,
+      thinkingLevel: "medium"
+    });
+    expect(revisionInput(request).changes).toMatchObject([
       { before: "原句", after: "改句", reason: "" }
     ]);
     f.c.dispose();

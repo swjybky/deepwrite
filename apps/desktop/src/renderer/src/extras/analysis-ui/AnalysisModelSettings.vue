@@ -13,7 +13,10 @@ import AppIcon from "../../components/AppIcon.vue";
 import PopupSelect from "../../components/PopupSelect.vue";
 import { thinkingLabel } from "../../components/modelSettingsDraft";
 import { createScopedTranslator } from "../../i18n";
-import { buildModelSelectOptions } from "../../utils/modelSelectOptions";
+import {
+  buildModelSelectOptions,
+  modelThinkingLevels
+} from "../../utils/modelSelectOptions";
 import "./analysis-model-settings.css";
 
 const t = createScopedTranslator("extras");
@@ -48,12 +51,7 @@ const selectedModel = computed(() =>
 const modelOptions = computed(() =>
   buildModelSelectOptions(availableModels.value)
 );
-const thinkingLevels = computed<ThinkingLevel[]>(() => [
-  "off",
-  ...(selectedModel.value?.reasoning
-    ? selectedModel.value.thinkingLevelOptions
-    : [])
-]);
+const thinkingLevels = computed(() => modelThinkingLevels(selectedModel.value));
 const thinkingOptions = computed(() =>
   thinkingLevels.value.map((value) => ({ value, label: thinkingLabel(value) }))
 );

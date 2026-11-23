@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DeepWrite 创作空间验收</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        color: var(--foreground, CanvasText);
+        font-family: var(--font-sans, system-ui, sans-serif);
+        font-size: 14px;
+        line-height: 1.5;
+        --line: var(--border, color-mix(in srgb, CanvasText 19%, transparent));
+        --subtle: var(
+          --muted-foreground,
+          color-mix(in srgb, CanvasText 72%, transparent)
+        );
+        --pass: var(--success, light-dark(#18734a, #78d5a9));
+        --warn: var(--warning, light-dark(#8e5808, #f1bd70));
+        --fail: var(--destructive, light-dark(#ad3942, #ee8e94));
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        display: grid;
+        gap: 20px;
+      }
+      h1,
+      h2,
+      p,
+      dl,
+      dd {
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(20px, 4vw, 28px);
+        line-height: 1.2;
+        letter-spacing: -0.015em;
+      }
+      h2 {
+        font-size: 16px;
+      }
+      header p {
+        color: var(--subtle);
+        margin-top: 6px;
+      }
+      .figures {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .figures div {
+        border: 1px solid var(--line);
+        border-radius: var(--radius, 10px);
+        padding: 12px;
+      }
+      .figures dt {
+        color: var(--subtle);
+        font-size: 12px;
+      }
+      .figures dd {
+        font-size: clamp(19px, 5vw, 29px);
+        line-height: 1.2;
+        font-weight: 680;
+        font-variant-numeric: tabular-nums;
+      }
+      .bar {
+        background: var(--fail);
+        border-radius: 4px;
+        height: 8px;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        width: 90%;
+        height: 8px;
+        background: var(--pass);
+      }
+      .key {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px 16px;
+        margin-top: 6px;
+        color: var(--subtle);
+        font-size: 12px;
+      }
+      .mark {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
+      .ok {
+        background: var(--pass);
+      }
+      .err {
+        background: var(--fail);
+      }
+      section > h2 {
+        margin-bottom: 7px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      th,
+      td {
+        padding: 7px 6px;
+        text-align: start;
+        vertical-align: top;
+        border-bottom: 1px solid var(--line);
+        overflow-wrap: anywhere;
+      }
+      th {
+        font-size: 12px;
+        color: var(--subtle);
+      }
+      th:first-child,
+      td:first-child {
+        padding-left: 0;
+      }
+      .works th:nth-child(1) {
+        width: 14%;
+      }
+      .works th:nth-child(2) {
+        width: 27%;
+      }
+      .pass {
+        color: color-mix(
+          in srgb,
+          var(--pass) 68%,
+          var(--foreground, CanvasText)
+        );
+        font-weight: 620;
+      }
+      .retry {
+        color: color-mix(
+          in srgb,
+          var(--warn) 68%,
+          var(--foreground, CanvasText)
+        );
+        font-weight: 620;
+      }
+      .untested {
+        color: var(--subtle);
+      }
+      .notes {
+        display: grid;
+        gap: 7px;
+      }
+      .notes article {
+        padding: 8px 11px;
+        border-inline-start: 2px solid var(--line);
+      }
+      .notes article:first-of-type {
+        border-color: var(--warn);
+      }
+      .notes article p {
+        color: var(--subtle);
+      }
+      .notes h2 {
+        margin: 0;
+      }
+      details {
+        border-top: 1px solid var(--line);
+      }
+      details:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+      summary {
+        padding-block: 10px;
+        cursor: pointer;
+        font-weight: 640;
+      }
+      summary span {
+        color: var(--subtle);
+        font-size: 12px;
+        font-weight: 400;
+        margin-inline-start: 6px;
+      }
+      details > p {
+        color: var(--subtle);
+        margin-bottom: 7px;
+        font-size: 12px;
+      }
+      details table {
+        margin-bottom: 10px;
+      }
+      details th:first-child {
+        width: 39%;
+      }
+      details th:nth-child(2) {
+        width: 16%;
+      }
+      code {
+        font-family: var(--font-mono, ui-monospace, monospace);
+        font-size: 0.88em;
+      }
+      @media (max-width: 440px) {
+        main {
+          gap: 16px;
+        }
+        .figures {
+          gap: 6px;
+        }
+        .figures div {
+          padding: 9px 6px;
+        }
+        .figures dt {
+          font-size: 11px;
+        }
+        .works th:nth-child(1) {
+          width: 15%;
+        }
+        .works th:nth-child(2) {
+          width: 24%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>DeepWrite 创作空间验收</h1>
+        <p>上一轮实测 · 批次 261121075536 · 开发版 1.9.0 · 普通模式</p>
+      </header>
+      <dl class="figures">
+        <div>
+          <dt>作品落盘通过</dt>
+          <dd>5 / 5</dd>
+        </div>
+        <div>
+          <dt>MCP 工具有记录</dt>
+          <dd>14 / 24</dd>
+        </div>
+        <div>
+          <dt>内置调用成功</dt>
+          <dd>36 / 40</dd>
+        </div>
+      </dl>
+      <div>
+        <div
+          class="bar"
+          role="img"
+          aria-label="内置工具共调用 40 次，成功 36 次，失败 4 次"
+        >
+          <span></span>
+        </div>
+        <p class="key">
+          <span><i class="mark ok"></i>成功 36 次</span
+          ><span><i class="mark err"></i>失败 4 次</span
+          ><span>归一化 0 次</span>
+        </p>
+      </div>
+      <section>
+        <h2>五类作品 · 10 份文档已回读</h2>
+        <table class="works">
+          <thead>
+            <tr>
+              <th>作品</th>
+              <th>终态</th>
+              <th>保存的产物</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>短篇</td>
+              <td class="pass">通过</td>
+              <td>第一节正文、人物状态</td>
+            </tr>
+            <tr>
+              <td>剧本</td>
+              <td class="pass">通过</td>
+              <td>第一集场景、动作、对白与状态</td>
+            </tr>
+            <tr>
+              <td>长篇</td>
+              <td class="pass">通过</td>
+              <td>第一章章卡与正文，另建「换班签名」</td>
+            </tr>
+            <tr>
+              <td>剧本杀</td>
+              <td class="retry">复测通过</td>
+              <td>搜证线索与主持手册，玩家视角检索命中线索</td>
+            </tr>
+            <tr>
+              <td>学术</td>
+              <td class="pass">通过</td>
+              <td>方法指引和正文，缺失数据以占位标记</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="notes">
+        <h2>异常与恢复</h2>
+        <article>
+          <strong>剧本杀</strong>
+          <p>
+            在设置页启动返回
+            <code>external.not_ready</code
+            >。返回工作区后可启动。同轮两次写入中，主持手册写入及随后三次读取失败。停止该轮后沿用会话单独写入，回读通过。
+          </p>
+        </article>
+        <article>
+          <strong>学术</strong>
+          <p>
+            旧版本写入被拒绝，原文完整。智能体运行期间恢复返回
+            <code>external.busy</code>，运行停止后成功恢复小节及其正文。
+          </p>
+        </article>
+      </section>
+      <section aria-label="逐工具明细">
+        <details>
+          <summary>
+            MCP 逐工具明细 <span>14 项有实测证据 · 10 项未测</span>
+          </summary>
+          <p>
+            覆盖数按工具名计。有实测证据表示至少一个操作已验，其他子操作仍可能未测。
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>工具</th>
+                <th>结果</th>
+                <th>证据或缺口</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>get_app_status</code></td>
+                <td class="pass">通过</td>
+                <td>窗口就绪，结束时无活动运行</td>
+              </tr>
+              <tr>
+                <td><code>list_works</code></td>
+                <td class="pass">通过</td>
+                <td>列出五类合成作品</td>
+              </tr>
+              <tr>
+                <td><code>get_work</code></td>
+                <td class="pass">通过</td>
+                <td>文档 ID 与长篇新增章节可查</td>
+              </tr>
+              <tr>
+                <td><code>open_in_app</code></td>
+                <td class="pass">通过</td>
+                <td>定位合成剧本杀</td>
+              </tr>
+              <tr>
+                <td><code>manage_work</code></td>
+                <td class="pass">通过</td>
+                <td>创建五类作品。重命名、复制、删除未测</td>
+              </tr>
+              <tr>
+                <td><code>read_document</code></td>
+                <td class="pass">通过</td>
+                <td>读前置版本并回读十份目标文档。分页未测</td>
+              </tr>
+              <tr>
+                <td><code>write_document</code></td>
+                <td class="pass">通过</td>
+                <td>写入成功，旧版本被拒绝</td>
+              </tr>
+              <tr>
+                <td><code>search_text</code></td>
+                <td class="pass">通过</td>
+                <td>作品内命中目标校验词。资料库搜索未测</td>
+              </tr>
+              <tr>
+                <td><code>manage_document</code></td>
+                <td class="pass">通过</td>
+                <td>学术小节创建、删除。改名、移动、复制未测</td>
+              </tr>
+              <tr>
+                <td><code>run_agent</code></td>
+                <td class="retry">复测通过</td>
+                <td>五类普通模式发起，补测沿用会话</td>
+              </tr>
+              <tr>
+                <td><code>get_agent_run</code></td>
+                <td class="pass">通过</td>
+                <td>核对终态和内置工具轨迹</td>
+              </tr>
+              <tr>
+                <td><code>answer_agent_question</code></td>
+                <td class="untested">未测</td>
+                <td>尚无提问与回复用例</td>
+              </tr>
+              <tr>
+                <td><code>stop_agent_run</code></td>
+                <td class="pass">通过</td>
+                <td>剧本杀运行进入 <code>stopped</code></td>
+              </tr>
+              <tr>
+                <td><code>list_trash</code></td>
+                <td class="pass">通过</td>
+                <td>匹配合成小节和回收 ID</td>
+              </tr>
+              <tr>
+                <td><code>restore_trash_item</code></td>
+                <td class="pass">通过</td>
+                <td>恢复学术小节三份文档</td>
+              </tr>
+              <tr>
+                <td><code>manage_library</code></td>
+                <td class="untested">未测</td>
+                <td>资料库管理</td>
+              </tr>
+              <tr>
+                <td><code>list_libraries</code></td>
+                <td class="untested">未测</td>
+                <td>资料库目录</td>
+              </tr>
+              <tr>
+                <td><code>get_library</code></td>
+                <td class="untested">未测</td>
+                <td>条目目录</td>
+              </tr>
+              <tr>
+                <td><code>manage_entry</code></td>
+                <td class="untested">未测</td>
+                <td>资料条目管理</td>
+              </tr>
+              <tr>
+                <td><code>read_entry</code></td>
+                <td class="untested">未测</td>
+                <td>资料条目读取</td>
+              </tr>
+              <tr>
+                <td><code>write_entry</code></td>
+                <td class="untested">未测</td>
+                <td>资料条目条件写入</td>
+              </tr>
+              <tr>
+                <td><code>list_agent_teams</code></td>
+                <td class="untested">未测</td>
+                <td>团队目录与版本</td>
+              </tr>
+              <tr>
+                <td><code>manage_agent_team</code></td>
+                <td class="untested">未测</td>
+                <td>合成团队管理</td>
+              </tr>
+              <tr>
+                <td><code>save_agent_team</code></td>
+                <td class="untested">未测</td>
+                <td>合成团队条件保存</td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+        <details>
+          <summary>
+            内置智能体逐工具明细 <span>5 种工具有实测证据</span>
+          </summary>
+          <p>使用开发版配置的模型，MCP 未提供模型 ID。次数来自运行轨迹。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>工具</th>
+                <th>成功</th>
+                <th>覆盖作品或缺口</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>read</code></td>
+                <td>22</td>
+                <td>五类。剧本杀另有 3 次失败</td>
+              </tr>
+              <tr>
+                <td><code>edit</code></td>
+                <td>11</td>
+                <td>五类。剧本杀另有 1 次失败</td>
+              </tr>
+              <tr>
+                <td><code>list</code></td>
+                <td>1</td>
+                <td>长篇</td>
+              </tr>
+              <tr>
+                <td><code>create</code></td>
+                <td>1</td>
+                <td>长篇。其他类型的内置新建未测</td>
+              </tr>
+              <tr>
+                <td><code>search</code></td>
+                <td>1</td>
+                <td>剧本杀。长篇和学术未测</td>
+              </tr>
+              <tr>
+                <td><code>delete</code></td>
+                <td class="untested">未测</td>
+                <td>内置结构删除</td>
+              </tr>
+              <tr>
+                <td><code>query_linked_material_entries</code></td>
+                <td class="untested">未测</td>
+                <td>绑定素材读取</td>
+              </tr>
+              <tr>
+                <td><code>load_skill</code></td>
+                <td class="untested">未测</td>
+                <td>绑定技能读取</td>
+              </tr>
+              <tr>
+                <td><code>ask_user_question</code></td>
+                <td class="untested">未测</td>
+                <td>问题等待与续跑</td>
+              </tr>
+              <tr>
+                <td><code>propose_continuity_commit</code></td>
+                <td class="untested">未测</td>
+                <td>长篇连续性账本</td>
+              </tr>
+              <tr>
+                <td><code>spawn_subagent</code></td>
+                <td class="untested">未测</td>
+                <td>团队派遣与子工具</td>
+              </tr>
+              <tr>
+                <td><code>web_search</code></td>
+                <td class="untested">未测</td>
+                <td>联网检索</td>
+              </tr>
+              <tr>
+                <td><code>web_fetch</code></td>
+                <td class="untested">未测</td>
+                <td>网页读取</td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

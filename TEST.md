@@ -119,6 +119,8 @@ grep -o '"pid":[0-9]*' ~/.deepwrite/control-dev/control.json || echo "control.js
 
 | 日期 | 主题 | 结论 | 报告 |
 | --- | --- | --- | --- |
+| 2026-11-22 | 素材库绑定分区 | 66项测试、预算与视觉通过 | [报告](test/2026-11-22-material-binding-picker.md) |
+| 2026-11-21 | 创作空间五类 MCP 冒烟 | 五类落盘，剧本杀串行复测通过 | [报告](test/2026-11-21-creation-workspace-mcp.md) |
 | 2026-11-20 | 左侧创作目录统一长按拖拽排序 | 83项单测、预算与桌面通过 | [报告](test/2026-11-20-sidebar-creation-row-order-drag.md) |
 | 2026-11-20 | 学术框架阶段拖动排序 | 长按、边缘滚动与重开通过 | [报告](test/2026-11-20-academic-framework-drag.md) |
 | 2026-11-20 | 绑定列表技能分区 | 三段展示与保存重开通过 | [报告](test/2026-11-20-book-skill-binding-sections.md) |

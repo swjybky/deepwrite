@@ -128,13 +128,18 @@ describe("long material pack model settings", () => {
     }
   );
 
-  it("resets unsupported levels and turns thinking off for non-reasoning models", async () => {
+  it("preserves supported levels in temperature mode and falls back when they are removed", async () => {
     const { props, store } = mount();
     store.guideThinkingLevel = "medium";
-    props.models = [{ ...model, thinkingLevelOptions: ["high"] }];
+    const temperatureModel = {
+      ...model,
+      reasoning: false,
+      defaultThinkingLevel: "off"
+    };
+    props.models = [temperatureModel];
     await nextTick();
-    expect(store.guideThinkingLevel).toBe("high");
-    props.models = [{ ...model, reasoning: false }];
+    expect(store.guideThinkingLevel).toBe("medium");
+    props.models = [{ ...temperatureModel, thinkingLevelOptions: ["high"] }];
     await nextTick();
     expect(store.guideThinkingLevel).toBe("off");
   });

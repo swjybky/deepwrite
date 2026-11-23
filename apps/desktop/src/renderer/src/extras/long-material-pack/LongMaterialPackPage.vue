@@ -53,7 +53,7 @@ watch(
 watch(
   selectedModel,
   (model) => {
-    if (!model?.reasoning) {
+    if (!model) {
       store.guideThinkingLevel = "off";
     } else if (
       model.id !== previousModelId ||

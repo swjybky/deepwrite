@@ -41,22 +41,19 @@ describe("long-book analysis task options", () => {
     expect(analysisOutputTypeLabel(plotPreset)).toBe("剧情设计");
   });
 
-  it("offers configured thinking levels only for reasoning models", () => {
-    const reasoning = {
-      reasoning: true,
-      thinkingLevelOptions: ["low", "high"]
-    } as ModelConfig;
-    const regular = {
-      reasoning: false,
-      thinkingLevelOptions: ["low", "high"]
-    } as ModelConfig;
-    expect(analysisThinkingOptions(reasoning)).toEqual([
-      { value: "off", label: "关闭" },
-      { value: "low", label: "较低" },
-      { value: "high", label: "深度" }
-    ]);
-    expect(analysisThinkingOptions(regular)).toEqual([
-      { value: "off", label: "关闭" }
-    ]);
-  });
+  it.each([true, false])(
+    "offers the configured options when reasoning is %s",
+    (reasoning) => {
+      const model = {
+        reasoning,
+        thinkingLevelOptions: ["low", "high", "custom-effort"]
+      } as ModelConfig;
+      expect(analysisThinkingOptions(model)).toEqual([
+        { value: "off", label: "关闭" },
+        { value: "low", label: "较低" },
+        { value: "high", label: "深度" },
+        { value: "custom-effort", label: "custom-effort" }
+      ]);
+    }
+  );
 });

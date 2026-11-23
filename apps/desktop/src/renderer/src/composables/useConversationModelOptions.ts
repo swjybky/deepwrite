@@ -6,7 +6,10 @@ import {
   type ModelConfig,
   type ThinkingLevel
 } from "@deepwrite/contracts/renderer";
-import { buildModelSelectOptions } from "../utils/modelSelectOptions";
+import {
+  buildModelSelectOptions,
+  modelThinkingLevels
+} from "../utils/modelSelectOptions";
 import type { AgentApprovalMode } from "../types/conversation";
 import type { IconName } from "../types/workspace";
 
@@ -70,13 +73,10 @@ export function useConversationModelOptions(options: {
 
   const availableThinkingOptions = computed(() =>
     selectedModel.value
-      ? [
-          { value: "off" as const, label: thinkingLabel("off") },
-          ...selectedModel.value.thinkingLevelOptions.map((value) => ({
-            value,
-            label: thinkingLabel(value)
-          }))
-        ]
+      ? modelThinkingLevels(selectedModel.value).map((value) => ({
+          value,
+          label: thinkingLabel(value)
+        }))
       : fallbackThinkingOptions
   );
   const modelOptions = computed(() => buildModelSelectOptions(options.models));

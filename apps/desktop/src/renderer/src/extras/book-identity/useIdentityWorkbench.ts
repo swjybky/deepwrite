@@ -66,7 +66,7 @@ export function useIdentityWorkbench(
   watch(
     model,
     (selected, previous) => {
-      if (!selected?.reasoning) {
+      if (!selected) {
         thinkingLevel.value = "off";
       } else if (
         selected.id !== previous?.id ||

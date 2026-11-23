@@ -12,6 +12,7 @@ import {
   SKILL_KIND_LABELS,
   SKILL_STAGE_LABELS
 } from "../../data/catalogWorkspace";
+import { modelThinkingLevels } from "../../utils/modelSelectOptions";
 
 const t = createScopedTranslator("extras.longBookAnalysis");
 
@@ -50,15 +51,10 @@ const THINKING_LABELS: Record<string, string> = {
 export function analysisThinkingOptions(
   model: ModelConfig | null
 ): AnalysisTaskOption[] {
-  return [
-    { value: "off", label: THINKING_LABELS.off! },
-    ...(model?.reasoning
-      ? model.thinkingLevelOptions.map((value) => ({
-          value,
-          label: THINKING_LABELS[value] ?? value
-        }))
-      : [])
-  ];
+  return modelThinkingLevels(model).map((value) => ({
+    value,
+    label: THINKING_LABELS[value] ?? value
+  }));
 }
 
 export function compatibleAnalysisLibraries(

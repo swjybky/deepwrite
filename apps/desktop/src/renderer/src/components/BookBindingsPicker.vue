@@ -27,9 +27,6 @@ const props = defineProps<{
   emptyText: string;
   sections?: readonly BookBindingsPickerSection[] | undefined;
   loading?: boolean;
-  groups?:
-    | readonly { id: string; title: string; count: number; active: boolean }[]
-    | undefined;
   search?: string | undefined;
   searchPlaceholder?: string | undefined;
   tag?: string | undefined;
@@ -56,29 +53,6 @@ function updateSearch(event: Event): void {
 
 <template>
   <div class="book-bindings-picker">
-    <div v-if="groups?.length" class="lib-picker-groups">
-      <span class="lib-picker-groups-label">{{
-        sharingT("quickSelectGroups")
-      }}</span>
-      <div class="lib-picker-group-chips">
-        <button
-          v-for="group in groups"
-          :key="group.id"
-          class="lib-picker-group-chip"
-          :class="{ 'is-active': group.active }"
-          type="button"
-          :aria-pressed="group.active"
-          :disabled="loading"
-          @click="emit('toggleGroup', group.id)"
-        >
-          <span>{{ group.title }}</span>
-          <span class="lib-picker-group-count">{{
-            sharingT("groupMemberCount", { count: group.count })
-          }}</span>
-        </button>
-      </div>
-    </div>
-
     <div v-if="search !== undefined" class="lib-picker-toolbar">
       <input
         :value="search"

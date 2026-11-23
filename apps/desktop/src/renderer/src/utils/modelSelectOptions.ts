@@ -1,12 +1,19 @@
 import {
   isDeepWriteSiteOfficialModel,
-  type ModelConfig
+  type ModelConfig,
+  type ThinkingLevel
 } from "@deepwrite/contracts/renderer";
 import { MODEL_PROVIDER_OPTIONS } from "../components/modelProviderPresets";
 import { createScopedTranslator } from "../i18n";
 import type { PopupSelectOption } from "../types/popupSelect";
 
 const t = createScopedTranslator("workspace.conversationModelOptions");
+
+export function modelThinkingLevels(
+  model: Pick<ModelConfig, "thinkingLevelOptions"> | null | undefined
+): ThinkingLevel[] {
+  return ["off", ...(model?.thinkingLevelOptions ?? [])];
+}
 
 export interface ModelSelectOption extends PopupSelectOption {
   value: string;

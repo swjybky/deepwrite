@@ -217,35 +217,73 @@ function boundFirst<T extends { id: string }>(
   ];
 }
 
-function skillPickerSections(
-  libraries: readonly BookBindingsPickerItem[]
+function libraryPickerSections(
+  kind: "skill" | "material",
+  libraries: readonly BookBindingsPickerItem[],
+  emptyLibraryText: string
 ): BookBindingsPickerSection[] {
-  const query = selection.skillSearchQuery.trim().toLocaleLowerCase();
-  const tag = selection.skillTagFilter;
+  const skill = kind === "skill";
+  const search = skill
+    ? selection.skillSearchQuery
+    : selection.materialSearchQuery;
+  const query = search.trim().toLocaleLowerCase();
+  const tag = skill ? selection.skillTagFilter : selection.materialTagFilter;
   const matchesName = (title: string) =>
     title.toLocaleLowerCase().includes(query);
+  const libraryItems = skill ? selection.skillItems : selection.materialItems;
+  const availableGroups = skill
+    ? selection.availableSkillGroups
+    : selection.availableMaterialGroups;
+  const validMemberIds = skill
+    ? selection.validSkillGroupMemberIds
+    : selection.validMaterialGroupMemberIds;
+  const isGroupSelected = skill
+    ? selection.isSkillGroupSelected
+    : selection.isMaterialGroupSelected;
+  const selected = skill
+    ? selection.selectedSkillSet
+    : selection.selectedMaterialSet;
   const taggedLibraryIds = new Set(
-    selection.skillItems.filter((item) => item.tag === tag).map(({ id }) => id)
+    libraryItems.filter((item) => item.tag === tag).map(({ id }) => id)
   );
-  const groups = selection.availableSkillGroups.flatMap((group) => {
-    const memberIds = selection.validSkillGroupMemberIds(group);
+  const groups = availableGroups.flatMap((group) => {
+    const memberIds = validMemberIds(group);
     if (
       !matchesName(group.title) ||
       (tag && !memberIds.some((id) => taggedLibraryIds.has(id)))
     )
       return [];
-    const checked = selection.isSkillGroupSelected(group);
+    const checked = isGroupSelected(group);
     return [
       {
         id: group.id,
         title: group.title,
         meta: sharingT("groupMemberCount", { count: memberIds.length }),
         checked,
-        indeterminate:
-          !checked && memberIds.some((id) => selection.selectedSkillSet.has(id))
+        indeterminate: !checked && memberIds.some((id) => selected.has(id))
       }
     ];
   });
+  const sections: BookBindingsPickerSection[] = [
+    {
+      id: "group",
+      label: bindingsT("groups"),
+      items: groups,
+      emptyText: availableGroups.length
+        ? bindingsT("noMatches")
+        : libraryT(
+            skill ? "noSkillGroupsAvailable" : "noMaterialGroupsAvailable"
+          )
+    },
+    {
+      id: "library",
+      label: t(skill ? "skillLibrary" : "materialLibrary"),
+      items: libraries,
+      emptyText: emptyLibraryText
+    }
+  ];
+  if (!skill) return sections;
+
   const individualSkills = (index.snapshot?.skills ?? [])
     .filter((library) => library.isUnbound)
     .flatMap((library) =>
@@ -257,36 +295,16 @@ function skillPickerSections(
   const entries = tag
     ? []
     : individualSkills.filter((entry) => matchesName(entry.title));
-
-  return [
-    {
-      id: "group",
-      label: bindingsT("groups"),
-      items: groups,
-      emptyText: selection.availableSkillGroups.length
-        ? bindingsT("noMatches")
-        : libraryT("noSkillGroupsAvailable")
-    },
-    {
-      id: "library",
-      label: t("skillLibrary"),
-      items: libraries,
-      emptyText: sharingT(
-        selection.skillItems.length
-          ? "noMatchingLibraries"
-          : "noLibrariesAvailable"
-      )
-    },
-    {
-      id: "entry",
-      label: bindingsT("individualSkills"),
-      ...(entries.length ? { note: bindingsT("individualSkillHint") } : {}),
-      items: entries,
-      emptyText: bindingsT(
-        individualSkills.length ? "noMatches" : "noIndividualSkills"
-      )
-    }
-  ];
+  sections.push({
+    id: "entry",
+    label: bindingsT("individualSkills"),
+    ...(entries.length ? { note: bindingsT("individualSkillHint") } : {}),
+    items: entries,
+    emptyText: bindingsT(
+      individualSkills.length ? "noMatches" : "noIndividualSkills"
+    )
+  });
+  return sections;
 }
 
 const picker = computed(() => {
@@ -318,6 +336,9 @@ const picker = computed(() => {
     tag: item.tag,
     meta: sharingT("entryCount", { count: item.entryCount })
   }));
+  const emptyText = loading
+    ? bindingsT("loading")
+    : sharingT(all.length ? "noMatchingLibraries" : "noLibrariesAvailable");
   return {
     title: t(skill ? "skillLibrary" : "materialLibrary"),
     description: skill
@@ -329,20 +350,12 @@ const picker = computed(() => {
     selected: skill
       ? selection.selectedSkillSet
       : selection.selectedMaterialSet,
-    emptyText: loading
-      ? bindingsT("loading")
-      : sharingT(all.length ? "noMatchingLibraries" : "noLibrariesAvailable"),
-    sections: skill && !loading ? skillPickerSections(items) : undefined,
-    groups: skill
+    emptyText,
+    sections: loading
       ? undefined
-      : selection.availableMaterialGroups.map((group) => ({
-          id: group.id,
-          title: group.title,
-          count: selection.validMaterialGroupMemberIds(group).length,
-          active: selection.isMaterialGroupSelected(group)
-        })),
+      : libraryPickerSections(section, items, emptyText),
     search: skill ? selection.skillSearchQuery : selection.materialSearchQuery,
-    searchPlaceholder: skill ? bindingsT("searchSkills") : undefined,
+    searchPlaceholder: bindingsT(skill ? "searchSkills" : "searchMaterials"),
     tag: skill ? selection.skillTagFilter : selection.materialTagFilter,
     tagOptions: skill
       ? selection.skillTagFilterOptions
@@ -616,7 +629,6 @@ onBeforeUnmount(() => {
                 :empty-text="picker.emptyText"
                 :sections="picker.sections"
                 :loading="picker.loading"
-                :groups="picker.groups"
                 :search="picker.search"
                 :search-placeholder="picker.searchPlaceholder"
                 :tag="picker.tag"
