@@ -54,6 +54,9 @@ export default {
     failedToRenameAgentTeam: "Failed to rename agent team.",
     agentTeamDeleted: "Agent team deleted.",
     failedToDeleteAgentTeam: "Failed to delete agent team.",
+    agentTeamDuplicated:
+      "Copied to your agent teams. You can customize the copy freely.",
+    failedToDuplicateAgentTeam: "Failed to duplicate agent team.",
     teamEnabledItWillBeUsedForTheNext:
       "Team enabled. It will be used for the next conversation of this type.",
     teamDisabledItWillNoLongerBeUsedFor:
@@ -102,6 +105,12 @@ export default {
     freeModelDisabledAndHiddenFromModelSettings:
       "Free model disabled and hidden from model settings.",
     failedToUpdateFreeModelStatus: "Failed to update free model status.",
+    testingConnection: "Testing connection…",
+    cancelingConnectionTest: "Canceling connection test…",
+    modelConnectionTestCanceled: "Connection test canceled.",
+    modelConnectionTestTimedOut:
+      "Model connection timed out. Check your network or try again later.",
+    modelTestResultForModel: "{model}: {message}",
     modelConnectionTestFailed: "Model connection test failed.",
     modelConnectionTestFailedWithReason:
       "Model connection test failed: {reason}"
@@ -140,7 +149,15 @@ export default {
     saveFailed:
       "Conversations have not finished saving, so the migration was canceled. Try again shortly.",
     openFailed:
-      "Could not open the storage folder. Check that it exists and is accessible."
+      "Could not open the storage folder. Check that it exists and is accessible.",
+    compactionCompletedWithBackup:
+      "Legacy snapshot compaction finished with a safety backup retained. Release the backup in Settings → Storage once verified.",
+    compactionBackupReleased:
+      "Backup removed and full historical disk space reclaimed.",
+    compactionFailed:
+      "Legacy conversation compaction did not finish. Check Settings → Storage to retry safely.",
+    compactionFailedWithReason:
+      "Legacy conversation compaction did not finish: {reason}"
   },
   modelEditor: {
     automaticRecommended: "Automatic (recommended)",
@@ -287,6 +304,7 @@ export default {
       "Could not refresh the new official site's models.",
     theNewOfficialSiteSModelPageHasBeen:
       "The new official site's model page has been refreshed.",
+    officialSiteModelsRefreshed: "Official site models refreshed.",
     modelEnabledAndAddedToTheModelSelector:
       "Model enabled and added to the model selector.",
     modelDisabledAndHiddenFromTheModelSelector:

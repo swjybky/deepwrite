@@ -179,6 +179,12 @@ export function useLibraryRemovalCoordinator(
     payload: CatalogResourceNodeActionPayload
   ): boolean {
     if (payload.action === "dissolve-group") {
+      if (payload.node.readOnly) {
+        context.notifications.warning(
+          t("builtInSkillLibrariesAreReadOnlyEntriesCannot2")
+        );
+        return true;
+      }
       void dissolveGroup(payload);
       return true;
     }
@@ -188,6 +194,12 @@ export function useLibraryRemovalCoordinator(
       payload.action !== "unregister-library"
     ) {
       return false;
+    }
+    if (payload.node.readOnly) {
+      context.notifications.warning(
+        t("builtInSkillLibrariesAreReadOnlyEntriesCannot2")
+      );
+      return true;
     }
     if (context.mutationPending.value) return true;
     const isGroup = payload.action === "delete-group";

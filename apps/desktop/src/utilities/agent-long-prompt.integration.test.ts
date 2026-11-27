@@ -17,7 +17,7 @@ import {
   profile as libraryProfile,
   materialWorkspace,
   skillWorkspace
-} from "../../../../packages/pi-runtime-adapter/src/library-agent-tools/test-fixtures";
+} from "../../../../packages/pi-runtime-adapter/src/library-agent-tools/library-tools.test-support";
 import {
   shortProfile,
   shortWorkspace

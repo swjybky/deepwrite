@@ -36,6 +36,7 @@ interface Queue {
   deferredError?: Error | undefined;
   requested: number;
   confirmed: number;
+  explicitFlushDepth: number;
 }
 
 interface QueueHooks {
@@ -92,8 +93,13 @@ export function createConversationPersistenceQueue(hooks: QueueHooks) {
           (queue.pending || queue.retry) &&
           queue.timer === undefined &&
           queue.lastError === undefined
-        )
-          void start(queue);
+        ) {
+          if (queue.explicitFlushDepth > 0) {
+            void start(queue);
+          } else {
+            scheduleTimer(queue, Math.min(debounceMs, 250));
+          }
+        }
       });
     queue.inFlight = task;
     hooks.changed();
@@ -126,7 +132,7 @@ export function createConversationPersistenceQueue(hooks: QueueHooks) {
     if (!key.trim()) throw new Error(t("persistenceKeyCannotBeEmpty"));
     let queue = queues.get(key);
     if (!queue) {
-      queue = { key, requested: 0, confirmed: 0 };
+      queue = { key, requested: 0, confirmed: 0, explicitFlushDepth: 0 };
       queues.set(key, queue);
     }
     queue.pending = factory;
@@ -143,16 +149,22 @@ export function createConversationPersistenceQueue(hooks: QueueHooks) {
     if (!queue) return;
     clearTimer(queue);
     hooks.changed();
-    while (queue.pending || queue.retry || queue.inFlight) {
-      if (!queue.inFlight) {
-        if (!adapter)
-          throw new Error(
-            t("theConversationStorageAdapterHasNotBeenConfigured")
-          );
-        start(queue);
+    queue.explicitFlushDepth += 1;
+    try {
+      while (queue.pending || queue.retry || queue.inFlight) {
+        clearTimer(queue);
+        if (!queue.inFlight) {
+          if (!adapter)
+            throw new Error(
+              t("theConversationStorageAdapterHasNotBeenConfigured")
+            );
+          start(queue);
+        }
+        await queue.inFlight;
+        if (queue.lastError !== undefined) throw queue.lastError;
       }
-      await queue.inFlight;
-      if (queue.lastError !== undefined) throw queue.lastError;
+    } finally {
+      queue.explicitFlushDepth -= 1;
     }
     if (queue.lastError !== undefined) throw queue.lastError;
     if (queue.deferredError && !options.allowDeferred)

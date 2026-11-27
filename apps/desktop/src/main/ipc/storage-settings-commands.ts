@@ -1,4 +1,5 @@
 import {
+  ConversationCompactionStatusSchema,
   StorageChangeResultSchema,
   StorageSettingsSnapshotSchema,
   WorkspaceDirectorySettingsSchema,
@@ -9,6 +10,7 @@ import {
   StorageSettingsError,
   type StorageSettingsService
 } from "../storage-settings-service";
+import { rejectedResult } from "./errors";
 
 export async function handleStorageSettingsCommands(
   command: CommandEnvelope,
@@ -39,22 +41,27 @@ export async function handleStorageSettingsCommands(
       case "storageSettings.openDirectory":
         payload = await service.openDirectory(command.payload.kind);
         break;
+      case "storageSettings.compactConversations":
+        payload = ConversationCompactionStatusSchema.parse(
+          await service.compactConversations()
+        );
+        break;
+      case "storageSettings.releaseConversationBackup":
+        payload = ConversationCompactionStatusSchema.parse(
+          await service.releaseConversationBackup()
+        );
+        break;
       default:
         return undefined;
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code:
-          error instanceof StorageSettingsError
-            ? error.code
-            : "storage_settings.operation_failed",
-        message:
-          error instanceof Error ? error.message : "存储设置操作失败，请重试。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      error instanceof StorageSettingsError
+        ? error.code
+        : "storage_settings.operation_failed",
+      error instanceof Error ? error.message : "存储设置操作失败，请重试。"
+    );
   }
 }

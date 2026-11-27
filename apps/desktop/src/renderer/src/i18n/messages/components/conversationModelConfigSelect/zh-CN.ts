@@ -12,5 +12,17 @@ export default {
   model: "模型",
   webAccess: "联网",
   on: "开启",
-  backToModelSettings: "返回模型配置"
+  backToModelSettings: "返回模型配置",
+  searchModels: "搜索模型…",
+  clearSearch: "清除搜索",
+  favorites: "收藏",
+  allModels: "全部模型",
+  favoriteModel: "收藏模型",
+  unfavoriteModel: "取消收藏",
+  noMatchingModels: "没有匹配的模型",
+  noFavoriteModelsHint: "点击模型右侧星标即可收藏常用模型",
+  providerCategories: "模型来源分类",
+  parameters: "参数",
+  refreshOfficialModels: "刷新官方小站模型",
+  refreshingOfficialModels: "正在刷新官方小站模型…"
 };

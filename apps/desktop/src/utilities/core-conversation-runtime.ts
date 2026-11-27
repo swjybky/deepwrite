@@ -1,3 +1,9 @@
+import {
+  SystemEventEnvelopeSchema,
+  createEnvelope,
+  type SystemEventEnvelope
+} from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
 import { createConversationExportRuntime } from "./conversation-export/runtime";
 import { fileURLToPath } from "node:url";
 import { RendererStateStore } from "./renderer-state-store";
@@ -10,10 +16,22 @@ export function createCoreConversationRuntime(
   userDataPath: string,
   coreEntryUrl: string
 ) {
+  let latestEmitEvent: ((event: SystemEventEnvelope) => void) | undefined;
   const store = new RendererStateStore(userDataPath, {
     workerPath: fileURLToPath(
       new URL("./conversation-storage/worker-entry.js", coreEntryUrl)
-    )
+    ),
+    onCompactionUpdated: (status) => {
+      latestEmitEvent?.(
+        SystemEventEnvelopeSchema.parse(
+          createEnvelope(
+            "rendererState.compactionUpdated",
+            { status },
+            { id: createId("evt_compaction") }
+          )
+        ) as SystemEventEnvelope
+      );
+    }
   });
   const exports = createConversationExportRuntime();
   return {
@@ -28,11 +46,12 @@ export function createCoreConversationRuntime(
     wrap(
       handler: NonNullable<UtilityRuntimeOptions["commandHandler"]>
     ): NonNullable<UtilityRuntimeOptions["commandHandler"]> {
-      return async (command, ...context) => {
+      return async (command, emitEvent, ...context) => {
+        if (emitEvent) latestEmitEvent = emitEvent;
         const exportResult = await exports.handle(command);
         if (exportResult) return exportResult;
         if (!command.type.startsWith("rendererState."))
-          return handler(command, ...context);
+          return handler(command, emitEvent, ...context);
         try {
           const result = await handleRendererStateCommand(store, command);
           return (

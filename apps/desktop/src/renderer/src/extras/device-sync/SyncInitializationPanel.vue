@@ -15,6 +15,8 @@ const props = defineProps<{
   status: SyncStatus;
   pending: boolean;
   request(input: SyncRequest): Promise<SyncResponse | null>;
+  error?: string | null;
+  clearError?: () => void;
 }>();
 const sources = computed(() =>
   props.status.devices.filter((device) => device.id !== props.status.deviceId)
@@ -30,23 +32,29 @@ const choices = computed(() =>
 );
 const preview = ref<SyncInitializationPreview | null>(null);
 const dialog = ref<HTMLDialogElement | null>(null);
+const canForceIgnore = computed(() =>
+  Boolean(props.error?.includes("未合并") && source.value)
+);
 let disposed = false;
 watch([() => source.value?.id, () => props.status.config?.spaceId], () => {
   preview.value = null;
   dialog.value?.close();
+  props.clearError?.();
 });
 onBeforeUnmount(() => {
   disposed = true;
   dialog.value?.close();
 });
 
-async function download() {
+async function download(ignoreOtherDevices = false) {
   if (!source.value || props.pending) return;
   preview.value = null;
+  props.clearError?.();
   const deviceId = source.value.id;
   const result = await props.request({
     operation: "preview-initialization",
-    deviceId
+    deviceId,
+    ...(ignoreOtherDevices ? { ignoreOtherDevices: true } : {})
   });
   if (
     !disposed &&
@@ -103,7 +111,7 @@ async function initialize() {
       <button
         class="sync-button"
         :disabled="pending || !source"
-        @click="download"
+        @click="download(false)"
       >
         {{
           preview
@@ -112,6 +120,22 @@ async function initialize() {
         }}
       </button>
     </div>
+    <section
+      v-if="!pending && error"
+      class="sync-initialization-preview"
+      role="alert"
+    >
+      <h3>{{ t("deviceSync.initializationFailedTitle") }}</h3>
+      <p>{{ error }}</p>
+      <button
+        v-if="canForceIgnore"
+        class="sync-button secondary"
+        :disabled="pending"
+        @click="download(true)"
+      >
+        {{ t("deviceSync.ignoreOtherDevicesPreview") }}
+      </button>
+    </section>
     <section
       v-if="preview"
       class="sync-initialization-preview"
@@ -132,6 +156,21 @@ async function initialize() {
             local: preview.localItemCount,
             remote: preview.itemCount,
             files: preview.fileCount
+          })
+        }}
+      </p>
+      <p v-if="preview.ignoredDevices?.length">
+        {{
+          t("deviceSync.ignoredDevicesSummary", {
+            devices: preview.ignoredDevices.join("、"),
+            device: preview.deviceName
+          })
+        }}
+      </p>
+      <p v-if="preview.skippedUnsupportedCount">
+        {{
+          t("deviceSync.skippedUnsupportedSummary", {
+            count: preview.skippedUnsupportedCount
           })
         }}
       </p>

@@ -77,9 +77,14 @@ export function useBookLibrarySelection(props: BookLibrarySelectionProps) {
         .map((value) => value.trim())
         .filter(Boolean)
         .join(" / ");
+      const baseTitle = genreLabel
+        ? `${library.title} · ${genreLabel}`
+        : library.title;
       return {
         id: library.id,
-        title: genreLabel ? `${library.title} · ${genreLabel}` : library.title,
+        title: library.isBuiltin
+          ? `${baseTitle} (${sharingT("officialSuffix")})`
+          : baseTitle,
         tag: formatMaterialTagBadge(library),
         entryCount: Array.isArray(library.entries) ? library.entries.length : 0
       };

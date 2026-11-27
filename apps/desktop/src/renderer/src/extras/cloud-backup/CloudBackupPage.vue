@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, ref, watch } from "vue";
@@ -11,6 +12,7 @@ import type {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { uiMessage } from "../../ui-feedback";
 import CloudBackupPreviewDialog from "./CloudBackupPreviewDialog.vue";
+import { formatBytes } from "@deepwrite/shared";
 
 const t = createScopedTranslator("extras");
 
@@ -31,7 +33,7 @@ const remoteKey = ref("");
 const preview = ref<CloudBackupPreview | null>(null);
 const copied = ref(false);
 
-const apiAvailable = computed(() => Boolean(window.deepwrite?.cloudBackup));
+const apiAvailable = computed(() => Boolean(deepwriteApi()?.cloudBackup));
 
 const usedPercent = computed(() => {
   if (!status.value || status.value.quotaBytes <= 0) return 0;
@@ -41,16 +43,6 @@ const usedPercent = computed(() => {
   );
 });
 
-function errorMessage(error: unknown, fallback: string): string {
-  return formatError(error, fallback);
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function formatTime(value: string | null): string {
   if (!value) return t("cloudBackup.neverBackedUp");
   const date = new Date(value);
@@ -59,19 +51,20 @@ function formatTime(value: string | null): string {
 }
 
 async function ensureStatusLoaded(): Promise<void> {
-  if (!window.deepwrite?.cloudBackup) return;
+  const desktopApi = deepwriteApi();
+  if (!desktopApi?.cloudBackup) return;
   try {
-    session.value = await window.deepwrite.marketplace.session();
+    session.value = await desktopApi.marketplace.session();
     if (!session.value.authenticated) {
       settingsStore.invalidate("cloudBackup");
       preview.value = null;
       return;
     }
     await settingsStore.ensureCloudBackupLoaded(() =>
-      window.deepwrite!.cloudBackup!.status()
+      desktopApi!.cloudBackup!.status()
     );
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("cloudBackup.loadStatusFailed")));
+    uiMessage.error(formatError(error, t("cloudBackup.loadStatusFailed")));
   }
 }
 
@@ -101,40 +94,43 @@ async function copyMachineKey(): Promise<void> {
 }
 
 async function startBackup(): Promise<void> {
-  if (!window.deepwrite?.cloudBackup || pending.value) return;
+  const desktopApi = deepwriteApi();
+  if (!desktopApi?.cloudBackup || pending.value) return;
   pending.value = true;
   try {
-    preview.value = await window.deepwrite.cloudBackup.previewBackup();
+    preview.value = await desktopApi.cloudBackup.previewBackup();
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("cloudBackup.previewFailed")));
+    uiMessage.error(formatError(error, t("cloudBackup.previewFailed")));
   } finally {
     pending.value = false;
   }
 }
 
 async function startRestore(): Promise<void> {
-  if (!window.deepwrite?.cloudBackup || pending.value) return;
+  const desktopApi = deepwriteApi();
+  if (!desktopApi?.cloudBackup || pending.value) return;
   pending.value = true;
   try {
-    preview.value = await window.deepwrite.cloudBackup.previewRestore(
+    preview.value = await desktopApi.cloudBackup.previewRestore(
       remoteKey.value
     );
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("cloudBackup.readBackupFailed")));
+    uiMessage.error(formatError(error, t("cloudBackup.readBackupFailed")));
   } finally {
     pending.value = false;
   }
 }
 
 async function confirmPreview(): Promise<void> {
-  if (!window.deepwrite?.cloudBackup || !preview.value || pending.value) return;
+  const desktopApi = deepwriteApi();
+  if (!desktopApi?.cloudBackup || !preview.value || pending.value) return;
   const current = preview.value;
   pending.value = true;
   try {
     const result =
       current.direction === "upload"
-        ? await window.deepwrite.cloudBackup.applyBackup(current.previewId)
-        : await window.deepwrite.cloudBackup.applyRestore(current.previewId);
+        ? await desktopApi.cloudBackup.applyBackup(current.previewId)
+        : await desktopApi.cloudBackup.applyRestore(current.previewId);
     preview.value = null;
     if (current.direction === "download") {
       emit("refreshCatalog");
@@ -151,7 +147,7 @@ async function confirmPreview(): Promise<void> {
     );
     await refreshStatus();
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("cloudBackup.syncFailed")));
+    uiMessage.error(formatError(error, t("cloudBackup.syncFailed")));
   } finally {
     pending.value = false;
   }

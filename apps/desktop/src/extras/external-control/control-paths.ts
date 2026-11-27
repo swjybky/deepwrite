@@ -11,7 +11,11 @@ interface ResolvePathsInput {
   homeDirectory: string;
   packaged: boolean;
   platform?: NodeJS.Platform;
+  /** Development only: lets an isolated test instance run beside `pnpm dev`. */
+  developmentDirectory?: string | undefined;
 }
+
+export const DEVELOPMENT_CONTROL_DIRECTORY_ENV = "DEEPWRITE_CONTROL_DIR";
 
 /**
  * Lives under the home directory rather than user data: users can relocate
@@ -23,11 +27,16 @@ export function resolveExternalControlPaths(
 ): ExternalControlPaths {
   const platform = input.platform ?? process.platform;
   const path = platform === "win32" ? win32 : posix;
-  const directory = path.join(
-    input.homeDirectory,
-    ".deepwrite",
-    input.packaged ? "control" : "control-dev"
-  );
+  const override = input.packaged
+    ? undefined
+    : input.developmentDirectory?.trim();
+  const directory = override
+    ? path.resolve(override)
+    : path.join(
+        input.homeDirectory,
+        ".deepwrite",
+        input.packaged ? "control" : "control-dev"
+      );
   const stateFile = path.join(directory, "control.json");
   if (platform !== "win32") {
     return {
@@ -37,12 +46,13 @@ export function resolveExternalControlPaths(
     };
   }
   const user = createHash("sha256")
-    .update(input.homeDirectory.toLowerCase())
+    .update((override ? directory : input.homeDirectory).toLowerCase())
     .digest("hex")
     .slice(0, 16);
+  const suffix = input.packaged ? "" : override ? "-test" : "-dev";
   return {
     directory,
     stateFile,
-    endpoint: `\\\\.\\pipe\\deepwrite-control-${user}${input.packaged ? "" : "-dev"}`
+    endpoint: `\\\\.\\pipe\\deepwrite-control-${user}${suffix}`
   };
 }

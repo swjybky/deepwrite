@@ -350,6 +350,51 @@ describe("device sync renderer bridge", () => {
     ).rejects.toThrow("请填写有效的 HTTPS 地址、账号和同步目录。");
     expect(bridgeRequest).not.toHaveBeenCalled();
   });
+
+  it("records initialization failure and clears it when retrying with ignoreOtherDevices", async () => {
+    const sync = useDeviceSync(
+      vi.fn(async () => undefined),
+      vi.fn(async () => true)
+    );
+    const reason =
+      "远端设备（旧手机）还有未合并的版本，请先在电脑端完成同步后重试，或选择忽略其他设备继续初始化。";
+    bridgeRequest.mockRejectedValueOnce(new Error(reason));
+    await expect(
+      sync.run({ operation: "preview-initialization", deviceId: "pc_test" })
+    ).resolves.toBeNull();
+    expect(sync.initError.value).toBe(reason);
+    expect(uiMessage.error).toHaveBeenCalledWith(reason);
+
+    const previewResponse: SyncResponse = {
+      kind: "initialization-preview",
+      preview: {
+        token: "preview_token",
+        deviceId: "pc_test",
+        deviceName: "我的电脑",
+        remoteUpdatedAt: "2026-09-08T01:00:00.000Z",
+        remoteHash: "a".repeat(64),
+        itemCount: 2,
+        fileCount: 4,
+        localItemCount: 1,
+        expiresAt: "2026-09-08T01:10:00.000Z",
+        ignoredDevices: ["旧手机"]
+      }
+    };
+    bridgeRequest.mockResolvedValueOnce(previewResponse);
+    await expect(
+      sync.run({
+        operation: "preview-initialization",
+        deviceId: "pc_test",
+        ignoreOtherDevices: true
+      })
+    ).resolves.toEqual(previewResponse);
+    expect(sync.initError.value).toBeNull();
+    expect(bridgeRequest).toHaveBeenCalledWith({
+      operation: "preview-initialization",
+      deviceId: "pc_test",
+      ignoreOtherDevices: true
+    });
+  });
 });
 
 describe("device sync status refresh and scope", () => {

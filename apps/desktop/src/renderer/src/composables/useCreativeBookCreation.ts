@@ -12,6 +12,7 @@ import type {
 } from "../components/WorkspaceDialogLayer.types";
 import type { CreateShortOrScriptBookInput } from "./useShortBookLifecycleCoordinator";
 import { uiMessage } from "../ui-feedback";
+import { deepwriteApi } from "../api/deepwrite";
 export interface CreativeBookCreationOptions {
   open: Ref<boolean>;
   pending(): boolean;
@@ -30,7 +31,7 @@ export function useCreativeBookCreation(options: CreativeBookCreationOptions) {
     if (!options.pending()) options.open.value = false;
   }
   function openCreateBookDialog(fromTemplate = false) {
-    if (!window.deepwrite) {
+    if (!deepwriteApi()) {
       uiMessage.warning(
         t(
           "workspace.creativeBookCreation.theBrowserPreviewCannotSaveProjectsCreateProjectsIn"

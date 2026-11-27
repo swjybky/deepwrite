@@ -4,6 +4,7 @@ import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { useSettingsStore } from "../stores/settingsStore";
 import { uiMessage } from "../ui-feedback";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.bookAgentTeamBinding");
 
@@ -11,7 +12,7 @@ const t = createScopedTranslator("workspace.bookAgentTeamBinding");
 export function useBookAgentTeamCatalog() {
   const settingsStore = useSettingsStore();
   onMounted(async () => {
-    const api = window.deepwrite;
+    const api = deepwriteApi();
     if (!api) return;
     try {
       await settingsStore.ensureAgentTeamsLoaded(() => api.agentTeams.list());
@@ -28,7 +29,7 @@ export function useBookAgentTeamCatalog() {
 export async function saveBookAgentTeamBinding(
   input: AgentTeamBookBindingInput
 ): Promise<void> {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api) throw new Error(t("availableInTheDesktopAppOnly"));
   useSettingsStore().markLoaded(
     "agentTeams",
@@ -63,7 +64,7 @@ export async function copyBookAgentTeamBinding(
   bookId: string,
   workspaceType: AgentTeamBookBindingInput["workspaceType"]
 ): Promise<void> {
-  const api = window.deepwrite?.agentTeams;
+  const api = deepwriteApi()?.agentTeams;
   if (!api) return;
   try {
     const catalog = await api.list();

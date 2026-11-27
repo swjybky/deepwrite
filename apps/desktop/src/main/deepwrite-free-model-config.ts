@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   ModelConfigInputSchema,
   type ModelConfigInput
@@ -9,6 +9,8 @@ import {
   deepWritePublicDataUrl
 } from "./deepwrite-public-data-config";
 import { electronRemoteFetch } from "./electron-remote-fetch";
+import { isRecord } from "@deepwrite/shared";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 export const DEEPWRITE_FREE_MODEL_CONFIG_URL =
   deepWritePublicDataUrl("MODEL.json");
@@ -67,10 +69,6 @@ const EMPTY_CATALOG: DeepWriteFreeModelCatalog = {
   models: [],
   apiKeys: {}
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function requiredString(
   record: Record<string, unknown>,
@@ -230,16 +228,6 @@ function withoutApiKeys(manifest: unknown): unknown {
   };
 }
 
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
-}
-
 export class DeepWriteFreeModelCatalogStore {
   private readonly cachePath: string;
   private readonly appVersion: string;
@@ -343,7 +331,7 @@ export class DeepWriteFreeModelCatalogStore {
         manifest: withoutApiKeys(manifest)
       };
       try {
-        await atomicWriteJson(this.cachePath, cache);
+        await writeJsonAtomic(this.cachePath, cache);
       } catch {
         // The validated in-memory catalog remains usable if only cache persistence fails.
       }

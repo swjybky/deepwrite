@@ -12,6 +12,13 @@ DeepWrite is a desktop writing app. These tools operate the user's running copy.
 1. Call `get_app_status`. It opens DeepWrite if it is closed.
 2. Find the target with `list_works` or `list_libraries`, then `get_work` or `get_library` for its documents.
 3. Read before you write.
+4. Call `restart_app` if DeepWrite needs to restart; the bridge waits for the new instance and reconnects automatically. Use `force: true` only when an active run blocks restart or the app is unresponsive (never during an update).
+
+## Tools
+
+- Read: `list_works`, `get_work`, `read_document` (one page at a time; continue with `nextOffset` until it is null), `list_libraries`, `get_library`, `read_entry`, `search_text` (one work or library), `list_agent_teams` (pass `teamId` for full settings), `list_trash`.
+- Write: `write_document`, `write_entry`, `manage_work`, `manage_document`, `manage_library`, `manage_entry`, `manage_agent_team`, `save_agent_team` (replaces a whole team; pass its `revision` as `baseRevision`), `restore_trash_item`.
+- App and agent: `get_app_status`, `open_in_app`, `run_agent`, `get_agent_run`, `answer_agent_question`, `stop_agent_run`, `restart_app`.
 
 ## Choose how to do the work
 
@@ -54,7 +61,8 @@ Deleted sections, entries and agent teams stay in the trash for 30 days. Deleted
 4. After restart, query the original `runId` before sending again. Recovery may open its target/session. `interrupted` means no runtime is active: check saved documents and `lastCompletedTool`, then continue only unfinished steps with the returned `sessionId`. Never automatically replay the whole request. `recovery.available: false` means this run's recovery locator could not be persisted.
 5. `toolUsage` comes from actual trace records, including child calls, deduplicated by call id: total, succeeded, failed, pending and per-tool totals. `durationMs` sums completed tool durations (parallel calls overlap); it is not wall time. Empty search results are successful calls. These counts do not certify task completion or manuscript quality; repeated calls are not guessed to be retries.
 6. `waiting_for_input`: read `questions`. Answer with `answer_agent_question` if the answer is clear from what the user told you, otherwise ask the user.
-7. `waiting_for_user`: the user has to act in DeepWrite. Tell them and keep polling.
+7. `waiting_for_user`: the user has to act in DeepWrite. Tell them and keep polling. Automatic edits still saving after the reply keep the run `running`.
+8. `failed` with an `error` naming documents means those edits were not saved, for example because the document changed on disk. `changes` leaves them out. Read those documents again before redoing the step.
 
 The agent's edits save automatically. One exception: the plot structure is shared by every short story and screenplay, so a run that wants to add or change it stops at `waiting_for_input` with a confirmation question. Allow it only if the user asked you to change the plot structure; otherwise ask the user.
 
@@ -64,6 +72,12 @@ The agent's edits save automatically. One exception: the plot structure is share
 - `external.approval_pending`: the user has to answer the connection dialog in DeepWrite, then retry.
 - `external.unauthorized`: the user refused the connection. Do not retry until they say so.
 - `external.app_unavailable`: the user has to open DeepWrite. While DeepWrite installs an update the message says so and the MCP connection then closes; do not retry until the user has reopened DeepWrite.
+- `external.incompatible`: the MCP bridge and DeepWrite are different versions. The user has to copy the connection settings again from Settings → External agents.
+- `external.not_ready`: DeepWrite is starting up or did not answer in time. Retry shortly.
+- `external.not_found`: the id does not exist (anymore). List again for current ids.
+- `external.invalid_input`: the arguments were rejected; the message says which one. Fix it instead of resending.
+- `external.busy`: wait until the named target is available before retrying.
+- `external.stale_revision`: read the latest content and reapply your changes against its revision.
 
 Every error message states the next step. Follow it instead of guessing.
 

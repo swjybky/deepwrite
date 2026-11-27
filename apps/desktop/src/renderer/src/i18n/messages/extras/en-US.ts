@@ -302,6 +302,12 @@ export default {
     checkRemoteUpdates: "Check remote updates",
     downloadPreviewAgain: "Download preview again",
     downloadPreview: "Download and preview remote data",
+    initializationFailedTitle: "Initialization incomplete",
+    ignoreOtherDevicesPreview: "Ignore other devices and preview",
+    ignoredDevicesSummary:
+      "Ignored unmerged records from ({devices}); using “{device}” only.",
+    skippedUnsupportedSummary:
+      "Skipped {count} unsupported item(s); remote originals remain intact.",
     remoteVerified: "Remote data verified",
     sourceSummary: "Source: {device} · {date}",
     replacementSummary:
@@ -464,9 +470,11 @@ export default {
     mergeIntoPrevious: "Merge into previous chapter",
     mergeNextChapter: "Merge next chapter",
     splitAtCursor: "Split at cursor",
+    undoChapterCorrection: "Undo",
+    undoChapterCorrectionHint: "Undo last chapter correction (⌘Z / Ctrl+Z)",
     chapterPreview: "Chapter text preview",
     chapterCorrectionHelp:
-      "Place the cursor at a split point in the text, then select “Split at cursor”. Corrections are kept only in this page's memory and do not modify source files.",
+      "Place the cursor at a split point and select “Split at cursor”. Select “Undo” or press Ctrl/⌘+Z to revert unsaved corrections; undo history clears after saving corrections, starting analysis, or switching sources, and original files are never modified.",
     selectedChapterCount:
       "{count} chapter selected | {count} chapters selected",
     novelAnalysisProcess: "Novel analysis activity",

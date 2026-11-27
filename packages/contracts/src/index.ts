@@ -125,3 +125,5 @@ export * from "./document-versions";
 export * from "./book-images";
 
 export * from "./mystery";
+export * from "./local-backup";
+export * from "./builtin-catalog";

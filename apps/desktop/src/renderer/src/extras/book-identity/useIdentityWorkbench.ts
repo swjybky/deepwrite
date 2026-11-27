@@ -127,6 +127,7 @@ export function useIdentityWorkbench(
       return await operation();
     } catch (error) {
       uiMessage.error(formatError(error, t("failed")));
+      return undefined;
     }
   }
   async function loadImages() {
@@ -214,12 +215,17 @@ export function useIdentityWorkbench(
   }
   function iterate(candidate: BookIdentityCandidate) {
     if (seeds.value.some((c) => c.id === candidate.id)) return;
-    if (seeds.value.length >= 5) return uiMessage.warning(t("maxSeeds"));
+    if (seeds.value.length >= 5) {
+      uiMessage.warning(t("maxSeeds"));
+      return;
+    }
     seeds.value.push(candidate);
   }
   function render(round: BookIdentityRound, candidate: BookCoverCandidate) {
-    if (!book.value || !imageProfile.value)
-      return uiMessage.warning(t("imageRequired"));
+    if (!book.value || !imageProfile.value) {
+      uiMessage.warning(t("imageRequired"));
+      return;
+    }
     queue.add(book.value, round.id, candidate.id);
   }
   async function rename(title: string) {

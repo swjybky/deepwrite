@@ -8,6 +8,7 @@ import {
   type StorageFailure
 } from "./storage-failure";
 import type {
+  ConversationCompactionStatus,
   ConversationHistoryApi,
   ConversationHistoryArchiveListQuery,
   ConversationHistoryArchiveListResult,
@@ -49,7 +50,10 @@ export class ConversationStorageWorker implements ConversationHistoryApi {
   constructor(
     private readonly databasePath: string,
     private readonly workerPath: string,
-    private readonly legacyStatePath?: string
+    private readonly legacyStatePath?: string,
+    private readonly onCompactionUpdated?: (
+      status: ConversationCompactionStatus
+    ) => void
   ) {}
 
   private async start(): Promise<Worker> {
@@ -85,11 +89,17 @@ export class ConversationStorageWorker implements ConversationHistoryApi {
                 response:
                   | { kind: "ready" }
                   | { kind: "startup.failed"; error: StorageFailure }
+                  | {
+                      kind: "compaction.updated";
+                      status: ConversationCompactionStatus;
+                    }
                   | { id: number; result?: unknown; error?: StorageFailure }
               ) => {
                 if ("kind" in response) {
                   if (response.kind === "startup.failed")
                     fail(storageFailureError(response.error));
+                  else if (response.kind === "compaction.updated")
+                    this.onCompactionUpdated?.(response.status);
                   else {
                     ready = true;
                     resolve(worker);
@@ -230,6 +240,17 @@ export class ConversationStorageWorker implements ConversationHistoryApi {
     payload: RendererStateHistoryMigration
   ): Promise<boolean> {
     return this.request("legacyMigrateHistory", payload);
+  }
+  compactionStatus(): Promise<ConversationCompactionStatus> {
+    return this.request("compactionStatus");
+  }
+  compactConversations(payload?: {
+    force?: boolean;
+  }): Promise<ConversationCompactionStatus> {
+    return this.request("compactConversations", payload);
+  }
+  releaseCompactionBackup(): Promise<ConversationCompactionStatus> {
+    return this.request("releaseCompactionBackup");
   }
 
   async close(): Promise<void> {

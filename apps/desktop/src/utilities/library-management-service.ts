@@ -48,7 +48,7 @@ export class LibraryManagementService {
             library,
             domain: "material" as const,
             kind: library.materialKind,
-            readOnly: false
+            readOnly: Boolean(library.isBuiltin)
           })),
         ...index.skills
           .filter((item) => skillIds.has(item.id))
@@ -86,7 +86,7 @@ export class LibraryManagementService {
           library,
           domain: "material" as const,
           kind: library.materialKind,
-          readOnly: false
+          readOnly: Boolean(library.isBuiltin)
         })),
       ...index.skills
         .filter((item) => skillIds.has(item.id))
@@ -173,7 +173,7 @@ export class LibraryManagementService {
           library,
           domain,
           kind: library.materialKind,
-          readOnly: false
+          readOnly: Boolean(library.isBuiltin)
         }))
       : index.skills.map((library) => ({
           library,

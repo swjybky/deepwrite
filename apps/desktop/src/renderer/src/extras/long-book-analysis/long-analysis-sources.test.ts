@@ -18,8 +18,18 @@ function sample(id: string) {
         id: "chapter_test",
         order: 1,
         title: "第一章",
-        text: "自写正文",
-        charCount: 4,
+        rawHeading: "第一章",
+        text: "自写正文第一段。\n自写正文第二段。",
+        charCount: 16,
+        sourceName: "测试.txt"
+      },
+      {
+        id: "chapter_fake",
+        order: 2,
+        title: "1 ABCD",
+        rawHeading: "1. ABCD",
+        text: "假章正文。",
+        charCount: 5,
         sourceName: "测试.txt"
       }
     ]
@@ -49,25 +59,44 @@ function harness() {
   const remove = vi.fn(async (id: string) => id);
   const load = vi.fn(async (id: string) => sample(id));
   const list = vi.fn(async () => ({ sources: [summary("source_test")] }));
+  const save = vi.fn(
+    async (input: {
+      sourceId: string;
+      baseRevision: number;
+      chapters: ReturnType<typeof sample>["chapters"];
+    }) =>
+      LongBookAnalysisSourceSchema.parse({
+        ...sample(input.sourceId),
+        revision: input.baseRevision + 1,
+        chapters: input.chapters
+      })
+  );
+  const chooseSource = vi.fn(async () => sample("source_chosen"));
   const onChange = vi.fn();
   let busy = false;
   let disposed = false;
   const controller = createLongAnalysisSources({
     api: () =>
       ({
-        longBookAnalysis: { sources: { delete: remove, load, list } }
+        longBookAnalysis: {
+          chooseSource,
+          sources: { delete: remove, load, list, save }
+        }
       }) as unknown as DeepWriteApi,
     isBusy: () => busy,
     isDisposed: () => disposed,
     onChange
   });
   controller.source.value = sample("source_test");
+  controller.selectChapter("chapter_test");
   controller.savedSources.value = [summary("source_test"), summary("other")];
   return {
     controller,
     remove,
     load,
     list,
+    save,
+    chooseSource,
     onChange,
     setBusy: (value: boolean) => (busy = value),
     dispose: () => (disposed = true)
@@ -172,5 +201,88 @@ describe("long analysis source deletion", () => {
     expect(controller.savedSources.value).toHaveLength(2);
     expect(controller.source.value?.id).toBe("source_test");
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("long analysis chapter correction undo", () => {
+  it("undoes multi-step edits, restores selection and dirty state, and clears on save or source switch", async () => {
+    const { controller, save, onChange } = harness();
+    expect(controller.canUndoChapters.value).toBe(false);
+    expect(controller.undoChapters()).toBe(false);
+
+    controller.selectChapter("chapter_fake");
+    const afterMerge = [
+      {
+        ...controller.source.value!.chapters[0]!,
+        text: "自写正文第一段。\n自写正文第二段。\n1. ABCD\n假章正文。",
+        charCount: 27
+      }
+    ];
+    controller.replaceChapters(afterMerge, {
+      beforeSelectedChapterId: "chapter_fake",
+      afterSelectedChapterId: "chapter_test"
+    });
+    expect(controller.source.value?.chapters).toHaveLength(1);
+    expect(controller.selectedChapterId.value).toBe("chapter_test");
+    expect(controller.canUndoChapters.value).toBe(true);
+    expect(controller.sourceDirty.value).toBe(true);
+
+    controller.replaceChapters(
+      [{ ...afterMerge[0]!, title: "第一章（改名）" }],
+      {
+        beforeSelectedChapterId: "chapter_test",
+        afterSelectedChapterId: "chapter_test"
+      }
+    );
+    expect(controller.source.value?.chapters[0]?.title).toBe("第一章（改名）");
+
+    expect(controller.undoChapters()).toBe(true);
+    expect(controller.source.value?.chapters[0]?.title).toBe("第一章");
+    expect(controller.selectedChapterId.value).toBe("chapter_test");
+    expect(controller.sourceDirty.value).toBe(true);
+    expect(controller.canUndoChapters.value).toBe(true);
+
+    expect(controller.undoChapters()).toBe(true);
+    expect(controller.source.value?.chapters).toHaveLength(2);
+    expect(controller.selectedChapterId.value).toBe("chapter_fake");
+    expect(controller.sourceDirty.value).toBe(false);
+    expect(controller.canUndoChapters.value).toBe(false);
+    expect(onChange).toHaveBeenCalledTimes(4);
+
+    controller.replaceChapters(afterMerge, {
+      beforeSelectedChapterId: "chapter_fake",
+      afterSelectedChapterId: "chapter_test"
+    });
+    expect(controller.canUndoChapters.value).toBe(true);
+    save.mockRejectedValueOnce(new Error("save failed"));
+    await expect(controller.saveSource()).rejects.toThrow("save failed");
+    expect(controller.canUndoChapters.value).toBe(true);
+
+    await controller.saveSource();
+    expect(controller.canUndoChapters.value).toBe(false);
+    expect(controller.sourceDirty.value).toBe(false);
+
+    controller.replaceChapters(
+      [{ ...controller.source.value!.chapters[0]!, title: "待切换丢弃" }],
+      {
+        beforeSelectedChapterId: "chapter_test",
+        afterSelectedChapterId: "chapter_test"
+      }
+    );
+    expect(controller.canUndoChapters.value).toBe(true);
+    await controller.loadSavedSource("other");
+    expect(controller.canUndoChapters.value).toBe(false);
+    expect(controller.selectedChapterId.value).toBe("chapter_test");
+
+    controller.replaceChapters(
+      [{ ...controller.source.value!.chapters[0]!, title: "待导入清空" }],
+      {
+        beforeSelectedChapterId: "chapter_test",
+        afterSelectedChapterId: "chapter_test"
+      }
+    );
+    expect(controller.canUndoChapters.value).toBe(true);
+    await controller.chooseSource("txt");
+    expect(controller.canUndoChapters.value).toBe(false);
   });
 });

@@ -12,12 +12,12 @@ import {
   longChapterContinuityFilePath,
   longChapterForeshadowingChangesFileId,
   longChapterHandoffFileId,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile
 } from "./long-project-store.test-support";
 
 function chapterFiles(chapterCardId: string) {
-  const storage = projectTransactionContentSha256(chapterCardId).slice(0, 32);
+  const storage = sha256Hex(chapterCardId).slice(0, 32);
   const file = (id: string, path: string) =>
     createEmptyLongMarkdownFileReference(id, path, FIXED_NOW);
   return {
@@ -108,11 +108,11 @@ describe("LongProjectStore: batch continuity commits", () => {
       bodyVersions: [
         {
           fileId: firstFiles.body.id,
-          expectedSha256: projectTransactionContentSha256(firstBody)
+          expectedSha256: sha256Hex(firstBody)
         },
         {
           fileId: secondFiles.body.id,
-          expectedSha256: projectTransactionContentSha256(secondBody)
+          expectedSha256: sha256Hex(secondBody)
         }
       ],
       batch: {
@@ -125,7 +125,7 @@ describe("LongProjectStore: batch continuity commits", () => {
           ...document,
           mode: "replace" as const,
           proposalId: `proposal_combined_two_chapters_${index}`,
-          expectedSha256: projectTransactionContentSha256(""),
+          expectedSha256: sha256Hex(""),
           updatedAt: FIXED_NOW,
           reason: "生成末章连续性文件"
         }))

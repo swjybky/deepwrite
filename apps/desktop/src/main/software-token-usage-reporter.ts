@@ -1,19 +1,14 @@
 import { randomUUID } from "node:crypto";
-import {
-  chmod,
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  writeFile
-} from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { ModelUsageDashboard } from "@deepwrite/contracts";
 import {
   DEEPWRITE_PUBLIC_DATA_API_CONFIGURED,
   deepWritePublicDataHeaders,
   deepWriteSoftwareTokenUsageUrl
 } from "./deepwrite-public-data-config";
+import { isRecord } from "@deepwrite/shared";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 export interface SoftwareTokenTotals {
   inputTokens: number;
@@ -63,9 +58,6 @@ const STATE_VERSION = 1;
 const REPORT_TIMEOUT_MS = 3_000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isTokenCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
@@ -183,22 +175,6 @@ function localDate(timestamp: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600
-    });
-    await chmod(temporary, 0o600);
-    await rename(temporary, path);
-    await chmod(path, 0o600);
-  } finally {
-    await rm(temporary, { force: true }).catch(() => undefined);
-  }
-}
-
 export class SoftwareTokenUsageReporter {
   readonly statePath: string;
 
@@ -279,7 +255,8 @@ export class SoftwareTokenUsageReporter {
     const dailyDue =
       reason === "startup" && state.lastDailyReportDate !== today;
     if (mode === "increment" && !addHasPositiveValue(delta) && !dailyDue) {
-      if (rebased) await atomicWriteJson(this.statePath, state);
+      if (rebased)
+        await writeJsonAtomic(this.statePath, state, { directoryMode: 0o700 });
       return;
     }
 
@@ -294,7 +271,7 @@ export class SoftwareTokenUsageReporter {
       baselineAfterAck: current,
       ...(dailyDue ? { dailyDate: today } : {})
     };
-    await atomicWriteJson(this.statePath, state);
+    await writeJsonAtomic(this.statePath, state, { directoryMode: 0o700 });
     await this.sendPending(state);
   }
 
@@ -321,7 +298,7 @@ export class SoftwareTokenUsageReporter {
     state.acknowledgedTotals = pending.baselineAfterAck;
     if (pending.dailyDate) state.lastDailyReportDate = pending.dailyDate;
     delete state.pending;
-    await atomicWriteJson(this.statePath, state);
+    await writeJsonAtomic(this.statePath, state, { directoryMode: 0o700 });
     return true;
   }
 
@@ -345,7 +322,7 @@ export class SoftwareTokenUsageReporter {
       version: 1,
       installationId: this.createId()
     };
-    await atomicWriteJson(this.statePath, state);
+    await writeJsonAtomic(this.statePath, state, { directoryMode: 0o700 });
     return state;
   }
 

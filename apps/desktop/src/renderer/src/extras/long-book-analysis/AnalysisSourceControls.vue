@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiConfirm } from "../../ui-confirm";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, onMounted } from "vue";
@@ -98,7 +99,12 @@ async function deleteSavedSource(value: string | number): Promise<void> {
     (item) => item.id === id
   );
   if (controlsDisabled.value || !saved) return;
-  if (!window.confirm(t("deleteNovelConfirmation", { title: saved.name })))
+  if (
+    !(await uiConfirm({
+      message: t("deleteNovelConfirmation", { title: saved.name }),
+      danger: true
+    }))
+  )
     return;
   try {
     await props.controller.deleteSavedSource(id);

@@ -1,4 +1,5 @@
 import type { ResourceTreeSection } from "../types/workspace";
+import { isRecord } from "@deepwrite/shared";
 
 export const BOOK_RESOURCE_PREFERENCES_STORAGE_KEY =
   "deepwrite:book-resource-preferences";
@@ -11,10 +12,6 @@ export interface BookResourcePreference {
 }
 
 export type BookResourcePreferences = Record<string, BookResourcePreference>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function validTopLevelIds(
   sections: ResourceTreeSection[],

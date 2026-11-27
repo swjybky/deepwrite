@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
 import { computed } from "vue";
+import { formatBytes } from "@deepwrite/shared";
 import type { UpdateState } from "@deepwrite/contracts";
 
 const t = createScopedTranslator("components.versionUpdateDialog");
@@ -24,13 +25,6 @@ const updateProgressLabel = computed(
 );
 function close(): void {
   if (!updateInstalling.value) emit("close");
-}
-function formatBytes(value: number | undefined): string {
-  if (value === undefined || !Number.isFinite(value)) return "—";
-  if (value < 1024) return `${Math.round(value)} B`;
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
-  return `${(value / 1024 ** 3).toFixed(1)} GB`;
 }
 </script>
 

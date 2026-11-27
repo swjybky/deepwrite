@@ -82,4 +82,42 @@ describe("storage settings preload API", () => {
     mockedInvokeCommand.mockResolvedValue({ opened: false });
     await expect(storageSettings.openDirectory("user-data")).rejects.toThrow();
   });
+
+  it("validates compaction and backup release replies", async () => {
+    const compacted = {
+      phase: "completed_with_backup" as const,
+      legacyCallsFound: 0,
+      estimatedReclaimableBytes: 0,
+      processedSessions: 2,
+      totalSessions: 2,
+      bytesBefore: 1000,
+      bytesAfter: 200,
+      backupBytes: 1000,
+      netFreedBytes: -200,
+      canRetry: false,
+      canReleaseBackup: true,
+      canRollback: true
+    };
+    mockedInvokeCommand.mockResolvedValueOnce(compacted).mockResolvedValueOnce({
+      ...compacted,
+      phase: "backup_released",
+      backupBytes: 0,
+      canReleaseBackup: false,
+      canRollback: false
+    });
+
+    await expect(storageSettings.compactConversations()).resolves.toEqual(
+      compacted
+    );
+    await expect(
+      storageSettings.releaseConversationBackup()
+    ).resolves.toMatchObject({
+      phase: "backup_released",
+      canReleaseBackup: false
+    });
+    expect(mockedInvokeCommand.mock.calls.map(([c]) => c.type)).toEqual([
+      "storageSettings.compactConversations",
+      "storageSettings.releaseConversationBackup"
+    ]);
+  });
 });

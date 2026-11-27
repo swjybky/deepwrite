@@ -3,6 +3,7 @@ import { computed, ref, watch, type Ref } from "vue";
 import type { RemoteModelListItem } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
 import type { DraftModel } from "../components/modelSettingsDraft";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.remoteModelListing");
 
@@ -87,14 +88,15 @@ export function useRemoteModelListing(editor: Ref<DraftModel>) {
       fetchHintDialog.value = missing;
       return;
     }
-    if (!window.deepwrite) {
+    const desktopApi = deepwriteApi();
+    if (!desktopApi) {
       uiMessage.error(t("modelListingIsNotAvailableInThisEnvironment"));
       return;
     }
     const version = ++requestVersion;
     listingRemoteModels.value = true;
     try {
-      const result = await window.deepwrite.models.listRemote({
+      const result = await desktopApi.models.listRemote({
         id: editor.value.originalId ?? editor.value.id,
         provider: editor.value.provider.trim(),
         api: editor.value.api,

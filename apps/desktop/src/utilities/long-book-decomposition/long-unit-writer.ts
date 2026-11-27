@@ -16,13 +16,13 @@ import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { decompositionResourceId } from "./identity";
 import {
   assertDecompositionDocumentWritable,
-  assertDecompositionObjectWritable,
-  decompositionSha
+  assertDecompositionObjectWritable
 } from "./content-guard";
 import {
   applyDecompositionNativeAsset,
   type NativeAssetWriter
 } from "./long-native-assets";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 type ChapterReading = DecompositionReadingCard["chapters"][number];
 
@@ -100,7 +100,7 @@ export async function writeDecompositionLongUnit(
         ...loaded.index.plot.arcs,
         ...loaded.index.plot.storyPlots,
         ...loaded.index.plot.foreshadowing
-      ].map((value) => [value.id, decompositionSha(JSON.stringify(value))])
+      ].map((value) => [value.id, sha256Hex(JSON.stringify(value))])
     );
     const revision =
       (job.target?.kind === "long" ? job.target.baseRevision : 0) + 1;
@@ -128,14 +128,14 @@ export async function writeDecompositionLongUnit(
         operations.push({
           path: reference.path,
           content,
-          expectedSha256: old === undefined ? null : decompositionSha(old)
+          expectedSha256: old === undefined ? null : sha256Hex(old)
         });
         refs.push({
           projectId,
           resourceId: reference.id,
           fileId: reference.id,
           revision,
-          sha256: decompositionSha(content)
+          sha256: sha256Hex(content)
         });
       },
       object: (id, value) => {
@@ -149,7 +149,7 @@ export async function writeDecompositionLongUnit(
           projectId,
           resourceId: id,
           revision,
-          sha256: decompositionSha(JSON.stringify(value))
+          sha256: sha256Hex(JSON.stringify(value))
         });
       },
       // A removed object leaves no ref; edits made since the job wrote it
@@ -167,7 +167,7 @@ export async function writeDecompositionLongUnit(
         operations.push({
           action: "delete",
           path: file.path,
-          expectedSha256: decompositionSha(old)
+          expectedSha256: sha256Hex(old)
         });
       }
     };
@@ -192,7 +192,7 @@ export async function writeDecompositionLongUnit(
           entry.body.path,
           32 * 1024 * 1024
         );
-        if (body.sha256 !== decompositionSha(options.sourceBody))
+        if (body.sha256 !== sha256Hex(options.sourceBody))
           throw new Error(
             "decomposition.conflict: 目标源文正文已经修改，请恢复原文或按新来源建立任务。"
           );
@@ -254,7 +254,7 @@ export async function writeDecompositionLongUnit(
     for (const ref of refs.filter((ref) => !ref.fileId)) {
       const object = objects.find(({ id }) => id === ref.resourceId);
       if (!object) throw new Error("成品对象未注册到长篇索引。");
-      ref.sha256 = decompositionSha(JSON.stringify(object));
+      ref.sha256 = sha256Hex(JSON.stringify(object));
     }
     const receipt = DecompositionReceiptSchema.parse({ ...receiptBase, refs });
     const receiptFile = {

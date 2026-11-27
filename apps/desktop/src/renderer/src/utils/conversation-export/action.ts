@@ -3,6 +3,7 @@ import type { ShallowRef } from "vue";
 import type { useConversationStore } from "../../stores/conversationStore";
 import { uiMessage } from "../../ui-feedback";
 import { exportCurrentConversation } from "./write";
+import { deepwriteApi } from "../../api/deepwrite";
 
 const t = createScopedTranslator("workspace.action");
 
@@ -19,7 +20,7 @@ export async function startCurrentConversationExport(options: {
     uiMessage.info(t("finishOrCancelTheCurrentExportFirst"));
     return;
   }
-  const api = window.deepwrite?.conversationExport;
+  const api = deepwriteApi()?.conversationExport;
   if (!api) return;
   const controller = [...options.store.controllers.values()].find(
     (item) => item.sessionId.value === options.sessionId

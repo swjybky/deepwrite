@@ -14,7 +14,6 @@ import { Type } from "@earendil-works/pi-ai";
 import {
   workspaceDomain,
   profileDomain,
-  isReadOnly,
   allowedStageIds,
   readableLibraries,
   mutableEntries,
@@ -85,8 +84,8 @@ export function buildLibraryAgentTools(
       "Library agent profile domain does not match the workspace snapshot."
     );
   }
-  const readOnly = isReadOnly(input.workspace, input.profile);
-  const writeStages = allowedStageIds(input.workspace, domain);
+  const readOnly = input.workspace.readOnly;
+  const writeStages = allowedStageIds(domain);
   if (!writeStages.length) {
     throw new Error(
       "Library workspace snapshot does not expose any allowed stages."

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,8 @@ import type { CloudBackupObjectStore } from "./api-client";
 import { CLOUD_BACKUP_QUOTA_BYTES } from "@deepwrite/contracts";
 import { packBackupSnapshot, snapshotObjectKeys } from "./packager";
 import { createZip, readZip } from "./zip";
+import { restoreBackupFiles } from "../../utilities/backup-restore";
+import { listBackupProjectRegistrations } from "../../utilities/backup-inventory";
 
 const roots: string[] = [];
 
@@ -15,6 +17,35 @@ afterEach(async () => {
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
   );
+});
+
+it("refuses to restore through a linked project directory before writing any files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "backup-linked-directory-"));
+  roots.push(root);
+  const projectDirectory = join(root, "book");
+  const outside = join(root, "other");
+  await mkdir(projectDirectory);
+  await mkdir(outside);
+  await symlink(outside, join(projectDirectory, "images"), "junction");
+  await writeFile(join(projectDirectory, "chapter.md"), "original");
+  await expect(
+    restoreBackupFiles({
+      target: { mode: "replace", projectDirectory },
+      files: [
+        {
+          relativePath: "chapter.md",
+          contentBase64: Buffer.from("new").toString("base64")
+        },
+        { relativePath: "images/cover.png", contentBase64: "" }
+      ]
+    })
+  ).rejects.toThrow("符号链接");
+  await expect(
+    readFile(join(projectDirectory, "chapter.md"), "utf8")
+  ).resolves.toBe("original");
+  await expect(readFile(join(outside, "cover.png"))).rejects.toMatchObject({
+    code: "ENOENT"
+  });
 });
 
 class MemoryStore implements CloudBackupObjectStore {
@@ -76,7 +107,10 @@ async function previewFixture() {
   const hooks = {
     getWorkspaceDirectory: async () => fixture.workspace,
     registerCatalogProject: vi.fn(async () => undefined),
-    registerLongBook: vi.fn(async () => undefined)
+    registerLongBook: vi.fn(async () => undefined),
+    restoreFiles: restoreBackupFiles,
+    listRegisteredProjects: () =>
+      listBackupProjectRegistrations(fixture.userData)
   };
   const service = new CloudBackupService(
     fixture.userData,
@@ -176,7 +210,9 @@ describe("cloud backup service", () => {
         registerCatalogProject: async ({ projectDirectory }) => {
           registered.push(projectDirectory);
         },
-        registerLongBook: async () => undefined
+        registerLongBook: async () => undefined,
+        restoreFiles: restoreBackupFiles,
+        listRegisteredProjects: () => listBackupProjectRegistrations(userData)
       },
       store,
       () => new Date("2026-08-13T01:00:00.000Z")
@@ -224,7 +260,9 @@ describe("cloud backup service", () => {
         registerCatalogProject: async ({ projectDirectory }) => {
           registered.push(projectDirectory);
         },
-        registerLongBook: async () => undefined
+        registerLongBook: async () => undefined,
+        restoreFiles: restoreBackupFiles,
+        listRegisteredProjects: () => listBackupProjectRegistrations(otherUser)
       },
       store,
       () => new Date("2026-08-13T02:00:00.000Z")
@@ -249,7 +287,9 @@ describe("cloud backup service", () => {
       {
         getWorkspaceDirectory: async () => workspace,
         registerCatalogProject: async () => undefined,
-        registerLongBook: async () => undefined
+        registerLongBook: async () => undefined,
+        restoreFiles: restoreBackupFiles,
+        listRegisteredProjects: () => listBackupProjectRegistrations(userData)
       },
       new MemoryStore()
     );

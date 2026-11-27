@@ -4,13 +4,14 @@ import type {
   AgentSubagentRun,
   AgentToolTrace
 } from "../../types/conversation";
-import { isRecord, validDate } from "./shared";
+import { validDate } from "./shared";
 import {
   parseStoredRuntime,
   parseStoredUsage,
   parseStoredToolTrace
 } from "./parse-runtime";
 import { parseStoredDrawRef } from "./parse-subagent-draw";
+import { isRecord } from "@deepwrite/shared";
 
 const t = createScopedTranslator("workspace.parseSubagent");
 export function parseStoredSubagentStep(

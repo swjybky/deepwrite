@@ -2,6 +2,7 @@ import type { SyncItem } from "./schemas";
 import type { SyncIssue } from "./types";
 import { mergeSyncItems } from "./merge";
 import { sameSyncContent, syncEqual } from "./value";
+import { isRecord } from "@deepwrite/shared";
 
 const LABELS: Record<string, string> = {
   title: "名称",
@@ -55,9 +56,6 @@ const LABELS: Record<string, string> = {
   path: "文档位置",
   apiKey: "API Key"
 };
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function describe(
   value: unknown,
   other: unknown,
@@ -68,14 +66,14 @@ function describe(
   if (Array.isArray(value)) {
     value.forEach((entry, index) => {
       const identity =
-        record(entry) && typeof entry.id === "string" ? entry.id : null;
+        isRecord(entry) && typeof entry.id === "string" ? entry.id : null;
       const comparison = Array.isArray(other)
         ? identity
-          ? other.find((v: unknown) => record(v) && v.id === identity)
+          ? other.find((v: unknown) => isRecord(v) && v.id === identity)
           : other[index]
         : undefined;
       const name =
-        record(entry) && typeof entry.title === "string"
+        isRecord(entry) && typeof entry.title === "string"
           ? entry.title
           : `第 ${index + 1} 项`;
       describe(entry, comparison, `${prefix} / ${name}`, lines);
@@ -83,9 +81,9 @@ function describe(
     if (Array.isArray(other))
       for (const entry of other) {
         if (
-          record(entry) &&
+          isRecord(entry) &&
           typeof entry.id === "string" &&
-          !value.some((v: unknown) => record(v) && v.id === entry.id)
+          !value.some((v: unknown) => isRecord(v) && v.id === entry.id)
         )
           lines.push(
             `${prefix} / ${typeof entry.title === "string" ? entry.title : entry.id}：已删除`
@@ -94,10 +92,10 @@ function describe(
     if (!value.length) lines.push(`${prefix}：空`);
     return;
   }
-  if (record(value)) {
+  if (isRecord(value)) {
     for (const key of new Set([
       ...Object.keys(value),
-      ...Object.keys(record(other) ? other : {})
+      ...Object.keys(isRecord(other) ? other : {})
     ])) {
       if (
         [
@@ -113,7 +111,7 @@ function describe(
         continue;
       describe(
         value[key],
-        record(other) ? other[key] : undefined,
+        isRecord(other) ? other[key] : undefined,
         [prefix, LABELS[key] ?? key].filter(Boolean).join(" / "),
         lines
       );

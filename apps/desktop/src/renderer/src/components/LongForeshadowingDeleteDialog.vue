@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
+import { useDialogKeyboard } from "../composables/useDialogKeyboard";
 import type { LongForeshadowingDeleteTarget } from "../composables/useLongForeshadowingDeleteConfirmation";
 import LongImpactConfirmationDetails from "./LongImpactConfirmationDetails.vue";
 
@@ -22,51 +23,16 @@ const emit = defineEmits<{ close: []; confirm: [] }>();
 const dialog = ref<HTMLElement | null>(null);
 const cancelButton = ref<HTMLButtonElement | null>(null);
 
-function focusableElements(): HTMLElement[] {
-  return dialog.value
-    ? Array.from(
-        dialog.value.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        )
-      )
-    : [];
-}
-
-function handleKeydown(event: KeyboardEvent): void {
-  if (!props.target) return;
-  if (event.key === "Escape") {
-    emit("close");
-    return;
-  }
-  if (
-    event.key !== "Tab" ||
-    !dialog.value ||
-    !(event.target instanceof Node) ||
-    !dialog.value.contains(event.target)
-  ) {
-    return;
-  }
-  const elements = focusableElements();
-  const first = elements[0];
-  const last = elements.at(-1);
-  if (!first || !last) return;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus({ preventScroll: true });
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus({ preventScroll: true });
-  }
-}
-
 watch(
   () => props.target,
   (target) => {
     if (target) void nextTick(() => cancelButton.value?.focus());
   }
 );
-onMounted(() => document.addEventListener("keydown", handleKeydown));
-onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
+useDialogKeyboard(dialog, {
+  isOpen: () => Boolean(props.target),
+  close: () => emit("close")
+});
 </script>
 
 <template>

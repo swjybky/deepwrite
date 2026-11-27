@@ -6,13 +6,13 @@ import { ConversationStorageError } from "./errors";
 /** This is one import per database, including after the entire profile moves. */
 export const LEGACY_FILE_MIGRATION_ID = "conversation-persistence:v1";
 
-export interface MigrationRow {
+export type MigrationRow = {
   source: string;
   fingerprint: string;
   state: string;
   cursor: string;
   checked_records: number;
-}
+};
 
 const fields = "source, fingerprint, state, cursor, checked_records";
 
@@ -86,7 +86,7 @@ export function prepareLegacyMigration(
     .get(
       `SELECT ${fields} FROM migrations WHERE state IN ('parsing', 'normalizing')`
     )
-    .all() as unknown as MigrationRow[];
+    .all() as MigrationRow[];
   if (rows.some((row) => row.fingerprint !== fingerprint))
     throw new ConversationStorageError(
       "migration_changed",

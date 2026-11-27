@@ -29,6 +29,7 @@ export type MaterialEntry = z.infer<typeof MaterialEntrySchema>;
 
 export const MaterialLibrarySchema = z.object({
   isUnbound: z.boolean().optional(),
+  isBuiltin: z.boolean().optional(),
   id: CatalogIdSchema,
   title: CatalogTitleSchema,
   materialType: LibraryTypeSchema,
@@ -47,6 +48,7 @@ export type MaterialLibrary = z.infer<typeof MaterialLibrarySchema>;
 export const MaterialLibraryGroupSchema = z.preprocess(
   migrateLegacyGroupMembers(MATERIAL_GROUP_LEGACY_SLOTS),
   z.object({
+    isBuiltin: z.boolean().optional(),
     id: CatalogIdSchema,
     title: CatalogTitleSchema,
     memberIds: LibraryGroupMemberIdsSchema,
@@ -91,6 +93,7 @@ export type SkillLibrary = z.infer<typeof SkillLibrarySchema>;
 export const SkillLibraryGroupSchema = z.preprocess(
   migrateLegacyGroupMembers(SKILL_GROUP_LEGACY_SLOTS),
   z.object({
+    isBuiltin: z.boolean().optional(),
     id: CatalogIdSchema,
     title: CatalogTitleSchema,
     memberIds: LibraryGroupMemberIdsSchema,

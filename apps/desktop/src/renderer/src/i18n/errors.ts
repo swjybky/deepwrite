@@ -22,7 +22,26 @@ const errorKeys: Readonly<Record<string, TranslationKey>> = {
   "long.operation.invalid_result": "foundation.invalidOperationResult",
   "long.operation.restore_conflict": "foundation.restoreConflict",
   "long.operation.restore_unavailable": "foundation.restoreUnavailable",
-  "long.ledger.audit_failed": "foundation.ledgerAuditFailed"
+  "long.ledger.audit_failed": "foundation.ledgerAuditFailed",
+  "local_backup.busy": "components.storageSettingsPanel.errBusy",
+  "local_backup.workspace_required":
+    "components.storageSettingsPanel.errWorkspace",
+  "local_backup.insufficient_space": "components.storageSettingsPanel.errSpace",
+  "local_backup.inconsistent_project":
+    "components.storageSettingsPanel.errInconsistent",
+  "local_backup.invalid_archive":
+    "components.storageSettingsPanel.errInvalidArchive",
+  "local_backup.checksum_mismatch":
+    "components.storageSettingsPanel.errChecksum",
+  "local_backup.unsupported_format_version":
+    "components.storageSettingsPanel.errVersion",
+  "local_backup.preview_expired": "components.storageSettingsPanel.errExpired",
+  "local_backup.target_changed":
+    "components.storageSettingsPanel.errTargetChanged",
+  "local_backup.switch_failed": "components.storageSettingsPanel.errSwitch",
+  "local_backup.canceled": "components.storageSettingsPanel.errCanceled",
+  "local_backup.test_only": "components.storageSettingsPanel.errFailed",
+  "local_backup.operation_failed": "components.storageSettingsPanel.errFailed"
 };
 
 /** Diagnostics stay on the rejected payload; presentation never parses translated prose. */
@@ -123,7 +142,19 @@ export function formatError(error: unknown, fallback: string): string {
       );
     }
     const key = errorKeys[payload.code];
-    return key ? t(key) : error instanceof Error ? error.message : fallback;
+    return key ? t(key) : plainErrorMessage(error, fallback);
   }
-  return error instanceof Error ? error.message : fallback;
+  return plainErrorMessage(error, fallback);
+}
+
+// Electron wraps errors thrown by ipcMain handlers in this prefix.
+const IPC_ERROR_PREFIX =
+  /^Error invoking remote method '[^']+': (?:[A-Za-z_$][\w$]*Error|Error):\s*/u;
+
+function plainErrorMessage(error: unknown, fallback: string): string {
+  const message =
+    error instanceof Error
+      ? error.message.replace(IPC_ERROR_PREFIX, "").trim()
+      : "";
+  return message || fallback;
 }

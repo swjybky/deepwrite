@@ -9,7 +9,15 @@ const t = createScopedTranslator("extras.longBookAnalysis");
 const props = defineProps<{
   controller: Pick<
     LongBookAnalysisController,
-    "source" | "isBusy" | "sourceSaving" | "sourceDeleting" | "replaceChapters"
+    | "source"
+    | "selectedChapterId"
+    | "canUndoChapters"
+    | "isBusy"
+    | "sourceSaving"
+    | "sourceDeleting"
+    | "selectChapter"
+    | "replaceChapters"
+    | "undoChapters"
   >;
   /** Overrides for pages whose scope differs from a 50-chapter analysis. */
   emptyTitle?: string;
@@ -61,12 +69,18 @@ watch(
     <ChapterEditor
       v-if="expanded"
       :source="source"
+      :selected-chapter-id="controller.selectedChapterId.value"
+      :can-undo="controller.canUndoChapters.value"
       :disabled="
         controller.isBusy.value ||
         controller.sourceSaving.value ||
         controller.sourceDeleting.value
       "
-      @update="controller.replaceChapters($event)"
+      @select="controller.selectChapter($event)"
+      @update="
+        (chapters, options) => controller.replaceChapters(chapters, options)
+      "
+      @undo="controller.undoChapters()"
     />
   </section>
   <section v-else class="analysis-card analysis-empty-source">

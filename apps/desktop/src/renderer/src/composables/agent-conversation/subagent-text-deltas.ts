@@ -18,7 +18,7 @@ function applySubagentTextDelta(
   if (pending.type === "thinking_delta") {
     ctx.messageMutations.appendText(run, "thinking", delta);
   } else {
-    run.output = `${run.output ?? ""}${delta}`;
+    ctx.messageMutations.appendText(run, "output", delta);
   }
   const lastStep = run.processingSteps.at(-1);
   if (lastStep?.type === stepType) {

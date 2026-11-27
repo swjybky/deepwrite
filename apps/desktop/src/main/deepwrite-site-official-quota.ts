@@ -3,6 +3,7 @@ import {
   type SiteOfficialQuota
 } from "@deepwrite/contracts";
 import { deepWriteSiteOfficialGatewayBaseUrl } from "./deepwrite-site-official-model-config";
+import { isRecord } from "@deepwrite/shared";
 
 const SITE_QUOTA_TIMEOUT_MS = 15_000;
 const SITE_QUOTA_MAX_RESPONSE_BYTES = 256 * 1_024;
@@ -11,10 +12,6 @@ type SiteQuotaFetcher = (
   input: string,
   init?: RequestInit
 ) => Promise<Response>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function finiteNonnegative(value: unknown): number | undefined {
   const numeric = typeof value === "string" ? Number(value) : value;

@@ -8,11 +8,7 @@ import {
   type LongDeleteLedgerCommitResult
 } from "@deepwrite/contracts";
 import { deriveLongForeshadowingStatus } from "./continuity";
-import {
-  commitLongProjectTransaction,
-  secureDirectory,
-  serializeJson
-} from "./io";
+import { commitLongProjectTransaction, secureDirectory } from "./io";
 import { loadProject } from "./load-project";
 import { contiguousRecordedThrough } from "./paths";
 import { rebuildLongContinuityProjection } from "./rebuild-ledger-projection";
@@ -22,6 +18,7 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type StoreDeleteLongLedgerCommitInput
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function deleteLedgerCommit(
   ctx: LongProjectStoreContext,
@@ -92,9 +89,9 @@ export async function deleteLedgerCommit(
         { action: "delete", path: latest.recordFile.path },
         {
           path: LONG_WORKSPACE_INDEX_PATH,
-          content: serializeJson(nextIndex)
+          content: toJsonFileText(nextIndex)
         },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });

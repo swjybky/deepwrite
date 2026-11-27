@@ -13,7 +13,7 @@ import {
   resultText,
   skillWorkspace,
   toolByName
-} from "./test-fixtures";
+} from "./library-tools.test-support";
 import type { LibraryAgentToolDetails } from "./types";
 
 function setup(domain: LibraryAgentDomain) {

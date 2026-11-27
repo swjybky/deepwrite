@@ -8,13 +8,13 @@ import {
   clippedTextDocument,
   list,
   record,
-  serializeJson,
   stringValue,
   title,
   type DeterministicIdRegistry,
   type WarningCollector
 } from "./normalize";
 import { characterPath, type ImportDocumentBuilder } from "./plan-documents";
+import { toJsonFileText } from "@deepwrite/shared";
 
 const CHARACTER_GROUPS = [
   ["protagonists", "protagonist"],
@@ -86,7 +86,7 @@ export function buildImportedCharacters(
         warnings.preserve(
           `人物 ${index + 1} 别名（完整列表）`,
           `characters.${legacyGroup}[${index}].aliases`,
-          serializeJson(rawAliases)
+          toJsonFileText(rawAliases)
         );
         warnings.add(
           `人物 ${index + 1} 别名超过 64 项；结构保留前 64 项，完整列表已写入迁移证据。`

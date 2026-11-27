@@ -26,7 +26,8 @@ export const syncRequestSchema = z.discriminatedUnion("operation", [
   z
     .object({
       operation: z.literal("preview-initialization"),
-      deviceId: syncIdSchema
+      deviceId: syncIdSchema,
+      ignoreOtherDevices: z.boolean().optional()
     })
     .strict(),
   z
@@ -156,7 +157,10 @@ export async function dispatchSyncRequest(
     case "preview-initialization":
       return {
         kind: "initialization-preview",
-        preview: await api.previewInitialization(request.deviceId)
+        preview: await api.previewInitialization(
+          request.deviceId,
+          request.ignoreOtherDevices ? { ignoreOtherDevices: true } : undefined
+        )
       };
     case "initialize":
       return {
@@ -252,7 +256,16 @@ export function syncErrorMessage(error: unknown): string {
     "系统安全存储不可用。"
   ];
   return allowed.includes(message) ||
-    /^网盘请求失败（[1-5]\d{2}），请稍后重试。$/.test(message)
+    /^网盘请求失败（[1-5]\d{2}），请稍后重试。$/.test(message) ||
+    /^远端设备（[^）\r\n]{1,160}）还有未合并的版本，请先在(?:来源设备|电脑端)完成同步后重试，或选择忽略其他设备继续初始化。$/.test(
+      message
+    ) ||
+    /^远端作品不完整或不兼容（[^）\r\n]{1,120}），请先在(?:来源设备|来源电脑)更新并重新上传。$/.test(
+      message
+    ) ||
+    /^远端作品不完整或不兼容（[^）\r\n]{1,120}）：[^：\r\n]{1,160}$/.test(
+      message
+    )
     ? message
     : "同步未完成，请检查连接、作品保存状态后重试。";
 }

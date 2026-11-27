@@ -7,6 +7,7 @@ import type {
   SaveBookTemplateInput
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.bookTemplates");
 export function useBookTemplates() {
@@ -16,13 +17,14 @@ export function useBookTemplates() {
   const saving = ref(false);
   const failed = ref(false);
   async function load() {
-    if (!window.deepwrite || loading.value) return;
+    const desktopApi = deepwriteApi();
+    if (!desktopApi || loading.value) return;
     loading.value = true;
     failed.value = false;
     try {
       const [items, index] = await Promise.all([
-        window.deepwrite.bookTemplates.list(),
-        window.deepwrite.catalog.index()
+        desktopApi.bookTemplates.list(),
+        desktopApi.catalog.index()
       ]);
       templates.value = items;
       catalog.value = index;
@@ -34,10 +36,11 @@ export function useBookTemplates() {
     }
   }
   async function save(input: SaveBookTemplateInput): Promise<boolean> {
-    if (!window.deepwrite || saving.value) return false;
+    const desktopApi = deepwriteApi();
+    if (!desktopApi || saving.value) return false;
     saving.value = true;
     try {
-      const saved = await window.deepwrite.bookTemplates.save(input);
+      const saved = await desktopApi.bookTemplates.save(input);
       templates.value = [
         ...templates.value.filter((item) => item.id !== saved.id),
         saved
@@ -52,10 +55,11 @@ export function useBookTemplates() {
     }
   }
   async function remove(id: string): Promise<boolean> {
-    if (!window.deepwrite || saving.value) return false;
+    const desktopApi = deepwriteApi();
+    if (!desktopApi || saving.value) return false;
     saving.value = true;
     try {
-      await window.deepwrite.bookTemplates.delete({ id });
+      await desktopApi.bookTemplates.delete({ id });
       templates.value = templates.value.filter((item) => item.id !== id);
       uiMessage.success(t("templateDeleted"));
       return true;

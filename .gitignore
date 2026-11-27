@@ -17,3 +17,6 @@ coverage/
 # Local-only release presentation and cover skill.
 /.agents/skills/deepwrite-release-media/
 /.codex/skills/deepwrite-release-media
+
+# Cross-session handoff notes; temporary, see .agents/skills/handoff/SKILL.md.
+/notes/handoff/

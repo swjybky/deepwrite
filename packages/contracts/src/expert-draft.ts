@@ -309,7 +309,7 @@ function decodeSectionMarker(line: string): ParsedSectionMarker | undefined {
   }
 }
 
-function chineseSectionNumber(value: number): string {
+export function chineseSectionNumber(value: number): string {
   const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
   if (value <= 10) return value === 10 ? "十" : digits[value]!;
   if (value < 20) return `十${digits[value - 10]}`;

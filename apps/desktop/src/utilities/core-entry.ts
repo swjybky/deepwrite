@@ -1,4 +1,5 @@
 import { withBookImageCommands } from "./book-images/commands";
+import { withLocalBackupCommands } from "./local-backup/commands";
 import { withDocumentVersionCommands } from "./document-versions/version-commands";
 import { withDecompositionCommands } from "./long-book-decomposition/commands";
 import { withBookIdentityCommands } from "./book-identity/commands";
@@ -56,7 +57,9 @@ import {
   UnregisterCatalogProjectResultSchema,
   WriteWritingContextResultSchema,
   type CommandEnvelope,
-  type CommandResult
+  type CommandResult,
+  RestoreBackupFilesResultSchema,
+  ListBackupProjectsResultSchema
 } from "@deepwrite/contracts";
 import { existsSync } from "node:fs";
 import { CatalogStore } from "./catalog-store";
@@ -67,6 +70,8 @@ import {
 } from "./folder-catalog-store";
 import { bootUtility } from "./runtime";
 import { LongWorkspaceService } from "./long-workspace-service";
+import { restoreBackupFiles } from "./backup-restore";
+import { listBackupProjectRegistrations } from "./backup-inventory";
 
 const userDataPath = process.env.DEEPWRITE_USER_DATA_PATH?.trim();
 if (!userDataPath) {
@@ -99,7 +104,8 @@ async function requireCatalogStore(): Promise<FolderCatalogStore> {
   if (!catalogStoreInitialization) {
     const initialization = (async () => {
       const existingFolderStore = new FolderCatalogStore({
-        userDataPath: resolvedUserDataPath
+        userDataPath: resolvedUserDataPath,
+        includeBuiltinLibraries: true
       });
       if (existsSync(existingFolderStore.registryPath)) {
         await existingFolderStore.indexSnapshot();
@@ -108,6 +114,7 @@ async function requireCatalogStore(): Promise<FolderCatalogStore> {
       const legacySnapshot = await legacyCatalogStore.snapshot();
       const folderStore = new FolderCatalogStore({
         userDataPath: resolvedUserDataPath,
+        includeBuiltinLibraries: true,
         initialSnapshot: legacySnapshot
       });
       await folderStore.indexSnapshot();
@@ -400,6 +407,32 @@ async function handleCatalogCommand(
         payload: CatalogLibraryGroupSchema.parse(created.resource)
       };
     }
+    if (command.type === "catalog.listBackupProjects") {
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: ListBackupProjectsResultSchema.parse({
+          projects: await listBackupProjectRegistrations(resolvedUserDataPath)
+        })
+      };
+    }
+    if (command.type === "catalog.restoreBackupFiles") {
+      const result = await restoreBackupFiles(command.payload);
+      const target = command.payload.target;
+      if (
+        target.mode === "create" &&
+        (target.kind === "material-group" || target.kind === "skill-group")
+      )
+        await catalogStore.openCatalogProject(
+          result.projectDirectory,
+          target.kind
+        );
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: RestoreBackupFilesResultSchema.parse(result)
+      };
+    }
     if (command.type === "catalog.openProjectAtPath") {
       const opened =
         command.payload.domain === "book"
@@ -637,6 +670,29 @@ async function handleCatalogCommand(
         )
       };
     }
+    if (command.type === "catalog.duplicateProjectAtPath") {
+      const { targetParents, ...input } = command.payload;
+      return {
+        status: "accepted",
+        requestId: command.id,
+        payload: DuplicateCatalogProjectResultSchema.parse(
+          await catalogStore.duplicateProject(input, {
+            ...(targetParents.materialLibrary
+              ? { "material-library": targetParents.materialLibrary }
+              : {}),
+            ...(targetParents.materialGroup
+              ? { "material-group": targetParents.materialGroup }
+              : {}),
+            ...(targetParents.skillLibrary
+              ? { "skill-library": targetParents.skillLibrary }
+              : {}),
+            ...(targetParents.skillGroup
+              ? { "skill-group": targetParents.skillGroup }
+              : {})
+          })
+        )
+      };
+    }
     if (command.type === "catalog.installMarketplaceSkillContent") {
       return {
         status: "accepted",
@@ -750,40 +806,47 @@ async function handleCatalogCommand(
 bootUtility("core", {
   mode: "catalog-store",
   onShutdown: conversationRuntime.close,
-  commandHandler: withDocumentVersionCommands(
-    requireCatalogStore,
-    longWorkspaceService,
-    conversationRuntime.wrap(
-      withLibraryPackageCommands(
-        requireCatalogStore,
-        withLongMaterialPackCommands(
+  commandHandler: withLocalBackupCommands(
+    {
+      userDataPath: resolvedUserDataPath,
+      requireCatalogStore,
+      longWorkspaceService
+    },
+    withDocumentVersionCommands(
+      requireCatalogStore,
+      longWorkspaceService,
+      conversationRuntime.wrap(
+        withLibraryPackageCommands(
           requireCatalogStore,
-          longWorkspaceService,
-          withBookIdentityCommands(
+          withLongMaterialPackCommands(
             requireCatalogStore,
             longWorkspaceService,
-            withBookImageCommands(
+            withBookIdentityCommands(
               requireCatalogStore,
               longWorkspaceService,
-              withDeviceSyncCommands(
-                resolvedUserDataPath,
+              withBookImageCommands(
                 requireCatalogStore,
                 longWorkspaceService,
-                withDecompositionCommands(
+                withDeviceSyncCommands(
                   resolvedUserDataPath,
                   requireCatalogStore,
                   longWorkspaceService,
-                  withLongBookAnalysisSources(
-                    withShortBookAnalysisSources(handleCatalogCommand)
+                  withDecompositionCommands(
+                    resolvedUserDataPath,
+                    requireCatalogStore,
+                    longWorkspaceService,
+                    withLongBookAnalysisSources(
+                      withShortBookAnalysisSources(handleCatalogCommand)
+                    )
                   )
-                )
-              ),
-              mysteryWorkspaceService
+                ),
+                mysteryWorkspaceService
+              )
             )
           )
         )
-      )
-    ),
-    mysteryWorkspaceService
+      ),
+      mysteryWorkspaceService
+    )
   )
 });

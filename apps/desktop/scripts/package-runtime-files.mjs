@@ -2,13 +2,12 @@ import { createRequire } from "node:module";
 import { open } from "node:fs/promises";
 import { normalize, posix } from "node:path";
 import ts from "typescript";
+import { UTILITY_ENTRY_NAMES } from "../src/main/utility-entry-names.ts";
 
 export const REQUIRED_RUNTIME_FILES = [
   "package.json",
   "out/main/index.js",
-  "out/main/utilities/core-entry.js",
-  "out/main/utilities/agent-entry.js",
-  "out/main/utilities/tool-entry.js",
+  ...Object.values(UTILITY_ENTRY_NAMES).map((name) => `out/main/${name}.js`),
   "out/main/utilities/conversation-storage/worker-entry.js",
   "out/preload/index.js",
   "out/renderer/index.html",

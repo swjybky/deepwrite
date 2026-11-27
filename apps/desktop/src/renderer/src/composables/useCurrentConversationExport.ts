@@ -4,13 +4,14 @@ import { computed, shallowRef } from "vue";
 import { useConversationStore } from "../stores/conversationStore";
 import { uiMessage } from "../ui-feedback";
 import type { CurrentExportOperation } from "../utils/conversation-export/action";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.currentConversationExport");
 const active = shallowRef<CurrentExportOperation>();
 
 export function useCurrentConversationExport(sessionId: () => string) {
   const store = useConversationStore();
-  const available = computed(() => !!window.deepwrite?.conversationExport);
+  const available = computed(() => !!deepwriteApi()?.conversationExport);
   const exporting = computed(() => active.value?.sessionId === sessionId());
   async function start(): Promise<void> {
     const requestedSessionId = sessionId();

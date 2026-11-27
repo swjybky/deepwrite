@@ -1,5 +1,7 @@
 import {
   CommandEnvelopeSchema,
+  ListBackupProjectsResultSchema,
+  RestoreBackupFilesResultSchema,
   createEnvelope,
   type CommandEnvelope,
   type CommandResult
@@ -16,7 +18,11 @@ export function createCloudBackupFeature(
   fetchBackup: typeof fetch
 ): CloudBackupService {
   const register = async (
-    type: "catalog.openProjectAtPath" | "long.openAtPath",
+    type:
+      | "catalog.openProjectAtPath"
+      | "long.openAtPath"
+      | "catalog.restoreBackupFiles"
+      | "catalog.listBackupProjects",
     payload: unknown
   ) => {
     const id = createId("cmd_cloud_backup_open");
@@ -25,16 +31,30 @@ export function createCloudBackupFeature(
     );
     const result = await execute(command);
     if (result.status === "rejected") throw new Error(result.error.message);
+    return result.payload;
   };
   const config = loadCloudBackupApiConfig();
   return new CloudBackupService(
     userDataPath,
     {
       getWorkspaceDirectory,
-      registerCatalogProject: ({ projectDirectory, domain }) =>
-        register("catalog.openProjectAtPath", { projectDirectory, domain }),
-      registerLongBook: (projectDirectory) =>
-        register("long.openAtPath", { projectDirectory })
+      registerCatalogProject: async ({ projectDirectory, domain }) => {
+        await register("catalog.openProjectAtPath", {
+          projectDirectory,
+          domain
+        });
+      },
+      registerLongBook: async (projectDirectory) => {
+        await register("long.openAtPath", { projectDirectory });
+      },
+      restoreFiles: async (input) =>
+        RestoreBackupFilesResultSchema.parse(
+          await register("catalog.restoreBackupFiles", input)
+        ),
+      listRegisteredProjects: async () =>
+        ListBackupProjectsResultSchema.parse(
+          await register("catalog.listBackupProjects", {})
+        ).projects
     },
     config ? new DeepwriteApiObjectStore(config, fetchBackup) : null
   );

@@ -30,7 +30,9 @@ export function useTeamPlazaPublish(options: TeamPlazaPublishOptions) {
   const overview = ref("");
   const pending = ref(false);
 
-  const teams = computed(() => options.catalog()?.teams ?? []);
+  const teams = computed(() =>
+    (options.catalog()?.teams ?? []).filter((team) => !team.isBuiltin)
+  );
   const selectedTeam = computed(() =>
     teams.value.find((team) => team.id === teamId.value)
   );

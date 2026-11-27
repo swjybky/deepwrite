@@ -3,6 +3,7 @@ import {
   type ModelConfigInput
 } from "@deepwrite/contracts";
 import type { DeepWriteFreeModelCatalog } from "./deepwrite-free-model-config";
+import { isRecord } from "@deepwrite/shared";
 
 export type DiskModelConfig = Omit<
   ModelConfigInput,
@@ -26,10 +27,6 @@ export const EMPTY_DISK_MODEL_SETTINGS: DiskModelSettings = {
   knownFreeModels: [],
   deprecatedFreeModels: []
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function normalizeIds(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

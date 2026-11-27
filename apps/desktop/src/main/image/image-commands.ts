@@ -7,6 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import type { ImageService } from "./image-service";
 import { safeImageError } from "./image-http";
+import { rejectedResult } from "../ipc/errors";
 
 export async function handleImageCommands(
   command: CommandEnvelope,
@@ -43,10 +44,10 @@ export async function handleImageCommands(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: { code: "image.operation_failed", message: safeImageError(error) }
-    };
+    return rejectedResult(
+      command.id,
+      "image.operation_failed",
+      safeImageError(error)
+    );
   }
 }

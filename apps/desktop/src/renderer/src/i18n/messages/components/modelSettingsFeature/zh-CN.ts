@@ -30,6 +30,8 @@ export default {
   testTheCurrentUnsavedSettings: "使用当前未保存的配置测试连接",
   testing: "测试中…",
   testConnection: "测试连接",
+  cancelTest: "取消测试",
+  cancelingTest: "取消中…",
   configureContextLengthAndMaximumOutputLength: "配置上下文长度和最高输出长度",
   advancedSettings: "高级配置",
   delete: "删除",

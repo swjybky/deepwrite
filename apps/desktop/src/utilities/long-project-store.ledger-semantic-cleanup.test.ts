@@ -16,7 +16,7 @@ import {
   longCharacterCoreProfileFileId,
   longCharacterFilePath,
   longCharacterRelationshipsFileId,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   writeFile
 } from "./long-project-store.test-support";
@@ -40,7 +40,7 @@ const coverage = {
 };
 
 function chapterFiles(chapterCardId: string) {
-  const storage = projectTransactionContentSha256(chapterCardId).slice(0, 32);
+  const storage = sha256Hex(chapterCardId).slice(0, 32);
   const file = (id: string, path: string) =>
     createEmptyLongMarkdownFileReference(id, path, FIXED_NOW);
   return {

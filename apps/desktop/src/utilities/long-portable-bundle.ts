@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   LONG_WORKSPACE_DELETED_LATEST_HANDOFF_SUMMARY,
   LongContinuityProjectionSchema,
@@ -26,6 +25,8 @@ import {
   parseLongLedgerCommitRecord,
   stripLegacyLongVersionMetadata
 } from "./long-version-metadata";
+import { isRecord, toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export const LONG_PORTABLE_BUNDLE_SCHEMA =
   "deepwrite.long-book.portable" as const;
@@ -70,18 +71,6 @@ interface IndexedPortableFile {
   reference: LongWorkspaceFileReference;
   kind: LongPortableBundleFile["kind"];
   commitId?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function serializeJson(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-function sha256(content: string | Uint8Array): string {
-  return createHash("sha256").update(content).digest("hex");
 }
 
 function continuityFactKey(
@@ -579,7 +568,7 @@ function normalizeLegacyPortableWorldbuilding(
       aggregate.path !== legacyFile.path ||
       typeof aggregate.sha256 !== "string" ||
       typeof aggregate.content !== "string" ||
-      aggregate.sha256 !== sha256(aggregate.content)
+      aggregate.sha256 !== sha256Hex(aggregate.content)
     ) {
       throw new Error(
         `旧版世界观分类 ${categoryId} 的聚合文件完整性校验失败。`
@@ -598,7 +587,7 @@ function normalizeLegacyPortableWorldbuilding(
           id: file.id,
           path,
           kind: "markdown",
-          sha256: sha256(item.content),
+          sha256: sha256Hex(item.content),
           content: item.content
         });
         return {
@@ -620,7 +609,7 @@ function normalizeLegacyPortableWorldbuilding(
       id: overview.id,
       path: overviewPath,
       kind: "markdown",
-      sha256: sha256(""),
+      sha256: sha256Hex(""),
       content: ""
     });
     migrated = true;
@@ -690,7 +679,7 @@ function normalizeLegacyPortableChapterContinuity(
         id,
         path,
         kind: "markdown",
-        sha256: sha256(content),
+        sha256: sha256Hex(content),
         content
       });
     }
@@ -726,11 +715,11 @@ export function parseLongPortableExportBundle(
   const exportedAt = normalizedTimestamp(bundle.exportedAt);
   const manifestEntry = parseJsonEntry(bundle.manifest, "manifest");
   const indexEntry = parseJsonEntry(bundle.index, "index");
-  const rawManifestContent = serializeJson(manifestEntry.value);
-  const rawIndexContent = serializeJson(indexEntry.value);
+  const rawManifestContent = toJsonFileText(manifestEntry.value);
+  const rawIndexContent = toJsonFileText(indexEntry.value);
   if (
-    manifestEntry.sha256 !== sha256(rawManifestContent) ||
-    indexEntry.sha256 !== sha256(rawIndexContent)
+    manifestEntry.sha256 !== sha256Hex(rawManifestContent) ||
+    indexEntry.sha256 !== sha256Hex(rawIndexContent)
   ) {
     throw new Error("长篇可移植包的 manifest 或 index SHA-256 校验失败。");
   }
@@ -753,7 +742,7 @@ export function parseLongPortableExportBundle(
   if (manifest.id !== index.bookId) {
     throw new Error("长篇清单与可移植包原始索引不一致。");
   }
-  const normalizedIndexContent = serializeJson(index);
+  const normalizedIndexContent = toJsonFileText(index);
   validateManifestIndexPair(manifest, index);
   if (bundle.bookId !== manifest.id) {
     throw new Error("长篇可移植包顶层 bookId 与 manifest 不一致。");
@@ -813,7 +802,7 @@ export function parseLongPortableExportBundle(
     ) {
       throw new Error("长篇可移植包的文件内容超过安全上限。");
     }
-    if (sha256(bytes) !== file.sha256) {
+    if (sha256Hex(bytes) !== file.sha256) {
       throw new Error(`长篇可移植包中文件 ${file.id} 完整性校验失败。`);
     }
     let content = file.content;
@@ -828,13 +817,13 @@ export function parseLongPortableExportBundle(
       )!;
       assertLongLedgerRecordMatchesIndex(index, entry, record, file.content);
       ledgerRecords.push(record);
-      content = serializeJson(record);
+      content = toJsonFileText(record);
     }
     return {
       id: file.id,
       path: file.path,
       kind: file.kind,
-      sha256: sha256(content),
+      sha256: sha256Hex(content),
       content
     } satisfies LongPortableBundleFile;
   });
@@ -856,12 +845,12 @@ export function parseLongPortableExportBundle(
     bookId: manifest.id,
     manifest: {
       mediaType: "application/json",
-      sha256: sha256(serializeJson(manifest)),
+      sha256: sha256Hex(toJsonFileText(manifest)),
       value: manifest
     },
     index: {
       mediaType: "application/json",
-      sha256: sha256(normalizedIndexContent),
+      sha256: sha256Hex(normalizedIndexContent),
       value: index
     },
     files,

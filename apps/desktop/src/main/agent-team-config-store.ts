@@ -51,7 +51,6 @@ import {
 } from "@deepwrite/contracts";
 import {
   AGENT_TEAM_CATALOG_DISK_VERSION,
-  atomicWriteAgentTeamJson,
   createAgentTeamProfile,
   createCatalogFromLegacyFiles,
   invalidAgentTeamConfig,
@@ -60,12 +59,15 @@ import {
   tryMigrateStandaloneCatalog,
   type AgentTeamDiskCatalog
 } from "./agent-team-config-migration";
+import { getBuiltinAgentTeams } from "./builtin-agent-teams";
 import { defaultAgentTeamName } from "./agent-team-profile-factory";
 import {
   readAgentTeamBookBindings,
   withAgentTeamBookBinding,
   writeAgentTeamBookBindings
 } from "./agent-team-book-binding-file";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
+import { isBuiltinAgentTeamId } from "@deepwrite/contracts";
 
 function cloneSnapshot(
   snapshot: AgentTeamCatalogSnapshot
@@ -118,24 +120,98 @@ export class AgentTeamConfigStore {
     return changed;
   }
 
+  private mergeBuiltinTeams(
+    stored: { teams?: unknown } & Record<string, unknown>
+  ): { merged: Record<string, unknown>; changed: boolean } {
+    const builtins = getBuiltinAgentTeams();
+    const rawTeams = Array.isArray(stored.teams) ? stored.teams : [];
+    const userTeams: unknown[] = [];
+    let changed = false;
+    for (const candidate of rawTeams) {
+      if (!candidate || typeof candidate !== "object") {
+        userTeams.push(candidate);
+        continue;
+      }
+      const record = { ...(candidate as Record<string, unknown>) };
+      if (
+        (typeof record.id === "string" && isBuiltinAgentTeamId(record.id)) ||
+        record.isBuiltin === true
+      ) {
+        changed = true;
+        continue;
+      }
+      userTeams.push(record);
+    }
+    const occupiedNames = new Set(
+      builtins.map((team) => team.name.toLocaleLowerCase())
+    );
+    for (const entry of userTeams) {
+      if (!entry || typeof entry !== "object") continue;
+      const userTeam = entry as Record<string, unknown>;
+      if (typeof userTeam.name !== "string") continue;
+      const trimmed = userTeam.name.trim();
+      const lower = trimmed.toLocaleLowerCase();
+      if (occupiedNames.has(lower)) {
+        const renamed = nextAvailableTeamName(
+          occupiedNames,
+          `${trimmed} (本地)`
+        );
+        userTeam.name = renamed;
+        occupiedNames.add(renamed.toLocaleLowerCase());
+        changed = true;
+      } else {
+        occupiedNames.add(lower);
+      }
+    }
+    return {
+      merged: {
+        ...stored,
+        teams: [...userTeams, ...builtins]
+      },
+      changed
+    };
+  }
+
+  private sortBuiltinsLast(snapshot: AgentTeamCatalogSnapshot): void {
+    snapshot.teams = [
+      ...snapshot.teams.filter(
+        (team) => !team.isBuiltin && !isBuiltinAgentTeamId(team.id)
+      ),
+      ...snapshot.teams.filter(
+        (team) => team.isBuiltin || isBuiltinAgentTeamId(team.id)
+      )
+    ];
+  }
+
   private async readSnapshot(): Promise<AgentTeamCatalogSnapshot> {
     const raw = await readAgentTeamJson(this.settingsPath);
     if (raw === undefined) {
-      const snapshot = await this.readLegacyFiles();
-      this.seedMissingDefaultTeams(snapshot);
+      const legacy = await this.readLegacyFiles();
+      this.seedMissingDefaultTeams(legacy);
+      const { merged } = this.mergeBuiltinTeams({ ...legacy });
+      const snapshot = AgentTeamCatalogSnapshotSchema.parse(merged);
       await this.writeSnapshot(snapshot);
       return snapshot;
     }
     if (!raw || typeof raw !== "object") throw invalidAgentTeamConfig();
     const { version, ...stored } = raw as Record<string, unknown>;
-    const current = AgentTeamCatalogSnapshotSchema.safeParse(stored);
+    const { merged, changed: builtinMergedChanged } =
+      this.mergeBuiltinTeams(stored);
+    const current = AgentTeamCatalogSnapshotSchema.safeParse(merged);
     if (current.success) {
       const upgraded = current.data;
       const seeded =
         (typeof version !== "number" ||
           version < AGENT_TEAM_CATALOG_DISK_VERSION) &&
         this.seedMissingDefaultTeams(upgraded);
-      if (version !== AGENT_TEAM_CATALOG_DISK_VERSION || seeded) {
+      if (seeded) {
+        this.sortBuiltinsLast(upgraded);
+      }
+      if (
+        version !== AGENT_TEAM_CATALOG_DISK_VERSION ||
+        seeded ||
+        builtinMergedChanged
+      ) {
         await this.writeSnapshot(upgraded);
       }
       return upgraded;
@@ -144,8 +220,12 @@ export class AgentTeamConfigStore {
       tryMigrateCombinedCatalog(stored) ?? tryMigrateStandaloneCatalog(stored);
     if (migrated) {
       this.seedMissingDefaultTeams(migrated);
-      await this.writeSnapshot(migrated);
-      return migrated;
+      const { merged: mergedMigrated } = this.mergeBuiltinTeams({
+        ...migrated
+      });
+      const finalized = AgentTeamCatalogSnapshotSchema.parse(mergedMigrated);
+      await this.writeSnapshot(finalized);
+      return finalized;
     }
     throw invalidAgentTeamConfig(current.error.issues[0]);
   }
@@ -157,9 +237,12 @@ export class AgentTeamConfigStore {
     // older versions, whose schema is strict.
     const { bookBindings: _bookBindings, ...profiles } =
       cloneSnapshot(snapshot);
-    await atomicWriteAgentTeamJson(this.settingsPath, {
+    await writeJsonAtomic(this.settingsPath, {
       version: AGENT_TEAM_CATALOG_DISK_VERSION,
-      ...profiles
+      ...profiles,
+      teams: profiles.teams.filter(
+        (team) => !team.isBuiltin && !isBuiltinAgentTeamId(team.id)
+      )
     } satisfies AgentTeamDiskCatalog);
   }
 
@@ -197,6 +280,7 @@ export class AgentTeamConfigStore {
     return this.queue(async () => {
       const snapshot = await this.readSnapshot();
       operation(snapshot);
+      this.sortBuiltinsLast(snapshot);
       const parsed = AgentTeamCatalogSnapshotSchema.parse(snapshot);
       await this.writeSnapshot(parsed);
       return this.withBookBindings(
@@ -263,7 +347,11 @@ export class AgentTeamConfigStore {
   ): Promise<AgentTeamCatalogSnapshot> {
     const input = AgentTeamProfileRenameInputSchema.parse(rawInput);
     return this.mutate((snapshot) => {
-      this.requireTeam(snapshot, input.teamId).name = input.name;
+      const team = this.requireTeam(snapshot, input.teamId);
+      if (team.isBuiltin || isBuiltinAgentTeamId(team.id)) {
+        throw new Error("内置智能体团队不能重命名，请先复制后再自定义。");
+      }
+      team.name = input.name;
       this.assertUniqueName(snapshot, input.name, input.teamId);
     });
   }
@@ -274,11 +362,17 @@ export class AgentTeamConfigStore {
     const input = AgentTeamProfileTargetInputSchema.parse(rawInput);
     await this.mutate((snapshot) => {
       const team = this.requireTeam(snapshot, input.teamId);
+      if (team.isBuiltin || isBuiltinAgentTeamId(team.id)) {
+        throw new Error("内置智能体团队不能删除。");
+      }
       if (snapshot.enabledTeamIds[team.workspaceType] === team.id) {
         throw new Error("已启用的团队不能删除，请先关闭该团队。");
       }
-      if (snapshot.teams.length === 1)
-        throw new Error("至少需要保留一个智能体团队。");
+      const editableCount = snapshot.teams.filter(
+        (candidate) =>
+          !candidate.isBuiltin && !isBuiltinAgentTeamId(candidate.id)
+      ).length;
+      if (editableCount <= 1) throw new Error("至少需要保留一个智能体团队。");
       snapshot.teams = snapshot.teams.filter(
         (candidate) => candidate.id !== team.id
       );
@@ -286,6 +380,26 @@ export class AgentTeamConfigStore {
     return this.updateBookBindings((bindings) =>
       withoutAgentTeamBindings(bindings, input.teamId)
     );
+  }
+
+  async duplicate(
+    rawInput: AgentTeamProfileTargetInput
+  ): Promise<AgentTeamCatalogSnapshot> {
+    const input = AgentTeamProfileTargetInputSchema.parse(rawInput);
+    return this.mutate((snapshot) => {
+      const source = this.requireTeam(snapshot, input.teamId);
+      const copyBase =
+        source.name.length + 3 <= AGENT_TEAM_PROFILE_NAME_MAX_LENGTH
+          ? `${source.name} 副本`
+          : source.name;
+      snapshot.teams.push(
+        createAgentTeamProfile(
+          source.workspaceType,
+          this.availableImportedName(snapshot, copyBase),
+          source.settings
+        )
+      );
+    });
   }
 
   async setEnabled(
@@ -336,6 +450,9 @@ export class AgentTeamConfigStore {
     const input = AgentTeamProfileSaveInputSchema.parse(rawInput);
     return this.mutate((snapshot) => {
       const team = this.requireTeam(snapshot, input.teamId);
+      if (team.isBuiltin || isBuiltinAgentTeamId(team.id)) {
+        throw new Error("内置智能体团队不能修改，请先复制后再自定义。");
+      }
       if (team.workspaceType !== input.settings.workspaceType) {
         throw new Error("团队类型与保存的配置类型不一致。");
       }
@@ -356,11 +473,12 @@ export class AgentTeamConfigStore {
     rawInput: AgentTeamProfileTargetInput
   ): Promise<AgentTeamProfile> {
     const input = AgentTeamProfileTargetInputSchema.parse(rawInput);
-    // The plaza origin is local bookkeeping; packages stay readable by older versions.
-    const { marketplaceSource: _source, ...team } = this.requireTeam(
-      await this.list(),
-      input.teamId
-    );
+    // The plaza origin and built-in marker are local bookkeeping; packages stay readable by older versions.
+    const {
+      marketplaceSource: _source,
+      isBuiltin: _builtin,
+      ...team
+    } = this.requireTeam(await this.list(), input.teamId);
     return structuredClone(team);
   }
 
@@ -471,14 +589,21 @@ export class AgentTeamConfigStore {
     const names = new Set(
       snapshot.teams.map((team) => team.name.toLocaleLowerCase())
     );
-    if (!names.has(sourceName.toLocaleLowerCase())) return sourceName;
-    for (let copy = 2; ; copy += 1) {
-      const suffix = ` (${copy})`;
-      const base = sourceName
-        .slice(0, AGENT_TEAM_PROFILE_NAME_MAX_LENGTH - suffix.length)
-        .trimEnd();
-      const candidate = `${base}${suffix}`;
-      if (!names.has(candidate.toLocaleLowerCase())) return candidate;
-    }
+    return nextAvailableTeamName(names, sourceName);
+  }
+}
+
+function nextAvailableTeamName(
+  names: ReadonlySet<string>,
+  sourceName: string
+): string {
+  if (!names.has(sourceName.toLocaleLowerCase())) return sourceName;
+  for (let copy = 2; ; copy += 1) {
+    const suffix = ` (${copy})`;
+    const base = sourceName
+      .slice(0, AGENT_TEAM_PROFILE_NAME_MAX_LENGTH - suffix.length)
+      .trimEnd();
+    const candidate = `${base}${suffix}`;
+    if (!names.has(candidate.toLocaleLowerCase())) return candidate;
   }
 }

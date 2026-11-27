@@ -5,10 +5,14 @@ import {
 import { DocumentVersionOriginSchema } from "../document-version-origin";
 import { AcademicCitationStyleSchema } from "../academic-citation-style";
 import { AcademicBookSubtypeSchema } from "../academic-book";
+import { CloudBackupItemKindSchema } from "../cloud-backup";
 import { z } from "zod";
 
 import { DraftSectionIdSchema, DraftSectionTitleSchema } from "../expert-draft";
-import { BookCharacterFormatSchema } from "./character-structure";
+import {
+  BookCharacterFormatSchema,
+  CharacterStructureMutationSchema
+} from "./character-structure";
 import { CatalogDraftSectionSchema } from "./draft-directory";
 import {
   CATALOG_PROJECT_MAX_CONTENT_ITEMS,
@@ -34,7 +38,8 @@ import {
   SkillStageIdSchema,
   TimestampSchema,
   migrateLegacyGroupMembers,
-  uniqueIds
+  uniqueIds,
+  UniqueIdListSchema
 } from "./kinds";
 import {
   MaterialEntrySchema,
@@ -50,6 +55,29 @@ import {
   CreativePlotStageSchema
 } from "./plot-stages";
 import { CatalogContentBytesSchema } from "./snapshot";
+import {
+  createBookAtPathSchema,
+  createBookCreationSchema
+} from "../book-creation";
+import { LibraryManagementScopeSchema } from "../library-management-scope";
+
+const bookCreationSchemaFields = {
+  title: CatalogTitleSchema,
+  characterFormat: BookCharacterFormatSchema,
+  stageId: CreativePlotStageIdSchema,
+  stageLimit: CREATIVE_PLOT_STAGE_MAX_COUNT,
+  materialLinks: LinkedMaterialIdsByKindInputSchema,
+  skillLinks: LinkedSkillIdsByKindInputSchema
+};
+
+export const DeleteCatalogProjectDomainSchema = z.enum([
+  ...CATALOG_PROJECT_DOMAINS,
+  "material-group",
+  "skill-group"
+]);
+export type DeleteCatalogProjectDomain = z.infer<
+  typeof DeleteCatalogProjectDomainSchema
+>;
 
 export const CatalogReadDocumentInputSchema = z.discriminatedUnion("target", [
   z
@@ -101,25 +129,18 @@ export type CatalogReadDocumentResult = z.infer<
   typeof CatalogReadDocumentResultSchema
 >;
 
-export const CreateShortBookInputSchema = z.object({
-  title: CatalogTitleSchema,
-  genre: ShortBookGenreSchema,
-  defaultPlotStageIds: z
-    .array(CreativePlotStageIdSchema)
-    .min(1)
-    .max(CREATIVE_PLOT_STAGE_MAX_COUNT)
-    .optional(),
-  linkedMaterialIdsByKind: LinkedMaterialIdsByKindInputSchema.optional(),
-  linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional()
-});
+export const CreateShortBookInputSchema =
+  /* @__PURE__ */ createBookCreationSchema(
+    bookCreationSchemaFields,
+    ShortBookGenreSchema
+  );
 export type CreateShortBookInput = z.infer<typeof CreateShortBookInputSchema>;
 
-export const CreateScriptBookInputSchema = z.object({
-  title: CatalogTitleSchema,
-  genre: ScriptBookGenreSchema,
-  linkedMaterialIdsByKind: LinkedMaterialIdsByKindInputSchema.optional(),
-  linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional()
-});
+export const CreateScriptBookInputSchema =
+  /* @__PURE__ */ createBookCreationSchema(
+    bookCreationSchemaFields,
+    ScriptBookGenreSchema
+  );
 export type CreateScriptBookInput = z.infer<typeof CreateScriptBookInputSchema>;
 
 export const CatalogOpenProjectInputSchema = z.object({
@@ -129,20 +150,52 @@ export type CatalogOpenProjectInput = z.infer<
   typeof CatalogOpenProjectInputSchema
 >;
 
-export const CreateShortBookAtPathInputSchema = z.object({
-  parentDirectory: z.string().trim().min(1),
-  input: CreateShortBookInputSchema
-});
+export const CreateShortBookAtPathInputSchema =
+  /* @__PURE__ */ createBookAtPathSchema(CreateShortBookInputSchema);
 export type CreateShortBookAtPathInput = z.infer<
   typeof CreateShortBookAtPathInputSchema
 >;
 
-export const CreateScriptBookAtPathInputSchema = z.object({
-  parentDirectory: z.string().trim().min(1),
-  input: CreateScriptBookInputSchema
-});
+export const CreateScriptBookAtPathInputSchema =
+  /* @__PURE__ */ createBookAtPathSchema(CreateScriptBookInputSchema);
 export type CreateScriptBookAtPathInput = z.infer<
   typeof CreateScriptBookAtPathInputSchema
+>;
+
+/** Main hands a downloaded backup to Core, which alone writes project folders. */
+export const RestoreBackupFilesInputSchema = z.object({
+  target: z.discriminatedUnion("mode", [
+    z.object({
+      mode: z.literal("replace"),
+      projectDirectory: z.string().trim().min(1)
+    }),
+    z.object({
+      mode: z.literal("create"),
+      workspaceDirectory: z.string().trim().min(1),
+      kind: CloudBackupItemKindSchema,
+      title: z.string()
+    })
+  ]),
+  files: z
+    .array(
+      z.object({
+        relativePath: z.string().trim().min(1).max(4_096),
+        contentBase64: z.string()
+      })
+    )
+    .min(1)
+    .max(20_000)
+});
+export type RestoreBackupFilesInput = z.infer<
+  typeof RestoreBackupFilesInputSchema
+>;
+export const RestoreBackupFilesResultSchema = z.object({
+  projectDirectory: z.string(),
+  written: z.number().int().nonnegative(),
+  removed: z.number().int().nonnegative()
+});
+export type RestoreBackupFilesResult = z.infer<
+  typeof RestoreBackupFilesResultSchema
 >;
 
 export const OpenCatalogProjectAtPathInputSchema = z.object({
@@ -182,18 +235,8 @@ export const UpdateBookInputSchema = z
     status: z.enum(["editing", "completed"]).optional(),
     linkedMaterialIdsByKind: LinkedMaterialIdsByKindInputSchema.optional(),
     linkedSkillIdsByKind: LinkedSkillIdsByKindInputSchema.optional(),
-    linkedMaterialIds: z
-      .array(CatalogIdSchema)
-      .refine(uniqueIds, {
-        message: "Catalog id lists cannot contain duplicates."
-      })
-      .optional(),
-    linkedSkillIds: z
-      .array(CatalogIdSchema)
-      .refine(uniqueIds, {
-        message: "Catalog id lists cannot contain duplicates."
-      })
-      .optional()
+    linkedMaterialIds: UniqueIdListSchema.optional(),
+    linkedSkillIds: UniqueIdListSchema.optional()
   })
   .refine(
     ({
@@ -266,45 +309,6 @@ export const MutatePlotStructureInputSchema = z
   .strict();
 export type MutatePlotStructureInput = z.infer<
   typeof MutatePlotStructureInputSchema
->;
-
-export const CharacterStructureMutationSchema = z.discriminatedUnion("type", [
-  z
-    .object({ type: z.literal("setFormat"), format: BookCharacterFormatSchema })
-    .strict(),
-  z
-    .object({
-      type: z.literal("createItem"),
-      title: CatalogTitleSchema,
-      itemId: CatalogIdSchema.optional()
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("updateItem"),
-      itemId: CatalogIdSchema,
-      title: CatalogTitleSchema
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("moveItem"),
-      itemId: CatalogIdSchema,
-      direction: z.enum(["up", "down"])
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("reorderItem"),
-      itemId: CatalogIdSchema,
-      anchorId: CatalogIdSchema,
-      position: z.enum(["before", "after"])
-    })
-    .strict(),
-  z.object({ type: z.literal("deleteItem"), itemId: CatalogIdSchema }).strict()
-]);
-export type CharacterStructureMutation = z.infer<
-  typeof CharacterStructureMutationSchema
 >;
 
 export const MutateCharacterStructureInputSchema = z
@@ -558,6 +562,7 @@ export const UpdateLibraryInputSchema = z
   .object({
     domain: CatalogLibraryProjectDomainSchema,
     libraryId: CatalogIdSchema,
+    managementScope: LibraryManagementScopeSchema.optional(),
     title: CatalogTitleSchema.optional(),
     overview: z.string().optional(),
     customTag: LibraryCustomTagSchema.nullable().optional(),
@@ -662,9 +667,10 @@ export type CreateLibraryGroupAtPathInput = z.infer<
   typeof CreateLibraryGroupAtPathInputSchema
 >;
 
-const CreateMaterialLibraryEntryInputSchema = z.object({
+export const CreateMaterialLibraryEntryInputSchema = z.object({
   domain: z.literal("material"),
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   title: CatalogTitleSchema,
   content: z.string(),
   stageId: MaterialStageIdSchema.optional(),
@@ -672,9 +678,10 @@ const CreateMaterialLibraryEntryInputSchema = z.object({
   force: z.boolean().optional()
 });
 
-const CreateSkillLibraryEntryInputSchema = z.object({
+export const CreateSkillLibraryEntryInputSchema = z.object({
   domain: z.literal("skill"),
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   title: CatalogTitleSchema,
   content: z.string(),
   stageId: SkillStageIdSchema.optional(),
@@ -811,17 +818,19 @@ export type UnregisterCatalogProjectResult = z.infer<
 >;
 
 export const DeleteCatalogProjectInputSchema = z.object({
-  domain: CatalogProjectDomainSchema,
-  projectId: CatalogIdSchema
+  domain: DeleteCatalogProjectDomainSchema,
+  projectId: CatalogIdSchema,
+  baseProjectRevision: z.number().int().nonnegative().optional()
 });
 export type DeleteCatalogProjectInput = z.infer<
   typeof DeleteCatalogProjectInputSchema
 >;
 
 export const DeleteCatalogProjectResultSchema = z.object({
-  domain: CatalogProjectDomainSchema,
+  domain: DeleteCatalogProjectDomainSchema,
   projectId: CatalogIdSchema,
-  deleted: z.boolean()
+  deleted: z.boolean(),
+  deletedMemberLibraryIds: z.array(CatalogIdSchema).optional()
 });
 export type DeleteCatalogProjectResult = z.infer<
   typeof DeleteCatalogProjectResultSchema
@@ -846,6 +855,29 @@ export type DuplicateCatalogProjectInput = z.infer<
   typeof DuplicateCatalogProjectInputSchema
 >;
 
+export const DuplicateCatalogProjectTargetParentsSchema = z
+  .object({
+    materialLibrary: z.string().trim().min(1).optional(),
+    materialGroup: z.string().trim().min(1).optional(),
+    skillLibrary: z.string().trim().min(1).optional(),
+    skillGroup: z.string().trim().min(1).optional()
+  })
+  .strict();
+export type DuplicateCatalogProjectTargetParents = z.infer<
+  typeof DuplicateCatalogProjectTargetParentsSchema
+>;
+
+export const DuplicateCatalogProjectAtPathInputSchema = z
+  .object({
+    domain: DuplicateCatalogProjectDomainSchema,
+    projectId: CatalogIdSchema,
+    targetParents: DuplicateCatalogProjectTargetParentsSchema
+  })
+  .strict();
+export type DuplicateCatalogProjectAtPathInput = z.infer<
+  typeof DuplicateCatalogProjectAtPathInputSchema
+>;
+
 export const DuplicateCatalogProjectResultSchema = z.object({
   sourceProjectId: CatalogIdSchema,
   projectId: CatalogIdSchema,
@@ -860,6 +892,7 @@ export type DuplicateCatalogProjectResult = z.infer<
 export const SaveLibraryEntryInputSchema = z.object({
   domain: CatalogLibraryProjectDomainSchema,
   libraryId: CatalogIdSchema,
+  managementScope: LibraryManagementScopeSchema.optional(),
   entryId: CatalogIdSchema,
   title: CatalogTitleSchema.optional(),
   content: z.string(),

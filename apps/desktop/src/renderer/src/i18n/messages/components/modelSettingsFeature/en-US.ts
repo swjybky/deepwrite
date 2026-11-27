@@ -31,6 +31,8 @@ export default {
   testTheCurrentUnsavedSettings: "Test the current unsaved settings",
   testing: "Testing…",
   testConnection: "Test connection",
+  cancelTest: "Cancel test",
+  cancelingTest: "Canceling…",
   configureContextLengthAndMaximumOutputLength:
     "Configure context length and maximum output length",
   advancedSettings: "Advanced settings",

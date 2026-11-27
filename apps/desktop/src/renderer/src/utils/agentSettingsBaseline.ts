@@ -8,9 +8,10 @@ import type {
   WorkspaceAgentSettings,
   WorkspaceAgentSettingsInput
 } from "@deepwrite/contracts";
+import { jsonClone } from "@deepwrite/shared";
 
 function cloneBaseline<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return jsonClone(value);
 }
 
 export function editableAgentProfileBaseline<

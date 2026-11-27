@@ -1,15 +1,8 @@
 <script setup lang="ts">
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  watch
-} from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
+import { useDialogKeyboard } from "../composables/useDialogKeyboard";
 import type {
   LongExecutionStatus,
   LongForeshadowingBeatType,
@@ -1171,57 +1164,10 @@ function activateSummaryItem(item: BeatItem): void {
   openEditBeat(item.thread, item.beat);
 }
 
-function focusableElements(root: HTMLElement | null): HTMLElement[] {
-  return root
-    ? Array.from(
-        root.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((element) => !element.hasAttribute("hidden"))
-    : [];
-}
-
-function trapFocus(event: KeyboardEvent, root: HTMLElement | null): void {
-  if (
-    event.key !== "Tab" ||
-    !root ||
-    !(event.target instanceof Node) ||
-    !root.contains(event.target)
-  ) {
-    return;
-  }
-  const elements = focusableElements(root);
-  if (!elements.length) {
-    event.preventDefault();
-    root.focus({ preventScroll: true });
-    return;
-  }
-  const first = elements[0]!;
-  const last = elements.at(-1)!;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus({ preventScroll: true });
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus({ preventScroll: true });
-  }
-}
-
-function handleDocumentKeydown(event: KeyboardEvent): void {
-  if (formOpen.value) {
-    if (event.key === "Escape") {
-      closeForm();
-      return;
-    }
-    trapFocus(event, formDialog.value);
-    return;
-  }
-}
-
-onMounted(() => document.addEventListener("keydown", handleDocumentKeydown));
-onBeforeUnmount(() =>
-  document.removeEventListener("keydown", handleDocumentKeydown)
-);
+useDialogKeyboard(formDialog, {
+  isOpen: () => formOpen.value,
+  close: closeForm
+});
 </script>
 
 <template>

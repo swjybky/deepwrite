@@ -5,10 +5,6 @@ import {
 
 const MAX_RETRY_AFTER_MS = 10_000;
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function httpUrl(value: string): string | undefined {
   try {
     const url = new URL(value);

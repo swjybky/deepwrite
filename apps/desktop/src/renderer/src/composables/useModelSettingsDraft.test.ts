@@ -38,16 +38,18 @@ function setup() {
     testingModelId: null
   });
   const saveModels = vi.fn();
+  const cancelTestModel = vi.fn();
   const scope = effectScope();
   scopes.push(scope);
   const draft = scope.run(() =>
     useModelSettingsDraft(props, {
       saveModels,
       testModel: vi.fn(),
+      cancelTestModel,
       editorOpened: vi.fn()
     })
   )!;
-  return { props, saveModels, draft };
+  return { props, saveModels, cancelTestModel, draft };
 }
 
 beforeEach(() => setActivePinia(createPinia()));
@@ -197,5 +199,45 @@ describe("model configuration persistence", () => {
         ]
       })
     );
+  });
+
+  it("ignores stale capacity results whose configSignature no longer matches and does not disrupt an open editor", async () => {
+    const { draft, saveModels } = setup();
+    const settingsStore = useSettingsStore();
+    draft.openAdvancedConfig(model("existing"));
+    settingsStore.lastModelTestCapacity = {
+      modelId: "existing",
+      contextWindow: 128_000,
+      maxTokens: 16_000,
+      supportsDeveloperRole: false,
+      configSignature: "stale-signature"
+    };
+    await nextTick();
+    expect(draft.draftModels.value[0]?.supportsDeveloperRole).toBeUndefined();
+    expect(saveModels).not.toHaveBeenCalled();
+  });
+
+  it("silently cancels active tests when deleting a model or closing an unsaved new-model editor", () => {
+    const { draft, cancelTestModel } = setup();
+    const settingsStore = useSettingsStore();
+
+    draft.createModel("llm");
+    const newModelId = draft.modelEditor.value!.id;
+    settingsStore.modelTestStates = {
+      [newModelId]: {
+        modelId: newModelId,
+        modelLabel: "New",
+        requestId: "req_new",
+        configSignature: "sig_new",
+        status: "testing",
+        message: "正在测试连接…",
+        updatedAt: Date.now()
+      }
+    };
+    draft.cancelModelEditor();
+    expect(cancelTestModel).toHaveBeenCalledWith(newModelId, { silent: true });
+
+    draft.removeModel("existing");
+    expect(cancelTestModel).toHaveBeenCalledWith("existing", { silent: true });
   });
 });

@@ -1,8 +1,15 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { createScopedTranslator } from "../i18n";
 import type { ModelConfigInput } from "@deepwrite/contracts";
 import { useJevModelEditor } from "../composables/useJevModelEditor";
 import type { ModelEditorSavePayload } from "../composables/useModelEditor";
+import {
+  isModelTestActiveStatus,
+  modelTestConfigSignature,
+  type ModelTestStateEntry
+} from "../utils/modelTestState";
+import ModelTestStatusNote from "./ModelTestStatusNote.vue";
 import type { DraftModel } from "./modelSettingsDraft";
 import PopupSelect from "./PopupSelect.vue";
 
@@ -16,12 +23,14 @@ const props = defineProps<{
   editing: boolean;
   saving: boolean;
   testingModelId: string | null;
+  modelTestState?: ModelTestStateEntry | undefined;
 }>();
 
 const emit = defineEmits<{
   cancel: [];
   save: [payload: ModelEditorSavePayload];
   test: [model: ModelConfigInput];
+  cancelTest: [modelId: string];
 }>();
 
 const {
@@ -42,6 +51,16 @@ const {
   save: (payload) => emit("save", payload),
   test: (model) => emit("test", model)
 });
+
+const isCurrentTesting = computed(() =>
+  props.modelTestState
+    ? isModelTestActiveStatus(props.modelTestState.status)
+    : props.testingModelId === editor.value.id
+);
+const isCurrentCancelling = computed(
+  () => props.modelTestState?.status === "cancelling"
+);
+const editorSignature = computed(() => modelTestConfigSignature(editor.value));
 </script>
 
 <template>
@@ -163,16 +182,28 @@ const {
         {{ tm("clearSavedKey") }}
       </button>
     </div>
+    <ModelTestStatusNote
+      :entry="modelTestState"
+      :current-signature="editorSignature"
+    />
     <div class="dialog-actions">
+      <button
+        v-if="isCurrentTesting"
+        class="dialog-secondary-button"
+        type="button"
+        :disabled="isCurrentCancelling"
+        @click="emit('cancelTest', editor.id)"
+      >
+        {{ isCurrentCancelling ? tm("cancelingTest") : tm("cancelTest") }}
+      </button>
       <button
         class="dialog-secondary-button"
         type="button"
-        :disabled="testingModelId !== null"
+        :disabled="isCurrentTesting"
+        :aria-busy="isCurrentTesting"
         @click="test"
       >
-        {{
-          testingModelId === editor.id ? tm("testing") : ts("testConnection")
-        }}
+        {{ isCurrentTesting ? tm("testing") : ts("testConnection") }}
       </button>
       <button class="dialog-primary-button" type="button" @click="save">
         {{ saving ? tm("saving") : ta("save") }}

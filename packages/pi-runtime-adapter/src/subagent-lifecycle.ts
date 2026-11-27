@@ -3,7 +3,10 @@ import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { AgentRuntimeRef } from "@deepwrite/contracts";
 import { runAgentWithTurnRetries } from "./agent-turn-retry";
 import { createWriteApprovalGate } from "./kernel/write-approval-gate";
-import { createSubagentReplyGuard } from "./subagent-reply-guard";
+import {
+  createSubagentReplyGuard,
+  sanitizeSubagentContextMessages
+} from "./subagent-reply-guard";
 import { createSubagentFailureHandoff } from "./subagent-failure-handoff";
 import {
   RunContextManager,
@@ -18,7 +21,6 @@ import {
   isAssistantMessage,
   namespaceChildToolCallId,
   summarizeToolResult,
-  normalizeUsage,
   usageObservationStatus,
   readAssistantText,
   SUBAGENT_SUMMARY_MAX_LENGTH
@@ -29,6 +31,7 @@ import type {
   SubagentTaskOutcome,
   SubagentToolProgress
 } from "./subagent-types";
+import { normalizeUsage } from "./event-mapping";
 export async function runSubagentLifecycle(
   child: Agent,
   input: BuildSpawnSubagentToolInput,
@@ -51,7 +54,14 @@ export async function runSubagentLifecycle(
   let terminalAborted = false;
   let acceptingActivity = true;
   let cutOff = false;
-  const replies = createSubagentReplyGuard(child);
+  const replies = createSubagentReplyGuard(child, input.promptLocale);
+  const previousTransformContext = child.transformContext;
+  child.transformContext = async (messages, transformSignal) => {
+    const baseMessages = previousTransformContext
+      ? await previousTransformContext(messages, transformSignal)
+      : messages;
+    return sanitizeSubagentContextMessages(baseMessages);
+  };
   const writeApprovalGate =
     input.pausesForWriteApproval && input.requestUserInput
       ? createWriteApprovalGate({
@@ -396,6 +406,11 @@ export async function runSubagentLifecycle(
           : "子智能体运行失败。";
   } finally {
     acceptingActivity = false;
+    if (previousTransformContext) {
+      child.transformContext = previousTransformContext;
+    } else {
+      delete child.transformContext;
+    }
     if (timeout) clearTimeout(timeout);
     resolveEarly = undefined;
     signal?.removeEventListener("abort", abortChild);
@@ -412,7 +427,9 @@ export async function runSubagentLifecycle(
       .slice(0, SUBAGENT_SUMMARY_MAX_LENGTH);
     if (!summary) {
       status = "error";
-      errorMessage = "子智能体没有生成可交接的摘要。";
+      errorMessage = replies.hadEmptyReplies()
+        ? "子智能体连续返回空回复（没有正文或工具调用），没有生成可交接的摘要。"
+        : "子智能体没有生成可交接的摘要。";
     }
   }
   if (status !== "completed") {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { CommandEnvelope, CommandResult } from "@deepwrite/contracts";
 import { SiteQuotaMergeError } from "../deepwrite-site-quota-merge";
+import { rejectedResult } from "./errors";
 
 interface SiteOfficialOperationState {
   revision: string;
@@ -25,11 +26,7 @@ export function rejectSiteOfficialOperation(
     error instanceof SiteQuotaMergeError
       ? error
       : new SiteQuotaMergeError("merge_result_unknown");
-  return {
-    status: "rejected",
-    requestId: command.id,
-    error: { code: safe.code, message: safe.message }
-  };
+  return rejectedResult(command.id, safe.code, safe.message);
 }
 
 // All IPC routes capable of replacing the new-site key share this lock,

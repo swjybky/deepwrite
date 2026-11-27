@@ -197,6 +197,9 @@ export function planExtrasRun(input: ExtrasAgentRunInput): AgentRunPlan {
           model: context.model,
           thinkingLevel: context.thinkingLevel,
           streamFn: context.spawnStreamFn,
+          ...(context.evaluationMode !== undefined
+            ? { evaluationMode: context.evaluationMode }
+            : {}),
           getParentMessages: context.getParentMessages,
           definitions: orchestration.definitions,
           prepareChild: orchestration.prepareChild,

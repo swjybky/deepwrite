@@ -25,10 +25,6 @@ export type {
   WorkspaceFeatureHostNotifications
 } from "./workspaceFeatureHostTypes";
 
-function errorMessage(error: unknown, fallback: string): string {
-  return formatError(error, fallback);
-}
-
 /**
  * Owns navigation and render descriptors for the mutually exclusive workspace
  * feature pages. Loader/action ports are deliberately invoked only from public
@@ -157,7 +153,7 @@ export function useWorkspaceFeatureHostCoordinator(
       } catch (error: unknown) {
         if (navigationIsCurrent(generation)) {
           options.notifications.error(
-            errorMessage(
+            formatError(
               error,
               mode === "revision-analysis"
                 ? t("couldNotLoadTheRevisionAnalysisModule")
@@ -232,7 +228,7 @@ export function useWorkspaceFeatureHostCoordinator(
     } catch (error: unknown) {
       if (navigationIsCurrent(generation)) {
         options.notifications.error(
-          errorMessage(error, t("couldNotLoadTheAgentTeamsModule"))
+          formatError(error, t("couldNotLoadTheAgentTeamsModule"))
         );
       }
       return;

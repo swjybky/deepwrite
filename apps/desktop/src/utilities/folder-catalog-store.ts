@@ -1,4 +1,15 @@
 import {
+  findBuiltinGroup,
+  findBuiltinLibrary,
+  getBuiltinIndexMaterialLibraries,
+  getBuiltinIndexSkillLibraries,
+  getBuiltinMaterialGroups,
+  getBuiltinMaterialLibraries,
+  getBuiltinSkillGroups,
+  getBuiltinSkillLibraries,
+  isBuiltinCatalogProjectId
+} from "./builtin-libraries";
+import {
   queryWritingWorkspace,
   writingFileMetrics
 } from "./folder-catalog-store/writing-read";
@@ -22,7 +33,6 @@ import {
   commitStructureTransaction,
   recoverStructureTransaction
 } from "./folder-catalog-store/structure-transaction";
-import { projectTransactionContentSha256 as structureSha } from "./project-transaction";
 import {
   LibraryStructurePlanSchema,
   type LibraryStructureRequest,
@@ -98,24 +108,14 @@ import {
 import {
   createCatalogId,
   randomHex8,
-  reorderItemsByAnchor
+  reorderItemsByAnchor,
+  isRecord
 } from "@deepwrite/shared";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  realpath,
-  rename,
-  stat,
-  unlink,
-  writeFile
-} from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { mkdir, rename, stat, unlink } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
   AcademicBookSchema,
-  BookProjectManifestSchema,
   CreativeBookSchema,
   type CreativeBook,
   BookSchema,
@@ -127,8 +127,6 @@ import {
   CreateDraftSectionsInputSchema,
   CreateDraftSectionsResultSchema,
   CatalogDraftRecoverySchema,
-  CatalogProjectContentPathSchema,
-  CatalogProjectManifestSchema,
   CatalogLegacyImportSchema,
   CatalogIndexBookSchema,
   CatalogIndexSnapshotSchema,
@@ -142,18 +140,15 @@ import {
   CreateScriptBookInputSchema,
   CreateShortBookInputSchema,
   CurrentAcademicBookProjectManifestSchema,
-  CurrentBookProjectManifestSchema,
   DeleteDraftSectionInputSchema,
   MoveDraftSectionInputSchema,
   DuplicateCatalogProjectInputSchema,
-  LegacyBookProjectManifestSchema,
   MutateCharacterStructureInputSchema,
   MutatePlotStructureInputSchema,
   ReadWritingContextInputSchema,
   ReadWritingContextResultSchema,
   SaveDocumentInputSchema,
   SaveDocumentResultSchema,
-  MaterialGroupProjectManifestSchema,
   MaterialLibraryGroupSchema,
   MaterialLibrarySchema,
   MaterialLibraryProjectManifestSchema,
@@ -164,7 +159,6 @@ import {
   ImportLibraryEntriesInputSchema,
   SaveLibraryEntryInputSchema,
   MoveLibraryEntryInputSchema,
-  SkillGroupProjectManifestSchema,
   SkillLibraryGroupSchema,
   SkillLibrarySchema,
   SkillLibraryProjectManifestSchema,
@@ -188,23 +182,19 @@ import {
   type AcademicManuscriptSectionManifest,
   type BookProjectDraftSectionManifest,
   type BookProjectDocumentManifest,
-  type BookProjectManifest,
   type Book,
   type CatalogDraftSection,
   type CatalogLegacyImport,
   type CatalogIndexSnapshot,
   type CatalogReadDocumentInput,
   type CatalogReadDocumentResult,
-  type CatalogProjectManifest,
   type CatalogProjectDiagnostic,
   type CatalogDraftRecovery,
   type CatalogSnapshot,
   type CreateAcademicBookInput,
   type CreateAcademicReferenceCardInput,
   type CreateAcademicReferenceCardResult,
-  type CreateLibraryInput,
   type UpdateLibraryInput,
-  type CreateLibraryGroupInput,
   type CreateScriptBookInput,
   type CreateShortBookInput,
   type CreateDraftSectionInput,
@@ -212,18 +202,14 @@ import {
   type CreateDraftSectionsResult,
   type CreativePlotStage,
   type CurrentAcademicBookProjectManifest,
-  type CurrentBookProjectManifest,
   type DeleteAcademicReferenceCardInput,
   type DeleteAcademicReferenceCardResult,
   type DeleteDraftSectionInput,
   type DeleteDraftSectionResult,
-  type DeleteCatalogProjectInput,
-  type DeleteCatalogProjectResult,
   type MoveDraftSectionInput,
   type MoveDraftSectionResult,
   type DuplicateCatalogProjectInput,
   type DuplicateCatalogProjectResult,
-  type LegacyBookProjectManifest,
   type MaterialLibraryProjectManifest,
   type MaterialLibrary,
   type CatalogLibrary,
@@ -248,7 +234,6 @@ import {
   type SaveLibraryEntryInput,
   type MoveLibraryEntryInput,
   type MoveLibraryEntryResult,
-  type SaveDocumentInput,
   type SaveDocumentResult,
   type ScriptBook,
   type ShortBook,
@@ -259,12 +244,12 @@ import {
   type SkillStageId,
   type UpdateAcademicReferenceCardInput,
   type UpdateAcademicReferenceCardResult,
-  type UpdateBookInput,
   type UpdateLibraryGroupInput,
   type WriteWritingContextInput,
   type WriteWritingContextResult,
   type V2BookProjectManifest,
-  type V3BookProjectManifest
+  type V3BookProjectManifest,
+  chineseSectionNumber
 } from "@deepwrite/contracts";
 import {
   initializeWritingContextFile,
@@ -278,121 +263,86 @@ import {
 } from "./folder-catalog-store/library-package-import";
 import { nextCopyTitle } from "./copy-title";
 import { projectTransactionFileIdentity } from "./project-transaction";
-
-const MANIFEST_FILE = "deepwrite.json";
-const REGISTRY_FILE = "catalog-registry.json";
-const REGISTRY_BACKUP_FILE = "catalog-registry.json.bak";
-const DRAFT_RECOVERY_FILE = "draft-recovery.json";
-const DEFAULT_MAX_MANIFEST_BYTES = 1024 * 1024;
-const DEFAULT_MAX_MARKDOWN_BYTES = 32 * 1024 * 1024;
-const DEFAULT_MAX_PROJECT_CONTENT_BYTES = 128 * 1024 * 1024;
-const DEFAULT_MAX_SNAPSHOT_CONTENT_BYTES = 256 * 1024 * 1024;
-const DEFAULT_MAX_DRAFT_RECOVERY_BYTES = 128 * 1024 * 1024;
-
-export const FolderBookProjectManifestSchema = BookProjectManifestSchema;
-export const FolderCurrentBookProjectManifestSchema =
-  CurrentBookProjectManifestSchema;
-export const FolderLegacyBookProjectManifestSchema =
-  LegacyBookProjectManifestSchema;
-export const FolderMaterialProjectManifestSchema =
-  MaterialLibraryProjectManifestSchema;
-export const FolderSkillProjectManifestSchema =
-  SkillLibraryProjectManifestSchema;
-export const FolderMaterialGroupProjectManifestSchema =
-  MaterialGroupProjectManifestSchema;
-export const FolderSkillGroupProjectManifestSchema =
-  SkillGroupProjectManifestSchema;
-export const FolderCatalogProjectManifestSchema = CatalogProjectManifestSchema;
-
-export type FolderBookProjectManifest = BookProjectManifest;
-export type FolderCurrentBookProjectManifest = CurrentBookProjectManifest;
-export type FolderLegacyBookProjectManifest = LegacyBookProjectManifest;
-export type FolderMaterialProjectManifest = MaterialLibraryProjectManifest;
-export type FolderSkillProjectManifest = SkillLibraryProjectManifest;
-export type FolderCatalogProjectManifest = CatalogProjectManifest;
-
-interface WriteMissingSnapshotProjectsResult {
-  registry: FolderCatalogRegistry;
-  createdProjectDirectories: string[];
-}
-
-export type FolderCatalogResource =
-  | Book
-  | MaterialLibrary
-  | MaterialLibraryGroup
-  | SkillLibrary
-  | SkillLibraryGroup;
-
-interface CatalogContentMetadata {
-  contentBytes: number;
-  contentStamp: string;
-}
-
-export interface OpenFolderCatalogProjectResult<
-  Resource extends FolderCatalogResource = FolderCatalogResource
-> {
-  domain: FolderCatalogProjectDomain;
-  projectDirectory: string;
-  revision: number;
-  resource: Resource;
-}
-
-export interface FolderCatalogStoreOptions {
-  userDataPath: string;
-  initialSnapshot?: CatalogSnapshot;
-  now?: () => string;
-  maxManifestBytes?: number;
-  maxMarkdownBytes?: number;
-  maxProjectContentBytes?: number;
-  maxSnapshotContentBytes?: number;
-  maxDraftRecoveryBytes?: number;
-}
-
-export interface CreateShortBookAtDirectoryInput {
-  parentDirectory?: string;
-  input: CreateShortBookInput;
-}
-
-export interface CreateScriptBookAtDirectoryInput {
-  parentDirectory?: string;
-  input: CreateScriptBookInput;
-}
+import { adoptManagedMaterialReceipt } from "./folder-catalog-store/managed-receipt";
+import {
+  readManagedLibrary,
+  writeManagedEntries,
+  type ManagedEntriesWrite
+} from "./folder-catalog-store/managed-batch";
+import {
+  assertJsonByteLength,
+  assertTextByteLength,
+  writeBoundedProjectJson,
+  writeProjectTextAtomic,
+  availableProjectDirectory,
+  cleanupNewProjectDirectories,
+  commitProjectFileCreations,
+  commitProjectMarkdownUpdate,
+  parseJson,
+  pathExists,
+  portableContentPathKey,
+  readOptionalUtf8File,
+  readProjectMarkdown,
+  readRequiredUtf8File,
+  removeEmptyOrPartialProject,
+  secureDirectory,
+  secureExistingProjectPath,
+  secureProjectRoot,
+  secureWritableProjectPath,
+  uniqueRelativeMarkdownPath,
+  uniqueRelativeMarkdownPathWithSuffix,
+  unlinkOptional
+} from "./folder-catalog-store/paths-io";
+import {
+  type CatalogContentMetadata,
+  type CreateFolderLibraryEntryInput,
+  type CreateFolderLibraryGroupInput,
+  type CreateFolderLibraryInput,
+  type CreateScriptBookAtDirectoryInput,
+  type CreateShortBookAtDirectoryInput,
+  DEFAULT_MAX_DRAFT_RECOVERY_BYTES,
+  DEFAULT_MAX_MANIFEST_BYTES,
+  DEFAULT_MAX_MARKDOWN_BYTES,
+  DEFAULT_MAX_PROJECT_CONTENT_BYTES,
+  DEFAULT_MAX_SNAPSHOT_CONTENT_BYTES,
+  DRAFT_RECOVERY_FILE,
+  type DeleteFolderCatalogProjectInput,
+  type DeleteFolderCatalogProjectResult,
+  type DuplicateProjectWritePlan,
+  type FolderBookProjectManifest,
+  FolderCatalogConflictError,
+  type FolderCatalogLibraryDomain,
+  type FolderCatalogProjectManifest,
+  FolderCatalogProjectManifestSchema,
+  type FolderCatalogResource,
+  type FolderCatalogStoreOptions,
+  type FolderCatalogUnregisterDomain,
+  type FolderCurrentBookProjectManifest,
+  FolderCurrentBookProjectManifestSchema,
+  type FolderLegacyBookProjectManifest,
+  FolderMaterialGroupProjectManifestSchema,
+  FolderMaterialProjectManifestSchema,
+  FolderSkillGroupProjectManifestSchema,
+  FolderSkillProjectManifestSchema,
+  MANIFEST_FILE,
+  type OpenFolderCatalogProjectResult,
+  REGISTRY_BACKUP_FILE,
+  REGISTRY_FILE,
+  type RemoveFolderLibraryEntryInput,
+  type RemoveFolderLibraryEntryResult,
+  type SaveFolderDocumentInput,
+  type UnregisterFolderCatalogProjectInput,
+  type UnregisterFolderCatalogProjectResult,
+  type UpdateFolderBookInput,
+  type WriteMissingSnapshotProjectsResult
+} from "./folder-catalog-store/types";
+import { isNodeError, sha256Hex } from "@deepwrite/shared/node";
+export * from "./folder-catalog-store/types";
 
 export interface CreateAcademicBookAtDirectoryInput {
   parentDirectory?: string;
   input: CreateAcademicBookInput;
 }
-
-export type FolderCatalogLibraryDomain = "material" | "skill";
-
-export type CreateFolderLibraryInput = CreateLibraryInput & {
-  id?: string;
-  parentDirectory?: string | undefined;
-  unbound?: boolean;
-};
-
-export type CreateFolderLibraryGroupInput = CreateLibraryGroupInput & {
-  id?: string;
-  parentDirectory?: string | undefined;
-};
-
-interface CreateFolderLibraryEntryInputBase {
-  libraryId: string;
-  title: string;
-  content: string;
-  baseProjectRevision?: number | undefined;
-  force?: boolean | undefined;
-}
-
-export type CreateFolderLibraryEntryInput =
-  | (CreateFolderLibraryEntryInputBase & {
-      domain: "material";
-      stageId?: MaterialStageId | undefined;
-    })
-  | (CreateFolderLibraryEntryInputBase & {
-      domain: "skill";
-      stageId?: SkillStageId | undefined;
-    });
 
 function nextImportedEntryTitle(
   sourceTitle: string,
@@ -419,72 +369,6 @@ function nextImportedEntryTitle(
   throw new Error("无法为导入条目生成不重复的标题。");
 }
 
-export interface RemoveFolderLibraryEntryInput {
-  domain: FolderCatalogLibraryDomain;
-  libraryId: string;
-  entryId: string;
-  baseRevision?: string | undefined;
-  baseProjectRevision?: number | undefined;
-  force?: boolean | undefined;
-}
-
-export interface RemoveFolderLibraryEntryResult {
-  libraryId: string;
-  entryId: string;
-  deleted: boolean;
-}
-
-export type FolderCatalogUnregisterDomain =
-  | "book"
-  | FolderCatalogLibraryDomain
-  | "material-library"
-  | "material-group"
-  | "skill-library"
-  | "skill-group";
-
-export interface UnregisterFolderCatalogProjectInput {
-  projectId: string;
-  domain: FolderCatalogUnregisterDomain;
-}
-
-export interface UnregisterFolderCatalogProjectResult {
-  projectId: string;
-  domain: FolderCatalogUnregisterDomain;
-  unregistered: boolean;
-}
-
-export type DeleteFolderCatalogProjectInput = DeleteCatalogProjectInput;
-export type DeleteFolderCatalogProjectResult = DeleteCatalogProjectResult;
-
-interface DuplicateProjectWritePlan {
-  domain: FolderCatalogProjectDomain;
-  parentDirectory: string;
-  resource: FolderCatalogResource;
-  writingContext?: string;
-  sourceBookDirectory?: string;
-}
-
-export type SaveFolderDocumentInput = SaveDocumentInput;
-
-export type UpdateFolderBookInput = UpdateBookInput;
-
-export class FolderCatalogConflictError extends Error {
-  readonly expectedRevision: string | number;
-  readonly actualRevision: string | number;
-
-  constructor(
-    expectedRevision: string | number,
-    actualRevision: string | number
-  ) {
-    super(
-      `项目已在其他位置更新（期望版本 ${expectedRevision}，当前版本 ${actualRevision}）。`
-    );
-    this.name = "FolderCatalogConflictError";
-    this.expectedRevision = expectedRevision;
-    this.actualRevision = actualRevision;
-  }
-}
-
 export class FolderCatalogStore {
   readonly registryPath: string;
   readonly registryBackupPath: string;
@@ -494,6 +378,7 @@ export class FolderCatalogStore {
     Record<FolderCatalogProjectDomain, string>
   >;
 
+  private readonly includeBuiltinLibraries: boolean;
   private readonly initialSnapshot: CatalogSnapshot | undefined;
   private readonly now: () => string;
   private readonly maxManifestBytes: number;
@@ -528,6 +413,7 @@ export class FolderCatalogStore {
       "skill-library": join(this.projectsRoot, "skills"),
       "skill-group": join(this.projectsRoot, "skill-groups")
     };
+    this.includeBuiltinLibraries = Boolean(options.includeBuiltinLibraries);
     this.initialSnapshot = options.initialSnapshot
       ? CatalogSnapshotSchema.parse(structuredClone(options.initialSnapshot))
       : undefined;
@@ -559,7 +445,21 @@ export class FolderCatalogStore {
     );
   }
 
+  private isVirtualBuiltinId(id: string): boolean {
+    return this.includeBuiltinLibraries && isBuiltinCatalogProjectId(id);
+  }
+
+  private assertNotBuiltinCatalogProject(
+    id: string,
+    message = "内置资料库为只读，不能修改，请先复制后再自定义。"
+  ): void {
+    if (this.isVirtualBuiltinId(id)) {
+      throw new Error(message);
+    }
+  }
+
   async writeManagedEntry(input: ManagedMaterialEntryInput) {
+    this.assertNotBuiltinCatalogProject(input.libraryId);
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(
@@ -588,6 +488,7 @@ export class FolderCatalogStore {
     });
   }
   async writeManagedEntries(input: ManagedEntriesWrite) {
+    this.assertNotBuiltinCatalogProject(input.libraryId);
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(
@@ -607,6 +508,7 @@ export class FolderCatalogStore {
     libraryId: string,
     receipt: import("@deepwrite/contracts").DecompositionReceipt
   ) {
+    this.assertNotBuiltinCatalogProject(libraryId);
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(
@@ -656,13 +558,13 @@ export class FolderCatalogStore {
     const input = LibraryStructurePlanSchema.parse(raw);
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
-      const receiptPath = `library-structure-receipts/${structureSha(input.requestId)}.json`;
+      const receiptPath = `library-structure-receipts/${sha256Hex(input.requestId)}.json`;
       const receipt = await readOptionalUtf8File(
         join(dirname(this.registryPath), receiptPath),
         1024 * 1024,
         "organization receipt"
       );
-      const identity = structureSha(JSON.stringify(input));
+      const identity = sha256Hex(JSON.stringify(input));
       if (receipt) {
         if (JSON.parse(receipt).identity !== identity)
           throw new Error("整理请求标识已用于不同的操作。");
@@ -769,6 +671,12 @@ export class FolderCatalogStore {
     rawInput: ReorderLibraryInput
   ): Promise<LibraryOrganization> {
     const input = ReorderLibraryInputSchema.parse(rawInput);
+    if (input.groupId) {
+      this.assertNotBuiltinCatalogProject(
+        input.groupId,
+        "内置资料分组内顺序不可修改。"
+      );
+    }
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const organization =
@@ -914,6 +822,52 @@ export class FolderCatalogStore {
         input.projectId = location.libraryId;
         input.documentId = location.entryId;
       }
+      const builtinLibrary = this.includeBuiltinLibraries
+        ? findBuiltinLibrary(input.projectId)?.library
+        : undefined;
+      if (builtinLibrary) {
+        if (input.target === "overview") {
+          assertTextByteLength(
+            builtinLibrary.overview,
+            this.maxMarkdownBytes,
+            "library overview"
+          );
+          return CatalogReadDocumentResultSchema.parse({
+            projectId: input.projectId,
+            target: "overview",
+            title: builtinLibrary.title,
+            content: builtinLibrary.overview,
+            contentBytes: Buffer.byteLength(builtinLibrary.overview, "utf8"),
+            revision: createShortWorkspaceContentRevision(
+              builtinLibrary.overview
+            ),
+            projectRevision: builtinLibrary.projectRevision ?? 0,
+            updatedAt: builtinLibrary.updatedAt
+          });
+        }
+        const entry = builtinLibrary.entries.find(
+          ({ id }) => id === input.documentId
+        );
+        if (!entry) {
+          throw new Error("文档不存在或不属于指定项目。");
+        }
+        assertTextByteLength(
+          entry.body,
+          this.maxMarkdownBytes,
+          "Markdown content"
+        );
+        return CatalogReadDocumentResultSchema.parse({
+          projectId: input.projectId,
+          target: "document",
+          documentId: input.documentId,
+          title: entry.title,
+          content: entry.body,
+          contentBytes: Buffer.byteLength(entry.body, "utf8"),
+          revision: createShortWorkspaceContentRevision(entry.body),
+          projectRevision: builtinLibrary.projectRevision ?? 0,
+          updatedAt: entry.updatedAt
+        });
+      }
       const registration = findRegistrationByProjectId(
         registry,
         input.projectId
@@ -1038,7 +992,7 @@ export class FolderCatalogStore {
   async saveDraftRecovery(rawDrafts: CatalogDraftRecovery): Promise<void> {
     const drafts = CatalogDraftRecoverySchema.parse(rawDrafts);
     await this.mutate(async () => {
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         this.draftRecoveryPath,
         drafts,
         this.maxDraftRecoveryBytes
@@ -1342,6 +1296,7 @@ export class FolderCatalogStore {
     rawInput: UpdateLibraryInput
   ): Promise<MaterialLibrary | SkillLibrary> {
     const input = UpdateLibraryInputSchema.parse(rawInput);
+    this.assertNotBuiltinCatalogProject(input.libraryId);
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       if (
@@ -1394,7 +1349,7 @@ export class FolderCatalogStore {
               revision: manifest.revision + 1,
               updatedAt: now
             });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         next,
         this.maxManifestBytes
@@ -1429,7 +1384,13 @@ export class FolderCatalogStore {
           snapshot.materials.map((library) => [library.id, library])
         );
         for (const libraryId of input.memberIds) {
+          this.assertNotBuiltinCatalogProject(
+            libraryId,
+            "内置资料库不能加入自定义分组，请先复制后再分组。"
+          );
           const library = libraries.get(libraryId);
+          if (library?.isBuiltin)
+            throw new Error("内置资料库不能加入自定义分组，请先复制后再分组。");
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建素材分组引用了不存在的素材库：${libraryId}`);
@@ -1445,7 +1406,13 @@ export class FolderCatalogStore {
           snapshot.skills.map((library) => [library.id, library])
         );
         for (const libraryId of input.memberIds) {
+          this.assertNotBuiltinCatalogProject(
+            libraryId,
+            "内置资料库不能加入自定义分组，请先复制后再分组。"
+          );
           const library = libraries.get(libraryId);
+          if (library?.isBuiltin)
+            throw new Error("内置资料库不能加入自定义分组，请先复制后再分组。");
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`新建技能分组引用了不存在的技能库：${libraryId}`);
@@ -1555,14 +1522,21 @@ export class FolderCatalogStore {
     const libraryDomain = libraryProjectDomain(input.domain);
     return await this.readAfterWrites(async () => {
       const registry = await this.ensureRegistry();
-      const readLibrary = async (id: string) =>
-        (
+      const readLibrary = async (id: string) => {
+        const builtinLibrary = this.includeBuiltinLibraries
+          ? findBuiltinLibrary(id)
+          : undefined;
+        if (builtinLibrary && builtinLibrary.domain === input.domain) {
+          return builtinLibrary.library;
+        }
+        return (
           await this.readProject(
             findRegistration(registry, id, libraryDomain).projectDirectory,
             libraryDomain,
             id
           )
         ).resource as CatalogLibrary;
+      };
       if (input.target.type === "library") {
         return {
           domain: input.domain,
@@ -1572,14 +1546,20 @@ export class FolderCatalogStore {
       }
       const groupDomain =
         input.domain === "material" ? "material-group" : "skill-group";
-      const group = (
-        await this.readProject(
-          findRegistration(registry, input.target.id, groupDomain)
-            .projectDirectory,
-          groupDomain,
-          input.target.id
-        )
-      ).resource as MaterialLibraryGroup | SkillLibraryGroup;
+      const builtinGroup = this.includeBuiltinLibraries
+        ? findBuiltinGroup(input.target.id)
+        : undefined;
+      const group =
+        builtinGroup && builtinGroup.domain === groupDomain
+          ? builtinGroup.group
+          : ((
+              await this.readProject(
+                findRegistration(registry, input.target.id, groupDomain)
+                  .projectDirectory,
+                groupDomain,
+                input.target.id
+              )
+            ).resource as MaterialLibraryGroup | SkillLibraryGroup);
       const members: LibraryPackageExportSource["members"][number][] = [];
       for (const id of group.memberIds) {
         try {
@@ -1750,7 +1730,7 @@ export class FolderCatalogStore {
           },
           snapshot
         );
-        await atomicWriteJson(
+        await writeBoundedProjectJson(
           join(opened.projectDirectory, MANIFEST_FILE),
           validated,
           this.maxManifestBytes
@@ -1794,7 +1774,7 @@ export class FolderCatalogStore {
         { ...input, title: validated.title },
         snapshot
       );
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(opened.projectDirectory, MANIFEST_FILE),
         validated,
         this.maxManifestBytes
@@ -1915,7 +1895,7 @@ export class FolderCatalogStore {
           plotStages: BookPlotStagesSchema.parse(plotStages),
           updatedAt: now
         });
-        await atomicWriteJson(
+        await writeBoundedProjectJson(
           join(projectDirectory, MANIFEST_FILE),
           nextManifest,
           this.maxManifestBytes
@@ -2168,7 +2148,7 @@ export class FolderCatalogStore {
           });
           try {
             if (createdPath) {
-              await atomicWriteText(
+              await writeProjectTextAtomic(
                 await secureWritableProjectPath(projectDirectory, createdPath),
                 original
               );
@@ -2403,7 +2383,7 @@ export class FolderCatalogStore {
             documents,
             updatedAt: now
           });
-          await atomicWriteJson(
+          await writeBoundedProjectJson(
             join(projectDirectory, MANIFEST_FILE),
             next,
             this.maxManifestBytes
@@ -2658,7 +2638,7 @@ export class FolderCatalogStore {
         documents,
         updatedAt: now
       });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         nextManifest,
         this.maxManifestBytes
@@ -2702,7 +2682,7 @@ export class FolderCatalogStore {
         plotStages: BookPlotStagesSchema.parse(plotStages),
         updatedAt: now
       });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         nextManifest,
         this.maxManifestBytes
@@ -2772,7 +2752,7 @@ export class FolderCatalogStore {
         assertJsonByteLength(nextManifest, this.maxManifestBytes);
         await rename(target, backup);
         try {
-          await atomicWriteJson(
+          await writeBoundedProjectJson(
             join(projectDirectory, MANIFEST_FILE),
             nextManifest,
             this.maxManifestBytes
@@ -2790,7 +2770,7 @@ export class FolderCatalogStore {
         }
         await unlinkOptional(backup);
       } else {
-        await atomicWriteJson(
+        await writeBoundedProjectJson(
           join(projectDirectory, MANIFEST_FILE),
           nextManifest,
           this.maxManifestBytes
@@ -2803,6 +2783,10 @@ export class FolderCatalogStore {
     rawInput: UpdateLibraryGroupInput
   ): Promise<MaterialLibraryGroup | SkillLibraryGroup> {
     const input = UpdateLibraryGroupInputSchema.parse(rawInput);
+    this.assertNotBuiltinCatalogProject(
+      input.groupId,
+      "内置资料分组为只读，不能修改，请先复制后再自定义。"
+    );
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const projectDomain =
@@ -2835,7 +2819,13 @@ export class FolderCatalogStore {
           snapshot.materials.map((library) => [library.id, library])
         );
         for (const libraryId of input.memberIds) {
+          this.assertNotBuiltinCatalogProject(
+            libraryId,
+            "内置资料库不能加入自定义分组，请先复制后再分组。"
+          );
           const library = libraries.get(libraryId);
+          if (library?.isBuiltin)
+            throw new Error("内置资料库不能加入自定义分组，请先复制后再分组。");
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`素材分组引用了不存在的素材库：${libraryId}`);
@@ -2852,7 +2842,13 @@ export class FolderCatalogStore {
           snapshot.skills.map((library) => [library.id, library])
         );
         for (const libraryId of input.memberIds) {
+          this.assertNotBuiltinCatalogProject(
+            libraryId,
+            "内置资料库不能加入自定义分组，请先复制后再分组。"
+          );
           const library = libraries.get(libraryId);
+          if (library?.isBuiltin)
+            throw new Error("内置资料库不能加入自定义分组，请先复制后再分组。");
           if (library?.isUnbound) throw new Error("未绑定收纳区不能加入分组。");
           if (!library) {
             throw new Error(`技能分组引用了不存在的技能库：${libraryId}`);
@@ -2878,7 +2874,7 @@ export class FolderCatalogStore {
         input.domain === "material"
           ? FolderMaterialGroupProjectManifestSchema.parse(next)
           : FolderSkillGroupProjectManifestSchema.parse(next);
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(opened.projectDirectory, MANIFEST_FILE),
         validated,
         this.maxManifestBytes
@@ -3700,7 +3696,7 @@ export class FolderCatalogStore {
           updatedAt: now
         }
       });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         next,
         this.maxManifestBytes
@@ -3795,7 +3791,7 @@ export class FolderCatalogStore {
           updatedAt: now
         }
       });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         next,
         this.maxManifestBytes
@@ -3817,6 +3813,7 @@ export class FolderCatalogStore {
     rawInput: SaveLibraryEntryInput
   ): Promise<MaterialEntry | SkillEntry> {
     const input = SaveLibraryEntryInputSchema.parse(rawInput);
+    this.assertNotBuiltinCatalogProject(input.libraryId);
     assertTextByteLength(
       input.content,
       this.maxMarkdownBytes,
@@ -3843,6 +3840,9 @@ export class FolderCatalogStore {
         expectedKind,
         input.libraryId
       );
+      if (manifest.kind === "deepwrite.skill-library" && manifest.isBuiltin) {
+        throw new Error("内置技能库条目为只读内容，不能修改。");
+      }
       if (!input.force) {
         assertBaseRevision(input.baseProjectRevision, manifest.revision);
       }
@@ -3961,6 +3961,7 @@ export class FolderCatalogStore {
   ): Promise<MaterialEntry | SkillEntry> {
     const domain = parseLibraryDomain(rawInput.domain);
     const libraryId = parseId(rawInput.libraryId);
+    this.assertNotBuiltinCatalogProject(libraryId);
     const title = parseNonBlankString(rawInput.title, "library entry title");
     if (typeof rawInput.content !== "string") {
       throw new Error("library entry content must be a string.");
@@ -3987,6 +3988,9 @@ export class FolderCatalogStore {
           : "deepwrite.skill-library",
         libraryId
       );
+      if (manifest.kind === "deepwrite.skill-library" && manifest.isBuiltin) {
+        throw new Error("内置技能库为只读内容，不能新增条目。");
+      }
       if (!rawInput.force) {
         assertBaseRevision(rawInput.baseProjectRevision, manifest.revision);
       }
@@ -4078,6 +4082,10 @@ export class FolderCatalogStore {
     rawInput: ImportLibraryEntriesInput
   ): Promise<ImportLibraryEntriesResult> {
     const input = ImportLibraryEntriesInputSchema.parse(rawInput);
+    this.assertNotBuiltinCatalogProject(
+      input.libraryId,
+      "内置资料库为只读内容，不能导入条目。"
+    );
     for (const entry of input.entries) {
       assertTextByteLength(
         entry.content,
@@ -4212,6 +4220,14 @@ export class FolderCatalogStore {
     rawInput: MoveLibraryEntryInput
   ): Promise<MoveLibraryEntryResult> {
     const input = MoveLibraryEntryInputSchema.parse(rawInput);
+    this.assertNotBuiltinCatalogProject(
+      input.sourceLibraryId,
+      "内置资料库条目为只读，不能移动。"
+    );
+    this.assertNotBuiltinCatalogProject(
+      input.targetLibraryId,
+      "内置资料库为只读，不能移入条目。"
+    );
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const sourceDirectory = await secureProjectRoot(
@@ -4348,6 +4364,7 @@ export class FolderCatalogStore {
     const domain = parseLibraryDomain(rawInput.domain);
     const libraryId = parseId(rawInput.libraryId);
     const entryId = parseId(rawInput.entryId);
+    this.assertNotBuiltinCatalogProject(libraryId, "内置资料库条目不能删除。");
     return this.mutate(async () => {
       const registry = await this.ensureRegistry();
       const registration = findRegistration(
@@ -4400,11 +4417,29 @@ export class FolderCatalogStore {
   ): Promise<UnregisterFolderCatalogProjectResult> {
     const projectId = parseId(rawInput.projectId);
     const domain = parseUnregisterDomain(rawInput.domain);
+    this.assertNotBuiltinCatalogProject(
+      projectId,
+      "内置资料库或分组不能移除。"
+    );
     const registryDomain = registryDomainForUnregister(domain);
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
-      if (registry.libraryOrganization?.unboundLibraryIds.includes(projectId))
+      const registration = registry.projects.find(
+        (project) =>
+          project.id === projectId && project.domain === registryDomain
+      );
+      const isUnboundLibrary =
+        (registryDomain === "material-library" ||
+          registryDomain === "skill-library") &&
+        (registry.libraryOrganization?.unboundLibraryIds.includes(projectId) ??
+          false);
+      if (
+        isUnboundLibrary &&
+        registration &&
+        (await this.isRegisteredProjectReadable(registration))
+      ) {
         throw new Error("未绑定收纳区不能作为正式库修改或移除。");
+      }
       const projects = registry.projects.filter(
         (project) =>
           !(project.id === projectId && project.domain === registryDomain)
@@ -4412,8 +4447,16 @@ export class FolderCatalogStore {
       const unregistered = projects.length !== registry.projects.length;
       if (unregistered) {
         const now = this.now();
-        const nextRegistry = {
+        const nextLibraryOrganization = pruneProjectFromLibraryOrganization(
+          registry.libraryOrganization,
+          registryDomain,
+          projectId
+        );
+        const nextRegistry: FolderCatalogRegistry = {
           ...registry,
+          ...(nextLibraryOrganization === undefined
+            ? {}
+            : { libraryOrganization: nextLibraryOrganization }),
           revision: registry.revision + 1,
           updatedAt: now,
           projects
@@ -4447,6 +4490,10 @@ export class FolderCatalogStore {
   async deleteProject(
     rawInput: DeleteFolderCatalogProjectInput
   ): Promise<DeleteFolderCatalogProjectResult> {
+    this.assertNotBuiltinCatalogProject(
+      rawInput.projectId,
+      "内置资料库或分组不能删除。"
+    );
     return await this.mutate(async () => {
       const registry = await this.ensureRegistry();
       if (
@@ -4486,7 +4533,8 @@ export class FolderCatalogStore {
   }
 
   async duplicateProject(
-    rawInput: DuplicateCatalogProjectInput
+    rawInput: DuplicateCatalogProjectInput,
+    targetParents?: Partial<Record<FolderCatalogProjectDomain, string>>
   ): Promise<DuplicateCatalogProjectResult> {
     const input = DuplicateCatalogProjectInputSchema.parse(rawInput);
     return await this.mutate(async () => {
@@ -4514,7 +4562,9 @@ export class FolderCatalogStore {
         );
         plans.push({
           domain: "book",
-          parentDirectory: dirname(registration.projectDirectory),
+          parentDirectory:
+            targetParents?.book?.trim() ||
+            dirname(registration.projectDirectory),
           resource: primaryResource,
           writingContext: sourceWritingContext.content,
           sourceBookDirectory: registration.projectDirectory
@@ -4525,11 +4575,10 @@ export class FolderCatalogStore {
           input.domain === "material" ? snapshot.materials : snapshot.skills;
         const source = libraries.find(({ id }) => id === input.projectId);
         if (!source) throw new Error("未找到要复制的资料库。");
-        const registration = findRegistration(
-          registry,
-          source.id,
-          registryDomain
-        );
+        const isBuiltinSource = this.isVirtualBuiltinId(source.id);
+        const registration = isBuiltinSource
+          ? undefined
+          : findRegistration(registry, source.id, registryDomain);
         const titlePool =
           input.domain === "material" ? materialTitles : skillTitles;
         const title = nextCopyTitle(source.title, titlePool);
@@ -4537,11 +4586,10 @@ export class FolderCatalogStore {
         plans.push({
           domain: registryDomain,
           parentDirectory:
-            input.domain === "skill" &&
-            "isBuiltin" in source &&
-            source.isBuiltin
-              ? this.defaultProjectParents["skill-library"]
-              : dirname(registration.projectDirectory),
+            targetParents?.[registryDomain]?.trim() ||
+            (isBuiltinSource || ("isBuiltin" in source && source.isBuiltin)
+              ? this.defaultProjectParents[registryDomain]
+              : dirname(registration!.projectDirectory)),
           resource: primaryResource
         });
       } else if (input.domain === "material-group") {
@@ -4549,11 +4597,10 @@ export class FolderCatalogStore {
           ({ id }) => id === input.projectId
         );
         if (!source) throw new Error("未找到要复制的素材分组。");
-        const sourceGroupRegistration = findRegistration(
-          registry,
-          source.id,
-          "material-group"
-        );
+        const isBuiltinGroup = this.isVirtualBuiltinId(source.id);
+        const sourceGroupRegistration = isBuiltinGroup
+          ? undefined
+          : findRegistration(registry, source.id, "material-group");
         const copiedBySourceId = new Map<string, MaterialLibrary>();
         const memberIds: string[] = [];
         for (const libraryId of source.memberIds) {
@@ -4566,11 +4613,10 @@ export class FolderCatalogStore {
             if (!library) {
               throw new Error(`素材分组成员不存在或不可读取：${libraryId}`);
             }
-            const registration = findRegistration(
-              registry,
-              library.id,
-              "material-library"
-            );
+            const isBuiltinMember = this.isVirtualBuiltinId(library.id);
+            const registration = isBuiltinMember
+              ? undefined
+              : findRegistration(registry, library.id, "material-library");
             const title = nextCopyTitle(library.title, materialTitles);
             materialTitles.push(title);
             copied = duplicateLibraryResource(library, title, now);
@@ -4578,7 +4624,11 @@ export class FolderCatalogStore {
             copiedMemberLibraryIds.push(copied.id);
             plans.push({
               domain: "material-library",
-              parentDirectory: dirname(registration.projectDirectory),
+              parentDirectory:
+                targetParents?.["material-library"]?.trim() ||
+                (isBuiltinMember || library.isBuiltin
+                  ? this.defaultProjectParents["material-library"]
+                  : dirname(registration!.projectDirectory)),
               resource: copied
             });
           }
@@ -4597,7 +4647,11 @@ export class FolderCatalogStore {
         });
         plans.push({
           domain: "material-group",
-          parentDirectory: dirname(sourceGroupRegistration.projectDirectory),
+          parentDirectory:
+            targetParents?.["material-group"]?.trim() ||
+            (isBuiltinGroup
+              ? this.defaultProjectParents["material-group"]
+              : dirname(sourceGroupRegistration!.projectDirectory)),
           resource: primaryResource
         });
       } else {
@@ -4605,11 +4659,10 @@ export class FolderCatalogStore {
           ({ id }) => id === input.projectId
         );
         if (!source) throw new Error("未找到要复制的技能分组。");
-        const sourceGroupRegistration = findRegistration(
-          registry,
-          source.id,
-          "skill-group"
-        );
+        const isBuiltinGroup = this.isVirtualBuiltinId(source.id);
+        const sourceGroupRegistration = isBuiltinGroup
+          ? undefined
+          : findRegistration(registry, source.id, "skill-group");
         const copiedBySourceId = new Map<string, SkillLibrary>();
         const memberIds: string[] = [];
         for (const libraryId of source.memberIds) {
@@ -4620,11 +4673,10 @@ export class FolderCatalogStore {
             if (!library) {
               throw new Error(`技能分组成员不存在或不可读取：${libraryId}`);
             }
-            const registration = findRegistration(
-              registry,
-              library.id,
-              "skill-library"
-            );
+            const isBuiltinMember = this.isVirtualBuiltinId(library.id);
+            const registration = isBuiltinMember
+              ? undefined
+              : findRegistration(registry, library.id, "skill-library");
             const title = nextCopyTitle(library.title, skillTitles);
             skillTitles.push(title);
             copied = duplicateLibraryResource(library, title, now);
@@ -4632,9 +4684,11 @@ export class FolderCatalogStore {
             copiedMemberLibraryIds.push(copied.id);
             plans.push({
               domain: "skill-library",
-              parentDirectory: library.isBuiltin
-                ? this.defaultProjectParents["skill-library"]
-                : dirname(registration.projectDirectory),
+              parentDirectory:
+                targetParents?.["skill-library"]?.trim() ||
+                (isBuiltinMember || library.isBuiltin
+                  ? this.defaultProjectParents["skill-library"]
+                  : dirname(registration!.projectDirectory)),
               resource: copied
             });
           }
@@ -4653,7 +4707,11 @@ export class FolderCatalogStore {
         });
         plans.push({
           domain: "skill-group",
-          parentDirectory: dirname(sourceGroupRegistration.projectDirectory),
+          parentDirectory:
+            targetParents?.["skill-group"]?.trim() ||
+            (isBuiltinGroup
+              ? this.defaultProjectParents["skill-group"]
+              : dirname(sourceGroupRegistration!.projectDirectory)),
           resource: primaryResource
         });
       }
@@ -5172,7 +5230,7 @@ export class FolderCatalogStore {
           parseJson(backupText, this.registryBackupPath)
         );
         try {
-          await atomicWriteJson(
+          await writeBoundedProjectJson(
             this.registryPath,
             backup,
             this.maxManifestBytes
@@ -5201,9 +5259,13 @@ export class FolderCatalogStore {
   }
 
   private async writeRegistry(registry: FolderCatalogRegistry): Promise<void> {
-    await atomicWriteJson(this.registryPath, registry, this.maxManifestBytes);
+    await writeBoundedProjectJson(
+      this.registryPath,
+      registry,
+      this.maxManifestBytes
+    );
     try {
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         this.registryBackupPath,
         registry,
         this.maxManifestBytes
@@ -5343,7 +5405,7 @@ export class FolderCatalogStore {
           await copyBookImages(sourceBookDirectory, stagingDirectory);
         }
       }
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(stagingDirectory, MANIFEST_FILE),
         manifest,
         this.maxManifestBytes
@@ -5398,6 +5460,32 @@ export class FolderCatalogStore {
       throw new Error("项目标识与注册信息不一致。");
     }
     return { projectDirectory, manifest };
+  }
+
+  private async isRegisteredProjectReadable(
+    project: RegistryProject
+  ): Promise<boolean> {
+    try {
+      const { projectDirectory, manifest } =
+        await this.readManifestWithoutContent(
+          project.projectDirectory,
+          kindForDomain(project.domain),
+          project.id
+        );
+      const manifestBytes = Buffer.byteLength(JSON.stringify(manifest), "utf8");
+      if (manifestBytes >= this.maxProjectContentBytes) {
+        return false;
+      }
+      await inspectProjectMarkdownMetadata(
+        projectDirectory,
+        manifest,
+        this.maxMarkdownBytes,
+        this.maxProjectContentBytes - manifestBytes
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async readManifest<Kind extends FolderCatalogProjectManifest["kind"]>(
@@ -5708,12 +5796,12 @@ export class FolderCatalogStore {
         updatedAt: now
       });
       for (const file of pendingFiles) {
-        await atomicWriteText(
+        await writeProjectTextAtomic(
           await secureWritableProjectPath(projectDirectory, file.path),
           file.content
         );
       }
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         nextManifest,
         this.maxManifestBytes
@@ -5721,26 +5809,36 @@ export class FolderCatalogStore {
       books[index] = (await this.readProject(projectDirectory, "book", book.id))
         .resource as Book;
     }
+    const snapshotMaterials = materials.map((library) => ({
+      ...library,
+      ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+        ? { isUnbound: true }
+        : {})
+    }));
+    const snapshotSkills = skills.map((library) => ({
+      ...library,
+      ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+        ? { isUnbound: true }
+        : {})
+    }));
     return CatalogSnapshotSchema.parse({
       schemaVersion: 1,
       revision: registry.revision,
       libraryOrganization: registry.libraryOrganization,
       creativePlotStages,
       books,
-      materials: materials.map((library) => ({
-        ...library,
-        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
-          ? { isUnbound: true }
-          : {})
-      })),
-      materialGroups,
-      skills: skills.map((library) => ({
-        ...library,
-        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
-          ? { isUnbound: true }
-          : {})
-      })),
-      skillGroups,
+      materials: this.includeBuiltinLibraries
+        ? mergeUniqueById(snapshotMaterials, getBuiltinMaterialLibraries())
+        : snapshotMaterials,
+      materialGroups: this.includeBuiltinLibraries
+        ? mergeUniqueById(materialGroups, getBuiltinMaterialGroups())
+        : materialGroups,
+      skills: this.includeBuiltinLibraries
+        ? mergeUniqueById(snapshotSkills, getBuiltinSkillLibraries())
+        : snapshotSkills,
+      skillGroups: this.includeBuiltinLibraries
+        ? mergeUniqueById(skillGroups, getBuiltinSkillGroups())
+        : skillGroups,
       updatedAt: registry.updatedAt,
       ...(registry.legacyImport === undefined
         ? {}
@@ -5829,26 +5927,36 @@ export class FolderCatalogStore {
       ),
       (next) => this.writeRegistry(next)
     );
+    const indexMaterials = materials.map((library) => ({
+      ...library,
+      ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+        ? { isUnbound: true }
+        : {})
+    }));
+    const indexSkills = skills.map((library) => ({
+      ...library,
+      ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
+        ? { isUnbound: true }
+        : {})
+    }));
     return CatalogIndexSnapshotSchema.parse({
       schemaVersion: 1,
       revision: registry.revision,
       libraryOrganization: registry.libraryOrganization,
       creativePlotStages,
       books,
-      materials: materials.map((library) => ({
-        ...library,
-        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
-          ? { isUnbound: true }
-          : {})
-      })),
-      materialGroups,
-      skills: skills.map((library) => ({
-        ...library,
-        ...(registry.libraryOrganization?.unboundLibraryIds.includes(library.id)
-          ? { isUnbound: true }
-          : {})
-      })),
-      skillGroups,
+      materials: this.includeBuiltinLibraries
+        ? mergeUniqueById(indexMaterials, getBuiltinIndexMaterialLibraries())
+        : indexMaterials,
+      materialGroups: this.includeBuiltinLibraries
+        ? mergeUniqueById(materialGroups, getBuiltinMaterialGroups())
+        : materialGroups,
+      skills: this.includeBuiltinLibraries
+        ? mergeUniqueById(indexSkills, getBuiltinIndexSkillLibraries())
+        : indexSkills,
+      skillGroups: this.includeBuiltinLibraries
+        ? mergeUniqueById(skillGroups, getBuiltinSkillGroups())
+        : skillGroups,
       updatedAt: registry.updatedAt,
       ...(registry.legacyImport === undefined
         ? {}
@@ -5924,7 +6032,11 @@ function duplicateLibraryResource(
   title: string,
   now: string
 ): MaterialLibrary | SkillLibrary {
-  const { projectRevision: _projectRevision, ...copyable } = source;
+  const {
+    projectRevision: _projectRevision,
+    isBuiltin: _isBuiltin,
+    ...copyable
+  } = source;
   if ("materialType" in copyable) {
     return MaterialLibrarySchema.parse({
       ...structuredClone(copyable),
@@ -5942,6 +6054,14 @@ function duplicateLibraryResource(
     createdAt: now,
     updatedAt: now
   });
+}
+
+function mergeUniqueById<Item extends { id: string }>(
+  existing: readonly Item[],
+  additions: readonly Item[]
+): Item[] {
+  const seen = new Set(existing.map((item) => item.id));
+  return [...existing, ...additions.filter((item) => !seen.has(item.id))];
 }
 
 function nextMarketplaceTitle(
@@ -6074,18 +6194,6 @@ function nextDraftSectionId(
   }
 }
 
-function chineseSectionNumber(value: number): string {
-  const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-  if (value <= 10) return value === 10 ? "十" : digits[value]!;
-  if (value < 20) return `十${digits[value - 10]}`;
-  if (value < 100) {
-    const tens = Math.floor(value / 10);
-    const ones = value % 10;
-    return `${digits[tens]}十${ones ? digits[ones] : ""}`;
-  }
-  return String(value);
-}
-
 function defaultDraftSectionTitle(
   bookType: Book["bookType"],
   sectionId: string,
@@ -6215,6 +6323,78 @@ function setLegacyImport(
   } else {
     registry.legacyImport = legacyImport;
   }
+}
+
+function pruneProjectFromLibraryOrganization(
+  organization: LibraryOrganization | undefined,
+  domain: FolderCatalogProjectDomain,
+  projectId: string
+): LibraryOrganization | undefined {
+  if (!organization || domain === "book") {
+    return organization;
+  }
+  let changed = false;
+  const filterIds = (ids: readonly string[]): string[] => {
+    const next = ids.filter((id) => id !== projectId);
+    if (next.length !== ids.length) changed = true;
+    return next;
+  };
+  let material = organization.material;
+  let skill = organization.skill;
+  let unboundLibraryIds = organization.unboundLibraryIds;
+  const groups: Record<string, string[]> = {};
+  let entryLocations = organization.entryLocations;
+
+  if (domain === "material-library" || domain === "skill-library") {
+    unboundLibraryIds = filterIds(organization.unboundLibraryIds);
+    if (domain === "material-library") {
+      material = filterIds(organization.material);
+    } else {
+      skill = filterIds(organization.skill);
+    }
+    for (const [groupId, memberIds] of Object.entries(organization.groups)) {
+      groups[groupId] = filterIds(memberIds);
+    }
+    if (organization.entryLocations !== undefined) {
+      const nextLocations: NonNullable<LibraryOrganization["entryLocations"]> =
+        {};
+      for (const [key, location] of Object.entries(
+        organization.entryLocations
+      )) {
+        if (location.libraryId === projectId) {
+          changed = true;
+          continue;
+        }
+        nextLocations[key] = location;
+      }
+      entryLocations = nextLocations;
+    }
+  } else {
+    if (domain === "material-group") {
+      material = filterIds(organization.material);
+    } else {
+      skill = filterIds(organization.skill);
+    }
+    for (const [groupId, memberIds] of Object.entries(organization.groups)) {
+      if (groupId === projectId) {
+        changed = true;
+        continue;
+      }
+      groups[groupId] = memberIds;
+    }
+  }
+
+  if (!changed) {
+    return organization;
+  }
+  return LibraryOrganizationSchema.parse({
+    revision: organization.revision + 1,
+    material,
+    skill,
+    groups,
+    unboundLibraryIds,
+    ...(entryLocations === undefined ? {} : { entryLocations })
+  });
 }
 
 function parseRegistry(value: unknown): FolderCatalogRegistry {
@@ -6365,10 +6545,6 @@ function parseTimestamp(value: unknown, label: string): string {
     throw new Error(`${label} must be a valid timestamp.`);
   }
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isFolderDomain(value: unknown): value is FolderCatalogProjectDomain {
@@ -6744,7 +6920,7 @@ async function migrateLegacyBookProject(
   // leave unreferenced recovery files; the original draft.md is never removed.
   for (const file of pendingFiles) {
     const target = await secureWritableProjectPath(projectDirectory, file.path);
-    await atomicWriteText(target, file.content);
+    await writeProjectTextAtomic(target, file.content);
   }
   const currentManifestText = await readRequiredUtf8File(
     join(projectDirectory, MANIFEST_FILE),
@@ -6764,7 +6940,7 @@ async function migrateLegacyBookProject(
     originalLegacyDraftContent: legacyDraft?.content,
     currentLegacyDraftContent
   });
-  await atomicWriteJson(
+  await writeBoundedProjectJson(
     join(projectDirectory, MANIFEST_FILE),
     next,
     maxManifestBytes
@@ -6838,7 +7014,7 @@ async function migrateV2BookProject(
   // v2 remains authoritative until every missing stage document is durable.
   for (const file of pendingFiles) {
     const target = await secureWritableProjectPath(projectDirectory, file.path);
-    await atomicWriteText(target, file.content);
+    await writeProjectTextAtomic(target, file.content);
   }
   const currentManifestText = await readRequiredUtf8File(
     join(projectDirectory, MANIFEST_FILE),
@@ -6848,7 +7024,7 @@ async function migrateV2BookProject(
   if (currentManifestText !== originalManifestText) {
     throw new Error("书籍在剧情结构迁移期间被外部修改，已中止迁移。");
   }
-  await atomicWriteJson(
+  await writeBoundedProjectJson(
     join(projectDirectory, MANIFEST_FILE),
     next,
     maxManifestBytes
@@ -6886,7 +7062,7 @@ async function migrateV3BookProject(
   assertJsonByteLength(next, maxManifestBytes);
   for (const file of pendingFiles) {
     const target = await secureWritableProjectPath(projectDirectory, file.path);
-    await atomicWriteText(target, file.content);
+    await writeProjectTextAtomic(target, file.content);
   }
   const currentManifestText = await readRequiredUtf8File(
     join(projectDirectory, MANIFEST_FILE),
@@ -6896,7 +7072,7 @@ async function migrateV3BookProject(
   if (currentManifestText !== originalManifestText) {
     throw new Error("书籍在人物结构迁移期间被外部修改，已中止迁移。");
   }
-  await atomicWriteJson(
+  await writeBoundedProjectJson(
     join(projectDirectory, MANIFEST_FILE),
     next,
     maxManifestBytes
@@ -6984,7 +7160,10 @@ async function writeResourceContents(
             used
           );
           used.add(portableContentPathKey(path));
-          await atomicWriteText(join(projectDirectory, path), doc.content);
+          await writeProjectTextAtomic(
+            join(projectDirectory, path),
+            doc.content
+          );
           return {
             id: doc.id,
             title: doc.title,
@@ -7057,15 +7236,15 @@ async function writeResourceContents(
             used
           );
           used.add(portableContentPathKey(statePath));
-          await atomicWriteText(
+          await writeProjectTextAtomic(
             join(projectDirectory, briefPath),
             section.brief.content
           );
-          await atomicWriteText(
+          await writeProjectTextAtomic(
             join(projectDirectory, bodyPath),
             section.body.content
           );
-          await atomicWriteText(
+          await writeProjectTextAtomic(
             join(projectDirectory, statePath),
             section.state.content
           );
@@ -7136,7 +7315,10 @@ async function writeResourceContents(
           used
         );
         used.add(portableContentPathKey(path));
-        await atomicWriteText(join(projectDirectory, path), document.content);
+        await writeProjectTextAtomic(
+          join(projectDirectory, path),
+          document.content
+        );
         documents.push({
           id: document.id,
           title: document.title,
@@ -7173,11 +7355,11 @@ async function writeResourceContents(
           used
         );
         used.add(portableContentPathKey(characterStatePath));
-        await atomicWriteText(
+        await writeProjectTextAtomic(
           join(projectDirectory, bodyPath),
           section.body.content
         );
-        await atomicWriteText(
+        await writeProjectTextAtomic(
           join(projectDirectory, characterStatePath),
           section.characterState.content
         );
@@ -7241,7 +7423,7 @@ async function writeResourceContents(
           used
         );
         used.add(portableContentPathKey(path));
-        await atomicWriteText(join(projectDirectory, path), entry.body);
+        await writeProjectTextAtomic(join(projectDirectory, path), entry.body);
         entries.push({
           id: entry.id,
           stageId: entry.stageId,
@@ -7280,7 +7462,7 @@ async function writeResourceContents(
           used
         );
         used.add(portableContentPathKey(path));
-        await atomicWriteText(join(projectDirectory, path), entry.body);
+        await writeProjectTextAtomic(join(projectDirectory, path), entry.body);
         entries.push({
           id: entry.id,
           stageId: entry.stageId,
@@ -7924,441 +8106,6 @@ function resourceContentByteLength(resource: FolderCatalogResource): number {
   return metadataBytes;
 }
 
-function sanitizeFileName(value: string, fallback = "未命名项目"): string {
-  const normalized = value
-    .normalize("NFC")
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/gu, "-")
-    .replace(/\s+/gu, " ")
-    .replace(/[. ]+$/gu, "")
-    .trim();
-  const shortened = [...normalized].slice(0, 80).join("");
-  return shortened || fallback;
-}
-
-function sanitizePathSegment(value: string): string {
-  return sanitizeFileName(value, "content")
-    .replace(/\s+/gu, "-")
-    .replace(/-+/gu, "-");
-}
-
-function portableContentPathKey(path: string): string {
-  return path.normalize("NFC").toLowerCase();
-}
-
-async function uniqueRelativeMarkdownPath(
-  projectDirectory: string,
-  directory: string,
-  id: string,
-  usedPortableKeys: ReadonlySet<string>
-): Promise<string> {
-  const occupied = new Set(usedPortableKeys);
-  const contentDirectory = resolve(projectDirectory, directory);
-  assertContained(projectDirectory, contentDirectory);
-  if (await pathExists(contentDirectory)) {
-    const actualDirectory = await secureDirectory(
-      contentDirectory,
-      "content directory"
-    );
-    assertContained(projectDirectory, actualDirectory);
-    for (const name of await readdir(actualDirectory)) {
-      occupied.add(portableContentPathKey(`${directory}/${name}`));
-    }
-  }
-  const stem = sanitizePathSegment(id);
-  let index = 1;
-  let candidate = `${directory}/${stem}.md`;
-  while (
-    occupied.has(portableContentPathKey(candidate)) ||
-    (await pathExists(resolve(projectDirectory, candidate)))
-  ) {
-    index += 1;
-    candidate = `${directory}/${stem}-${index}.md`;
-  }
-  return CatalogProjectContentPathSchema.parse(candidate);
-}
-
-async function uniqueRelativeMarkdownPathWithSuffix(
-  projectDirectory: string,
-  directory: string,
-  id: string,
-  suffix: `.${string}.md`,
-  usedPortableKeys: ReadonlySet<string>
-): Promise<string> {
-  const occupied = new Set(usedPortableKeys);
-  const contentDirectory = resolve(projectDirectory, directory);
-  assertContained(projectDirectory, contentDirectory);
-  if (await pathExists(contentDirectory)) {
-    const actualDirectory = await secureDirectory(
-      contentDirectory,
-      "content directory"
-    );
-    assertContained(projectDirectory, actualDirectory);
-    for (const name of await readdir(actualDirectory)) {
-      occupied.add(portableContentPathKey(`${directory}/${name}`));
-    }
-  }
-  const stem = sanitizePathSegment(id);
-  let index = 1;
-  let candidate = `${directory}/${stem}${suffix}`;
-  while (
-    occupied.has(portableContentPathKey(candidate)) ||
-    (await pathExists(resolve(projectDirectory, candidate)))
-  ) {
-    index += 1;
-    candidate = `${directory}/${stem}-${index}${suffix}`;
-  }
-  return CatalogProjectContentPathSchema.parse(candidate);
-}
-
-async function availableProjectDirectory(
-  parentDirectory: string,
-  title: string
-): Promise<string> {
-  const name = sanitizeFileName(title);
-  for (let index = 1; index < 10_000; index += 1) {
-    const suffix = index === 1 ? "" : `-${index}`;
-    const candidate = join(parentDirectory, `${name}${suffix}`);
-    if (!(await pathExists(candidate))) {
-      return candidate;
-    }
-  }
-  throw new Error("无法为项目分配不重复的文件夹名称。");
-}
-
-async function secureDirectory(path: string, label: string): Promise<string> {
-  const info = await lstat(path);
-  if (info.isSymbolicLink() || !info.isDirectory()) {
-    throw new Error(`${label} must be a real directory, not a symbolic link.`);
-  }
-  return await realpath(path);
-}
-
-async function secureProjectRoot(path: string): Promise<string> {
-  return await secureDirectory(resolve(path), "project root");
-}
-
-function assertContained(root: string, candidate: string): void {
-  const offset = relative(root, candidate);
-  if (
-    offset === "" ||
-    (!offset.startsWith(`..${sep}`) && offset !== ".." && !isAbsolute(offset))
-  ) {
-    return;
-  }
-  throw new Error("Project path escapes its project directory.");
-}
-
-async function secureExistingProjectPath(
-  projectRoot: string,
-  relativePath: string,
-  markdown: boolean
-): Promise<string> {
-  if (markdown) {
-    CatalogProjectContentPathSchema.parse(relativePath);
-  } else if (
-    !relativePath ||
-    isAbsolute(relativePath) ||
-    relativePath.includes("\\") ||
-    relativePath.split("/").some((part) => part === "." || part === "..")
-  ) {
-    throw new Error("Project path must be a normalized relative path.");
-  }
-  const candidate = resolve(projectRoot, relativePath);
-  assertContained(projectRoot, candidate);
-  const info = await lstat(candidate);
-  if (info.isSymbolicLink() || !info.isFile()) {
-    throw new Error("Project files must be regular files, not symbolic links.");
-  }
-  const actual = await realpath(candidate);
-  assertContained(projectRoot, actual);
-  return actual;
-}
-
-async function secureWritableProjectPath(
-  projectRoot: string,
-  relativePath: string
-): Promise<string> {
-  CatalogProjectContentPathSchema.parse(relativePath);
-  const target = resolve(projectRoot, relativePath);
-  assertContained(projectRoot, target);
-  let currentDirectory = projectRoot;
-  for (const segment of relativePath.split("/").slice(0, -1)) {
-    const nextDirectory = join(currentDirectory, segment);
-    if (!(await pathExists(nextDirectory))) {
-      try {
-        await mkdir(nextDirectory, { mode: 0o700 });
-      } catch (error: unknown) {
-        if (!isNodeError(error, "EEXIST")) {
-          throw error;
-        }
-      }
-    }
-    currentDirectory = await secureDirectory(nextDirectory, "content parent");
-    assertContained(projectRoot, currentDirectory);
-  }
-  if (await pathExists(target)) {
-    const info = await lstat(target);
-    if (info.isSymbolicLink() || !info.isFile()) {
-      throw new Error(
-        "Project files must be regular files, not symbolic links."
-      );
-    }
-    assertContained(projectRoot, await realpath(target));
-  }
-  return target;
-}
-
-async function readProjectMarkdown(
-  projectDirectory: string,
-  path: string,
-  maxBytes: number
-): Promise<string> {
-  const actual = await secureExistingProjectPath(projectDirectory, path, true);
-  return await readRequiredUtf8File(actual, maxBytes, "Markdown file");
-}
-
-async function readOptionalUtf8File(
-  path: string,
-  maxBytes: number,
-  label: string
-): Promise<string | undefined> {
-  try {
-    return await readRequiredUtf8File(path, maxBytes, label);
-  } catch (error: unknown) {
-    if (isNodeError(error, "ENOENT")) {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
-async function readRequiredUtf8File(
-  path: string,
-  maxBytes: number,
-  label: string
-): Promise<string> {
-  const directInfo = await lstat(path);
-  if (directInfo.isSymbolicLink() || !directInfo.isFile()) {
-    throw new Error(`${label} is not a regular file.`);
-  }
-  const info = await stat(path);
-  if (info.size > maxBytes) {
-    throw new Error(`${label} exceeds the ${maxBytes} byte limit.`);
-  }
-  const bytes = await readFile(path);
-  if (bytes.byteLength > maxBytes) {
-    throw new Error(`${label} exceeds the ${maxBytes} byte limit.`);
-  }
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    throw new Error(`${label} is not valid UTF-8.`);
-  }
-}
-
-function parseJson(text: string, path: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch (error: unknown) {
-    throw new Error(
-      `JSON 无法解析：${path}（${error instanceof Error ? error.message : "格式错误"}）`
-    );
-  }
-}
-
-function assertTextByteLength(
-  text: string,
-  maxBytes: number,
-  label: string
-): void {
-  if (Buffer.byteLength(text, "utf8") > maxBytes) {
-    throw new Error(`${label} exceeds the ${maxBytes} byte limit.`);
-  }
-}
-
-function assertJsonByteLength(value: unknown, maxBytes: number): void {
-  assertTextByteLength(
-    `${JSON.stringify(value, null, 2)}\n`,
-    maxBytes,
-    "JSON content"
-  );
-}
-
-async function commitProjectMarkdownUpdate(
-  target: string,
-  nextContent: string,
-  previousContent: string | undefined,
-  manifestPath: string,
-  manifest: unknown,
-  maxMarkdownBytes: number,
-  maxManifestBytes: number
-): Promise<void> {
-  // Preflight deterministic schema-size failures before touching the user's
-  // Markdown, then restore the previous file if the manifest commit itself
-  // fails. A different on-disk value means an external editor won the race;
-  // leave that value intact and surface a conflict instead of overwriting it.
-  assertJsonByteLength(manifest, maxManifestBytes);
-  assertTextByteLength(nextContent, maxMarkdownBytes, "Markdown content");
-  await atomicWriteText(target, nextContent);
-  try {
-    const observed = await readRequiredUtf8File(
-      target,
-      maxMarkdownBytes,
-      "Markdown content"
-    );
-    if (observed !== nextContent) {
-      throw new FolderCatalogConflictError(
-        createShortWorkspaceContentRevision(nextContent),
-        createShortWorkspaceContentRevision(observed)
-      );
-    }
-    await atomicWriteJson(manifestPath, manifest, maxManifestBytes);
-  } catch (error: unknown) {
-    try {
-      const observed = await readOptionalUtf8File(
-        target,
-        maxMarkdownBytes,
-        "Markdown content"
-      );
-      if (observed === nextContent) {
-        if (previousContent === undefined) {
-          await unlinkOptional(target);
-        } else {
-          await atomicWriteText(target, previousContent);
-        }
-      }
-    } catch (rollbackError: unknown) {
-      throw new AggregateError(
-        [error, rollbackError],
-        "项目保存失败，且无法自动恢复原 Markdown。"
-      );
-    }
-    throw error;
-  }
-}
-
-async function commitProjectFileCreations(
-  files: ReadonlyArray<{ target: string; content: string }>,
-  manifestPath: string,
-  manifest: unknown,
-  maxMarkdownBytes: number,
-  maxManifestBytes: number
-): Promise<void> {
-  assertJsonByteLength(manifest, maxManifestBytes);
-  for (const file of files) {
-    assertTextByteLength(file.content, maxMarkdownBytes, "Markdown content");
-    if (await pathExists(file.target)) {
-      throw new Error("新的正文小节文件路径已被其他文件占用。");
-    }
-  }
-  const committed: Array<{ target: string; content: string }> = [];
-  try {
-    for (const file of files) {
-      await atomicWriteText(file.target, file.content);
-      committed.push(file);
-    }
-    await atomicWriteJson(manifestPath, manifest, maxManifestBytes);
-  } catch (error: unknown) {
-    const rollbackErrors: unknown[] = [];
-    for (const file of committed.reverse()) {
-      try {
-        const observed = await readOptionalUtf8File(
-          file.target,
-          maxMarkdownBytes,
-          "Markdown content"
-        );
-        if (observed === file.content) {
-          await unlinkOptional(file.target);
-        }
-      } catch (rollbackError: unknown) {
-        rollbackErrors.push(rollbackError);
-      }
-    }
-    if (rollbackErrors.length > 0) {
-      throw new AggregateError(
-        [error, ...rollbackErrors],
-        "正文小节创建失败，且无法完整清理未提交文件。"
-      );
-    }
-    throw error;
-  }
-}
-
-async function atomicWriteText(path: string, value: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = join(dirname(path), `.deepwrite-${randomHex8()}.tmp`);
-  try {
-    await writeFile(temporary, value, { encoding: "utf8", mode: 0o600 });
-    await rename(temporary, path);
-  } catch (error: unknown) {
-    await unlinkOptional(temporary);
-    throw error;
-  }
-}
-
-async function atomicWriteJson(
-  path: string,
-  value: unknown,
-  maxBytes: number
-): Promise<void> {
-  const serialized = `${JSON.stringify(value, null, 2)}\n`;
-  assertTextByteLength(serialized, maxBytes, "JSON content");
-  await atomicWriteText(path, serialized);
-}
-
-async function unlinkOptional(path: string): Promise<void> {
-  try {
-    await unlink(path);
-  } catch (error: unknown) {
-    if (!isNodeError(error, "ENOENT")) {
-      throw error;
-    }
-  }
-}
-
-async function removeEmptyOrPartialProject(path: string): Promise<void> {
-  const { rm } = await import("node:fs/promises");
-  await rm(path, { recursive: true, force: true });
-}
-
-async function cleanupNewProjectDirectories(
-  paths: readonly string[]
-): Promise<void> {
-  const failures: unknown[] = [];
-  for (const path of [...paths].reverse()) {
-    try {
-      await removeEmptyOrPartialProject(path);
-    } catch (error: unknown) {
-      failures.push(error);
-    }
-  }
-  if (failures.length) {
-    throw new AggregateError(
-      failures,
-      "新建项目注册失败，且无法完整清理未注册文件夹。"
-    );
-  }
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await lstat(path);
-    return true;
-  } catch (error: unknown) {
-    if (isNodeError(error, "ENOENT")) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-function isNodeError(
-  error: unknown,
-  code: string
-): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
 function findRegistration(
   registry: FolderCatalogRegistry,
   id: string,
@@ -8392,9 +8139,3 @@ function defaultDocumentTitle(documentId: string): string {
     DEFAULT_SHORT_DOCUMENTS.find(([id]) => id === documentId)?.[1] ?? documentId
   );
 }
-import { adoptManagedMaterialReceipt } from "./folder-catalog-store/managed-receipt";
-import {
-  readManagedLibrary,
-  writeManagedEntries,
-  type ManagedEntriesWrite
-} from "./folder-catalog-store/managed-batch";

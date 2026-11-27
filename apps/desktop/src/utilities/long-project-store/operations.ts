@@ -23,11 +23,7 @@ import {
   assertDirectlyMutableDocument,
   validatePortableAndCanonicalPaths
 } from "./integrity";
-import {
-  commitLongProjectTransaction,
-  secureDirectory,
-  serializeJson
-} from "./io";
+import { commitLongProjectTransaction, secureDirectory } from "./io";
 import { loadProject } from "./load-project";
 import { buildLedgerRecordEditOperations } from "./operation-ledger-record-edits";
 import {
@@ -45,6 +41,7 @@ import {
   type ApplyLongWorkspaceOperationsResult,
   type LoadedLongProject
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function previewWorkspaceOperations(
   ctx: LongProjectStoreContext,
@@ -82,7 +79,7 @@ export async function applyWorkspaceOperations(
       requestedBatch
     );
     for (const operation of batch.operations) {
-      const raw = operation as unknown as Record<string, unknown>;
+      const raw: Record<string, unknown> = operation;
       const targetId =
         typeof raw.id === "string"
           ? raw.id
@@ -183,7 +180,7 @@ export async function applyWorkspaceOperations(
       }))
     );
 
-    const indexContent = serializeJson(nextIndex);
+    const indexContent = toJsonFileText(nextIndex);
     const nextManifest = LongProjectManifestSchema.parse({
       ...loaded.manifest,
       updatedAt: nextIndex.updatedAt,
@@ -210,7 +207,7 @@ export async function applyWorkspaceOperations(
         operations: [
           ...fileOperations,
           { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
-          { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+          { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
         ],
         maxFileBytes: MAX_LEDGER_RECORD_BYTES
       },

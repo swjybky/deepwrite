@@ -15,6 +15,9 @@ import { defineStore } from "pinia";
 import { ref, shallowRef, watch } from "vue";
 import { mysteryDocumentTargetKey } from "@deepwrite/contracts/renderer";
 import { bindCreatedBookAgentTeams } from "../composables/useBookAgentTeamBinding";
+import { deepwriteApi } from "../api/deepwrite";
+import { jsonClone } from "@deepwrite/shared";
+import { formatError } from "../i18n/errors";
 
 export interface MysteryProposalItem {
   id: string;
@@ -113,7 +116,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
   }
 
   async function loadBooks(): Promise<void> {
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     if (!api) return;
     loadingList.value = true;
     try {
@@ -134,7 +137,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
   }
 
   async function openBook(bookId: string, current = () => true): Promise<void> {
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     if (!api) return;
     const request = ++openRequest;
     openLoading.value = true;
@@ -154,7 +157,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
   async function refreshActiveBook(bookId?: string): Promise<void> {
     const targetId = bookId ?? activeBookId.value;
     if (!targetId) return;
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     if (!api) return;
     const result = await api.open({ bookId: targetId });
     upsertSummary(result.summary);
@@ -177,7 +180,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
     input: CreateMysteryBookInput,
     linkedAgentTeamIds?: readonly string[]
   ): Promise<MysteryBookSummary | null> {
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     if (!api) return null;
     const result = await api.createBook(input);
     if (!result) return null;
@@ -210,7 +213,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
     bookId: string,
     proposalId: string
   ): Promise<void> {
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     if (!api) return;
     const current = (proposalsByBookId.value[bookId] ?? []).find(
       (p) => p.id === proposalId
@@ -226,7 +229,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
     try {
       const result = await api.applyOperations({
         bookId,
-        batch: JSON.parse(JSON.stringify(current.batch))
+        batch: jsonClone(current.batch)
       });
       applyWorkspaceResult(result);
       if (result.restorePoint) {
@@ -244,10 +247,10 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
         )
       );
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : String(error ?? "Apply failed");
+      const message = formatError(
+        error,
+        typeof error === "string" ? error : "Apply failed"
+      );
       updateProposalsForBook(bookId, (items) =>
         items.map((item) =>
           item.id === proposalId
@@ -297,7 +300,7 @@ export const useMysteryWorkspaceStore = defineStore("mysteryWorkspace", () => {
   async function undoLastProposal(
     bookId: string
   ): Promise<MysteryRestoreOperationsResult | null> {
-    const api = window.deepwrite?.mystery;
+    const api = deepwriteApi()?.mystery;
     const restore = lastRestoreByBookId.value[bookId];
     if (!api || !restore) return null;
     const result = await api.restoreOperations({

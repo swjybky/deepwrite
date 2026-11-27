@@ -1,4 +1,7 @@
 import { deflateRawSync } from "node:zlib";
+import { zipDateTime } from "@deepwrite/shared";
+
+export { zipDateTime };
 
 export interface ZipEntry {
   name: string;
@@ -21,17 +24,6 @@ function crc32(buffer: Buffer): number {
     value = CRC32_TABLE[(value ^ byte) & 0xff]! ^ (value >>> 8);
   }
   return (value ^ 0xffffffff) >>> 0;
-}
-
-function zipDateTime(date: Date): { date: number; time: number } {
-  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
-  return {
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
-    time:
-      (date.getHours() << 11) |
-      (date.getMinutes() << 5) |
-      Math.floor(date.getSeconds() / 2)
-  };
 }
 
 /**

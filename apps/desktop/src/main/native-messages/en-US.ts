@@ -114,5 +114,8 @@ export default {
   startupWindow: "Load main window",
   updateFilesInUse: "Other programs are still using DeepWrite",
   installAnyway: "Install Anyway",
-  updateNotInstalled: "The Update Was Not Installed"
+  updateNotInstalled: "The Update Was Not Installed",
+  exportLocalBackup: "Export Local Backup Package",
+  chooseLocalBackup: "Choose Local Backup Package",
+  localBackupArchive: "DeepWrite Local Backup Package"
 };

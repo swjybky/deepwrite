@@ -1,11 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdirSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  STORAGE_BOOTSTRAP_OWNER_FILE,
+  resolveStorageBootstrapLockRoot
+} from "@deepwrite/shared/node";
 import {
   StorageLocationStore,
   type StorageMigrationPlan
 } from "./storage-location-store";
+
+export { resolveStorageBootstrapLockRoot };
 
 interface StorageApplication {
   getPath(name: "userData"): string;
@@ -16,10 +22,7 @@ export function acquireStorageInstanceLock(
   application: StorageApplication & { requestSingleInstanceLock(): boolean }
 ): boolean {
   const defaultPath = application.getPath("userData");
-  const lockRoot = join(
-    dirname(defaultPath),
-    `.${basename(defaultPath)}.storage-bootstrap`
-  );
+  const lockRoot = resolveStorageBootstrapLockRoot(defaultPath);
   mkdirSync(lockRoot, { recursive: true, mode: 0o700 });
   application.setPath("userData", lockRoot);
   try {
@@ -27,6 +30,29 @@ export function acquireStorageInstanceLock(
   } finally {
     application.setPath("userData", defaultPath);
   }
+}
+
+export function recordStorageBootstrapOwner(
+  defaultUserDataPath: string,
+  instanceId: string
+): string {
+  const lockRoot = resolveStorageBootstrapLockRoot(defaultUserDataPath);
+  if (existsSync(lockRoot)) {
+    try {
+      writeFileSync(
+        join(lockRoot, STORAGE_BOOTSTRAP_OWNER_FILE),
+        `${JSON.stringify({
+          pid: process.pid,
+          instanceId,
+          acquiredAt: new Date().toISOString()
+        })}\n`,
+        { mode: 0o600 }
+      );
+    } catch {
+      /* Best-effort owner marker inside an existing bootstrap lock folder. */
+    }
+  }
+  return lockRoot;
 }
 
 export function runStorageMigration(plan: StorageMigrationPlan): void {

@@ -16,7 +16,7 @@ import {
   join,
   longWorldbuildingFileId,
   lstat,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   writeFile,
   writeFileSync
@@ -198,7 +198,7 @@ describe("LongProjectStore: commit recovery and direct writes", () => {
     const manifestPath = join(created.projectDirectory, "deepwrite.json");
     const beforeCommit = await Promise.all(
       [indexPath, manifestPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
 
@@ -223,7 +223,7 @@ describe("LongProjectStore: commit recovery and direct writes", () => {
     ).rejects.toThrow();
     const afterFailure = await Promise.all(
       [indexPath, manifestPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
     expect(afterFailure).toEqual(beforeCommit);

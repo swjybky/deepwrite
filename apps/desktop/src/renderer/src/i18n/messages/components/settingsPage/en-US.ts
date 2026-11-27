@@ -2,7 +2,7 @@ export default {
   writing: "Writing settings",
   moreFeaturesSettings: "More features",
   moreFeaturesKeywords: "More features show hide visibility order sorting",
-  storage: "Storage",
+  storage: "Storage and backup",
   workspaceSettings: "Workspace",
   skillLibrarySettings: "Skill library",
   materialLibrarySettings: "Material library",
@@ -14,7 +14,7 @@ export default {
   personal: "Personal",
   general: "General",
   storageUserDataHistoryDefaultLocationWorkspaceFolder:
-    "Storage user data history default location workspace folder",
+    "Storage backup migrate export import transfer user data history default location workspace folder",
   manuscriptText: "Manuscript text",
   appearance: "Appearance",
   voiceSettings: "Voice models",

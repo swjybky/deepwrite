@@ -43,6 +43,10 @@ export type {
 export type { ExtrasAgentRunInput } from "./extras/run-plan";
 export { interceptToolCallStream } from "./tool-stream";
 export { PiAgentRuntimeAdapter } from "./adapter";
+export {
+  ModelConnectionTestCancelledError,
+  ModelConnectionTestTimeoutError
+} from "./connection-test-errors";
 export { createOpenCodeRequestHeaders } from "./opencode-request-headers";
 export { UserInputResolutionError } from "./user-input-broker";
 export { SteeringError } from "./kernel/run-steering";

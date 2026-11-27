@@ -5,6 +5,7 @@ import {
   DecompositionUnitActionSchema,
   DecompositionUnitViewSchema,
   CreateDecompositionJobInputSchema,
+  UpdateDecompositionModelsInputSchema,
   DecompositionSaveRegistryInputSchema,
   LongBookDecompositionJobSchema,
   DecompositionJobsSchema,
@@ -58,6 +59,18 @@ export const longBookDecompositionApi: LongBookDecompositionApi = {
         createEnvelope(
           "longBookDecomposition.control",
           DecompositionControlInputSchema.parse(raw),
+          { id, correlationId: id }
+        )
+      )
+    );
+  },
+  async updateModels(raw) {
+    const id = browserId("cmd_decomposition_models");
+    return LongBookDecompositionJobSchema.parse(
+      await invokeCommand(
+        createEnvelope(
+          "longBookDecomposition.updateModels",
+          UpdateDecompositionModelsInputSchema.parse(raw),
           { id, correlationId: id }
         )
       )

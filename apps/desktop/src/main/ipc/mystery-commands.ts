@@ -32,6 +32,7 @@ import {
   type UtilitySupervisor
 } from "../supervisor";
 import { safeErrorDetails } from "./errors";
+import { rejectedResult } from "./errors";
 
 export interface MysteryIpcCommandContext {
   getMainWindow: () => BrowserWindow | undefined;
@@ -105,16 +106,12 @@ export async function handleMysteryCommands(
         payload: MysteryOpenBookResultSchema.parse(result.payload)
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "mystery.forward_failed",
-          message:
-            error instanceof Error ? error.message : "剧本杀目录操作失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "mystery.forward_failed",
+        error instanceof Error ? error.message : "剧本杀目录操作失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -138,19 +135,12 @@ export async function handleMysteryCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code:
-            error instanceof BookImageError
-              ? error.code
-              : "mystery.export_failed",
-          message:
-            error instanceof Error ? error.message : "导出剧本杀开本包失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        error instanceof BookImageError ? error.code : "mystery.export_failed",
+        error instanceof Error ? error.message : "导出剧本杀开本包失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -164,18 +154,12 @@ export async function handleMysteryCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "mystery_agents.list_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "加载剧本杀智能体设置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "mystery_agents.list_failed",
+        error instanceof Error ? error.message : "加载剧本杀智能体设置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -189,18 +173,12 @@ export async function handleMysteryCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "mystery_agents.save_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "保存剧本杀智能体设置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "mystery_agents.save_failed",
+        error instanceof Error ? error.message : "保存剧本杀智能体设置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -216,18 +194,14 @@ export async function handleMysteryCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "mystery_agents.reset_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "恢复剧本杀智能体默认设置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "mystery_agents.reset_failed",
+        error instanceof Error
+          ? error.message
+          : "恢复剧本杀智能体默认设置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -304,23 +278,18 @@ export async function handleMysteryCommands(
       }
       return { status: "accepted", requestId: command.id, payload };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code:
-            error instanceof UtilityCommandTimeoutError
-              ? "mystery.command_timeout"
-              : "mystery.forward_failed",
-          message:
-            error instanceof UtilityCommandTimeoutError
-              ? "剧本杀操作等待超时，结果尚未确认；请刷新作品核对后再决定是否重试。"
-              : error instanceof Error
-                ? error.message
-                : "剧本杀操作失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        error instanceof UtilityCommandTimeoutError
+          ? "mystery.command_timeout"
+          : "mystery.forward_failed",
+        error instanceof UtilityCommandTimeoutError
+          ? "剧本杀操作等待超时，结果尚未确认；请刷新作品核对后再决定是否重试。"
+          : error instanceof Error
+            ? error.message
+            : "剧本杀操作失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 

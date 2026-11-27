@@ -1,0 +1,205 @@
+/* Trigger badge & progress-page model switcher */
+.decomposition-model-field .analysis-model-trigger {
+  gap: 8px;
+}
+.decomposition-model-field .analysis-model-summary {
+  flex: 1 1 auto;
+  text-align: left;
+}
+.decomposition-model-fallback-count {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid
+    color-mix(in srgb, var(--accent) 26%, var(--theme-line-soft));
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.714286rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.decomposition-models-bar {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+.decomposition-models-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.decomposition-models-slot {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.decomposition-models-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.decomposition-models-slot-head .setup-field-label {
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  font-weight: 570;
+}
+.decomposition-models-locked-tag {
+  padding: 1px 7px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Teleported model-chain panel (relies only on root theme variables) */
+.decomposition-model-panel {
+  width: min(460px, calc(100vw - 16px));
+  gap: 14px;
+}
+.decomposition-model-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.decomposition-model-section-label {
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  font-weight: 570;
+}
+.decomposition-model-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+.decomposition-fallback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.decomposition-fallback-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 7px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+.decomposition-fallback-add:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.decomposition-fallback-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.decomposition-model-hint,
+.decomposition-fallback-empty {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.decomposition-fallback-empty {
+  padding: 10px 12px;
+  border: 1px dashed var(--theme-line-soft);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+.decomposition-fallback-list {
+  display: grid;
+  gap: 8px;
+}
+.decomposition-fallback-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 9px;
+  background: var(--surface-muted);
+}
+.decomposition-fallback-index {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--theme-line-soft);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.decomposition-fallback-selects {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+.decomposition-fallback-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.decomposition-fallback-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 7px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.decomposition-fallback-icon-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.decomposition-fallback-icon-btn.is-danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+.decomposition-fallback-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.decomposition-fallback-icon-btn .is-rotated {
+  transform: rotate(180deg);
+}
+.decomposition-model-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+
+@container analysis-page (max-width: 700px) {
+  .decomposition-models-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .decomposition-model-pair,
+  .decomposition-fallback-selects {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

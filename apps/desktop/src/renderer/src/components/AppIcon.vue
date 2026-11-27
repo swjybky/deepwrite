@@ -120,6 +120,12 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
       <circle cx="12" cy="12" r="9" />
       <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
     </template>
+    <template v-else-if="name === 'grid'">
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.6" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" />
+    </template>
     <template v-else-if="name === 'user'">
       <circle cx="12" cy="8" r="3" />
       <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
@@ -135,6 +141,17 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'sparkles'">
       <path
         d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2zM18.5 14l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8zM5 13l.8 2.2 2.2.8-2.2.8L5 19l-.8-2.2L2 16l2.2-.8z"
+      />
+    </template>
+    <template v-else-if="name === 'star'">
+      <path
+        d="m12 3.5 2.65 5.37 5.93.86-4.29 4.18 1.01 5.91L12 17.03l-5.3 2.79 1.01-5.91-4.29-4.18 5.93-.86z"
+      />
+    </template>
+    <template v-else-if="name === 'star-filled'">
+      <path
+        fill="currentColor"
+        d="m12 3.5 2.65 5.37 5.93.86-4.29 4.18 1.01 5.91L12 17.03l-5.3 2.79 1.01-5.91-4.29-4.18 5.93-.86z"
       />
     </template>
     <template v-else-if="name === 'history'">

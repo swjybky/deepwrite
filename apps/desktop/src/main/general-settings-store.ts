@@ -1,6 +1,6 @@
 import { withConfigurationLock } from "./configuration-lock";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   GeneralSettingsSchema,
   GeneralSettingsSnapshotSchema,
@@ -8,6 +8,7 @@ import {
   type GeneralSettings,
   type GeneralSettingsSnapshot
 } from "@deepwrite/contracts";
+import { writeJsonAtomic, isNodeError } from "@deepwrite/shared/node";
 
 interface DiskGeneralSettings extends Omit<
   GeneralSettings,
@@ -35,20 +36,6 @@ interface DiskGeneralSettings extends Omit<
   useNetworkProxy?: boolean;
   moreFeatures?: GeneralSettings["moreFeatures"];
   versionHistoryEnabled?: boolean;
-}
-
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
 }
 
 export class GeneralSettingsStore {
@@ -119,7 +106,7 @@ export class GeneralSettingsStore {
       if (candidate.version === 1) {
         // Apply the new approval defaults once; later user choices stay intact.
         settings.permissionMode = "auto-approve";
-        await atomicWriteJson(this.settingsPath, { version: 2, ...settings });
+        await writeJsonAtomic(this.settingsPath, { version: 2, ...settings });
       }
       return GeneralSettingsSnapshotSchema.parse({
         persisted: true,
@@ -145,7 +132,7 @@ export class GeneralSettingsStore {
           version: 2,
           ...settings
         };
-        await atomicWriteJson(this.settingsPath, disk);
+        await writeJsonAtomic(this.settingsPath, disk);
         saved = GeneralSettingsSnapshotSchema.parse({
           persisted: true,
           settings

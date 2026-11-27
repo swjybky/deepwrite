@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type {
+  BackupProjectRegistration,
   CloudBackupItem,
   CloudBackupItemKind
 } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 const SKIP_NAMES = new Set([".DS_Store", "Thumbs.db"]);
 
@@ -16,39 +18,6 @@ export interface LocalBackupProject {
   hash: string;
   sizeBytes: number;
   files: Array<{ relativePath: string; data: Buffer }>;
-}
-
-interface RegistryProject {
-  id: string;
-  domain: string;
-  projectDirectory: string;
-}
-
-interface LongRegistryProject {
-  bookId: string;
-  projectDirectory: string;
-  deletion?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function catalogKind(domain: string): CloudBackupItemKind | null {
-  switch (domain) {
-    case "book":
-      return "book";
-    case "material-library":
-      return "material-library";
-    case "material-group":
-      return "material-group";
-    case "skill-library":
-      return "skill-library";
-    case "skill-group":
-      return "skill-group";
-    default:
-      return null;
-  }
 }
 
 async function readJsonObject(
@@ -166,62 +135,13 @@ async function loadProject(
 }
 
 export async function listLocalBackupProjects(
-  userDataPath: string
+  registrations: readonly BackupProjectRegistration[]
 ): Promise<LocalBackupProject[]> {
-  const catalog = await readJsonObject(
-    join(userDataPath, "catalog-registry.json")
-  );
-  const longCatalog = await readJsonObject(
-    join(userDataPath, "long-project-registry.json")
-  );
   const projects: LocalBackupProject[] = [];
-  const seen = new Set<string>();
-
-  const catalogProjects = Array.isArray(catalog?.projects)
-    ? catalog.projects
-    : [];
-  for (const raw of catalogProjects) {
-    if (!isRecord(raw)) continue;
-    const item = raw as unknown as RegistryProject;
-    if (
-      typeof item.id !== "string" ||
-      typeof item.projectDirectory !== "string"
-    )
-      continue;
-    const kind = catalogKind(String(item.domain));
-    if (!kind) continue;
-    const key = `${kind}:${item.id}`;
-    if (seen.has(key)) continue;
-    const loaded = await loadProject(kind, item.id, item.projectDirectory);
-    if (!loaded) continue;
-    seen.add(key);
-    projects.push(loaded);
+  for (const { kind, id, projectDirectory } of registrations) {
+    const loaded = await loadProject(kind, id, projectDirectory);
+    if (loaded) projects.push(loaded);
   }
-
-  const longProjects = Array.isArray(longCatalog?.projects)
-    ? longCatalog.projects
-    : [];
-  for (const raw of longProjects) {
-    if (!isRecord(raw)) continue;
-    const item = raw as unknown as LongRegistryProject;
-    if (
-      typeof item.bookId !== "string" ||
-      typeof item.projectDirectory !== "string"
-    )
-      continue;
-    if (item.deletion) continue;
-    const key = `long-book:${item.bookId}`;
-    if (seen.has(key)) continue;
-    const loaded = await loadProject(
-      "long-book",
-      item.bookId,
-      item.projectDirectory
-    );
-    if (!loaded) continue;
-    seen.add(key);
-    projects.push(loaded);
-  }
-
   projects.sort((left, right) =>
     `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`)
   );

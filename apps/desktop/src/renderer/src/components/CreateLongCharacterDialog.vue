@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
+import { useDialogKeyboard } from "../composables/useDialogKeyboard";
 import { uiMessage } from "../ui-feedback";
 import AppIcon from "./AppIcon.vue";
 
@@ -47,46 +48,6 @@ function submit(): void {
   });
 }
 
-function focusableElements(): HTMLElement[] {
-  return dialogElement.value
-    ? Array.from(
-        dialogElement.value.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((element) => !element.hasAttribute("hidden"))
-    : [];
-}
-
-function handleKeydown(event: KeyboardEvent): void {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    close();
-    return;
-  }
-  if (
-    event.key !== "Tab" ||
-    !(event.target instanceof Node) ||
-    !dialogElement.value?.contains(event.target)
-  ) {
-    return;
-  }
-  const focusable = focusableElements();
-  if (!focusable.length) {
-    event.preventDefault();
-    dialogElement.value.focus({ preventScroll: true });
-    return;
-  }
-  const first = focusable[0]!;
-  const last = focusable.at(-1)!;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus({ preventScroll: true });
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus({ preventScroll: true });
-  }
-}
-
 watch(
   () => props.open,
   async (open) => {
@@ -108,8 +69,7 @@ watch(
   }
 );
 
-onMounted(() => document.addEventListener("keydown", handleKeydown));
-onBeforeUnmount(() => document.removeEventListener("keydown", handleKeydown));
+useDialogKeyboard(dialogElement, { isOpen: () => props.open, close });
 </script>
 
 <template>

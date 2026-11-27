@@ -13,7 +13,7 @@ import {
   removeAssets
 } from "./assets";
 import {
-  atomicWrite,
+  writeIdentityFile,
   identityDirectory,
   identityFile,
   isMissing,
@@ -23,7 +23,7 @@ import {
 export interface BookIdentityStoreOptions {
   resolveProject(book: ChatAssistantProjectRef): Promise<string>;
   now?: () => string;
-  write?: typeof atomicWrite;
+  write?: typeof writeIdentityFile;
 }
 
 export interface IdentityMutationContext {
@@ -37,11 +37,11 @@ export class BookIdentityStore {
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly recovered = new Map<string, string>();
   readonly now: () => string;
-  private readonly write: typeof atomicWrite;
+  private readonly write: typeof writeIdentityFile;
 
   constructor(private readonly options: BookIdentityStoreOptions) {
     this.now = options.now ?? (() => new Date().toISOString());
-    this.write = options.write ?? atomicWrite;
+    this.write = options.write ?? writeIdentityFile;
   }
 
   private async queued<T>(

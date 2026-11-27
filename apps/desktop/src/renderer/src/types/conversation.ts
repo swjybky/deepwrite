@@ -96,7 +96,7 @@ export interface AgentEditProposal {
   /**
    * The target changed after the agent based this edit on it (usually the
    * user editing during the run). Accepting then overwrites only the version
-   * recorded here; see docs/智能体运行中编辑正文设计.md.
+   * recorded here.
    */
   staleBase?: {
     detectedAt: string;

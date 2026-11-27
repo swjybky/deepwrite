@@ -2,6 +2,7 @@ import { app, shell } from "electron";
 import type { CommandResult } from "@deepwrite/contracts";
 import { safeErrorDetails } from "./ipc/errors";
 import { notificationSettingsUrl } from "./task-notification-policy";
+import { rejectedResult } from "./ipc/errors";
 
 function settingsUrl(): string | undefined {
   return notificationSettingsUrl(process.platform, app.isPackaged);
@@ -20,15 +21,11 @@ export async function openNotificationSettings(
     await shell.openExternal(url);
     return { status: "accepted", requestId, payload: { opened: true } };
   } catch (error: unknown) {
-    return {
-      status: "rejected",
+    return rejectedResult(
       requestId,
-      error: {
-        code: "general_settings.open_notification_settings_failed",
-        message:
-          error instanceof Error ? error.message : "打开系统通知设置失败。",
-        details: safeErrorDetails(error)
-      }
-    };
+      "general_settings.open_notification_settings_failed",
+      error instanceof Error ? error.message : "打开系统通知设置失败。",
+      safeErrorDetails(error)
+    );
   }
 }

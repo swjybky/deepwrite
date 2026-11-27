@@ -16,6 +16,7 @@ import {
 } from "@deepwrite/contracts";
 import { randomHex8 } from "@deepwrite/shared";
 import { FolderCatalogConflictError } from "./types";
+import { isNodeError } from "@deepwrite/shared/node";
 
 export function sanitizeFileName(
   value: string,
@@ -298,7 +299,7 @@ export async function commitProjectMarkdownUpdate(
   // leave that value intact and surface a conflict instead of overwriting it.
   assertJsonByteLength(manifest, maxManifestBytes);
   assertTextByteLength(nextContent, maxMarkdownBytes, "Markdown content");
-  await atomicWriteText(target, nextContent);
+  await writeProjectTextAtomic(target, nextContent);
   try {
     const observed = await readRequiredUtf8File(
       target,
@@ -311,7 +312,7 @@ export async function commitProjectMarkdownUpdate(
         createShortWorkspaceContentRevision(observed)
       );
     }
-    await atomicWriteJson(manifestPath, manifest, maxManifestBytes);
+    await writeBoundedProjectJson(manifestPath, manifest, maxManifestBytes);
   } catch (error: unknown) {
     try {
       const observed = await readOptionalUtf8File(
@@ -323,7 +324,7 @@ export async function commitProjectMarkdownUpdate(
         if (previousContent === undefined) {
           await unlinkOptional(target);
         } else {
-          await atomicWriteText(target, previousContent);
+          await writeProjectTextAtomic(target, previousContent);
         }
       }
     } catch (rollbackError: unknown) {
@@ -353,10 +354,10 @@ export async function commitProjectFileCreations(
   const committed: Array<{ target: string; content: string }> = [];
   try {
     for (const file of files) {
-      await atomicWriteText(file.target, file.content);
+      await writeProjectTextAtomic(file.target, file.content);
       committed.push(file);
     }
-    await atomicWriteJson(manifestPath, manifest, maxManifestBytes);
+    await writeBoundedProjectJson(manifestPath, manifest, maxManifestBytes);
   } catch (error: unknown) {
     const rollbackErrors: unknown[] = [];
     for (const file of committed.reverse()) {
@@ -383,7 +384,7 @@ export async function commitProjectFileCreations(
   }
 }
 
-export async function atomicWriteText(
+export async function writeProjectTextAtomic(
   path: string,
   value: string
 ): Promise<void> {
@@ -398,14 +399,14 @@ export async function atomicWriteText(
   }
 }
 
-export async function atomicWriteJson(
+export async function writeBoundedProjectJson(
   path: string,
   value: unknown,
   maxBytes: number
 ): Promise<void> {
   const serialized = `${JSON.stringify(value, null, 2)}\n`;
   assertTextByteLength(serialized, maxBytes, "JSON content");
-  await atomicWriteText(path, serialized);
+  await writeProjectTextAtomic(path, serialized);
 }
 
 export async function unlinkOptional(path: string): Promise<void> {
@@ -452,11 +453,4 @@ export async function pathExists(path: string): Promise<boolean> {
     }
     throw error;
   }
-}
-
-export function isNodeError(
-  error: unknown,
-  code: string
-): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === code;
 }

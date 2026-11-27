@@ -5,10 +5,10 @@ import {
 } from "@deepwrite/contracts";
 import {
   commitProjectTransaction,
-  projectTransactionContentSha256,
   type ProjectTransactionFileOperation
 } from "./project-transaction";
 import { MAX_TRANSACTION_FILES } from "./project-transaction/types";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export const SYNC_FILE_LIMIT_MESSAGE =
   "作品文件数量超过同步上限，请减少单个作品的文件后重试。";
@@ -43,17 +43,14 @@ export function deviceSyncOperations(
       operations.push({
         path,
         action: "check",
-        expectedSha256: projectTransactionContentSha256(content)
+        expectedSha256: sha256Hex(content)
       });
       continue;
     }
     operations.push({
       path,
       content,
-      expectedSha256:
-        old[path] === undefined
-          ? null
-          : projectTransactionContentSha256(old[path])
+      expectedSha256: old[path] === undefined ? null : sha256Hex(old[path])
     });
   }
   for (const [path, content] of Object.entries(old))
@@ -61,7 +58,7 @@ export function deviceSyncOperations(
       operations.push({
         path,
         action: "delete",
-        expectedSha256: projectTransactionContentSha256(content)
+        expectedSha256: sha256Hex(content)
       });
   assertDeviceSyncFileCount(operations.length);
   return operations;

@@ -2687,11 +2687,11 @@ html[data-theme="dark"]
 
 /* Keep the font-scaled breakpoint below the composer's 760px content cap. */
 @container composer (max-width: min(32rem, 560px)) {
-  .composer-tools .conversation-model-config-summary {
+  .composer-toolbar .composer-tools .conversation-model-config-summary {
     display: none;
   }
 
-  .composer-tools .conversation-model-config-label {
+  .composer-toolbar .composer-tools .conversation-model-config-label {
     max-width: 8em;
   }
 

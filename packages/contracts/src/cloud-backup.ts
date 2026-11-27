@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EnvelopeBaseSchema } from "./envelope";
 
 export const CLOUD_BACKUP_IPC_CHANNEL = "deepwrite:cloud-backup" as const;
 export const CLOUD_BACKUP_QUOTA_BYTES = 100 * 1024 * 1024;
@@ -123,3 +124,23 @@ export const CloudBackupIpcRequestSchema = z.discriminatedUnion("operation", [
     .strict()
 ]);
 export type CloudBackupIpcRequest = z.infer<typeof CloudBackupIpcRequestSchema>;
+
+/** A project Core has registered, so Main can pack it without reading Core's registries. */
+export const BackupProjectRegistrationSchema = z.object({
+  kind: CloudBackupItemKindSchema,
+  id: z.string().min(1),
+  projectDirectory: z.string().min(1)
+});
+export type BackupProjectRegistration = z.infer<
+  typeof BackupProjectRegistrationSchema
+>;
+
+export const ListBackupProjectsResultSchema = z.object({
+  projects: z.array(BackupProjectRegistrationSchema)
+});
+
+export const CatalogListBackupProjectsCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("catalog.listBackupProjects"),
+    payload: z.object({})
+  });

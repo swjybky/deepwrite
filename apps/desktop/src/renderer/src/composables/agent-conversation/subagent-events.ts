@@ -1,3 +1,4 @@
+import { stripModelCallSnapshot } from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
 import type { AgentConversationContext } from "./context";
 import type { TrackedMessages } from "./message-mutations";
@@ -58,12 +59,13 @@ export function handleSubagentEvent(
   if (event.type === "subagent.activity") {
     const activity = event.payload.activity;
     if (activity.type === "model_call") {
+      const strippedCall = stripModelCallSnapshot(activity.call);
       const calls = (run.modelCalls ??= []);
       const index = calls.findIndex(
-        (call) => call.requestId === activity.call.requestId
+        (call) => call.requestId === strippedCall.requestId
       );
-      if (index < 0) calls.push(activity.call);
-      else if (!calls[index]?.endedAt) calls[index] = activity.call;
+      if (index < 0) calls.push(strippedCall);
+      else if (!calls[index]?.endedAt) calls[index] = strippedCall;
       return;
     }
     if (activity.type === "turn_started") {

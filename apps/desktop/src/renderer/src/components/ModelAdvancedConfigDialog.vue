@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { nextTick, ref, watch } from "vue";
@@ -64,13 +65,14 @@ async function fillFromRuntime(model: DraftModel): Promise<void> {
     void nextTick(() => firstInput.value?.focus());
     return;
   }
-  if (!window.deepwrite) {
+  const desktopApi = deepwriteApi();
+  if (!desktopApi) {
     resolving.value = false;
     uiMessage.error(t("thisEnvironmentCannotReadTheModelSActualRequest"));
     return;
   }
   try {
-    const result = await window.deepwrite.models.resolveCapacity(
+    const result = await desktopApi.models.resolveCapacity(
       toModelInput({
         ...model,
         contextWindow: undefined,

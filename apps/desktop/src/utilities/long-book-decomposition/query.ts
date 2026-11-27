@@ -14,7 +14,7 @@ import {
   type DecompositionQuery,
   type DecompositionQueryResult
 } from "@deepwrite/contracts";
-import { LongBookAnalysisSourceStore } from "../../extras/agents/sources/long-book-source-store";
+import { LongBookAnalysisSourceStore } from "../long-book-sources/long-book-source-store";
 import { DecompositionRecordsReader } from "./records-reader";
 import { emptyDecompositionRegistry } from "./workflow";
 import { registryMentionItems, registryPartItems } from "./registry-mentions";

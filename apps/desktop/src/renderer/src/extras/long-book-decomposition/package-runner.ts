@@ -1,4 +1,6 @@
 import {
+  decompositionTaskUnitIds,
+  getModelContentBlockReason,
   isModelQuotaExhausted,
   type DeepWriteApi,
   type LongBookDecompositionJob
@@ -7,6 +9,7 @@ import { startExtrasAgentTask } from "../agent-runtime/extrasAgentTask";
 import type { createSubagentRunTracker } from "../agent-runtime/subagentRunTracker";
 import { getErrorPayload } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
+import { formatError } from "../../i18n/errors";
 
 const t = createScopedTranslator("extras.longBookDecomposition");
 
@@ -15,7 +18,7 @@ export const decompositionFailureMessage = (cause: unknown): string =>
   (cause instanceof Error
     ? getErrorPayload(cause.cause)?.message
     : undefined) ??
-  (cause instanceof Error ? cause.message : String(cause));
+  formatError(cause, String(cause));
 
 function capacityError(cause: unknown): boolean {
   if (!cause || typeof cause !== "object") return false;
@@ -43,6 +46,8 @@ export function startDecompositionPackage(
     phase === "read" ? current.models.reading : current.models.integration;
   let acceptedJob: Promise<LongBookDecompositionJob> | undefined;
   let quotaFailure: string | undefined;
+  const runUnits = new Map<string, string[]>();
+  const unitErrors = new Map<string, string>();
   subtasks.begin({ phase, unitIds });
   const handle = startExtrasAgentTask(
     api,
@@ -63,16 +68,30 @@ export function startDecompositionPackage(
       ...subtasks.parentCallbacks,
       onSubagentEvent: (event) => {
         subtasks.handleEvent(event);
+        if (event.type === "subagent.started") {
+          runUnits.set(
+            event.payload.subagentRunId,
+            decompositionTaskUnitIds(event.payload.task, unitIds)
+          );
+          return;
+        }
         if (
           event.type !== "subagent.completed" ||
-          event.payload.status !== "error" ||
-          quotaFailure ||
-          !isModelQuotaExhausted(
-            event.payload.errorMessage ?? event.payload.summary
-          )
+          event.payload.status !== "error"
         )
           return;
-        quotaFailure = event.payload.errorMessage ?? event.payload.summary;
+        const message = (
+          event.payload.errorMessage ?? event.payload.summary
+        ).trim();
+        if (message) {
+          for (const id of runUnits.get(event.payload.subagentRunId) ?? []) {
+            const existing = unitErrors.get(id);
+            if (!existing || !getModelContentBlockReason(existing))
+              unitErrors.set(id, message.slice(0, 2000));
+          }
+        }
+        if (quotaFailure || !isModelQuotaExhausted(message)) return;
+        quotaFailure = message;
         // The parent may still be waiting for other children or another model
         // turn. Stop the whole package as soon as account exhaustion is known.
         handle.dispose();
@@ -105,7 +124,13 @@ export function startDecompositionPackage(
           : "completed",
       failure
     );
-    return { failure, capacity, stopped, quota };
+    return {
+      failure,
+      capacity,
+      stopped,
+      quota,
+      unitErrors: Object.fromEntries(unitErrors)
+    };
   })();
   return {
     handle,

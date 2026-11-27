@@ -8,6 +8,7 @@ import {
   type LongAgentTeamSettings,
   type ShortAgentSubagentDefinition
 } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 const LEGACY_LONG_PARENT_LABELS = {
   worldbuilding: "世界观",
@@ -25,10 +26,6 @@ type LegacyLongParentId = keyof typeof LEGACY_LONG_PARENT_LABELS;
 interface LegacyDefinitionWithParent {
   definition: ShortAgentSubagentDefinition;
   parentAgentId: LegacyLongParentId;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isLegacyLongParentId(value: unknown): value is LegacyLongParentId {

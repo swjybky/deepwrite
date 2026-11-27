@@ -13,6 +13,7 @@ import {
 import { createScopedTranslator } from "../i18n";
 import { getErrorDetail } from "../i18n/errors";
 import { uiMessage } from "../ui-feedback";
+import { uiConfirm } from "../ui-confirm";
 const t = createScopedTranslator("components.imageModelSettings");
 export function useImageModelSettings() {
   const settings = ref<ImageModelSettings>({
@@ -34,6 +35,7 @@ export function useImageModelSettings() {
       return await operation();
     } catch (error) {
       uiMessage.error(getErrorDetail(error) ?? t("error"));
+      return undefined;
     }
   }
   async function load() {
@@ -63,8 +65,10 @@ export function useImageModelSettings() {
   }
   function edit(add = false, id = settings.value.activeProfileId) {
     if (add) {
-      if (settings.value.profiles.length >= 12)
-        return uiMessage.warning(t("maxProfiles"));
+      if (settings.value.profiles.length >= 12) {
+        uiMessage.warning(t("maxProfiles"));
+        return;
+      }
       const p = IMAGE_MODEL_PRESETS["volcengine-seedream"];
       draft.value = {
         presetId: p.id,
@@ -117,7 +121,11 @@ export function useImageModelSettings() {
     await persist(inputs(), id);
   }
   async function remove(id = settings.value.activeProfileId) {
-    if (!id || !window.confirm(t("deleteConfirm"))) return;
+    if (
+      !id ||
+      !(await uiConfirm({ message: t("deleteConfirm"), danger: true }))
+    )
+      return;
     await persist(inputs().filter((p) => p.id !== id));
   }
   async function test(prompt: string) {

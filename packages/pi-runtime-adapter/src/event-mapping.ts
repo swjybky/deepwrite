@@ -1,11 +1,12 @@
 import { isExtrasAgentOutputDetails } from "./extras/output";
 import type {
   AgentRuntimeRef,
-  AgentUsage,
   AgentUsageObservationStatus
 } from "@deepwrite/contracts";
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { normalizeUsage } from "./usage";
+export { normalizeUsage };
 import type { AgentTurnAttempt } from "./agent-turn-retry";
 import { isAcademicWorkspaceToolDetails } from "./academic-agent-tools";
 import { isLibraryAgentToolDetails } from "./library-agent-tools";
@@ -732,27 +733,4 @@ export function summarizeToolResult(result: unknown): string {
   } catch {
     return "工具已执行完成。";
   }
-}
-
-export function normalizeUsage(
-  usage: Usage | undefined
-): AgentUsage | undefined {
-  if (!usage) return undefined;
-  const values = [
-    usage.input,
-    usage.output,
-    usage.cacheRead,
-    usage.cacheWrite,
-    usage.totalTokens
-  ];
-  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)) {
-    return undefined;
-  }
-  return {
-    inputTokens: usage.input,
-    outputTokens: usage.output,
-    cacheReadTokens: usage.cacheRead,
-    cacheWriteTokens: usage.cacheWrite,
-    totalTokens: usage.totalTokens
-  };
 }

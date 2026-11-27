@@ -3,7 +3,9 @@ import {
   addDecompositionUsage,
   decompositionUsageLimit,
   decompositionUsageTotal,
+  getModelContentBlockReason,
   isModelQuotaExhausted,
+  isSkippableDecompositionUnitId,
   type DecompositionControlInput,
   type DecompositionUsage,
   type LongBookDecompositionJob
@@ -39,7 +41,7 @@ export async function controlDecompositionJob(
     job.usage = addDecompositionUsage(job.usage, usage);
     await service.state.save(job);
   }
-  if (job.phase === "done" && ["resume", "stop"].includes(input.action))
+  if (job.phase === "done" && ["resume", "stop", "end"].includes(input.action))
     return job;
   if (input.action === "delete") {
     if (job.status === "running") throw new Error("请先停止任务。");
@@ -50,6 +52,17 @@ export async function controlDecompositionJob(
     job.status = "stopped";
     if (input.error) job.lastError = input.error;
     delete job.activeAttemptId;
+    for (const unit of Object.values(job.units))
+      if (["running", "writing"].includes(unit.status)) {
+        unit.status = "pending";
+        delete unit.attemptId;
+        delete unit.runId;
+      }
+  } else if (input.action === "end") {
+    if (job.status === "running") throw new Error("请先停止任务。");
+    job.status = "ended";
+    delete job.activeAttemptId;
+    delete job.lastError;
     for (const unit of Object.values(job.units))
       if (["running", "writing"].includes(unit.status)) {
         unit.status = "pending";
@@ -85,7 +98,7 @@ export async function controlDecompositionJob(
         delete unit.lastError;
       }
     job.status = "idle";
-    if (isModelQuotaExhausted(job.lastError)) delete job.lastError;
+    delete job.lastError;
     // Continuing after a usage pause is the user's go-ahead for more.
     const used = decompositionUsageTotal(job.usage);
     if (used > decompositionUsageLimit(job)) {
@@ -115,23 +128,43 @@ export async function controlDecompositionJob(
     if (!input.attemptId || job.activeAttemptId !== input.attemptId)
       throw new Error("旧工作包不能结束当前运行。");
     const quota = input.failed && isModelQuotaExhausted(input.error);
-    for (const unit of Object.values(job.units))
+    let firstFailedError: string | undefined;
+    for (const [id, unit] of Object.entries(job.units))
       if (
         unit.attemptId === input.attemptId &&
         ["running", "writing"].includes(unit.status)
       ) {
+        const unitError = (
+          input.unitErrors?.[id] ??
+          input.error ??
+          unit.lastError ??
+          "工作包未提交此单元。"
+        ).slice(0, 2000);
+        const contentBlocked = Boolean(getModelContentBlockReason(unitError));
         if (!quota) unit.attempts++;
-        unit.status = !quota && unit.attempts >= 3 ? "failed" : "pending";
-        unit.lastError = (input.error ?? "工作包未提交此单元。").slice(0, 2000);
+        unit.status =
+          !quota && (contentBlocked || unit.attempts >= 3)
+            ? "failed"
+            : "pending";
+        unit.lastError = unitError;
+        if (unit.status === "failed" && !firstFailedError)
+          firstFailedError = unitError;
         delete unit.attemptId;
         delete unit.runId;
       }
-    job.status = quota
-      ? "stopped"
-      : Object.values(job.units).some(({ status }) => status === "failed")
-        ? "failed"
-        : "idle";
-    if (quota) job.lastError = input.error;
+    const failedUnit = Object.values(job.units).find(
+      ({ status }) => status === "failed"
+    );
+    job.status = quota ? "stopped" : failedUnit ? "failed" : "idle";
+    if (quota && input.error) job.lastError = input.error;
+    else if (job.status === "failed") {
+      const error = (
+        firstFailedError ??
+        failedUnit?.lastError ??
+        input.error
+      )?.slice(0, 2000);
+      if (error) job.lastError = error;
+    }
     delete job.activeAttemptId;
     pauseOverUsage(job);
   } else if (input.action === "skip" || input.action === "retry") {
@@ -139,11 +172,33 @@ export async function controlDecompositionJob(
     const unit = input.unitId ? job.units[input.unitId] : undefined;
     if (!unit) throw new Error("单元不存在。");
     if (input.action === "skip") {
-      if (!input.unitId!.startsWith("chunk:"))
-        throw new Error("只能跳过阅读块。");
+      if (!isSkippableDecompositionUnitId(input.unitId!))
+        throw new Error("当前仅支持跳过阅读块或人物建档单元。");
+      if (!["failed", "pending"].includes(unit.status) || job.phase === "done")
+        throw new Error("只能跳过待处理或失败的单元。");
       unit.status = "skipped";
-      for (const id of unit.dependencies)
-        if (job.units[id]!.status !== "done") job.units[id]!.status = "skipped";
+      delete unit.attemptId;
+      delete unit.runId;
+      for (const id of unit.dependencies) {
+        const dependency = job.units[id];
+        if (dependency && dependency.status !== "done") {
+          dependency.status = "skipped";
+          delete dependency.attemptId;
+          delete dependency.runId;
+        }
+      }
+      const remainingFailed = Object.values(job.units).find(
+        ({ status }) => status === "failed"
+      );
+      if (remainingFailed) {
+        job.status = "failed";
+        if (remainingFailed.lastError)
+          job.lastError = remainingFailed.lastError;
+        else delete job.lastError;
+      } else {
+        job.status = "idle";
+        delete job.lastError;
+      }
     } else {
       if (
         !["failed", "skipped", "pending"].includes(unit.status) ||
@@ -154,7 +209,6 @@ export async function controlDecompositionJob(
         );
       requeueDecompositionUnit(job, input.unitId!);
     }
-    job.status = "idle";
   } else if (input.action === "resolve-conflict") {
     if (!input.unitId || !input.conflictChoice)
       throw new Error("请选择需要处理的冲突和处理方式。");

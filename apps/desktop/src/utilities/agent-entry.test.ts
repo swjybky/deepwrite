@@ -30,7 +30,13 @@ const captured = vi.hoisted(() => ({
   commandHandler: undefined as AgentCommandHandler | undefined,
   startInputs: [] as AgentRunInput[],
   extrasInputs: [] as ExtrasAgentRunInput[],
-  runtimeEvents: [] as AgentRuntimeEvent[]
+  runtimeEvents: [] as AgentRuntimeEvent[],
+  testConnectionImpl: undefined as
+    | ((
+        config: unknown,
+        options?: { signal?: AbortSignal; timeoutMs?: number }
+      ) => Promise<unknown>)
+    | undefined
 }));
 
 vi.mock("./runtime", () => ({
@@ -45,6 +51,18 @@ vi.mock("./runtime", () => ({
 }));
 
 vi.mock("@deepwrite/pi-runtime-adapter", () => ({
+  ModelConnectionTestCancelledError: class ModelConnectionTestCancelledError extends Error {
+    constructor(message = "模型连接测试已取消。") {
+      super(message);
+      this.name = "ModelConnectionTestCancelledError";
+    }
+  },
+  ModelConnectionTestTimeoutError: class ModelConnectionTestTimeoutError extends Error {
+    constructor(message = "模型连接超时，请检查网络或稍后重试。") {
+      super(message);
+      this.name = "ModelConnectionTestTimeoutError";
+    }
+  },
   PiAgentRuntimeAdapter: class {
     describe(): {
       provider: string;
@@ -74,7 +92,13 @@ vi.mock("@deepwrite/pi-runtime-adapter", () => ({
       }
     }
 
-    async testConnection(): Promise<never> {
+    async testConnection(
+      config: unknown,
+      options?: { signal?: AbortSignal; timeoutMs?: number }
+    ): Promise<unknown> {
+      if (captured.testConnectionImpl) {
+        return await captured.testConnectionImpl(config, options);
+      }
       throw new Error("Not used by this test.");
     }
 
@@ -100,6 +124,7 @@ describe("Agent Utility prompt forwarding", () => {
     captured.startInputs.length = 0;
     captured.extrasInputs.length = 0;
     captured.runtimeEvents.length = 0;
+    captured.testConnectionImpl = undefined;
   });
 
   it("forwards a chat turn and gives only long project chats the Core bridge", async () => {
@@ -846,6 +871,90 @@ describe("Agent Utility prompt forwarding", () => {
           title: "世界观分类 · 世界规则"
         }
       }
+    });
+  });
+
+  it("aborts in-flight agent.model_test on agent.model_test_cancel and maps timeout errors", async () => {
+    await import("./agent-entry");
+    let capturedSignal: AbortSignal | undefined;
+    captured.testConnectionImpl = (_config, options) =>
+      new Promise((_resolve, reject) => {
+        capturedSignal = options?.signal;
+        options?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          { once: true }
+        );
+      });
+
+    const runtimeConfig = {
+      id: "gemini-official",
+      label: "Gemini Official",
+      provider: "google",
+      modelId: "gemini-2.5-pro",
+      api: "google-generative-ai" as const,
+      baseUrl: "https://provider.example.test/v1beta",
+      reasoning: true,
+      defaultThinkingLevel: "high" as const,
+      thinkingLevelOptions: ["low", "high"],
+      temperatureOptions: [0.1, 0.7, 1] as [number, number, number],
+      apiKey: "invalid-test-key"
+    };
+    const testCommand = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "agent.model_test",
+        { runtimeConfig, requestId: "req_agent_cancel" },
+        { id: "cmd_agent_model_test" }
+      )
+    );
+    const pending = captured.commandHandler!(testCommand, vi.fn());
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+    expect(capturedSignal?.aborted).toBe(false);
+
+    const cancelCommand = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "agent.model_test_cancel",
+        { requestId: "req_agent_cancel" },
+        { id: "cmd_agent_model_test_cancel" }
+      )
+    );
+    await expect(
+      captured.commandHandler!(cancelCommand, vi.fn())
+    ).resolves.toMatchObject({
+      status: "accepted",
+      payload: { cancelled: true }
+    });
+    expect(capturedSignal?.aborted).toBe(true);
+    await expect(pending).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "models.test_cancelled" }
+    });
+
+    // Already finished request returns cancelled: false
+    await expect(
+      captured.commandHandler!(cancelCommand, vi.fn())
+    ).resolves.toMatchObject({
+      status: "accepted",
+      payload: { cancelled: false }
+    });
+
+    const { ModelConnectionTestTimeoutError } =
+      await import("@deepwrite/pi-runtime-adapter");
+    captured.testConnectionImpl = async () => {
+      throw new ModelConnectionTestTimeoutError();
+    };
+    const timeoutCommand = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "agent.model_test",
+        { runtimeConfig, requestId: "req_agent_timeout" },
+        { id: "cmd_agent_model_test_timeout" }
+      )
+    );
+    await expect(
+      captured.commandHandler!(timeoutCommand, vi.fn())
+    ).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "models.test_timeout" }
     });
   });
 });

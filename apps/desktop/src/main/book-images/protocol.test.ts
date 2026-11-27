@@ -15,7 +15,7 @@ import {
   createBookImageProtocolHandler,
   registerBookImageScheme
 } from "./protocol";
-import { IMAGE_PNG } from "../image/image-test-support";
+import { IMAGE_PNG } from "../image/image.test-support";
 vi.mock("electron", () => ({ protocol: {} }));
 const roots: string[] = [];
 afterEach(async () => {

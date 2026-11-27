@@ -2,8 +2,9 @@ import type { Dirent } from "node:fs";
 import { lstat, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { availableProjectDirectory } from "../folder-catalog-store/paths-io";
-import { isNodeError, readSecureTextFile, unknownRecord } from "./io";
+import { readSecureTextFile, unknownRecord } from "./io";
 import { MANIFEST_PATH, MAX_MANIFEST_BYTES } from "./types";
+import { isNodeError } from "@deepwrite/shared/node";
 
 /**
  * Finds a long book folder in its parent. Older versions named the folder by

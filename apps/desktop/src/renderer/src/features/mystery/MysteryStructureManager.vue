@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { computed, ref, useId, watch } from "vue";
 import type {
   MysteryOperation,
@@ -70,7 +71,7 @@ const {
   reloadConflict,
   overwriteConflict
 } = useMysteryDocument({
-  api: () => window.deepwrite?.mystery,
+  api: () => deepwriteApi()?.mystery,
   bookId: () => props.index.bookId,
   target: () => ({ kind: "agents_md" }),
   autoSaveEnabled: () => false,

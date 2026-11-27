@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
   DEFAULT_ACADEMIC_AGENT_TEAM_SETTINGS,
   DEFAULT_AGENT_TEAM_SETTINGS,
   DEFAULT_LONG_AGENT_TEAM_SETTINGS,
@@ -18,6 +19,11 @@ import {
   type AgentTeamCatalogSnapshot,
   type AgentTeamProfile
 } from "@deepwrite/contracts";
+import {
+  activeTeamRevision,
+  applyActiveTeamChange,
+  previewActiveTeamChange
+} from "./agent-team-active-management";
 import { AgentTeamConfigStore } from "./agent-team-config-store";
 
 const roots = new Set<string>();
@@ -56,7 +62,7 @@ describe("AgentTeamConfigStore", () => {
     const snapshot = await new AgentTeamConfigStore(root).list();
 
     expect(snapshot.enabledTeamIds).toEqual({});
-    expect(snapshot.teams).toHaveLength(5);
+    expect(snapshot.teams).toHaveLength(6);
     expect(profileOfType(snapshot, "short")).toMatchObject({
       name: "默认短篇团队",
       settings: DEFAULT_AGENT_TEAM_SETTINGS
@@ -69,6 +75,14 @@ describe("AgentTeamConfigStore", () => {
       name: "默认长篇团队",
       settings: DEFAULT_LONG_AGENT_TEAM_SETTINGS
     });
+    const builtinLongTeam = profileOfType(snapshot, "long", "基础长篇默认团队");
+    expect(builtinLongTeam).toMatchObject({
+      id: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+      name: "基础长篇默认团队",
+      workspaceType: "long",
+      isBuiltin: true
+    });
+    expect(builtinLongTeam.settings.teams[0]!.subagents).toHaveLength(9);
     const academicTeam = profileOfType(snapshot, "academic");
     expect(academicTeam).toMatchObject({
       name: "默认学术团队",
@@ -135,7 +149,7 @@ describe("AgentTeamConfigStore", () => {
     const snapshot = await new AgentTeamConfigStore(root).list();
     expect(snapshot.enabledTeamIds).toEqual({ short: "team_short_existing" });
     expect(snapshot.teams.slice(0, 3)).toMatchObject(v5Payload.teams);
-    expect(snapshot.teams).toHaveLength(5);
+    expect(snapshot.teams).toHaveLength(6);
     const academic = profileOfType(snapshot, "academic");
     expect(academic.name).toBe("默认学术团队");
     expect(
@@ -256,7 +270,8 @@ describe("AgentTeamConfigStore", () => {
       "默认剧本团队",
       "默认长篇团队",
       "默认学术团队",
-      "默认剧本杀团队"
+      "默认剧本杀团队",
+      "基础长篇默认团队"
     ]);
     expect(snapshot.enabledTeamIds).toEqual({
       short: profileOfType(snapshot, "short").id,
@@ -585,5 +600,181 @@ describe("AgentTeamConfigStore", () => {
     expect(recovered.teams.some((team) => team.name === "恢复后的团队")).toBe(
       true
     );
+  });
+
+  it("keeps the built-in basic-long team out of disk profiles, rejects mutations, and duplicates to editable copies", async () => {
+    const root = await temporaryRoot();
+    const store = new AgentTeamConfigStore(root);
+    const initial = await store.list();
+
+    const diskInitial = JSON.parse(
+      await readFile(join(root, "config", "agent-team-profiles.json"), "utf8")
+    ) as { teams: AgentTeamProfile[] };
+    expect(
+      diskInitial.teams.some((t) => t.id === BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID)
+    ).toBe(false);
+
+    const builtinTeam = initial.teams.find(
+      (team) => team.id === BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    )!;
+    expect(builtinTeam.isBuiltin).toBe(true);
+    expect(builtinTeam.workspaceType).toBe("long");
+
+    await expect(
+      store.rename({
+        teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+        name: "改名"
+      })
+    ).rejects.toThrow("内置");
+    await expect(
+      store.save({
+        teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+        settings: builtinTeam.settings
+      })
+    ).rejects.toThrow("内置");
+    await expect(
+      store.delete({ teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID })
+    ).rejects.toThrow("内置");
+
+    const enabledCatalog = await store.setEnabled({
+      teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+      enabled: true
+    });
+    expect(enabledCatalog.enabledTeamIds.long).toBe(
+      BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    );
+    const boundCatalog = await store.setBookBinding({
+      bookId: "long-book-1",
+      workspaceType: "long",
+      teamIds: [BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID]
+    });
+    expect(boundCatalog.bookBindings?.["long-book-1"]).toEqual([
+      BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    ]);
+    const reloaded = await new AgentTeamConfigStore(root).list();
+    expect(reloaded.enabledTeamIds.long).toBe(
+      BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    );
+    const resolved = await store.resolve("long", "long", "long-book-1");
+    expect(resolved).toHaveLength(9);
+    expect(resolved.map((member) => member.id)).toEqual(
+      builtinTeam.settings.teams[0]!.subagents.map((member) => member.id)
+    );
+
+    const activeSnapshot: AgentTeamCatalogSnapshot = {
+      ...reloaded,
+      builtinSubagents: {
+        ...reloaded.builtinSubagents,
+        team: { ...reloaded.builtinSubagents.team, enabled: true }
+      }
+    };
+    const revision = activeTeamRevision(builtinTeam);
+    expect(() =>
+      previewActiveTeamChange(
+        activeSnapshot,
+        {
+          scope: { bookId: "long-book-1", bookType: "long" },
+          teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+          baseRevision: revision,
+          summary: "调整并行",
+          operations: [{ action: "set-parallel", enabled: true }]
+        },
+        []
+      )
+    ).toThrow("只读");
+    expect(() =>
+      applyActiveTeamChange(
+        activeSnapshot,
+        activeSnapshot.bookBindings ?? {},
+        {
+          scope: { bookId: "long-book-1", bookType: "long" },
+          teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID,
+          baseRevision: revision,
+          summary: "调整并行",
+          parallelSubagents: { before: false, after: true },
+          members: []
+        },
+        []
+      )
+    ).toThrow("只读");
+
+    const duplicated1 = await store.duplicate({
+      teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    });
+    const copy1 = duplicated1.teams.find(
+      (team) => team.name === "基础长篇默认团队 副本"
+    )!;
+    expect(copy1).toBeTruthy();
+    expect(copy1.id).not.toBe(BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID);
+    expect(copy1.isBuiltin).toBeUndefined();
+    expect(copy1.settings).toEqual(
+      (() => {
+        const expected = structuredClone(builtinTeam.settings);
+        expected.parallelSubagents = false;
+        return expected;
+      })()
+    );
+    const duplicated2 = await store.duplicate({
+      teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    });
+    expect(
+      duplicated2.teams.some(
+        (team) => team.name === "基础长篇默认团队 副本 (2)"
+      )
+    ).toBe(true);
+
+    const renamedCopy = await store.rename({
+      teamId: copy1.id,
+      name: "我的长篇定制团队"
+    });
+    expect(renamedCopy.teams.some((t) => t.name === "我的长篇定制团队")).toBe(
+      true
+    );
+
+    const exported = await store.exportProfile({
+      teamId: BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID
+    });
+    expect("isBuiltin" in exported).toBe(false);
+  });
+
+  it("disambiguates local team names colliding with the built-in team while keeping id and bindings", async () => {
+    const root = await temporaryRoot();
+    const config = join(root, "config");
+    await mkdir(config, { recursive: true });
+    await writeFile(
+      join(config, "agent-team-profiles.json"),
+      JSON.stringify({
+        version: 6,
+        enabledTeamIds: { long: "team_local_same_name" },
+        teams: [
+          {
+            id: "team_local_same_name",
+            name: "基础长篇默认团队",
+            workspaceType: "long",
+            settings: DEFAULT_LONG_AGENT_TEAM_SETTINGS
+          }
+        ]
+      })
+    );
+    await writeFile(
+      join(config, "agent-team-book-bindings.json"),
+      JSON.stringify({
+        version: 1,
+        bindings: { "book-1": ["team_local_same_name"] }
+      })
+    );
+
+    const snapshot = await new AgentTeamConfigStore(root).list();
+    const localTeam = snapshot.teams.find(
+      (t) => t.id === "team_local_same_name"
+    )!;
+    expect(localTeam.name).toBe("基础长篇默认团队 (本地)");
+    expect(localTeam.isBuiltin).toBeUndefined();
+    expect(snapshot.enabledTeamIds.long).toBe("team_local_same_name");
+    expect(snapshot.bookBindings?.["book-1"]).toEqual(["team_local_same_name"]);
+    expect(
+      snapshot.teams.find((t) => t.id === BUILTIN_TEAM_BASIC_LONG_DEFAULT_ID)
+        ?.name
+    ).toBe("基础长篇默认团队");
   });
 });

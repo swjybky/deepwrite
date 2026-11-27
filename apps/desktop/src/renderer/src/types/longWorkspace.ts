@@ -33,6 +33,7 @@ import {
 export { nextWritableLongChapterId } from "./longIndexedChapter";
 import { createLongContinuitySelection } from "./longContinuitySelection";
 import { latestCommittedContinuityChapter } from "@deepwrite/contracts/renderer";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.selection");
 const tImpact = createScopedTranslator("workspace.longImpactConfirmation");
@@ -174,7 +175,7 @@ export type LongWorkspaceRendererApi = DeepWriteApi["long"];
 
 export function resolveLongWorkspaceApi():
   LongWorkspaceRendererApi | undefined {
-  return window.deepwrite?.long;
+  return deepwriteApi()?.long;
 }
 
 export function longBookResourceId(bookId: string): string {

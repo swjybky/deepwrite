@@ -10,7 +10,6 @@ import {
 import { LONG_PORTABLE_BUNDLE_MAX_BYTES } from "../long-portable-bundle";
 import {
   commitProjectTransaction,
-  projectTransactionContentSha256,
   projectTransactionFileIdentity,
   type ProjectTransactionFileOperation,
   type CommitProjectTransactionInput
@@ -25,6 +24,7 @@ import {
   MAX_MANIFEST_BYTES,
   type SecureTextFile
 } from "./types";
+import { isNodeError, sha256Hex } from "@deepwrite/shared/node";
 
 export { encodeUtf8Strict } from "./utf8";
 
@@ -34,10 +34,6 @@ export function parseJson(text: string, label: string): unknown {
   } catch {
     throw new Error(`${label} 不是有效 JSON。`);
   }
-}
-
-export function serializeJson(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 export function unknownRecord(value: unknown): Record<string, unknown> | null {
@@ -142,7 +138,7 @@ export async function readSecureTextFile(
   return {
     content,
     bytes,
-    sha256: projectTransactionContentSha256(bytes),
+    sha256: sha256Hex(bytes),
     updatedAt: info.mtime.toISOString(),
     identity: projectTransactionFileIdentity(info),
     size: Number(info.size),
@@ -380,11 +376,4 @@ export function boundedNonnegativeInteger(
     throw new Error(`${label}必须是 0 到 ${maximum} 的整数。`);
   }
   return value;
-}
-
-export function isNodeError(
-  error: unknown,
-  code: string
-): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === code;
 }

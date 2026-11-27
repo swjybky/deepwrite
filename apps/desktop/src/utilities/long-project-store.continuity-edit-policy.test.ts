@@ -17,11 +17,10 @@ import {
   describe,
   expect,
   it,
-  projectTransactionContentSha256
+  sha256Hex
 } from "./long-project-store.test-support";
 import { vi } from "vitest";
 // This integration test exercises Renderer coordination against the real Core store.
-import type {} from "../renderer/src/env";
 import { useLongWorkspaceProposals } from "../renderer/src/composables/useLongWorkspaceProposals";
 import type { LongWorkspaceRendererApi } from "../renderer/src/types/longWorkspace";
 
@@ -131,7 +130,7 @@ describe("latest continuity checkpoint editing", () => {
                 fileId: chapter.characterState.id,
                 mode: "replace" as const,
                 content: "补写后的章末状态。",
-                expectedSha256: projectTransactionContentSha256("原章末状态。"),
+                expectedSha256: sha256Hex("原章末状态。"),
                 updatedAt: FIXED_NOW,
                 reason: "补写"
               }

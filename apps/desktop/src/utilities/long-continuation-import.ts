@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
@@ -30,7 +29,8 @@ import {
   type LongWorkspaceFileReference,
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
-import { createId } from "@deepwrite/shared";
+import { createId, toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const MAX_DOCUMENT_BYTES = 32 * 1024 * 1024;
 const O_NOFOLLOW = fsConstants.O_NOFOLLOW ?? 0;
@@ -107,16 +107,8 @@ export interface ContinuationImportPlan {
   sourceFingerprint: string;
 }
 
-function serializeJson(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-function sha256(value: string | Uint8Array): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
 function storageKey(id: string): string {
-  return sha256(id).slice(0, 32);
+  return sha256Hex(id).slice(0, 32);
 }
 
 function ledgerPath(commitId: string): string {
@@ -355,7 +347,7 @@ async function readSecureChapter(
       byteLength: bytes.byteLength,
       encoding: decoded.encoding,
       content: decoded.content,
-      contentSha256: sha256(bytes)
+      contentSha256: sha256Hex(bytes)
     };
   } finally {
     await handle.close();
@@ -506,7 +498,7 @@ export async function scanContinuationImportSource(
   const defaultTitle = Array.from(rawTitle).slice(0, 256).join("");
   if (defaultTitle !== rawTitle)
     warnings.push("根文件夹名过长，默认书名已截取前 256 个字符。");
-  const fingerprint = sha256(
+  const fingerprint = sha256Hex(
     JSON.stringify({
       mode: allFiles ? "flat" : "volume_folders",
       volumes: volumes.map((volume) => ({
@@ -663,7 +655,7 @@ export async function createContinuationImportPlan(
           foreshadowingBeatChanges: [],
           foreshadowingThreadChanges: []
         });
-        const recordContent = serializeJson(record);
+        const recordContent = toJsonFileText(record);
         const recordFile = addDocument(
           longLedgerCommitFileId(commitId),
           ledgerPath(commitId),

@@ -13,6 +13,7 @@ import {
   registerTextMenuExtension,
   type TextMenuHistory
 } from "./nativeTextContextMenu";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("components.bookImages");
 
@@ -78,7 +79,7 @@ export function useBookImageInsertion(options: {
 
     async function insert(): Promise<void> {
       try {
-        const api = window.deepwrite?.bookImages;
+        const api = deepwriteApi()?.bookImages;
         if (!api) {
           uiMessage.error(t("failed"));
           return;

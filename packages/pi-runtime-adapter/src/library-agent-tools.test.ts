@@ -4,7 +4,7 @@ import {
   skillWorkspace,
   toolByName,
   resultText
-} from "./library-agent-tools/test-fixtures";
+} from "./library-agent-tools/library-tools.test-support";
 import { createShortWorkspaceContentRevision } from "@deepwrite/contracts";
 import { validateToolArguments } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";

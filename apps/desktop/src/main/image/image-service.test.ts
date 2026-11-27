@@ -10,7 +10,7 @@ import {
   INVALID_IMAGE_KEY,
   testImageDecoder,
   testSecureStorage
-} from "./image-test-support";
+} from "./image.test-support";
 import { deferred } from "../voice/voice-test-support";
 import type { ImageFetcher } from "./image-http";
 import { openAiImageBody } from "./providers/openai-images";

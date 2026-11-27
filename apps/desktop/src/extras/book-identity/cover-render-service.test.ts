@@ -11,7 +11,7 @@ import {
 } from "@deepwrite/contracts";
 import { CoverRenderService } from "./cover-render-service";
 import { deferred } from "../../main/voice/voice-test-support";
-import { IMAGE_PNG } from "../../main/image/image-test-support";
+import { IMAGE_PNG } from "../../main/image/image.test-support";
 import type { ImageService } from "../../main/image/image-service";
 
 const book = { projectType: "short" as const, projectId: "book_test" };

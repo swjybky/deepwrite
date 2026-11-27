@@ -8,6 +8,7 @@ import {
   type AppearanceCustomFontFormat,
   type AppearanceFontInstallFailure
 } from "@deepwrite/contracts";
+import { isNodeError } from "@deepwrite/shared/node";
 
 export interface AppearanceFontCandidate {
   bytes: Buffer;
@@ -74,10 +75,6 @@ function failure(
     ok: false,
     failure: { displayName: safeAppearanceFontFileName(sourcePath), code }
   };
-}
-
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
 }
 
 async function readStableBoundedFile(

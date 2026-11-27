@@ -4,6 +4,7 @@ import type {
   ChatAssistantProjectRef
 } from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
+import { deepwriteApi } from "../../api/deepwrite";
 export const identityT = createScopedTranslator("extras.bookIdentity");
 export const fields: BookIdentityField[] = ["title", "synopsis", "cover"];
 export const agentIds = {
@@ -32,7 +33,7 @@ export function coverUrl(
 }
 
 export function identityApi() {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api) throw new Error(identityT("failed"));
   return api;
 }

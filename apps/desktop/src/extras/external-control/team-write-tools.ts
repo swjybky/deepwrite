@@ -1,6 +1,7 @@
 import {
   AgentTeamCatalogSnapshotSchema,
   AgentTeamProfileSaveInputSchema,
+  isBuiltinAgentTeamId,
   type AgentTeamProfile
 } from "@deepwrite/contracts";
 import {
@@ -105,6 +106,15 @@ export async function availableTeamName(
   }
 }
 
+function assertWritableTeam(team: AgentTeamProfile): void {
+  if (team.isBuiltin || isBuiltinAgentTeamId(team.id)) {
+    throw new ExternalControlError(
+      "external.invalid_input",
+      "内置智能体团队为只读，不能修改或删除，请先复制后再自定义。"
+    );
+  }
+}
+
 export async function saveAgentTeam(
   context: MutationContext,
   input: ExternalSaveAgentTeamInput
@@ -112,6 +122,7 @@ export async function saveAgentTeam(
   assertNoActiveRun(context);
   const { teamId, settings, baseRevision } = input;
   const team = await requireTeam(context, teamId);
+  assertWritableTeam(team);
   if (agentTeamRevision(team) !== baseRevision) {
     throw new ExternalControlError(
       "external.stale_revision",
@@ -164,10 +175,11 @@ export async function manageAgentTeam(
     return ExternalMutationResultSchema.parse(created);
   }
   const teamId = requireField(input.teamId, action, "teamId");
-  await requireTeam(context, teamId);
+  const team = await requireTeam(context, teamId);
   const run = async (): Promise<ExternalMutationResult> => {
     switch (action) {
       case "rename": {
+        assertWritableTeam(team);
         const nextName = requireField(name, "rename", "name");
         await teamCommand(context, "agentTeams.rename", {
           teamId,
@@ -183,6 +195,7 @@ export async function manageAgentTeam(
         });
         return { id: teamId };
       case "delete":
+        assertWritableTeam(team);
         return deleteTeam(context, teamId);
     }
   };

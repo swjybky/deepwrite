@@ -13,7 +13,7 @@ import { orderedChapterCards } from "../long-project-store/paths";
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import type { DecompositionJobStateStore } from "./job-state-store";
 import { decompositionResourceId } from "./identity";
-import { decompositionSha } from "./content-guard";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 /** Journal the deterministic post-commit references before creating the native ledger.
  * A crash between the ledger transaction and receipt refresh can then be recovered
@@ -54,7 +54,7 @@ export async function commitDecompositionLedger(
     const objects = new Map(
       projected.plot.foreshadowing.map((object) => [
         object.id,
-        decompositionSha(JSON.stringify(object))
+        sha256Hex(JSON.stringify(object))
       ])
     );
     // Only ledger-derived changes need recovery overrides; the other refs
@@ -102,7 +102,7 @@ export async function commitDecompositionLedger(
         const object = loaded.index.plot.foreshadowing.find(
           ({ id }) => id === ref.resourceId
         );
-        if (object && decompositionSha(JSON.stringify(object)) !== ref.sha256)
+        if (object && sha256Hex(JSON.stringify(object)) !== ref.sha256)
           throw new Error(
             "decomposition.conflict: 账本完成后的伏笔对象已被编辑。"
           );

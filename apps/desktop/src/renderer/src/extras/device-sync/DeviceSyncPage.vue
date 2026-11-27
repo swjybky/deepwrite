@@ -20,8 +20,16 @@ const props = defineProps<{
   prepareSync(): Promise<boolean>;
   refreshSync(): Promise<void>;
 }>();
-const { status, pending, initialLoading, loadInitialStatus, run, scope } =
-  useDeviceSync(props.refreshSync, props.prepareSync);
+const {
+  status,
+  pending,
+  initialLoading,
+  initError,
+  clearInitError,
+  loadInitialStatus,
+  run,
+  scope
+} = useDeviceSync(props.refreshSync, props.prepareSync);
 const tab = ref("overview");
 const qr = ref("");
 const restoring = ref<Omit<SyncHistory, "item"> | null>(null);
@@ -192,6 +200,8 @@ async function restore() {
         :status="status"
         :pending="pending"
         :request="run"
+        :error="initError"
+        :clear-error="clearInitError"
       />
       <SyncContentPanel
         v-if="tab === 'content'"

@@ -8,13 +8,13 @@ import {
   type DecompositionReadingCard,
   type DecompositionUnit
 } from "@deepwrite/contracts";
-import { decompositionSha } from "./content-guard";
 import { planCharacterBiographies } from "./character-biographies";
 import {
   addRegistryParts,
   registryMentionItems,
   replanLegacyRegistryParts
 } from "./registry-mentions";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 function preserveDecompositionWrites(unit: DecompositionUnit): void {
   const latest = new Map<string, DecompositionUnit["outputRefs"][number]>();
@@ -41,7 +41,7 @@ export function addDecompositionUnit(
   if (prior) {
     if (JSON.stringify(prior.dependencies) !== JSON.stringify(dependencies)) {
       prior.dependencies = dependencies;
-      prior.inputRevision = decompositionSha(
+      prior.inputRevision = sha256Hex(
         JSON.stringify({
           previous: prior.inputRevision,
           dependencies
@@ -56,7 +56,7 @@ export function addDecompositionUnit(
     }
     if (phase === "integrate" && prior.status === "skipped") {
       prior.status = "pending";
-      prior.inputRevision = decompositionSha(`${prior.inputRevision}:restored`);
+      prior.inputRevision = sha256Hex(`${prior.inputRevision}:restored`);
     }
     return;
   }
@@ -64,7 +64,7 @@ export function addDecompositionUnit(
     phase,
     status: "pending",
     attempts: 0,
-    inputRevision: decompositionSha(
+    inputRevision: sha256Hex(
       JSON.stringify({
         source: job.source.fingerprint,
         output: job.outputVersion,

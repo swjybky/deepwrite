@@ -11,7 +11,7 @@ import {
   settingsInput,
   setup,
   testSecureStorage
-} from "./web-search-test-support";
+} from "./web-search.test-support";
 
 const CONFIG = "config/web-search.json";
 

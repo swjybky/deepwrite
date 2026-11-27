@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import { computed, onMounted, ref, watch } from "vue";
@@ -246,7 +247,7 @@ const publishSourceLoading = ref(false);
 const editingRef = ref<MarketplaceContentRef | null>(null);
 let publishSourceLoadToken = 0;
 
-const apiAvailable = computed(() => Boolean(window.deepwrite?.marketplace));
+const apiAvailable = computed(() => Boolean(deepwriteApi()?.marketplace));
 const authenticated = computed(() => session.value?.authenticated === true);
 const insecureTransport = computed(
   () => session.value?.insecureTransport === true
@@ -391,7 +392,7 @@ function selectDetailSection(section: DetailSkillSection): void {
   selectedDetailSkillId.value = section.skills[0]?.id ?? "";
 }
 
-function errorMessage(error: unknown, fallback: string): string {
+function marketplaceErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return formatError(error, fallback);
   const cleaned = error.message
     .replace(
@@ -403,7 +404,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function catalogDocumentReader(): MarketplacePublishDocumentReader | null {
-  const reader = window.deepwrite?.catalog;
+  const reader = deepwriteApi()?.catalog;
   return reader?.readDocument ? reader : null;
 }
 
@@ -415,7 +416,7 @@ function updateSession(nextSession: MarketplaceSession): MarketplaceSession {
 
 async function refreshSessionAfterError(): Promise<void> {
   try {
-    updateSession(await window.deepwrite!.marketplace.session());
+    updateSession(await deepwriteApi()!.marketplace.session());
   } catch {
     // Preserve the current view when even session recovery is unreachable.
   }
@@ -426,14 +427,14 @@ async function restoreSession(): Promise<void> {
   loading.value = true;
   try {
     const restoredSession = updateSession(
-      await window.deepwrite!.marketplace.session()
+      await deepwriteApi()!.marketplace.session()
     );
     if (restoredSession.authenticated) {
       await Promise.all([loadBrowse(), loadMine()]);
     }
   } catch (error: unknown) {
     uiMessage.error(
-      errorMessage(error, t("couldNotRestoreMarketplaceSession"))
+      marketplaceErrorMessage(error, t("couldNotRestoreMarketplaceSession"))
     );
   } finally {
     loading.value = false;
@@ -448,7 +449,7 @@ async function authenticatedSession(next: MarketplaceSession): Promise<void> {
 async function logout(): Promise<void> {
   if (!apiAvailable.value) return;
   try {
-    updateSession(await window.deepwrite!.marketplace.logout());
+    updateSession(await deepwriteApi()!.marketplace.logout());
     detail.value = null;
     browseItems.value = [];
     mineItems.value = [];
@@ -460,7 +461,7 @@ async function logout(): Promise<void> {
     mineTotalPages.value = 0;
     uiMessage.success(t("signedOutOfTheMarketplace"));
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("couldNotSignOut")));
+    uiMessage.error(marketplaceErrorMessage(error, t("couldNotSignOut")));
   }
 }
 
@@ -483,14 +484,16 @@ async function loadBrowse(page = browsePage.value): Promise<void> {
   if (!authenticated.value || !apiAvailable.value) return;
   loading.value = true;
   try {
-    const result = await window.deepwrite!.marketplace.list(listFilter(page));
+    const result = await deepwriteApi()!.marketplace.list(listFilter(page));
     browseItems.value = result.items;
     browsePage.value = result.page;
     browseTotal.value = result.total;
     browseTotalPages.value = result.totalPages;
   } catch (error: unknown) {
     await refreshSessionAfterError();
-    uiMessage.error(errorMessage(error, t("couldNotLoadTheMarketplace")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotLoadTheMarketplace"))
+    );
   } finally {
     loading.value = false;
   }
@@ -500,7 +503,7 @@ async function loadMine(page = minePage.value): Promise<void> {
   if (!authenticated.value || !apiAvailable.value) return;
   mineLoading.value = true;
   try {
-    const result = await window.deepwrite!.marketplace.listMine({
+    const result = await deepwriteApi()!.marketplace.listMine({
       page,
       pageSize: PAGE_SIZE
     });
@@ -510,7 +513,9 @@ async function loadMine(page = minePage.value): Promise<void> {
     mineTotalPages.value = result.totalPages;
   } catch (error: unknown) {
     await refreshSessionAfterError();
-    uiMessage.error(errorMessage(error, t("couldNotLoadYourPublications")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotLoadYourPublications"))
+    );
   } finally {
     mineLoading.value = false;
   }
@@ -546,8 +551,8 @@ async function openDetail(
   try {
     const ref = { contentType: item.contentType, id: item.id };
     const loadedDetail = owned
-      ? await window.deepwrite!.marketplace.myDetail(ref)
-      : await window.deepwrite!.marketplace.detail(ref);
+      ? await deepwriteApi()!.marketplace.myDetail(ref)
+      : await deepwriteApi()!.marketplace.detail(ref);
     let skills: MarketplaceSkillDetail[];
     let sections: DetailSkillSection[] = [];
     if (loadedDetail.contentType === "skill") {
@@ -562,8 +567,8 @@ async function openDetail(
             id: member.id
           };
           return owned
-            ? window.deepwrite!.marketplace.myDetail(memberRef)
-            : window.deepwrite!.marketplace.detail(memberRef);
+            ? deepwriteApi()!.marketplace.myDetail(memberRef)
+            : deepwriteApi()!.marketplace.detail(memberRef);
         })
       );
       sections = memberDetails.flatMap((memberDetail) => {
@@ -603,7 +608,9 @@ async function openDetail(
     detailSkillSections.value = [];
     selectedDetailSectionId.value = "";
     selectedDetailSkillId.value = "";
-    uiMessage.error(errorMessage(error, t("couldNotLoadContentDetails")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotLoadContentDetails"))
+    );
   } finally {
     detailPending.value = false;
   }
@@ -645,7 +652,7 @@ async function toggleLike(item: MarketplaceContentSummary): Promise<void> {
     Math.max(0, previousCount + (nextLiked ? 1 : -1))
   );
   try {
-    const result = await window.deepwrite!.marketplace.like({
+    const result = await deepwriteApi()!.marketplace.like({
       ...ref,
       liked: nextLiked
     });
@@ -654,7 +661,7 @@ async function toggleLike(item: MarketplaceContentSummary): Promise<void> {
     applyLikeLocally(ref, previousLiked, previousCount);
     await refreshSessionAfterError();
     uiMessage.error(
-      errorMessage(error, t("likeFailedThePreviousStateWasRestored"))
+      marketplaceErrorMessage(error, t("likeFailedThePreviousStateWasRestored"))
     );
   }
 }
@@ -667,7 +674,7 @@ async function togglePublicationEnabled(
   if (enabledPendingKey.value) return;
   enabledPendingKey.value = key;
   try {
-    const updated = await window.deepwrite!.marketplace.setEnabled({
+    const updated = await deepwriteApi()!.marketplace.setEnabled({
       contentType: item.contentType,
       id: item.id,
       enabled: !item.enabled
@@ -695,7 +702,7 @@ async function togglePublicationEnabled(
   } catch (error: unknown) {
     await refreshSessionAfterError();
     uiMessage.error(
-      errorMessage(error, t("couldNotUpdateMarketplaceVisibility"))
+      marketplaceErrorMessage(error, t("couldNotUpdateMarketplaceVisibility"))
     );
   } finally {
     enabledPendingKey.value = "";
@@ -723,14 +730,16 @@ async function prepareInstall(
   if (!apiAvailable.value || installPending.value || isInstalled(item)) return;
   installPending.value = true;
   try {
-    const preview = await window.deepwrite!.marketplace.previewInstall({
+    const preview = await deepwriteApi()!.marketplace.previewInstall({
       contentType: item.contentType,
       id: item.id
     });
     installPreview.value = preview;
     installTargetLibraryId.value = "";
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("couldNotLoadInstallationPreview")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotLoadInstallationPreview"))
+    );
   } finally {
     installPending.value = false;
   }
@@ -741,7 +750,7 @@ async function confirmInstall(): Promise<void> {
     return;
   installPending.value = true;
   try {
-    const result = await window.deepwrite!.marketplace.install({
+    const result = await deepwriteApi()!.marketplace.install({
       ref: {
         contentType: installPreview.value.ref.contentType,
         id: installPreview.value.ref.id
@@ -767,7 +776,9 @@ async function confirmInstall(): Promise<void> {
     installPreview.value = null;
     emit("refreshCatalog");
   } catch (error: unknown) {
-    uiMessage.error(errorMessage(error, t("couldNotInstallSkillContent")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotInstallSkillContent"))
+    );
   } finally {
     installPending.value = false;
   }
@@ -886,7 +897,9 @@ async function applyPublishSource(value: PopupSelectValue): Promise<void> {
     }
   } catch (error: unknown) {
     if (token !== publishSourceLoadToken) return;
-    uiMessage.error(errorMessage(error, t("couldNotReadLocalSkillContent")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotReadLocalSkillContent"))
+    );
   } finally {
     if (token === publishSourceLoadToken) {
       publishSourceLoading.value = false;
@@ -1101,13 +1114,13 @@ async function submitPublish(): Promise<void> {
     const input = buildPublishInput();
     if (!input) return;
     if (editingRef.value) {
-      await window.deepwrite!.marketplace.update({
+      await deepwriteApi()!.marketplace.update({
         id: editingRef.value.id,
         content: input
       });
       uiMessage.success(t("changesSubmittedTheContentIsPendingReviewAgain"));
     } else {
-      const published = await window.deepwrite!.marketplace.publish(input);
+      const published = await deepwriteApi()!.marketplace.publish(input);
       if (!published.enabled) {
         uiMessage.warning(t("contentSubmittedButEnableFailed"));
       } else {
@@ -1123,7 +1136,7 @@ async function submitPublish(): Promise<void> {
     pageTab.value = "mine";
   } catch (error: unknown) {
     await refreshSessionAfterError();
-    uiMessage.error(errorMessage(error, t("couldNotSubmitContent")));
+    uiMessage.error(marketplaceErrorMessage(error, t("couldNotSubmitContent")));
   } finally {
     publishPending.value = false;
   }
@@ -1132,7 +1145,7 @@ async function submitPublish(): Promise<void> {
 async function editPublished(item: MarketplaceContentSummary): Promise<void> {
   if (!apiAvailable.value) return;
   try {
-    const owned = await window.deepwrite!.marketplace.myDetail({
+    const owned = await deepwriteApi()!.marketplace.myDetail({
       contentType: item.contentType,
       id: item.id
     });
@@ -1171,7 +1184,9 @@ async function editPublished(item: MarketplaceContentSummary): Promise<void> {
     pageTab.value = "publish";
   } catch (error: unknown) {
     await refreshSessionAfterError();
-    uiMessage.error(errorMessage(error, t("couldNotLoadContentForEditing")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotLoadContentForEditing"))
+    );
   }
 }
 
@@ -1179,7 +1194,7 @@ async function confirmDelete(): Promise<void> {
   if (!deleteTarget.value || !apiAvailable.value || deletePending.value) return;
   deletePending.value = true;
   try {
-    await window.deepwrite!.marketplace.delete({
+    await deepwriteApi()!.marketplace.delete({
       contentType: deleteTarget.value.contentType,
       id: deleteTarget.value.id
     });
@@ -1189,7 +1204,9 @@ async function confirmDelete(): Promise<void> {
     await loadMine();
   } catch (error: unknown) {
     await refreshSessionAfterError();
-    uiMessage.error(errorMessage(error, t("couldNotDeletePublishedContent")));
+    uiMessage.error(
+      marketplaceErrorMessage(error, t("couldNotDeletePublishedContent"))
+    );
   } finally {
     deletePending.value = false;
   }

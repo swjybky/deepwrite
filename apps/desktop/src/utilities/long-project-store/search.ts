@@ -12,6 +12,7 @@ import type {
   LongProjectSearchMatch,
   LongProjectSearchResume
 } from "./types";
+import { escapeRegExp } from "@deepwrite/shared";
 
 export interface ScannedSearchFile {
   fileId: string;
@@ -65,7 +66,7 @@ export async function scanIndexedFileForSearch(
     Math.max(1, characterBudget),
     query
   );
-  const matcher = new RegExp(escapeRegularExpression(query), "giu");
+  const matcher = new RegExp(escapeRegExp(query), "giu");
   const matches: LongProjectSearchMatch[] = [];
   const seenRanges = new Set<string>();
   while (true) {
@@ -230,10 +231,6 @@ export function normalizedMatchSourceRange(
     if (segment.normalizedEnd > normalizedStart) last = segment;
   }
   return { start: first.sourceStart, end: last.sourceEnd };
-}
-
-export function escapeRegularExpression(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 export function countNewlines(

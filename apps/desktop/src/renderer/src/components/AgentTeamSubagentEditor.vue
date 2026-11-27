@@ -11,6 +11,7 @@ import {
 } from "@deepwrite/contracts/renderer";
 import { computed, ref, useId } from "vue";
 import { createScopedTranslator } from "../i18n";
+import type { ModelSelectOption } from "../utils/modelSelectOptions";
 import AppIcon from "./AppIcon.vue";
 import type { PopupSelectOption } from "./PopupSelect.vue";
 import SubagentDrawField from "./SubagentDrawField.vue";
@@ -42,7 +43,8 @@ const draw = defineModel<SubagentDrawSettings | undefined>("draw", {
 const props = defineProps<{
   subagent: ShortAgentSubagentDefinition;
   disabled: boolean;
-  modelOptions: readonly PopupSelectOption[];
+  readOnly?: boolean;
+  modelOptions: readonly (ModelSelectOption | PopupSelectOption)[];
   thinkingOptions: readonly PopupSelectOption[];
   temperatureOptions: readonly PopupSelectOption[];
   modelConfig: SubagentModelConfig;
@@ -99,6 +101,7 @@ const advancedSummary = computed(() => {
           type="text"
           :maxlength="SHORT_AGENT_SUBAGENT_NAME_MAX_LENGTH"
           :disabled="disabled"
+          :readonly="Boolean(readOnly)"
           :placeholder="t('forExampleContinuityReview')"
         />
       </label>
@@ -109,6 +112,7 @@ const advancedSummary = computed(() => {
           class="description-input"
           :maxlength="SHORT_AGENT_SUBAGENT_DESCRIPTION_MAX_LENGTH"
           :disabled="disabled"
+          :readonly="Boolean(readOnly)"
           :placeholder="t('describeTheTasksItHandlesSoThePrimaryAgent')"
         />
       </label>
@@ -128,6 +132,7 @@ const advancedSummary = computed(() => {
         :aria-label="t('systemPrompt')"
         :maxlength="SHORT_AGENT_SUBAGENT_SYSTEM_PROMPT_MAX_LENGTH"
         :disabled="disabled"
+        :readonly="Boolean(readOnly)"
         spellcheck="false"
         :placeholder="t('defineTheSubagentSRoleMethodsAndHandoffRequirements')"
       />
@@ -157,19 +162,19 @@ const advancedSummary = computed(() => {
         <SubagentModeField
           v-model="agentMode"
           :name="`subagent-agent-mode-${subagent.id}`"
-          :disabled="disabled"
+          :disabled="disabled || Boolean(readOnly)"
         />
         <SubagentWebSearchField
           v-model="webSearchMode"
           :name="`subagent-web-search-${subagent.id}`"
           :agent-mode="agentMode"
-          :disabled="disabled"
+          :disabled="disabled || Boolean(readOnly)"
         />
         <SubagentDrawField
           v-model="draw"
           :name="`subagent-draw-${subagent.id}`"
           :agent-mode="agentMode"
-          :disabled="disabled"
+          :disabled="disabled || Boolean(readOnly)"
           :model-config="modelConfig"
         />
         <SubagentModelField
@@ -181,7 +186,7 @@ const advancedSummary = computed(() => {
           :model-options="modelOptions"
           :thinking-options="thinkingOptions"
           :temperature-options="temperatureOptions"
-          :disabled="disabled"
+          :disabled="disabled || Boolean(readOnly)"
           @set-mode="emit('setModelMode', $event)"
           @set-model-id="emit('setModelId', $event)"
           @set-thinking-level="emit('setThinkingLevel', $event)"
@@ -195,7 +200,7 @@ const advancedSummary = computed(() => {
         >ID：<code>{{ subagent.id }}</code></span
       >
       <button type="button" :disabled="disabled" @click="emit('done')">
-        {{ t("doneEditing") }}
+        {{ readOnly ? t("collapse") : t("doneEditing") }}
       </button>
     </footer>
   </div>

@@ -43,6 +43,7 @@ import VoiceSettingsPanel from "./VoiceSettingsPanel.vue";
 import WebSearchSettingsPanel from "./WebSearchSettingsPanel.vue";
 import MoreFeaturesSettingsPanel from "./MoreFeaturesSettingsPanel.vue";
 import { settingsSections as sections } from "./settingsCategories";
+import type { ModelTestStateEntry } from "../utils/modelTestState";
 
 const ExternalControlSettingsPanel = defineAsyncComponent(
   () => import("../extras/external-control/ExternalControlSettingsPanel.vue")
@@ -94,6 +95,7 @@ const props = defineProps<{
   modelError: string | null;
   modelTestMessage: string | null;
   testingModelId: string | null;
+  modelTestStates?: Readonly<Record<string, ModelTestStateEntry>>;
   libraryAgentSettings: LibraryAgentSettings | null;
   libraryAgentLoading: boolean;
   libraryAgentSaving: boolean;
@@ -128,6 +130,7 @@ const emit = defineEmits<{
   loadModels: [];
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
+  cancelTestModel: [modelId: string];
   loadSiteOfficialModels: [];
   saveSiteOfficialToken: [apiKey: string];
   clearSiteOfficialToken: [];
@@ -301,10 +304,12 @@ async function selectCategory(id: string): Promise<void> {
           :refreshing="freeModelsRefreshing"
           :saving="freeModelsSaving"
           :testing-model-id="testingModelId"
+          :model-test-states="modelTestStates ?? {}"
           :model-alert-messages="modelAlertMessages"
           @refresh="emit('refreshFreeModels')"
           @open-official-models="selectCategory('site-official-models')"
           @test="emit('testModel', $event)"
+          @cancel-test="emit('cancelTestModel', $event)"
           @set-model-enabled="
             emit('setFreeModelEnabled', $event.modelId, $event.enabled)
           "
@@ -321,10 +326,12 @@ async function selectCategory(id: string): Promise<void> {
           :model-error="modelError"
           :model-test-message="modelTestMessage"
           :testing-model-id="testingModelId"
+          :model-test-states="modelTestStates ?? {}"
           :model-alert-messages="modelAlertMessages"
           @open-official-models="selectCategory('site-official-models')"
           @save-models="emit('saveModels', $event)"
           @test-model="emit('testModel', $event)"
+          @cancel-test-model="emit('cancelTestModel', $event)"
         />
 
         <SiteOfficialModelsPanel
@@ -334,7 +341,9 @@ async function selectCategory(id: string): Promise<void> {
           :refreshing="siteOfficialModelsRefreshing"
           :quota="siteOfficialQuota"
           :testing-model-id="testingModelId"
+          :model-test-states="modelTestStates ?? {}"
           @test="emit('testModel', $event)"
+          @cancel-test="emit('cancelTestModel', $event)"
           @save-token="emit('saveSiteOfficialToken', $event)"
           @clear-token="emit('clearSiteOfficialToken')"
           @refresh="emit('refreshSiteOfficialModels')"

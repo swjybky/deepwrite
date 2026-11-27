@@ -1,4 +1,8 @@
 import {
+  acquireBookLifecycleLease,
+  type BookLifecyclePendingLease
+} from "./book-lifecycle-operations";
+import {
   bookBindingsTarget,
   type BookBindingsTarget
 } from "../stores/bookBindingsDialog";
@@ -161,11 +165,7 @@ export interface ShortBookLifecycleCoordinatorOptions {
   notifications: ShortBookLifecycleNotifications;
 }
 
-interface PendingLease {
-  readonly lane: PendingLane;
-  readonly requestId: number;
-  readonly pending: Ref<boolean>;
-}
+type PendingLease = BookLifecyclePendingLease<PendingLane>;
 
 interface RemovalAnchors {
   readonly selectedResourceId: string;
@@ -215,18 +215,13 @@ export function useShortBookLifecycleCoordinator(
   }
 
   function acquirePendingLease(lane: PendingLane): PendingLease | null {
-    if (disposed || ownedPendingLeases.has(lane)) return null;
-    const pending = pendingRef(lane);
-    // A true ref without our lease belongs to a foreign catalog boundary.
-    if (pending.value) return null;
-    const lease: PendingLease = {
+    if (disposed) return null;
+    return acquireBookLifecycleLease(
+      ownedPendingLeases,
       lane,
-      requestId: ++pendingRequestClock,
-      pending
-    };
-    ownedPendingLeases.set(lane, lease);
-    pending.value = true;
-    return lease;
+      pendingRef(lane),
+      () => ++pendingRequestClock
+    );
   }
 
   function leaseIsOwned(lease: PendingLease): boolean {
@@ -301,10 +296,6 @@ export function useShortBookLifecycleCoordinator(
   function closeExportTarget(target: ShortBookLifecycleTarget): void {
     if (!exportTargetIsCurrent(target)) return;
     state.exportBookTarget.value = null;
-  }
-
-  function errorMessage(error: unknown, fallback: string): string {
-    return formatError(error, fallback);
   }
 
   function workspaceTypeLabel(target: ShortBookLifecycleTarget): string {
@@ -506,8 +497,7 @@ export function useShortBookLifecycleCoordinator(
     runWithLease,
     leaseIsOwned,
     leaseCanPublish,
-    refreshAfterDurableMutation,
-    errorMessage
+    refreshAfterDurableMutation
   });
 
   function renameBook(payload: {
@@ -622,7 +612,7 @@ export function useShortBookLifecycleCoordinator(
           );
         } else {
           notifications.error(
-            errorMessage(
+            formatError(
               error,
               t("shortBookLifecycleCoordinator.couldNotRenameTheBook")
             )
@@ -835,7 +825,7 @@ export function useShortBookLifecycleCoordinator(
         if (!leaseCanPublish(lease) || !targetCurrent) return;
         if (cleanupError) {
           notifications.error(
-            errorMessage(
+            formatError(
               cleanupError,
               t(
                 "shortBookLifecycleCoordinator.theWasRemovedButItsLocalRuntimeStateCould",
@@ -877,7 +867,7 @@ export function useShortBookLifecycleCoordinator(
           activeTargetIsCurrent(target, [action])
         ) {
           notifications.error(
-            errorMessage(
+            formatError(
               error,
               t("shortBookLifecycleCoordinator.couldNot", {
                 value:
@@ -1001,7 +991,7 @@ export function useShortBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseCanPublish(lease) && exportTargetIsCurrent(target)) {
           notifications.error(
-            errorMessage(
+            formatError(
               error,
               targetOutput === "clipboard"
                 ? t("shortBookLifecycleCoordinator.couldNotCopyTheManuscript")

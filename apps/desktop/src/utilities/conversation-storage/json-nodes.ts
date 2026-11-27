@@ -14,6 +14,49 @@ type Container =
   | { kind: "array"; entries: ValueRef[] };
 type StoredNode = Container | { kind: "text"; size: TextSize };
 
+export interface ModelCallSnapshotStats {
+  legacyCallsFound: number;
+  estimatedReclaimableBytes: number;
+}
+
+export interface StrippedMessageRead {
+  value: ConversationHistoryJson;
+  strippedCalls: number;
+  strippedBytes: number;
+  subagentRuns: number;
+  toolCalls: number;
+  editProposals: number;
+  editProposalsWithHunks: number;
+  editProposalsWithDiscardSnapshot: number;
+}
+
+function isSubagentRunLike(value: unknown): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    ("subagentRunId" in value || "subagentId" in value)
+  );
+}
+
+function isSubagentRunEntries(entries: readonly [string, ValueRef][]): boolean {
+  return entries.some(
+    ([key]) => key === "subagentRunId" || key === "subagentId"
+  );
+}
+
+function stripSnapshotFieldFromValue(
+  value: ConversationHistoryJson
+): ConversationHistoryJson {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  if (!("snapshot" in value)) return value;
+  const { snapshot: _omitted, ...rest } = value as Record<
+    string,
+    ConversationHistoryJson
+  >;
+  return rest;
+}
+
 /** Containers and long strings are individually addressable: a delta only visits its ancestor path. */
 export class JsonNodes {
   readonly text: TextChunks;
@@ -86,7 +129,7 @@ export class JsonNodes {
     return { node: id, bytes, chars };
   }
 
-  create(value: ConversationHistoryJson): ValueRef {
+  create(value: ConversationHistoryJson, insideModelCalls = false): ValueRef {
     if (value === null || typeof value !== "object") {
       if (typeof value !== "string" || value.length < 4096) {
         const encoded = JSON.stringify(value);
@@ -106,18 +149,21 @@ export class JsonNodes {
       this.sql.get("INSERT INTO nodes(kind) VALUES ('pending')").run()
         .lastInsertRowid
     );
-    return this.save(
-      id,
-      Array.isArray(value)
-        ? { kind: "array", entries: value.map((item) => this.create(item)) }
-        : {
-            kind: "object",
-            entries: Object.entries(value).map(([key, item]) => [
-              key,
-              this.create(item)
-            ])
-          }
-    );
+    if (Array.isArray(value)) {
+      return this.save(id, {
+        kind: "array",
+        entries: value.map((item) => this.create(item, insideModelCalls))
+      });
+    }
+    const isSubagentRun = isSubagentRunLike(value);
+    const entries: [string, ValueRef][] = [];
+    for (const [key, item] of Object.entries(value)) {
+      if (insideModelCalls && key === "snapshot") continue;
+      const childInsideModelCalls =
+        isSubagentRun && key === "modelCalls" && Array.isArray(item);
+      entries.push([key, this.create(item, childInsideModelCalls)]);
+    }
+    return this.save(id, { kind: "object", entries });
   }
 
   destroy(ref: ValueRef): void {
@@ -180,10 +226,31 @@ export class JsonNodes {
     if (!leaf && !child)
       throw new Error("Conversation patch path does not exist.");
     let next: ValueRef | undefined;
+    const isModelCallsField =
+      leaf &&
+      node.kind === "object" &&
+      key === "modelCalls" &&
+      isSubagentRunEntries(node.entries);
+    const isModelCallItem =
+      leaf &&
+      node.kind === "array" &&
+      depth > 0 &&
+      change.path[depth - 1] === "modelCalls";
+    const isModelCallSnapshotField =
+      leaf &&
+      node.kind === "object" &&
+      key === "snapshot" &&
+      depth >= 2 &&
+      change.path[depth - 2] === "modelCalls";
     if (!leaf) next = this.patch(child!, change, depth + 1, replacement);
-    else if (change.op === "set")
-      next = replacement ?? this.create(change.value);
-    else if (change.op === "append") {
+    else if (isModelCallSnapshotField) next = undefined;
+    else if (change.op === "set") {
+      if (replacement) next = replacement;
+      else if (isModelCallsField) next = this.create(change.value, true);
+      else if (isModelCallItem)
+        next = this.create(stripSnapshotFieldFromValue(change.value), false);
+      else next = this.create(change.value);
+    } else if (change.op === "append") {
       if (!child) throw new Error("Conversation append target does not exist.");
       next = this.appendText(child, change.text);
     }
@@ -275,6 +342,139 @@ export class JsonNodes {
       chunk,
       nextOffset:
         offset + chunk.length < ref.chars ? offset + chunk.length : null
+    };
+  }
+
+  /** Inspects subagent `modelCalls[].snapshot` refs without touching `chunks`. */
+  inspectModelCallSnapshots(): ModelCallSnapshotStats {
+    const rows = this.sql
+      .get(
+        `SELECT value FROM nodes WHERE kind = 'object' AND value LIKE '%"modelCalls"%'`
+      )
+      .all() as { value: string }[];
+    const nodeStmt = this.sql.get("SELECT kind, value FROM nodes WHERE id = ?");
+    let legacyCallsFound = 0;
+    let estimatedReclaimableBytes = 0;
+
+    for (const row of rows) {
+      const parsed = JSON.parse(String(row.value)) as StoredNode;
+      if (parsed.kind !== "object" || !isSubagentRunEntries(parsed.entries)) {
+        continue;
+      }
+      const callsRef = parsed.entries.find(([k]) => k === "modelCalls")?.[1];
+      if (!callsRef || !("node" in callsRef)) continue;
+      const arrayRow = nodeStmt.get(callsRef.node) as
+        { kind: string; value: string } | undefined;
+      if (!arrayRow) continue;
+      const arrayNode = JSON.parse(String(arrayRow.value)) as StoredNode;
+      if (arrayNode.kind !== "array") continue;
+      for (const callRef of arrayNode.entries) {
+        if (!("node" in callRef)) continue;
+        const callRow = nodeStmt.get(callRef.node) as
+          { kind: string; value: string } | undefined;
+        if (!callRow) continue;
+        const callNode = JSON.parse(String(callRow.value)) as StoredNode;
+        if (callNode.kind !== "object") continue;
+        const snapshotRef = callNode.entries.find(
+          ([k]) => k === "snapshot"
+        )?.[1];
+        if (!snapshotRef) continue;
+        legacyCallsFound += 1;
+        estimatedReclaimableBytes += snapshotRef.bytes;
+      }
+    }
+
+    return { legacyCallsFound, estimatedReclaimableBytes };
+  }
+
+  /**
+   * Reconstructs a stored JSON tree while omitting `subagentRuns[].modelCalls[].snapshot`
+   * without reading any chunk data referenced by those snapshot subtrees.
+   */
+  readWithoutModelCallSnapshots(ref: ValueRef): StrippedMessageRead {
+    let strippedCalls = 0;
+    let strippedBytes = 0;
+    let subagentRuns = 0;
+    let toolCalls = 0;
+    let editProposals = 0;
+    let editProposalsWithHunks = 0;
+    let editProposalsWithDiscardSnapshot = 0;
+
+    const walk = (
+      current: ValueRef,
+      keyContext: string | undefined,
+      parentRole: "other" | "subagentRun" | "modelCall" | "editProposal"
+    ): ConversationHistoryJson => {
+      if ("value" in current) return current.value;
+      const node = this.node(current.node);
+      if (node.kind === "text") return this.text.read(current.node);
+      if (node.kind === "array") {
+        let itemRole: "other" | "subagentRun" | "modelCall" | "editProposal" =
+          "other";
+        if (keyContext === "subagentRuns") {
+          subagentRuns += node.entries.length;
+          itemRole = "subagentRun";
+        } else if (keyContext === "toolCalls") {
+          toolCalls += node.entries.length;
+        } else if (keyContext === "editProposals") {
+          editProposals += node.entries.length;
+          itemRole = "editProposal";
+        } else if (
+          keyContext === "modelCalls" &&
+          parentRole === "subagentRun"
+        ) {
+          itemRole = "modelCall";
+        }
+        return node.entries.map((entry) => walk(entry, undefined, itemRole));
+      }
+
+      const nextRole: "other" | "subagentRun" | "modelCall" | "editProposal" =
+        isSubagentRunEntries(node.entries)
+          ? "subagentRun"
+          : parentRole === "editProposal"
+            ? "editProposal"
+            : parentRole === "modelCall"
+              ? "modelCall"
+              : "other";
+
+      if (nextRole === "editProposal") {
+        const hunksRef = node.entries.find(([k]) => k === "hunks")?.[1];
+        if (hunksRef && (!("value" in hunksRef) || hunksRef.value !== null)) {
+          editProposalsWithHunks += 1;
+        }
+        const discardRef = node.entries.find(
+          ([k]) => k === "discardSnapshot"
+        )?.[1];
+        if (
+          discardRef &&
+          (!("value" in discardRef) || discardRef.value !== null)
+        ) {
+          editProposalsWithDiscardSnapshot += 1;
+        }
+      }
+
+      const result: Record<string, ConversationHistoryJson> = {};
+      for (const [key, childRef] of node.entries) {
+        if (nextRole === "modelCall" && key === "snapshot") {
+          strippedCalls += 1;
+          strippedBytes += childRef.bytes;
+          continue;
+        }
+        result[key] = walk(childRef, key, nextRole);
+      }
+      return result;
+    };
+
+    const value = walk(ref, undefined, "other");
+    return {
+      value,
+      strippedCalls,
+      strippedBytes,
+      subagentRuns,
+      toolCalls,
+      editProposals,
+      editProposalsWithHunks,
+      editProposalsWithDiscardSnapshot
     };
   }
 }

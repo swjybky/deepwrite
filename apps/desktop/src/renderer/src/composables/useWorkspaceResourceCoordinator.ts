@@ -286,11 +286,12 @@ export function useWorkspaceResourceCoordinator(
     );
     if (actionableFailure && loadOptions.notify !== false) {
       notifications.error(
-        actionableFailure.error instanceof Error
-          ? actionableFailure.error.message
-          : t(
-              "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
-            )
+        formatError(
+          actionableFailure.error,
+          t(
+            "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
+          )
+        )
       );
     }
     return result.ok;
@@ -311,11 +312,12 @@ export function useWorkspaceResourceCoordinator(
     );
     if (actionableFailure && loadOptions.notify !== false) {
       notifications.error(
-        actionableFailure.error instanceof Error
-          ? actionableFailure.error.message
-          : t(
-              "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
-            )
+        formatError(
+          actionableFailure.error,
+          t(
+            "workspaceResourceCoordinator.failedToReadTheManuscriptSelectItAgainAnd"
+          )
+        )
       );
     }
     return result.document ?? source;

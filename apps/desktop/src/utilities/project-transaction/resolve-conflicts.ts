@@ -17,11 +17,11 @@ import { recoverProjectTransactionLocked } from "./recovery";
 import {
   INTERNAL_DIRECTORY,
   JOURNAL_FILE,
-  projectTransactionContentSha256,
   type ProjectTransactionFileOperation,
   type TransactionJournal
 } from "./types";
 import { parseJournal, validateOperations } from "./validation";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export interface ResolveProjectConflictsInput {
   projectRoot: string;
@@ -177,7 +177,7 @@ export async function resolveProjectTransactionConflicts(
 }
 
 function contentHash(bytes: Buffer | null): string | null {
-  return bytes === null ? null : projectTransactionContentSha256(bytes);
+  return bytes === null ? null : sha256Hex(bytes);
 }
 
 async function backupRecovery(

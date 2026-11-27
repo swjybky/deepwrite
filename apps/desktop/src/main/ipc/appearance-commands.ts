@@ -10,6 +10,7 @@ import {
 } from "@deepwrite/contracts";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 export type AppearanceCommandContext = Pick<
   IpcCommandContext,
@@ -25,15 +26,12 @@ function rejected(
   fallbackMessage: string,
   error: unknown
 ): CommandResult {
-  return {
-    status: "rejected",
-    requestId: command.id,
-    error: {
-      code,
-      message: fallbackMessage,
-      details: safeErrorDetails(error)
-    }
-  };
+  return rejectedResult(
+    command.id,
+    code,
+    fallbackMessage,
+    safeErrorDetails(error)
+  );
 }
 
 export async function handleAppearanceCommands(

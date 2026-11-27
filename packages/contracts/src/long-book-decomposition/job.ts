@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ThinkingLevelSchema } from "../models";
 import { decompositionInputBudget, DecompositionChunkSchema } from "./chunking";
 import {
+  DECOMPOSITION_MAX_FALLBACK_MODELS,
   DecompositionConcurrencySchema,
   DecompositionIdSchema,
   DECOMPOSITION_MAX_CHARACTERS,
@@ -72,12 +73,64 @@ export const DecompositionUnitSchema = z.object({
   registryRefs: z.array(DecompositionIdSchema).max(5000).optional()
 });
 export type DecompositionUnit = z.infer<typeof DecompositionUnitSchema>;
-const model = z.object({
+export const DecompositionModelSelectionSchema = z.object({
   modelId: z.string().min(1).max(120),
-  thinkingLevel: ThinkingLevelSchema,
-  contextWindow: z.number().int().min(16_000),
-  maxTokens: z.number().int().positive().optional()
+  thinkingLevel: ThinkingLevelSchema
 });
+export type DecompositionModelSelection = z.infer<
+  typeof DecompositionModelSelectionSchema
+>;
+export const DecompositionResolvedModelSchema =
+  DecompositionModelSelectionSchema.extend({
+    contextWindow: z.number().int().min(16_000),
+    maxTokens: z.number().int().positive().optional()
+  });
+export type DecompositionResolvedModel = z.infer<
+  typeof DecompositionResolvedModelSchema
+>;
+export function validateDecompositionModelChains(
+  models: {
+    reading: { modelId: string };
+    integration: { modelId: string };
+    readingFallbacks?: ReadonlyArray<{ modelId: string }> | undefined;
+    integrationFallbacks?: ReadonlyArray<{ modelId: string }> | undefined;
+  },
+  ctx: z.RefinementCtx
+): void {
+  for (const [label, primary, fallbacks] of [
+    ["reading", models.reading, models.readingFallbacks],
+    ["integration", models.integration, models.integrationFallbacks]
+  ] as const) {
+    const seen = new Set<string>([primary.modelId]);
+    fallbacks?.forEach((item, index) => {
+      if (seen.has(item.modelId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: [`${label}Fallbacks`, index, "modelId"],
+          message: "同一阶段的模型链不能重复选择相同模型。"
+        });
+      }
+      seen.add(item.modelId);
+    });
+  }
+}
+export const DecompositionResolvedModelsSchema = z
+  .object({
+    reading: DecompositionResolvedModelSchema,
+    integration: DecompositionResolvedModelSchema,
+    readingFallbacks: z
+      .array(DecompositionResolvedModelSchema)
+      .max(DECOMPOSITION_MAX_FALLBACK_MODELS)
+      .optional(),
+    integrationFallbacks: z
+      .array(DecompositionResolvedModelSchema)
+      .max(DECOMPOSITION_MAX_FALLBACK_MODELS)
+      .optional()
+  })
+  .superRefine(validateDecompositionModelChains);
+export type DecompositionResolvedModels = z.infer<
+  typeof DecompositionResolvedModelsSchema
+>;
 export const LongBookDecompositionJobSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -90,7 +143,7 @@ export const LongBookDecompositionJobSchema = z
     target: DecompositionTargetSchema.optional(),
     source: DecompositionSourceRefSchema,
     profile: LongBookDecompositionProfileSchema,
-    models: z.object({ reading: model, integration: model }),
+    models: DecompositionResolvedModelsSchema,
     chunks: z.array(DecompositionChunkSchema).min(1).max(100_000),
     chronicleSegments: z
       .array(
@@ -102,7 +155,14 @@ export const LongBookDecompositionJobSchema = z
       )
       .default([]),
     phase: DecompositionPhaseSchema,
-    status: z.enum(["idle", "running", "stopped", "failed", "completed"]),
+    status: z.enum([
+      "idle",
+      "running",
+      "stopped",
+      "failed",
+      "ended",
+      "completed"
+    ]),
     autoContinue: z.boolean(),
     /** Absent on tasks created before it was configurable: the default. */
     maxConcurrency: DecompositionConcurrencySchema.optional(),
@@ -172,6 +232,15 @@ export function decompositionTaskUnitIds(
       `(?<![a-z0-9_:-])${id.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?![a-z0-9_:-])`,
       "iu"
     ).test(task)
+  );
+}
+
+/** Units that the user may explicitly skip without blocking completion. */
+export function isSkippableDecompositionUnitId(unitId: string): boolean {
+  return (
+    unitId.startsWith("chunk:") ||
+    unitId.startsWith("character:") ||
+    unitId.startsWith("character-volume:")
   );
 }
 

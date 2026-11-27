@@ -15,7 +15,7 @@ import {
   longChapterContinuityFilePath,
   longChapterForeshadowingChangesFileId,
   longChapterHandoffFileId,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   writeFile
 } from "./long-project-store.test-support";
@@ -25,7 +25,7 @@ function serializeJson(value: unknown): string {
 }
 
 function secondChapterFiles(chapterCardId: string) {
-  const storage = projectTransactionContentSha256(chapterCardId).slice(0, 32);
+  const storage = sha256Hex(chapterCardId).slice(0, 32);
   const file = (id: string, path: string) =>
     createEmptyLongMarkdownFileReference(id, path, FIXED_NOW);
   return {

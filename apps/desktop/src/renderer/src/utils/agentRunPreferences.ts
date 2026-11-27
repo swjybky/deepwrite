@@ -5,6 +5,7 @@ import {
 } from "@deepwrite/contracts";
 import type { AgentApprovalMode } from "../types/conversation";
 import type { WorkspaceDocument } from "../types/workspace";
+import { isRecord } from "@deepwrite/shared";
 
 export const AGENT_RUN_PREFERENCES_STORAGE_KEY =
   "deepwrite:agent-run-preferences:v2";
@@ -56,10 +57,6 @@ export function agentConversationKeyForDocument(
   return document.workspaceId
     ? shortBookConversationKey(document.workspaceId)
     : "general";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function validThinkingLevel(value: unknown): value is ThinkingLevel {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rm } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   assertProjectSyncItem,
   DeviceSyncIntentSchema,
@@ -12,12 +12,12 @@ import {
   type ProjectSyncItem,
   type SyncItem
 } from "@deepwrite/contracts";
-import { writeSyncJson as atomicWriteText } from "../extras/device-sync/atomic-json";
 import {
   commitDeviceSyncFiles,
   deviceSyncOperations
 } from "./device-sync-transaction";
 import {
+  assertDeviceSyncRecoveryPath,
   pauseDeviceSyncRecovery,
   restorePreviousDeviceSyncItem
 } from "./device-sync-recovery";
@@ -33,6 +33,7 @@ import {
   validateDesktopSyncItem
 } from "./device-sync-files";
 import { availableProjectDirectory } from "./folder-catalog-store/paths-io";
+import { writeTextFileDurable } from "@deepwrite/shared/node";
 
 export class DesktopSyncWorkspace {
   private readonly intentPath: string;
@@ -72,8 +73,10 @@ export class DesktopSyncWorkspace {
     } catch (error) {
       let failure = error;
       try {
-        await restorePreviousDeviceSyncItem(intent, (root, item) =>
-          this.register(root, item)
+        await restorePreviousDeviceSyncItem(
+          this.userDataPath,
+          intent,
+          (root, item) => this.register(root, item)
         );
       } catch (restoreError) {
         failure = new AggregateError(
@@ -110,16 +113,7 @@ export class DesktopSyncWorkspace {
       }
       await this.register(intent.root, intent.item);
     } else if (intent.removal) {
-      const recoveryRelative = relative(
-        resolve(this.userDataPath, "device-sync-recovery"),
-        resolve(intent.removal)
-      );
-      if (
-        !recoveryRelative ||
-        isAbsolute(recoveryRelative) ||
-        recoveryRelative.split(sep).includes("..")
-      )
-        throw new Error("恢复区路径无效。");
+      assertDeviceSyncRecoveryPath(this.userDataPath, intent.removal);
       try {
         await lstat(intent.removal);
       } catch (error) {
@@ -212,7 +206,7 @@ export class DesktopSyncWorkspace {
     const removal = next
       ? null
       : join(this.userDataPath, "device-sync-recovery", randomUUID());
-    await atomicWriteText(
+    await writeTextFileDurable(
       this.intentPath,
       stableSyncJson({
         schemaVersion: 1,

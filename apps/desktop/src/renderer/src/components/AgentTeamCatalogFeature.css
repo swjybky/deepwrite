@@ -66,6 +66,49 @@
   font-size: 0.785714rem;
   font-weight: 600;
 }
+.type-badge.builtin-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.detail-actions {
+  display: inline-flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--theme-line);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.892857rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.secondary-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.builtin-note {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.55;
+}
 .detail-enable {
   display: inline-flex;
   flex: none;

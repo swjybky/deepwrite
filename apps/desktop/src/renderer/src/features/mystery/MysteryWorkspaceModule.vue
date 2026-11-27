@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { jsonClone } from "@deepwrite/shared";
+import { deepwriteApi } from "../../api/deepwrite";
 import {
   bookBindingsTarget,
   type BookBindingsTarget
@@ -109,7 +111,7 @@ const {
   loadDocument,
   flushDocument
 } = useMysteryDocument({
-  api: () => window.deepwrite?.mystery,
+  api: () => deepwriteApi()?.mystery,
   bookId: () => props.bookId,
   target: () => selectedTarget.value,
   selectTarget: (target) => {
@@ -265,8 +267,8 @@ watch(
 watch(
   () => props.bookId,
   async (bookId) => {
-    const profiles = await window.deepwrite?.mystery
-      ?.listAgents()
+    const profiles = await deepwriteApi()
+      ?.mystery?.listAgents()
       .catch(() => undefined);
     if (bookId === props.bookId && profiles?.agents[0])
       agentProfile.value = profiles.agents[0];
@@ -300,10 +302,7 @@ async function prepareMessage() {
   const book = manifest.value;
   const index = workspaceIndex.value;
   if (!book || book.id !== bookId || index?.bookId !== bookId) return;
-  const libraries = await resolveMysteryAttachedLibraries(
-    window.deepwrite,
-    book
-  );
+  const libraries = await resolveMysteryAttachedLibraries(deepwriteApi(), book);
   if (
     !active ||
     (!overview && !docReady.value) ||
@@ -325,7 +324,7 @@ async function prepareMessage() {
       focus: overview
         ? { stage: overview }
         : { stage: mysteryStageForTarget(target), target },
-      workspaceIndex: JSON.parse(JSON.stringify(index))
+      workspaceIndex: jsonClone(index)
     }
   };
 }
@@ -359,7 +358,7 @@ async function mutateBook(
     book: MysteryBookManifest
   ) => Promise<void>
 ): Promise<boolean> {
-  const api = window.deepwrite?.mystery;
+  const api = deepwriteApi()?.mystery;
   const bookId = manifest.value?.id;
   if (!api || !bookId || opBusy.value) return false;
   opBusy.value = true;

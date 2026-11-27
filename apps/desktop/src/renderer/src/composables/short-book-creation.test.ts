@@ -44,9 +44,7 @@ function setup() {
     },
     leaseIsOwned: () => true,
     leaseCanPublish: () => true,
-    refreshAfterDurableMutation: refresh,
-    errorMessage: (error, fallback) =>
-      error instanceof Error ? error.message : fallback
+    refreshAfterDurableMutation: refresh
   });
   return {
     create,

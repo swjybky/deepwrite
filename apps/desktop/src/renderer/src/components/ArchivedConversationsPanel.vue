@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createId } from "@deepwrite/shared";
 import type {
   ConversationHistoryApi,
@@ -34,7 +35,7 @@ const loading = ref(false);
 const busyId = ref<string | null>(null);
 
 function historyApi(): ConversationHistoryApi | undefined {
-  return window.deepwrite?.conversationPersistence?.history;
+  return deepwriteApi()?.conversationPersistence?.history;
 }
 async function loadMore(): Promise<void> {
   const api = historyApi();

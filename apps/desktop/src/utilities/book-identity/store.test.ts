@@ -17,7 +17,7 @@ import {
   type ChatAssistantProjectRef
 } from "@deepwrite/contracts";
 import { BookIdentityStore } from "./store";
-import { atomicWrite } from "./io";
+import { writeIdentityFile } from "./io";
 import {
   addManualCandidate,
   appendRound,
@@ -68,7 +68,7 @@ const layout = CoverLayoutSchema.parse({
   color: "#ffffff"
 });
 
-async function fixture(write?: typeof atomicWrite) {
+async function fixture(write?: typeof writeIdentityFile) {
   const root = await mkdtemp(join(tmpdir(), "deepwrite-identity-"));
   roots.push(root);
   const store = new BookIdentityStore({
@@ -259,7 +259,7 @@ describe("book identity semantic store", () => {
         failure = undefined;
         throw new Error("injected commit failure");
       }
-      await atomicWrite(path, bytes);
+      await writeIdentityFile(path, bytes);
     });
     await appendRound(store, book, coverRound());
     for (const kind of ["thumb", "record"] as const) {
@@ -290,7 +290,7 @@ describe("book identity semantic store", () => {
         fail = false;
         throw new Error("injected record failure");
       }
-      await atomicWrite(path, bytes);
+      await writeIdentityFile(path, bytes);
     });
     await appendRound(store, book, coverRound());
     await writeCoverAsset(store, book, "round_cover", "cand_cover", {

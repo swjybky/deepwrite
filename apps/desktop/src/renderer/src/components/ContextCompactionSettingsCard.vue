@@ -5,6 +5,11 @@ import type {
   ContextCompactionSettings,
   ModelSettings
 } from "@deepwrite/contracts";
+import {
+  buildModelSelectOptions,
+  type ModelSelectOption
+} from "../utils/modelSelectOptions";
+import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
 import PopupSelect from "./PopupSelect.vue";
 
 const t = createScopedTranslator("components.contextCompactionSettingsCard");
@@ -71,7 +76,7 @@ const budgetSelectOptions = computed(() =>
       ]
 );
 
-const modelOptions = computed(() => {
+const modelOptions = computed<ModelSelectOption[]>(() => {
   const settings = props.modelSettings;
   const enabledFree = new Set(settings?.deepwriteFreeEnabledModelIds ?? []);
   const models = [
@@ -80,12 +85,14 @@ const modelOptions = computed(() => {
       enabledFree.has(model.id)
     )
   ];
-  const options = [
+  const defaultGroup = { key: "default", label: t("useConversationModel") };
+  const options: ModelSelectOption[] = [
     {
       value: FOLLOW_RUN_MODEL,
-      label: t("useConversationModel")
+      label: t("useConversationModel"),
+      group: defaultGroup
     },
-    ...models.map((model) => ({ value: model.id, label: model.label }))
+    ...buildModelSelectOptions(models)
   ];
   const selected = props.settings.modelId;
   return selected && !options.some((option) => option.value === selected)
@@ -93,7 +100,8 @@ const modelOptions = computed(() => {
         ...options,
         {
           value: selected,
-          label: t("deletedModelWillUseConversationModel")
+          label: t("deletedModelWillUseConversationModel"),
+          group: defaultGroup
         }
       ]
     : options;
@@ -171,14 +179,17 @@ function update(patch: Partial<ContextCompactionSettings>): void {
           t("modelUsedToGenerateCompactionCheckpointsALessExpensive")
         }}</small></span
       >
-      <PopupSelect
+      <ConversationModelConfigSelect
         class="general-select-control"
-        :model-value="settings.modelId ?? FOLLOW_RUN_MODEL"
-        :options="modelOptions"
-        :accessible-label="t('selectContextSummaryModel')"
+        variant="field"
+        hides-web-search
         align="end"
-        :menu-min-width="238"
-        @update:model-value="update({ modelId: String($event) })"
+        close-on-model-select
+        :selected-model-id="settings.modelId ?? FOLLOW_RUN_MODEL"
+        :model-options="modelOptions"
+        :thinking-options="[]"
+        :accessible-label="t('selectContextSummaryModel')"
+        @select-model="update({ modelId: $event })"
       />
     </div>
   </div>
@@ -194,7 +205,7 @@ function update(patch: Partial<ContextCompactionSettings>): void {
   min-width: min(240px, 100%);
 }
 
-.general-select-control {
+.settings-select-item .general-select-control {
   width: 210px;
   min-width: 160px;
   max-width: 210px;

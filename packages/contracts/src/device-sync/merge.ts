@@ -1,17 +1,15 @@
 import type { SyncItem } from "./schemas";
 import { mergeSyncText } from "./merge-text";
 import { sameSyncContent, stableSyncJson, syncEqual } from "./value";
+import { isRecord } from "@deepwrite/shared";
 
 const CONFLICT = Symbol("conflict");
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 function entityArray(
   value: unknown
 ): value is (Record<string, unknown> & { id: string })[] {
   return (
     Array.isArray(value) &&
-    value.every((entry) => record(entry) && typeof entry.id === "string") &&
+    value.every((entry) => isRecord(entry) && typeof entry.id === "string") &&
     new Set(value.map((entry) => entry.id)).size === value.length
   );
 }
@@ -87,7 +85,7 @@ function mergeValue(
   if (syncEqual(base, a)) return b;
   if (Array.isArray(base) && Array.isArray(a) && Array.isArray(b))
     return mergeArrays(base, a, b, preferred);
-  if (record(base) && record(a) && record(b)) {
+  if (isRecord(base) && isRecord(a) && isRecord(b)) {
     const result: Record<string, unknown> = {};
     for (const key of new Set([
       ...Object.keys(base),
@@ -103,7 +101,7 @@ function mergeValue(
         base[key],
         a[key],
         b[key],
-        record(preferred) ? preferred[key] : CONFLICT
+        isRecord(preferred) ? preferred[key] : CONFLICT
       );
       if (value === CONFLICT) return CONFLICT;
       if (value !== undefined) result[key] = value;

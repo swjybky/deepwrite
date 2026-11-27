@@ -63,10 +63,23 @@ export async function createTestPaths(): Promise<{
   paths: ExternalControlPaths;
   cleanup(): Promise<void>;
 }> {
-  // os.tmpdir() keeps the path inside macOS's socket length limit.
-  const homeDirectory = await mkdtemp(join(tmpdir(), "dw-ctl-"));
+  // Keeps the socket path inside macOS's 104-byte sun_path limit even with long TMPDIRs.
+  const homeDirectory = await mkdtemp(join(tmpdir(), "dw-"));
+  const defaultPaths = resolveExternalControlPaths({
+    homeDirectory,
+    packaged: false
+  });
+  const paths =
+    process.platform !== "win32" &&
+    Buffer.byteLength(defaultPaths.endpoint) >= 85
+      ? resolveExternalControlPaths({
+          homeDirectory,
+          packaged: false,
+          developmentDirectory: join(homeDirectory, "c")
+        })
+      : defaultPaths;
   return {
-    paths: resolveExternalControlPaths({ homeDirectory, packaged: false }),
+    paths,
     cleanup: () =>
       rm(homeDirectory, {
         recursive: true,

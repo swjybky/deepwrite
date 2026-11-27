@@ -1,11 +1,8 @@
 import type { Tool, TSchema } from "@earendil-works/pi-ai";
-
-function isSchemaRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 
 function isStrictCompatibleNode(value: unknown): boolean {
-  if (!isSchemaRecord(value)) return false;
+  if (!isRecord(value)) return false;
   if (
     ["anyOf", "oneOf", "allOf", "$ref", "not", "if", "then", "else"].some(
       (keyword) => Object.prototype.hasOwnProperty.call(value, keyword)
@@ -17,7 +14,7 @@ function isStrictCompatibleNode(value: unknown): boolean {
   if (value.type === "object") {
     if (value.additionalProperties !== false) return false;
     const properties = value.properties;
-    if (!isSchemaRecord(properties)) return false;
+    if (!isRecord(properties)) return false;
     const propertyNames = Object.keys(properties);
     const required = new Set(
       Array.isArray(value.required)

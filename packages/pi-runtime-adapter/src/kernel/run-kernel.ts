@@ -148,6 +148,7 @@ export class AgentRunKernel {
       runtime,
       spawnStreamFn,
       parentSignal: lifecycle.signal,
+      evaluationMode: this.options.evaluationMode,
       requestUserInput,
       getParentMessages: () => prepared?.state.messages ?? [],
       onContextCompacted: (listener) => compactedListeners.add(listener),

@@ -2,6 +2,7 @@ import { computed, ref, watch, type Ref } from "vue";
 import { createScopedTranslator } from "../../i18n";
 import { formatError } from "../../i18n/errors";
 import { uiMessage } from "../../ui-feedback";
+import { jsonClone } from "@deepwrite/shared";
 
 const t = createScopedTranslator("extras.longBookAnalysis");
 
@@ -20,7 +21,7 @@ export function usePresetDraft<T extends { id: string }>(options: {
   presets: () => readonly T[];
   loadDefaults: () => Promise<T[]>;
 }) {
-  const clone = (value: readonly T[]): T[] => JSON.parse(JSON.stringify(value));
+  const clone = (value: readonly T[]): T[] => jsonClone([...value]);
   const draft = ref<T[]>([]) as Ref<T[]>;
   const baseline = ref("");
   const resetting = ref(false);

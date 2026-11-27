@@ -80,7 +80,12 @@ export async function recoverDecompositionJob(
       );
       await mapDecompositionReads(receipts, async (receipt) => {
         const unit = job.units[receipt.unitId];
-        if (!unit || receipt.inputRevision !== unit.inputRevision) return;
+        if (
+          !unit ||
+          unit.status === "skipped" ||
+          receipt.inputRevision !== unit.inputRevision
+        )
+          return;
         try {
           if (
             receipt.refs.some(({ projectId }) => !projects.includes(projectId))

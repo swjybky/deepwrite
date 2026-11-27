@@ -11,10 +11,71 @@ export const StorageLocationSchema = z
   .strict();
 export type StorageLocation = z.infer<typeof StorageLocationSchema>;
 
+export const ConversationCompactionPhaseSchema = z.enum([
+  "idle",
+  "skipped_new",
+  "needed",
+  "running",
+  "verifying",
+  "swapping",
+  "completed_with_backup",
+  "backup_released",
+  "failed",
+  "rolled_back"
+]);
+export type ConversationCompactionPhase = z.infer<
+  typeof ConversationCompactionPhaseSchema
+>;
+
+export const ConversationCompactionFailureCodeSchema = z.enum([
+  "none",
+  "disk_full",
+  "database_locked",
+  "old_process_active",
+  "integrity_check_failed",
+  "logic_check_failed",
+  "swap_failed",
+  "backup_missing",
+  "post_backup_changes_present",
+  "unknown"
+]);
+export type ConversationCompactionFailureCode = z.infer<
+  typeof ConversationCompactionFailureCodeSchema
+>;
+
+export const ConversationCompactionStatusSchema = z
+  .object({
+    phase: ConversationCompactionPhaseSchema,
+    legacyCallsFound: z.number().int().nonnegative(),
+    estimatedReclaimableBytes: z.number().int().nonnegative(),
+    processedSessions: z.number().int().nonnegative(),
+    totalSessions: z.number().int().nonnegative(),
+    bytesBefore: z.number().int().nonnegative(),
+    bytesAfter: z.number().int().nonnegative().optional(),
+    backupBytes: z.number().int().nonnegative().optional(),
+    netFreedBytes: z.number().int().optional(),
+    requiredDiskBytes: z.number().int().nonnegative().optional(),
+    availableDiskBytes: z.number().int().nonnegative().optional(),
+    canRetry: z.boolean(),
+    canReleaseBackup: z.boolean(),
+    canRollback: z.boolean(),
+    failureCode: ConversationCompactionFailureCodeSchema.optional(),
+    failureDetail: z.string().optional(),
+    startedAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+    completedAt: z.string().optional(),
+    backupPath: z.string().optional()
+  })
+  .strict();
+export type ConversationCompactionStatus = z.infer<
+  typeof ConversationCompactionStatusSchema
+>;
+
 export const StorageSettingsSnapshotSchema = z
   .object({
     userData: StorageLocationSchema,
-    workspace: StorageLocationSchema
+    workspace: StorageLocationSchema,
+    conversationCompaction: ConversationCompactionStatusSchema.optional()
   })
   .strict();
 export type StorageSettingsSnapshot = z.infer<
@@ -82,12 +143,26 @@ export const StorageSettingsOpenDirectoryCommandEnvelopeSchema =
     payload: StorageOpenDirectoryInputSchema
   });
 
+export const StorageSettingsCompactConversationsCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("storageSettings.compactConversations"),
+    payload: z.object({}).strict()
+  });
+
+export const StorageSettingsReleaseConversationBackupCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("storageSettings.releaseConversationBackup"),
+    payload: z.object({}).strict()
+  });
+
 export const StorageSettingsCommandSchemas = [
   StorageSettingsGetCommandEnvelopeSchema,
   StorageSettingsChooseUserDataCommandEnvelopeSchema,
   StorageSettingsResetUserDataCommandEnvelopeSchema,
   StorageSettingsResetWorkspaceDirectoryCommandEnvelopeSchema,
-  StorageSettingsOpenDirectoryCommandEnvelopeSchema
+  StorageSettingsOpenDirectoryCommandEnvelopeSchema,
+  StorageSettingsCompactConversationsCommandEnvelopeSchema,
+  StorageSettingsReleaseConversationBackupCommandEnvelopeSchema
 ] as const;
 
 export interface StorageSettingsApi {
@@ -96,4 +171,6 @@ export interface StorageSettingsApi {
   resetUserData(): Promise<StorageChangeResult>;
   resetWorkspaceDirectory(): Promise<WorkspaceDirectorySettings>;
   openDirectory(kind: StorageDirectoryKind): Promise<void>;
+  compactConversations(): Promise<ConversationCompactionStatus>;
+  releaseConversationBackup(): Promise<ConversationCompactionStatus>;
 }

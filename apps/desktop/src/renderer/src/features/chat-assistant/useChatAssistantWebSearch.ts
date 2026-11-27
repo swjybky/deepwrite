@@ -1,4 +1,5 @@
 import { computed, ref, type Ref } from "vue";
+import { optionalUiStorage } from "../../utils/uiStorage";
 
 export const CHAT_ASSISTANT_WEB_SEARCH_STORAGE_KEY =
   "deepwrite:chat-assistant-web-search:v1";
@@ -16,7 +17,7 @@ export interface ChatAssistantWebSearchOptions {
 
 function defaultStorage(): WebSearchPreferenceStorage | null {
   try {
-    return typeof window === "undefined" ? null : window.localStorage;
+    return optionalUiStorage();
   } catch {
     return null;
   }

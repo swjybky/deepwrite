@@ -10,6 +10,7 @@ import type {
 } from "@deepwrite/contracts";
 import { createDefaultVoiceSettings } from "@deepwrite/contracts/renderer";
 import type { PopupSelectOption } from "../types/popupSelect";
+import { jsonClone } from "@deepwrite/shared";
 
 const t = createScopedTranslator("workspace.voiceSettings");
 
@@ -38,7 +39,7 @@ export function useVoiceSettings(context: VoiceSettingsContext) {
   let editSnapshot: VoiceSettings | undefined;
 
   function beginEdit(): void {
-    editSnapshot = JSON.parse(JSON.stringify(settings.value)) as VoiceSettings;
+    editSnapshot = jsonClone(settings.value);
   }
 
   function cancelEdit(): void {

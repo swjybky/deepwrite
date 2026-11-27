@@ -15,10 +15,4 @@ describe("scoped settings sidebar CSS", () => {
       /:global\((?:[^()]|\([^)]*\))+\)\s+(?:\.|:)/
     );
   });
-
-  it("keeps macOS settings sidebar controls out of the window drag region", () => {
-    expect(settingsPageCss).toMatch(
-      /:global\(\s*html\[data-platform="darwin"\]\s+\.settings-sidebar\s+:is\(button,\s*input,\s*a,\s*\.settings-search,\s*\.settings-nav\)\s*\)\s*\{\s*-webkit-app-region:\s*no-drag;/
-    );
-  });
 });

@@ -9,7 +9,7 @@ import {
   type SyncMetadata,
   type SyncMetadataStore
 } from "@deepwrite/contracts";
-import { writeSyncJson } from "./atomic-json";
+import { writeTextFileDurable } from "@deepwrite/shared/node";
 
 /** Main owns sync metadata; Core owns project files and registry transactions. */
 export function createInitializationWorkspace(
@@ -70,7 +70,7 @@ export function createInitializationWorkspace(
         const token = randomUUID();
         const previous = await metadata.read();
         if (previous)
-          await writeSyncJson(
+          await writeTextFileDurable(
             join(
               root,
               "device-sync-recovery",
@@ -78,7 +78,7 @@ export function createInitializationWorkspace(
             ),
             JSON.stringify(await options.seal(previous))
           );
-        await writeSyncJson(
+        await writeTextFileDurable(
           intentPath,
           JSON.stringify(
             DeviceSyncInitializationMetadataIntentSchema.parse({

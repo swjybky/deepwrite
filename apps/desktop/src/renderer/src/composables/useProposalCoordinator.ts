@@ -5333,6 +5333,7 @@ export function useProposalCoordinator(context: ProposalCoordinatorContext) {
       ...args: Parameters<typeof stageLibraryEditProposal>
     ) => {
       if (!proposalQueue.isDisposed()) return stageLibraryEditProposal(...args);
+      return undefined;
     },
     stageLongCharacterEditProposal: (
       ...args: Parameters<typeof stageLongCharacterEditProposal>

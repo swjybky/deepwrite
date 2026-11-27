@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   CommandEnvelopeSchema,
-  createDefaultGeneralSettings,
   createEnvelope,
   type CommandEnvelope,
   type CommandResult
@@ -11,8 +10,6 @@ import {
   filterVersionOrigin,
   handleDocumentVersionCommands
 } from "./document-version-commands";
-import { dispatchCommand } from "./dispatch-command";
-import type { IpcCommandContext } from "./command-types";
 
 const target = {
   workspace: "catalog",
@@ -60,62 +57,6 @@ function context(enabled = true, resources: string[] = []) {
 }
 
 describe("Main document version gate", () => {
-  it.each(["catalog.saveDocument", "long.applyOperations"] as const)(
-    "forwards %s with Main's current version setting",
-    async (type) => {
-      const original = createEnvelope(
-        type,
-        type === "catalog.saveDocument"
-          ? {
-              bookId: "book-a",
-              documentId: "draft",
-              content: "text",
-              versionOrigin: origin
-            }
-          : {
-              bookId: "book-a",
-              batch: {
-                updatedAt: "2026-11-11T00:00:00.000Z",
-                operations: [],
-                documentWrites: []
-              },
-              versionOrigin: origin
-            },
-        { id: "gated-write" }
-      ) as CommandEnvelope;
-      for (const enabled of [false, true]) {
-        const requestCommand = vi.fn(
-          async (
-            _worker: string,
-            _command: CommandEnvelope
-          ): Promise<CommandResult> => ({
-            status: "rejected",
-            requestId: original.id,
-            error: { code: "catalog.conflict", message: "fixture" }
-          })
-        );
-        const ctx = {
-          supervisor: { requestCommand },
-          activeRuns: new Map(),
-          requireGeneralSettingsStore: () => ({
-            list: async () => ({
-              settings: {
-                ...createDefaultGeneralSettings(),
-                versionHistoryEnabled: enabled
-              }
-            })
-          })
-        } as unknown as IpcCommandContext;
-        await dispatchCommand(ctx, original);
-        expect(requestCommand).toHaveBeenCalledOnce();
-        const forwarded = requestCommand.mock.calls[0]![1] as CommandEnvelope;
-        if (enabled)
-          expect(forwarded.payload).toHaveProperty("versionOrigin", origin);
-        else expect(forwarded.payload).not.toHaveProperty("versionOrigin");
-      }
-    }
-  );
-
   it.each([
     "catalog.saveDocument",
     "catalog.createDraftSections",

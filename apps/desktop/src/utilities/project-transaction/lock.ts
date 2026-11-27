@@ -1,7 +1,7 @@
 import { constants as fsConstants, type BigIntStats } from "node:fs";
 import { lstat, open, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
-import { randomHex8 } from "@deepwrite/shared";
+import { randomHex8, isRecord } from "@deepwrite/shared";
 import {
   INTERNAL_DIRECTORY,
   LOCK_FILE,
@@ -10,13 +10,12 @@ import {
   LOCK_INITIALIZATION_GRACE_MS,
   projectTransactionFileIdentity
 } from "./types";
-import { isRecord } from "./validation";
 import {
   syncDirectory,
   resolveInternalWritableFile,
-  readRegularFileOptionalWithIdentity,
-  isNodeError
+  readRegularFileOptionalWithIdentity
 } from "./io";
+import { isNodeError } from "@deepwrite/shared/node";
 
 export interface ProjectTransactionLockOwner {
   pid: number;
@@ -26,9 +25,10 @@ export interface ProjectTransactionLockOwner {
 
 export async function withProjectTransactionLock<T>(
   projectRoot: string,
-  task: () => Promise<T>
+  task: () => Promise<T>,
+  options?: { timeoutMs?: number }
 ): Promise<T> {
-  const release = await acquireProjectTransactionLock(projectRoot);
+  const release = await acquireProjectTransactionLock(projectRoot, options);
   try {
     return await task();
   } finally {
@@ -37,7 +37,8 @@ export async function withProjectTransactionLock<T>(
 }
 
 export async function acquireProjectTransactionLock(
-  projectRoot: string
+  projectRoot: string,
+  options?: { timeoutMs?: number }
 ): Promise<() => Promise<void>> {
   const lockPath = await resolveInternalWritableFile(
     projectRoot,
@@ -50,7 +51,7 @@ export async function acquireProjectTransactionLock(
     acquiredAt: new Date().toISOString()
   };
   const serialized = `${JSON.stringify(owner)}\n`;
-  const deadline = Date.now() + LOCK_WAIT_TIMEOUT_MS;
+  const deadline = Date.now() + (options?.timeoutMs ?? LOCK_WAIT_TIMEOUT_MS);
 
   for (;;) {
     let handle: Awaited<ReturnType<typeof open>> | undefined;

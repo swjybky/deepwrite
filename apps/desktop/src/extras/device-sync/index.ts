@@ -1,6 +1,6 @@
 import { createInitializationWorkspace } from "./initialization-workspace";
 import { createHash, randomUUID } from "node:crypto";
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import {
   DEVICE_SYNC_IPC_CHANNEL,
   DeviceSyncRequestEnvelopeSchema,
@@ -24,6 +24,12 @@ import {
 import { withModelConfigSync, type ModelSyncPort } from "./model-workspace";
 import { WebDavSyncTransport } from "./webdav";
 import { electronDavFetch } from "./webdav-fetch";
+import {
+  isTestEnvironment,
+  readOnlyOnlineFetch
+} from "../../main/test-environment";
+
+const DAV_READ_METHODS = new Set(["GET", "HEAD", "PROPFIND", "OPTIONS"]);
 
 export function createDesktopDeviceSync(
   root: string,
@@ -73,7 +79,13 @@ export function createDesktopDeviceSync(
     metadata,
     credentials: new DesktopSyncCredentialStore(root),
     transport: (config, password) =>
-      new WebDavSyncTransport(config, password, electronDavFetch),
+      new WebDavSyncTransport(
+        config,
+        password,
+        isTestEnvironment(app.isPackaged)
+          ? readOnlyOnlineFetch(electronDavFetch, DAV_READ_METHODS)
+          : electronDavFetch
+      ),
     workspace: withModelConfigSync(
       {
         initialization: initialization.initialization,

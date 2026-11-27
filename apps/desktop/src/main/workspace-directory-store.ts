@@ -15,13 +15,11 @@ import {
   assertOutsideInstallationDirectory,
   overlapsInstallationDirectory
 } from "./installation-directory-guard";
+import { isNodeError } from "@deepwrite/shared/node";
 
 interface DiskWorkspaceDirectorySettings {
   version: 1;
   path: string;
-}
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
 }
 
 export class WorkspaceDirectoryStore {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import {
@@ -107,7 +108,7 @@ function signIn(): void {
 
 async function signOut(): Promise<void> {
   accountMenuOpen.value = false;
-  const api = window.deepwrite?.marketplace;
+  const api = deepwriteApi()?.marketplace;
   if (!api) return;
   try {
     emit("marketplaceSignedOut", await api.logout());
@@ -126,7 +127,8 @@ async function openUpdateDialog(): Promise<void> {
   void refreshAnnouncedVersion();
   accountMenuOpen.value = false;
   profileDialog.value = "update";
-  if (!window.deepwrite?.updates) {
+  const desktopApi = deepwriteApi();
+  if (!desktopApi?.updates) {
     updateState.value = {
       ...updateState.value,
       status: "unsupported",
@@ -135,13 +137,13 @@ async function openUpdateDialog(): Promise<void> {
     return;
   }
   try {
-    updateState.value = await window.deepwrite.updates.getState();
+    updateState.value = await desktopApi.updates.getState();
     if (
       !["downloading", "downloaded", "installing"].includes(
         updateState.value.status
       )
     ) {
-      updateState.value = await window.deepwrite.updates.check();
+      updateState.value = await desktopApi.updates.check();
     }
   } catch (error: unknown) {
     uiMessage.error(formatError(error, t("couldNotCheckForUpdates")));
@@ -151,7 +153,7 @@ async function openUpdateDialog(): Promise<void> {
 async function checkUpdate(): Promise<void> {
   void refreshAnnouncedVersion();
   try {
-    updateState.value = await window.deepwrite!.updates.check();
+    updateState.value = await deepwriteApi()!.updates.check();
   } catch (error: unknown) {
     uiMessage.error(formatError(error, t("couldNotCheckForUpdates")));
   }
@@ -160,7 +162,7 @@ async function checkUpdate(): Promise<void> {
 async function downloadUpdate(): Promise<void> {
   if (manualUpdateRequired.value) return;
   try {
-    updateState.value = await window.deepwrite!.updates.download();
+    updateState.value = await deepwriteApi()!.updates.download();
   } catch (error: unknown) {
     uiMessage.error(formatError(error, t("couldNotDownloadUpdate")));
   }
@@ -169,7 +171,7 @@ async function downloadUpdate(): Promise<void> {
 async function installUpdate(): Promise<void> {
   if (manualUpdateRequired.value) return;
   try {
-    await window.deepwrite!.updates.install();
+    await deepwriteApi()!.updates.install();
   } catch (error: unknown) {
     if (updateState.value.status !== "error") {
       uiMessage.error(formatError(error, t("couldNotStartUpdateInstallation")));
@@ -220,7 +222,7 @@ function handleDocumentKeydown(event: KeyboardEvent): void {
 onMounted(() => {
   document.addEventListener("pointerdown", handleDocumentPointerDown);
   document.addEventListener("keydown", handleDocumentKeydown);
-  unsubscribeUpdates = window.deepwrite?.updates?.subscribe((state) => {
+  unsubscribeUpdates = deepwriteApi()?.updates?.subscribe((state) => {
     updateState.value = state;
     showUpdateError(state);
   });

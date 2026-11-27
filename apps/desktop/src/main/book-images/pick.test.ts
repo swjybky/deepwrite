@@ -22,7 +22,7 @@ import { withBookImageCommands } from "../../utilities/book-images/commands";
 import type { FolderCatalogStore } from "../../utilities/folder-catalog-store";
 import type { LongWorkspaceService } from "../../utilities/long-workspace-service";
 import { prepareBookImage, pickBookImages } from "./pick";
-import { IMAGE_PNG } from "../image/image-test-support";
+import { IMAGE_PNG } from "../image/image.test-support";
 const { showOpenDialog, createFromBuffer } = vi.hoisted(() => ({
   showOpenDialog: vi.fn(),
   createFromBuffer: vi.fn()

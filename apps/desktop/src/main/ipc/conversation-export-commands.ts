@@ -9,6 +9,7 @@ import {
   type ConversationExportBeginResult
 } from "@deepwrite/contracts";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 type ExportContext = Pick<
   IpcCommandContext,
@@ -120,14 +121,11 @@ export async function handleConversationExportCommands(
 ): Promise<CommandResult | undefined> {
   if (!command.type.startsWith("conversationExport.")) return;
   if (command.type === "conversationExport.prepare")
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "conversation_export.forbidden",
-        message: "Renderer 不能直接指定导出路径。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "conversation_export.forbidden",
+      "Renderer 不能直接指定导出路径。"
+    );
   try {
     for (const [key, request] of begins)
       if (Date.now() - request.touchedAt > RETAIN_MS) {
@@ -159,17 +157,13 @@ export async function handleConversationExportCommands(
         ].parse(payload)
     };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "conversation_export.failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "导出未完成，请重新选择保存位置。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "conversation_export.failed",
+      error instanceof Error
+        ? error.message
+        : "导出未完成，请重新选择保存位置。"
+    );
   }
 }
 

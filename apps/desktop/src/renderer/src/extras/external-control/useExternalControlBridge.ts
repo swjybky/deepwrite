@@ -10,6 +10,7 @@ import type { AgentConversationController } from "../../composables/useAgentConv
 import { systemEventCenter } from "../../events/systemEventCenter";
 import { createExternalRunRecovery } from "./run-recovery";
 import { trackExternalRun, type TrackedRun } from "./tracked-run";
+import { jsonClone } from "@deepwrite/shared";
 
 const READY_TIMEOUT_MS = 15_000;
 const READY_POLL_MS = 50;
@@ -324,7 +325,7 @@ export function useExternalControlBridge(ports: ExternalControlBridgePorts) {
   async function respond(response: ExternalWindowResponse): Promise<void> {
     const api = ports.api()?.externalControl;
     try {
-      await api?.respond(JSON.parse(JSON.stringify(response)));
+      await api?.respond(jsonClone(response));
     } catch {
       await api?.respond({
         requestId: response.requestId,

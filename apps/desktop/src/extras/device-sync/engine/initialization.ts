@@ -4,6 +4,8 @@ import {
   mergeSyncClocks,
   stableSyncJson,
   syncDependencies,
+  syncErrorMessage,
+  SyncItemValidationError,
   syncKey,
   type LoadedSyncDevice,
   type SyncInitializationPreview,
@@ -13,12 +15,14 @@ import {
   type SyncServiceOptions
 } from "@deepwrite/contracts";
 import { connectedSyncRemote, loadSyncMetadata } from "./connection";
+import { SyncContentIntegrityError } from "./content-store";
 import type { SyncRunState } from "./run";
 
 export interface PreparedSyncInitialization {
   preview: SyncInitializationPreview;
   items: SyncItem[];
   baselines: SyncMetadata["baselines"];
+  ancestors: SyncMetadata["ancestors"];
   devices: LoadedSyncDevice[];
   localFingerprint: string;
   metadataFingerprint: string;
@@ -45,36 +49,87 @@ function fileHashes(revision: SyncRevision): string {
       : null
   );
 }
-
-/** Require the chosen computer to have incorporated other published versions first. */
-function checkSource(
-  source: LoadedSyncDevice,
-  devices: LoadedSyncDevice[]
+function sanitizeLabel(value: string, maxLength: number): string {
+  return value
+    .replace(/[\r\n）]+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+function formatDeviceNames(names: readonly string[]): string {
+  let result = "";
+  for (const part of names) {
+    const next = result ? `${result}、${part}` : part;
+    if (next.length > 140) {
+      return result
+        ? `${result} 等 ${names.length} 台设备`.slice(0, 160)
+        : next.slice(0, 160);
+    }
+    result = next;
+  }
+  return result.slice(0, 160);
+}
+function recordAncestor(
+  ancestors: SyncMetadata["ancestors"],
+  key: string,
+  entry: { revision: SyncRevision; item: SyncItem | null }
 ): void {
-  for (const { commit } of devices)
+  const list = ancestors[key] ?? [];
+  if (
+    !list.some(
+      (existing) =>
+        stableSyncJson(existing.revision) === stableSyncJson(entry.revision)
+    )
+  ) {
+    ancestors[key] = [...list, entry];
+  }
+}
+function validationDetail(error: unknown): string {
+  if (!(error instanceof SyncItemValidationError)) return "";
+  const detail = error.message.trim();
+  return detail && detail.length <= 140 && !/[\r\n：]|https?:\/\//i.test(detail)
+    ? detail
+    : "";
+}
+
+/** Find peer devices other than this device whose uploaded revisions were not yet merged by the chosen source. */
+function findUnmergedDevices(
+  source: LoadedSyncDevice,
+  devices: LoadedSyncDevice[],
+  localDeviceId: string
+): string[] {
+  const names = new Set<string>();
+  for (const { commit } of devices) {
+    if (
+      commit.deviceId === source.commit.deviceId ||
+      commit.deviceId === localDeviceId
+    )
+      continue;
     for (const [key, revision] of Object.entries(commit.items)) {
       const chosen = source.commit.items[key];
-      if (
-        (!chosen && revision.files) ||
-        (chosen && !clockIncludes(chosen.clock, revision.clock))
-      ) {
-        throw new Error("远端还有未合并的版本，请先在来源设备完成同步后重试。");
-      }
-      if (
-        chosen &&
-        stableSyncJson(chosen.clock) === stableSyncJson(revision.clock) &&
-        fileHashes(chosen) !== fileHashes(revision)
-      ) {
-        throw new Error("远端还有未合并的版本，请先在来源设备完成同步后重试。");
+      const diverged =
+        (!chosen && Boolean(revision.files)) ||
+        (chosen !== undefined &&
+          !clockIncludes(chosen.clock, revision.clock)) ||
+        (chosen !== undefined &&
+          stableSyncJson(chosen.clock) === stableSyncJson(revision.clock) &&
+          fileHashes(chosen) !== fileHashes(revision));
+      if (diverged) {
+        names.add(
+          sanitizeLabel(commit.deviceName, 40) || commit.deviceId.slice(0, 40)
+        );
+        break;
       }
     }
+  }
+  return [...names];
 }
 
 export async function prepareSyncInitialization(
   options: SyncServiceOptions,
   state: SyncRunState,
   deviceId: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  initOptions?: { ignoreOtherDevices?: boolean }
 ): Promise<PreparedSyncInitialization> {
   const port = options.workspace.initialization;
   if (!port) throw new Error("当前环境不支持初始化本机。");
@@ -95,13 +150,24 @@ export async function prepareSyncInitialization(
       commit.deviceId === deviceId && deviceId !== metadata.deviceId
   );
   if (!source) throw new Error("请先选择另一台已上传数据的设备。");
-  checkSource(source, devices);
+  const unmergedDevices = findUnmergedDevices(
+    source,
+    devices,
+    metadata.deviceId
+  );
+  if (unmergedDevices.length > 0 && !initOptions?.ignoreOtherDevices) {
+    throw new Error(
+      `远端设备（${formatDeviceNames(unmergedDevices)}）还有未合并的版本，请先在来源设备完成同步后重试，或选择忽略其他设备继续初始化。`
+    );
+  }
   const revisions = Object.entries(source.commit.items);
   const total = revisions.filter(([, revision]) => revision.files).length;
   if (!total)
     throw new Error("来源设备没有可下载的作品或资料，未清除本机数据。");
   const items: SyncItem[] = [];
   const baselines: SyncMetadata["baselines"] = {};
+  const ancestors: SyncMetadata["ancestors"] = {};
+  let skippedUnsupportedCount = 0;
   remote.setFileProgress((filesCompleted, filesTotal) => {
     state.progress = { ...state.progress, filesCompleted, filesTotal };
   });
@@ -115,16 +181,37 @@ export async function prepareSyncInitialization(
     };
     try {
       const item = await remote.item(metadata.config.spaceId, revision);
+      if (item && options.workspace.supportsItem?.(item) === false) {
+        skippedUnsupportedCount++;
+        baselines[key] = { revision, item: null };
+        continue;
+      }
       if (item) {
         await options.workspace.validate(item);
         items.push(item);
       }
       baselines[key] = { revision, item };
-    } catch {
+    } catch (error) {
       checkCancelled(signal);
-      throw new Error("远端作品不完整或不兼容，请先在来源设备更新并重新上传。");
+      if (
+        !(error instanceof SyncContentIntegrityError) &&
+        !(error instanceof SyncItemValidationError) &&
+        syncErrorMessage(error) !==
+          "同步未完成，请检查连接、作品保存状态后重试。"
+      ) {
+        throw error;
+      }
+      const title = sanitizeLabel(revision.title, 60) || key.slice(0, 60);
+      const detail = validationDetail(error);
+      throw new Error(
+        detail
+          ? `远端作品不完整或不兼容（${title}）：${detail}`
+          : `远端作品不完整或不兼容（${title}），请先在来源设备更新并重新上传。`
+      );
     }
   }
+  if (!items.length)
+    throw new Error("来源设备没有可下载的作品或资料，未清除本机数据。");
   const keys = new Set(items.map(syncKey));
   if (
     items.some((item) => syncDependencies(item).some((key) => !keys.has(key)))
@@ -133,21 +220,68 @@ export async function prepareSyncInitialization(
       "远端作品绑定的资料不完整，请先在来源设备同步全部作品和资料库。"
     );
   }
-  // Already published deletions absent from the source must not appear as new downloads.
-  for (const { commit } of devices)
+  // Incorporate this device's prior commits, published tombstones, and (when explicitly ignored)
+  // other unmerged peers' clocks while keeping the chosen source snapshot in `ancestors` for future 3-way merges.
+  const supersededKeys = new Set<string>();
+  for (const { commit } of devices) {
+    if (commit.deviceId === source.commit.deviceId) continue;
     for (const [key, revision] of Object.entries(commit.items)) {
-      if (!source.commit.items[key] && !revision.files)
+      const baseline = baselines[key];
+      const includeDivergent =
+        commit.deviceId === metadata.deviceId ||
+        Boolean(initOptions?.ignoreOtherDevices);
+      if (baseline) {
+        if (!includeDivergent && revision.files) continue;
+        const mergedClock = mergeSyncClocks([
+          baseline.revision.clock,
+          revision.clock
+        ]);
+        if (
+          stableSyncJson(mergedClock) !==
+          stableSyncJson(baseline.revision.clock)
+        ) {
+          const sourceRevision = source.commit.items[key];
+          if (sourceRevision) {
+            recordAncestor(ancestors, key, {
+              revision: sourceRevision,
+              item: baseline.item
+            });
+          }
+          baselines[key] = {
+            revision: { ...baseline.revision, clock: mergedClock },
+            item: baseline.item
+          };
+          supersededKeys.add(key);
+        }
+        continue;
+      }
+      if (!revision.files || includeDivergent) {
         baselines[key] = {
           revision: {
             ...revision,
             clock: mergeSyncClocks([
               baselines[key]?.revision.clock ?? {},
               revision.clock
-            ])
+            ]),
+            files: null
           },
           item: null
         };
+        if (revision.files) supersededKeys.add(key);
+      }
     }
+  }
+  for (const key of supersededKeys) {
+    const entry = baselines[key];
+    if (!entry) continue;
+    entry.revision = {
+      ...entry.revision,
+      clock: {
+        ...entry.revision.clock,
+        [metadata.deviceId]: (entry.revision.clock[metadata.deviceId] ?? 0) + 1
+      }
+    };
+  }
   checkCancelled(signal);
   const preview: SyncInitializationPreview = {
     token: options.runtime.id(),
@@ -161,7 +295,11 @@ export async function prepareSyncInitialization(
       0
     ),
     localItemCount: local.itemCount,
-    expiresAt: new Date(Date.parse(options.runtime.now()) + TTL).toISOString()
+    expiresAt: new Date(Date.parse(options.runtime.now()) + TTL).toISOString(),
+    ...(initOptions?.ignoreOtherDevices && unmergedDevices.length
+      ? { ignoredDevices: unmergedDevices }
+      : {}),
+    ...(skippedUnsupportedCount ? { skippedUnsupportedCount } : {})
   };
   state.progress = {
     phase: "idle",
@@ -173,6 +311,7 @@ export async function prepareSyncInitialization(
     preview,
     items,
     baselines,
+    ancestors,
     devices,
     localFingerprint: local.fingerprint,
     metadataFingerprint: metadataFingerprint(metadata)
@@ -219,7 +358,7 @@ export async function applySyncInitialization(
     ...metadata,
     config: { ...metadata.config, excludedKeys: [] },
     baselines: prepared.baselines,
-    ancestors: {},
+    ancestors: prepared.ancestors,
     history: [],
     pendingIssues: [],
     devices,

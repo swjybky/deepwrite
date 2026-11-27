@@ -10,6 +10,7 @@ import {
   handleCatalogProjectCommands,
   type CatalogProjectCommandContext
 } from "./catalog-project-commands";
+import { rejectedResult } from "./errors";
 let store: BookTemplateStore | undefined;
 function getStore() {
   return (store ??= new BookTemplateStore(app.getPath("userData")));
@@ -62,13 +63,10 @@ export async function handleBookTemplateCommands(
           : (await storage.delete(command.payload.id), { deleted: true });
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "bookTemplates.failed",
-        message: error instanceof Error ? error.message : "模板操作失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "bookTemplates.failed",
+      error instanceof Error ? error.message : "模板操作失败。"
+    );
   }
 }

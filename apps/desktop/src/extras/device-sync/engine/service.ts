@@ -192,7 +192,10 @@ export class DeviceSyncService implements SyncApi {
     this.controller?.abort();
   }
 
-  async previewInitialization(deviceId: string) {
+  async previewInitialization(
+    deviceId: string,
+    options?: { ignoreOtherDevices?: boolean }
+  ) {
     return this.exclusive(async () => {
       this.prepared = null;
       this.controller = new AbortController();
@@ -202,7 +205,8 @@ export class DeviceSyncService implements SyncApi {
           this.options,
           this.state,
           deviceId,
-          this.controller.signal
+          this.controller.signal,
+          options
         );
         return this.prepared.preview;
       } catch (error) {

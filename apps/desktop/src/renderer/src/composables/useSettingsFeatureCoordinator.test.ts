@@ -349,13 +349,16 @@ describe("settings feature coordinator", () => {
     expect(settingsStore.testingModelId).toBe(model.id);
     await testing;
 
-    expect(test).toHaveBeenCalledWith(model);
+    expect(test).toHaveBeenCalledWith(model, {
+      requestId: expect.any(String)
+    });
     expect(settingsStore.testingModelId).toBeNull();
     expect(settingsStore.modelTestMessage).toBe("模型联通正常。");
     expect(settingsStore.lastModelTestCapacity).toEqual({
       modelId: "free-writing",
       contextWindow: 272_000,
-      maxTokens: 128_000
+      maxTokens: 128_000,
+      configSignature: expect.any(String)
     });
     expect(notifications.success).toHaveBeenCalledWith("模型联通正常。");
   });
@@ -548,5 +551,156 @@ describe("settings feature coordinator", () => {
     expect(notifications.success).toHaveBeenCalledWith(
       "智能体团队“安装的团队”已导入。"
     );
+  });
+
+  it("allows concurrent tests across different models, prevents duplicate tests on the same model, and cancels cleanly", async () => {
+    const first = deferred<{
+      modelId: string;
+      ok: boolean;
+      message: string;
+      testedAt: string;
+      contextWindow: number;
+      maxTokens: number;
+    }>();
+    const second = deferred<{
+      modelId: string;
+      ok: boolean;
+      message: string;
+      testedAt: string;
+      contextWindow: number;
+      maxTokens: number;
+    }>();
+    const test = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    const cancelTest = vi.fn(async () => ({ cancelled: true }));
+    const api = createApi({ models: { test, cancelTest } });
+    const { coordinator, notifications, settingsStore } = createHarness(api);
+
+    const modelA = freeModel();
+    const modelB: ModelConfigInput = {
+      ...freeModel(),
+      id: "model-b",
+      label: "Model B",
+      modelId: "model-b"
+    };
+
+    const runA1 = coordinator.testModel(modelA);
+    const runA2 = coordinator.testModel(modelA); // Duplicate on same model ignored
+    expect(test).toHaveBeenCalledTimes(1);
+
+    const runB = coordinator.testModel(modelB); // Different model allowed concurrently
+    expect(test).toHaveBeenCalledTimes(2);
+    expect(settingsStore.modelTestStates[modelA.id]?.status).toBe("testing");
+    expect(settingsStore.modelTestStates[modelB.id]?.status).toBe("testing");
+
+    // Cancel Model A while Model B completes
+    const reqA = test.mock.calls[0]![1]!.requestId as string;
+    const cancelPromise = coordinator.cancelModelTest(modelA.id);
+    expect(settingsStore.modelTestStates[modelA.id]?.status).toBe("cancelling");
+    await cancelPromise;
+    expect(cancelTest).toHaveBeenCalledWith({ requestId: reqA });
+    // Still cancelling until backend request settles
+    expect(settingsStore.modelTestStates[modelA.id]?.status).toBe("cancelling");
+
+    first.reject({
+      code: "models.test_cancelled",
+      message: "模型连接测试已取消。"
+    });
+    await Promise.all([runA1, runA2]);
+    expect(settingsStore.modelTestStates[modelA.id]?.status).toBe("cancelled");
+    expect(settingsStore.modelError).toBeNull();
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(settingsStore.testingModelId).toBe(modelB.id);
+
+    second.resolve({
+      modelId: modelB.id,
+      ok: true,
+      message: "连接成功。",
+      testedAt: "2026-11-26T00:00:00.000Z",
+      contextWindow: 128_000,
+      maxTokens: 16_000
+    });
+    await runB;
+    expect(settingsStore.modelTestStates[modelB.id]?.status).toBe("succeeded");
+    expect(settingsStore.testingModelId).toBeNull();
+    expect(notifications.success).toHaveBeenCalledWith("Model B：连接成功。");
+  });
+
+  it("maps models.test_timeout and discards stale results when model config is modified or deleted during a slow test", async () => {
+    const slowPending = deferred<{
+      modelId: string;
+      ok: boolean;
+      message: string;
+      testedAt: string;
+      contextWindow: number;
+      maxTokens: number;
+      supportsDeveloperRole?: boolean;
+    }>();
+    const timeoutModel = { ...freeModel(), id: "model-timeout" };
+    const editedModel = {
+      ...freeModel(),
+      id: "model-edited",
+      managedBy: undefined
+    };
+    const savedBefore = {
+      models: [{ ...editedModel, hasApiKey: true }],
+      defaultModelId: editedModel.id
+    } as ModelSettings;
+    const savedAfter = {
+      models: [
+        {
+          ...editedModel,
+          baseUrl: "https://updated.example.test/v1",
+          hasApiKey: true
+        }
+      ],
+      defaultModelId: editedModel.id
+    } as ModelSettings;
+
+    const test = vi
+      .fn()
+      .mockRejectedValueOnce({
+        code: "models.test_timeout",
+        message: "Agent timed out"
+      })
+      .mockImplementationOnce(() => slowPending.promise);
+    const cancelTest = vi.fn(async () => ({ cancelled: true }));
+    const save = vi.fn(async () => savedAfter);
+    const api = createApi({ models: { test, cancelTest, save } });
+    const { coordinator, notifications, settingsStore } = createHarness(api);
+
+    await coordinator.testModel(timeoutModel);
+    expect(settingsStore.modelTestStates[timeoutModel.id]).toMatchObject({
+      status: "failed",
+      errorCode: "models.test_timeout",
+      message: "模型连接超时，请检查网络或稍后重试。"
+    });
+    expect(notifications.error).toHaveBeenCalledWith(
+      "模型连接超时，请检查网络或稍后重试。",
+      { duration: 8_000 }
+    );
+
+    settingsStore.markLoaded("models", savedBefore);
+    const pendingEditRun = coordinator.testModel(editedModel);
+    await coordinator.saveModelSettings({
+      models: savedAfter.models.map(({ hasApiKey: _k, ...rest }) => rest),
+      defaultModelId: editedModel.id
+    });
+    expect(cancelTest).toHaveBeenCalled();
+
+    slowPending.resolve({
+      modelId: editedModel.id,
+      ok: true,
+      message: "连接成功",
+      testedAt: "2026-11-26T00:00:00.000Z",
+      contextWindow: 128_000,
+      maxTokens: 16_000,
+      supportsDeveloperRole: false
+    });
+    await pendingEditRun;
+    expect(settingsStore.lastModelTestCapacity).toBeNull();
+    expect(settingsStore.modelTestStates[editedModel.id]).toBeUndefined();
   });
 });

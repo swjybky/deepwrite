@@ -1,9 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { effectScope } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import type {
-  WebSearchSettings,
-  WebSearchSettingsInput
+import {
+  WEB_SEARCH_PROVIDERS,
+  type WebSearchSettings,
+  type WebSearchSettingsInput
 } from "@deepwrite/contracts/renderer";
 import { useWebSearchStatusStore } from "../stores/webSearchStatus";
 import { useWebSearchSettings } from "./useWebSearchSettings";
@@ -113,6 +114,54 @@ it("offers keyless search when a self-hosted endpoint is saved", async () => {
     expect(api.test).toHaveBeenCalledWith({
       providerId: "searxng",
       baseUrl: "http://localhost:8888"
+    });
+  } finally {
+    scope.stop();
+  }
+});
+
+it("selects TinyFish with its 10-result cap, key requirement and default endpoint", async () => {
+  setActivePinia(createPinia());
+  let snapshot: WebSearchSettings = {
+    enabled: true,
+    activeProviderId: "deepseek",
+    perRunCallLimit: 20,
+    profiles: [{ providerId: "deepseek", maxResults: 8, hasApiKey: true }]
+  };
+  const api = {
+    getSettings: vi.fn(async () => snapshot),
+    saveSettings: vi.fn(async (input: WebSearchSettingsInput) => {
+      snapshot = {
+        ...snapshot,
+        activeProviderId: input.activeProviderId,
+        profiles: input.profiles.map(
+          ({ apiKey, clearApiKey: _clear, ...p }) => ({
+            ...p,
+            hasApiKey: Boolean(apiKey)
+          })
+        )
+      };
+      return snapshot;
+    }),
+    test: vi.fn(async () => ({ resultCount: 1, elapsedMs: 120, samples: [] }))
+  };
+  vi.stubGlobal("window", { deepwrite: { webSearch: api } });
+  const scope = effectScope();
+  const c = scope.run(() => useWebSearchSettings())!;
+  try {
+    await c.load();
+    await c.selectProvider("tinyfish");
+    expect(c.draft.maxResults).toBe(8);
+    expect(c.limits.value.maxResults).toBe(10);
+    expect(c.canImport.value).toBe(false);
+    expect(c.hasUsableKey.value).toBe(false);
+    c.draft.apiKey = "invalid-test-tinyfish-key";
+    expect(c.hasUsableKey.value).toBe(true);
+    await c.test();
+    expect(api.test).toHaveBeenLastCalledWith({
+      providerId: "tinyfish",
+      baseUrl: WEB_SEARCH_PROVIDERS.tinyfish.defaultBaseUrl,
+      apiKey: "invalid-test-tinyfish-key"
     });
   } finally {
     scope.stop();

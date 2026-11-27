@@ -11,7 +11,7 @@ import {
   profile,
   toolByName,
   resultText
-} from "./test-fixtures";
+} from "./library-tools.test-support";
 
 describe("library structure tools", () => {
   it("mounts exactly three structural tools only in the domain entry and accumulates a review batch", async () => {

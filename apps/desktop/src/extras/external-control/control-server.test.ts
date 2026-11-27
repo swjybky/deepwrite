@@ -1,4 +1,8 @@
-import { EXTERNAL_CONTROL_HELLO_MAX_BYTES } from "@deepwrite/contracts/external-control";
+import {
+  EXTERNAL_CONTROL_HELLO_MAX_BYTES,
+  EXTERNAL_CONTROL_PROTOCOL_VERSION,
+  createEnvelope
+} from "@deepwrite/contracts/external-control";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -228,5 +232,43 @@ describe("external control server", () => {
   it.runIf(onUnix)("makes the socket private to its owner", async () => {
     const { mode } = await stat(paths.endpoint);
     expect(mode & 0o777).toBe(0o600);
+  });
+
+  it("advertises ping support in hello and answers pings without handleCall", async () => {
+    const client = await connectRawClient(paths.endpoint);
+    client.send(helloEnvelope(TEST_TOKEN));
+    expect(await client.nextMessage()).toMatchObject({
+      status: "accepted",
+      payload: {
+        protocolVersion: EXTERNAL_CONTROL_PROTOCOL_VERSION,
+        ping: true
+      }
+    });
+    client.send(createEnvelope("externalControl.ping", {}, { id: "ping-1" }));
+    expect(await client.nextMessage()).toEqual({
+      status: "accepted",
+      requestId: "ping-1",
+      payload: { ok: true }
+    });
+    expect(handleCall).not.toHaveBeenCalled();
+    client.socket.destroy();
+  });
+
+  it("does not fire unexpected callbacks on normal stop", async () => {
+    const onUnexpectedError = vi.fn();
+    const onUnexpectedClose = vi.fn();
+    await server.stop();
+    server = createExternalControlServer({
+      endpoint: paths.endpoint,
+      token: TEST_TOKEN,
+      authorize,
+      handleCall,
+      onUnexpectedError,
+      onUnexpectedClose
+    });
+    await server.start();
+    await server.stop();
+    expect(onUnexpectedError).not.toHaveBeenCalled();
+    expect(onUnexpectedClose).not.toHaveBeenCalled();
   });
 });

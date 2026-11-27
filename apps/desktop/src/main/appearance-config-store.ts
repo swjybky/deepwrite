@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   AppearanceSettingsSchema,
   AppearanceSettingsSnapshotSchema,
@@ -7,6 +7,7 @@ import {
   type AppearanceSettings,
   type AppearanceSettingsSnapshot
 } from "@deepwrite/contracts";
+import { writeJsonAtomic, isNodeError } from "@deepwrite/shared/node";
 
 interface DiskAppearanceSettings {
   version: 1;
@@ -16,20 +17,6 @@ interface DiskAppearanceSettings {
   dark: AppearanceSettings["dark"];
   uiFontFamily?: AppearanceSettings["uiFontFamily"];
   editorFontFamily?: AppearanceSettings["editorFontFamily"];
-}
-
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
 }
 
 function toPublicSettings(raw: unknown): AppearanceSettings {
@@ -100,7 +87,7 @@ export class AppearanceConfigStore {
         uiFontFamily: settings.uiFontFamily,
         editorFontFamily: settings.editorFontFamily
       };
-      await atomicWriteJson(this.settingsPath, disk);
+      await writeJsonAtomic(this.settingsPath, disk);
       saved = AppearanceSettingsSnapshotSchema.parse({
         persisted: true,
         settings

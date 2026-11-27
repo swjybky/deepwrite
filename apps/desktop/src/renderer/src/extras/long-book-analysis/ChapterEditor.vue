@@ -13,23 +13,37 @@ import {
   mergeAnalysisChapter,
   moveAnalysisChapter,
   renameAnalysisChapter,
+  resolveMergedChapterTargetId,
+  shouldHandleChapterCorrectionUndoKeydown,
   splitAnalysisChapter
 } from "./chapter-editing";
+import type { ReplaceAnalysisChaptersOptions } from "./long-analysis-sources";
 
 const t = createScopedTranslator("extras.longBookAnalysis");
 
 const props = defineProps<{
   source: LongBookAnalysisSource;
   disabled: boolean;
+  selectedChapterId?: string;
+  canUndo?: boolean;
 }>();
 
 const emit = defineEmits<{
-  update: [chapters: LongBookAnalysisChapter[]];
+  select: [chapterId: string];
+  update: [
+    chapters: LongBookAnalysisChapter[],
+    options?: ReplaceAnalysisChaptersOptions
+  ];
+  undo: [];
 }>();
 
 const PAGE_SIZE = 100;
 const page = ref(1);
-const selectedId = ref(props.source.chapters[0]?.id ?? "");
+const selectedId = ref(
+  props.selectedChapterId || props.source.chapters[0]?.id || ""
+);
+const editorRoot = ref<HTMLElement | null>(null);
+const chapterList = ref<HTMLOListElement | null>(null);
 const preview = ref<HTMLTextAreaElement | null>(null);
 const draggedId = ref<string | null>(null);
 const selected = computed(
@@ -45,18 +59,76 @@ const visibleChapters = computed(() => {
   return props.source.chapters.slice(start, start + PAGE_SIZE);
 });
 
+function syncPageToSelected(): void {
+  const index = props.source.chapters.findIndex(
+    (chapter) => chapter.id === selectedId.value
+  );
+  if (index >= 0) {
+    page.value = Math.floor(index / PAGE_SIZE) + 1;
+  } else {
+    page.value = Math.min(page.value, pageCount.value);
+  }
+}
+
+function scrollSelectedIntoView(): void {
+  const selectedRow = chapterList.value?.querySelector?.(".is-selected") as
+    | { scrollIntoView?: (options?: { block?: "nearest" }) => void }
+    | null
+    | undefined;
+  selectedRow?.scrollIntoView?.({ block: "nearest" });
+}
+
+function restoreEditorFocusAfterUpdate(hadFocusInside: boolean): void {
+  if (!hadFocusInside) return;
+  const root = editorRoot.value;
+  const active =
+    typeof document !== "undefined" ? document.activeElement : null;
+  if (root && (!active || !root.contains(active))) {
+    (preview.value ?? root).focus?.({ preventScroll: true });
+  }
+}
+
+async function runWithFocusPreserved(action: () => void): Promise<void> {
+  const hadFocusInside = Boolean(
+    editorRoot.value &&
+    typeof document !== "undefined" &&
+    editorRoot.value.contains(document.activeElement)
+  );
+  action();
+  await nextTick();
+  scrollSelectedIntoView();
+  restoreEditorFocusAfterUpdate(hadFocusInside);
+}
+
+watch(
+  () => props.selectedChapterId,
+  (next) => {
+    if (next && props.source.chapters.some((chapter) => chapter.id === next)) {
+      selectedId.value = next;
+    }
+  }
+);
+
 watch(
   () => props.source.id,
   () => {
-    selectedId.value = props.source.chapters[0]?.id ?? "";
-    page.value = 1;
+    const controlled = props.selectedChapterId;
+    selectedId.value =
+      controlled &&
+      props.source.chapters.some((chapter) => chapter.id === controlled)
+        ? controlled
+        : (props.source.chapters[0]?.id ?? "");
+    syncPageToSelected();
   }
 );
 
 watch(
   () => props.source.chapters,
   (chapters, previous) => {
-    if (!chapters.some((chapter) => chapter.id === selectedId.value)) {
+    const controlled = props.selectedChapterId;
+    if (controlled && chapters.some((chapter) => chapter.id === controlled)) {
+      selectedId.value = controlled;
+    } else if (!chapters.some((chapter) => chapter.id === selectedId.value)) {
       const index = Math.max(
         0,
         previous.findIndex((chapter) => chapter.id === selectedId.value)
@@ -64,44 +136,75 @@ watch(
       selectedId.value =
         chapters[Math.min(index, chapters.length - 1)]?.id ?? "";
     }
-    page.value = Math.min(page.value, pageCount.value);
+    syncPageToSelected();
   }
 );
 
-function apply(operation: () => LongBookAnalysisChapter[]): void {
+watch(selectedId, () => {
+  syncPageToSelected();
+});
+
+function apply(
+  operation: () => LongBookAnalysisChapter[],
+  options?: ReplaceAnalysisChaptersOptions
+): boolean {
   try {
-    emit("update", operation());
+    emit("update", operation(), options);
+    return true;
   } catch (error: unknown) {
     uiMessage.warning(formatError(error, t("chapterCorrectionFailed")));
+    return false;
   }
 }
 
 function selectChapter(chapter: LongBookAnalysisChapter): void {
   selectedId.value = chapter.id;
+  emit("select", chapter.id);
 }
 
 function rename(chapter: LongBookAnalysisChapter, event: Event): void {
   const input = event.target;
   if (!(input instanceof HTMLInputElement) || input.value === chapter.title)
     return;
-  apply(() =>
-    renameAnalysisChapter(props.source.chapters, chapter.id, input.value)
+  const committed = apply(
+    () => renameAnalysisChapter(props.source.chapters, chapter.id, input.value),
+    {
+      beforeSelectedChapterId: selectedId.value,
+      afterSelectedChapterId: selectedId.value
+    }
   );
+  if (!committed) input.value = chapter.title;
 }
 
-function move(chapterId: string, direction: -1 | 1): void {
+async function move(chapterId: string, direction: -1 | 1): Promise<void> {
+  if (props.disabled) return;
   const current = props.source.chapters.findIndex(
     (chapter) => chapter.id === chapterId
   );
   if (current < 0) return;
-  apply(() =>
-    moveAnalysisChapter(props.source.chapters, chapterId, current + direction)
-  );
+  await runWithFocusPreserved(() => {
+    apply(
+      () =>
+        moveAnalysisChapter(
+          props.source.chapters,
+          chapterId,
+          current + direction
+        ),
+      {
+        beforeSelectedChapterId: selectedId.value,
+        afterSelectedChapterId: selectedId.value
+      }
+    );
+  });
 }
 
-function remove(chapterId: string): void {
+async function remove(chapterId: string): Promise<void> {
   if (props.disabled) return;
-  apply(() => deleteAnalysisChapter(props.source.chapters, chapterId));
+  await runWithFocusPreserved(() => {
+    apply(() => deleteAnalysisChapter(props.source.chapters, chapterId), {
+      beforeSelectedChapterId: selectedId.value
+    });
+  });
 }
 
 function dropOn(targetId: string): void {
@@ -111,30 +214,81 @@ function dropOn(targetId: string): void {
   const targetIndex = props.source.chapters.findIndex(
     (chapter) => chapter.id === targetId
   );
-  apply(() =>
-    moveAnalysisChapter(props.source.chapters, sourceId, targetIndex)
+  apply(
+    () => moveAnalysisChapter(props.source.chapters, sourceId, targetIndex),
+    {
+      beforeSelectedChapterId: selectedId.value,
+      afterSelectedChapterId: selectedId.value
+    }
   );
 }
 
 async function splitSelected(): Promise<void> {
   const chapter = selected.value;
   const cursor = preview.value?.selectionStart;
-  if (!chapter || cursor === undefined) return;
-  apply(() => splitAnalysisChapter(props.source.chapters, chapter.id, cursor));
-  await nextTick();
+  if (!chapter || cursor === undefined || props.disabled) return;
+  await runWithFocusPreserved(() => {
+    apply(
+      () => splitAnalysisChapter(props.source.chapters, chapter.id, cursor),
+      {
+        beforeSelectedChapterId: chapter.id,
+        afterSelectedChapterId: chapter.id
+      }
+    );
+  });
 }
 
-function merge(direction: "previous" | "next"): void {
+async function merge(direction: "previous" | "next"): Promise<void> {
   const chapter = selected.value;
-  if (!chapter) return;
-  apply(() =>
-    mergeAnalysisChapter(props.source.chapters, chapter.id, direction)
+  if (!chapter || props.disabled) return;
+  const targetId = resolveMergedChapterTargetId(
+    props.source.chapters,
+    chapter.id,
+    direction
   );
+  await runWithFocusPreserved(() => {
+    if (
+      apply(
+        () =>
+          mergeAnalysisChapter(props.source.chapters, chapter.id, direction),
+        {
+          beforeSelectedChapterId: chapter.id,
+          ...(targetId ? { afterSelectedChapterId: targetId } : {})
+        }
+      ) &&
+      targetId
+    ) {
+      selectedId.value = targetId;
+    }
+  });
+}
+
+async function undo(): Promise<void> {
+  if (props.disabled || !props.canUndo) return;
+  await runWithFocusPreserved(() => {
+    emit("undo");
+  });
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (props.disabled) return;
+  if (
+    !shouldHandleChapterCorrectionUndoKeydown(event, Boolean(props.canUndo))
+  ) {
+    return;
+  }
+  event.preventDefault();
+  void undo();
 }
 </script>
 
 <template>
-  <section class="chapter-editor analysis-card">
+  <section
+    ref="editorRoot"
+    class="chapter-editor analysis-card"
+    tabindex="-1"
+    @keydown="handleKeydown"
+  >
     <header class="analysis-card-heading">
       <div>
         <p class="analysis-eyebrow">
@@ -173,7 +327,7 @@ function merge(direction: "previous" | "next"): void {
             {{ t("nextPage") }}
           </button>
         </div>
-        <ol class="chapter-list">
+        <ol ref="chapterList" class="chapter-list">
           <li
             v-for="chapter in visibleChapters"
             :key="chapter.id"
@@ -247,6 +401,16 @@ function merge(direction: "previous" | "next"): void {
           </div>
           <div class="chapter-edit-actions">
             <button
+              class="chapter-undo-button"
+              type="button"
+              :disabled="disabled || !canUndo"
+              :title="t('undoChapterCorrectionHint')"
+              @click="undo"
+            >
+              <AppIcon name="undo" :size="15" />
+              {{ t("undoChapterCorrection") }}
+            </button>
+            <button
               type="button"
               :disabled="disabled || selected.order <= 1"
               @click="merge('previous')"
@@ -287,6 +451,9 @@ function merge(direction: "previous" | "next"): void {
 <style scoped>
 .chapter-editor {
   min-height: 460px;
+}
+.chapter-editor:focus {
+  outline: none;
 }
 .chapter-editor-grid {
   display: grid;
@@ -388,6 +555,7 @@ function merge(direction: "previous" | "next"): void {
   padding: 6px 9px;
   border-radius: 8px;
   background: var(--surface-muted);
+  white-space: nowrap;
 }
 .chapter-preview-pane textarea {
   flex: 1;

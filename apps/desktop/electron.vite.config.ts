@@ -4,6 +4,7 @@ import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "electron-vite";
 import { dependencies } from "./package.json";
 import { keepDevServerUntilElectronExits } from "./scripts/dev-server-lifecycle";
+import { UTILITY_ENTRY_NAMES } from "./src/main/utility-entry-names";
 
 const workspaceRoot = resolve(__dirname, "../..");
 const appRoot = resolve(__dirname);
@@ -21,6 +22,10 @@ const aliases = {
   "@deepwrite/pi-runtime-adapter": resolve(
     workspaceRoot,
     "packages/pi-runtime-adapter/src/index.ts"
+  ),
+  "@deepwrite/shared/node": resolve(
+    workspaceRoot,
+    "packages/shared/src/node.ts"
   ),
   "@deepwrite/shared": resolve(workspaceRoot, "packages/shared/src/index.ts")
 };
@@ -66,21 +71,15 @@ export default defineConfig({
             appRoot,
             "src/utilities/conversation-storage/worker-entry.ts"
           ),
-          "utilities/core-entry": resolve(
-            appRoot,
-            "src/utilities/core-entry.ts"
+          ...Object.fromEntries(
+            Object.values(UTILITY_ENTRY_NAMES).map((name) => [
+              name,
+              resolve(appRoot, `src/${name}.ts`)
+            ])
           ),
           "utilities/storage-migration-entry": resolve(
             appRoot,
             "src/utilities/storage-migration-entry.ts"
-          ),
-          "utilities/agent-entry": resolve(
-            appRoot,
-            "src/utilities/agent-entry.ts"
-          ),
-          "utilities/tool-entry": resolve(
-            appRoot,
-            "src/utilities/tool-entry.ts"
           )
         }
       }

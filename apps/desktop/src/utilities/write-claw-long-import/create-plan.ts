@@ -21,12 +21,9 @@ import {
   DeterministicIdRegistry,
   WarningCollector,
   clippedTextDocument,
-  contentSha256,
-  isRecord,
   normalizeImportedAt,
   normalizeTimestamp,
   record,
-  serializeJson,
   stringValue,
   title
 } from "./normalize";
@@ -41,6 +38,8 @@ import type {
   CreateWriteClawLongImportPlanOptions,
   WriteClawLongImportPlan
 } from "./types";
+import { isRecord, toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const BOOK_LINE_PATH = "long/plot/book-line.md";
 
@@ -51,7 +50,7 @@ function sourceIdentity(
   if (override?.trim()) return override.trim();
   const legacyBookId = stringValue(source.book?.id).trim();
   if (legacyBookId) return `write-claw-book:${legacyBookId}`;
-  return `write-claw-workspace:${contentSha256(JSON.stringify(source.workspace))}`;
+  return `write-claw-workspace:${sha256Hex(JSON.stringify(source.workspace))}`;
 }
 
 export function createWriteClawLongImportPlan(
@@ -64,13 +63,13 @@ export function createWriteClawLongImportPlan(
   warnings.preserve(
     "旧版本原始工作区完整快照",
     "long_workspace.json",
-    serializeJson(workspace)
+    toJsonFileText(workspace)
   );
   if (source.book) {
     warnings.preserve(
       "旧版本原始书籍元数据完整快照",
       "book.json",
-      serializeJson(source.book)
+      toJsonFileText(source.book)
     );
   }
   const legacySchemaVersion = Math.max(
@@ -97,7 +96,7 @@ export function createWriteClawLongImportPlan(
     "book",
     "longbook",
     legacyBookId,
-    contentSha256(namespace)
+    sha256Hex(namespace)
   );
   const bookTitle = title(
     options.title ?? source.book?.title ?? workspace.title,
@@ -121,7 +120,7 @@ export function createWriteClawLongImportPlan(
     warnings.preserve(
       "专家正文结构（旧版）",
       "book.json.expert_draft",
-      serializeJson(source.book.expert_draft)
+      toJsonFileText(source.book.expert_draft)
     );
     warnings.add("book.json 中的旧版专家正文结构已完整存入可搜索迁移证据。");
   }
@@ -138,7 +137,7 @@ export function createWriteClawLongImportPlan(
     warnings.preserve(
       "全书状态账本（旧版迁移证据）",
       "long_workspace.json.ledger",
-      serializeJson(legacyLedger)
+      toJsonFileText(legacyLedger)
     );
     warnings.add(
       "旧版全书状态账本已完整存入可搜索迁移证据；无章节归属的条目不会被静默丢弃。"
@@ -209,7 +208,7 @@ export function createWriteClawLongImportPlan(
   warnings.preserve(
     "Legacy → DeepWrite 完整 ID 映射",
     "migration.id-map.json",
-    serializeJson({
+    toJsonFileText({
       schema: "deepwrite.write-claw-id-map",
       schemaVersion: 1,
       sourceIdentity: namespace,

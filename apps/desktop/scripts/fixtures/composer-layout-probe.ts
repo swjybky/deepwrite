@@ -50,19 +50,29 @@ const app = createApp({
             value: "test-model",
             label: "Very long test model name for layout",
             provider: "test",
-            providerLabel: "测试供应商"
+            modelId: "test-model",
+            group: { key: "custom:test", label: "测试供应商" }
           },
           {
             value: "second-model",
             label: "另一个测试模型",
             provider: "second-test",
-            providerLabel: "另一个测试供应商"
+            modelId: "second-model",
+            group: { key: "custom:second-test", label: "另一个测试供应商" }
           },
           ...Array.from({ length: 24 }, (_, index) => ({
             value: `extra-model-${index}`,
             label: `测试模型 ${index + 1}`,
-            provider: `test-group-${Math.floor(index / 4)}`,
-            providerLabel: `测试供应商 ${Math.floor(index / 4) + 1}`
+            provider:
+              index < 16 ? "test" : `test-group-${Math.floor(index / 4)}`,
+            modelId: `extra-model-${index}`,
+            group:
+              index < 16
+                ? { key: "custom:test", label: "测试供应商" }
+                : {
+                    key: `custom:test-group-${Math.floor(index / 4)}`,
+                    label: `测试供应商 ${Math.floor(index / 4) + 1}`
+                  }
           }))
         ],
         availableThinkingOptions: [
@@ -191,14 +201,6 @@ async function runComposerProbe() {
             "Wide composer must show settings inline"
           );
           check(
-            visible('[aria-label="选择智能体运行模式"]'),
-            "Wide composer lost the mode selector"
-          );
-          check(
-            visible('[aria-label="选择正文修改权限"]'),
-            "Wide composer lost the approval selector"
-          );
-          check(
             visible(".conversation-model-config-summary"),
             "Wide composer lost model parameters"
           );
@@ -255,7 +257,9 @@ async function runComposerProbe() {
         );
         check(
           visible('[aria-label="联网"]') &&
-            visible('button[aria-label="思考等级"]'),
+            visible('[role="listbox"][aria-label="思考等级"]') &&
+            visible('[aria-label="选择智能体运行模式"]') &&
+            visible('[aria-label="选择正文修改权限"]'),
           "Fixed controls missing"
         );
         await click(".conversation-model-config-trigger");
@@ -263,9 +267,8 @@ async function runComposerProbe() {
       }
 
   await click(".conversation-model-config-trigger");
-  await click('button[aria-label="思考等级"]');
   const thinkingOptions = document.querySelectorAll<HTMLButtonElement>(
-    ".conversation-model-config-submenu [role=option]"
+    '[role="listbox"][aria-label="思考等级"] [role="option"]'
   );
   check(thinkingOptions.length === 4, "Thinking levels missing");
   thinkingOptions[3]!.click();
@@ -273,10 +276,14 @@ async function runComposerProbe() {
   check(thinkingLevel.value === "high", "Thinking update not relayed");
   await click('[aria-label="联网"]');
   check(!webSearchEnabled.value, "Web search update not relayed");
-  const models = element(
-    ".conversation-model-config-models"
-  ).querySelectorAll<HTMLButtonElement>('[role="option"]');
-  models[1]!.click();
+  await click('.model-picker-rail-btn[aria-label="全部模型"]');
+  const secondModel = [
+    ...element(
+      ".conversation-model-config-models"
+    ).querySelectorAll<HTMLButtonElement>('[role="option"]')
+  ].find((button) => button.dataset.modelValue === "second-model");
+  check(Boolean(secondModel), "Second model missing in all models view");
+  secondModel!.click();
   await frames();
   check(selectedModelId.value === "second-model", "Model update not relayed");
   check(
@@ -287,26 +294,40 @@ async function runComposerProbe() {
     visible(".conversation-model-config-footer"),
     "Selecting a model hid fixed settings"
   );
-  await click(".conversation-model-config-trigger");
+  await click('[aria-label="选择正文修改权限"]');
+  const approvalOption = [
+    ...document.querySelectorAll<HTMLButtonElement>(".popup-select-option")
+  ].find((button) => button.textContent?.includes("替我审批"));
+  check(Boolean(approvalOption), "Approval option missing");
+  approvalOption!.dispatchEvent(
+    new PointerEvent("pointerdown", { bubbles: true })
+  );
+  approvalOption!.click();
+  await frames();
+  check(approvalMode.value === "auto-approve", "Approval update not relayed");
+  check(
+    visible(".conversation-model-config-menu"),
+    "Nested menu closed the model picker"
+  );
+  element(".conversation-model-config-menu").dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+  );
+  await frames();
+  check(
+    !document.querySelector(".conversation-model-config-menu"),
+    "Escape did not close model picker"
+  );
+  check(
+    document.activeElement === element(".conversation-model-config-trigger"),
+    "Escape lost model trigger focus"
+  );
 
   document.documentElement.style.setProperty("--ui-font-size", "24px");
   element(".conversation-pane").style.width = "320px";
   await frames();
   await click(".composer-more-trigger");
-  await click('[aria-label="选择正文修改权限"]');
-  const option = [
-    ...document.querySelectorAll<HTMLButtonElement>(".popup-select-option")
-  ].find((button) => button.textContent?.includes("替我审批"));
-  check(Boolean(option), "Approval option missing");
-  option!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-  option!.click();
-  await frames();
-  check(approvalMode.value === "auto-approve", "Approval update not relayed");
-  check(
-    visible(".composer-settings-panel"),
-    "Nested menu closed the disclosure"
-  );
-  element('[aria-label="选择正文修改权限"]').dispatchEvent(
+  check(visible(".composer-settings-panel"), "More settings did not open");
+  element(".composer-settings-panel").dispatchEvent(
     new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
   );
   await frames();
@@ -319,20 +340,8 @@ async function runComposerProbe() {
     "Escape lost keyboard focus"
   );
   await click(".composer-more-trigger");
-  await click('[aria-label="选择正文修改权限"]');
   element(".conversation-pane").style.width = "350px";
   await frames();
-  const transitionDeadline = performance.now() + 1000;
-  while (
-    document.querySelector(".popup-select-menu") &&
-    performance.now() < transitionDeadline
-  ) {
-    await frames();
-  }
-  check(
-    !document.querySelector(".popup-select-menu"),
-    "Resize left an orphaned submenu"
-  );
   check(
     !visible(".composer-settings-panel"),
     "Resize did not fold the disclosure"

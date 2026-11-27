@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiStorage } from "../utils/uiStorage";
 import { createScopedTranslator } from "../i18n";
 import { computed, ref } from "vue";
 import type {
@@ -69,14 +70,14 @@ const emit = defineEmits<{
 
 const creationOrder = useCreationResourceOrder({
   sections: () => props.sections,
-  storage: () => window.localStorage,
+  storage: () => uiStorage(),
   warning: (message) => uiMessage.warning(message)
 });
 
 function loadPinnedResourceIds(): string[] {
   try {
     return parsePinnedResourceIds(
-      localStorage.getItem(PINNED_RESOURCE_STORAGE_KEY)
+      uiStorage().getItem(PINNED_RESOURCE_STORAGE_KEY)
     );
   } catch {
     return [];
@@ -113,7 +114,7 @@ function toggleResourcePin(node: ResourceTreeNode): void {
     ? pinnedResourceIds.value.filter((id) => id !== node.id)
     : [...pinnedResourceIds.value, node.id];
   try {
-    localStorage.setItem(
+    uiStorage().setItem(
       PINNED_RESOURCE_STORAGE_KEY,
       JSON.stringify(pinnedResourceIds.value)
     );

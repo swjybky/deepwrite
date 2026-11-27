@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import type {
   MysteryBookManifest,
   MysteryDocumentTarget,
@@ -105,7 +106,7 @@ const versioning = computed<EditorDocumentVersionPort>(() => ({
 }));
 
 async function searchEntries(query: string) {
-  const api = window.deepwrite?.mystery;
+  const api = deepwriteApi()?.mystery;
   if (!api) return [];
   const bookId = props.manifest.id;
   const result = await api.search({ bookId, query, limit: 30 });

@@ -11,7 +11,7 @@ import {
   deepSeekModel,
   settingsInput,
   setup
-} from "./web-search-test-support";
+} from "./web-search.test-support";
 
 function command(type: string, payload: unknown): CommandEnvelope {
   return CommandEnvelopeSchema.parse(

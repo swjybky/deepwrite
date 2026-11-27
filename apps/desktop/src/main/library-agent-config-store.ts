@@ -1,6 +1,6 @@
 import { withConfigurationLock } from "./configuration-lock";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   DEFAULT_LIBRARY_AGENT_PROFILES,
   LIBRARY_AGENT_DOMAINS,
@@ -17,6 +17,7 @@ import {
 } from "@deepwrite/contracts";
 import { localizeAgentSystemPrompt } from "./builtin-agent-prompts";
 import { mergeSettingsById } from "./merge-agent-settings";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 interface DiskLibraryAgentSettings {
   version: 1;
@@ -120,16 +121,6 @@ async function readJson(path: string): Promise<unknown> {
     }
     throw error;
   }
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
 }
 
 function normalizeDiskSettings(raw: unknown): LibraryAgentSettingsInput {
@@ -282,7 +273,7 @@ export class LibraryAgentConfigStore {
         readAccess: cloneReadAccess(agent.readAccess)
       }))
     };
-    await atomicWriteJson(this.settingsPath, disk);
+    await writeJsonAtomic(this.settingsPath, disk);
   }
 
   private toPublicSettings(

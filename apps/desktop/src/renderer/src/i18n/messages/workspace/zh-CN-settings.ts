@@ -47,6 +47,8 @@ export default {
     failedToRenameAgentTeam: "重命名智能体团队失败。",
     agentTeamDeleted: "智能体团队已删除。",
     failedToDeleteAgentTeam: "删除智能体团队失败。",
+    agentTeamDuplicated: "已复制一份到你的智能体团队中，现在可以自由修改。",
+    failedToDuplicateAgentTeam: "复制智能体团队失败。",
     teamEnabledItWillBeUsedForTheNext:
       "团队已启用，下一轮对应类型的对话开始使用。",
     teamDisabledItWillNoLongerBeUsedFor:
@@ -92,6 +94,11 @@ export default {
     freeModelDisabledAndHiddenFromModelSettings:
       "免费模型已停用，并从模型配置中隐藏。",
     failedToUpdateFreeModelStatus: "更新免费模型启用状态失败。",
+    testingConnection: "正在测试连接…",
+    cancelingConnectionTest: "正在取消连接测试…",
+    modelConnectionTestCanceled: "已取消连接测试。",
+    modelConnectionTestTimedOut: "模型连接超时，请检查网络或稍后重试。",
+    modelTestResultForModel: "{model}：{message}",
     modelConnectionTestFailed: "模型连接测试失败。",
     modelConnectionTestFailedWithReason: "模型连接测试失败：{reason}"
   },
@@ -122,7 +129,13 @@ export default {
       "所选位置中的 DeepWriteData 文件夹已有文件。为避免覆盖，请选择其他位置。",
     notWritable: "没有所选位置的写入权限，请选择其他文件夹。",
     saveFailed: "当前对话尚未保存完成，已取消迁移，请稍后重试。",
-    openFailed: "无法打开存储目录，请检查目录是否存在且可访问。"
+    openFailed: "无法打开存储目录，请检查目录是否存在且可访问。",
+    compactionCompletedWithBackup:
+      "历史对话冗余快照整理完成，原库备份已保留；确认无误后可点击“立即释放备份空间”彻底回收磁盘空间。",
+    compactionBackupReleased: "已删除原库备份并彻底释放历史空间。",
+    compactionFailed:
+      "历史对话空间整理暂未完成，请检查提示后在“设置 → 存储”中重试。",
+    compactionFailedWithReason: "历史对话空间整理暂未完成：{reason}"
   },
   modelEditor: {
     automaticRecommended: "自动（推荐）",
@@ -253,6 +266,7 @@ export default {
     couldNotRemoveTheNewOfficialSiteSModel: "移除新官方小站模型密钥失败。",
     couldNotRefreshTheNewOfficialSiteSModels: "刷新新官方小站模型失败。",
     theNewOfficialSiteSModelPageHasBeen: "新官方小站模型页面已刷新。",
+    officialSiteModelsRefreshed: "官方小站模型列表已刷新。",
     modelEnabledAndAddedToTheModelSelector: "模型已启用，并显示在模型选择中。",
     modelDisabledAndHiddenFromTheModelSelector:
       "模型已停用，并从模型选择中隐藏。"

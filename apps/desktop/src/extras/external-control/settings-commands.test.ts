@@ -94,30 +94,38 @@ describe("external control settings commands", () => {
     ).toEqual([]);
   });
 
-  it("reports the skill as installed and keeps other skills untouched", async () => {
-    const { send } = setup();
-    const neighbour = join(home, ".claude", "skills", "other", "SKILL.md");
-    await mkdir(join(home, ".claude", "skills", "other"), { recursive: true });
-    await writeFile(neighbour, "mine", "utf8");
-    const before = await accepted(await send("externalControl.overview"));
-    expect(before.skillTargets.every(({ installed }) => !installed)).toBe(true);
+  it.each([
+    { targetId: "claude", path: [".claude", "skills"] },
+    { targetId: "antigravity", path: [".gemini", "config", "skills"] }
+  ])(
+    "installs the $targetId skill and keeps other skills untouched",
+    async ({ targetId, path }) => {
+      const { send } = setup();
+      const neighbour = join(home, ...path, "other", "SKILL.md");
+      await mkdir(join(home, ...path, "other"), { recursive: true });
+      await writeFile(neighbour, "mine", "utf8");
+      const before = await accepted(await send("externalControl.overview"));
+      expect(before.skillTargets.every(({ installed }) => !installed)).toBe(
+        true
+      );
 
-    const after = await accepted(
-      await send("externalControl.installSkill", { targetId: "claude" })
-    );
+      const after = await accepted(
+        await send("externalControl.installSkill", { targetId })
+      );
 
-    expect(
-      after.skillTargets
-        .filter(({ installed }) => installed)
-        .map(({ id }) => id)
-    ).toEqual(["claude"]);
-    const directory = join(home, ".claude", "skills", "deepwrite");
-    await expect(readdir(directory)).resolves.toEqual(["SKILL.md"]);
-    await expect(
-      readFile(join(directory, "SKILL.md"), "utf8")
-    ).resolves.toMatch(/^---\nname: deepwrite\n/u);
-    await expect(readFile(neighbour, "utf8")).resolves.toBe("mine");
-  });
+      expect(
+        after.skillTargets
+          .filter(({ installed }) => installed)
+          .map(({ id }) => id)
+      ).toEqual([targetId]);
+      const directory = join(home, ...path, "deepwrite");
+      await expect(readdir(directory)).resolves.toEqual(["SKILL.md"]);
+      await expect(
+        readFile(join(directory, "SKILL.md"), "utf8")
+      ).resolves.toMatch(/^---\nname: deepwrite\n/u);
+      await expect(readFile(neighbour, "utf8")).resolves.toBe("mine");
+    }
+  );
 
   it("rejects an install target that is not on the list", async () => {
     const { send } = setup();
@@ -268,6 +276,16 @@ describe("client configs", () => {
           env: { ELECTRON_RUN_AS_NODE: "1" }
         }
       }
+    });
+  });
+
+  it("gives Antigravity the stdio config for its global MCP file", () => {
+    expect(configs.find(({ id }) => id === "antigravity")).toEqual({
+      id: "antigravity",
+      label: "Antigravity",
+      kind: "file",
+      file: "~/.gemini/config/mcp_config.json",
+      text: text("generic")
     });
   });
 });

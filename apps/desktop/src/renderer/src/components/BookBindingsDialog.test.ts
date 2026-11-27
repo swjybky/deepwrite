@@ -77,6 +77,7 @@ function find(parent: Node, match: (node: Node) => boolean): Node | undefined {
     const found = find(child, match);
     if (found) return found;
   }
+  return undefined;
 }
 
 function remove(node: Node) {

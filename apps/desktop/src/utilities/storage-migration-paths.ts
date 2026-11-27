@@ -1,6 +1,7 @@
 import { open, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isMissing, StorageMigrationError } from "./storage-migration-files";
+import { isRecord } from "@deepwrite/shared";
 
 export function containsPath(parent: string, child: string): boolean {
   const suffix = relative(parent, child);
@@ -8,10 +9,6 @@ export function containsPath(parent: string, child: string): boolean {
     suffix === "" ||
     (suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix))
   );
-}
-
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function rebase(
@@ -59,7 +56,7 @@ export async function rebaseStoragePaths(
     } catch {
       throw new StorageMigrationError("存储路径配置损坏，请先修复后再迁移。");
     }
-    if (!record(value))
+    if (!isRecord(value))
       throw new StorageMigrationError("存储路径配置格式无效。");
     const previous = JSON.stringify(value);
     if (name === join("config", "workspace-directory.json")) {
@@ -71,7 +68,10 @@ export async function rebaseStoragePaths(
       if (!Array.isArray(value.projects))
         throw new StorageMigrationError("作品目录注册表格式无效。");
       for (const project of value.projects) {
-        if (!record(project) || typeof project.projectDirectory !== "string") {
+        if (
+          !isRecord(project) ||
+          typeof project.projectDirectory !== "string"
+        ) {
           throw new StorageMigrationError("作品目录注册表格式无效。");
         }
         project.projectDirectory = await rebase(
@@ -79,7 +79,7 @@ export async function rebaseStoragePaths(
           source,
           target
         );
-        if (name.startsWith("long-project-") && record(project.deletion)) {
+        if (name.startsWith("long-project-") && isRecord(project.deletion)) {
           for (const key of [
             "originalProjectDirectory",
             "stagedProjectDirectory"

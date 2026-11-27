@@ -8,9 +8,10 @@ import {
   type ProjectTransactionFileOperation
 } from "../project-transaction";
 import { loadProject } from "./load-project";
-import { secureDirectory, serializeJson } from "./io";
+import { secureDirectory } from "./io";
 import type { LongProjectStoreContext } from "./store-context";
 import type { LoadedLongProject } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 /** Core-owned writes share the normal project queue, retaining object CAS. */
 export async function transactManagedLongProject<T>(
@@ -45,12 +46,12 @@ export async function transactManagedLongProject<T>(
         ...operations,
         {
           path: LONG_WORKSPACE_INDEX_PATH,
-          content: serializeJson(index),
+          content: toJsonFileText(index),
           expectedSha256: loaded.indexDisk.sha256
         },
         {
           path: "deepwrite.json",
-          content: serializeJson(manifest),
+          content: toJsonFileText(manifest),
           expectedSha256: loaded.manifestDisk.sha256
         }
       ]

@@ -9,7 +9,7 @@ export default {
   tagOther: "其他",
   contentLabel: "反馈内容",
   contentPlaceholder: "遇到了什么问题，或者希望增加什么功能？",
-  screenshotsLabel: "截图（可选，最多 {max} 张）",
+  screenshotsLabel: "截图（可选，最多 {max} 张，总计不超过 {maxMb} MB）",
   captureWindow: "截取当前窗口",
   chooseImage: "选择图片",
   screenshotHint:
@@ -22,6 +22,8 @@ export default {
   submitFailed: "提交失败，请稍后重试。",
   loadFailed: "暂时无法读取反馈，请稍后重试。",
   imageLimit: "每条反馈最多 {max} 张截图。",
+  imageTotalLimit:
+    "截图总大小不能超过 {maxMb} MB，请移除部分截图或换小图后重试。",
   imageUnreadable: "这张图片无法读取或过大，请换一张。",
   captureFailed: "截取窗口失败，请重试。",
   imageLoadFailed: "截图读取失败，请稍后重试。",

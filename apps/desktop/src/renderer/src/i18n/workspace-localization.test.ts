@@ -4,11 +4,6 @@ import { DEFAULT_SHORT_AGENT_WELCOME_SHORTCUTS } from "@deepwrite/contracts/rend
 import { resolveAgentWelcome } from "../data/agentWelcome";
 import { EMPTY_WORKSPACE_DOCUMENT } from "../data/emptyWorkspaceDocument";
 import { buildWindowFrameMenus } from "../composables/buildWindowFrameMenus";
-import {
-  spanOptions,
-  lifecycleFilterOptions,
-  beatTypeOptions
-} from "../composables/useForeshadowingFilters";
 import { VOICE_LANGUAGE_OPTIONS } from "../composables/voiceSettingsOptions";
 import {
   formatVoiceDuration,
@@ -21,12 +16,7 @@ afterEach(() => setAppLanguage("zh-CN", "zh-CN"));
 describe("workspace interface localization", () => {
   it("updates existing option objects without changing their business values", () => {
     setAppLanguage("zh-CN", "zh-CN");
-    const rows = [
-      ...spanOptions,
-      ...lifecycleFilterOptions,
-      ...beatTypeOptions,
-      ...VOICE_LANGUAGE_OPTIONS
-    ];
+    const rows = [...VOICE_LANGUAGE_OPTIONS];
     const values = rows.map((row) => row.value);
     const labels = computed(() => rows.map((row) => row.label));
     const chinese = [...labels.value];

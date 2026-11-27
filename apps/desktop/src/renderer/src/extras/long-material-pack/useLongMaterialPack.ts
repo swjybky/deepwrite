@@ -22,11 +22,12 @@ import {
   longMaterialPackRunning
 } from "../../stores/longMaterialPackActivity";
 import { createMaterialGuideRun } from "./materialGuideRun";
+import { deepwriteApi } from "../../api/deepwrite";
 
 const t = packT;
 
 function api() {
-  const value = globalThis.window?.deepwrite;
+  const value = deepwriteApi();
   if (!value) throw new Error(t("agentUnavailable"));
   return value;
 }
@@ -112,7 +113,7 @@ export const useLongMaterialPackStore = defineStore(
     }
     let unsubscribe: (() => void) | undefined;
     try {
-      unsubscribe = globalThis.window?.deepwrite?.events.subscribe(handleEvent);
+      unsubscribe = deepwriteApi()?.events.subscribe(handleEvent);
     } catch {
       unsubscribe = undefined;
     }
@@ -174,8 +175,10 @@ export const useLongMaterialPackStore = defineStore(
       if (
         !current.options.sections.length &&
         !current.options.transferAllBodies
-      )
-        return uiMessage.error(t("chooseContent"));
+      ) {
+        uiMessage.error(t("chooseContent"));
+        return;
+      }
       previewing.value = true;
       try {
         preview.value = await api().longMaterialPack.preview(current);
@@ -193,8 +196,10 @@ export const useLongMaterialPackStore = defineStore(
       if (
         !current.options.sections.length &&
         !current.options.transferAllBodies
-      )
-        return uiMessage.error(t("chooseContent"));
+      ) {
+        uiMessage.error(t("chooseContent"));
+        return;
+      }
       operationId ||= createId("long_material_convert");
       converting.value = true;
       progress.value = null;
@@ -243,7 +248,7 @@ export const useLongMaterialPackStore = defineStore(
       }
     }
 
-    if (globalThis.window?.deepwrite) guide.loadFocus();
+    if (deepwriteApi()) guide.loadFocus();
     onScopeDispose(() => {
       unsubscribe?.();
       guide.dispose();

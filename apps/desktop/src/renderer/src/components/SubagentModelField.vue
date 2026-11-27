@@ -5,9 +5,10 @@ import type {
 } from "@deepwrite/contracts/renderer";
 import { computed } from "vue";
 import { createScopedTranslator } from "../i18n";
+import type { ModelSelectOption } from "../utils/modelSelectOptions";
 import AgentTeamSegmented from "./AgentTeamSegmented.vue";
-import AppIcon from "./AppIcon.vue";
-import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
+import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
+import type { PopupSelectOption } from "./PopupSelect.vue";
 
 const t = createScopedTranslator("components.subagentModelField");
 
@@ -17,7 +18,7 @@ const props = defineProps<{
   modelId?: string | undefined;
   thinkingLevel?: ThinkingLevel | undefined;
   temperature?: number | undefined;
-  modelOptions: readonly PopupSelectOption[];
+  modelOptions: readonly (ModelSelectOption | PopupSelectOption)[];
   thinkingOptions: readonly PopupSelectOption[];
   temperatureOptions: readonly PopupSelectOption[];
   disabled: boolean;
@@ -35,6 +36,18 @@ const modeOptions = computed(() => [
   { value: "inherit" as const, label: t("usePrimaryAgentModel") },
   { value: "custom" as const, label: t("configureModelSeparately") }
 ]);
+const normalizedThinkingOptions = computed(() =>
+  props.thinkingOptions.map((option) => ({
+    value: String(option.value) as ThinkingLevel,
+    label: option.label
+  }))
+);
+const normalizedTemperatureOptions = computed(() =>
+  props.temperatureOptions.map((option) => ({
+    value: Number(option.value),
+    label: option.label
+  }))
+);
 </script>
 
 <template>
@@ -49,50 +62,25 @@ const modeOptions = computed(() => [
       @update:model-value="emit('setMode', $event)"
     />
     <div v-if="custom" class="model-run-settings">
-      <PopupSelect
+      <ConversationModelConfigSelect
         class="model-select"
-        :model-value="modelId ?? ''"
-        :options="[...modelOptions]"
+        variant="field"
+        hides-web-search
+        :menu-z-index="1200"
+        :selected-model-id="modelId ?? ''"
+        :model-options="modelOptions"
+        :thinking-level="thinkingLevel ?? 'medium'"
+        :thinking-options="normalizedThinkingOptions"
+        :shows-temperature="thinkingLevel === 'off'"
+        :temperature="temperature ?? 0.7"
+        :temperature-options="normalizedTemperatureOptions"
         :accessible-label="t('selectSubagentModel')"
         :placeholder="t('selectAModel')"
-        size="large"
         :disabled="disabled || modelOptions.length === 0"
-        :menu-min-width="260"
-        :menu-max-height="520"
-        :menu-z-index="1200"
-        @update:model-value="emit('setModelId', String($event))"
-      >
-        <template #prefix><AppIcon name="model" :size="14" /></template>
-      </PopupSelect>
-      <PopupSelect
-        class="model-select"
-        :model-value="thinkingLevel ?? ''"
-        :options="[...thinkingOptions]"
-        :accessible-label="t('selectReasoningLevel')"
-        :placeholder="t('selectAReasoningLevel')"
-        size="large"
-        :disabled="disabled || !modelId"
-        :menu-min-width="200"
-        :menu-z-index="1200"
-        @update:model-value="emit('setThinkingLevel', String($event))"
-      >
-        <template #prefix><AppIcon name="brain" :size="14" /></template>
-      </PopupSelect>
-      <PopupSelect
-        v-if="thinkingLevel === 'off'"
-        class="model-select"
-        :model-value="temperature ?? ''"
-        :options="[...temperatureOptions]"
-        :accessible-label="t('selectTemperature')"
-        :placeholder="t('selectATemperature')"
-        size="large"
-        :disabled="disabled || !modelId"
-        :menu-min-width="180"
-        :menu-z-index="1200"
-        @update:model-value="emit('setTemperature', Number($event))"
-      >
-        <template #prefix><AppIcon name="temperature" :size="14" /></template>
-      </PopupSelect>
+        @select-model="emit('setModelId', $event)"
+        @select-thinking="emit('setThinkingLevel', $event)"
+        @select-temperature="emit('setTemperature', $event)"
+      />
     </div>
     <p v-if="custom && modelOptions.length === 0" class="model-empty-hint">
       {{ t("noModelsAvailableAddOneInModelSettingsFirst") }}
@@ -117,9 +105,6 @@ const modeOptions = computed(() => [
   font-weight: 620;
 }
 .model-run-settings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 8px;
   width: 100%;
   margin-top: 2px;
 }

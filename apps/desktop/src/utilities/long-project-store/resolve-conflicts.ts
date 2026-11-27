@@ -11,7 +11,6 @@ import { validatePortableAndCanonicalPaths } from "./integrity";
 import {
   parseJson,
   readSecureTextFile,
-  serializeJson,
   secureDirectory,
   unknownRecord
 } from "./io";
@@ -24,6 +23,7 @@ import {
   MAX_MANIFEST_BYTES,
   MAX_LEDGER_RECORD_BYTES
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function resolveLongProjectConflicts(
   ctx: LongProjectStoreContext,
@@ -122,7 +122,7 @@ export async function resolveLongProjectConflicts(
           // complete project, including lazily loaded ledger records.
           changes.set(
             MANIFEST_PATH,
-            serializeJson({
+            toJsonFileText({
               ...rawNextManifest,
               updatedAt: index.updatedAt,
               workspaceIndexFile: {

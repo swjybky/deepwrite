@@ -1,9 +1,9 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
 import {
+  LongWorkspaceOperationSchema,
   parseLongForeshadowingBody,
-  serializeLongForeshadowingBody,
-  type LongWorkspaceOperation
+  serializeLongForeshadowingBody
 } from "@deepwrite/contracts";
 import {
   overwriteModeParameter,
@@ -238,11 +238,11 @@ export function buildEditTool(ctx: LongToolContext): AgentTool {
         const operations = [
           ...(Object.keys(patch).length > 0
             ? [
-                {
+                LongWorkspaceOperationSchema.parse({
                   type: longEntityUpdateOperationType(target.record.kind),
                   id: target.id,
                   patch
-                } as unknown as LongWorkspaceOperation
+                })
               ]
             : []),
           ...(reorder ? [reorder.operation] : [])

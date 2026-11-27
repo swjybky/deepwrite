@@ -5,7 +5,6 @@ import {
 } from "@deepwrite/contracts";
 import {
   booleanValue,
-  contentSha256,
   list,
   record,
   splitTextByUtf8Bytes,
@@ -13,6 +12,7 @@ import {
   type WarningCollector
 } from "./normalize";
 import type { ImportDocumentBuilder } from "./plan-documents";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export { splitTextByUtf8Bytes };
 
@@ -89,7 +89,7 @@ export function appendMigrationEvidenceCategories(
     content: string,
     seed: string
   ): void => {
-    const categoryId = `world_migration-evidence-${contentSha256(seed).slice(
+    const categoryId = `world_migration-evidence-${sha256Hex(seed).slice(
       0,
       24
     )}`;

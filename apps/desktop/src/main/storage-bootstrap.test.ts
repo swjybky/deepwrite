@@ -12,8 +12,11 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   acquireStorageInstanceLock,
-  initializeStorageLocation
+  initializeStorageLocation,
+  recordStorageBootstrapOwner,
+  resolveStorageBootstrapLockRoot
 } from "./storage-bootstrap";
+import { STORAGE_BOOTSTRAP_OWNER_FILE } from "@deepwrite/shared/node";
 import { StorageLocationStore } from "./storage-location-store";
 import { createBootstrapEnvironment } from "./bootstrap-environment";
 import { LongWorkspaceService } from "../utilities/long-workspace-service";
@@ -70,6 +73,16 @@ describe("storage bootstrap", () => {
     });
     expect(acquireStorageInstanceLock(app)).toBe(true);
     expect(paths.userData).toBe(defaultPath);
+    const lockRoot = recordStorageBootstrapOwner(defaultPath, "inst-owner-1");
+    expect(lockRoot).toBe(resolveStorageBootstrapLockRoot(defaultPath));
+    expect(
+      JSON.parse(
+        await readFile(join(lockRoot, STORAGE_BOOTSTRAP_OWNER_FILE), "utf8")
+      )
+    ).toMatchObject({
+      pid: process.pid,
+      instanceId: "inst-owner-1"
+    });
   });
 
   it("uses the system default without creating a custom configuration", async () => {

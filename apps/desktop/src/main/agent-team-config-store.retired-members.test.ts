@@ -70,7 +70,9 @@ describe("retired team member disk compatibility", () => {
         }
       });
       expect(loaded.enabledTeamIds).toEqual(raw.enabledTeamIds);
-      expect(loaded.teams).toHaveLength(raw.teams.length);
+      expect(loaded.teams.filter((team) => !team.isBuiltin)).toHaveLength(
+        raw.teams.length
+      );
       // Reading only ignores the retired members; it does not rewrite user data.
       expect(await readFile(path, "utf8")).toBe(contents);
       expect(await new AgentTeamConfigStore(root).list()).toEqual(loaded);

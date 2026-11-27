@@ -23,10 +23,8 @@ import {
 } from "../continuity";
 import {
   commitLongProjectTransaction,
-  isNodeError,
   parseJson,
   readSecureTextFile,
-  serializeJson,
   unknownRecord
 } from "../io";
 import { encodeUtf8Strict } from "../utf8";
@@ -36,6 +34,8 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type SecureTextFile
 } from "../types";
+import { isNodeError } from "@deepwrite/shared/node";
+import { toJsonFileText } from "@deepwrite/shared";
 
 /**
  * Backfills the one continuity document that every chapter owns. Optional
@@ -113,7 +113,7 @@ export async function migrateLegacyChapterContinuityFiles(input: {
     ...rawIndex,
     chapters
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   const nextManifest = LongProjectManifestSchema.parse({
     ...input.manifest
   });
@@ -128,7 +128,7 @@ export async function migrateLegacyChapterContinuityFiles(input: {
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: input.manifestDisk.sha256
       }
     ],
@@ -402,7 +402,7 @@ export async function migrateLegacyStructuredContinuityFiles(input: {
 
   if (!changed) return false;
   const nextIndex = LongWorkspaceIndexSnapshotSchema.parse(index);
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   const nextManifest = LongProjectManifestSchema.parse({
     ...input.manifest
   });
@@ -417,7 +417,7 @@ export async function migrateLegacyStructuredContinuityFiles(input: {
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: input.manifestDisk.sha256
       }
     ],

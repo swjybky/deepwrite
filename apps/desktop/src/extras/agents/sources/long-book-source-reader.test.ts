@@ -1,7 +1,21 @@
-import { mkdtemp, mkdir, symlink, truncate, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  symlink,
+  truncate,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { splitDecompositionChunks } from "@deepwrite/contracts";
+import { buildAnalysisSegments } from "../../../renderer/src/extras/long-book-analysis/batching";
+import {
+  mergeAnalysisChapter,
+  renameAnalysisChapter,
+  splitAnalysisChapter
+} from "../../../renderer/src/extras/long-book-analysis/chapter-editing";
 import {
   decodeLongBookAnalysisText,
   parseLongBookAnalysisTxt,
@@ -80,6 +94,70 @@ describe("long-book analysis source reader", () => {
     expect(parsed.chapters[0]?.text).toContain("2015-03-2313:00:01发表");
   });
 
+  it("records rawHeading for stripped TXT heading lines while omitting it from non-stripped sources", async () => {
+    const cleanSample = parseLongBookAnalysisTxt(
+      [
+        "第十四章 夜探古宅",
+        "十四章前段甲：风吹过回廊，灯笼摇晃。",
+        "十四章前段乙：桌案上摊开半页残纸。",
+        "1. ABCD（原属第十四章中段的正文行）",
+        "十四章后段甲：假章后续正文第一句，紧接在ABCD之后。",
+        "第十五章 黎明破晓",
+        "十五章正文：天光微亮。"
+      ].join("\n"),
+      "sample-15ch-clean.txt"
+    );
+    expect(cleanSample.chapters.map((item) => item.title)).toEqual([
+      "第十四章 夜探古宅",
+      "1 ABCD（原属第十四章中段的正文行）",
+      "第十五章 黎明破晓"
+    ]);
+    expect(cleanSample.chapters[1]?.rawHeading).toBe(
+      "1. ABCD（原属第十四章中段的正文行）"
+    );
+
+    const variants = parseLongBookAnalysisTxt(
+      [
+        "正文前引导段落。",
+        "第十四章 夜探",
+        "十四章前段。",
+        "1. ABCD正文行",
+        "后续一。",
+        "第一节 ABCD正文行",
+        "后续二。",
+        "尾声 ABCD正文行",
+        "后续三。",
+        "chapter 1 ABCD正文行",
+        "后续四。"
+      ].join("\n"),
+      "sample-heading-variants.txt"
+    );
+    expect(variants.chapters[0]?.title).toBe("正文前内容");
+    expect(variants.chapters[0]?.rawHeading).toBeUndefined();
+    expect(
+      variants.chapters.slice(2).map((item) => ({
+        title: item.title,
+        rawHeading: item.rawHeading
+      }))
+    ).toEqual([
+      { title: "1 ABCD正文行", rawHeading: "1. ABCD正文行" },
+      { title: "第一节 ABCD正文行", rawHeading: "第一节 ABCD正文行" },
+      { title: "尾声 ABCD正文行", rawHeading: "尾声 ABCD正文行" },
+      { title: "chapter 1 ABCD正文行", rawHeading: "chapter 1 ABCD正文行" }
+    ]);
+
+    const fallback = parseLongBookAnalysisTxt(
+      "只有一段没有章号的正文。",
+      "plain.txt"
+    );
+    expect(fallback.chapters[0]?.rawHeading).toBeUndefined();
+
+    const dir = await temporaryDirectory();
+    await writeFile(join(dir, "01.txt"), "目录章节正文。", "utf8");
+    const dirSource = await readLongBookAnalysisSource("directory", dir);
+    expect(dirSource.chapters[0]?.rawHeading).toBeUndefined();
+  });
+
   it("imports repeated headings without overflowing diagnostics", async () => {
     const root = await temporaryDirectory();
     const path = join(root, "repeated-headings.txt");
@@ -154,5 +232,59 @@ describe("long-book analysis source reader", () => {
     await expect(readLongBookAnalysisSource("txt", oversized)).rejects.toThrow(
       /25 MiB/u
     );
+  });
+
+  it("recovers the misrecognized line from the imported sample-15ch-clean.txt across merge, split, and downstream chunking", async () => {
+    const samplePath = resolve(
+      process.cwd(),
+      "test/2026-11-26-chapter-merge-loss/sample-15ch-clean.txt"
+    );
+    const raw = await readFile(samplePath, "utf8");
+    const parsed = parseLongBookAnalysisTxt(raw, "sample-15ch-clean.txt");
+    expect(parsed.chapters).toHaveLength(16);
+
+    const ch14 = parsed.chapters[13]!;
+    const ch15Fake = parsed.chapters[14]!;
+    expect(ch15Fake.title).toBe("1 ABCD（原属第十四章中段的正文行）");
+    expect(ch15Fake.rawHeading).toBe("1. ABCD（原属第十四章中段的正文行）");
+
+    const mergedPrev = mergeAnalysisChapter(
+      parsed.chapters,
+      ch15Fake.id,
+      "previous"
+    );
+    const mergedNext = mergeAnalysisChapter(parsed.chapters, ch14.id, "next");
+    for (const merged of [mergedPrev, mergedNext]) {
+      expect(merged).toHaveLength(15);
+      expect(merged[13]?.text).toBe(
+        [
+          "十四章前段甲：风吹过回廊，灯笼摇晃。",
+          "十四章前段乙：桌案上摊开半页残纸。",
+          "1. ABCD（原属第十四章中段的正文行）",
+          "十四章后段甲：假章后续正文第一句，紧接在ABCD之后。",
+          "十四章后段乙：假章后续正文第二句，直至十四章末尾。"
+        ].join("\n")
+      );
+      expect(merged[14]?.title).toBe("第十五章 黎明破晓");
+
+      const segments = buildAnalysisSegments(merged, 4_000);
+      expect(segments[13]?.text).toContain(
+        "1. ABCD（原属第十四章中段的正文行）"
+      );
+      const chunks = splitDecompositionChunks(merged, {
+        contextWindow: 128_000,
+        maxTokens: 8192
+      });
+      expect(chunks.flatMap((chunk) => chunk.chapterIds)).toHaveLength(15);
+    }
+
+    // Manual split at cursor + rename + re-merge never inserts the manual title.
+    const cursor = mergedPrev[13]!.text.indexOf("十四章后段甲");
+    const split = splitAnalysisChapter(mergedPrev, ch14.id, cursor);
+    const renamed = renameAnalysisChapter(split, split[14]!.id, "手填临时标题");
+    const remerged = mergeAnalysisChapter(renamed, split[14]!.id, "previous");
+    expect(remerged[13]?.text).toContain("1. ABCD（原属第十四章中段的正文行）");
+    expect(remerged[13]?.text).not.toContain("手填临时标题");
+    expect(remerged[13]?.text).not.toContain("（续）");
   });
 });

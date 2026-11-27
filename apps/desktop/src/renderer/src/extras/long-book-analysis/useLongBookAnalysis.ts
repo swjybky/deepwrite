@@ -31,8 +31,12 @@ import {
   persistAnalysisResults,
   type AnalysisSaveInput
 } from "./analysis-result-content";
-import { createLongAnalysisSources } from "./long-analysis-sources";
+import {
+  createLongAnalysisSources,
+  type ReplaceAnalysisChaptersOptions
+} from "./long-analysis-sources";
 import { createLongPresetRunner } from "./long-preset-runner";
+import { jsonClone } from "@deepwrite/shared";
 
 const t = createScopedTranslator("extras.longBookAnalysis");
 const ui = createScopedTranslator("extras.analysisUi");
@@ -55,11 +59,14 @@ export type LongBookAnalysisPersistInput = AnalysisSaveInput;
 
 export interface LongBookAnalysisController {
   source: Ref<LongBookAnalysisSource | null>;
+  selectedChapterId: Readonly<Ref<string>>;
+  canUndoChapters: ComputedRef<boolean>;
   savedSources: Ref<LongBookAnalysisSavedSourceSummary[]>;
   sourcesLoading: Readonly<Ref<boolean>>;
   sourceSaving: Readonly<Ref<boolean>>;
   sourceDeleting: Readonly<Ref<boolean>>;
   sourceDirty: Readonly<Ref<boolean>>;
+  selectChapter(chapterId: string): void;
   saveSource(): Promise<void>;
   presets: Ref<LongBookAnalysisPreset[]>;
   presetsLoading: Readonly<Ref<boolean>>;
@@ -81,7 +88,11 @@ export interface LongBookAnalysisController {
   loadSavedSource(sourceId: string): Promise<boolean>;
   deleteSavedSource(sourceId: string): Promise<void>;
   chooseSource(kind: LongBookAnalysisSourceKind): Promise<boolean>;
-  replaceChapters(chapters: readonly LongBookAnalysisChapter[]): boolean;
+  replaceChapters(
+    chapters: readonly LongBookAnalysisChapter[],
+    options?: ReplaceAnalysisChaptersOptions
+  ): boolean;
+  undoChapters(): boolean;
   start(input: LongBookAnalysisStartInput): Promise<boolean>;
   stop(): Promise<boolean>;
   /** Inputs changed: drop unfinished tasks, keep completed results. */
@@ -96,7 +107,7 @@ export interface LongBookAnalysisController {
 }
 
 function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return jsonClone(value);
 }
 
 export function useLongBookAnalysis(options: {
@@ -280,7 +291,7 @@ export function useLongBookAnalysis(options: {
     },
     resetWorkspace() {
       batch.clear();
-      source.value = null;
+      sources.clearSource();
     },
     persistResult,
     persistResults: (requests) =>

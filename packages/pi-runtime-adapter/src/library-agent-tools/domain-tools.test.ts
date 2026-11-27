@@ -8,7 +8,7 @@ import {
   profile,
   toolByName,
   resultText
-} from "./test-fixtures";
+} from "./library-tools.test-support";
 
 function fixture() {
   const other = materialWorkspace({

@@ -15,6 +15,7 @@ export function requeueDecompositionUnit(
       if (candidate.dependencies.includes(unitId)) changed.add(id);
   }
   for (const [id, candidate] of Object.entries(job.units)) {
+    if (candidate.status === "skipped" && !changed.has(id)) continue;
     if (
       changed.has(id) ||
       stages.indexOf(candidate.phase) > stages.indexOf(phase)

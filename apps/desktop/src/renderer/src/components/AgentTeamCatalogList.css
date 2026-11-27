@@ -232,6 +232,12 @@ button.active-slot:hover {
   margin-right: 6px;
   content: "·";
 }
+.team-badges {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
 .type-badge {
   display: inline-flex;
   flex: none;
@@ -241,6 +247,11 @@ button.active-slot:hover {
   background: var(--surface-muted);
   color: var(--text-secondary);
   font-size: 0.75rem;
+}
+.type-badge.builtin-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 .team-card-footer {
   display: flex;

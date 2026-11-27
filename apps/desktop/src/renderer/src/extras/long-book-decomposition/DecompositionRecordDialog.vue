@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatError } from "../../i18n/errors";
 import { computed, onMounted, ref, shallowRef, useId } from "vue";
 import type {
   DecompositionContentRef,
@@ -46,7 +47,7 @@ onMounted(async () => {
   } catch (error) {
     uiMessage.error(
       getErrorPayload(error)?.message ??
-        (error instanceof Error ? error.message : t("operationFailed"))
+        formatError(error, t("operationFailed"))
     );
     emit("close");
   } finally {

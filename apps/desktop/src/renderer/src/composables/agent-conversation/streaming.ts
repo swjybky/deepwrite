@@ -18,7 +18,8 @@ type StreamingContext = Pick<
   | "applyAgentTextDelta"
   | "flushPendingAgentTextDelta"
   | "scheduleStreamPresentation"
->;
+> &
+  Partial<Pick<AgentConversationContext, "runPersistenceBatch">>;
 export function clearStreamPresentationSchedule(ctx: StreamingContext): void {
   if (ctx.streamPresentationFrame !== undefined) {
     globalThis.cancelAnimationFrame?.(ctx.streamPresentationFrame);
@@ -76,8 +77,12 @@ export function flushPendingAgentTextDelta(ctx: StreamingContext): void {
   ctx.clearStreamPresentationSchedule();
   const pending = ctx.pendingAgentTextDelta;
   ctx.pendingAgentTextDelta = undefined;
-  if (pending) ctx.applyAgentTextDelta(pending);
-  flushPendingSubagentTextDeltas(ctx);
+  const apply = (): void => {
+    if (pending) ctx.applyAgentTextDelta(pending);
+    flushPendingSubagentTextDeltas(ctx);
+  };
+  if (ctx.runPersistenceBatch) ctx.runPersistenceBatch(apply);
+  else apply();
 }
 export function scheduleStreamPresentation(ctx: StreamingContext): void {
   if (typeof globalThis.requestAnimationFrame !== "function") {

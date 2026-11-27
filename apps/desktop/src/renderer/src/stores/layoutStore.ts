@@ -26,6 +26,7 @@ import {
   type AppView,
   type WorkspaceMainView
 } from "./layoutFeatureNavigation";
+import { uiStorage } from "../utils/uiStorage";
 export type PaneSide = "left" | "right";
 
 export const LEFT_PANE_MIN = 220;
@@ -58,7 +59,7 @@ function initialRightPanePreferences(): RightPanePreferences {
   const currentWindow = runtimeWindow();
   if (!currentWindow) return { widths: {} };
   try {
-    return loadRightPanePreferences(currentWindow.localStorage);
+    return loadRightPanePreferences(uiStorage());
   } catch {
     return { widths: {} };
   }
@@ -248,10 +249,7 @@ export const useLayoutStore = defineStore("layout", () => {
       widths: { ...rightPanePreferences.value.widths, [key]: width }
     };
     rightPanePreferences.value = nextPreferences;
-    return saveRightPanePreferences(
-      currentWindow.localStorage,
-      nextPreferences
-    );
+    return saveRightPanePreferences(uiStorage(), nextPreferences);
   }
 
   function reconcilePaneWidths(): void {

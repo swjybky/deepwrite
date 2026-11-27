@@ -576,22 +576,34 @@ export async function readDocument(
     });
   }
   if (isLongWorkId(workId)) {
-    const page = await readCore(
-      core,
-      "long.readDocument",
-      {
-        bookId: workId,
-        fileId: documentId,
-        offset: input.offset ?? 0,
-        maxCharacters: input.maxCharacters ?? EXTERNAL_DEFAULT_PAGE_CHARACTERS
-      },
-      LongReadDocumentResultSchema,
-      DOCUMENT_NOT_FOUND
+    const [page, { workspaceIndex }] = await Promise.all([
+      readCore(
+        core,
+        "long.readDocument",
+        {
+          bookId: workId,
+          fileId: documentId,
+          offset: input.offset ?? 0,
+          maxCharacters: input.maxCharacters ?? EXTERNAL_DEFAULT_PAGE_CHARACTERS
+        },
+        LongReadDocumentResultSchema,
+        DOCUMENT_NOT_FOUND
+      ),
+      readCore(
+        core,
+        "long.getWorkspaceIndex",
+        { bookId: workId },
+        LongWorkspaceIndexResultSchema,
+        DOCUMENT_NOT_FOUND
+      )
+    ]);
+    const indexed = listLongWorkspaceFiles(workspaceIndex).find(
+      ({ file }) => file.id === page.file.id
     );
     return ExternalDocumentPageSchema.parse({
       workId,
       documentId,
-      title: page.file.path,
+      title: indexed?.title ?? page.file.path,
       content: page.content,
       offset: page.offset,
       totalCharacters: page.totalCharacters,

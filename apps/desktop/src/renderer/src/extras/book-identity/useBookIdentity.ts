@@ -13,6 +13,8 @@ import {
 import { formatError } from "../../i18n/errors";
 import { uiMessage } from "../../ui-feedback";
 import { identityT as t } from "./book-identity-utils";
+import { deepwriteApi } from "../../api/deepwrite";
+import { uiConfirm } from "../../ui-confirm";
 export function useBookIdentity(
   book: Readonly<Ref<ChatAssistantProjectRef | null>>
 ) {
@@ -66,11 +68,12 @@ export function useBookIdentity(
       return result;
     } catch (error) {
       uiMessage.error(formatError(error, t("failed")));
+      return undefined;
     } finally {
       saving.value = false;
     }
   }
-  const unsubscribe = window.deepwrite?.events.subscribe((event) => {
+  const unsubscribe = deepwriteApi()?.events.subscribe((event) => {
     if (
       event.type === "book_identity.updated" &&
       book.value &&
@@ -187,13 +190,16 @@ export function useBookIdentity(
     );
   }
   async function remove(round: BookIdentityRound) {
-    if (!protectedRound(round) && window.confirm(t("deleteConfirm")))
+    if (
+      !protectedRound(round) &&
+      (await uiConfirm({ message: t("deleteConfirm"), danger: true }))
+    )
       await mutate((book) =>
         identityApi().bookIdentity.deleteRound({ book, roundId: round.id })
       );
   }
   async function prune(field: BookIdentityField) {
-    if (window.confirm(t("pruneConfirm")))
+    if (await uiConfirm({ message: t("pruneConfirm"), danger: true }))
       await mutate((book) =>
         identityApi().bookIdentity.pruneRounds({ book, field })
       );

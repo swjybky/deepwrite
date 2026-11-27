@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
 import { SyncItemValidationError, type SyncItem } from "@deepwrite/contracts";
 import { deviceSyncOperations } from "./device-sync-transaction";
-import { projectTransactionContentSha256 } from "./project-transaction";
 import { MAX_TRANSACTION_FILES } from "./project-transaction/types";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 function item(files: Record<string, string>): SyncItem {
   return {
@@ -27,23 +27,23 @@ it("未变化文件只检查，更新和删除仍携带旧文件的并发校验"
     {
       path: "deepwrite.json",
       action: "check",
-      expectedSha256: projectTransactionContentSha256("{}")
+      expectedSha256: sha256Hex("{}")
     },
     {
       path: "unchanged.md",
       action: "check",
-      expectedSha256: projectTransactionContentSha256("保留")
+      expectedSha256: sha256Hex("保留")
     },
     {
       path: "draft.md",
       content: "新正文",
-      expectedSha256: projectTransactionContentSha256("旧正文")
+      expectedSha256: sha256Hex("旧正文")
     },
     { path: "created.md", content: "新文件", expectedSha256: null },
     {
       path: "removed.md",
       action: "delete",
-      expectedSha256: projectTransactionContentSha256("旧文件")
+      expectedSha256: sha256Hex("旧文件")
     }
   ]);
 });

@@ -34,6 +34,7 @@ import type { ExtrasAgentConfigStore } from "./config-store";
 import type { ExtrasTaskResolution } from "./task-resolver";
 import { resolveExtrasTask } from "./task-resolver";
 import { decompositionModelCapacity } from "./long-book-decomposition/model-capacity";
+import { rejectedResult } from "../../main/ipc/errors";
 
 type ExtrasAgentRunCommand = Extract<
   CommandEnvelope,
@@ -106,11 +107,7 @@ function rejected(
   message: string,
   code = "extras_agent.run_failed"
 ): CommandResult {
-  return {
-    status: "rejected",
-    requestId: command.id,
-    error: { code, message }
-  };
+  return rejectedResult(command.id, code, message);
 }
 
 /**

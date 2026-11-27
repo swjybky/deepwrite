@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { createId } from "@deepwrite/shared";
+import { createId, jsonClone } from "@deepwrite/shared";
 import type {
   DecompositionRegistry,
   DecompositionRegistryData,
@@ -26,9 +26,7 @@ const page = ref(0);
 watch(
   () => props.registry,
   (value) => {
-    draft.value = JSON.parse(
-      JSON.stringify(value)
-    ) as DecompositionRegistryData;
+    draft.value = jsonClone(value);
     selected.value = [];
   },
   { immediate: true }

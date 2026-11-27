@@ -128,5 +128,5 @@ export function createSystemEventCenter(
   };
 }
 
-/** Shared target for the renderer's one future `window.deepwrite.events` tap. */
+/** Shared target for the renderer's one future `deepwriteApi().events` tap. */
 export const systemEventCenter = createSystemEventCenter();

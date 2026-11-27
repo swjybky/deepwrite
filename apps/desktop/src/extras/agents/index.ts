@@ -9,6 +9,7 @@ import { ExtrasAgentConfigStore } from "./config-store";
 import { runExtrasAgent, type ExtrasAgentRunDependencies } from "./run-service";
 import { handleLongBookSourceCommands } from "./sources/long-book-source-commands";
 import { handleShortBookSourceCommands } from "./sources/short-book-source-commands";
+import { rejectedResult } from "../../main/ipc/errors";
 
 export interface ExtrasAgentCommandContext extends Omit<
   ExtrasAgentRunDependencies,
@@ -44,14 +45,11 @@ async function handleConfigCommand(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error: unknown) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "extras_agent.settings_failed",
-        message: error instanceof Error ? error.message : "更新分析预设失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "extras_agent.settings_failed",
+      error instanceof Error ? error.message : "更新分析预设失败。"
+    );
   }
 }
 

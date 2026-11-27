@@ -54,6 +54,21 @@ export function decompositionInputBudget(
   if (budget < 1000) throw new Error("模型窗口不足以容纳拆解方案。");
   return Math.min(DECOMPOSITION_MAX_CHUNK_TOKENS, budget);
 }
+export function limitingDecompositionReadingModel<
+  T extends DecompositionModelCapacity
+>(models: readonly T[], promptCharacters = 0): T {
+  if (!models.length) throw new Error("请选择可用的拆解模型。");
+  let limiting = models[0]!;
+  let minBudget = decompositionInputBudget(limiting, promptCharacters);
+  for (const candidate of models.slice(1)) {
+    const budget = decompositionInputBudget(candidate, promptCharacters);
+    if (budget < minBudget) {
+      minBudget = budget;
+      limiting = candidate;
+    }
+  }
+  return limiting;
+}
 const outputReserve = (model: DecompositionModelCapacity) =>
   Math.min(model.maxTokens ?? 4096, 32_768);
 /** Evidence a child receives with its task, as a share of the usable window. */

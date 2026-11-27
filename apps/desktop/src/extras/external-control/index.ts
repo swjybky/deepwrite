@@ -33,13 +33,20 @@ import {
 } from "./tool-routes";
 import { createTrashStore, trashExpiry } from "./trash-store";
 import { createWindowRequests } from "./window-requests";
+import { rejectedResult } from "../../main/ipc/errors";
 
 export { EXTERNAL_CONTROL_LAUNCH_FLAG } from "@deepwrite/contracts/external-control";
+export { ExternalControlError } from "./errors";
 export { createClientConfirmDialog } from "./confirm-dialog";
 export type { BridgeConnection } from "./client-configs";
-export { resolveExternalControlPaths } from "./control-paths";
+export {
+  DEVELOPMENT_CONTROL_DIRECTORY_ENV,
+  resolveExternalControlPaths
+} from "./control-paths";
 
 const ACTIVITY_ENTRIES = 50;
+const RECOVERY_DELAYS_MS = [500, 2_000, 5_000] as const;
+const MAX_RECOVERY_ATTEMPTS = 5;
 
 interface ExternalControlOptions {
   configurationDirectory?: () => string;
@@ -98,8 +105,36 @@ export function createExternalControl(options: ExternalControlOptions) {
   let launchRequested = false;
   let stopped = false;
   let updating = false;
+  let restarting = false;
   let server: ExternalControlServer | undefined;
   let queue: Promise<void> = Promise.resolve();
+  let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  let recoveryAttempts = 0;
+
+  function clearRecovery(): void {
+    if (recoveryTimer) {
+      clearTimeout(recoveryTimer);
+      recoveryTimer = undefined;
+    }
+  }
+
+  function scheduleRecovery(): void {
+    if (!enabled || stopped || !settingsKnown || recoveryTimer) return;
+    if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) return;
+    const delayMs =
+      RECOVERY_DELAYS_MS[
+        Math.min(recoveryAttempts, RECOVERY_DELAYS_MS.length - 1)
+      ] ?? 5_000;
+    recoveryAttempts += 1;
+    recoveryTimer = setTimeout(() => {
+      recoveryTimer = undefined;
+      if (!enabled || stopped) return;
+      void enqueue().then(() => {
+        if (!server && enabled && !stopped) scheduleRecovery();
+      });
+    }, delayMs);
+    recoveryTimer.unref();
+  }
 
   async function stopServer(): Promise<void> {
     const running = server;
@@ -191,12 +226,23 @@ export function createExternalControl(options: ExternalControlOptions) {
       endpoint: options.paths.endpoint,
       token,
       authorize: approval.authorize,
-      handleCall
+      handleCall,
+      onUnexpectedError: (error) => {
+        warn(`DeepWrite external control server error: ${error.name}`);
+        if (server === created) server = undefined;
+        scheduleRecovery();
+      },
+      onUnexpectedClose: () => {
+        if (server === created) server = undefined;
+        scheduleRecovery();
+      }
     });
     // The socket lives here, so this must exist before listening.
     await ensurePrivateDirectory(options.paths.directory);
     await created.start();
     server = created;
+    recoveryAttempts = 0;
+    clearRecovery();
     await Promise.all([trash.purgeExpired(), audit.trim()]);
     await writeExternalControlState(options.paths.stateFile, {
       ...identity,
@@ -214,6 +260,13 @@ export function createExternalControl(options: ExternalControlOptions) {
       await writeExternalControlState(options.paths.stateFile, {
         ...identity,
         status: "updating",
+        startedAt: now()
+      });
+    } else if (restarting) {
+      // Holds bridges back until the restarted instance replaces this file.
+      await writeExternalControlState(options.paths.stateFile, {
+        ...identity,
+        status: "restarting",
         startedAt: now()
       });
     } else if (launchRequested && !stopped) {
@@ -254,6 +307,8 @@ export function createExternalControl(options: ExternalControlOptions) {
 
   return {
     sync(nextEnabled: boolean): Promise<void> {
+      clearRecovery();
+      recoveryAttempts = 0;
       if (!nextEnabled) approval.reset();
       enabled = nextEnabled;
       settingsKnown = true;
@@ -266,6 +321,7 @@ export function createExternalControl(options: ExternalControlOptions) {
     },
     call: handleCall,
     resolveWindowResponse: windowRequests.resolve,
+    failPendingWindowRequests: windowRequests.failAll,
     /** Undefined when the command is not one of the settings page's own. */
     async handleSettingsCommand(
       command: CommandEnvelope
@@ -293,26 +349,25 @@ export function createExternalControl(options: ExternalControlOptions) {
           payload: await overview()
         };
       } catch (error: unknown) {
-        return {
-          status: "rejected",
-          requestId: command.id,
-          error: {
-            code:
-              error instanceof ExternalControlError
-                ? error.code
-                : "external.not_ready",
-            message:
-              error instanceof ExternalControlError
-                ? error.message
-                : "DeepWrite 暂时无法完成这次操作。请稍后重试。"
-          }
-        };
+        return rejectedResult(
+          command.id,
+          error instanceof ExternalControlError
+            ? error.code
+            : "external.not_ready",
+          error instanceof ExternalControlError
+            ? error.message
+            : "DeepWrite 暂时无法完成这次操作。请稍后重试。"
+        );
       }
     },
     /** Never rejects, so shutdown continues if cleanup fails. */
-    stop(options: { updating?: boolean } = {}): Promise<void> {
+    stop(
+      options: { updating?: boolean; restarting?: boolean } = {}
+    ): Promise<void> {
       stopped = true;
       updating = options.updating === true;
+      restarting = !updating && options.restarting === true;
+      clearRecovery();
       return enqueue();
     }
   };

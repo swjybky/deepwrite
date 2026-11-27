@@ -11,6 +11,7 @@ import {
 import { safeErrorDetails } from "./errors";
 import { teamPromptReviews } from "../team-prompt-reviews";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 type RunControlContext = Pick<
   IpcCommandContext,
@@ -59,16 +60,12 @@ async function forwardRunControl<TAccepted>(
     }
     return { status: "accepted", requestId: command.id, payload: accepted };
   } catch (error: unknown) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: forward.failure.code,
-        message:
-          error instanceof Error ? error.message : forward.failure.message,
-        details: safeErrorDetails(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      forward.failure.code,
+      error instanceof Error ? error.message : forward.failure.message,
+      safeErrorDetails(error)
+    );
   }
 }
 

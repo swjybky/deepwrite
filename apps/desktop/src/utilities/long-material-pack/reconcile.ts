@@ -9,8 +9,8 @@ import {
   type MaterialKind
 } from "@deepwrite/contracts";
 import { decompositionResourceId } from "../long-book-decomposition/identity";
-import { decompositionSha } from "../long-book-decomposition/content-guard";
 import type { ManagedLibraryState } from "../folder-catalog-store/managed-batch";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export interface LongMaterialDecisions {
   overwrite: ReadonlySet<string>;
@@ -76,7 +76,7 @@ export function reconcileLongMaterial(input: {
     const listed = state?.manifest.entries.find(({ id }) => id === entryId);
     const current = state?.entrySha256[entryId];
     const content = plannedContent(entry);
-    const sha256 = decompositionSha(content);
+    const sha256 = sha256Hex(content);
     const record: LongMaterialRecordEntry = {
       entryId,
       libraryId,

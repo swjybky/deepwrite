@@ -1,9 +1,6 @@
 import { t } from "../i18n";
 import type { AgentEditProposal } from "../types/conversation";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 
 export function parseStoredDiscardSnapshot(
   value: unknown

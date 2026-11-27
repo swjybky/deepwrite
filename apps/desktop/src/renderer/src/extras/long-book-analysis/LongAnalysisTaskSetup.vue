@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiConfirm } from "../../ui-confirm";
 import { presetLabel } from "../analysis-ui/preset-labels";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
@@ -68,7 +69,17 @@ watch(
     if (next.id !== previous?.id) {
       startOrder.value = 1;
       endOrder.value = Math.min(50, next.chapters.length);
-    } else normalizeRange("start");
+    } else {
+      if (
+        previous &&
+        startOrder.value === 1 &&
+        endOrder.value === Math.min(50, previous.chapters.length) &&
+        next.chapters.length > previous.chapters.length
+      ) {
+        endOrder.value = Math.min(50, next.chapters.length);
+      }
+      normalizeRange("start");
+    }
   },
   { immediate: true }
 );
@@ -112,7 +123,9 @@ async function start(): Promise<void> {
   const unsaved = props.controller.batch.unsavedCount.value;
   if (
     unsaved &&
-    !window.confirm(ui("replaceUnsavedConfirm", { count: unsaved }))
+    !(await uiConfirm({
+      message: ui("replaceUnsavedConfirm", { count: unsaved })
+    }))
   )
     return;
   try {

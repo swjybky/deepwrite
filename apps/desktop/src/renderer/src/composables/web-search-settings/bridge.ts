@@ -1,5 +1,6 @@
 import type { WebSearchProviderId } from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
+import { deepwriteApi } from "../../api/deepwrite";
 
 export const webSearchT = createScopedTranslator(
   "components.webSearchSettings"
@@ -16,7 +17,7 @@ export interface WebSearchDraft {
 }
 
 export function webSearchApi() {
-  const bridge = window.deepwrite;
+  const bridge = deepwriteApi();
   if (!bridge) throw new Error(webSearchT("bridgeNotReady"));
   return bridge.webSearch;
 }
@@ -35,7 +36,8 @@ const PROVIDER_LABEL_KEYS: Record<WebSearchProviderId, MessageKey> = {
   bocha: "providerBocha",
   zhipu: "providerZhipu",
   search1api: "providerSearch1api",
-  searxng: "providerSearxng"
+  searxng: "providerSearxng",
+  tinyfish: "providerTinyfish"
 };
 const PROVIDER_NAME_KEYS: Record<WebSearchProviderId, MessageKey> = {
   deepseek: "providerNameDeepseek",
@@ -48,7 +50,8 @@ const PROVIDER_NAME_KEYS: Record<WebSearchProviderId, MessageKey> = {
   bocha: "providerNameBocha",
   zhipu: "providerNameZhipu",
   search1api: "providerNameSearch1api",
-  searxng: "providerNameSearxng"
+  searxng: "providerNameSearxng",
+  tinyfish: "providerNameTinyfish"
 };
 
 /** Full name, as in the provider list. */

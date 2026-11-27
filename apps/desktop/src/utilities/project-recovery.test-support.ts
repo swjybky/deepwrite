@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { projectTransactionContentSha256 as hash } from "./project-transaction";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function stageRecovery(
   root: string,
@@ -29,8 +29,8 @@ export async function stageRecovery(
       path: file.path,
       stagePath,
       backupPath,
-      beforeSha256: before === null ? null : hash(before),
-      afterSha256: file.content === null ? null : hash(file.content)
+      beforeSha256: before === null ? null : sha256Hex(before),
+      afterSha256: file.content === null ? null : sha256Hex(file.content)
     });
   }
   const journalPath = join(root, ".deepwrite/transaction.json");

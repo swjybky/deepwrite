@@ -3,7 +3,7 @@ import type {
   ModelApi
 } from "@deepwrite/contracts";
 import { Type, type Tool } from "@earendil-works/pi-ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildSkillDraftTools } from "./extras/tools/skill-draft";
 import { buildProviderRuntime } from "./provider-runtime";
 import { findDeepWriteRuntimeModel } from "./runtime-model-catalog";
@@ -268,7 +268,7 @@ describe("dedicated official-site runtime model catalog", () => {
     ).toBe(routes.length);
   });
 
-  it("disables strict tool mode on site DeepSeek models when strict and non-strict tools coexist", async () => {
+  function buildMixedStrictTools(): Tool[] {
     const searchSession: WebSearchSession = {
       providerId: "deepseek",
       maxResults: 8,
@@ -314,27 +314,293 @@ describe("dedicated official-site runtime model catalog", () => {
       agentId: "revision-analysis",
       jobId: "job_strict_check"
     });
-    const mixedTools: Tool[] = [
+    return [
       buildWebSearchTool(searchSession),
       buildWebFetchTool(searchSession),
       ...teamTools,
       ...skillDraftTools
     ];
+  }
 
-    const config = configFor("deepseek-flash", "openai-completions");
-    expect(buildProviderRuntime(config).model.compat).toMatchObject({
-      supportsStrictMode: false
-    });
-    const payload = await payloadFor(config, "high", mixedTools);
-    const serializedTools = payload.tools as Array<{
-      type: string;
-      function: Record<string, unknown>;
-    }>;
-    expect(serializedTools.map((tool) => tool.function.name)).toEqual(
-      mixedTools.map((tool) => tool.name)
-    );
-    for (const tool of serializedTools) {
-      expect(tool.function).not.toHaveProperty("strict");
+  it.each([
+    {
+      label: "official exact route deepseek-flash",
+      id: "deepwrite-site-official-deepseek-flash",
+      provider: "deepwrite-site",
+      modelId: "deepseek-flash"
+    },
+    {
+      label: "official fallback deepseek-v4-flash",
+      id: "deepwrite-site-official-deepseek-v4-flash",
+      provider: "deepwrite-site",
+      modelId: "deepseek-v4-flash"
+    },
+    {
+      label: "official fallback deepseek-v4-pro",
+      id: "deepwrite-site-official-deepseek-v4-pro",
+      provider: "deepwrite-site",
+      modelId: "deepseek-v4-pro"
+    },
+    {
+      label: "official fallback deepseek-v4-flash-vision-exp",
+      id: "deepwrite-site-official-deepseek-v4-flash-vision-exp",
+      provider: "deepwrite-site",
+      modelId: "deepseek-v4-flash-vision-exp"
+    },
+    {
+      label: "official fallback deepseek-v4-flash-0731",
+      id: "deepwrite-site-official-deepseek-v4-flash-0731",
+      provider: "deepwrite-site",
+      modelId: "deepseek-v4-flash-0731"
+    },
+    {
+      label: "official fallback deepseek-v4.1-flash",
+      id: "deepwrite-site-official-deepseek-v4.1-flash",
+      provider: "deepwrite-site",
+      modelId: "deepseek-v4.1-flash"
+    },
+    {
+      label: "official fallback deepseek-flash-202609 under deepseek provider",
+      id: "deepwrite-site-official-deepseek-flash-202609",
+      provider: "deepseek",
+      modelId: "deepseek-flash-202609"
+    },
+    {
+      label: "custom deepseek deepseek-flash",
+      id: "custom-deepseek-flash",
+      provider: "deepseek",
+      modelId: "deepseek-flash"
+    },
+    {
+      label: "custom deepseek deepseek-v4-pro",
+      id: "custom-deepseek-v4-pro",
+      provider: "deepseek",
+      modelId: "deepseek-v4-pro"
+    },
+    {
+      label: "custom deepseek deepseek-v4-flash",
+      id: "custom-deepseek-v4-flash",
+      provider: "deepseek",
+      modelId: "deepseek-v4-flash"
+    },
+    {
+      label: "custom deepseek deepseek-chat",
+      id: "custom-deepseek-chat",
+      provider: "deepseek",
+      modelId: "deepseek-chat"
+    },
+    {
+      label: "custom compat route deepseek-v4-pro",
+      id: "custom-compat-deepseek-v4-pro",
+      provider: "custom",
+      modelId: "deepseek-v4-pro"
+    }
+  ])(
+    "disables strict tool mode on $label when strict and non-strict tools coexist",
+    async ({ id, provider, modelId }) => {
+      const mixedTools = buildMixedStrictTools();
+      const config: AgentProviderRuntimeConfig = {
+        ...configFor(modelId, "openai-completions"),
+        id,
+        provider,
+        requestModelId: undefined
+      };
+      expect(buildProviderRuntime(config).model.compat).toMatchObject({
+        supportsStrictMode: false
+      });
+      const payload = await payloadFor(config, "high", mixedTools);
+      const serializedTools = payload.tools as Array<{
+        type: string;
+        function: Record<string, unknown>;
+      }>;
+      expect(serializedTools.map((tool) => tool.function.name)).toEqual(
+        mixedTools.map((tool) => tool.name)
+      );
+      for (const tool of serializedTools) {
+        expect(tool.function).not.toHaveProperty("strict");
+      }
+    }
+  );
+
+  it("completes a full mixed-tool turn against a strictness-rejecting DeepSeek upstream", async () => {
+    const mixedTools = buildMixedStrictTools();
+    const sentPayloads: Array<{
+      tools: Array<{ function: Record<string, unknown> }>;
+      messages: Array<Record<string, unknown>>;
+    }> = [];
+    const fetcher: typeof globalThis.fetch = async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        model: string;
+        tools?: Array<{ function: Record<string, unknown> }>;
+        messages?: Array<Record<string, unknown>>;
+      };
+      const tools = body.tools ?? [];
+      const messages = body.messages ?? [];
+      sentPayloads.push({ tools, messages });
+      const strictFlags = new Set(
+        tools
+          .filter((tool) =>
+            Object.prototype.hasOwnProperty.call(tool.function, "strict")
+          )
+          .map((tool) => tool.function.strict)
+      );
+      if (strictFlags.size > 1) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: "Cannot mix strict and non-strict tools in one request."
+            }
+          }),
+          { status: 400, headers: { "content-type": "application/json" } }
+        );
+      }
+
+      const hasToolResult = messages.some((message) => message.role === "tool");
+      if (!hasToolResult) {
+        const chunks = [
+          {
+            id: "chatcmpl-turn-1",
+            object: "chat.completion.chunk",
+            created: 0,
+            model: body.model,
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  role: "assistant",
+                  reasoning_content: "Searching reference first."
+                }
+              }
+            ]
+          },
+          {
+            id: "chatcmpl-turn-1",
+            object: "chat.completion.chunk",
+            created: 0,
+            model: body.model,
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: "call_web_search_1",
+                      type: "function",
+                      function: {
+                        name: "web_search",
+                        arguments: '{"query":"DeepWrite"}'
+                      }
+                    }
+                  ]
+                },
+                finish_reason: "tool_calls"
+              }
+            ]
+          }
+        ];
+        const sse = `${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")}data: [DONE]\n\n`;
+        return new Response(sse, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" }
+        });
+      }
+
+      const finalChunk = {
+        id: "chatcmpl-turn-2",
+        object: "chat.completion.chunk",
+        created: 0,
+        model: body.model,
+        choices: [
+          {
+            index: 0,
+            delta: { role: "assistant", content: "Search completed." },
+            finish_reason: "stop"
+          }
+        ]
+      };
+      return new Response(
+        `data: ${JSON.stringify(finalChunk)}\n\ndata: [DONE]\n\n`,
+        { status: 200, headers: { "content-type": "text/event-stream" } }
+      );
+    };
+
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      const config: AgentProviderRuntimeConfig = {
+        ...configFor("deepseek-v4-pro", "openai-completions"),
+        id: "custom-deepseek-v4-pro",
+        provider: "deepseek",
+        requestModelId: undefined
+      };
+      const { model, streamFn } = buildProviderRuntime(
+        config,
+        undefined,
+        "high"
+      );
+      const userMessage = {
+        role: "user" as const,
+        content: "Search DeepWrite docs.",
+        timestamp: 1
+      };
+      const firstStream = await streamFn(
+        model,
+        {
+          systemPrompt: "Use tools when needed.",
+          messages: [userMessage],
+          tools: mixedTools
+        },
+        { reasoning: "high", maxTokens: 512, maxRetries: 0 }
+      );
+      const firstResult = await firstStream.result();
+      expect(firstResult.stopReason).toBe("toolUse");
+      const toolCall = firstResult.content.find(
+        (block) => block.type === "toolCall"
+      );
+      expect(toolCall).toMatchObject({
+        type: "toolCall",
+        id: "call_web_search_1",
+        name: "web_search"
+      });
+
+      const secondStream = await streamFn(
+        model,
+        {
+          systemPrompt: "Use tools when needed.",
+          messages: [
+            userMessage,
+            firstResult,
+            {
+              role: "toolResult",
+              toolCallId: toolCall!.id,
+              toolName: toolCall!.name,
+              content: [{ type: "text", text: "[]" }],
+              isError: false,
+              timestamp: 2
+            }
+          ],
+          tools: mixedTools
+        },
+        { reasoning: "high", maxTokens: 512, maxRetries: 0 }
+      );
+      const secondResult = await secondStream.result();
+      expect(secondResult.stopReason).toBe("stop");
+      expect(sentPayloads).toHaveLength(2);
+      for (const payload of sentPayloads) {
+        expect(payload.tools).toHaveLength(mixedTools.length);
+        for (const tool of payload.tools) {
+          expect(tool.function).not.toHaveProperty("strict");
+        }
+      }
+      const assistantReplay = sentPayloads[1]!.messages.find(
+        (message) => message.role === "assistant"
+      );
+      expect(assistantReplay).toHaveProperty(
+        "reasoning_content",
+        "Searching reference first."
+      );
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

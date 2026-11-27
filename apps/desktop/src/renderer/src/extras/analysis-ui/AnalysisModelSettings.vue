@@ -9,14 +9,16 @@ import {
   watch
 } from "vue";
 import type { ModelConfig, ThinkingLevel } from "@deepwrite/contracts/renderer";
-import AppIcon from "../../components/AppIcon.vue";
-import PopupSelect from "../../components/PopupSelect.vue";
+import ModelPickerPanel from "../../components/ModelPickerPanel.vue";
+import ModelProviderIcon from "../../components/ModelProviderIcon.vue";
 import { thinkingLabel } from "../../components/modelSettingsDraft";
 import { createScopedTranslator } from "../../i18n";
 import {
   buildModelSelectOptions,
-  modelThinkingLevels
+  modelThinkingLevels,
+  resolveModelPickerSize
 } from "../../utils/modelSelectOptions";
+import { isTargetInPanel } from "../../utils/panelFocus";
 import "./analysis-model-settings.css";
 
 const t = createScopedTranslator("extras");
@@ -26,7 +28,7 @@ const props = defineProps<{
   modelId: string;
   thinkingLevel: ThinkingLevel;
   disabled?: boolean;
-  /** Names this selection (e.g. reading vs. integration) in the panel. */
+  /** Accessible name for this selection (e.g. reading vs. integration). */
   label?: string;
   /** Show the chosen model and thinking level in the trigger like a field. */
   field?: boolean;
@@ -39,9 +41,10 @@ const panelId = useId();
 const open = ref(false);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
-const modelControl = ref<InstanceType<typeof PopupSelect> | null>(null);
-const thinkingControl = ref<InstanceType<typeof PopupSelect> | null>(null);
-const position = ref({ top: "0px", left: "0px" });
+const position = ref<{ top: string; left: string; maxHeight?: string }>({
+  top: "0px",
+  left: "0px"
+});
 const availableModels = computed(() =>
   props.models.filter((model) => model.enabled !== false)
 );
@@ -67,14 +70,44 @@ function reposition(): void {
   if (!open.value || !trigger.value || !panel.value) return;
   const anchor = trigger.value.getBoundingClientRect();
   const bounds = panel.value.getBoundingClientRect();
+  const viewportMargin = 8;
+  const gap = 8;
+  const spaceBelow = Math.max(
+    0,
+    window.innerHeight - anchor.bottom - gap - viewportMargin
+  );
+  const spaceAbove = Math.max(0, anchor.top - gap - viewportMargin);
+  const preferred = resolveModelPickerSize({
+    hasRightPane: thinkingOptions.value.length > 0
+  });
+  const opensUpward = spaceBelow < preferred.height && spaceAbove > spaceBelow;
+  const availableHeight = Math.max(180, opensUpward ? spaceAbove : spaceBelow);
+  const maxPanelHeight = Math.min(preferred.height, availableHeight);
+  const renderedHeight = Math.min(
+    bounds.height || maxPanelHeight,
+    maxPanelHeight
+  );
+  const preferredLeft = props.field ? anchor.left : anchor.right - bounds.width;
+  const left = Math.max(
+    viewportMargin,
+    Math.min(preferredLeft, window.innerWidth - bounds.width - viewportMargin)
+  );
+  const top = opensUpward
+    ? Math.max(viewportMargin, anchor.top - gap - renderedHeight)
+    : Math.max(
+        viewportMargin,
+        Math.min(
+          anchor.bottom + gap,
+          window.innerHeight - renderedHeight - viewportMargin
+        )
+      );
   position.value = {
-    left: `${Math.max(8, Math.min(anchor.right - bounds.width, window.innerWidth - bounds.width - 8))}px`,
-    top: `${Math.max(8, Math.min(anchor.bottom + 8, window.innerHeight - bounds.height - 8))}px`
+    left: `${left}px`,
+    top: `${top}px`,
+    maxHeight: `${maxPanelHeight}px`
   };
 }
 function close(returnFocus = false): void {
-  modelControl.value?.closeMenu();
-  thinkingControl.value?.closeMenu();
   open.value = false;
   if (returnFocus) void nextTick(() => trigger.value?.focus());
 }
@@ -84,23 +117,15 @@ async function toggle(): Promise<void> {
   open.value = true;
   await nextTick();
   reposition();
-  panel.value?.focus();
-}
-function belongsToPanel(target: Node): boolean {
-  if (trigger.value?.contains(target) || panel.value?.contains(target))
-    return true;
-  return [...(panel.value?.querySelectorAll("[aria-controls]") ?? [])].some(
-    (control) => {
-      const id = control.getAttribute("aria-controls");
-      return id && document.getElementById(id)?.contains(target);
-    }
-  );
+  if (!panel.value?.contains(document.activeElement)) {
+    panel.value?.focus();
+  }
 }
 function outside(event: Event): void {
   if (
     open.value &&
     event.target instanceof Node &&
-    !belongsToPanel(event.target)
+    !isTargetInPanel(event.target, trigger.value, panel.value)
   )
     close();
 }
@@ -166,7 +191,12 @@ onBeforeUnmount(() => {
       :disabled="disabled"
       @click="toggle"
     >
-      <AppIcon name="settings" :size="16" />
+      <ModelProviderIcon
+        :provider="selectedModel?.provider"
+        :model-id="selectedModel?.modelId"
+        :label="selectedModel?.label"
+        :size="15"
+      />
       <span v-if="field" class="analysis-model-summary">{{ summary }}</span>
       <template v-else>{{ t("analysisUi.modelSettings") }}</template>
     </button>
@@ -175,51 +205,23 @@ onBeforeUnmount(() => {
         v-if="open"
         :id="panelId"
         ref="panel"
-        class="analysis-model-panel"
+        class="analysis-model-panel is-picker-panel"
         :style="position"
         role="dialog"
         tabindex="-1"
-        :aria-labelledby="`${panelId}-title`"
+        :aria-label="label ?? t('analysisUi.modelSettings')"
       >
-        <header>
-          <strong :id="`${panelId}-title`">{{
-            label ?? t("analysisUi.modelSettings")
-          }}</strong>
-          <button
-            type="button"
-            :aria-label="t('analysisUi.closeModelSettings')"
-            @click="close(true)"
-          >
-            <AppIcon name="close" :size="16" />
-          </button>
-        </header>
-        <label>
-          <span>{{
-            label
-              ? t("analysisUi.modelField")
-              : t("longBookAnalysis.analysisModel")
-          }}</span>
-          <PopupSelect
-            ref="modelControl"
-            :model-value="modelId"
-            :options="modelOptions"
-            :accessible-label="t('longBookAnalysis.analysisModel')"
-            :placeholder="t('longBookAnalysis.modelNotConfigured')"
-            :disabled="disabled || !modelOptions.length"
-            @update:model-value="selectModel"
-          />
-        </label>
-        <label>
-          <span>{{ t("longBookAnalysis.thinkingLevel") }}</span>
-          <PopupSelect
-            ref="thinkingControl"
-            :model-value="thinkingLevel"
-            :options="thinkingOptions"
-            :accessible-label="t('longBookAnalysis.thinkingLevel')"
-            :disabled="disabled || !selectedModel"
-            @update:model-value="selectThinking"
-          />
-        </label>
+        <ModelPickerPanel
+          :active="open"
+          :selected-model-id="modelId"
+          :model-options="modelOptions"
+          :thinking-level="thinkingLevel"
+          :thinking-options="thinkingOptions"
+          hides-web-search
+          :placeholder="t('longBookAnalysis.modelNotConfigured')"
+          @select-model="selectModel"
+          @select-thinking="selectThinking"
+        />
       </section>
     </Teleport>
   </div>

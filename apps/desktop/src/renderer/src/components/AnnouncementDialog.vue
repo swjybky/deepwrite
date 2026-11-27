@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import type { AppAlertHistoryEntry } from "@deepwrite/contracts/renderer";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { createScopedTranslator, locale } from "../i18n";
@@ -31,7 +32,7 @@ let disposed = false;
 
 onMounted(async () => {
   try {
-    const api = window.deepwrite?.appAlerts;
+    const api = deepwriteApi()?.appAlerts;
     if (!api) throw new Error(t("couldNotLoadAnnouncements"));
     const snapshot = await api.get();
     if (!disposed) {

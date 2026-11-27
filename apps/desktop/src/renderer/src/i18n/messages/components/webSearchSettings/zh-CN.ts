@@ -1,7 +1,7 @@
 export default {
   title: "联网搜索",
   keywords:
-    "联网 搜索 网络 DeepSeek Tavily Exa Brave 博查 智谱 Serper SerpApi SearchAPI Search1API SearXNG web search",
+    "联网 搜索 网络 DeepSeek Tavily Exa Brave 博查 智谱 Serper SerpApi SearchAPI Search1API SearXNG TinyFish web search",
   intro:
     "为创作空间、素材库、技能库的智能体及其子智能体提供联网搜索工具。搜索词会发送到所选搜索服务，并按该服务计费。",
   serviceTitle: "搜索服务",
@@ -32,6 +32,8 @@ export default {
   providerNameSearch1api: "Search1API",
   providerSearxng: "SearXNG（自部署）",
   providerNameSearxng: "SearXNG（自部署）",
+  providerTinyfish: "TinyFish",
+  providerNameTinyfish: "TinyFish",
   selfHostedHint:
     "填写你的 SearXNG 实例基础地址，并在实例中启用 JSON 搜索格式；密钥可留空，网关有鉴权时可填写 Bearer 密钥。",
   statusNeedsEndpoint: "请先填写自部署搜索服务的接口地址。",

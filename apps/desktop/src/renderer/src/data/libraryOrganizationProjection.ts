@@ -18,12 +18,20 @@ export function orderLibraryNodes(
     (groupId ? organization?.groups[groupId] : organization?.[domain]) ?? []
   );
   const byId = new Map(nodes.map((node) => [key(node), node]));
-  return order.map((id, index) => {
-    const node = byId.get(id)!;
+  const isGroup = (node: ResourceTreeNode) => node.catalogNodeType === "group";
+  const ordered = order.map((id) => byId.get(id)!);
+  // 分组固定在库上面，用户自定义顺序只在同类之间生效。
+  const sorted = [
+    ...ordered.filter(isGroup),
+    ...ordered.filter((n) => !isGroup(n))
+  ];
+  return sorted.map((node, index) => {
+    const sameKind = (other?: ResourceTreeNode) =>
+      !!other && isGroup(other) === isGroup(node);
     return {
       ...node,
-      canMoveLibraryUp: index > 0,
-      canMoveLibraryDown: index < order.length - 1,
+      canMoveLibraryUp: sameKind(sorted[index - 1]),
+      canMoveLibraryDown: sameKind(sorted[index + 1]),
       ...(node.catalogNodeType === "group" && node.children
         ? {
             children: orderLibraryNodes(

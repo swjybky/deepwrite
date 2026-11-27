@@ -37,10 +37,6 @@ export interface SettingsFeatureCoordinatorContext {
   >[0]["onModelsLoaded"];
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return formatError(error, fallback);
-}
-
 export function useSettingsFeatureCoordinator(
   context: SettingsFeatureCoordinatorContext
 ) {
@@ -59,7 +55,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToLoadWorkspaceAgentSettings")
         )
@@ -75,7 +71,7 @@ export function useSettingsFeatureCoordinator(
       return true;
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToLoadNovelAgentSettings")
         )
@@ -98,7 +94,7 @@ export function useSettingsFeatureCoordinator(
       return true;
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToLoadWorkspaceAgentSettings")
         )
@@ -155,7 +151,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToSaveWorkspaceAgentSettings")
         )
@@ -183,7 +179,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToSaveNovelAgentSettings")
         )
@@ -211,7 +207,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToSaveWorkspaceAgentSettings")
         )
@@ -237,7 +233,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToSaveWorkspaceAgentSettings")
         )
@@ -256,7 +252,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToLoadLibraryAgentSettings")
         )
@@ -282,7 +278,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToSaveLibraryAgentSettings")
         )
@@ -311,7 +307,7 @@ export function useSettingsFeatureCoordinator(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        formatError(
           error,
           t("settingsFeatureCoordinator.failedToRestoreLibraryAgentDefaults")
         )

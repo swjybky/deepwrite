@@ -6,9 +6,9 @@ import type {
 import {
   assertDecompositionDocumentWritable,
   assertDecompositionObjectWritable,
-  currentDecompositionRefs,
-  decompositionSha
+  currentDecompositionRefs
 } from "./content-guard";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const ref = (
   revision: number,
@@ -19,7 +19,7 @@ const ref = (
   resourceId: "card",
   fileId: "card",
   revision,
-  sha256: decompositionSha(content),
+  sha256: sha256Hex(content),
   ...extra
 });
 const job = (...refs: DecompositionContentRef[][]) =>
@@ -80,10 +80,10 @@ describe("生成文档的冲突判断", () => {
     const { fileId: _file, ...object } = ref(1, "{}");
     const owned = job([{ ...object, resourceId: "volume" }]);
     expect(() =>
-      assertDecompositionObjectWritable(owned, "volume", decompositionSha("{}"))
+      assertDecompositionObjectWritable(owned, "volume", sha256Hex("{}"))
     ).not.toThrow();
     expect(() =>
-      assertDecompositionObjectWritable(owned, "volume", decompositionSha("x"))
+      assertDecompositionObjectWritable(owned, "volume", sha256Hex("x"))
     ).toThrow("decomposition.conflict");
   });
 

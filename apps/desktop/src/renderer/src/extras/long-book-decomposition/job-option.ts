@@ -25,9 +25,17 @@ export function decompositionJobOption(
     dateStyle: "short",
     timeStyle: "short"
   });
+  const phaseText =
+    job.phase === "registry" ? t("registryPhase") : t(job.phase);
+  const statusSuffix =
+    job.status === "failed"
+      ? ` · ${t("failed")}`
+      : job.status === "ended"
+        ? ` · ${t("endedStatus")}`
+        : "";
   return {
     value: job.id,
     label: `${title} · ${date} · ${job.mode === "continuation" ? t("continuation") : t("materials")}`,
-    description: `${job.source.title} · ${job.phase === "registry" ? t("registryPhase") : t(job.phase)}`
+    description: `${job.source.title} · ${phaseText}${statusSuffix}`
   };
 }

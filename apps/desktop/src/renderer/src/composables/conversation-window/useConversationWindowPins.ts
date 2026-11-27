@@ -22,59 +22,73 @@ export function useConversationWindowPins(options: {
   editingIds: () => readonly string[];
   retainedIds?: () => readonly string[];
   attribute?: "data-conversation-window-id" | "data-conversation-message-id";
+  trackSelection?: boolean;
+  trackFocus?: boolean;
 }) {
   const selectionIds = ref<string[]>([]);
   const focusId = ref<string>();
+  const trackSelection = options.trackSelection ?? true;
+  const trackFocus = options.trackFocus ?? true;
   let cleanup: (() => void) | undefined;
-  watch(
-    options.container,
-    (container) => {
-      cleanup?.();
-      selectionIds.value = [];
-      focusId.value = undefined;
-      if (!container) return;
-      const document = container.ownerDocument;
-      let attached = true;
-      function updateSelection(): void {
-        selectionIds.value = selectedConversationWindowIds(
-          container!,
-          document.getSelection(),
-          options.attribute
-        );
-      }
-      function updateFocus(event?: Event): void {
-        if (!attached) return;
-        const active =
-          event?.type === "focusin" && event.target instanceof Element
-            ? event.target
-            : document.activeElement;
-        const row =
-          active instanceof Element && container!.contains(active)
-            ? active.closest<HTMLElement>(
-                `[${options.attribute ?? "data-conversation-window-id"}]`
-              )
-            : null;
-        focusId.value =
-          row?.getAttribute(
-            options.attribute ?? "data-conversation-window-id"
-          ) ?? undefined;
-      }
-      const deferFocusUpdate = () => queueMicrotask(updateFocus);
-      document.addEventListener("selectionchange", updateSelection);
-      container.addEventListener("focusin", updateFocus);
-      container.addEventListener("focusout", deferFocusUpdate);
-      cleanup = () => {
-        attached = false;
-        document.removeEventListener("selectionchange", updateSelection);
-        container.removeEventListener("focusin", updateFocus);
-        container.removeEventListener("focusout", deferFocusUpdate);
-      };
-      updateSelection();
-      updateFocus();
-    },
-    { immediate: true, flush: "post" }
-  );
-  onScopeDispose(() => cleanup?.());
+  if (trackSelection || trackFocus) {
+    watch(
+      options.container,
+      (container) => {
+        cleanup?.();
+        selectionIds.value = [];
+        focusId.value = undefined;
+        if (!container) return;
+        const document = container.ownerDocument;
+        let attached = true;
+        function updateSelection(): void {
+          selectionIds.value = selectedConversationWindowIds(
+            container!,
+            document.getSelection(),
+            options.attribute
+          );
+        }
+        function updateFocus(event?: Event): void {
+          if (!attached) return;
+          const active =
+            event?.type === "focusin" && event.target instanceof Element
+              ? event.target
+              : document.activeElement;
+          const row =
+            active instanceof Element && container!.contains(active)
+              ? active.closest<HTMLElement>(
+                  `[${options.attribute ?? "data-conversation-window-id"}]`
+                )
+              : null;
+          focusId.value =
+            row?.getAttribute(
+              options.attribute ?? "data-conversation-window-id"
+            ) ?? undefined;
+        }
+        const deferFocusUpdate = () => queueMicrotask(updateFocus);
+        if (trackSelection) {
+          document.addEventListener("selectionchange", updateSelection);
+          updateSelection();
+        }
+        if (trackFocus) {
+          container.addEventListener("focusin", updateFocus);
+          container.addEventListener("focusout", deferFocusUpdate);
+          updateFocus();
+        }
+        cleanup = () => {
+          attached = false;
+          if (trackSelection) {
+            document.removeEventListener("selectionchange", updateSelection);
+          }
+          if (trackFocus) {
+            container.removeEventListener("focusin", updateFocus);
+            container.removeEventListener("focusout", deferFocusUpdate);
+          }
+        };
+      },
+      { immediate: true, flush: "post" }
+    );
+    onScopeDispose(() => cleanup?.());
+  }
   return computed(() => [
     ...new Set([
       ...options.editingIds(),

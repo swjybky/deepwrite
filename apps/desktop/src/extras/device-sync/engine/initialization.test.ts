@@ -1,5 +1,6 @@
 import { test, expect } from "vitest";
 import {
+  SyncItemValidationError,
   syncErrorMessage,
   stableSyncJson,
   syncKey
@@ -199,4 +200,118 @@ test("初始化错误可诊断但不回显底层私密请求", () => {
       new Error("https://user:invalid-password@example.test/private")
     )
   ).not.toContain("invalid-password");
+});
+
+test("本机旧提交不阻塞初始化，第三设备未合并提交给出设备名并支持忽略继续，且保留后续三方合并", async () => {
+  const dav = new MemoryDav();
+  const pc = device("pc", dav, [
+    item("第一行\n第二行\n第三行\n"),
+    item("电脑第二篇", "book_second")
+  ]);
+  const phone = device("phone", dav, [item("第一行\n第二行\n第三行\n")]);
+  const space = await connect(pc);
+  await pc.service.sync([], true);
+  await connect(phone, space);
+  await phone.service.sync([], true);
+
+  phone.workspace.set(
+    "book:book_example",
+    item("手机冲突行\n第二行\n第三行\n")
+  );
+  await phone.service.sync();
+
+  const source = pc.metadata()?.deviceId ?? "";
+  const selfPreview = await phone.service.previewInitialization(source);
+  expect(selfPreview.itemCount).toBe(2);
+  await phone.service.initializeFromRemote(selfPreview.token);
+  expect(
+    (await phone.service.status()).items.some(
+      (entry) => entry.dirty || entry.remoteDirty
+    )
+  ).toBe(false);
+  expect((await phone.service.sync()).issues).toEqual([]);
+
+  const third = device("third", dav);
+  await third.service.connect(
+    {
+      schemaVersion: 1,
+      provider: "webdav",
+      endpoint: "https://example.test/dav",
+      username: "test-user",
+      directory: "DeepWriteSync",
+      deviceName: "旧平板",
+      spaceId: space,
+      excludedKeys: []
+    },
+    "invalid-test-password"
+  );
+  await third.service.join(space);
+  await third.service.sync([], true);
+  third.workspace.set("book:book_example", item("第三设备改写"));
+  await third.service.sync();
+
+  await expect(phone.service.previewInitialization(source)).rejects.toThrow(
+    /远端设备（旧平板）还有未合并的版本/
+  );
+  const ignoredPreview = await phone.service.previewInitialization(source, {
+    ignoreOtherDevices: true
+  });
+  expect(ignoredPreview.ignoredDevices).toEqual(["旧平板"]);
+  await phone.service.initializeFromRemote(ignoredPreview.token);
+
+  pc.workspace.set("book:book_example", item("电脑新首行\n第二行\n第三行\n"));
+  phone.workspace.set(
+    "book:book_example",
+    item("第一行\n第二行\n手机新末行\n")
+  );
+  expect((await phone.service.sync()).issues).toEqual([]);
+  expect((await pc.service.sync()).issues).toEqual([]);
+  const synced = await phone.service.sync();
+  expect(synced.issues).toEqual([]);
+  expect(phone.workspace.get("book:book_example")?.files["draft.md"]).toBe(
+    "电脑新首行\n第二行\n手机新末行\n"
+  );
+  expect(pc.workspace.get("book:book_example")?.files["draft.md"]).toBe(
+    "电脑新首行\n第二行\n手机新末行\n"
+  );
+});
+
+test("初始化预览区分网络错误、单作品校验错误并统计跳过的不支持作品", async () => {
+  const { dav, pc, phone, source } = await setup();
+  pc.workspace.set("book:book_unsupported", {
+    ...item("不支持的学术作品", "book_unsupported")
+  });
+  await pc.service.sync();
+  phone.options.workspace.supportsItem = (entry) =>
+    entry.id !== "book_unsupported";
+  const supportedPreview = await phone.service.previewInitialization(source);
+  expect(supportedPreview).toMatchObject({
+    itemCount: 2,
+    skippedUnsupportedCount: 1
+  });
+
+  const originalGet = dav.get.bind(dav);
+  dav.get = async (path) => {
+    if (path.includes("/objects/")) throw new Error("连接网盘超时，请重试。");
+    return originalGet(path);
+  };
+  await expect(phone.service.previewInitialization(source)).rejects.toThrow(
+    "连接网盘超时，请重试。"
+  );
+
+  dav.get = originalGet;
+  phone.options.workspace.validate = async () => {
+    throw new SyncItemValidationError(
+      ["draft.md"],
+      "作品缺少索引引用的文件，请在来源设备更新应用并重新上传。"
+    );
+  };
+  let message = "";
+  try {
+    await phone.service.previewInitialization(source);
+  } catch (error) {
+    message = error instanceof Error ? error.message : "";
+  }
+  expect(message).toContain("远端作品不完整或不兼容（测试作品）");
+  expect(syncErrorMessage(new Error(message))).toBe(message);
 });

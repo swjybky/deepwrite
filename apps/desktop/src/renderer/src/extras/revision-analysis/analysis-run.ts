@@ -8,7 +8,7 @@ import {
 } from "../analysis-ui/localized-text";
 import { createScopedTranslator } from "../../i18n";
 import { computed, ref } from "vue";
-import { createId } from "@deepwrite/shared";
+import { createId, jsonClone } from "@deepwrite/shared";
 import {
   RevisionAnalysisRuntimeContextSchema,
   assertExtrasAgentBudget,
@@ -223,9 +223,7 @@ export function createRevisionAnalysisRun(api: () => DeepWriteApi) {
       { agentId: "revision-analysis", profile, input: context },
       model
     );
-    job = JSON.parse(
-      JSON.stringify({ input: context, profile, model, thinkingLevel })
-    ) as Job;
+    job = jsonClone({ input: context, profile, model, thinkingLevel });
     execute();
   }
   return {

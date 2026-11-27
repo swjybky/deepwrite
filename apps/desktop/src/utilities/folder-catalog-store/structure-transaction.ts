@@ -2,17 +2,17 @@ import { mkdir, unlink } from "node:fs/promises";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { LibraryStructureTransactionJournalSchema as JournalSchema } from "@deepwrite/contracts";
 import {
-  atomicWriteJson,
+  writeBoundedProjectJson,
   readOptionalUtf8File,
   secureProjectRoot
 } from "./paths-io";
 import {
   commitProjectTransaction,
   recoverProjectTransaction,
-  projectTransactionContentSha256 as sha,
   type ProjectTransactionFileOperation
 } from "../project-transaction";
 import { readNoFollowFile } from "../long-project-store/io";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const LIMIT = 128 * 1024 * 1024;
 export interface StructureTransactionRoot {
@@ -29,7 +29,7 @@ async function currentSha(root: string, path: string): Promise<string | null> {
   if (!offset || offset.startsWith("..") || isAbsolute(offset))
     throw new Error("Invalid transaction path.");
   try {
-    return sha(
+    return sha256Hex(
       (await readNoFollowFile(target, LIMIT, "organization file", root)).bytes
     );
   } catch (error) {
@@ -58,7 +58,7 @@ export async function recoverStructureTransaction(
       const current = await currentSha(root, file.path);
       const after =
         file.action === "write"
-          ? sha(file.content)
+          ? sha256Hex(file.content)
           : file.action === "check"
             ? file.expectedSha256
             : null;
@@ -93,6 +93,6 @@ export async function commitStructureTransaction(
     }
   }
   const journal = JournalSchema.parse({ version: 1, roots });
-  await atomicWriteJson(journalPath(userData), journal, LIMIT);
+  await writeBoundedProjectJson(journalPath(userData), journal, LIMIT);
   await recoverStructureTransaction(userData);
 }

@@ -3,7 +3,9 @@ import {
   CommandEnvelopeSchema,
   StorageChangeResultSchema,
   StorageSettingsSnapshotSchema,
-  createEnvelope
+  SystemEventEnvelopeSchema,
+  createEnvelope,
+  stripModelCallSnapshot
 } from "./index";
 
 describe("storage settings contracts", () => {
@@ -42,7 +44,9 @@ describe("storage settings contracts", () => {
     "storageSettings.get",
     "storageSettings.chooseUserData",
     "storageSettings.resetUserData",
-    "storageSettings.resetWorkspaceDirectory"
+    "storageSettings.resetWorkspaceDirectory",
+    "storageSettings.compactConversations",
+    "storageSettings.releaseConversationBackup"
   ])(
     "registers %s and prevents renderer-supplied destination paths",
     (type) => {
@@ -88,5 +92,56 @@ describe("storage settings contracts", () => {
         ).success
       ).toBe(false);
     }
+  });
+
+  it("validates conversationCompaction status, event envelope, and snapshot stripping", () => {
+    const status = {
+      phase: "completed_with_backup" as const,
+      legacyCallsFound: 120,
+      estimatedReclaimableBytes: 50_000_000,
+      processedSessions: 12,
+      totalSessions: 12,
+      bytesBefore: 60_000_000,
+      bytesAfter: 2_000_000,
+      backupBytes: 60_000_000,
+      netFreedBytes: -2_000_000,
+      canRetry: false,
+      canReleaseBackup: true,
+      canRollback: true,
+      backupPath: "/tmp/conversations.sqlite.bak-v190"
+    };
+    const event = createEnvelope(
+      "rendererState.compactionUpdated",
+      { status },
+      { id: "evt-1" }
+    );
+    expect(SystemEventEnvelopeSchema.parse(event)).toEqual(event);
+
+    const stripped = stripModelCallSnapshot({
+      requestId: "req-1",
+      sequence: 1,
+      requestedProvider: "openai",
+      requestedModel: "gpt-4o",
+      responseModel: null,
+      responseModelEvidence: "unknown",
+      startedAt: new Date().toISOString(),
+      status: "completed",
+      snapshot: {
+        systemPrompt: "secret prompt",
+        messages: [{ role: "user", content: "hi" }],
+        tools: []
+      },
+      inputSummary: {
+        systemPromptChars: 13,
+        messageCount: 1,
+        toolCount: 0
+      }
+    });
+    expect("snapshot" in stripped).toBe(false);
+    expect(stripped.inputSummary).toEqual({
+      systemPromptChars: 13,
+      messageCount: 1,
+      toolCount: 0
+    });
   });
 });

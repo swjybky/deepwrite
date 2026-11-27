@@ -1,13 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
-import {
-  chmod,
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  writeFile
-} from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
   MODEL_USAGE_MODULES,
   ModelConfigSchema,
@@ -28,6 +21,8 @@ import {
   type ModelUsageTotals,
   type ModelUsageTrendGranularity
 } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
+import { writeJsonAtomic, isNodeError } from "@deepwrite/shared/node";
 
 interface DiskModelUsageRegistry {
   version: 2;
@@ -85,19 +80,6 @@ const EMPTY_LEDGER: DiskModelUsageLedger = {
   recentRecords: [],
   rollups: []
 };
-
-function isNodeError(error: unknown, code: string): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === code
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function toTimestamp(value: string): number {
   return Date.parse(value);
@@ -434,22 +416,6 @@ function compareRecords(
   const timeDifference =
     toTimestamp(left.occurredAt) - toTimestamp(right.occurredAt);
   return timeDifference || left.id.localeCompare(right.id);
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600
-    });
-    await chmod(temporary, 0o600);
-    await rename(temporary, path);
-    await chmod(path, 0o600);
-  } finally {
-    await rm(temporary, { force: true }).catch(() => undefined);
-  }
 }
 
 export function createModelUsageRevisionId(
@@ -811,7 +777,9 @@ export class ModelUsageStore {
   }
 
   private async writeRegistry(registry: DiskModelUsageRegistry): Promise<void> {
-    await atomicWriteJson(this.registryPath, registry);
+    await writeJsonAtomic(this.registryPath, registry, {
+      directoryMode: 0o700
+    });
   }
 
   private async readLedger(): Promise<DiskModelUsageLedger> {
@@ -828,6 +796,6 @@ export class ModelUsageStore {
   }
 
   private async writeLedger(ledger: DiskModelUsageLedger): Promise<void> {
-    await atomicWriteJson(this.ledgerPath, ledger);
+    await writeJsonAtomic(this.ledgerPath, ledger, { directoryMode: 0o700 });
   }
 }

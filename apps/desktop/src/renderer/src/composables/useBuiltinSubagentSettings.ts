@@ -6,6 +6,7 @@ import type {
 } from "@deepwrite/contracts/renderer";
 import { useSettingsStore } from "../stores/settingsStore";
 import { uiMessage } from "../ui-feedback";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.builtinSubagentSettings");
 
@@ -24,7 +25,7 @@ export function useBuiltinSubagentSettings() {
     domain: keyof BuiltinSubagentSettings,
     enabled: boolean
   ): Promise<void> {
-    const api = window.deepwrite;
+    const api = deepwriteApi();
     const catalog = settings.agentTeamCatalog;
     if (!api || !catalog || settings.agentTeamSaving) return;
     const revision = ++enabledRevision;

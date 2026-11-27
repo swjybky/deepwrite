@@ -1,5 +1,6 @@
 import { handleConversationHistoryCommand } from "./conversation-history-commands";
 import {
+  ConversationCompactionStatusSchema,
   RendererStateLoadResultSchema,
   RendererStateMutationResultSchema,
   RendererStateHistoryKeysResultSchema,
@@ -60,6 +61,37 @@ export async function handleRendererStateCommand(
       status: "accepted",
       requestId: command.id,
       payload: RendererStateMutationResultSchema.parse({ ok: true })
+    };
+  }
+  if (command.type === "rendererState.compactionStatus") {
+    return {
+      status: "accepted",
+      requestId: command.id,
+      payload: ConversationCompactionStatusSchema.parse(
+        await rendererStateStore.compactionStatus()
+      )
+    };
+  }
+  if (command.type === "rendererState.compactConversations") {
+    return {
+      status: "accepted",
+      requestId: command.id,
+      payload: ConversationCompactionStatusSchema.parse(
+        await rendererStateStore.compactConversations(
+          command.payload.force === undefined
+            ? {}
+            : { force: command.payload.force }
+        )
+      )
+    };
+  }
+  if (command.type === "rendererState.releaseCompactionBackup") {
+    return {
+      status: "accepted",
+      requestId: command.id,
+      payload: ConversationCompactionStatusSchema.parse(
+        await rendererStateStore.releaseCompactionBackup()
+      )
     };
   }
   return undefined;

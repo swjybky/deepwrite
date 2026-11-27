@@ -2,11 +2,11 @@ import type { ProjectTransactionFileOperation } from "../../project-transaction"
 import {
   commitLongProjectTransaction,
   readSecureTextFile,
-  serializeJson,
   unknownRecord
 } from "../io";
 import { MANIFEST_PATH, MAX_LEDGER_RECORD_BYTES } from "../types";
 import { stripLegacyLongVersionMetadata } from "../../long-version-metadata";
+import { toJsonFileText } from "@deepwrite/shared";
 
 interface VersionMetadataMigrationInput {
   projectDirectory: string;
@@ -29,13 +29,13 @@ export async function migrateLegacyLongVersionMetadata(
   if (manifest.changed) {
     operations.push({
       path: MANIFEST_PATH,
-      content: serializeJson(manifest.value)
+      content: toJsonFileText(manifest.value)
     });
   }
   if (index.changed) {
     operations.push({
       path: indexPath(input.rawManifest),
-      content: serializeJson(index.value)
+      content: toJsonFileText(index.value)
     });
   }
 
@@ -60,7 +60,7 @@ export async function migrateLegacyLongVersionMetadata(
       stripRollbackState: true
     });
     if (record.changed) {
-      operations.push({ path, content: serializeJson(record.value) });
+      operations.push({ path, content: toJsonFileText(record.value) });
     }
   }
 

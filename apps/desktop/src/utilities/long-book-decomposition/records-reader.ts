@@ -12,7 +12,6 @@ import type { LongWorkspaceService } from "../long-workspace-service";
 import { readNoFollowFile } from "../long-project-store/io";
 import { recoverProjectTransaction } from "../project-transaction";
 import { decompositionLongFiles } from "./record-files";
-import { decompositionSha } from "./content-guard";
 import { decompositionReceiptId } from "./identity";
 import {
   decompositionContentReads,
@@ -24,6 +23,7 @@ import {
   decompositionUnitIsRecordOnly,
   type DecompositionRecordStore
 } from "./record-store";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export class DecompositionRecordsReader {
   constructor(
@@ -283,7 +283,7 @@ export class DecompositionRecordsReader {
         throw new Error(
           `decomposition.conflict: 真实对象已移除：${ref.resourceId}`
         );
-      return decompositionSha(JSON.stringify(object));
+      return sha256Hex(JSON.stringify(object));
     }
     throw new Error("目标不存在。");
   }

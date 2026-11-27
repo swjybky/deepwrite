@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { jsonClone } from "@deepwrite/shared";
 import { computed, ref, useId, watch } from "vue";
 import { createId } from "@deepwrite/shared";
 import type { BookIdentityField } from "@deepwrite/contracts/renderer";
@@ -28,10 +29,7 @@ const currentDrafts = computed(() => drafts.value[field.value]);
 watch(
   () => props.open,
   (open) => {
-    if (open)
-      drafts.value = JSON.parse(
-        JSON.stringify(props.catalogs)
-      ) as IdentityProfileCatalogs;
+    if (open) drafts.value = jsonClone(props.catalogs);
   },
   { immediate: true }
 );
@@ -39,15 +37,14 @@ for (const value of fields)
   watch(
     () => props.catalogs[value],
     (profiles) => {
-      if (props.open)
-        drafts.value[value] = JSON.parse(JSON.stringify(profiles));
+      if (props.open) drafts.value[value] = jsonClone(profiles);
     }
   );
 function add() {
   const first = currentDrafts.value[0];
   if (first && currentDrafts.value.length < 20)
     currentDrafts.value.push({
-      ...JSON.parse(JSON.stringify(first)),
+      ...jsonClone(first),
       id: createId("identity_profile"),
       name: t("newProfile"),
       builtin: false

@@ -295,3 +295,43 @@ it("未被同步修改的文件发生外部编辑时仍拒绝事务，保留新�
     await readFile(join(f.projectDirectory, chapter.card.path), "utf8")
   ).toBe(f.item.files[chapter.card.path]);
 });
+
+it("删除意图在注销阶段失败时将目录从恢复区移回原位，不遗留不可用注册项", async () => {
+  const f = await fixture();
+  const created = await f.catalog.createLibrary({
+    domain: "skill",
+    name: "待同步删除技能库",
+    skillKind: "general",
+    parentDirectory: join(f.root, "skills")
+  });
+  const skillItem = (await desktopSyncInventory(f.userDataPath)).items.find(
+    (item) => item.id === created.resource.id
+  )!;
+  const removal = join(
+    f.userDataPath,
+    "device-sync-recovery",
+    "failed-removal"
+  );
+  await writeFile(
+    f.intentPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      key: syncKey(skillItem),
+      root: created.projectDirectory,
+      item: null,
+      previous: skillItem,
+      removal
+    })
+  );
+  vi.spyOn(f.catalog, "unregisterProject").mockRejectedValueOnce(
+    new Error("模拟注销失败")
+  );
+  await expect(f.workspace.recover()).rejects.toBeInstanceOf(
+    DeviceSyncRecoveryPausedError
+  );
+  await expect(f.workspace.recover()).resolves.toBeUndefined();
+  await expect(lstat(created.projectDirectory)).resolves.toBeDefined();
+  await expect(lstat(removal)).rejects.toMatchObject({ code: "ENOENT" });
+  expect((await f.catalog.indexSnapshot()).projectDiagnostics).toBeUndefined();
+  expect((await desktopSyncInventory(f.userDataPath)).issues).toEqual([]);
+});

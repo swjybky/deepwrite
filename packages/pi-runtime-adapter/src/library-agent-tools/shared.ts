@@ -3,12 +3,7 @@ import {
   type LibraryDomain,
   type MutableLibraryEntry
 } from "./types";
-import {
-  type AgentToolResult,
-  type AgentTool
-} from "@earendil-works/pi-agent-core";
-import { Type, type Static } from "@earendil-works/pi-ai";
-import { piStrictToolSampling } from "../pi-tool-schema";
+import { type AgentToolResult } from "@earendil-works/pi-agent-core";
 import { LIBRARY_AGENT_ENTRY_MAX_CHARACTERS } from "@deepwrite/contracts";
 
 export const MATERIAL_STAGE_LABELS: Record<string, string> = {
@@ -36,32 +31,7 @@ export function textResult(
   return { content: [{ type: "text", text }], details };
 }
 
-export function defineTool<
-  T extends ReturnType<typeof Type.Object>
->(definition: {
-  name: string;
-  label: string;
-  description: string;
-  parameters: T;
-  execute: (
-    toolCallId: string,
-    params: Static<T>,
-    signal?: AbortSignal
-  ) => Promise<AgentToolResult<LibraryAgentToolDetails>>;
-  executionMode?: AgentTool["executionMode"];
-}): AgentTool<T, LibraryAgentToolDetails> {
-  return {
-    name: definition.name,
-    label: definition.label,
-    description: definition.description,
-    parameters: definition.parameters,
-    ...piStrictToolSampling(definition.parameters),
-    execute: definition.execute,
-    ...(definition.executionMode
-      ? { executionMode: definition.executionMode }
-      : {})
-  };
-}
+export { defineTool } from "../kernel/define-tool";
 
 export function normalizedName(value: string): string {
   return value.trim().replace(/\s+/gu, " ");

@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 import { inflateRawSync } from "node:zlib";
+import { isRecord } from "@deepwrite/shared";
 
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
@@ -23,10 +24,6 @@ export interface LegacyZipArchive {
   sizeOf(name: string): number | undefined;
   read(name: string): Buffer | undefined;
   readJsonObject(name: string): Record<string, unknown> | undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function checkedRange(

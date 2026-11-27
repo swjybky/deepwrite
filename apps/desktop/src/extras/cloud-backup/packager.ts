@@ -10,6 +10,7 @@ import { createZip, readZip, type ZipEntryInput } from "./zip";
 import type { LocalBackupProject } from "./catalog-reader";
 import { hashProjectFiles, toManifestItems } from "./catalog-reader";
 import { backupItemKey } from "./diff";
+import { formatBytes } from "@deepwrite/shared";
 
 export interface CloudBackupSnapshotManifest {
   version: typeof CLOUD_BACKUP_MANIFEST_VERSION;
@@ -158,10 +159,4 @@ export function readBackupSnapshot(
     projects.set(key, files);
   }
   return projects;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

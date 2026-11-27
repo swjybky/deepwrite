@@ -1,4 +1,0 @@
-interface:
-  display_name: "打包补丁版本并发布"
-  short_description: "递增补丁版本、清理旧产物、验证测试包并按需发布 GitHub Release"
-  default_prompt: "使用 $package-patch-release 将 DeepWrite 提高一个补丁版本并打包，按我的要求决定是否发布 GitHub Release。"

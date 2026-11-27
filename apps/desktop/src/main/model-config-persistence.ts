@@ -1,6 +1,6 @@
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { randomHex8 } from "@deepwrite/shared";
+import { randomHex8, isRecord } from "@deepwrite/shared";
 import {
   normalizeDiskModelSettings,
   type DiskModelSettings
@@ -14,10 +14,6 @@ export interface DiskModelSecrets {
 export interface ModelConfigState {
   settings: DiskModelSettings;
   secrets: DiskModelSecrets;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function legacySecrets(raw: unknown): DiskModelSecrets {

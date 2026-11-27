@@ -3,7 +3,7 @@ import { createScopedTranslator } from "../i18n";
 import type { CatalogResourceNodeAction } from "../types/workspace";
 import AppIcon from "./AppIcon.vue";
 
-defineProps<{ unavailable?: boolean }>();
+defineProps<{ unavailable?: boolean; readOnly?: boolean }>();
 defineEmits<{ action: [action: CatalogResourceNodeAction] }>();
 
 const t = createScopedTranslator("components.treeNodeItem");
@@ -11,6 +11,7 @@ const t = createScopedTranslator("components.treeNodeItem");
 
 <template>
   <button
+    v-if="!readOnly"
     class="tree-node-action-menu-item"
     type="button"
     role="menuitem"
@@ -40,6 +41,7 @@ const t = createScopedTranslator("components.treeNodeItem");
     <span>{{ t("export") }}</span>
   </button>
   <button
+    v-if="!readOnly"
     class="tree-node-action-menu-item"
     type="button"
     role="menuitem"
@@ -49,7 +51,7 @@ const t = createScopedTranslator("components.treeNodeItem");
     <span>{{ t("ungroup") }}</span>
   </button>
   <button
-    v-if="!unavailable"
+    v-if="!readOnly && !unavailable"
     class="tree-node-action-menu-item is-danger"
     type="button"
     role="menuitem"

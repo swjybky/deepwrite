@@ -1,5 +1,6 @@
 import {
   ExternalWindowRequestSchema,
+  type ExternalControlErrorCode,
   type ExternalWindowRequest,
   type ExternalWindowResponse
 } from "@deepwrite/contracts/external-control";
@@ -59,6 +60,12 @@ export function createWindowRequests(options: WindowRequestOptions) {
       if (response.ok) call.resolve(response.result);
       else {
         call.reject(new ExternalControlError(response.code, response.message));
+      }
+    },
+    failAll(code: ExternalControlErrorCode, message: string): void {
+      for (const [id, call] of pending) {
+        pending.delete(id);
+        call.reject(new ExternalControlError(code, message));
       }
     }
   };

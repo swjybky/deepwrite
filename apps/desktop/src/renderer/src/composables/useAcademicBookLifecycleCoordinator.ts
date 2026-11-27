@@ -23,6 +23,7 @@ import {
   type AcademicManuscriptExportRequest
 } from "../utils/academicManuscriptExport";
 import { uiMessage } from "../ui-feedback";
+import { deepwriteApi } from "../api/deepwrite";
 
 export type AcademicCatalogIndexBook = Extract<
   CatalogIndexBook,
@@ -38,7 +39,7 @@ export function findAcademicIndexBook(
 }
 
 function resolveCatalogApi(): DeepWriteApi["catalog"] | undefined {
-  return getAcademicLifecyclePort()?.api() ?? window.deepwrite?.catalog;
+  return getAcademicLifecyclePort()?.api() ?? deepwriteApi()?.catalog;
 }
 
 function isCiteKeyConflictError(error: unknown): boolean {
@@ -436,7 +437,7 @@ export async function executeExportAcademicManuscript(
   if (academicExportPending.value || port?.manuscriptExportPending?.value) {
     return false;
   }
-  const manuscriptApi = port?.manuscriptApi?.() ?? window.deepwrite?.manuscript;
+  const manuscriptApi = port?.manuscriptApi?.() ?? deepwriteApi()?.manuscript;
   if (!manuscriptApi) return false;
   if (request.sectionIds.length === 0) {
     uiMessage.warning(academicT("exportSelectAtLeastOneSection"));

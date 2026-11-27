@@ -26,7 +26,6 @@ import {
   type WorkspaceType
 } from "@deepwrite/contracts";
 import {
-  atomicWriteWorkspaceAgentJson,
   cloneProfile,
   cloneReadAccess,
   cloneScriptProfile,
@@ -46,6 +45,7 @@ import {
   normalizeShortWorkspaceAgentDisk
 } from "./workspace-agent-config-normalization";
 import { mergeSettingsById, sameSettingsValue } from "./merge-agent-settings";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 interface DiskWorkspaceAgentSettings {
   version: 5;
@@ -406,7 +406,7 @@ export class WorkspaceAgentConfigStore {
       defaultPlotStageIds: [...input.defaultPlotStageIds],
       agents: input.agents
     };
-    await atomicWriteWorkspaceAgentJson(this.shortSettingsPath, disk);
+    await writeJsonAtomic(this.shortSettingsPath, disk);
   }
 
   private async writeScriptInput(
@@ -417,6 +417,6 @@ export class WorkspaceAgentConfigStore {
       workspaceType: "script",
       agents: input.agents
     };
-    await atomicWriteWorkspaceAgentJson(this.scriptSettingsPath, disk);
+    await writeJsonAtomic(this.scriptSettingsPath, disk);
   }
 }

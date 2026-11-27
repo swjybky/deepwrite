@@ -16,6 +16,7 @@ import {
   AppearanceFontRuntime,
   createBrowserAppearanceFontRuntime
 } from "./appearanceFontRuntime";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.appearanceFonts");
 
@@ -75,7 +76,7 @@ function emptyCatalog(): AppearanceFontCatalogSnapshot {
 
 export function hydrateAppearanceFontCatalog(): Promise<boolean> {
   hydratePromise ??= (async () => {
-    const api = window.deepwrite?.appearance.fonts;
+    const api = deepwriteApi()?.appearance.fonts;
     if (!api) {
       replaceCatalog(emptyCatalog());
       state.ready = true;
@@ -107,7 +108,7 @@ export async function ensureAppearanceFontLoaded(rawId: string): Promise<void> {
 }
 
 async function cleanupFailedInstall(id: AppearanceCustomFontId): Promise<void> {
-  const api = window.deepwrite?.appearance.fonts;
+  const api = deepwriteApi()?.appearance.fonts;
   if (!api) return;
   try {
     const result = await api.remove(id);
@@ -118,7 +119,7 @@ async function cleanupFailedInstall(id: AppearanceCustomFontId): Promise<void> {
 }
 
 export async function installAppearanceFonts(): Promise<AppearanceFontInstallOutcome> {
-  const api = window.deepwrite?.appearance.fonts;
+  const api = deepwriteApi()?.appearance.fonts;
   if (!api) throw new Error(t("fontImportIsNotAvailableInThisEnvironment"));
   state.installing = true;
   try {
@@ -177,7 +178,7 @@ export async function removeAppearanceFont(
   rawId: string
 ): Promise<AppearanceFontRemoveResult> {
   const id = AppearanceCustomFontIdSchema.parse(rawId);
-  const api = window.deepwrite?.appearance.fonts;
+  const api = deepwriteApi()?.appearance.fonts;
   if (!api) throw new Error(t("fontDeletionIsNotAvailableInThisEnvironment"));
   if (!state.removingIds.includes(id)) state.removingIds.push(id);
   try {

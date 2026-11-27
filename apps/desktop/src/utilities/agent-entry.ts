@@ -2,17 +2,23 @@ import { createBookIdentityService } from "./agent-book-identity-service";
 import {
   ModelCapacityResultSchema,
   ModelConnectionTestResultSchema,
+  ModelTestCancelResultSchema,
   SessionPromptAcceptedPayloadSchema,
   type CommandResult,
   type ExtrasAgentRunSpec
 } from "@deepwrite/contracts";
-import { PiAgentRuntimeAdapter } from "@deepwrite/pi-runtime-adapter";
+import {
+  ModelConnectionTestCancelledError,
+  ModelConnectionTestTimeoutError,
+  PiAgentRuntimeAdapter
+} from "@deepwrite/pi-runtime-adapter";
 import { nowIso } from "@deepwrite/shared";
 import {
   createAgentRunInput,
   createCoreCommandExecutor
 } from "./agent-run-input";
 import { handleAgentRunControl } from "./agent-run-control";
+import { AgentModelTestRegistry } from "./agent-model-test-registry";
 import { AgentRunRegistry } from "./agent-run-registry";
 import { createDecompositionServices } from "./agent-decomposition-services";
 import { bootUtility } from "./runtime";
@@ -33,18 +39,82 @@ const runtime = new PiAgentRuntimeAdapter({
   evaluationMode: process.env.DEEPWRITE_APP_MODE === "evaluation"
 });
 const runs = new AgentRunRegistry();
+const modelTests = new AgentModelTestRegistry();
 
 bootUtility("agent", {
   mode: "pi-agent-provider",
   async commandHandler(command, emitEvent, context): Promise<CommandResult> {
     if (command.type === "agent.model_test") {
-      const result = ModelConnectionTestResultSchema.parse(
-        await runtime.testConnection(command.payload.runtimeConfig)
-      );
+      const testRequestId = command.payload.requestId ?? command.id;
+      const testRun = modelTests.begin(testRequestId);
+      if (!testRun) {
+        return {
+          status: "rejected",
+          requestId: command.id,
+          error: {
+            code: "models.test_duplicate_request",
+            message: "该模型连接测试请求已在进行中。"
+          }
+        };
+      }
+      try {
+        const result = ModelConnectionTestResultSchema.parse(
+          await runtime.testConnection(command.payload.runtimeConfig, {
+            signal: testRun.signal
+          })
+        );
+        if (modelTests.wasCancelled(testRequestId)) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.test_cancelled",
+              message: "模型连接测试已取消。"
+            }
+          };
+        }
+        return {
+          status: "accepted",
+          requestId: command.id,
+          payload: result
+        };
+      } catch (error: unknown) {
+        if (
+          modelTests.wasCancelled(testRequestId) ||
+          error instanceof ModelConnectionTestCancelledError
+        ) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.test_cancelled",
+              message: "模型连接测试已取消。"
+            }
+          };
+        }
+        if (error instanceof ModelConnectionTestTimeoutError) {
+          return {
+            status: "rejected",
+            requestId: command.id,
+            error: {
+              code: "models.test_timeout",
+              message: error.message
+            }
+          };
+        }
+        throw error;
+      } finally {
+        modelTests.finish(testRequestId);
+      }
+    }
+
+    if (command.type === "agent.model_test_cancel") {
       return {
         status: "accepted",
         requestId: command.id,
-        payload: result
+        payload: ModelTestCancelResultSchema.parse({
+          cancelled: modelTests.cancel(command.payload.requestId)
+        })
       };
     }
 
@@ -137,5 +207,8 @@ bootUtility("agent", {
       payload: accepted
     };
   },
-  onShutdown: () => runs.shutdown()
+  onShutdown: () => {
+    modelTests.abortAll();
+    return runs.shutdown();
+  }
 });

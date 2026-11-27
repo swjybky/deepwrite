@@ -5,7 +5,8 @@ import {
   type WebSearchProviderClient
 } from "../types";
 import { deepSeekWebFetch } from "./deepseek-fetch";
-import { httpUrl, isRecord, requestJson } from "./http";
+import { httpUrl, requestJson } from "./http";
+import { isRecord } from "@deepwrite/shared";
 
 /** https://api-docs.deepseek.com/zh-cn/api/search */
 const SEARCH_PATH = "/v1/tools/search";

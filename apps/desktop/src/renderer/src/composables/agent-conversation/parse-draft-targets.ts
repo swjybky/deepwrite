@@ -1,6 +1,7 @@
 import { DraftSectionChangeSchema } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
-import { isRecord, nonnegativeInteger } from "./shared";
+import { nonnegativeInteger } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 export function parseStoredDraftSectionCreationTarget(
   value: unknown
 ): AgentEditProposal["draftSectionCreationTarget"] | undefined {

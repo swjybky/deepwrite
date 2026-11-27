@@ -27,6 +27,11 @@ export function bridgeClientConfigs(
     args: connection.args,
     env: { ELECTRON_RUN_AS_NODE: "1" }
   };
+  const jsonConfig = JSON.stringify(
+    { mcpServers: { [SERVER_NAME]: server } },
+    null,
+    2
+  );
   const yamlArgs = connection.args.map((arg) => `          - ${quoted(arg)}`);
   return [
     {
@@ -76,25 +81,20 @@ export function bridgeClientConfigs(
       label: "Kimi Code",
       kind: "file",
       file: "~/.kimi-code/mcp.json",
-      text: JSON.stringify({ mcpServers: { [SERVER_NAME]: server } }, null, 2)
+      text: jsonConfig
+    },
+    {
+      id: "antigravity",
+      label: "Antigravity",
+      kind: "file",
+      file: "~/.gemini/config/mcp_config.json",
+      text: jsonConfig
     },
     {
       id: "generic",
       label: "JSON",
       kind: "file",
-      text: JSON.stringify(
-        {
-          mcpServers: {
-            [SERVER_NAME]: {
-              command: connection.command,
-              args: connection.args,
-              env: { ELECTRON_RUN_AS_NODE: "1" }
-            }
-          }
-        },
-        null,
-        2
-      )
+      text: jsonConfig
     }
   ];
 }

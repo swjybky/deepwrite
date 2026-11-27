@@ -7,11 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { validatePortableAndCanonicalPaths } from "./integrity";
-import {
-  commitLongProjectTransaction,
-  secureDirectory,
-  serializeJson
-} from "./io";
+import { commitLongProjectTransaction, secureDirectory } from "./io";
 import { loadProject } from "./load-project";
 import { indexedFileSlots } from "./paths";
 import { revertJson } from "./restore-merge";
@@ -23,6 +19,7 @@ import {
 } from "./restore-points";
 import type { LongProjectStoreContext } from "./store-context";
 import { MANIFEST_PATH, MAX_LEDGER_RECORD_BYTES } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 const MAX_LISTED_CONFLICTS = 3;
 
@@ -113,8 +110,8 @@ export async function restoreWorkspaceOperations(
       projectRoot: root,
       operations: [
         ...fileOperations,
-        { path: LONG_WORKSPACE_INDEX_PATH, content: serializeJson(nextIndex) },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: LONG_WORKSPACE_INDEX_PATH, content: toJsonFileText(nextIndex) },
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });

@@ -94,7 +94,11 @@ describe("subagent material context", () => {
       .find((tool) => tool.name === "spawn_subagent")!
       .execute("call", { subagent_id: "writer", task: "检查人物" } as never);
     const context = runtime.contexts[0]!;
+    expect(context.messages).toHaveLength(1);
+    expect(context.messages[0]?.role).toBe("user");
     const text = JSON.stringify(context.messages);
+    expect(text).toContain("【本轮可按需读取的素材上下文】");
+    expect(text).toContain("【本轮委派任务（请立即执行）】");
     expect(text).toContain("人物参考");
     expect(text).toContain("character-reference");
     expect(text).toContain("测试读取提示");
@@ -107,5 +111,46 @@ describe("subagent material context", () => {
       "query_linked_material_entries"
     );
     expect(context.tools?.map((tool) => tool.name)).not.toContain("load_skill");
+  });
+
+  it("omits empty material context when no materials or notices exist", async () => {
+    const runtime = harness();
+    const tools = buildRunTools(
+      {
+        sessionId: "session",
+        runId: "run",
+        prompt: "父对话",
+        agentProfile: shortProfile(),
+        subagentDefinitions: [definition],
+        workspaceContext: {
+          shortWorkspace: shortWorkspace("character_design")
+        }
+      },
+      {
+        ...runtime,
+        parentRuntime: {
+          provider: "test",
+          model: "test-model",
+          mode: "provider"
+        },
+        thinkingLevel: "off",
+        toolExecutionHooks: {},
+        requestUserInput: vi.fn(),
+        getParentMessages: () => [],
+        portableToolSchemaProfile: "writing-workspace"
+      }
+    );
+    await tools
+      .find((tool) => tool.name === "spawn_subagent")!
+      .execute("call", { subagent_id: "writer", task: "检查人物" } as never);
+    const context = runtime.contexts[0]!;
+    expect(context.messages).toHaveLength(1);
+    expect(context.messages[0]).toMatchObject({
+      role: "user",
+      content: "检查人物"
+    });
+    expect(JSON.stringify(context.messages)).not.toContain(
+      "当前读取范围内的关联素材"
+    );
   });
 });

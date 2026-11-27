@@ -70,7 +70,6 @@ function detail(item: Item): string {
         ? t("taskSaved")
         : t("taskAwaitingSave");
   }
-  return "";
 }
 function elapsed(item: Item): string {
   if (!item.started || item.state === "queued") return "—";

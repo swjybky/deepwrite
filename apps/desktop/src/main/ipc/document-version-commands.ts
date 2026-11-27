@@ -19,6 +19,7 @@ import {
   type UtilitySupervisor
 } from "../supervisor";
 import { safeErrorDetails } from "./errors";
+import { rejectedResult } from "./errors";
 
 export function filterVersionOrigin(
   command: CommandEnvelope,
@@ -59,11 +60,7 @@ export async function handleDocumentVersionCommands(
   )
     return undefined;
   if (!context.versionHistoryEnabled) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: { code: "version.disabled", message: "版本控制已关闭。" }
-    };
+    return rejectedResult(command.id, "version.disabled", "版本控制已关闭。");
   }
   if (
     command.type === "versions.restore" &&
@@ -73,14 +70,11 @@ export async function handleDocumentVersionCommands(
       [command.payload.target.bookId]
     )
   ) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "version.busy",
-        message: "智能体正在修改这部作品，请等运行结束后再回退。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "version.busy",
+      "智能体正在修改这部作品，请等运行结束后再回退。"
+    );
   }
   try {
     const result = await context.supervisor.requestCommand(
@@ -97,22 +91,17 @@ export async function handleDocumentVersionCommands(
           : RestoreDocumentVersionResultSchema.parse(result.payload);
     return { status: "accepted", requestId: command.id, payload };
   } catch (error: unknown) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code:
-          error instanceof UtilityCommandTimeoutError
-            ? "version.command_timeout"
-            : "version.forward_failed",
-        message:
-          error instanceof UtilityCommandTimeoutError
-            ? catalogCommandTimeoutMessage(command.type)
-            : error instanceof Error
-              ? error.message
-              : "版本操作失败。",
-        details: safeErrorDetails(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      error instanceof UtilityCommandTimeoutError
+        ? "version.command_timeout"
+        : "version.forward_failed",
+      error instanceof UtilityCommandTimeoutError
+        ? catalogCommandTimeoutMessage(command.type)
+        : error instanceof Error
+          ? error.message
+          : "版本操作失败。",
+      safeErrorDetails(error)
+    );
   }
 }

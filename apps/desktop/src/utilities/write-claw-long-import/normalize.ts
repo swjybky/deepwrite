@@ -1,14 +1,11 @@
-import { createHash } from "node:crypto";
+import { isRecord, toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const MAX_IMPORTED_TEXT_DOCUMENT_BYTES = 28 * 1024 * 1024;
 const MAX_MIGRATION_WARNINGS = 10_000;
 const MAX_MIGRATION_WARNING_CHARACTERS = 4_000;
 const MIGRATION_WARNING_OVERFLOW =
   "迁移过程中还有更多重复或次要警告；已达到 10,000 条返回上限。原始导入文件未被修改，已生成的迁移证据仍保留在项目中。";
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function record(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
@@ -41,14 +38,6 @@ export function normalizeTimestamp(value: unknown, fallback: string): string {
 export function normalizeImportedAt(value: string | undefined): string {
   const fallback = new Date().toISOString();
   return normalizeTimestamp(value, fallback);
-}
-
-export function serializeJson(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-export function contentSha256(content: string | Uint8Array): string {
-  return createHash("sha256").update(content).digest("hex");
 }
 
 export class WarningCollector {
@@ -119,7 +108,7 @@ export class WarningCollector {
       {
         title: "迁移决策完整审计日志",
         source: "migration.decisions.json",
-        content: serializeJson({
+        content: toJsonFileText({
           schema: "deepwrite.write-claw-migration-decisions",
           schemaVersion: 1,
           decisions: this.decisions
@@ -254,7 +243,7 @@ export class DeterministicIdRegistry {
       occurrence === 1
         ? `${this.namespace}\0${kind}\0${externalKey}`
         : `${this.namespace}\0${kind}\0${externalKey}\0duplicate-${occurrence}`;
-    const id = `${prefix}_legacy-${contentSha256(seed).slice(0, 24)}`;
+    const id = `${prefix}_legacy-${sha256Hex(seed).slice(0, 24)}`;
     if (!this.firstByKindAndLegacy.has(internalKey)) {
       this.firstByKindAndLegacy.set(internalKey, id);
       const map = this.exportMap.get(kind) ?? new Map<string, string>();

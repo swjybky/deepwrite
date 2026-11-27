@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { EnvelopeBaseSchema } from "../envelope";
 import { LongBookAnalysisSourceSchema } from "../long-book-analysis-sources";
-import { ThinkingLevelSchema } from "../models";
 import { DecompositionSubmissionDataSchema } from "./assets";
 import {
   ConfirmLongBookSourceInputSchema,
@@ -9,11 +8,15 @@ import {
   SaveLongBookSourceInputSchema
 } from "./source-confirmation";
 import {
+  DecompositionModelSelectionSchema,
+  DecompositionResolvedModelsSchema,
   DecompositionTaskInputSchema,
-  LongBookDecompositionJobSchema
+  LongBookDecompositionJobSchema,
+  validateDecompositionModelChains
 } from "./job";
 import {
   DECOMPOSITION_DEFAULT_CONCURRENCY,
+  DECOMPOSITION_MAX_FALLBACK_MODELS,
   DecompositionConcurrencySchema,
   DecompositionIdSchema
 } from "./limits";
@@ -22,22 +25,31 @@ import { DecompositionRegistryDataSchema } from "./registry";
 import { DecompositionTargetSelectionSchema } from "./target";
 import { DecompositionUsageSchema } from "./usage-schema";
 
+export const DecompositionModelsInputSchema = z
+  .object({
+    reading: DecompositionModelSelectionSchema,
+    integration: DecompositionModelSelectionSchema,
+    readingFallbacks: z
+      .array(DecompositionModelSelectionSchema)
+      .max(DECOMPOSITION_MAX_FALLBACK_MODELS)
+      .optional(),
+    integrationFallbacks: z
+      .array(DecompositionModelSelectionSchema)
+      .max(DECOMPOSITION_MAX_FALLBACK_MODELS)
+      .optional()
+  })
+  .superRefine(validateDecompositionModelChains);
+export type DecompositionModelsInput = z.infer<
+  typeof DecompositionModelsInputSchema
+>;
+
 export const CreateDecompositionJobInputSchema = z
   .object({
     confirmation: DecompositionSourceConfirmationSchema,
     profileId: DecompositionIdSchema,
     mode: z.enum(["continuation", "materials"]),
     targetSelection: DecompositionTargetSelectionSchema,
-    models: z.object({
-      reading: z.object({
-        modelId: z.string().min(1).max(120),
-        thinkingLevel: ThinkingLevelSchema
-      }),
-      integration: z.object({
-        modelId: z.string().min(1).max(120),
-        thinkingLevel: ThinkingLevelSchema
-      })
-    }),
+    models: DecompositionModelsInputSchema,
     autoContinue: z.boolean().default(false),
     maxConcurrency: DecompositionConcurrencySchema.default(
       DECOMPOSITION_DEFAULT_CONCURRENCY
@@ -52,6 +64,13 @@ export const CreateDecompositionJobInputSchema = z
   );
 export type CreateDecompositionJobInput = z.infer<
   typeof CreateDecompositionJobInputSchema
+>;
+export const UpdateDecompositionModelsInputSchema = z.object({
+  jobId: DecompositionIdSchema,
+  models: DecompositionModelsInputSchema
+});
+export type UpdateDecompositionModelsInput = z.infer<
+  typeof UpdateDecompositionModelsInputSchema
 >;
 export const DecompositionJobActionSchema = z.object({
   jobId: DecompositionIdSchema
@@ -74,12 +93,14 @@ export const DecompositionControlInputSchema = z.object({
     "skip",
     "retry",
     "delete",
-    "resolve-conflict"
+    "resolve-conflict",
+    "end"
   ]),
   unitId: DecompositionIdSchema.optional(),
   attemptId: DecompositionIdSchema.optional(),
   failed: z.boolean().optional(),
   error: z.string().max(2000).optional(),
+  unitErrors: z.record(DecompositionIdSchema, z.string().max(2000)).optional(),
   conflictChoice: z.enum(["keep-user", "regenerate"]).optional()
 });
 export type DecompositionControlInput = z.infer<
@@ -162,6 +183,10 @@ export const DecompositionPublicCommandSchemas = [
   envelope("longBookDecomposition.listJobs", z.object({})),
   envelope("longBookDecomposition.getJob", DecompositionJobActionSchema),
   envelope("longBookDecomposition.control", DecompositionControlInputSchema),
+  envelope(
+    "longBookDecomposition.updateModels",
+    UpdateDecompositionModelsInputSchema
+  ),
   envelope("longBookDecomposition.getRegistry", DecompositionJobActionSchema),
   envelope(
     "longBookDecomposition.saveRegistry",
@@ -187,6 +212,7 @@ export const DecompositionInternalCommandSchemas = [
         "list",
         "get",
         "control",
+        "update-models",
         "registry",
         "save-registry",
         "results",
@@ -196,6 +222,7 @@ export const DecompositionInternalCommandSchemas = [
       jobId: DecompositionIdSchema.optional(),
       unitId: DecompositionIdSchema.optional(),
       control: DecompositionControlInputSchema.optional(),
+      models: DecompositionResolvedModelsSchema.optional(),
       registry: DecompositionSaveRegistryInputSchema.optional(),
       recover: z.boolean().optional(),
       task: DecompositionTaskInputSchema.optional(),

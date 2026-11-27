@@ -16,8 +16,8 @@ import {
   recoverProjectTransaction
 } from "../project-transaction";
 import { readNoFollowFile } from "../long-project-store/io";
-import { decompositionSha } from "../long-book-decomposition/content-guard";
 import { updateDecompositionMaterialIndex } from "./managed-index";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const MANAGED_STAGES: Record<MaterialLibraryKind, readonly MaterialStageId[]> =
   {
@@ -105,12 +105,11 @@ export async function writeManagedMaterialEntry(
     existing?.trim() &&
     !input.replace &&
     (input.latest
-      ? input.latest.userOwned ||
-        input.latest.sha256 !== decompositionSha(existing)
+      ? input.latest.userOwned || input.latest.sha256 !== sha256Hex(existing)
       : existing !== metadata.content)
   )
     throw new Error(`decomposition.conflict: ${input.entryId} 已被编辑。`);
-  const sha256 = decompositionSha(metadata.content);
+  const sha256 = sha256Hex(metadata.content);
   const now = new Date().toISOString();
   const receipt = DecompositionReceiptSchema.parse({
     ...input.receipt,
@@ -154,8 +153,7 @@ export async function writeManagedMaterialEntry(
       {
         path,
         content: metadata.content,
-        expectedSha256:
-          existing === undefined ? null : decompositionSha(existing)
+        expectedSha256: existing === undefined ? null : sha256Hex(existing)
       },
       {
         path: receiptPath,
@@ -165,7 +163,7 @@ export async function writeManagedMaterialEntry(
       {
         path: "deepwrite.json",
         content: JSON.stringify(next),
-        expectedSha256: decompositionSha(manifestText)
+        expectedSha256: sha256Hex(manifestText)
       }
     ]
   });

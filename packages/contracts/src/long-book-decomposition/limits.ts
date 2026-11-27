@@ -26,6 +26,7 @@ export const DECOMPOSITION_USAGE_LIMIT_FACTOR = 2;
 /** Children of one work package that run at once; the user picks per task. */
 export const DECOMPOSITION_DEFAULT_CONCURRENCY = 5;
 export const DECOMPOSITION_MAX_CONCURRENCY = 10;
+export const DECOMPOSITION_MAX_FALLBACK_MODELS = 10;
 export const DecompositionConcurrencySchema = z
   .number()
   .int()

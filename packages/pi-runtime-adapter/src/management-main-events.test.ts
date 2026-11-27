@@ -3,7 +3,7 @@ import { toRuntimeEvents } from "./event-mapping";
 import type { AgentRunInput } from "./runtime-types";
 import { createLibraryManagementRuntime } from "./library-management-runtime";
 import { libraryExecutor } from "./library-management-tools/test-support";
-import { materialWorkspace } from "./library-agent-tools/test-fixtures";
+import { materialWorkspace } from "./library-agent-tools/library-tools.test-support";
 
 it.each(["request-approval", "auto-approve"] as const)(
   "maps main management proposals with work scope in %s",

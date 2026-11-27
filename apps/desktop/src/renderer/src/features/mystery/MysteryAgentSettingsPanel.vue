@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import {
   MysteryAgentSettingsInputSchema,
   getDefaultMysteryAgentProfile,
@@ -31,7 +32,7 @@ const dirty = computed(() => {
 });
 
 async function loadSettings(): Promise<void> {
-  const api = window.deepwrite?.mystery;
+  const api = deepwriteApi()?.mystery;
   if (!api) return;
   loading.value = true;
   loadError.value = null;
@@ -57,7 +58,7 @@ function resetPrompt(): void {
 }
 
 async function save(): Promise<void> {
-  const api = window.deepwrite?.mystery;
+  const api = deepwriteApi()?.mystery;
   if (!api || saving.value) return;
   const parsed = MysteryAgentSettingsInputSchema.safeParse({
     workspaceType: "mystery",

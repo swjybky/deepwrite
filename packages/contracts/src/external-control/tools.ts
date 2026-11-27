@@ -13,6 +13,7 @@ import {
   ExternalAgentRunInputSchema,
   ExternalAnswerAgentQuestionInputSchema,
   ExternalOpenInAppInputSchema,
+  ExternalRestartAppInputSchema,
   ExternalRunAgentInputSchema
 } from "./run-tools";
 import {
@@ -253,6 +254,14 @@ export const EXTERNAL_CONTROL_TOOLS: readonly ExternalControlToolDefinition[] =
       title: "Stop an agent run",
       description: "Stops a running agent.",
       inputSchema: ExternalAgentRunInputSchema,
+      annotations: WRITE
+    },
+    {
+      name: "restart_app",
+      title: "Restart DeepWrite",
+      description:
+        "Cleanly restarts DeepWrite and reconnects the MCP bridge automatically once the new instance is ready. Refuses by default while agent runs, storage migration or local backup are active; pass force: true to restart an active run or an unresponsive app. Never interrupts an installing update.",
+      inputSchema: ExternalRestartAppInputSchema,
       annotations: WRITE
     },
     {

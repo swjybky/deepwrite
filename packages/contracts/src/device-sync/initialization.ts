@@ -16,7 +16,9 @@ export const syncInitializationPreviewSchema = z
     itemCount: z.number().int().nonnegative(),
     fileCount: z.number().int().nonnegative(),
     localItemCount: z.number().int().nonnegative(),
-    expiresAt: z.string().datetime()
+    expiresAt: z.string().datetime(),
+    ignoredDevices: z.array(z.string().min(1).max(80)).optional(),
+    skippedUnsupportedCount: z.number().int().nonnegative().optional()
   })
   .strict();
 export type SyncInitializationPreview = z.infer<

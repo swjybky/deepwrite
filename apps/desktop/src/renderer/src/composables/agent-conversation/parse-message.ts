@@ -10,7 +10,7 @@ import type {
   ChatMessage,
   ChatMessageAttachment
 } from "../../types/conversation";
-import { isRecord, nonnegativeInteger, validDate } from "./shared";
+import { nonnegativeInteger, validDate } from "./shared";
 import { parseStoredEditProposal } from "./parse-proposal";
 import {
   parseStoredRuntime,
@@ -20,6 +20,7 @@ import {
 import { parseStoredSubagentRun } from "./parse-subagent";
 import { parseStoredSubagentDraw } from "./parse-subagent-draw";
 import { parseStoredContextCompactions } from "./context-compaction";
+import { isRecord } from "@deepwrite/shared";
 function parseStoredAttachments(
   values: readonly unknown[]
 ): ChatMessageAttachment[] {

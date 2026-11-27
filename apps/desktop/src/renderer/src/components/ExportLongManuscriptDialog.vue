@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import { computed, ref, watch } from "vue";
 import type {
@@ -148,7 +149,7 @@ async function loadChapters(): Promise<void> {
   const loadId = ++chaptersLoadId;
   chaptersLoading.value = true;
   try {
-    const snapshot = await window.deepwrite?.long.getWorkspaceIndex({
+    const snapshot = await deepwriteApi()?.long.getWorkspaceIndex({
       bookId: props.bookId
     });
     if (loadId !== chaptersLoadId) return;

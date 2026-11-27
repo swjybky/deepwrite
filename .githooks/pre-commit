@@ -1,0 +1,3 @@
+#!/bin/sh
+# Same incremental checks agents run before finishing a change; see .agents/skills/verify/SKILL.md.
+exec node tools/control/cli.mjs check changed --staged

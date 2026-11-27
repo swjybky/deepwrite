@@ -1,5 +1,5 @@
 import { installWindowFrame, usesCustomWindowFrame } from "./window-frame";
-import { BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import type { AppearanceSettings } from "@deepwrite/contracts";
 import {
@@ -9,6 +9,7 @@ import {
 import { loadWindowRenderer } from "./window-renderer";
 import { installTextContextMenu } from "./text-context-menu";
 import { guardWindowStartup } from "./window-startup";
+import { forwardRendererConsole, isTestEnvironment } from "./test-environment";
 import { resolveStartupWindowSize } from "./startup-window-size";
 import type { StartupLog } from "./startup-log";
 
@@ -35,6 +36,7 @@ export function createDesktopWindow(
   startup: { log: StartupLog; fail: (error: unknown) => void }
 ): BrowserWindow {
   const isDarwin = process.platform === "darwin";
+  const testEnvironment = isTestEnvironment(app.isPackaged);
   const window = new BrowserWindow({
     ...resolveStartupWindowSize(
       appearance.startupWindowSize,
@@ -58,13 +60,15 @@ export function createDesktopWindow(
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      // Inactive smoke windows still need timers and transition frames.
-      backgroundThrottling: process.env.DEEPWRITE_SMOKE !== "1",
+      // Inactive smoke and test windows still need timers and transition frames.
+      backgroundThrottling:
+        process.env.DEEPWRITE_SMOKE !== "1" && !testEnvironment,
       webviewTag: true
     }
   });
   installTextContextMenu(window);
   installWindowFrame(window);
+  if (testEnvironment) forwardRendererConsole(window.webContents);
 
   applyNativeAppearanceChrome(appearance, [window]);
 
@@ -121,7 +125,8 @@ export function createDesktopWindow(
   const loading = guardWindowStartup(window, {
     log: startup.log,
     onFailure: startup.fail,
-    show: process.env.DEEPWRITE_SMOKE !== "1"
+    show: process.env.DEEPWRITE_SMOKE !== "1",
+    activate: !testEnvironment
   });
 
   void loadWindowRenderer(

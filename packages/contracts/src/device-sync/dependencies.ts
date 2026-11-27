@@ -1,17 +1,15 @@
 import type { SyncItem } from "./schemas";
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 export function syncDependencies(item: SyncItem): string[] {
   const manifest: unknown = JSON.parse(item.files["deepwrite.json"] ?? "null");
-  if (!record(manifest)) return [];
+  if (!isRecord(manifest)) return [];
   const result: string[] = [];
   for (const [field, kind] of [
     ["linkedMaterialIdsByKind", "material-library"],
     ["linkedSkillIdsByKind", "skill-library"]
   ] as const) {
     const bindings = manifest[field];
-    if (record(bindings))
+    if (isRecord(bindings))
       for (const values of Object.values(bindings))
         if (Array.isArray(values))
           for (const id of values)
@@ -32,7 +30,7 @@ export function syncDependencies(item: SyncItem): string[] {
     if (Array.isArray(manifest.memberIds)) {
       for (const value of manifest.memberIds)
         if (typeof value === "string") result.push(`${kind}:${value}`);
-    } else if (record(manifest.members)) {
+    } else if (isRecord(manifest.members)) {
       for (const value of Object.values(manifest.members))
         if (typeof value === "string") result.push(`${kind}:${value}`);
     }

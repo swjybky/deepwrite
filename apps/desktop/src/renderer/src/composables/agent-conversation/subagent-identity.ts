@@ -3,7 +3,7 @@ import type { AgentConversationContext } from "./context";
 import type { AgentRuntimeRef } from "@deepwrite/contracts";
 import type { AgentSubagentRun, ChatMessage } from "../../types/conversation";
 import type { SubagentEventPayload } from "./types";
-import { isRecord } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 
 const t = createScopedTranslator("workspace.subagentIdentity");
 

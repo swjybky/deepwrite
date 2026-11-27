@@ -9,7 +9,6 @@ import {
   type MysteryOpenBookResult,
   type MysteryProjectDiagnostic
 } from "@deepwrite/contracts";
-import { isNodeError, serializeJson } from "../long-project-store/io";
 import type { MysteryProjectStore } from "./project-store";
 import {
   MYSTERY_REGISTRY_FILE,
@@ -17,6 +16,8 @@ import {
   type MysteryProjectRegistration,
   type MysteryProjectRegistry
 } from "./types";
+import { isNodeError } from "@deepwrite/shared/node";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export class MysteryProjectCatalog {
   readonly registryPath: string;
@@ -57,7 +58,7 @@ export class MysteryProjectCatalog {
   private async writeRegistry(registry: MysteryProjectRegistry): Promise<void> {
     await mkdir(dirname(this.registryPath), { recursive: true });
     const temp = `${this.registryPath}.tmp-${process.pid}-${Date.now()}`;
-    await writeFile(temp, serializeJson(registry), {
+    await writeFile(temp, toJsonFileText(registry), {
       encoding: "utf8",
       mode: 0o600
     });

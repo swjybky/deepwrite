@@ -60,7 +60,13 @@ import {
   type MysteryWriteDocumentInput,
   type MysteryWriteDocumentResult
 } from "@deepwrite/contracts";
-import { createId, nowIso, randomHex8 } from "@deepwrite/shared";
+import {
+  createId,
+  nowIso,
+  randomHex8,
+  escapeRegExp,
+  toJsonFileText
+} from "@deepwrite/shared";
 import { nextCopyTitle } from "../copy-title";
 import { DocumentVersionError } from "../document-versions/version-errors";
 import {
@@ -70,15 +76,12 @@ import {
 import { availableProjectDirectory } from "../folder-catalog-store/paths-io";
 import {
   ensureSecureDirectory,
-  isNodeError,
   readNoFollowFile,
   requireMissing,
-  secureDirectory,
-  serializeJson
+  secureDirectory
 } from "../long-project-store/io";
 import {
   commitProjectTransaction,
-  projectTransactionContentSha256,
   recoverProjectTransaction,
   type ProjectTransactionFileOperation
 } from "../project-transaction";
@@ -97,6 +100,7 @@ import {
   MysteryDocumentConflictError,
   listMysteryManifestTargets
 } from "./types";
+import { isNodeError, sha256Hex } from "@deepwrite/shared/node";
 
 const CN_ACT_NUMERALS = [
   "一",
@@ -115,10 +119,6 @@ function defaultActTitle(index: number, total: number): string {
   if (total === 1) return "完整剧本";
   const numeral = CN_ACT_NUMERALS[index];
   return numeral ? `第${numeral}幕` : `第 ${index + 1} 幕`;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function buildSearchSnippet(
@@ -219,7 +219,7 @@ export class MysteryProjectStore {
       return {
         exists: true,
         content,
-        sha256: projectTransactionContentSha256(bytes)
+        sha256: sha256Hex(bytes)
       };
     } catch (error: unknown) {
       if (isNodeError(error, "ENOENT")) {
@@ -243,7 +243,7 @@ export class MysteryProjectStore {
     const raw = JSON.parse(bytes.toString("utf8")) as unknown;
     return {
       manifest: MysteryBookManifestSchema.parse(raw),
-      manifestSha256: projectTransactionContentSha256(bytes)
+      manifestSha256: sha256Hex(bytes)
     };
   }
 
@@ -460,7 +460,7 @@ export class MysteryProjectStore {
       const operations: ProjectTransactionFileOperation[] = [
         {
           path: MYSTERY_MANIFEST_FILE,
-          content: serializeJson(manifest),
+          content: toJsonFileText(manifest),
           expectedSha256: null
         },
         ...listMysteryManifestTargets(manifest).map((target) => ({
@@ -664,7 +664,7 @@ export class MysteryProjectStore {
       },
       {
         path: MYSTERY_MANIFEST_FILE,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: manifestSha256
       }
     ];
@@ -756,7 +756,7 @@ export class MysteryProjectStore {
         operations: [
           {
             path: MYSTERY_MANIFEST_FILE,
-            content: serializeJson(nextManifest),
+            content: toJsonFileText(nextManifest),
             expectedSha256: manifestSha256
           }
         ],
@@ -790,7 +790,7 @@ export class MysteryProjectStore {
         operations: [
           {
             path: MYSTERY_MANIFEST_FILE,
-            content: serializeJson(nextManifest),
+            content: toJsonFileText(nextManifest),
             expectedSha256: manifestSha256
           }
         ],
@@ -997,7 +997,7 @@ export class MysteryProjectStore {
 
       operations.push({
         path: MYSTERY_MANIFEST_FILE,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: manifestSha256
       });
 
@@ -1012,7 +1012,7 @@ export class MysteryProjectStore {
           root,
           `${MYSTERY_RESTORE_DIR}/${restorePoint.restoreId}.json`
         );
-        await writeDurableNewFile(restoreTarget, serializeJson(restorePoint));
+        await writeDurableNewFile(restoreTarget, toJsonFileText(restorePoint));
       }
 
       if (input.versionOrigin) {
@@ -1113,7 +1113,7 @@ export class MysteryProjectStore {
       });
       operations.push({
         path: MYSTERY_MANIFEST_FILE,
-        content: serializeJson(restoredManifest),
+        content: toJsonFileText(restoredManifest),
         expectedSha256: manifestSha256
       });
 
@@ -1277,7 +1277,7 @@ export class MysteryProjectStore {
       const operations: ProjectTransactionFileOperation[] = [
         {
           path: MYSTERY_MANIFEST_FILE,
-          content: serializeJson(copyManifest),
+          content: toJsonFileText(copyManifest),
           expectedSha256: null
         }
       ];

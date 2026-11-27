@@ -27,6 +27,7 @@ import {
   DEFAULT_SHORT_WORKSPACE_AGENT_SETTINGS,
   createDefaultGeneralSettings
 } from "@deepwrite/contracts";
+import type { ModelTestStateEntry } from "../utils/modelTestState";
 
 const t = createScopedTranslator("workspace.settingsStore");
 
@@ -129,11 +130,15 @@ export const useSettingsStore = defineStore("settings", () => {
   const modelError = ref<string | null>(null);
   const modelTestMessage = ref<string | null>(null);
   const testingModelId = ref<string | null>(null);
+  const modelTestStates = shallowRef<
+    Readonly<Record<string, ModelTestStateEntry>>
+  >({});
   const lastModelTestCapacity = shallowRef<{
     modelId: string;
     contextWindow: number;
     maxTokens: number;
     supportsDeveloperRole?: boolean;
+    configSignature?: string;
   } | null>(null);
   const modelAlertMessages = shallowRef<string[]>([]);
   const startupAlertMessages = shallowRef<string[]>([]);
@@ -447,6 +452,7 @@ export const useSettingsStore = defineStore("settings", () => {
     modelError,
     modelTestMessage,
     testingModelId,
+    modelTestStates,
     lastModelTestCapacity,
     modelAlertMessages,
     startupAlertMessages,

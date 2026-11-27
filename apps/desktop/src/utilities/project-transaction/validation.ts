@@ -7,6 +7,7 @@ import {
   type JournalOperation,
   type TransactionJournal
 } from "./types";
+import { isRecord } from "@deepwrite/shared";
 
 export function validateOperations(
   rawOperations: readonly ProjectTransactionFileOperation[],
@@ -227,8 +228,4 @@ export function stringField(value: unknown, name: string): string {
     throw new Error(`项目事务日志字段 ${name} 无效。`);
   }
   return value;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

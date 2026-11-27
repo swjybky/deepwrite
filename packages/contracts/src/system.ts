@@ -34,6 +34,7 @@ export { ErrorPayloadSchema, type ErrorPayload } from "./error-payload";
 import { BookTemplateCommandSchemas } from "./book-templates";
 import { VoiceCommandSchemas } from "./voice";
 import { StorageSettingsCommandSchemas } from "./storage-settings";
+import { LocalBackupCommandSchemas } from "./local-backup";
 import { ConversationExportCommandEnvelopeSchemas } from "./conversation-export";
 import { SiteOfficialModelCommandSchemas } from "./site-official-models";
 import { DeviceSyncWorkspaceCommandEnvelopeSchema } from "./device-sync-commands";
@@ -133,6 +134,7 @@ import {
 import {
   AgentTeamsCreateCommandEnvelopeSchema,
   AgentTeamsDeleteCommandEnvelopeSchema,
+  AgentTeamsDuplicateCommandEnvelopeSchema,
   AgentTeamsExportPackageCommandEnvelopeSchema,
   AgentTeamsInstallPackageCommandEnvelopeSchema,
   AgentTeamsListCommandEnvelopeSchema,
@@ -149,7 +151,9 @@ import {
 } from "./long-book-analysis";
 import {
   AgentModelCapacityCommandEnvelopeSchema,
+  AgentModelTestCancelCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema,
+  ModelsCancelTestCommandEnvelopeSchema,
   ModelsListCommandEnvelopeSchema,
   ModelsRefreshFreeCommandEnvelopeSchema,
   ModelsSetFreeModelEnabledCommandEnvelopeSchema,
@@ -201,8 +205,10 @@ import {
   CatalogMoveDraftSectionCommandEnvelopeSchema,
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
+  CatalogDuplicateProjectAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
   CatalogOpenProjectCommandEnvelopeSchema,
+  CatalogRestoreBackupFilesCommandEnvelopeSchema,
   CatalogLoadDraftRecoveryCommandEnvelopeSchema,
   CatalogSaveDraftRecoveryCommandEnvelopeSchema,
   CatalogSaveDocumentCommandEnvelopeSchema,
@@ -250,9 +256,11 @@ import {
 } from "./writing-context";
 import {
   RendererStateCommandEnvelopeSchemas,
+  RendererStateCompactionUpdatedEventEnvelopeSchema,
   RendererStateFlushRequestedEventEnvelopeSchema
 } from "./renderer-state";
 import { LongWorkspaceCommandSchemas } from "./long-workspace-commands";
+import { CatalogListBackupProjectsCommandEnvelopeSchema } from "./cloud-backup";
 import {
   MysteryAgentsListCommandEnvelopeSchema,
   MysteryAgentsResetCommandEnvelopeSchema,
@@ -303,6 +311,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ExternalControlWindowResponseCommandEnvelopeSchema,
   ...ExternalControlSettingsCommandSchemas,
   ...StorageSettingsCommandSchemas,
+  ...LocalBackupCommandSchemas,
   ...VoiceCommandSchemas,
   ...BookIdentityCommandSchemas,
   ...BookImagesCommandSchemas,
@@ -339,6 +348,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogCreateLibraryAtPathCommandEnvelopeSchema,
   CatalogCreateLibraryGroupAtPathCommandEnvelopeSchema,
   CatalogOpenProjectAtPathCommandEnvelopeSchema,
+  CatalogRestoreBackupFilesCommandEnvelopeSchema,
+  CatalogListBackupProjectsCommandEnvelopeSchema,
   CatalogUpdateBookCommandEnvelopeSchema,
   CatalogMutateCharacterStructureCommandEnvelopeSchema,
   CatalogMutatePlotStructureCommandEnvelopeSchema,
@@ -363,6 +374,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   CatalogUnregisterProjectCommandEnvelopeSchema,
   CatalogDeleteProjectCommandEnvelopeSchema,
   CatalogDuplicateProjectCommandEnvelopeSchema,
+  CatalogDuplicateProjectAtPathCommandEnvelopeSchema,
   CatalogInstallMarketplaceSkillContentCommandEnvelopeSchema,
   CatalogInstallMarketplaceMaterialCommandEnvelopeSchema,
   CatalogWriteWritingContextCommandEnvelopeSchema,
@@ -378,6 +390,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   ...SiteOfficialModelCommandSchemas,
   ModelsSaveCommandEnvelopeSchema,
   ModelsTestCommandEnvelopeSchema,
+  ModelsCancelTestCommandEnvelopeSchema,
   ModelsResolveCapacityCommandEnvelopeSchema,
   ModelsListRemoteCommandEnvelopeSchema,
   ModelUsageQueryCommandEnvelopeSchema,
@@ -413,6 +426,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AgentTeamsCreateCommandEnvelopeSchema,
   AgentTeamsRenameCommandEnvelopeSchema,
   AgentTeamsDeleteCommandEnvelopeSchema,
+  AgentTeamsDuplicateCommandEnvelopeSchema,
   AgentTeamsSetEnabledCommandEnvelopeSchema,
   AgentTeamsSetBookBindingCommandEnvelopeSchema,
   AgentTeamsSaveCommandEnvelopeSchema,
@@ -436,6 +450,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion("type", [
   AgentUserInputResponseCommandEnvelopeSchema,
   AgentSteerCommandEnvelopeSchema,
   AgentModelTestCommandEnvelopeSchema,
+  AgentModelTestCancelCommandEnvelopeSchema,
   AgentModelCapacityCommandEnvelopeSchema
 ]);
 export type CommandEnvelope = z.infer<typeof CommandEnvelopeSchema>;
@@ -499,6 +514,7 @@ export const SystemEventEnvelopeSchema = z.discriminatedUnion("type", [
   ExternalControlWindowRequestEventEnvelopeSchema,
   BookIdentityUpdatedEventEnvelopeSchema,
   LongMaterialProgressEventEnvelopeSchema,
+  RendererStateCompactionUpdatedEventEnvelopeSchema,
   RendererStateFlushRequestedEventEnvelopeSchema,
   SystemReadyEventEnvelopeSchema,
   SystemWorkerRestartingEventEnvelopeSchema,
@@ -567,6 +583,7 @@ export type SystemEventEnvelope =
   | DecompositionTargetUpdatedEvent
   | DecompositionJobSettledEvent
   | ExtrasAgentOutputUpdatedEventEnvelope
+  | z.infer<typeof RendererStateCompactionUpdatedEventEnvelopeSchema>
   | z.infer<typeof RendererStateFlushRequestedEventEnvelopeSchema>
   | SystemReadyEventEnvelope
   | SystemWorkerRestartingEventEnvelope

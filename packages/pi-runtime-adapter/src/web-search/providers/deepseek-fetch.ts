@@ -1,6 +1,7 @@
 import { WEB_SEARCH_PROVIDERS } from "@deepwrite/contracts";
 import { WebSearchProviderError, type WebFetchCapability } from "../types";
-import { failureFor, isRecord, requestJson } from "./http";
+import { failureFor, requestJson } from "./http";
+import { isRecord } from "@deepwrite/shared";
 
 /** https://api-docs.deepseek.com/zh-cn/api/fetch */
 const FETCH_PATH = "/v1/tools/fetch";

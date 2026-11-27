@@ -7,16 +7,17 @@ import {
   longLedgerCommitChapterIds,
   type LongTextFilesBatchCommitInput
 } from "@deepwrite/contracts";
-import { projectTransactionContentSha256 } from "../project-transaction";
 import { parseLongLedgerCommitRecord } from "../long-version-metadata";
 import { loadIndexedFile } from "./cache";
-import { commitLongProjectTransaction, serializeJson } from "./io";
+import { commitLongProjectTransaction } from "./io";
 import {
   MANIFEST_PATH,
   MAX_LEDGER_RECORD_BYTES,
   type LoadedLongProject
 } from "./types";
 import type { LongProjectStoreContext } from "./store-context";
+import { toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function reviewContinuityCommit(
   ctx: LongProjectStoreContext,
@@ -68,7 +69,7 @@ export async function reviewContinuityCommit(
     files.some(
       (f) =>
         (f.reference.id === recordFile.reference.id
-          ? projectTransactionContentSha256(serializeJson(record))
+          ? sha256Hex(toJsonFileText(record))
           : f.disk.sha256) !== versions.get(f.reference.id)
     )
   )
@@ -113,17 +114,17 @@ export async function reviewContinuityCommit(
           })),
         {
           path: recordFile.reference.path,
-          content: serializeJson(nextRecord),
+          content: toJsonFileText(nextRecord),
           expectedSha256: recordFile.disk.sha256
         },
         {
           path: LONG_WORKSPACE_INDEX_PATH,
-          content: serializeJson(nextIndex),
+          content: toJsonFileText(nextIndex),
           expectedSha256: loaded.indexDisk.sha256
         },
         {
           path: MANIFEST_PATH,
-          content: serializeJson(manifest),
+          content: toJsonFileText(manifest),
           expectedSha256: loaded.manifestDisk.sha256
         }
       ],

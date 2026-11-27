@@ -51,6 +51,8 @@ export default {
   perMillionTokens: "（每百万 Token）",
   testing: "测试中…",
   testConnection: "测试联通",
+  cancelTest: "取消测试",
+  cancelingTest: "取消中…",
   valueEnabledStatus: "{arg0}启用状态",
   officialSiteModelsAppearHereAfterYouAddA:
     "暂时没有可用模型，可点击右上角刷新重新获取目录。",

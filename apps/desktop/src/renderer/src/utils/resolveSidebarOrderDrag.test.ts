@@ -81,18 +81,18 @@ describe("resolveSidebarOrderDrag", () => {
     const topDrag = resolve("lib-a")!;
     expect(topDrag).toBeDefined();
     expect(topDrag.findTarget("nested-1")).toBeUndefined();
-    expect(topDrag.findTarget("grp-1")).toBe(group);
+    expect(topDrag.findTarget("grp-1")).toBeUndefined();
     expect(topDrag.canDrop(libB, "before")).toBe(false);
     expect(topDrag.canDrop(libB, "after")).toBe(true);
-    expect(topDrag.canDrop(group, "before")).toBe(true);
-    topDrag.drop(group, "after");
+    topDrag.drop(libB, "after");
     expect(onReorderLibrary).toHaveBeenCalledWith({
       domain: "material",
       action: "reorder-library",
       node: libA,
-      anchorId: "grp_1",
+      anchorId: "lib_b",
       position: "after"
     });
+    expect(resolve("grp-1")).toBeUndefined();
 
     const nestedDrag = resolve("nested-1")!;
     expect(nestedDrag.findTarget("lib-b")).toBeUndefined();

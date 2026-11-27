@@ -11,7 +11,8 @@
       "@deepwrite/pi-runtime-adapter": [
         "../../packages/pi-runtime-adapter/src/index.ts"
       ],
-      "@deepwrite/shared": ["../../packages/shared/src/index.ts"]
+      "@deepwrite/shared": ["../../packages/shared/src/index.ts"],
+      "@deepwrite/shared/node": ["../../packages/shared/src/node.ts"]
     }
   },
   "include": [
@@ -19,7 +20,6 @@
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/utilities/**/*.ts",
-    "src/extras/**/*.ts",
-    "../../tools/resolve-renderer-styles.d.ts"
+    "src/extras/**/*.ts"
   ]
 }

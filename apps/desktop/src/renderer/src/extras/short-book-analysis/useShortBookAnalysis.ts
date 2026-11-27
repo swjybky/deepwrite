@@ -24,6 +24,7 @@ import {
 import { createShortAnalysisRun } from "./analysis-run";
 import { shortPresetBlock, shortSelectionLimit } from "./preset-selection";
 import { useShortAnalysisSources } from "./useShortAnalysisSources";
+import { jsonClone } from "@deepwrite/shared";
 
 const t = createScopedTranslator("extras");
 export type ShortBookAnalysisController = ReturnType<
@@ -240,7 +241,7 @@ export function useShortBookAnalysis(options: {
       );
       batch.start(
         chosen.map((preset, index) => ({
-          preset: JSON.parse(JSON.stringify(preset)) as ShortBookAnalysisPreset,
+          preset: jsonClone(preset),
           runner: runners[index]!
         })),
         books.map((book) => book.title).join("、")

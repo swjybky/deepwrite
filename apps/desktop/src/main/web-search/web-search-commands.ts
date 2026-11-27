@@ -7,6 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import { safeWebSearchError } from "./web-search-errors";
 import type { WebSearchService } from "./web-search-service";
+import { rejectedResult } from "../ipc/errors";
 
 export async function handleWebSearchCommands(
   command: CommandEnvelope,
@@ -49,13 +50,10 @@ export async function handleWebSearchCommands(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "web_search.operation_failed",
-        message: safeWebSearchError(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "web_search.operation_failed",
+      safeWebSearchError(error)
+    );
   }
 }

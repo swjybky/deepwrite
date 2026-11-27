@@ -1,4 +1,7 @@
 import type { AgentConversationPersistenceSnapshot } from "./useAgentConversation.test-support";
+import { parsePersistenceRecord } from "./agent-conversation/persistence-snapshot";
+import { captureCurrentConversation } from "../utils/conversation-export/capture";
+import { conversationJsonChunks } from "../utils/conversation-export/json-chunks";
 import {
   createDeferredApi,
   createEditProposal,
@@ -691,5 +694,145 @@ describe("agent conversation controller: snapshot-persistence", () => {
       }
     });
     restored.dispose({ clearPersistence: true });
+  });
+
+  it("hydrates compacted records cleanly and preserves proposals, discard snapshots, and export output", async () => {
+    const compactedRaw = {
+      sessionId: "session-compacted-export",
+      createdAt: "2026-11-23T09:00:00.000Z",
+      updatedAt: "2026-11-23T09:05:00.000Z",
+      draft: "保留中的草稿",
+      approvalMode: "auto-approve" as const,
+      temperature: 0.7,
+      messages: [
+        {
+          id: "msg-user-compact",
+          role: "user" as const,
+          content: "请润色第150章。",
+          createdAt: "2026-11-23T09:00:00.000Z"
+        },
+        {
+          id: "msg-ast-compact",
+          role: "assistant" as const,
+          runId: "run_edit_1",
+          content: "已完成第150章润色并保留修改建议。",
+          createdAt: "2026-11-23T09:01:00.000Z",
+          status: "completed" as const,
+          toolCalls: [
+            {
+              id: "tc-compact-1",
+              name: "spawn_subagent",
+              args: {},
+              status: "completed" as const,
+              requestedAt: "2026-11-23T09:00:10.000Z",
+              completedAt: "2026-11-23T09:00:50.000Z",
+              resultSummary: "审校完成"
+            }
+          ],
+          editProposals: [
+            {
+              ...createEditProposal({
+                id: "prop-compacted-1",
+                status: "accepted",
+                discardSnapshot: {
+                  beforeText: "海雾漫过石阶。\n远处的灯亮了一下。",
+                  appliedProjectRevision: 12
+                }
+              })
+            }
+          ],
+          subagentRuns: [
+            {
+              parentToolCallId: "tc-compact-1",
+              subagentRunId: "sr-compact-1",
+              subagentId: "style_reviewer",
+              name: "文风审校",
+              status: "completed" as const,
+              startedAt: "2026-11-23T09:00:12.000Z",
+              completedAt: "2026-11-23T09:00:50.000Z",
+              runtime: {
+                provider: "openai",
+                model: "gpt-4o",
+                mode: "provider" as const
+              },
+              task: "审校第150章",
+              output: "审校通过。",
+              toolCalls: [],
+              processingSteps: [
+                {
+                  id: "ps-1",
+                  type: "response" as const,
+                  content: "审校完毕。",
+                  createdAt: "2026-11-23T09:00:48.000Z"
+                }
+              ],
+              modelCalls: [
+                {
+                  requestId: "req-compact-1",
+                  sequence: 1,
+                  requestedProvider: "openai",
+                  requestedModel: "gpt-4o",
+                  responseModel: null,
+                  responseModelEvidence: "unknown" as const,
+                  startedAt: "2026-11-23T09:00:15.000Z",
+                  status: "completed" as const
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    const parsed = parsePersistenceRecord(compactedRaw);
+    expect(parsed).toBeDefined();
+    expect(parsed?.messages[1]?.editProposals?.[0]?.hunks).toHaveLength(1);
+    expect(
+      parsed?.messages[1]?.editProposals?.[0]?.discardSnapshot?.beforeText
+    ).toBe("海雾漫过石阶。\n远处的灯亮了一下。");
+
+    const controller = useAgentConversation({ api: () => undefined });
+    const restored = await controller.restorePersistenceSnapshot({
+      version: 1,
+      activeSessionId: parsed!.sessionId,
+      conversations: [parsed!]
+    });
+    expect(restored).toBe(true);
+
+    const exported = JSON.parse(
+      [...conversationJsonChunks(captureCurrentConversation(controller))].join(
+        ""
+      )
+    ) as {
+      format: string;
+      record: {
+        draft: string;
+        messages: {
+          content: string;
+          toolCalls?: { id: string }[];
+          editProposals?: {
+            id: string;
+            hunks: unknown[];
+            discardSnapshot?: { beforeText?: string };
+          }[];
+        }[];
+      };
+    };
+    expect(exported.format).toBe("deepwrite.conversation-recovery");
+    expect(exported.record.draft).toBe("保留中的草稿");
+    expect(exported.record.messages[1]?.toolCalls?.[0]?.id).toBe(
+      "tc-compact-1"
+    );
+    expect(exported.record.messages[1]?.editProposals?.[0]?.id).toBe(
+      "prop-compacted-1"
+    );
+    expect(exported.record.messages[1]?.editProposals?.[0]?.hunks).toHaveLength(
+      1
+    );
+    expect(
+      exported.record.messages[1]?.editProposals?.[0]?.discardSnapshot
+        ?.beforeText
+    ).toBe("海雾漫过石阶。\n远处的灯亮了一下。");
+    controller.dispose({ clearPersistence: true });
   });
 });

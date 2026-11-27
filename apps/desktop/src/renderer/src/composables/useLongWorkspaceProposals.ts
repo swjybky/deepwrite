@@ -30,6 +30,7 @@ import {
   continuityFinalizationKey,
   type LongContinuityFinalizationEvent
 } from "./longContinuityFinalization";
+import { jsonClone } from "@deepwrite/shared";
 
 const t = createScopedTranslator("workspace");
 
@@ -396,10 +397,6 @@ function isRetryableLongProposalError(error: unknown): boolean {
   );
 }
 
-function ipcSafeJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
 export function useLongWorkspaceProposals(
   options: UseLongWorkspaceProposalsOptions
 ): LongWorkspaceProposalController {
@@ -740,7 +737,7 @@ export function useLongWorkspaceProposals(
         };
       }
       const result = await api.previewOperations(
-        ipcSafeJson({
+        jsonClone({
           bookId: event.payload.bookId,
           batch: LongWorkspaceOperationBatchSchema.parse(effectiveBatch)
         })
@@ -1250,7 +1247,7 @@ export function useLongWorkspaceProposals(
           mutationPreview!.confirmation
         );
         await api.applyOperations(
-          ipcSafeJson({
+          jsonClone({
             bookId,
             ...(item.versionOrigin
               ? { versionOrigin: item.versionOrigin }

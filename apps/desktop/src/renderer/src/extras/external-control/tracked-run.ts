@@ -6,15 +6,63 @@ import type {
 } from "@deepwrite/contracts";
 import { externalToolUsage } from "./tool-usage";
 import { watch } from "vue";
-import type { ChatMessage } from "../../types/conversation";
+import type { AgentEditProposal, ChatMessage } from "../../types/conversation";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
-import { countPendingEditReviews } from "../../composables/agent-conversation/pending-review";
+import { agentEditProposalLaneId } from "../../utils/agentEditReview";
+import { jsonClone } from "@deepwrite/shared";
 
 const terminal = (status: ExternalAgentRun["status"]) =>
   status === "completed" ||
   status === "failed" ||
   status === "stopped" ||
   status === "interrupted";
+
+const unsaved = (status: AgentEditProposal["status"]) =>
+  status === "conflict" || status === "error";
+
+/**
+ * Auto-approved proposals and accepted ones still writing are the run's own
+ * tail, not a user decision; only proposals held for review wait on the user.
+ * Failures count the latest generation per document, which supersedes older.
+ */
+export function summarizeRunProposals(replies: readonly ChatMessage[]) {
+  const proposals = replies.flatMap(({ editProposals }) => editProposals ?? []);
+  const latest = new Map<string, AgentEditProposal>();
+  for (const proposal of proposals) {
+    const lane = agentEditProposalLaneId(proposal);
+    const current = latest.get(lane);
+    if (!current || (proposal.generation ?? 1) >= (current.generation ?? 1)) {
+      latest.set(lane, proposal);
+    }
+  }
+  const failed = [...latest.values()].filter(({ status }) => unsaved(status));
+  return {
+    changes: [
+      ...new Set(
+        proposals
+          .filter(({ status }) => !unsaved(status))
+          .map(({ title }) => title)
+      )
+    ],
+    awaitingUser: proposals.some(
+      ({ status, approvalMode }) =>
+        status === "pending" && approvalMode !== "auto-approve"
+    ),
+    saving: proposals.some(
+      ({ status, approvalMode }) =>
+        status === "accepting" ||
+        (status === "pending" && approvalMode === "auto-approve")
+    ),
+    error: failed.length
+      ? `${failed.length} 处修改未能保存：${failed
+          .map(
+            ({ title, statusMessage }) =>
+              `「${title}」${statusMessage ? `（${statusMessage}）` : ""}`
+          )
+          .join("；")}`
+      : undefined
+  };
+}
 
 /** Keep the placeholder reference: acceptance can rename it and assign a run id. */
 export function trackExternalRun(
@@ -77,18 +125,13 @@ export function trackExternalRun(
             ? message.runId === internalRunId
             : message.id === assistant.id)
       );
+      const proposals = summarizeRunProposals(replies);
       const base = {
         runId,
         ...modeField,
         reply: replies.at(-1)?.content ?? "",
         ...externalToolUsage(replies),
-        changes: [
-          ...new Set(
-            replies.flatMap(({ editProposals }) =>
-              (editProposals ?? []).map(({ title }) => title)
-            )
-          )
-        ]
+        changes: proposals.changes
       };
       const owns = ownsActiveRun();
       const question = owns ? conversation.pendingUserInput.value : null;
@@ -103,7 +146,7 @@ export function trackExternalRun(
           ...base,
           status: "waiting_for_input",
           questionSource: question.source,
-          questions: JSON.parse(JSON.stringify(question.questions))
+          questions: jsonClone(question.questions)
         };
       } else if (
         owns ||
@@ -112,8 +155,10 @@ export function trackExternalRun(
           conversation.isBusy.value)
       ) {
         snapshot = { ...base, status: "running" };
-      } else if (countPendingEditReviews(replies)) {
+      } else if (proposals.awaitingUser) {
         snapshot = { ...base, status: "waiting_for_user" };
+      } else if (proposals.saving) {
+        snapshot = { ...base, status: "running" };
       } else if (
         options.recovered &&
         options.lastStatus !== "stopped" &&
@@ -135,6 +180,8 @@ export function trackExternalRun(
           status: "failed",
           error: error ?? "这次运行未能完成。"
         };
+      } else if (proposals.error) {
+        snapshot = { ...base, status: "failed", error: proposals.error };
       } else {
         snapshot = { ...base, status: "completed" };
       }

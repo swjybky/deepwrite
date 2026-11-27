@@ -59,6 +59,34 @@ export default {
   profiles: "Profile management",
   readingModel: "Reading model",
   integrationModel: "Integration model",
+  primaryModel: "Primary model",
+  fallbackModels: "Fallback models",
+  fallbackModelsHint:
+    "When the active model runs out of quota, the next fallback model is used automatically in order.",
+  fallbackEmpty:
+    "No fallback models configured. The task pauses if the active model runs out of quota.",
+  fallbackBadge: "+{count} fallback",
+  addFallback: "Add fallback",
+  moveFallbackUp: "Move fallback up",
+  moveFallbackDown: "Move fallback down",
+  removeFallback: "Remove fallback",
+  fallbackOrder: "Fallback {index}",
+  modelUnavailable: "Unavailable ({id})",
+  saveModels: "Save models",
+  modelsUpdated: "Decomposition models updated",
+  phaseDoneTag: "Done",
+  modelsHintRunning:
+    "Task is running. Click Stop to switch models manually. Configured fallbacks switch automatically if quota runs out.",
+  modelsHintPaused:
+    "Task is paused. You can switch the primary model or edit fallbacks without redoing completed units.",
+  modelsHintQuota:
+    "The current model is out of quota. Switch to another model and click Continue task; completed progress is preserved.",
+  modelsHintFailed:
+    "The task stopped after unit failures. You can skip failed characters to continue, switch models and retry, or end the task while keeping saved writes.",
+  modelsHintEnded:
+    "The task has ended and completed writes are preserved in the destination. To finish remaining items later, switch models if needed and click Continue task.",
+  autoSwitchedModel:
+    "{slot} “{from}” ran out of quota. Switched automatically to fallback “{to}”.",
   estimateHelp:
     "Input includes context re-sent on every turn; the cacheable part is billed at the cache rate. Cost depends on model pricing, and retries and additional topics add requests. The task pauses for your go-ahead once usage passes twice the high estimate. Consider trying a few dozen chapters first.",
   estimateTitle: "Estimated size and time",
@@ -103,6 +131,39 @@ export default {
   next: "Next",
   retry: "Retry",
   skip: "Skip reading chunk",
+  skipCharacter: "Skip character",
+  skipBiography: "Skip biography",
+  skipConfirmTitle: "Skip this decomposition unit?",
+  skipCharacterHelp:
+    "Skipping “{name}” keeps completed writes and lets the task continue. No dossier, continuity entry, or character overview section will be generated for this character, and review will not restore it. You can still click Retry later in this task.",
+  skipBiographyHelp:
+    "Skipping “{name}” lets the task continue without merging this volume biography into the character dossier. You can still click Retry later in this task.",
+  skipChunkHelp:
+    "Skipping “{name}” marks this chunk and its unsaved chapters as skipped. In continuation mode, skipping chapter summaries blocks final continuity ledger commit.",
+  confirmSkip: "Skip unit",
+  endAndKeepProgress: "End and keep progress",
+  endConfirmTitle: "End task and keep completed writes?",
+  endConfirmMessage:
+    "Writes from {done} completed units will stay intact in the destination, and {unfinished} unfinished units will not run. You can still open this task and click Continue task later if needed.",
+  endConfirmAction: "End and keep progress",
+  failedBannerTitle: "{count} unit(s) failed; task paused",
+  failedContentBlockTitle: "{count} unit(s) blocked by model content policy",
+  failedGenericTitle: "Task failed",
+  failedBannerHint:
+    "Completed writes are saved. You can skip failed characters to continue, retry or switch models, or end the task while keeping progress.",
+  endedBannerTitle: "Task ended with completed writes preserved",
+  endedBannerSummary:
+    "Preserved writes from {done} completed units; {unfinished} units remain unfinished.",
+  endedBannerSummaryWithSkipped:
+    "Preserved writes from {done} completed units; {skipped} units skipped and {unfinished} units remain unfinished.",
+  endedRemainingPhases: "Unstarted later phases: {phases}.",
+  viewUnfinished: "View unfinished",
+  unitFilter_all: "All {count}",
+  unitFilter_failed: "Failed {count}",
+  unitFilter_unfinished: "Unfinished {count}",
+  unitFilter_skipped: "Skipped {count}",
+  unitFilter_done: "Complete {count}",
+  unitFilterEmpty: "No units match this filter.",
   keepUser: "Keep user changes",
   regenerate: "Regenerate",
   conflictHelp:
@@ -235,8 +296,11 @@ export default {
   stopped: "Stopped",
   quotaPaused: "Model quota exhausted · paused",
   quotaError:
-    "Model quota exhausted. The task is paused. Restore quota, then continue.\n{reason}",
+    "Model quota exhausted. The task is paused. Restore quota or switch models, then continue.\n{reason}",
   failed: "Failed",
+  failedStatus: "Task failed",
+  contentBlockedFailed: "Content blocked · failed",
+  endedStatus: "Ended (progress kept)",
   writing: "Saving",
   pending: "Pending",
   skipped: "Skipped",

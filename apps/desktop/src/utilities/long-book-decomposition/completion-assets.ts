@@ -26,7 +26,10 @@ export async function completeDecompositionCharacterOverview(
   const dependencies: string[] = [];
   for (const [tier, label] of Object.entries(groups)) {
     const entries = registry.characters.filter(
-      (entry) => !entry.ignored && entry.tier === tier
+      (entry) =>
+        !entry.ignored &&
+        entry.tier === tier &&
+        job.units[`character:${entry.id}`]?.status !== "skipped"
     );
     if (!entries.length) continue;
     sections.push(`## ${label}`);

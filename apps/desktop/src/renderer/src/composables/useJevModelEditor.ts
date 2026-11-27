@@ -19,6 +19,7 @@ import {
 import type { PopupSelectOption } from "../types/popupSelect";
 import { resolveSavedModelLabel } from "../utils/customModelLabel";
 import type { ModelEditorActions } from "./useModelEditor";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("components.jevModelEditorPanel");
 const tl = createScopedTranslator("workspace.remoteModelListing");
@@ -151,14 +152,15 @@ export function useJevModelEditor(
       uiMessage.warning(tl("enterTheApiKeyBeforeFetchingAvailableModels"));
       return;
     }
-    if (!window.deepwrite) {
+    const desktopApi = deepwriteApi();
+    if (!desktopApi) {
       uiMessage.error(tl("modelListingIsNotAvailableInThisEnvironment"));
       return;
     }
     const version = ++requestVersion;
     listing.value = true;
     try {
-      const result = await window.deepwrite.models.listRemote({
+      const result = await desktopApi.models.listRemote({
         id: editor.value.originalId ?? editor.value.id,
         provider: editor.value.provider.trim() || JEV_CUSTOM_PROVIDER,
         api: "openai-completions",

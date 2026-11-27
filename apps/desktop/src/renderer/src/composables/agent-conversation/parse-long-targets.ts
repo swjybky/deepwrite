@@ -8,8 +8,8 @@ import {
   LongWorkspaceOperationBatchSchema
 } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
-import { isRecord } from "./shared";
 import { normalizeStoredLongProposalTarget } from "./long-proposal-persistence-compatibility";
+import { isRecord } from "@deepwrite/shared";
 export function parseStoredLongWorldbuildingTarget(
   value: unknown
 ): AgentEditProposal["longWorldbuildingTarget"] | undefined {

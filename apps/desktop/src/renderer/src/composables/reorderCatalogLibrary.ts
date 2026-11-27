@@ -24,19 +24,19 @@ export async function reorderCatalogLibrary(
     payload.node.catalogNodeType === "library"
       ? groups.find((item) => item.memberIds.includes(id))
       : undefined;
+  if (group?.isBuiltin) return;
   const grouped = new Set(groups.flatMap((item) => item.memberIds));
   const organization = snapshot.libraryOrganization;
   const available = group
     ? [...group.memberIds]
-    : [
-        ...groups.map(({ id }) => id),
-        ...libraries
+    : payload.node.catalogNodeType === "group"
+      ? groups.map(({ id }) => id)
+      : libraries
           .filter(
             ({ id }) =>
               !grouped.has(id) && !organization?.unboundLibraryIds.includes(id)
           )
-          .map(({ id }) => id)
-      ];
+          .map(({ id }) => id);
   const order = reconcileLibraryOrder(
     available,
     (group ? organization?.groups[group.id] : organization?.[payload.domain]) ??

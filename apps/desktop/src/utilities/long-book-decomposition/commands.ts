@@ -116,6 +116,8 @@ export function withDecompositionCommands(
               command.payload.control,
               command.payload.usage
             );
+          else if (operation === "update-models" && command.payload.models)
+            payload = await service.updateModels(jobId, command.payload.models);
           else if (
             operation === "open" &&
             command.payload.task &&

@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BOOK_IMAGE_MAX_BYTES } from "@deepwrite/contracts";
 import { decodeWebpToPng } from "./webp";
-import { IMAGE_PNG } from "../image/image-test-support";
+import { IMAGE_PNG } from "../image/image.test-support";
 const { createWindow } = vi.hoisted(() => ({ createWindow: vi.fn() }));
 vi.mock("electron", () => ({ BrowserWindow: createWindow, nativeImage: {} }));
 function fixture() {

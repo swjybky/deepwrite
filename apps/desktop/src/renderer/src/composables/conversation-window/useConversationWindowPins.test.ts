@@ -78,4 +78,41 @@ describe("conversation window interaction pins", () => {
       "mounted"
     ]);
   });
+
+  it("can disable selection and focus listeners while preserving explicit pins", async () => {
+    vi.stubGlobal("Element", Row);
+    const first = new Row({ conversationWindowId: "first" });
+    const querySelectorAll = vi.fn(() => [first]);
+    const document = Object.assign(new EventTarget(), {
+      activeElement: first as Row | null,
+      getSelection: () =>
+        ({
+          isCollapsed: false,
+          rangeCount: 1,
+          getRangeAt: () => ({ intersectsNode: () => true })
+        }) as unknown as Selection
+    });
+    const container = Object.assign(new EventTarget(), {
+      ownerDocument: document,
+      querySelectorAll,
+      contains: () => true
+    });
+    const state = reactive({ edits: ["editing"], retained: ["approval"] });
+    const scope = effectScope();
+    const pins = scope.run(() =>
+      useConversationWindowPins({
+        container: shallowRef(container as unknown as HTMLElement),
+        editingIds: () => state.edits,
+        retainedIds: () => state.retained,
+        trackSelection: false,
+        trackFocus: false
+      })
+    )!;
+    document.dispatchEvent(new Event("selectionchange"));
+    container.dispatchEvent(new Event("focusin"));
+    await Promise.resolve();
+    expect(querySelectorAll).not.toHaveBeenCalled();
+    expect(pins.value).toEqual(["editing", "approval"]);
+    scope.stop();
+  });
 });

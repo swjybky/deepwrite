@@ -2,11 +2,18 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { CommandEnvelopeSchema } from "@deepwrite/contracts";
+import {
+  CommandEnvelopeSchema,
+  type ModelConfigInput
+} from "@deepwrite/contracts";
 import {
   refreshSiteOfficialModels,
   setSiteOfficialModelEnabled
 } from "../../preload/site-official-models-api";
+import {
+  saveDeepWriteSiteOfficialModelInput,
+  setDeepWriteSiteOfficialModelEnabledInput
+} from "../deepwrite-site-official-model-config";
 import {
   listRemoteModels,
   type ListRemoteModelsInput
@@ -119,5 +126,117 @@ describe("public official-site catalog through Main, preload and storage", () =>
     await expect(setSiteOfficialModelEnabled(writer.id, true)).rejects.toThrow(
       "请先添加新官方小站模型密钥"
     );
+  });
+
+  it("syncs listed/delisted official models with no-store, preserves custom models/default/disabled flags, and recovers from failure", async () => {
+    const root = await mkdtemp(join(tmpdir(), "deepwrite-site-refresh-sync-"));
+    temporaryRoots.push(root);
+    const options = {
+      freeModelCatalog: {
+        initialize: async () => undefined,
+        getCatalog: async () => emptyCatalog()
+      }
+    };
+    const store = new ModelConfigStore(root, options);
+    const customModel: ModelConfigInput = {
+      id: "custom-writer",
+      label: "Custom Writer",
+      provider: "openai",
+      modelId: "gpt-custom",
+      api: "openai-completions",
+      baseUrl: "https://models.example.test/v1",
+      reasoning: false,
+      defaultThinkingLevel: "off",
+      thinkingLevelOptions: ["low"],
+      temperatureOptions: [0.1, 0.7, 1],
+      apiKey: "sk-custom-test-invalid"
+    };
+    const seeded = await store.save({
+      defaultModelId: customModel.id,
+      models: [customModel]
+    });
+    const withSite = await store.save(
+      saveDeepWriteSiteOfficialModelInput(
+        seeded,
+        "dw_sk_test_only_invalid",
+        {
+          models: [
+            { id: "model-a", sort: 1 },
+            { id: "model-b", sort: 2 },
+            { id: "model-c", sort: 3 }
+          ],
+          googleModels: []
+        },
+        "https://gateway.example.test"
+      )
+    );
+    await store.save(
+      setDeepWriteSiteOfficialModelEnabledInput(
+        withSite,
+        "deepwrite-site-official-model-c",
+        false
+      )
+    );
+
+    const fetcher = vi
+      .fn<(input: string, init?: RequestInit) => Promise<Response>>()
+      .mockImplementationOnce(async (url, init) => {
+        expect(url).toBe("https://gateway.example.test/api/v1/public/models");
+        expect(init?.cache).toBe("no-store");
+        expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+        return Response.json({
+          object: "list",
+          data: [
+            { id: "model-a", sort: 1 },
+            { id: "model-d", sort: 2, label: "Model D" },
+            { id: "model-c", sort: 3 }
+          ]
+        });
+      })
+      .mockImplementationOnce(
+        async () => new Response("bad gateway", { status: 502 })
+      )
+      .mockImplementationOnce(async (_url, init) => {
+        expect(init?.cache).toBe("no-store");
+        return Response.json({
+          object: "list",
+          data: [{ id: "model-e", sort: 1, label: "Model E" }]
+        });
+      });
+
+    const ctx = {
+      requireModelConfigStore: () => store,
+      requireModelUsageStore: () => ({
+        syncConfiguredModels: async () => undefined
+      }),
+      listRemoteModels: (input: ListRemoteModelsInput) =>
+        listRemoteModels(input, fetcher)
+    } as unknown as ModelCommandContext;
+    invoke.mockImplementation(async (_channel, raw) =>
+      handleModelCommands(ctx, CommandEnvelopeSchema.parse(raw))
+    );
+
+    const first = await refreshSiteOfficialModels();
+    expect(first.defaultModelId).toBe(customModel.id);
+    expect(first.models.map((m) => [m.id, m.enabled, m.hasApiKey])).toEqual([
+      [customModel.id, undefined, true],
+      ["deepwrite-site-official-model-a", true, true],
+      ["deepwrite-site-official-model-d", true, true],
+      ["deepwrite-site-official-model-c", false, true]
+    ]);
+
+    await expect(refreshSiteOfficialModels()).rejects.toThrow("HTTP 502");
+    const afterFailure = await store.list();
+    expect(afterFailure.models.map((m) => m.id)).toEqual(
+      first.models.map((m) => m.id)
+    );
+
+    const retried = await refreshSiteOfficialModels();
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(retried.defaultModelId).toBe(customModel.id);
+    expect(retried.models.map((m) => m.id)).toEqual([
+      customModel.id,
+      "deepwrite-site-official-model-e"
+    ]);
   });
 });

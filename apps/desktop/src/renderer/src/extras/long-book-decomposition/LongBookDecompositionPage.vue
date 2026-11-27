@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { formatError } from "../../i18n/errors";
 import { ref, watch, onMounted } from "vue";
 import type {
   CatalogSnapshot,
   DecompositionContentRef,
+  DecompositionModelsInput,
   DecompositionTarget,
   DecompositionRegistryData,
   ModelConfig,
@@ -28,8 +30,10 @@ import { getErrorPayload } from "../../i18n/errors";
 import { uiMessage } from "../../ui-feedback";
 import "../long-book-analysis/long-book-analysis.css";
 import "./decomposition.css";
+import "./decomposition-models.css";
 import "./decomposition-tables.css";
 import "./decomposition-subtasks.css";
+import { syncDecompositionChapterRange } from "./range-input";
 const t = createScopedTranslator("extras.longBookDecomposition");
 const props = defineProps<{
   controller: LongBookDecompositionController;
@@ -48,13 +52,49 @@ const wholeBook = () => ({
 });
 const range = ref(wholeBook());
 const busy = ref(false);
+const savingModels = ref(false);
 const profilesOpen = ref(false);
 const deleting = ref(false);
 const viewing = ref<{ unitId: string; title: string } | null>(null);
+const modelLabel = (id: string) =>
+  props.models.find((model) => model.id === id)?.label ?? id;
 watch(
-  () => props.controller.source.value?.id,
-  () => {
-    range.value = wholeBook();
+  () => props.controller.lastModelSwitch.value,
+  (switched) => {
+    if (!switched) return;
+    uiMessage.info(
+      t("autoSwitchedModel", {
+        slot: t(
+          switched.slot === "reading" ? "readingModel" : "integrationModel"
+        ),
+        from: modelLabel(switched.fromModelId),
+        to: modelLabel(switched.toModelId)
+      })
+    );
+  }
+);
+watch(
+  () => props.controller.source.value,
+  (next, previous) => {
+    if (!next) {
+      range.value = wholeBook();
+      return;
+    }
+    const previousTotal =
+      previous && previous.id === next.id
+        ? previous.chapters.length
+        : undefined;
+    const nextRange = syncDecompositionChapterRange(
+      range.value,
+      next.chapters.length,
+      previousTotal
+    );
+    if (
+      nextRange.start !== range.value.start ||
+      nextRange.end !== range.value.end
+    ) {
+      range.value = nextRange;
+    }
   }
 );
 watch(
@@ -72,7 +112,7 @@ async function action(operation: () => Promise<unknown>) {
   } catch (error) {
     uiMessage.error(
       getErrorPayload(error)?.message ??
-        (error instanceof Error ? error.message : t("operationFailed"))
+        formatError(error, t("operationFailed"))
     );
   } finally {
     busy.value = false;
@@ -104,6 +144,17 @@ async function saveRegistry(data: DecompositionRegistryData, confirm: boolean) {
   await action(() => props.controller.saveRegistry(data, confirm));
   if (confirm && props.controller.job.value?.phase === "integrate")
     void props.controller.run();
+}
+async function updateJobModels(nextModels: DecompositionModelsInput) {
+  savingModels.value = true;
+  try {
+    await action(async () => {
+      await props.controller.updateJobModels(nextModels);
+      uiMessage.success(t("modelsUpdated"));
+    });
+  } finally {
+    savingModels.value = false;
+  }
 }
 function newTask() {
   props.controller.job.value = null;
@@ -183,11 +234,14 @@ onMounted(() => {
     <template v-else>
       <DecompositionProgress
         :controller="controller"
+        :models="models"
+        :saving-models="savingModels"
         :disabled="busy || controller.isBusy.value"
         @control="control"
         @view="(unitId, title) => (viewing = { unitId, title })"
         @open-target="emit('openTarget', $event)"
         @open-material-pack="emit('openMaterialPack', $event)"
+        @update-models="updateJobModels"
         @run="controller.run()"
         @stop="action(() => controller.stop())"
       />

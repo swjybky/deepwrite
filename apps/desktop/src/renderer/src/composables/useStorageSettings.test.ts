@@ -29,12 +29,49 @@ function snapshot(path = "/user-data") {
 }
 
 function harness(overrides: Partial<StorageApi> = {}) {
+  const compaction = {
+    phase: "needed" as const,
+    legacyCallsFound: 3,
+    estimatedReclaimableBytes: 40_000,
+    processedSessions: 0,
+    totalSessions: 1,
+    bytesBefore: 50_000,
+    canRetry: true,
+    canReleaseBackup: false,
+    canRollback: false
+  };
   const api: StorageApi = {
     get: vi.fn(async () => snapshot()),
     chooseUserData: vi.fn(async () => ({ restarting: false })),
     resetUserData: vi.fn(async () => ({ restarting: false })),
     resetWorkspaceDirectory: vi.fn(async () => ({ path: "/default-books" })),
     openDirectory: vi.fn(async () => undefined),
+    compactConversations: vi.fn(async () => ({
+      ...compaction,
+      phase: "completed_with_backup" as const,
+      legacyCallsFound: 0,
+      estimatedReclaimableBytes: 0,
+      processedSessions: 1,
+      bytesAfter: 2_000,
+      backupBytes: 50_000,
+      netFreedBytes: -2_000,
+      canRetry: false,
+      canReleaseBackup: true,
+      canRollback: true
+    })),
+    releaseConversationBackup: vi.fn(async () => ({
+      ...compaction,
+      phase: "backup_released" as const,
+      legacyCallsFound: 0,
+      estimatedReclaimableBytes: 0,
+      processedSessions: 1,
+      bytesAfter: 2_000,
+      backupBytes: 0,
+      netFreedBytes: 48_000,
+      canRetry: false,
+      canReleaseBackup: false,
+      canRollback: false
+    })),
     ...overrides
   };
   const notifications = { error: vi.fn(), success: vi.fn() };
@@ -172,5 +209,58 @@ describe("useStorageSettings", () => {
 
     expect(storage.settings.value).toBeNull();
     expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it("updates conversation compaction state across live events, retry failures, and backup release", async () => {
+    const needed = {
+      phase: "needed" as const,
+      legacyCallsFound: 3,
+      estimatedReclaimableBytes: 40_000,
+      processedSessions: 0,
+      totalSessions: 1,
+      bytesBefore: 50_000,
+      canRetry: true,
+      canReleaseBackup: false,
+      canRollback: false
+    };
+    const { api, storage, notifications } = harness({
+      get: vi.fn(async () => ({
+        ...snapshot(),
+        conversationCompaction: needed
+      }))
+    });
+    await storage.load();
+    expect(storage.settings.value?.conversationCompaction?.phase).toBe(
+      "needed"
+    );
+
+    storage.applyCompactionStatus({
+      phase: "running",
+      legacyCallsFound: 3,
+      estimatedReclaimableBytes: 40_000,
+      processedSessions: 1,
+      totalSessions: 2,
+      bytesBefore: 50_000,
+      canRetry: false,
+      canReleaseBackup: false,
+      canRollback: false
+    });
+    expect(storage.settings.value?.conversationCompaction?.phase).toBe(
+      "running"
+    );
+
+    await storage.compactConversations();
+    expect(api.compactConversations).toHaveBeenCalledOnce();
+    expect(storage.settings.value?.conversationCompaction?.phase).toBe(
+      "completed_with_backup"
+    );
+    expect(notifications.success).toHaveBeenCalledOnce();
+
+    await storage.releaseConversationBackup();
+    expect(api.releaseConversationBackup).toHaveBeenCalledOnce();
+    expect(storage.settings.value?.conversationCompaction?.phase).toBe(
+      "backup_released"
+    );
+    expect(notifications.success).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   AppAlertHistoryEntrySchema,
   AppAlertManifestSchema,
@@ -14,6 +14,7 @@ import {
   deepWritePublicDataUrl
 } from "./deepwrite-public-data-config";
 import { electronRemoteFetch } from "./electron-remote-fetch";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 export const APP_ALERT_CONFIG_URL = deepWritePublicDataUrl("ALERT.json");
 
@@ -46,16 +47,6 @@ export interface AppAlertStoreOptions {
 
 function desktopRevision(messages: readonly string[]): string {
   return createHash("sha256").update(JSON.stringify(messages)).digest("hex");
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
 }
 
 function parseStateFile(raw: unknown): AppAlertStateFile | undefined {
@@ -220,7 +211,7 @@ export class AppAlertStore {
   }
 
   private async persistState(): Promise<void> {
-    await atomicWriteJson(this.statePath, {
+    await writeJsonAtomic(this.statePath, {
       version: 1,
       fetchedAt: this.fetchedAt || new Date(this.now()).toISOString(),
       manifest: this.manifest,

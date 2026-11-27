@@ -10,6 +10,7 @@ import {
 import { UtilityCommandTimeoutError } from "../supervisor";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 export async function handleRendererStateCommands(
   ctx: Pick<IpcCommandContext, "supervisor" | "activeRuns">,
@@ -45,21 +46,18 @@ export async function handleRendererStateCommands(
       };
     } catch (error: unknown) {
       const timedOut = error instanceof UtilityCommandTimeoutError;
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: timedOut
-            ? "renderer_state.command_timeout"
-            : "renderer_state.forward_failed",
-          message: timedOut
-            ? "会话历史持久化操作超时。"
-            : error instanceof Error
-              ? error.message
-              : "会话历史持久化操作失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        timedOut
+          ? "renderer_state.command_timeout"
+          : "renderer_state.forward_failed",
+        timedOut
+          ? "会话历史持久化操作超时。"
+          : error instanceof Error
+            ? error.message
+            : "会话历史持久化操作失败。",
+        safeErrorDetails(error)
+      );
     }
   }
   return undefined;

@@ -135,6 +135,7 @@ function snapshotTitle(value: unknown): string | undefined {
       return candidate.trim();
     }
   }
+  return undefined;
 }
 
 function quotedTitle(value: unknown): string {

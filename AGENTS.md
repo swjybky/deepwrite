@@ -1,23 +1,27 @@
 # DeepWrite 仓库约定
 
-本文件是开发入口：行为准则、开发阶段与项目边界。其余文档按需加载。
+本文件是开发入口，只写行为准则、开发阶段和跨功能的边界。其他信息各有出处，用到时再读：
+
+| 文件 | 用处 |
+| --- | --- |
+| `references/features/README.md` | 功能地图：每个功能的用户路径、前后端代码位置和验证命令 |
+| `DESIGN.md`（细则在 `design/`） | 界面设计规范：颜色、布局和各类控件的样式，保证页面风格统一 |
+| `rules/README.md` | 自动检查规则及其来历 |
 
 ## 开发阶段
 
 按改动大小自行判断做哪些阶段。简单改动直接改，做最小验证，在回复里说明即可。
 
-- **理解：**看相关代码和 `docs/` 里的设计；大功能先对齐方案或写设计稿。
-- **预防：**涉及 [ERROR.md](ERROR.md)“按改动区域预读”中的区域时，先读对应条目。
-- **实现：**守住下方边界；改界面时读 [DESIGN.md](DESIGN.md)。
-- **验证：**见 [TEST.md](TEST.md)。涉及界面的功能改动要截图记录从入口到实际结果的完整流程，样式改动要做前后截图对比。完整截图存档到 `test/`，最终回复前在对话里直接展示最能说明改动、结果或问题的代表性截图。
-- **排错：**按 ERROR.md“按症状查找”加载条目；反复出现的错误沉淀为新条目。
-- **提交与发布：**用 `git-commit`、`windows-macos-test-package`、`package-patch-release` skill。
-
-这些文档都会进入上下文：只写结论和做法，过时即删。
+- **理解：**在功能地图里找到相关功能页，再看代码。大功能先和用户对齐方案。
+- **实现：**守住下方边界。涉及页面或样式改动时，先读 `DESIGN.md` 和 `design/` 里对应控件的规范，复用已有的变量、全局类和组件，并对照相似页面，保证样式统一。
+- **检查：**按 `.agents/skills/verify/SKILL.md` 跑统一检查，全部通过才算完成。
+- **验证：**用验证 CLI（`pnpm -s ctl help`）在隔离测试实例上按功能页实测。改智能体或工具时用真实模型；改功能入口或名称时更新功能页。界面改动要截图记录从入口到实际结果的完整流程，样式改动要做前后对比。截图存档到 `test/`，回复里直接展示有代表性的截图。
 
 ## 启动环境
 
-“启动开发环境”和“启动测试环境”都指在仓库根目录运行 `pnpm dev`。判断能否复用已启动的开发版时，见 [TEST.md](TEST.md) 的“开发环境：复用或重启”。
+- **快速启动：**用户说“快速启动”“启动测试环境”或想自己点点看时，依次运行 `pnpm -s ctl env start` 和 `pnpm -s ctl env show`，把测试窗口显示到前台。用户要现成的作品时，再运行 `pnpm -s ctl data load short,long,libraries`。报错时按输出里的 `nextSteps` 处理，例如 `env.not_seeded` 先运行 `env seed`。完成后告诉用户窗口已就绪，并说明这里的数据与正式数据隔离、用完运行 `pnpm -s ctl env stop` 关闭。
+- **开发环境：**用户说“启动开发环境”时，在仓库根目录运行 `pnpm dev`。
+- 智能体自己验证时只用测试实例，不碰开发者的开发版和数据。
 
 ## 行为准则
 
@@ -30,38 +34,16 @@
 
 `tavern` 分支及其酒馆预设代码不得以任何方式上传远程，包括推送、改名推送、合并、拣选和 PR。推送前核对分支与提交，一旦涉及就停止。
 
-## 项目布局
+## 跨功能边界
 
-pnpm workspace，依赖版本由 `pnpm-workspace.yaml` 的 catalog 管理。新能力放进现有分层，不另建平行的应用、协议或打包入口。
-
-| 位置（`apps/desktop/src/` 下） | 职责 |
-| --- | --- |
-| `main/` | 窗口、配置与密钥、安全 IPC、Utility 监管 |
-| `preload/` | `window.deepwrite` API 与双向校验 |
-| `utilities/` | Core 存储、Agent 运行、Tool 受控执行 |
-| `renderer/` | Vue 工作台、界面状态与会话编排 |
-| `extras/` | Main 注册的可选能力与扩展智能体（`extras/agents/`），界面在 `renderer/src/extras/` |
-
-`packages/` 下：`contracts/` 放命令、事件与领域模型的 Zod 契约；`pi-runtime-adapter/` 放 Pi 运行时与受控工具（`kernel/` 是共享内核，`extras/` 是扩展智能体定义）；`shared/` 放无业务语义的工具。`tools/` 负责边界检查、运行时与打包编排。
-
-## 进程与协议边界
-
-- **IPC：**跨进程只走 contracts 的 Envelope 命令与事件。Renderer 只从 `@deepwrite/contracts/renderer` 取运行时值，不引入 `electron`、`node:`、Pi SDK 或 `pi-runtime-adapter`。凭据和模型密钥只留在 Main / Agent。
-- **改契约：**按 contracts 类型与 schema → Preload → Main 路由 → Utility 的顺序改；Renderer 要用的值从 `contracts/src/renderer.ts` 导出。
-- **写入：**Core Utility 是作品与路径注册表的唯一写入者，写入保持原子性。作品是文件夹：清单 `deepwrite.json`，内容为 UTF-8 Markdown。短篇、剧本、素材库、技能库由 `folder-catalog-store` 管理，长篇由 `long-project-store` / `long-workspace-service` 管理。Agent 经 Main 授权的 Core 只读桥读作品；改文稿先出 proposal，用户接受后由 Core 落盘并处理版本冲突。
-- **智能体：**所有智能体共用 `pi-runtime-adapter/src/kernel/`。创作空间与资料库走 `session.prompt`；“更多功能”走 `extrasAgent.run`，不往 `session.prompt` 或 `WorkspaceRuntimeContext` 加扩展字段。
-- **扩展智能体：**Renderer 只传 `profileId`，其余由 Main（`resolveExtrasTask`）权威解析。预算用 `assertExtrasAgentBudget` 做三端校验。系统提示词末尾附不可编辑的 `【名称运行边界】`，工具只由开发者在定义里从 `extras/tools/` 组合。新增顺序：contracts → `profile-catalogs.ts` →（需要时）`task-resolver.ts` → `extras/agents/` 定义与 Faux 响应 → `resolveExtrasAgent` 注册 → 页面（分析页用 `startExtrasAgentTask`，聊天用 `useAgentConversation`）。
-- **外部控制（MCP）：**设计见 `docs/外部智能体控制接口设计.md`。写入要带版本校验、不 `force`；作品被占用时返回 `external.busy`；删除必须可恢复。工具经 `tool-routes.ts` 白名单开放，设置页的管理命令不开放。改工具或错误码时同步 `extras/external-control/skill/SKILL.md`。
-- **打包入口：**改 Main、`core` / `agent` / `tool-entry`、Preload、Renderer 入口或安装包 `files` 时，同步检查 `electron.vite.config.ts`、supervisor 启动路径和冒烟脚本，并跑 `pnpm lint:boundary`。
+- 新能力放进现有分层（`apps/desktop/src/` 下的 main、preload、utilities、renderer、extras，以及 `packages/`），不另建平行的应用、协议或打包入口。
+- 跨进程只走 contracts 的 Envelope 命令与事件。改契约按 contracts → Preload → Main 路由 → Utility 的顺序。凭据和模型密钥只留在 Main 和 Agent。
+- 作品文件和路径注册表只由 Core 写入。智能体改稿通过 proposal 交给 Core 落盘。
+- 改 Electron 入口或安装包文件清单时，运行对应的冒烟脚本。
 
 ## 代码质量
 
-- 格式以 `.editorconfig`、`prettier.config.mjs`、`eslint.config.js` 为准，只格式化改动的文件。
-- 不设固定行数上限。文件明显承担多项职责时（源码约 600 行起可作提醒）再按职责拆分，不为凑行数造转发层。测试里的硬性预算见 [error/budget-exceeded.md](error/budget-exceeded.md)。
-- 默认不写注释，只写代码表达不了的“为什么”（非显而易见的约束、平台差异、对外部缺陷的规避），一两句为限。不写复述代码的注释、改动经过、无归属的 TODO，也不写大段文件头或 JSDoc。代码改了，就同步更新或删掉失效的注释。
-- 拉起 Electron 前先调用 `tools/electron-launch-environment.mjs` 的 `assertElectronLaunchAllowed()`。遇 `DEEPWRITE_ELECTRON_SANDBOX` 时不在沙盒内重试或绕过；受拦截的桌面验收不报告为通过。
-
-## 敏感信息
-
-- 测试、夹具、快照、Mock 和日志不得含真实地址、IP、生产域名或可用凭据：地址用 `example.test`，凭据用无效的占位值。发现泄露先移除，再轮换凭据。
-- 发布配置来自 Actions Secret `DEEPWRITE_RELEASE_ENV`，由 `tools/release-environment.mjs` 恢复为 `.env`；缺必填项必须在打包前失败。`MAIN_VITE_OSS_*` 不得进入发布环境，OSS 凭据只留在 API 服务端。
+- 文件明显承担多项职责时再按职责拆分，不为凑行数造转发层。
+- 默认不写注释，只写代码表达不了的“为什么”，一两句为限。代码改了，同步更新或删掉失效的注释。
+- 遇到 `DEEPWRITE_ELECTRON_SANDBOX` 时，不在沙盒内重试或绕过，注明桌面验收受阻。
+- 测试数据用合成地址和无效的占位凭据。发现泄露先移除，再轮换凭据。

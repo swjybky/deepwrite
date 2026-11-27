@@ -1,6 +1,9 @@
 import { unwrapMessageValue } from "./message-mutations";
 import { toRaw } from "vue";
-import { AgentEvaluationSnapshotSchema } from "@deepwrite/contracts";
+import {
+  AgentEvaluationSnapshotSchema,
+  stripModelCallSnapshot
+} from "@deepwrite/contracts/renderer";
 import type {
   AgentEditProposal,
   AgentSubagentRun,
@@ -8,6 +11,7 @@ import type {
   AgentTextDiffLine,
   ChatMessage
 } from "../../types/conversation";
+import { jsonClone } from "@deepwrite/shared";
 
 export function cloneTextDiffLine(line: AgentTextDiffLine): AgentTextDiffLine {
   line = toRaw(line);
@@ -23,7 +27,7 @@ export function cloneTextDiffHunk(hunk: AgentTextDiffHunk): AgentTextDiffHunk {
 }
 
 export function cloneJsonRecord<Value>(value: Value): Value {
-  return JSON.parse(JSON.stringify(toRaw(value))) as Value;
+  return jsonClone(toRaw(value));
 }
 
 export function cloneEditProposal(
@@ -57,6 +61,9 @@ export function cloneSubagentRun(run: AgentSubagentRun): AgentSubagentRun {
         }
       : {}),
     ...(run.draw ? { draw: { ...run.draw } } : {}),
+    ...(run.modelCalls
+      ? { modelCalls: run.modelCalls.map(stripModelCallSnapshot) }
+      : {}),
     toolCalls: run.toolCalls.map((toolCall) => ({ ...toolCall })),
     processingSteps: run.processingSteps.map((step) => ({ ...step }))
   };
@@ -66,7 +73,7 @@ export function cloneJsonValue(value: unknown): unknown {
   try {
     return structuredClone(value);
   } catch {
-    return JSON.parse(JSON.stringify(value)) as unknown;
+    return jsonClone(value);
   }
 }
 

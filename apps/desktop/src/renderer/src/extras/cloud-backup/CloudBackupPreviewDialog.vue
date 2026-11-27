@@ -9,6 +9,7 @@ import {
   CLOUD_BACKUP_CHANGE_LABELS,
   summarizeCloudBackupPreview
 } from "./cloudBackupPreviewSummary";
+import { formatBytes } from "@deepwrite/shared";
 
 const t = createScopedTranslator("extras.cloudBackup");
 
@@ -63,12 +64,6 @@ const confirmIsDangerous = computed(() =>
     (change) => change.change === "overwrite" || change.change === "drop"
   )
 );
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 </script>
 
 <template>

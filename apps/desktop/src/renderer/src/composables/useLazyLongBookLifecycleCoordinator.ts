@@ -1,3 +1,4 @@
+import { drainLoadedCoordinator } from "./book-lifecycle-operations";
 import { formatError } from "../i18n/errors";
 import { t } from "../i18n";
 import type {
@@ -259,13 +260,12 @@ export function useLazyLongBookLifecycleCoordinator(
   }
 
   function drain(): Promise<void> {
-    if (disposePromise) return disposePromise;
-    if (coordinator) return coordinator.drain();
-    if (!coordinatorPromise) return Promise.resolve();
-    return coordinatorPromise
-      .then((loaded) => loaded?.drain())
-      .then(() => undefined)
-      .catch(reportLoadFailure);
+    return drainLoadedCoordinator(
+      disposePromise,
+      coordinator,
+      coordinatorPromise,
+      reportLoadFailure
+    );
   }
 
   function dispose(): Promise<void> {

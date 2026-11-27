@@ -4,13 +4,12 @@ import type {
 } from "@deepwrite/contracts";
 import {
   clipped,
-  isRecord,
   list,
   record,
-  serializeJson,
   stringValue,
   type WarningCollector
 } from "./normalize";
+import { isRecord, toJsonFileText } from "@deepwrite/shared";
 
 export function extractGenre(
   book: Record<string, unknown> | null,
@@ -45,7 +44,7 @@ export function legacyLinkIds(
         warnings.preserve(
           `${label}（无法解析值）`,
           label,
-          serializeJson(rawValue)
+          toJsonFileText(rawValue)
         );
       }
       continue;

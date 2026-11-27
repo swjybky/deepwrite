@@ -8,16 +8,14 @@ import {
   type LongRestorePoint,
   type LongWorkspaceIndexSnapshot
 } from "@deepwrite/contracts";
-import {
-  projectTransactionContentSha256,
-  type ProjectTransactionFileOperation
-} from "../project-transaction";
+import { type ProjectTransactionFileOperation } from "../project-transaction";
 import {
   readRegularFileOptional,
   resolveInternalWritableFile,
   writeDurableNewFile
 } from "../project-transaction/io";
 import { MANIFEST_PATH, MAX_LEDGER_RECORD_BYTES } from "./types";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const RESTORE_DIRECTORY = ".deepwrite/restore-points";
 /** Older restore points are pruned; each holds two compressed indexes. */
@@ -42,12 +40,10 @@ function nullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
-function parseStoredRestorePoint(
-  value: unknown
-): StoredRestorePoint | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const stored = value as Record<string, unknown>;
-  if (
+function isStoredRestorePoint(
+  stored: Record<string, unknown>
+): stored is Record<string, unknown> & StoredRestorePoint {
+  return !(
     stored.schemaVersion !== 1 ||
     typeof stored.id !== "string" ||
     typeof stored.bookId !== "string" ||
@@ -63,10 +59,15 @@ function parseStoredRestorePoint(
         nullableString(entry.afterSha256)
       );
     })
-  ) {
-    return undefined;
-  }
-  return stored as unknown as StoredRestorePoint;
+  );
+}
+
+function parseStoredRestorePoint(
+  value: unknown
+): StoredRestorePoint | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const stored = value as Record<string, unknown>;
+  return isStoredRestorePoint(stored) ? stored : undefined;
 }
 
 export interface RestoreBaseline {
@@ -85,7 +86,7 @@ function contentPath(operation: ProjectTransactionFileOperation): boolean {
 }
 
 export function sha256Text(content: string): string {
-  return projectTransactionContentSha256(Buffer.from(content, "utf8"));
+  return sha256Hex(Buffer.from(content, "utf8"));
 }
 
 export async function readProjectFileText(

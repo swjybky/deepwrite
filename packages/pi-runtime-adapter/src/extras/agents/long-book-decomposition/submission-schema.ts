@@ -7,6 +7,7 @@
  * back and checks each item on its own against the contract schema.
  */
 import { parseJsonWithRepair } from "@earendil-works/pi-ai";
+import { isRecord } from "@deepwrite/shared";
 
 interface JsonSchema {
   type?: unknown;
@@ -126,8 +127,6 @@ export function withEmptyCollections(
 }
 
 const PAYLOAD_KEYS = new Set(["card", "registry", "review", "asset"]);
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === "object" && !Array.isArray(value);
 
 export function decodeReadingEvidence(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(decodeReadingEvidence);

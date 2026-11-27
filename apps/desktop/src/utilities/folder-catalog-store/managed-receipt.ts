@@ -10,7 +10,7 @@ import {
   recoverProjectTransaction,
   type ProjectTransactionFileOperation
 } from "../project-transaction";
-import { decompositionSha } from "../long-book-decomposition/content-guard";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 /** Adopts user edits as the job's latest version; later writes must ask again. The receipt and CAS checks share a transaction. */
 export async function adoptManagedMaterialReceipt(
@@ -54,13 +54,13 @@ export async function adoptManagedMaterialReceipt(
       root
     );
     const content = disk.bytes.toString("utf8");
-    ref.sha256 = decompositionSha(content);
+    ref.sha256 = sha256Hex(content);
     ref.userOwned = true;
     ref.revision = manifest.revision + 1;
     operations.push({
       action: "check",
       path: entry.path,
-      expectedSha256: decompositionSha(content)
+      expectedSha256: sha256Hex(content)
     });
   }
   const path = `receipts/${receipt.id}.md`;
@@ -82,7 +82,7 @@ export async function adoptManagedMaterialReceipt(
       {
         path: "deepwrite.json",
         content: JSON.stringify(next),
-        expectedSha256: decompositionSha(manifestDisk.bytes.toString("utf8"))
+        expectedSha256: sha256Hex(manifestDisk.bytes.toString("utf8"))
       }
     ]
   });

@@ -20,7 +20,6 @@ import {
   positiveNumber,
   record,
   safeUnicode,
-  serializeJson,
   stringValue,
   title,
   type DeterministicIdRegistry,
@@ -36,6 +35,7 @@ import {
   ledgerPath,
   type ImportDocumentBuilder
 } from "./plan-documents";
+import { toJsonFileText } from "@deepwrite/shared";
 
 const MAX_INDEX_TEXT = 200_000;
 const MAX_SHORT_TEXT = 4_000;
@@ -1116,7 +1116,7 @@ export function buildImportedPlot(
       const recordReference = documents.add(
         longLedgerCommitFileId(commitId),
         ledgerPath(commitId),
-        serializeJson(record),
+        toJsonFileText(record),
         "json"
       );
       const chapterFile = chapterFiles.find(

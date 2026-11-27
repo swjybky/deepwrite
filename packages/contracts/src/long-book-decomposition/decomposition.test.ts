@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   splitDecompositionChunks,
   decompositionInputBudget,
-  decompositionReadingUnitId
+  decompositionReadingUnitId,
+  limitingDecompositionReadingModel
 } from "./chunking";
-import { DECOMPOSITION_MAX_CHARACTERS } from "./limits";
+import {
+  DECOMPOSITION_MAX_CHARACTERS,
+  DECOMPOSITION_MAX_FALLBACK_MODELS
+} from "./limits";
 import { DEFAULT_DECOMPOSITION_PROFILE } from "./profile";
 import {
   LongBookDecompositionJobSchema,
@@ -16,7 +20,10 @@ import {
   decompositionAssetProse
 } from "./records";
 import { DecompositionReadingCardSchema } from "./cards";
-import { CreateDecompositionJobInputSchema } from "./commands";
+import {
+  CreateDecompositionJobInputSchema,
+  UpdateDecompositionModelsInputSchema
+} from "./commands";
 import { DecompositionReceiptSchema } from "./target";
 import { estimateDecomposition } from "./estimate";
 import type { LongBookAnalysisChapter } from "../long-book-analysis-sources";
@@ -320,4 +327,65 @@ it("合并主分支后同时保留五万章和五千万字符上限", () => {
       characterCount: LONG_BOOK_ANALYSIS_MAX_TOTAL_CHARACTERS + 1
     }).success
   ).toBe(false);
+});
+
+it("模型链契约兼容旧任务、拒绝同阶段重复模型并支持按最小预算选取通读模型", () => {
+  const models = {
+    reading: { modelId: "m1", thinkingLevel: "off" as const },
+    integration: { modelId: "m2", thinkingLevel: "low" as const },
+    readingFallbacks: [
+      { modelId: "m3", thinkingLevel: "medium" as const },
+      { modelId: "m4", thinkingLevel: "off" as const }
+    ],
+    integrationFallbacks: [{ modelId: "m1", thinkingLevel: "high" as const }]
+  };
+  expect(
+    UpdateDecompositionModelsInputSchema.safeParse({
+      jobId: "ldjob_chain",
+      models
+    }).success
+  ).toBe(true);
+  expect(
+    UpdateDecompositionModelsInputSchema.safeParse({
+      jobId: "ldjob_chain",
+      models: {
+        ...models,
+        readingFallbacks: [{ modelId: "m1", thinkingLevel: "low" as const }]
+      }
+    }).success
+  ).toBe(false);
+  expect(
+    UpdateDecompositionModelsInputSchema.safeParse({
+      jobId: "ldjob_chain",
+      models: {
+        ...models,
+        integrationFallbacks: [
+          { modelId: "m3", thinkingLevel: "off" as const },
+          { modelId: "m3", thinkingLevel: "low" as const }
+        ]
+      }
+    }).success
+  ).toBe(false);
+  expect(
+    UpdateDecompositionModelsInputSchema.safeParse({
+      jobId: "ldjob_chain",
+      models: {
+        ...models,
+        readingFallbacks: Array.from(
+          { length: DECOMPOSITION_MAX_FALLBACK_MODELS + 1 },
+          (_, index) => ({
+            modelId: `extra_${index}`,
+            thinkingLevel: "off" as const
+          })
+        )
+      }
+    }).success
+  ).toBe(false);
+
+  const smallest = limitingDecompositionReadingModel([
+    { contextWindow: 128_000, maxTokens: 8192 },
+    { contextWindow: 32_000, maxTokens: 4096 },
+    { contextWindow: 200_000, maxTokens: 8192 }
+  ]);
+  expect(smallest.contextWindow).toBe(32_000);
 });

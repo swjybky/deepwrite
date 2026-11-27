@@ -1,4 +1,0 @@
-interface:
-  display_name: "打包补丁版本并发布"
-  short_description: "递增补丁版本、清理旧产物、修复打包错误并按需发布 GitHub Release"
-  default_prompt: "使用 $package-patch-release 递增补丁版本并打包，遇错修复后继续；发布按我的要求执行。"

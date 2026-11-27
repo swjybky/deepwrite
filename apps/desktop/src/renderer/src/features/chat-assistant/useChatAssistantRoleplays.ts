@@ -3,10 +3,12 @@ import { computed, ref } from "vue";
 import type { ChatRoleplayProfile } from "@deepwrite/contracts";
 import { uiMessage } from "../../ui-feedback";
 import { listChatRoles, saveChatRole } from "./chatAssistantProfiles";
+import { deepwriteApi } from "../../api/deepwrite";
+import { uiStorage } from "../../utils/uiStorage";
 const SELECTION_KEY = "deepwrite:chat-assistant-roleplay:v1";
 function readSelection(): string {
   try {
-    return window.localStorage.getItem(SELECTION_KEY) ?? "";
+    return uiStorage().getItem(SELECTION_KEY) ?? "";
   } catch {
     return "";
   }
@@ -21,14 +23,14 @@ export function useChatAssistantRoleplays() {
     if (!roleplays.value.some((role) => role.id === id)) return false;
     selectedRoleId.value = id;
     try {
-      window.localStorage.setItem(SELECTION_KEY, id);
+      uiStorage().setItem(SELECTION_KEY, id);
     } catch {
       /* Selection remains usable in memory. */
     }
     return true;
   }
   async function refresh(): Promise<void> {
-    if (!window.deepwrite) return;
+    if (!deepwriteApi()) return;
     try {
       roleplays.value = await listChatRoles();
     } catch {

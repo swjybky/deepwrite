@@ -23,6 +23,7 @@ import {
   registerWriteApprovalSource
 } from "./agent-conversation/write-approval";
 import type { AgentConversationController } from "./useAgentConversation";
+import { deepwriteApi } from "../api/deepwrite";
 
 export interface MysteryShellBridgeOptions {
   createBookDialogOpen: Ref<boolean>;
@@ -190,7 +191,7 @@ export function useMysteryShellBridge(options: MysteryShellBridgeOptions) {
     longEditorHasUnsavedChanges: ExternalControlBridgePorts["longEditorHasUnsavedChanges"];
   }): ExternalControlBridgePorts {
     return {
-      api: () => window.deepwrite,
+      api: () => deepwriteApi(),
       open: ports.open,
       conversation: () =>
         ports.isLong()

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiConfirm } from "../../ui-confirm";
 import { getErrorDetail } from "../../i18n/errors";
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, ref, onMounted, watch } from "vue";
@@ -35,15 +36,16 @@ watch([c.savedSources, c.drafts], ([sources, drafts]) => {
   )
     historyId.value = "";
 });
-function deleteSource(id: string) {
+async function deleteSource(id: string) {
   const source = c.savedSources.value.find((book) => book.id === id);
   if (disabled.value || !source) return;
   if (
-    !window.confirm(
-      t("shortBookAnalysis.deleteStoryConfirmation", {
+    !(await uiConfirm({
+      message: t("shortBookAnalysis.deleteStoryConfirmation", {
         title: source.title
-      })
-    )
+      }),
+      danger: true
+    }))
   )
     return;
   return act(async () => {

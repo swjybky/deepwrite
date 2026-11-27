@@ -109,6 +109,18 @@ export function useAgentTeamCatalogCoordinator(
     );
   }
 
+  async function duplicateAgentTeam(
+    input: AgentTeamProfileTargetInput
+  ): Promise<void> {
+    const api = context.api();
+    if (!api) return;
+    await mutateAgentTeamCatalog(
+      () => api.agentTeams.duplicate(input),
+      t("settingsFeatureCoordinator.agentTeamDuplicated"),
+      t("settingsFeatureCoordinator.failedToDuplicateAgentTeam")
+    );
+  }
+
   /**
    * Switching a team on or off is quick and reversible, so it must not raise
    * the page-wide saving flag: every control binds that flag to `disabled`,
@@ -234,6 +246,7 @@ export function useAgentTeamCatalogCoordinator(
     createAgentTeam,
     renameAgentTeam,
     deleteAgentTeam,
+    duplicateAgentTeam,
     setAgentTeamEnabled,
     saveAgentTeamSettings,
     downloadAgentTeam,

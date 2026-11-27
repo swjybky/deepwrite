@@ -1067,13 +1067,71 @@ describe("catalog workspace projection", () => {
   it("keeps builtin skill-library overviews read-only", () => {
     const source = fixture();
     source.skills[0] = { ...source.skills[0]!, isBuiltin: true };
-    const overview = projectCatalogWorkspace(source).workspaceDocuments.find(
+    const projection = projectCatalogWorkspace(source);
+    const overview = projection.workspaceDocuments.find(
       (document) =>
         document.domain === "skill" &&
         document.libraryId === "skill-general" &&
         document.catalogLibraryField === "overview"
     );
     expect(overview?.readOnly).toBe(true);
+    const skillNode = projection.resourceSections
+      .find((section) => section.id === "skill")!
+      .nodes.flatMap((node) => [node, ...(node.children ?? [])])
+      .find((node) => node.id === "skill-general");
+    expect(skillNode?.badge).toBe("内置");
+  });
+
+  it("marks builtin material groups, libraries, entries, and overviews read-only with a builtin badge", () => {
+    const source = fixture();
+    source.materialGroups = [
+      {
+        ...source.materialGroups[0]!,
+        isBuiltin: true
+      }
+    ];
+    source.materials[0] = { ...source.materials[0]!, isBuiltin: true };
+    source.materials[1] = { ...source.materials[1]!, isBuiltin: true };
+
+    const projection = projectCatalogWorkspace(source);
+    const materialNodes = projection.resourceSections.find(
+      (section) => section.id === "material"
+    )!.nodes;
+    const builtinGroupNode = materialNodes.find(
+      (node) => node.groupId === source.materialGroups[0]!.id
+    )!;
+    expect(builtinGroupNode.badge).toBe("内置");
+
+    const builtinLibraryNode = builtinGroupNode.children!.find(
+      (node) => node.id === "material-mixed"
+    )!;
+    expect(builtinLibraryNode.readOnly).toBe(true);
+    expect(
+      builtinLibraryNode.children!.every((child) => child.readOnly === true)
+    ).toBe(true);
+
+    const overviewDoc = projection.workspaceDocuments.find(
+      (document) =>
+        document.domain === "material" &&
+        document.libraryId === "material-mixed" &&
+        document.catalogLibraryField === "overview"
+    );
+    const entryDoc = projection.workspaceDocuments.find(
+      (document) =>
+        document.domain === "material" &&
+        document.libraryId === "material-mixed" &&
+        document.catalogEntryId
+    );
+    expect(overviewDoc?.readOnly).toBe(true);
+    expect(entryDoc?.readOnly).toBe(true);
+
+    source.materialGroups = [];
+    const ungroupedNodes = projectCatalogWorkspace(
+      source
+    ).resourceSections.find((section) => section.id === "material")!.nodes;
+    expect(
+      ungroupedNodes.find((node) => node.id === "material-mixed")?.badge
+    ).toBe("内置");
   });
 
   it("generates collision-free editor ids across books and libraries", () => {

@@ -3,7 +3,7 @@ import {
   type LibraryDomain,
   type MutableLibraryEntry
 } from "./types";
-import { omittedEntryCount, workspaceShape, libraryTitle } from "./workspace";
+import { omittedEntryCount, libraryTitle } from "./workspace";
 import { type AgentTool } from "@earendil-works/pi-agent-core";
 import {
   defineTool,
@@ -60,7 +60,7 @@ export function buildListTool(
         return true;
       });
       const omitted = omittedEntryCount(input.workspace);
-      const group = workspaceShape(input.workspace);
+      const group = input.workspace;
       const groupNote =
         group.groupTitle && withPeers
           ? `｜分组：《${group.groupTitle}》｜可读 ${libraries.length} 个成员库`

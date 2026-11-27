@@ -45,7 +45,7 @@ function eventScrollElement(event: Event): ScrollElement | null {
   if (!target || typeof target !== "object" || !("scrollTop" in target)) {
     return null;
   }
-  return target as unknown as ScrollElement;
+  return target as ScrollElement;
 }
 
 export function useLongEditorScrollMemory(options: {

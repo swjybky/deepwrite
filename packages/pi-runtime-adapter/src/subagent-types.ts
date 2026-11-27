@@ -255,6 +255,7 @@ export interface BuildSpawnSubagentToolInput {
     task?: string;
     contextPolicy?: ContextPolicy;
     fauxResponses?: FauxResponseStep[];
+    onComplete?: (outcome: SubagentTaskOutcome) => void;
   }>;
   toolExecutionHooks?: AgentToolExecutionHooks;
   retryPolicy?: AgentTurnRetryPolicyOptions;
@@ -279,4 +280,6 @@ export interface BuildSpawnSubagentToolInput {
   requestUserInput?: AgentUserInputRequester;
   /** User-review mode: a child pauses after each step that formed proposals. */
   pausesForWriteApproval?: boolean;
+  /** Preserves full model-call prompt/message snapshots for evaluation harnesses. */
+  evaluationMode?: boolean;
 }

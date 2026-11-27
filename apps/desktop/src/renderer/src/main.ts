@@ -6,15 +6,15 @@ import { i18n, setAppLanguage } from "./i18n";
 import { loadMessageCatalogs } from "./i18n/load-messages";
 import StartupFailure from "./i18n/StartupFailure.vue";
 import { initializeAppLanguage } from "./i18n/bootstrap";
+import { deepwriteApi } from "./api/deepwrite";
 import "./styles.css";
 
 const platform = /Mac|Macintosh/.test(navigator.userAgent) ? "darwin" : "other";
 document.documentElement.dataset.platform = platform;
 
-if (window.deepwrite?.textContextMenu) {
-  const dispose = installNativeTextContextMenu(
-    window.deepwrite.textContextMenu
-  );
+const textContextMenu = deepwriteApi()?.textContextMenu;
+if (textContextMenu) {
+  const dispose = installNativeTextContextMenu(textContextMenu);
   import.meta.hot?.dispose(dispose);
 }
 
@@ -23,7 +23,7 @@ async function mountApplication(): Promise<void> {
   try {
     await Promise.all([
       initializeAppLanguage(
-        window.deepwrite?.generalSettings,
+        deepwriteApi()?.generalSettings,
         navigator.language,
         document.documentElement
       ),

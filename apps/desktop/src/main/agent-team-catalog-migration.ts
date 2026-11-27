@@ -14,10 +14,7 @@ import {
 import { migrateLegacyLongAgentTeamSettings } from "./legacy-long-agent-team-migration";
 import { migrateLegacyScriptAgentTeamSettings } from "./legacy-script-agent-team-migration";
 import { migrateLegacyShortAgentTeamSettings } from "./legacy-short-agent-team-migration";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 
 function availableMigrationName(
   baseName: string,

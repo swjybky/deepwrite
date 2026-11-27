@@ -140,7 +140,21 @@ export function normalizeJevModelIdentity<
     contextWindow?: unknown;
     maxTokens?: unknown;
   }
->(model: T): T {
+>(
+  model: T
+): Omit<
+  T,
+  | "toolSchemaProfile"
+  | "requestModelId"
+  | "supportsDeveloperRole"
+  | "contextWindow"
+  | "maxTokens"
+> & {
+  modelKind: "jev";
+  api: "openai-completions";
+  reasoning: false;
+  defaultThinkingLevel: "off";
+} {
   const {
     toolSchemaProfile: _toolSchemaProfile,
     requestModelId: _requestModelId,
@@ -157,7 +171,7 @@ export function normalizeJevModelIdentity<
     defaultThinkingLevel: "off",
     thinkingLevelOptions: [...BUILT_IN_REASONING_LEVELS],
     temperatureOptions: [0.1, 0.7, 1]
-  } as unknown as T;
+  };
 }
 
 export function parseJevSystemOneScoreAnswer(

@@ -137,12 +137,14 @@ function patchFile(
 export function createProposalOverlay() {
   const structure: Creation[] = [];
   const documents = new Map<string, OverlayDocument>();
+  let inFlightReload: Promise<LongWorkspaceIndexSnapshot> | undefined;
 
   return {
     remember(
       operations: readonly LongWorkspaceOperation[],
       writes: readonly OverlayDocument[]
     ): void {
+      inFlightReload = undefined;
       for (const operation of operations) {
         if (!isCreation(operation)) continue;
         structure.push(structuredClone(operation));
@@ -152,6 +154,17 @@ export function createProposalOverlay() {
         }
       }
       for (const write of writes) documents.set(write.file.id, write);
+    },
+    /** Coalesces concurrent clean index loads so parallel subagents share one IPC round-trip. */
+    coalesceIndexReload(
+      loader: () => Promise<LongWorkspaceIndexSnapshot>
+    ): Promise<LongWorkspaceIndexSnapshot> {
+      if (inFlightReload) return inFlightReload;
+      const promise = loader().finally(() => {
+        if (inFlightReload === promise) inFlightReload = undefined;
+      });
+      inFlightReload = promise;
+      return promise;
     },
     applyToIndex(
       index: LongWorkspaceIndexSnapshot
@@ -180,6 +193,7 @@ export function createProposalOverlay() {
     },
     /** After the user settled the proposals, Core is the only source again. */
     clear(): void {
+      inFlightReload = undefined;
       structure.length = 0;
       documents.clear();
     }

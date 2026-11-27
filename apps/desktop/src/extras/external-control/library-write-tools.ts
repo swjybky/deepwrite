@@ -4,7 +4,8 @@ import {
   DuplicateCatalogProjectResultSchema,
   ExternalControlLocateProjectResultSchema,
   RemoveLibraryEntryResultSchema,
-  createShortWorkspaceContentRevision
+  createShortWorkspaceContentRevision,
+  isBuiltinCatalogProjectId
 } from "@deepwrite/contracts";
 import {
   ExternalMutationResultSchema,
@@ -34,6 +35,18 @@ function changed(context: MutationContext, libraryId: string): void {
 
 async function libraryOf(context: MutationContext, libraryId: string) {
   return findLibrary(await readCatalogIndex(context.core), libraryId);
+}
+
+function assertWritableLibrary(
+  libraryId: string,
+  library: { value: { isBuiltin?: boolean | undefined } }
+): void {
+  if (isBuiltinCatalogProjectId(libraryId) || library.value.isBuiltin) {
+    throw new ExternalControlError(
+      "external.invalid_input",
+      "内置资料库为只读，不能修改或删除，请先复制后再自定义。"
+    );
+  }
 }
 
 function entryOf(
@@ -67,7 +80,9 @@ export async function writeEntry(
 ): Promise<ExternalMutationResult> {
   assertNoActiveRun(context, [input.libraryId]);
   const { libraryId, entryId, content, baseRevision } = input;
-  const { domain } = await libraryOf(context, libraryId);
+  const library = await libraryOf(context, libraryId);
+  assertWritableLibrary(libraryId, library);
+  const { domain } = library;
   assertNoActiveRun(context, [`library-domain:${domain}`, libraryId]);
   const saved = await runCommand(
     context,
@@ -133,6 +148,7 @@ export async function manageEntry(
   const { action, libraryId, title } = input;
   const run = async (): Promise<ExternalMutationResult> => {
     const library = await libraryOf(context, libraryId);
+    assertWritableLibrary(libraryId, library);
     const { domain } = library;
     assertNoActiveRun(context, [`library-domain:${domain}`, libraryId]);
     if (action === "create") {
@@ -292,6 +308,7 @@ export async function manageLibrary(
   const run = async (): Promise<ExternalMutationResult> => {
     switch (action) {
       case "rename": {
+        assertWritableLibrary(libraryId, { value });
         const title = requireField(input.title, "rename", "title");
         await runCommand(
           context,
@@ -311,6 +328,7 @@ export async function manageLibrary(
         return { id: copy.projectId, title: copy.title };
       }
       case "delete":
+        assertWritableLibrary(libraryId, { value });
         return deleteLibrary(context, libraryId, domain, value.title);
     }
   };

@@ -263,11 +263,15 @@ describe("external read tools against real stores", () => {
 
   it("reads a long document", async () => {
     const work = await call<WorkDetail>("get_work", { workId: longId });
+    const chapter = work.documents.find(({ title }) =>
+      title.endsWith(" · 正文")
+    );
+    expect(chapter).toBeDefined();
     const page = await call<Page>("read_document", {
       workId: longId,
-      documentId: work.documents[0]?.id
+      documentId: chapter?.id
     });
-    expect(page.title).toMatch(/\.md$/u);
+    expect(page.title).toBe(chapter?.title);
     expect(page.revision).toBeDefined();
   });
 

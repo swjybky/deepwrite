@@ -6,7 +6,7 @@ import type {
 } from "@deepwrite/contracts";
 import { BOOK_IDENTITY_MAX_COMPOSED_BYTES } from "@deepwrite/contracts";
 import {
-  atomicWrite,
+  writeIdentityFile,
   identityFile,
   isMissing,
   optionalBytes,
@@ -36,7 +36,7 @@ export class AssetTransaction {
   private readonly writes: Array<{ path: string; previous?: Buffer }> = [];
   constructor(
     private readonly directory: string,
-    private readonly write = atomicWrite
+    private readonly write = writeIdentityFile
   ) {}
 
   async put(file: string, bytes: Buffer, exclusive = false): Promise<void> {

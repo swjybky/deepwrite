@@ -1,4 +1,5 @@
 import {
+  ConversationCompactionStatusSchema,
   StorageChangeResultSchema,
   StorageOpenDirectoryInputSchema,
   StorageOpenDirectoryResultSchema,
@@ -63,6 +64,30 @@ export const storageSettings: StorageSettingsApi = {
           id,
           correlationId: id
         })
+      )
+    );
+  },
+  async compactConversations() {
+    const id = browserId("cmd_storage_settings_compact");
+    return ConversationCompactionStatusSchema.parse(
+      await invokeCommand(
+        createEnvelope(
+          "storageSettings.compactConversations",
+          {},
+          { id, correlationId: id }
+        )
+      )
+    );
+  },
+  async releaseConversationBackup() {
+    const id = browserId("cmd_storage_settings_release_backup");
+    return ConversationCompactionStatusSchema.parse(
+      await invokeCommand(
+        createEnvelope(
+          "storageSettings.releaseConversationBackup",
+          {},
+          { id, correlationId: id }
+        )
       )
     );
   }

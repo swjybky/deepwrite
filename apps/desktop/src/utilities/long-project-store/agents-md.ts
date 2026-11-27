@@ -3,8 +3,9 @@ import {
   LONG_AGENTS_MD_MAX_CHARACTERS,
   LONG_AGENTS_MD_PATH
 } from "@deepwrite/contracts";
-import { isNodeError, readSecureTextFile } from "./io";
+import { readSecureTextFile } from "./io";
 import { MAX_AGENTS_MD_BYTES, type SecureTextFile } from "./types";
+import { isNodeError } from "@deepwrite/shared/node";
 
 export function sliceAgentsMdContent(content: string): {
   content: string;

@@ -289,4 +289,90 @@ describe("storage settings service", () => {
       "old default data"
     );
   });
+
+  it("includes compaction status in snapshot and routes compact/release commands", async () => {
+    const statusBefore = {
+      phase: "needed" as const,
+      legacyCallsFound: 12,
+      estimatedReclaimableBytes: 40_000_000,
+      processedSessions: 0,
+      totalSessions: 4,
+      bytesBefore: 50_000_000,
+      canRetry: true,
+      canReleaseBackup: false,
+      canRollback: false
+    };
+    const compacted = {
+      ...statusBefore,
+      phase: "completed_with_backup" as const,
+      legacyCallsFound: 0,
+      estimatedReclaimableBytes: 0,
+      processedSessions: 4,
+      bytesAfter: 1_500_000,
+      backupBytes: 50_000_000,
+      netFreedBytes: -1_500_000,
+      canRetry: false,
+      canReleaseBackup: true,
+      canRollback: true
+    };
+    const released = {
+      ...compacted,
+      phase: "backup_released" as const,
+      backupBytes: 0,
+      netFreedBytes: 48_500_000,
+      canReleaseBackup: false,
+      canRollback: false
+    };
+    const { service, options } = await fixture();
+    const compact = vi.fn(async () => compacted);
+    const releaseBackup = vi.fn(async () => released);
+    const serviceWithCompaction = new StorageSettingsService({
+      ...options,
+      compaction: {
+        status: vi.fn(async () => statusBefore),
+        compact,
+        releaseBackup
+      }
+    });
+
+    const getRes = await handleStorageSettingsCommands(
+      createEnvelope(
+        "storageSettings.get",
+        {},
+        { id: "c1", correlationId: "c1" }
+      ),
+      serviceWithCompaction
+    );
+    expect(getRes).toMatchObject({
+      status: "accepted",
+      payload: { conversationCompaction: statusBefore }
+    });
+
+    const compactRes = await handleStorageSettingsCommands(
+      createEnvelope(
+        "storageSettings.compactConversations",
+        {},
+        { id: "c2", correlationId: "c2" }
+      ),
+      serviceWithCompaction
+    );
+    expect(compactRes).toMatchObject({
+      status: "accepted",
+      payload: compacted
+    });
+
+    const releaseRes = await handleStorageSettingsCommands(
+      createEnvelope(
+        "storageSettings.releaseConversationBackup",
+        {},
+        { id: "c3", correlationId: "c3" }
+      ),
+      serviceWithCompaction
+    );
+    expect(releaseRes).toMatchObject({
+      status: "accepted",
+      payload: released
+    });
+    expect(service).toBeDefined();
+  });
 });

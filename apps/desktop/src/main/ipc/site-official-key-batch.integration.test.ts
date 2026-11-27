@@ -15,7 +15,7 @@ import {
   mergeSiteOfficialKeyBatch,
   parseSiteOfficialKeyLines
 } from "../../renderer/src/composables/siteOfficialKeyBatch";
-import { createModelApiTestFixture } from "../../renderer/src/composables/modelApiTestFixture";
+import { createModelApiTestFixture } from "../../renderer/src/composables/modelApi.test-support";
 import {
   handleModelCommands,
   type ModelCommandContext

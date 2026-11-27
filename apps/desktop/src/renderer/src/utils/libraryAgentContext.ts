@@ -124,7 +124,7 @@ function resolveReadableLibraries(
       title: library.title,
       kind,
       ...(library.customTag ? { customTag: library.customTag } : {}),
-      readOnly: "isBuiltin" in library && library.isBuiltin,
+      readOnly: Boolean(library.isBuiltin),
       entryCount: library.entries.length,
       groupTitle: findOwningGroup(snapshot, domain, library.id)?.groupTitle
     }))
@@ -281,9 +281,7 @@ export function buildLibraryAgentWorkspaceContext(
         title: resolved.title,
         content: textSnapshot.content,
         revision: createShortWorkspaceContentRevision(resolved.content),
-        readOnly:
-          ("isBuiltin" in source.library && source.library.isBuiltin) ||
-          resolved.readOnly,
+        readOnly: Boolean(source.library.isBuiltin) || resolved.readOnly,
         ...peerMeta,
         ...(textSnapshot.truncated
           ? {
@@ -321,8 +319,9 @@ export function buildLibraryAgentWorkspaceContext(
       title: liveActive.title,
       content: textSnapshot.content,
       revision: createShortWorkspaceContentRevision(liveActive.content),
-      readOnly:
-        Boolean(skillLibrary?.isBuiltin) || Boolean(liveActive.readOnly),
+      readOnly: Boolean(
+        ("isBuiltin" in library && library.isBuiltin) || liveActive.readOnly
+      ),
       ...(textSnapshot.truncated
         ? {
             truncated: true,
@@ -359,7 +358,7 @@ export function buildLibraryAgentWorkspaceContext(
           overviewOriginalLength: overviewSnapshot.originalLength
         }
       : {}),
-    readOnly: skillLibrary?.isBuiltin ?? false,
+    readOnly: Boolean("isBuiltin" in library && library.isBuiltin),
     ...(activeEntryId ? { activeEntryId } : {}),
     ...(library.projectRevision === undefined
       ? {}

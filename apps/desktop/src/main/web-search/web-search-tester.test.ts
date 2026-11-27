@@ -13,7 +13,7 @@ const { handleWebSearchCommands } = await import("./web-search-commands");
 const { createWebSearchTester, testWebSearch, webSearchTestFailure } =
   await import("./web-search-tester");
 const { SafeWebSearchError } = await import("./web-search-errors");
-const { SEARCH_KEY, setup } = await import("./web-search-test-support");
+const { SEARCH_KEY, setup } = await import("./web-search.test-support");
 
 const request = {
   providerId: "deepseek" as WebSearchProviderId,

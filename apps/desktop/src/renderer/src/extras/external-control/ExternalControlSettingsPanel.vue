@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import type { ExternalControlOverview } from "@deepwrite/contracts/renderer";
 import { computed, onMounted, ref } from "vue";
 import DeleteLongDraftSectionDialog from "../../components/DeleteLongDraftSectionDialog.vue";
 import { createScopedTranslator, locale } from "../../i18n";
 import { getErrorPayload } from "../../i18n/errors";
 import { uiMessage } from "../../ui-feedback";
-
-import skillUrl from "../../../../extras/external-control/skill/SKILL.md?url";
 
 const t = createScopedTranslator("extras.externalControl");
 const foundation = createScopedTranslator("foundation");
@@ -75,7 +74,7 @@ async function run(
 }
 
 function api() {
-  const value = window.deepwrite?.externalControl;
+  const value = deepwriteApi()?.externalControl;
   if (!value) throw new Error(t("loadFailed"));
   return value;
 }
@@ -92,6 +91,17 @@ async function copy(text: string): Promise<void> {
 async function emptyTrash(): Promise<void> {
   await run("empty", () => api().emptyTrash(), t("emptied"));
   confirmingEmpty.value = false;
+}
+
+// The packaged copy sits inside app.asar, which Chromium's downloader cannot read.
+async function downloadSkill(): Promise<void> {
+  const { default: text } =
+    await import("../../../../extras/external-control/skill/SKILL.md?raw");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+  link.download = "SKILL.md";
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 onMounted(() => void run("load", () => api().overview()));
@@ -180,12 +190,13 @@ onMounted(() => void run("load", () => api().overview()));
           <span class="settings-item-text"
             ><strong>{{ t("other") }}</strong></span
           >
-          <a
+          <button
             class="external-control-button"
-            :href="skillUrl"
-            download="SKILL.md"
-            >{{ t("download") }}</a
+            type="button"
+            @click="downloadSkill"
           >
+            {{ t("download") }}
+          </button>
         </div>
       </div>
 

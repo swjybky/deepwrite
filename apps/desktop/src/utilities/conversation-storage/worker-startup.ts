@@ -1,5 +1,6 @@
 import { ConversationDatabase } from "./database";
 import { migrateLegacyFile } from "./legacy-file-migration";
+import { recoverCompactionOnStartup } from "./legacy-snapshot-compaction";
 import {
   describeStorageFailure,
   type StorageFailure,
@@ -14,6 +15,7 @@ export async function initializeConversationStorage(
   let phase: StoragePhase = "database-open";
   let database: ConversationDatabase | undefined;
   try {
+    await recoverCompactionOnStartup(paths.databasePath);
     database = new ConversationDatabase(paths.databasePath);
     if (paths.legacyStatePath) {
       phase = "legacy-migration";

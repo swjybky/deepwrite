@@ -26,6 +26,8 @@ import {
   ensureAppearanceFontLoaded,
   hydrateAppearanceFontCatalog
 } from "./useAppearanceFonts";
+import { deepwriteApi } from "../api/deepwrite";
+import { uiStorage } from "../utils/uiStorage";
 
 export type { AppearanceMode };
 export type ColorScheme = AppearanceColorScheme;
@@ -85,7 +87,7 @@ function readLegacyStoredState(systemScheme: ColorScheme): AppearanceState {
     editorFontFamily: defaults.editorFontFamily
   };
   try {
-    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    const raw = uiStorage().getItem(LEGACY_STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<AppearanceSettings>;
     const settings = AppearanceSettingsSchema.safeParse({
@@ -133,7 +135,7 @@ function readLegacyStoredState(systemScheme: ColorScheme): AppearanceState {
 
 function clearLegacyStorage(): void {
   try {
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    uiStorage().removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Ignore quota / privacy mode failures.
   }
@@ -141,7 +143,7 @@ function clearLegacyStorage(): void {
 
 function persistToLegacyStorage(): void {
   try {
-    window.localStorage.setItem(
+    uiStorage().setItem(
       LEGACY_STORAGE_KEY,
       JSON.stringify({
         startupWindowSize: state.startupWindowSize,
@@ -206,7 +208,7 @@ function queueDesktopPersist(
   settings: AppearanceSettings,
   captureCurrentWindowSize = false
 ): void {
-  const api = window.deepwrite?.appearance;
+  const api = deepwriteApi()?.appearance;
   if (!api) {
     persistToLegacyStorage();
     return;
@@ -318,7 +320,7 @@ async function applyHydratedSettings(
   const normalized = await normalizeLoadedFontSelections(settings);
   applySettings(normalized);
   if (persistRepair && fontSelectionsChanged(settings, normalized)) {
-    await window.deepwrite?.appearance.save(normalized);
+    await deepwriteApi()?.appearance.save(normalized);
   }
 }
 
@@ -329,7 +331,7 @@ async function applyDesktopSettings(
 }
 
 async function hydrateFromDesktop(): Promise<void> {
-  const api = window.deepwrite?.appearance;
+  const api = deepwriteApi()?.appearance;
   if (!api) {
     hydrated = true;
     return;
@@ -340,7 +342,7 @@ async function hydrateFromDesktop(): Promise<void> {
       hydrateAppearanceFontCatalog()
     ]);
     if (!snapshot.persisted) {
-      const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      const legacyRaw = uiStorage().getItem(LEGACY_STORAGE_KEY);
       if (legacyRaw) {
         const legacy = AppearanceSettingsSchema.safeParse(
           JSON.parse(legacyRaw) as unknown
@@ -455,7 +457,7 @@ export function resetTheme(scheme: ColorScheme): void {
 async function saveStartupWindowSize(capture: boolean): Promise<void> {
   pendingWindowSizeCapture = false;
   await flush();
-  const api = window.deepwrite?.appearance;
+  const api = deepwriteApi()?.appearance;
   if (!api) throw new Error("Desktop appearance API unavailable");
   const settings = captureSettings();
   if (!capture) settings.startupWindowSize = null;

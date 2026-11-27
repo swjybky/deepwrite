@@ -5,6 +5,7 @@ import {
   createAgentTeamPackageJson,
   readAgentTeamPackageJson
 } from "./agent-team-package-json";
+import { zipDateTime } from "./zip-writer";
 
 const PACKAGE_ENTRY_NAME = "deepwrite-agent-team.json";
 export const AGENT_TEAM_PACKAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -28,17 +29,6 @@ function crc32(buffer: Buffer): number {
     crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
-}
-
-function zipDateTime(date: Date): { date: number; time: number } {
-  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
-  return {
-    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
-    time:
-      (date.getHours() << 11) |
-      (date.getMinutes() << 5) |
-      Math.floor(date.getSeconds() / 2)
-  };
 }
 
 function createSingleFileZip(name: string, data: Buffer, now: Date): Buffer {

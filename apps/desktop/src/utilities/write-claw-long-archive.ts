@@ -3,6 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 import { inflateRawSync } from "node:zlib";
+import { isRecord } from "@deepwrite/shared";
 
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 // A Write Claw long-book export contains one stage projection plus three
@@ -45,10 +46,6 @@ export interface WriteClawLongArchiveSource {
     content: string;
   }>;
   warnings: string[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function checkedRange(

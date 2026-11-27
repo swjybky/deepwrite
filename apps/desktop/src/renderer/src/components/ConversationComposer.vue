@@ -24,6 +24,7 @@ import type { IconName } from "../types/workspace";
 import type { ModelSelectOption } from "../utils/modelSelectOptions";
 import type { ComposerReferenceTrigger } from "../utils/composerReferences";
 import { agentTeamMemberReferences } from "../utils/agentTeamMemberReferences";
+import { resolveAgentTeamModeAvailability } from "../utils/agentTeamModeAvailability";
 import { PROMPT_ATTACHMENT_ACCEPT } from "../utils/promptAttachments";
 import { useConversationAttachments } from "../composables/useConversationAttachments";
 import { useConversationComposer } from "../composables/useConversationComposer";
@@ -47,6 +48,7 @@ import ComposerQueuedMessages from "./ComposerQueuedMessages.vue";
 import VoiceInputBar from "./VoiceInputBar.vue";
 
 const t = createScopedTranslator("components.conversationComposer");
+const tTeam = createScopedTranslator("components.agentTeamModeSelect");
 
 const settingsStore = useSettingsStore();
 const textAttachmentsTotalMaxCharacters = () =>
@@ -299,6 +301,54 @@ function handleApprovalChange(value: string | number): void {
     emit("selectApproval", value);
 }
 
+const teamAvailability = computed(() =>
+  props.agentWorkspaceType && props.agentId
+    ? resolveAgentTeamModeAvailability({
+        catalog: settingsStore.agentTeamCatalog,
+        workspaceType: props.agentWorkspaceType,
+        parentAgentId: props.agentId,
+        bookId: props.agentBookId,
+        loaded: settingsStore.agentTeamLoaded,
+        loading: settingsStore.agentTeamLoading,
+        loadError: settingsStore.agentTeamLoadError
+      })
+    : null
+);
+
+watch(
+  () =>
+    [
+      props.agentTeamMode,
+      settingsStore.agentTeamLoaded && !settingsStore.agentTeamLoading,
+      teamAvailability.value?.available ?? true
+    ] as const,
+  ([mode, settled, available]) => {
+    if (
+      props.agentWorkspaceType &&
+      props.agentId &&
+      mode === "team" &&
+      settled &&
+      !available
+    ) {
+      emit("selectAgentTeamMode", "normal");
+    }
+  },
+  { immediate: true }
+);
+
+const hasMoreToolbarItems = computed(
+  () =>
+    settingsStore.generalSettings.showContextUsage ||
+    (settingsStore.generalSettings.contextCompaction.showManualButton &&
+      !props.messagesEmpty)
+);
+
+const approvalModeLabel = computed(
+  () =>
+    props.approvalOptions.find((option) => option.value === props.approvalMode)
+      ?.label ?? ""
+);
+
 defineExpose({ focusInput });
 </script>
 
@@ -524,14 +574,49 @@ defineExpose({ focusInput });
                 :web-search-available="webSearchAvailable"
                 :web-search-disabled-reason="webSearchDisabledReason"
                 :responding="responding"
+                :team-mode-active="
+                  Boolean(
+                    agentWorkspaceType && agentId && agentTeamMode === 'team'
+                  )
+                "
+                :team-mode-label="tTeam('teamMode')"
+                :approval-mode-icon="approvalModeIcon"
+                :approval-mode-label="approvalModeLabel"
                 @select-model="emit('selectModel', $event)"
                 @select-thinking="emit('selectThinking', $event)"
                 @select-temperature="emit('selectTemperature', $event)"
                 @toggle-web-search="emit('toggleWebSearch', $event)"
-              />
+              >
+                <template #footer>
+                  <AgentTeamModeSelect
+                    v-if="agentWorkspaceType && agentId"
+                    :model-value="agentTeamMode"
+                    :workspace-type="agentWorkspaceType"
+                    :parent-agent-id="agentId"
+                    :book-id="agentBookId"
+                    :menu-z-index="1150"
+                    align="end"
+                    @update:model-value="emit('selectAgentTeamMode', $event)"
+                  />
+                  <PopupSelect
+                    :model-value="approvalMode"
+                    :options="approvalOptions"
+                    :accessible-label="t('selectManuscriptEditingPermission')"
+                    variant="compact"
+                    align="end"
+                    :menu-min-width="300"
+                    :menu-z-index="1150"
+                    @update:model-value="handleApprovalChange"
+                  >
+                    <template #prefix
+                      ><AppIcon :name="approvalModeIcon" :size="14"
+                    /></template>
+                  </PopupSelect>
+                </template>
+              </ConversationModelConfigSelect>
             </div>
             <div class="composer-actions">
-              <ComposerMoreSettings>
+              <ComposerMoreSettings v-if="hasMoreToolbarItems">
                 <ContextWindowIndicator
                   v-if="settingsStore.generalSettings.showContextUsage"
                   :messages="messages"
@@ -545,27 +630,6 @@ defineExpose({ focusInput });
                   :session-id="currentSessionId"
                   :disabled="responding"
                 />
-                <AgentTeamModeSelect
-                  v-if="agentWorkspaceType && agentId"
-                  :model-value="agentTeamMode"
-                  :workspace-type="agentWorkspaceType"
-                  :parent-agent-id="agentId"
-                  :book-id="agentBookId"
-                  @update:model-value="emit('selectAgentTeamMode', $event)"
-                />
-                <PopupSelect
-                  :model-value="approvalMode"
-                  :options="approvalOptions"
-                  :accessible-label="t('selectManuscriptEditingPermission')"
-                  variant="compact"
-                  align="end"
-                  :menu-min-width="300"
-                  @update:model-value="handleApprovalChange"
-                >
-                  <template #prefix
-                    ><AppIcon :name="approvalModeIcon" :size="14"
-                  /></template>
-                </PopupSelect>
               </ComposerMoreSettings>
               <button
                 class="round-tool-button"

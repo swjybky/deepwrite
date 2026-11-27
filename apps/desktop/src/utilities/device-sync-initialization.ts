@@ -20,11 +20,9 @@ import {
   validateDesktopSyncItem
 } from "./device-sync-files";
 import { availableProjectDirectory } from "./folder-catalog-store/paths-io";
-import { writeSyncJson } from "../extras/device-sync/atomic-json";
 import {
   commitProjectTransaction,
   recoverProjectTransaction,
-  projectTransactionContentSha256,
   type ProjectTransactionFileOperation
 } from "./project-transaction";
 import {
@@ -33,6 +31,7 @@ import {
   inspectDesktopInitialization,
   optionalInitializationFile
 } from "./device-sync-initialization-inspection";
+import { sha256Hex, writeTextFileDurable } from "@deepwrite/shared/node";
 
 /** Build and open all replacement projects before touching the live registries. */
 async function stageProjects(
@@ -144,9 +143,9 @@ export async function replaceDesktopInitialization(
   // including broken registrations. They do not require readable old manifests.
   for (const [index, path] of INITIALIZATION_REGISTRIES.entries()) {
     const value = originals[index];
-    if (value != null) await writeSyncJson(join(recovery, path), value);
+    if (value != null) await writeTextFileDurable(join(recovery, path), value);
   }
-  await writeSyncJson(
+  await writeTextFileDurable(
     join(recovery, "README.txt"),
     "初始化前的作品目录未被删除或覆盖。此处注册表记录了原目录位置。新作品位于独立 initialized-* 目录；需要恢复旧作品时可重新打开原目录。不要在应用运行时直接替换注册表。\n"
   );
@@ -165,9 +164,7 @@ export async function replaceDesktopInitialization(
       path,
       content: next[index]!,
       expectedSha256:
-        originals[index] == null
-          ? null
-          : projectTransactionContentSha256(originals[index])
+        originals[index] == null ? null : sha256Hex(originals[index])
     }));
   const previousReceipt = await optionalInitializationFile(
     join(userDataPath, INITIALIZATION_RECEIPT)
@@ -181,10 +178,7 @@ export async function replaceDesktopInitialization(
         recoveryDirectory: recoveryRelative
       })
     ),
-    expectedSha256:
-      previousReceipt === null
-        ? null
-        : projectTransactionContentSha256(previousReceipt)
+    expectedSha256: previousReceipt === null ? null : sha256Hex(previousReceipt)
   });
   // Existing durable transaction recovery finishes all registry replacements
   // and the receipt together before Core accepts the next command.

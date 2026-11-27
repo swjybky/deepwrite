@@ -31,7 +31,7 @@ export const CATALOG_PROJECT_KINDS = [
 export const CatalogProjectKindSchema = z.enum(CATALOG_PROJECT_KINDS);
 export type CatalogProjectKind = z.infer<typeof CatalogProjectKindSchema>;
 
-function isRelativeMarkdownPath(value: string): boolean {
+export function isRelativeMarkdownPath(value: string): boolean {
   if (
     value.startsWith("/") ||
     /^[a-zA-Z]:\//u.test(value) ||
@@ -64,7 +64,7 @@ export function uniqueIds(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
 
-const UniqueIdListSchema = z.array(CatalogIdSchema).refine(uniqueIds, {
+export const UniqueIdListSchema = z.array(CatalogIdSchema).refine(uniqueIds, {
   message: "Catalog id lists cannot contain duplicates."
 });
 
@@ -271,3 +271,112 @@ export const CatalogDocumentSchema = z.object({
   updatedAt: TimestampSchema
 });
 export type CatalogDocument = z.infer<typeof CatalogDocumentSchema>;
+
+export function flattenMaterialIdsByKind(
+  byKind?: LinkedMaterialIdsByKindInput | null
+): string[] {
+  if (!byKind) return [];
+  const ordered: string[] = [];
+  for (const kind of MATERIAL_KINDS) {
+    for (const raw of byKind[kind] ?? []) {
+      const id = raw.trim();
+      if (id && !ordered.includes(id)) ordered.push(id);
+    }
+  }
+  return ordered;
+}
+
+export function flattenSkillIdsByKind(
+  byKind?: LinkedSkillIdsByKindInput | null
+): string[] {
+  if (!byKind) return [];
+  const ordered: string[] = [];
+  for (const kind of SKILL_KINDS) {
+    for (const raw of byKind[kind] ?? []) {
+      const id = raw.trim();
+      if (id && !ordered.includes(id)) ordered.push(id);
+    }
+  }
+  return ordered;
+}
+
+export function materialIdsToByKind(
+  ids: readonly string[],
+  materials: readonly {
+    id: string;
+    materialKind: MaterialLibraryKind;
+    customTag?: string | undefined;
+  }[],
+  previousByKind?: LinkedMaterialIdsByKindInput | null
+): LinkedMaterialIdsByKind {
+  const byId = new Map(materials.map((item) => [item.id, item]));
+  const previousBucket = new Map<string, MaterialKind>();
+  if (previousByKind) {
+    for (const kind of MATERIAL_KINDS) {
+      for (const id of previousByKind[kind] ?? []) {
+        if (!previousBucket.has(id)) previousBucket.set(id, kind);
+      }
+    }
+  }
+  const result: LinkedMaterialIdsByKind = {
+    character: [],
+    gimmick: [],
+    plot: [],
+    draft: [],
+    other: []
+  };
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const library = byId.get(id);
+    const bucket: MaterialKind = library
+      ? !library.customTag && library.materialKind !== "mixed"
+        ? library.materialKind
+        : "other"
+      : (previousBucket.get(id) ?? "other");
+    result[bucket].push(id);
+  }
+  return result;
+}
+
+export function skillIdsToByKind(
+  ids: readonly string[],
+  skills: readonly {
+    id: string;
+    skillKind: SkillKind;
+    customTag?: string | undefined;
+  }[],
+  previousByKind?: LinkedSkillIdsByKindInput | null
+): LinkedSkillIdsByKind {
+  const byId = new Map(skills.map((item) => [item.id, item]));
+  const previousBucket = new Map<string, SkillKind>();
+  if (previousByKind) {
+    for (const kind of SKILL_KINDS) {
+      for (const id of previousByKind[kind] ?? []) {
+        if (!previousBucket.has(id)) previousBucket.set(id, kind);
+      }
+    }
+  }
+  const result: LinkedSkillIdsByKind = {
+    general: [],
+    plot: [],
+    style: [],
+    other: []
+  };
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const library = byId.get(id);
+    const bucket: SkillKind = library
+      ? !library.customTag
+        ? library.skillKind
+        : "other"
+      : (previousBucket.get(id) ?? "other");
+    result[bucket].push(id);
+  }
+  return result;
+}

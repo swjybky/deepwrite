@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+protected_ref=refs/heads/tavern
+protected_root=21b910c22274b33f6ab44024620853bf025873d8
+
+reject() {
+  printf '%s\n' "酒馆分支及其预设只允许保存在本地，已停止推送 ${local_ref}。" >&2
+  exit 1
+}
+
+protected_commits=
+if git show-ref --verify --quiet "$protected_ref"; then
+  main_commits=$(git for-each-ref --format='%(objectname)' refs/heads/main refs/remotes/origin/main)
+  if [ -n "$main_commits" ]; then
+    protected_commits=$(git rev-list --first-parent "$protected_ref" --not $main_commits)
+  fi
+fi
+if git cat-file -e "$protected_root^{commit}" 2>/dev/null; then
+  protected_commits="$protected_commits $protected_root"
+fi
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  [ "$local_ref" != "(delete)" ] || continue
+  [ "$local_ref" != "$protected_ref" ] && [ "$remote_ref" != "$protected_ref" ] || reject
+  if ! commit=$(git rev-parse --verify --quiet "$local_oid^{commit}"); then
+    continue
+  fi
+  for protected in $protected_commits; do
+    if git merge-base --is-ancestor "$protected" "$commit"; then
+      reject
+    fi
+  done
+  # Rebased and cherry-picked copies can have new hashes.
+  changed=$(git log --full-history -1 --format=%H "$commit" -- \
+    ':(icase,glob)**/*tavern*preset*' ':(icase,glob)**/tavern-preset/**' \
+    ':(glob)docs/**酒馆预设**' 'apps/desktop/src/main/agent-team-preset-store.ts')
+  [ -z "$changed" ] || reject
+done

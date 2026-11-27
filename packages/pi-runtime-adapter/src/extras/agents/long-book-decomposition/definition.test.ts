@@ -518,6 +518,47 @@ describe("decomposition child execution boundaries", () => {
     await expect(prepareReader("完成 chunk:2")).resolves.toBeDefined();
   });
 
+  it("refuses to redispatch a unit blocked by model content policy inside the same package", async () => {
+    const setup = fixture();
+    setup.task.input.phase = "integrate";
+    setup.task.input.unitIds = ["character:c1", "character:c2"];
+    setup.task.input.units = {
+      "character:c1": {
+        ...setup.task.input.units["chunk:1"]!,
+        phase: "integrate",
+        dependencies: []
+      },
+      "character:c2": {
+        ...setup.task.input.units["chunk:2"]!,
+        phase: "integrate",
+        dependencies: []
+      }
+    };
+    const c2 = await setup.prepareRole(
+      "character_archivist",
+      "建档 character:c2"
+    );
+    c2.onComplete?.({
+      status: "error",
+      summary: "子智能体执行失败：Provider finish_reason: content_filter"
+    });
+    await expect(
+      setup.prepareRole("character_archivist", "重派 character:c2")
+    ).rejects.toThrow("已被模型内容限制拒绝（CONTENT_FILTER），不再自动重试");
+
+    const c1 = await setup.prepareRole(
+      "character_archivist",
+      "建档 character:c1"
+    );
+    c1.onComplete?.({
+      status: "error",
+      summary: "子智能体执行失败：请求超时"
+    });
+    await expect(
+      setup.prepareRole("character_archivist", "重派 character:c1")
+    ).resolves.toBeDefined();
+  });
+
   it("keeps package data out of the coordinator's system prompt", () => {
     const { task } = fixture();
     const message = longBookDecompositionAgent.userMessage(task);

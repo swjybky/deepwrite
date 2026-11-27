@@ -9,7 +9,7 @@ import {
 } from "../analysis-ui/localized-text";
 import { createScopedTranslator, locale } from "../../i18n";
 import { computed, ref } from "vue";
-import { createId } from "@deepwrite/shared";
+import { createId, jsonClone } from "@deepwrite/shared";
 import {
   ShortBookAnalysisRuntimeContextSchema,
   assertExtrasAgentBudget,
@@ -67,9 +67,7 @@ function createJob(input: ShortAnalysisJobInput): Job {
     { agentId: "short-book-analysis", profile: preset, input: context },
     model
   );
-  return JSON.parse(
-    JSON.stringify({ context, preset, model, thinkingLevel })
-  ) as Job;
+  return jsonClone({ context, preset, model, thinkingLevel });
 }
 
 /** One short-story preset analysis over a fixed snapshot of the selected books. */

@@ -7,10 +7,10 @@ import {
 import {
   failureFor,
   httpUrl,
-  isRecord,
   requestJson,
   type JsonRequestOptions
 } from "./http";
+import { isRecord } from "@deepwrite/shared";
 
 export type AdditionalSearchProviderId =
   | "serper"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { ref } from "vue";
 import BookResourceDialog from "../../components/BookResourceDialog.vue";
 import { formatError } from "../../i18n/errors";
@@ -13,7 +14,7 @@ const pending = ref(false);
 const store = useMysteryWorkspaceStore();
 
 async function remove(): Promise<void> {
-  const api = window.deepwrite?.mystery;
+  const api = deepwriteApi()?.mystery;
   const bookId = props.node.mysteryBookId;
   if (!api || !bookId || pending.value) return;
   pending.value = true;

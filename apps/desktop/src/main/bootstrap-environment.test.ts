@@ -29,8 +29,18 @@ describe("Main bootstrap environment", () => {
     expect(environment).toMatchObject({
       DEEPWRITE_USER_DATA_PATH: userData,
       DEEPWRITE_MAIN_INSTANCE_ID: "current-main",
-      DEEPWRITE_APP_MODE: "evaluation"
+      DEEPWRITE_APP_MODE: "evaluation",
+      DEEPWRITE_STORAGE_BOOTSTRAP_LOCK_ROOT: join(
+        home,
+        ".app-data.storage-bootstrap"
+      ),
+      DEEPWRITE_MAIN_PID: String(process.pid)
     });
+    const defaultProfile = join(home, "DeepWriteDefault");
+    expect(configure(application, "runtime", defaultProfile)).toBe(userData);
+    expect(environment.DEEPWRITE_STORAGE_BOOTSTRAP_LOCK_ROOT).toBe(
+      join(home, ".DeepWriteDefault.storage-bootstrap")
+    );
     configure(application, undefined);
     expect(environment.DEEPWRITE_MAIN_INSTANCE_ID).toBe("current-main");
     expect(environment.DEEPWRITE_APP_MODE).toBe("runtime");

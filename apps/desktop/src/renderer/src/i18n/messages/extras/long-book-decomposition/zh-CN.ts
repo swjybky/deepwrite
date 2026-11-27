@@ -57,6 +57,31 @@ export default {
   profiles: "方案管理",
   readingModel: "通读模型",
   integrationModel: "整合模型",
+  primaryModel: "主要模型",
+  fallbackModels: "备选模型",
+  fallbackModelsHint: "当前模型额度耗尽后，按顺序自动切换下一个备选模型。",
+  fallbackEmpty: "未配置备选模型；当前模型额度用尽后任务将暂停。",
+  fallbackBadge: "+{count} 备选",
+  addFallback: "添加备选模型",
+  moveFallbackUp: "上移备选模型",
+  moveFallbackDown: "下移备选模型",
+  removeFallback: "移除备选模型",
+  fallbackOrder: "备选 {index}",
+  modelUnavailable: "不可用（{id}）",
+  saveModels: "保存模型",
+  modelsUpdated: "已更新拆解模型配置",
+  phaseDoneTag: "已完成",
+  modelsHintRunning:
+    "任务运行中；如需手动切换模型，请先点击「停止」。已配置的备选模型会在额度耗尽时自动按序切换。",
+  modelsHintPaused:
+    "任务已暂停，可直接切换主模型或调整备选顺序，已完成进度不会重跑。",
+  modelsHintQuota:
+    "当前模型额度已耗尽，可直接切换模型后点击「继续任务」，已完成进度会完整保留。",
+  modelsHintFailed:
+    "任务在部分单元失败后停住。你可以跳过失败人物继续、调整模型后重试，或结束任务并保留已完成写入。",
+  modelsHintEnded:
+    "任务已结束，已完成写入已保留在目标作品中。如需补全剩余项，可先调整模型后点击「继续任务」。",
+  autoSwitchedModel: "{slot}「{from}」额度不足，已自动切换为备选模型「{to}」",
   estimateHelp:
     "输入含每轮重发的上下文，其中可命中缓存的部分按缓存价计费；费用取决于模型单价，重试与专项任务会增加请求。实际用量超过预估上限的 2 倍时任务会暂停，等你确认后继续。建议先试拆前几十章。",
   estimateTitle: "预估规模与耗时",
@@ -101,6 +126,39 @@ export default {
   next: "下一页",
   retry: "重试",
   skip: "跳过阅读块",
+  skipCharacter: "跳过人物",
+  skipBiography: "跳过小传",
+  skipConfirmTitle: "跳过这个拆解单元？",
+  skipCharacterHelp:
+    "跳过「{name}」后，任务会保留其余已完成写入并继续执行；该人物不会生成档案、连续性或人物概览条目，也不会在审校阶段被重新拉回。之后仍可在当前任务中点「重试」补写。",
+  skipBiographyHelp:
+    "跳过「{name}」后，任务会继续推进，该分卷小传的内容不会并入人物最终档案。之后仍可在当前任务中点「重试」补写。",
+  skipChunkHelp:
+    "跳过「{name}」后，当前阅读块及未保存章节会标为已跳过；在续写模式下，跳过章节梗概将无法完成最终连续性账本提交。",
+  confirmSkip: "跳过该单元",
+  endAndKeepProgress: "结束并保留进度",
+  endConfirmTitle: "结束任务并保留已完成写入？",
+  endConfirmMessage:
+    "已完成 {done} 个单元的写入会完整保留在目标作品中，其余 {unfinished} 个未完成单元将不再继续运行。之后如果需要补齐剩余内容，仍可打开本任务点击「继续任务」。",
+  endConfirmAction: "结束并保留进度",
+  failedBannerTitle: "{count} 个单元失败，任务已暂停推进",
+  failedContentBlockTitle: "{count} 个单元被模型内容限制拒绝",
+  failedGenericTitle: "任务执行失败",
+  failedBannerHint:
+    "已完成的内容已保存。你可以对失败人物点击「跳过人物」继续剩余流程、点击「重试」或换用模型，或「结束并保留进度」。",
+  endedBannerTitle: "任务已结束，已完成写入已保留",
+  endedBannerSummary:
+    "已保留 {done} 个已完成单元的写入；仍有 {unfinished} 个单元未完成。",
+  endedBannerSummaryWithSkipped:
+    "已保留 {done} 个已完成单元的写入；另有 {skipped} 个已跳过单元，{unfinished} 个单元未完成。",
+  endedRemainingPhases: "未开始的后续阶段：{phases}。",
+  viewUnfinished: "查看未完成项",
+  unitFilter_all: "全部 {count}",
+  unitFilter_failed: "失败 {count}",
+  unitFilter_unfinished: "未完成 {count}",
+  unitFilter_skipped: "已跳过 {count}",
+  unitFilter_done: "已完成 {count}",
+  unitFilterEmpty: "当前筛选下没有单元。",
   keepUser: "保留用户内容",
   regenerate: "重新生成",
   conflictHelp:
@@ -231,8 +289,12 @@ export default {
   running: "运行中",
   stopped: "已停止",
   quotaPaused: "模型额度耗尽，已暂停",
-  quotaError: "模型额度不足，任务已暂停。补充额度后点击继续。\n{reason}",
+  quotaError:
+    "模型额度不足，任务已暂停。可补充额度或切换其他模型后点击继续。\n{reason}",
   failed: "失败",
+  failedStatus: "任务失败",
+  contentBlockedFailed: "模型内容拦截 · 任务失败",
+  endedStatus: "已结束（保留进度）",
   writing: "正在保存",
   pending: "待处理",
   skipped: "已跳过",

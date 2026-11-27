@@ -811,6 +811,22 @@ function invalidSearchCursor(): never {
   throw new Error("长篇搜索游标无效或已失效，请重新搜索。");
 }
 
+function isSearchCursorPayload(
+  cursor: Record<string, unknown>
+): cursor is Record<string, unknown> & SearchCursorPayload {
+  return !(
+    Object.keys(cursor).length !== SEARCH_CURSOR_KEYS.size ||
+    Object.keys(cursor).some((key) => !SEARCH_CURSOR_KEYS.has(key)) ||
+    cursor.v !== 1 ||
+    typeof cursor.bookId !== "string" ||
+    typeof cursor.querySha256 !== "string" ||
+    typeof cursor.scope !== "string" ||
+    typeof cursor.fileIndex !== "number" ||
+    typeof cursor.fileId !== "string" ||
+    typeof cursor.characterOffset !== "number"
+  );
+}
+
 function parseSearchCursor(
   value: string | undefined,
   context: SearchCursorContext,
@@ -836,20 +852,8 @@ function parseSearchCursor(
     invalidSearchCursor();
   }
   const cursor = payload as Record<string, unknown>;
-  if (
-    Object.keys(cursor).length !== SEARCH_CURSOR_KEYS.size ||
-    Object.keys(cursor).some((key) => !SEARCH_CURSOR_KEYS.has(key)) ||
-    cursor.v !== 1 ||
-    typeof cursor.bookId !== "string" ||
-    typeof cursor.querySha256 !== "string" ||
-    typeof cursor.scope !== "string" ||
-    typeof cursor.fileIndex !== "number" ||
-    typeof cursor.fileId !== "string" ||
-    typeof cursor.characterOffset !== "number"
-  ) {
-    invalidSearchCursor();
-  }
-  const parsed = cursor as unknown as SearchCursorPayload;
+  if (!isSearchCursorPayload(cursor)) invalidSearchCursor();
+  const parsed: SearchCursorPayload = cursor;
   if (
     parsed.bookId !== context.bookId ||
     parsed.querySha256 !== querySha256(context.query) ||

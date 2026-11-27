@@ -51,6 +51,8 @@ export default {
   perMillionTokens: "(per million tokens)",
   testing: "Testing…",
   testConnection: "Test connection",
+  cancelTest: "Cancel test",
+  cancelingTest: "Canceling…",
   valueEnabledStatus: "{arg0} enabled status",
   officialSiteModelsAppearHereAfterYouAddA:
     "No models are currently available. Use the refresh button to load the catalog again.",

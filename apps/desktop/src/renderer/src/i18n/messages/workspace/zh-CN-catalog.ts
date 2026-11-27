@@ -84,7 +84,8 @@ export default {
     unreadableSkillLibrary: "无法读取的技能库（{projectId}）",
     unreadableMaterialLibrary: "无法读取的素材库（{projectId}）",
     skillLibrary: "技能库",
-    materialLibrary: "素材库"
+    materialLibrary: "素材库",
+    builtin: "内置"
   },
   libraryAgentSkillAttachments: {
     deepwriteAttachmentTruncatedAtCharactersOriginalLengthCharacters:
@@ -264,17 +265,6 @@ export default {
       "旧版恢复稿暂时无法迁移，原恢复稿已保留。",
     failedToLoadMaterialAndSkillLibraries: "加载素材库和技能库失败。",
     restoredUnsavedDrafts: "已恢复 {recoveredDraftCount} 份未保存草稿"
-  },
-  bookLibraryKinds: {
-    charactersAndRelationships: "人物与关系设定",
-    coreIdeasAndHooks: "核心创意与钩子",
-    plotOpeningAndRefinement: "剧情、导语与细化",
-    proseExcerptsAndWritingReferences: "正文片段与表达参考",
-    materialsOutsideTheCategoriesAbove: "未归入以上分类的素材",
-    availableAcrossMultipleStages: "多个阶段均可使用",
-    characterPlotAndOutlineMethods: "人物、剧情与大纲方法",
-    manuscriptAndSectionWritingMethods: "正文与分节写作方法",
-    customWritingMethods: "自定义写作方法"
   },
   catalogDocumentPersistence: {
     theLatestDirectorySnapshotCouldNotBeReadAfter:

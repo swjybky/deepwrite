@@ -5,6 +5,7 @@ import {
   ModelCapacityResultSchema,
   ModelConnectionTestResultSchema,
   ModelSettingsSchema,
+  ModelTestCancelResultSchema,
   ModelUsageDashboardSchema,
   RemoteModelListResultSchema,
   createEnvelope,
@@ -13,10 +14,14 @@ import {
   type CommandEnvelope,
   type CommandResult
 } from "@deepwrite/contracts";
+import { createId } from "@deepwrite/shared";
+import { UtilityCommandTimeoutError } from "../supervisor";
 import { createUsageModelSnapshot } from "../usage-observation";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import type { ModelTestRegistry } from "./model-test-registry";
 import { handleSiteOfficialModelCommands } from "./site-official-model-commands";
+import { rejectedResult } from "./errors";
 
 export type ModelCommandContext = Pick<
   IpcCommandContext,
@@ -26,7 +31,31 @@ export type ModelCommandContext = Pick<
   | "supervisor"
 > & {
   remoteFetch?: (input: string, init?: RequestInit) => Promise<Response>;
+  ownerId?: number;
+  modelTestRegistry?: ModelTestRegistry;
 };
+
+async function sendAgentModelTestCancel(
+  ctx: ModelCommandContext,
+  requestId: string,
+  context: CommandEnvelope["context"]
+): Promise<boolean> {
+  const cancelCommand = CommandEnvelopeSchema.parse(
+    createEnvelope(
+      "agent.model_test_cancel",
+      { requestId },
+      { id: createId("cmd_agent_model_test_cancel"), context }
+    )
+  );
+  const result = await ctx.supervisor.requestCommand(
+    "agent",
+    cancelCommand,
+    5_000
+  );
+  return result.status === "accepted"
+    ? ModelTestCancelResultSchema.parse(result.payload).cancelled
+    : false;
+}
 
 async function dispatchModelCommand(
   ctx: ModelCommandContext,
@@ -48,16 +77,12 @@ async function dispatchModelCommand(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.list_failed",
-          message:
-            error instanceof Error ? error.message : "加载模型配置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.list_failed",
+        error instanceof Error ? error.message : "加载模型配置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -73,16 +98,12 @@ async function dispatchModelCommand(
         payload: settings
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.refresh_free_failed",
-          message:
-            error instanceof Error ? error.message : "刷新免费模型配置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.refresh_free_failed",
+        error instanceof Error ? error.message : "刷新免费模型配置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -100,18 +121,12 @@ async function dispatchModelCommand(
         payload: settings
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.set_free_model_enabled_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "更新免费模型启用状态失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.set_free_model_enabled_failed",
+        error instanceof Error ? error.message : "更新免费模型启用状态失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -125,16 +140,12 @@ async function dispatchModelCommand(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "model_usage.query_failed",
-          message:
-            error instanceof Error ? error.message : "加载模型用量失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "model_usage.query_failed",
+        error instanceof Error ? error.message : "加载模型用量失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -158,16 +169,12 @@ async function dispatchModelCommand(
         payload: settings
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.save_failed",
-          message:
-            error instanceof Error ? error.message : "保存模型配置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.save_failed",
+        error instanceof Error ? error.message : "保存模型配置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -190,36 +197,115 @@ async function dispatchModelCommand(
         payload: RemoteModelListResultSchema.parse({ models })
       };
     } catch (error: unknown) {
+      return rejectedResult(
+        command.id,
+        "models.list_remote_failed",
+        error instanceof Error ? error.message : "拉取可用模型失败。",
+        safeErrorDetails(error)
+      );
+    }
+  }
+
+  if (command.type === "models.cancelTest") {
+    try {
+      const cancelled = ctx.modelTestRegistry
+        ? await ctx.modelTestRegistry.cancel(
+            command.payload.requestId,
+            ctx.ownerId,
+            (requestId) =>
+              sendAgentModelTestCancel(ctx, requestId, command.context)
+          )
+        : await sendAgentModelTestCancel(
+            ctx,
+            command.payload.requestId,
+            command.context
+          );
       return {
-        status: "rejected",
+        status: "accepted",
         requestId: command.id,
-        error: {
-          code: "models.list_remote_failed",
-          message:
-            error instanceof Error ? error.message : "拉取可用模型失败。",
-          details: safeErrorDetails(error)
-        }
+        payload: ModelTestCancelResultSchema.parse({ cancelled })
       };
+    } catch (error: unknown) {
+      return rejectedResult(
+        command.id,
+        "models.cancel_test_failed",
+        error instanceof Error ? error.message : "取消模型连接测试失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
   if (command.type === "models.test") {
+    const testRequestId = command.payload.requestId ?? command.id;
+    const registry = ctx.modelTestRegistry;
+    if (registry && !registry.begin(testRequestId, ctx.ownerId)) {
+      return rejectedResult(
+        command.id,
+        "models.test_duplicate_request",
+        "该模型连接测试请求已在进行中。"
+      );
+    }
     try {
       const runtimeConfig = await ctx
         .requireModelConfigStore()
         .resolveDraft(command.payload.model);
+      if (registry?.isCancelled(testRequestId)) {
+        return rejectedResult(
+          command.id,
+          "models.test_cancelled",
+          "模型连接测试已取消。"
+        );
+      }
       const internalCommand = CommandEnvelopeSchema.parse(
         createEnvelope(
           "agent.model_test",
-          { runtimeConfig },
+          {
+            runtimeConfig,
+            ...(command.payload.requestId !== undefined
+              ? { requestId: command.payload.requestId }
+              : {})
+          },
           { id: command.id, context: command.context }
         )
       );
-      const result = await ctx.supervisor.requestCommand(
-        "agent",
-        internalCommand,
-        20_000
-      );
+      registry?.markDispatched(testRequestId);
+      let result: CommandResult;
+      try {
+        result = await ctx.supervisor.requestCommand(
+          "agent",
+          internalCommand,
+          20_000
+        );
+      } catch (error: unknown) {
+        if (registry?.isCancelled(testRequestId)) {
+          return rejectedResult(
+            command.id,
+            "models.test_cancelled",
+            "模型连接测试已取消。"
+          );
+        }
+        if (error instanceof UtilityCommandTimeoutError) {
+          void sendAgentModelTestCancel(
+            ctx,
+            testRequestId,
+            command.context
+          ).catch(() => undefined);
+          return rejectedResult(
+            command.id,
+            "models.test_timeout",
+            "模型连接超时，请检查网络或稍后重试。",
+            safeErrorDetails(error)
+          );
+        }
+        throw error;
+      }
+      if (registry?.isCancelled(testRequestId)) {
+        return rejectedResult(
+          command.id,
+          "models.test_cancelled",
+          "模型连接测试已取消。"
+        );
+      }
       if (result.status === "accepted") {
         const payload = ModelConnectionTestResultSchema.parse(result.payload);
         if (
@@ -229,7 +315,12 @@ async function dispatchModelCommand(
         ) {
           await ctx
             .requireModelConfigStore()
-            .disableDeveloperRole?.(command.payload.model.id)
+            .disableDeveloperRole?.(command.payload.model.id, {
+              provider: runtimeConfig.provider,
+              modelId: runtimeConfig.modelId,
+              api: runtimeConfig.api,
+              baseUrl: runtimeConfig.baseUrl
+            })
             .catch(() => undefined);
         }
         if (payload.usage) {
@@ -265,16 +356,14 @@ async function dispatchModelCommand(
       }
       return result;
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.test_failed",
-          message:
-            error instanceof Error ? error.message : "模型连接测试失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.test_failed",
+        error instanceof Error ? error.message : "模型连接测试失败。",
+        safeErrorDetails(error)
+      );
+    } finally {
+      registry?.finish(testRequestId);
     }
   }
 
@@ -308,18 +397,12 @@ async function dispatchModelCommand(
       }
       return result;
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "models.resolve_capacity_failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "读取模型实际请求容量失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "models.resolve_capacity_failed",
+        error instanceof Error ? error.message : "读取模型实际请求容量失败。",
+        safeErrorDetails(error)
+      );
     }
   }
   return undefined;

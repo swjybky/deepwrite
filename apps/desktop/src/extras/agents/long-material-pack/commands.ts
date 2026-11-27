@@ -10,6 +10,7 @@ import {
   workspaceResourceParent
 } from "../../../main/ipc/workspace-paths";
 import type { ExtrasAgentCommandContext } from "../index";
+import { rejectedResult } from "../../../main/ipc/errors";
 
 const WRITES = new Set(["convert", "resolve", "applyGuide"]);
 
@@ -62,14 +63,10 @@ export async function handleLongMaterialPackCommands(
       ...(command.payload as object)
     } as LongMaterialCoreOperation);
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "long_material_pack.failed",
-        message:
-          error instanceof Error ? error.message : "长篇转素材库操作失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "long_material_pack.failed",
+      error instanceof Error ? error.message : "长篇转素材库操作失败。"
+    );
   }
 }

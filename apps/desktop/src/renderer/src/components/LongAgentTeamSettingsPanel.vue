@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { removeDraftSubagent, useAgentTeamDraft } from "./useAgentTeamDraft";
 import { createScopedTranslator } from "../i18n";
 import {
   LONG_AGENT_IDS,
@@ -15,7 +16,7 @@ import {
   type SubagentAuthoringDraft,
   type SubagentAuthoringRuntimeContext
 } from "@deepwrite/contracts/renderer";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { uiMessage } from "../ui-feedback";
 import AgentTeamParallelSwitch from "./AgentTeamParallelSwitch.vue";
 import AgentTeamSaveBar from "./AgentTeamSaveBar.vue";
@@ -24,18 +25,18 @@ import AgentTeamSubagentEditor from "./AgentTeamSubagentEditor.vue";
 import AgentTeamSubagentSection from "./AgentTeamSubagentSection.vue";
 import LoadSubagentFromSkillDialog from "./LoadSubagentFromSkillDialog.vue";
 import {
-  agentTeamDraftSignature,
   createCopiedSubagent,
   savedWebSearchField,
   validateAgentTeamDraft
 } from "./agentTeamSettingsEditorHelpers";
-import { clonedDrawField, savedDrawField } from "./agentTeamDrawDraft";
+import { savedDrawField } from "./agentTeamDrawDraft";
 import { useSubagentModelConfig } from "./useSubagentModelConfig";
 
 const t = createScopedTranslator("components.longAgentTeamSettingsPanel");
 
 const props = defineProps<{
   settings: LongAgentTeamSettings | null;
+  readOnly?: boolean;
   models: readonly ModelConfig[];
   skills: readonly SkillLibrary[];
   preferredModelId: string | null;
@@ -68,9 +69,15 @@ const PARENT_AGENT_DESCRIPTION = computed(() =>
 );
 
 const parentAgentId: LongAgentId = LONG_AGENT_IDS[0];
-const draftTeams = ref<LongAgentTeamSettingsInput["teams"]>([]);
-const draftParallelSubagents = ref(false);
 const editingSubagentId = ref<string | null>(null);
+const { draftTeams, draftParallelSubagents, dirty, discardChanges } =
+  useAgentTeamDraft<LongAgentId>({
+    settings: () => props.settings,
+    onReseed: () => {
+      editingSubagentId.value = null;
+    },
+    onDirtyChange: (value) => emit("dirtyChange", value)
+  });
 const loadFromSkillOpen = ref(false);
 let generatedIdSequence = 0;
 
@@ -85,7 +92,7 @@ const activeTeam = computed(() =>
 );
 const subagentModelConfig = useSubagentModelConfig({
   models: () => props.models,
-  disabled: () => formDisabled.value
+  disabled: () => formDisabled.value || Boolean(props.readOnly)
 });
 const {
   modelOptions,
@@ -98,75 +105,6 @@ const {
   subagentModelSummary
 } = subagentModelConfig;
 
-const baselineSignature = ref("");
-let seeded = false;
-const dirty = computed(
-  () =>
-    agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value) !==
-    baselineSignature.value
-);
-
-function cloneTeams(
-  settings: LongAgentTeamSettings
-): LongAgentTeamSettingsInput["teams"] {
-  return settings.teams.map((team) => ({
-    parentAgentId: team.parentAgentId,
-    subagents: team.subagents.map((definition) => ({
-      ...definition,
-      ...clonedDrawField(definition.draw),
-      agentMode: definition.agentMode ?? "standard",
-      modelMode: definition.modelMode ?? "inherit",
-      ...(definition.modelId ? { modelId: definition.modelId } : {}),
-      ...(definition.thinkingLevel !== undefined
-        ? { thinkingLevel: definition.thinkingLevel }
-        : {}),
-      ...(definition.temperature !== undefined
-        ? { temperature: definition.temperature }
-        : {})
-    }))
-  }));
-}
-
-// Re-seed the draft only when the saved settings really differ from what the
-// draft was last seeded with, so unrelated catalog refreshes keep unsaved edits.
-function syncDraft(force = false): void {
-  const settings = props.settings;
-  const parallel = settings?.parallelSubagents ?? false;
-  const teams = settings ? cloneTeams(settings) : [];
-  const signature = agentTeamDraftSignature(parallel, teams);
-  if (!force && seeded && signature === baselineSignature.value) return;
-  // A change from outside must not wipe unsaved edits; discarding picks it up.
-  if (
-    !force &&
-    seeded &&
-    dirty.value &&
-    signature !==
-      agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value)
-  ) {
-    return;
-  }
-  seeded = true;
-  draftParallelSubagents.value = parallel;
-  draftTeams.value = teams;
-  baselineSignature.value = signature;
-  editingSubagentId.value = null;
-}
-
-watch(
-  () => props.settings,
-  () => syncDraft(),
-  {
-    immediate: true,
-    deep: true
-  }
-);
-
-watch(dirty, (value) => emit("dirtyChange", value), { immediate: true });
-
-function discardChanges(): void {
-  syncDraft(true);
-}
-
 function nextSubagentId(): string {
   generatedIdSequence += 1;
   return `long_subagent_${Date.now().toString(36)}_${generatedIdSequence.toString(36)}`;
@@ -178,7 +116,7 @@ function addSubagent(
   >
 ): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   if (team.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT) {
     uiMessage.warning(
       t("eachNovelPrimaryAgentSupportsUpToValueSubagents", {
@@ -207,7 +145,7 @@ function addSubagent(
 
 function duplicateSubagent(index: number): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   const source = team.subagents[index];
   if (!source) return;
   if (team.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT) {
@@ -230,7 +168,7 @@ function duplicateSubagent(index: number): void {
 
 function openLoadFromSkill(): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   if (team.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT) {
     uiMessage.warning(
       t("eachNovelPrimaryAgentSupportsUpToValueSubagents", {
@@ -260,7 +198,8 @@ function confirmLoadFromSkill(draft: SubagentAuthoringDraft): void {
 }
 
 function editSubagent(id: string): void {
-  editingSubagentId.value = id;
+  editingSubagentId.value =
+    props.readOnly && editingSubagentId.value === id ? null : id;
 }
 
 function finishEditing(): void {
@@ -268,13 +207,11 @@ function finishEditing(): void {
 }
 
 function removeSubagent(index: number): void {
-  const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
-  const [removed] = team.subagents.splice(index, 1);
-  if (removed && editingSubagentId.value === removed.id) {
-    editingSubagentId.value = null;
-  }
-  if (removed) {
+  if (
+    !formDisabled.value &&
+    !props.readOnly &&
+    removeDraftSubagent(activeTeam.value, editingSubagentId, index)
+  ) {
     uiMessage.info(t("removedFromTheCurrentDraftSaveTheAgentTeam"));
   }
 }
@@ -283,12 +220,12 @@ function toggleSubagent(
   definition: ShortAgentSubagentDefinition,
   enabled: boolean
 ): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   definition.enabled = enabled;
 }
 
 function saveSettings(): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   const message = validateAgentTeamDraft(draftTeams.value, props.models);
   if (message) {
     uiMessage.warning(message);

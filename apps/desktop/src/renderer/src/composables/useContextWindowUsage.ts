@@ -9,6 +9,7 @@ import {
   createContextWindowMeasurement,
   latestModelContextTokens
 } from "../utils/contextWindowUsage";
+import { deepwriteApi } from "../api/deepwrite";
 
 export type ContextWindowCapacityStatus =
   "idle" | "resolving" | "resolved" | "unavailable";
@@ -50,7 +51,7 @@ function toCapacityModelInput(model: ModelConfig): ModelConfigInput {
 function defaultCapacityResolver(
   model: ModelConfigInput
 ): Promise<ModelCapacityResult> {
-  const api = window.deepwrite?.models;
+  const api = deepwriteApi()?.models;
   if (!api) return Promise.reject(new Error("Model API is unavailable."));
   return api.resolveCapacity(model);
 }

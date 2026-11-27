@@ -1,7 +1,7 @@
-import { createGeneralSettingsTestApi } from "./generalSettingsTestApi";
+import { createGeneralSettingsTestApi } from "./generalSettings.test-support";
 import { createBookAnalysisTestApi } from "./book-analysis.test-support";
 import { createUnusedLongApi } from "./unusedLongApi.test-support";
-import { createModelApiTestFixture } from "./modelApiTestFixture";
+import { createModelApiTestFixture } from "./modelApi.test-support";
 import { defaultBuiltinSubagentSettings } from "@deepwrite/contracts/renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reactive } from "vue";
@@ -796,6 +796,9 @@ function createDeferredApi(): {
         return this.list();
       },
       async save() {
+        return this.list();
+      },
+      async duplicate() {
         return this.list();
       },
       async download() {

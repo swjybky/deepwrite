@@ -1,6 +1,7 @@
 import { CharacterStructureMutationSchema } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
-import { isRecord, nonnegativeInteger } from "./shared";
+import { nonnegativeInteger } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 export function parseStoredCharacterStructureTarget(
   value: unknown
 ): AgentEditProposal["characterStructureTarget"] | undefined {

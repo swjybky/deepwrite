@@ -11,6 +11,7 @@ import {
   createVoiceRecorder,
   type VoiceRecorder
 } from "../utils/voiceRecorder";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace.voiceInput");
 
@@ -60,7 +61,7 @@ export function useVoiceInput(
   const active = computed(() => state.value !== "idle");
   const canRetry = computed(() => state.value === "error" && !!recorded);
   const api = (): VoiceApi => {
-    const voiceApi = dependencies.api ?? window.deepwrite?.voice;
+    const voiceApi = dependencies.api ?? deepwriteApi()?.voice;
     if (!voiceApi)
       throw new Error(t("voiceInputIsOnlyAvailableInTheDesktopApp"));
     return voiceApi;

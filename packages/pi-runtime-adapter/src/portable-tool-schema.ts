@@ -3,6 +3,7 @@ import type {
   WorkspaceRuntimeContext
 } from "@deepwrite/contracts";
 import type { Context, Tool } from "@earendil-works/pi-ai";
+import { isRecord } from "@deepwrite/shared";
 
 const GRAMMAR_REPETITION_THRESHOLD = 2_000;
 const WRITING_WORKSPACE_OMITTED_KEYWORDS = new Set([
@@ -57,13 +58,9 @@ type SchemaKeywordFilter = (
   propertyDepth: number
 ) => boolean;
 
-function isSchemaRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
 function cloneSchemaData(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(cloneSchemaData);
-  if (!isSchemaRecord(value)) return value;
+  if (!isRecord(value)) return value;
   return Object.fromEntries(
     Object.entries(value).map(([key, child]) => [key, cloneSchemaData(child)])
   );
@@ -79,12 +76,12 @@ function cloneToolSchema(
       cloneToolSchema(item, shouldOmitKeyword, propertyDepth)
     );
   }
-  if (!isSchemaRecord(value)) return value;
+  if (!isRecord(value)) return value;
 
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
     if (shouldOmitKeyword(key, value, propertyDepth)) continue;
-    if (SCHEMA_MAP_KEYWORDS.has(key) && isSchemaRecord(child)) {
+    if (SCHEMA_MAP_KEYWORDS.has(key) && isRecord(child)) {
       const childDepth = PROPERTY_SCHEMA_MAP_KEYWORDS.has(key)
         ? propertyDepth + 1
         : propertyDepth;

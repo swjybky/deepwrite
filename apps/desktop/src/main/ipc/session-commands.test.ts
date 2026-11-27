@@ -377,7 +377,7 @@ describe("session prompt web search", () => {
 
 it("reserves all writable domain libraries for a library-agent run", async () => {
   const { materialWorkspace, profile } =
-    await import("../../../../../packages/pi-runtime-adapter/src/library-agent-tools/test-fixtures");
+    await import("../../../../../packages/pi-runtime-adapter/src/library-agent-tools/library-tools.test-support");
   const { ctx, prompt } = promptFixture(undefined, {
     requireLibraryAgentConfigStore: () => ({
       resolve: async () => profile("material")

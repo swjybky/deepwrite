@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, type Ref } from "vue";
 import { compareVersions } from "@deepwrite/contracts/renderer";
 import type { UpdateState } from "@deepwrite/contracts";
+import { deepwriteApi } from "../api/deepwrite";
 
 export function announcedVersionStatus(
   announcedVersion: string | undefined,
@@ -45,7 +46,7 @@ export function useAnnouncedVersion(updateState: Ref<UpdateState>) {
     officialDocsUrl.value = undefined;
     refreshPromise = (async () => {
       try {
-        const snapshot = await window.deepwrite?.appAlerts?.get();
+        const snapshot = await deepwriteApi()?.appAlerts?.get();
         if (!disposed && snapshot) {
           announcedVersion.value = snapshot.pcLatestVersion;
           officialDocsUrl.value = snapshot.officialDocsUrl;
@@ -66,8 +67,8 @@ export function useAnnouncedVersion(updateState: Ref<UpdateState>) {
   }
 
   onMounted(() => {
-    void window.deepwrite?.updates
-      ?.getState()
+    void deepwriteApi()
+      ?.updates?.getState()
       .then((state) => {
         if (!disposed && updateState.value.status === "idle")
           updateState.value = state;

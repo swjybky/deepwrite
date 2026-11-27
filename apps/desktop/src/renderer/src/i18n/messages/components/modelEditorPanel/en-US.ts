@@ -46,6 +46,8 @@ export default {
   theExistingKeyWillBeKept: "The existing key will be kept.",
   clearSavedKey: "Clear saved key",
   testing: "Testing…",
+  cancelTest: "Cancel test",
+  cancelingTest: "Canceling…",
   testCurrentValues: "Test current values",
   saving: "Saving…",
   applyAndSaveConfigurations: "Apply and save configurations",

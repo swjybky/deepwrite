@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { computed, onMounted, ref } from "vue";
 import type { ModelConfig } from "@deepwrite/contracts/renderer";
 import PopupSelect from "../../components/PopupSelect.vue";
@@ -55,7 +56,7 @@ const workOptions = computed(() =>
 );
 async function loadWorks() {
   try {
-    works.value = await listPackWorks(window.deepwrite!);
+    works.value = await listPackWorks(deepwriteApi()!);
   } catch (error) {
     uiMessage.error(formatError(error, t("bindFailed")));
   }
@@ -67,7 +68,7 @@ async function bind() {
   if (!work || !result || binding.value) return;
   binding.value = true;
   try {
-    const api = window.deepwrite!;
+    const api = deepwriteApi()!;
     await bindPackToWork(
       api,
       work,
@@ -86,7 +87,7 @@ async function createBook() {
   if (!result || creating.value) return;
   creating.value = true;
   try {
-    const api = window.deepwrite!;
+    const api = deepwriteApi()!;
     const title = t("imitationTitle", { title: result.pack.bookTitle });
     const bookId = await createImitationBook(api, {
       title,

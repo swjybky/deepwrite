@@ -1,17 +1,11 @@
 import { createHash } from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  rename,
-  stat,
-  unlink,
-  writeFile
-} from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 import {
   createCatalogId,
-  randomHex8,
-  reorderItemsByAnchor
+  reorderItemsByAnchor,
+  isRecord
 } from "@deepwrite/shared";
 import {
   CreativeBookSchema,
@@ -144,10 +138,6 @@ function isReservedDraftDocumentId(documentId: string): boolean {
     documentId.startsWith("draft-section:") &&
     (documentId.endsWith(":body") || documentId.endsWith(":character-state"))
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -1141,25 +1131,6 @@ async function importMissingLegacySources(
   });
 }
 
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${randomHex8()}`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600
-    });
-    await rename(temporary, path);
-  } catch (error: unknown) {
-    try {
-      await unlink(temporary);
-    } catch {
-      // The temporary file may not have been created or may already be renamed.
-    }
-    throw error;
-  }
-}
-
 function emptyLinkedMaterialIds(): LinkedMaterialIdsByKind {
   return { character: [], gimmick: [], plot: [], draft: [], other: [] };
 }
@@ -1948,12 +1919,12 @@ export class CatalogStore {
       );
       if (supplemented) {
         assertCatalogReferences(supplemented);
-        await atomicWriteJson(this.catalogPath, supplemented);
+        await writeJsonAtomic(this.catalogPath, supplemented);
         snapshot = supplemented;
       }
     } else {
       snapshot = await importLegacyCatalog(this.legacyDataRoots, this.now());
-      await atomicWriteJson(this.catalogPath, snapshot);
+      await writeJsonAtomic(this.catalogPath, snapshot);
     }
     assertCatalogReferences(snapshot);
     this.snapshotValue = snapshot;
@@ -1976,7 +1947,7 @@ export class CatalogStore {
       draft.updatedAt = this.now();
       const validated = CatalogSnapshotSchema.parse(draft);
       assertCatalogReferences(validated);
-      await atomicWriteJson(this.catalogPath, validated);
+      await writeJsonAtomic(this.catalogPath, validated);
       this.snapshotValue = validated;
       committed = validated;
     });

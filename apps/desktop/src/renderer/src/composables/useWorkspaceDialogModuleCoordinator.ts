@@ -481,10 +481,11 @@ export function useWorkspaceDialogModuleCoordinator(
       options.library.externalLibraryImportDialog.value;
     if (externalLibraryImport) {
       const snapshot = options.catalog.snapshot.value;
-      const libraries =
+      const libraries = (
         externalLibraryImport.domain === "skill"
-          ? (snapshot?.skills ?? []).filter((library) => !library.isBuiltin)
-          : (snapshot?.materials ?? []);
+          ? (snapshot?.skills ?? [])
+          : (snapshot?.materials ?? [])
+      ).filter((library) => !library.isBuiltin);
       return {
         kind: "external-library-import",
         domain: externalLibraryImport.domain,

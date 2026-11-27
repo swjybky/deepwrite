@@ -4,8 +4,8 @@ import {
   type LibraryStructureOperation
 } from "@deepwrite/contracts";
 import { readNoFollowFile } from "../long-project-store/io";
-import { projectTransactionContentSha256 as sha } from "../project-transaction";
 import type { Library, StructurePlanState } from "./structure-plan-context";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 /** Archive and restore share the same multi-root transaction as the library manifest. */
 export async function applyRecoverableEntryOperation(
@@ -23,7 +23,7 @@ export async function applyRecoverableEntryOperation(
       ? state.request.requestId
       : operation.recoveryId;
   for (const id of operation.entryIds) {
-    const prefix = `.deepwrite-trash/${sha(recoveryId)}/${sha(id)}`;
+    const prefix = `.deepwrite-trash/${sha256Hex(recoveryId)}/${sha256Hex(id)}`;
     const metadataPath = `${prefix}.json`;
     const bodyPath = `${prefix}.md`;
     if (operation.action === "archive-entries") {
@@ -45,7 +45,7 @@ export async function applyRecoverableEntryOperation(
       source.files.set(entry.path, {
         action: "delete",
         path: entry.path,
-        expectedSha256: sha(content)
+        expectedSha256: sha256Hex(content)
       });
       source.manifest.entries = source.manifest.entries.filter(
         (item) => item.id !== id
@@ -72,8 +72,8 @@ export async function applyRecoverableEntryOperation(
         )
       ).bytes.toString("utf8");
       state.fingerprints.push(
-        `${metadataPath}:${sha(metadata)}`,
-        `${bodyPath}:${sha(content)}`
+        `${metadataPath}:${sha256Hex(metadata)}`,
+        `${bodyPath}:${sha256Hex(content)}`
       );
       // Parse via the same manifest schema that saves live entries; restore to a safe generated path.
       const manifest = CatalogProjectManifestSchema.parse({
@@ -90,7 +90,7 @@ export async function applyRecoverableEntryOperation(
         )
       )
         throw new Error("原条目已存在或有同名条目，请先处理冲突再恢复。");
-      const path = `entries/${sha(id).slice(0, 32)}.md`;
+      const path = `entries/${sha256Hex(id).slice(0, 32)}.md`;
       source.files.set(path, {
         action: "write",
         path,
@@ -100,12 +100,12 @@ export async function applyRecoverableEntryOperation(
       source.files.set(metadataPath, {
         action: "delete",
         path: metadataPath,
-        expectedSha256: sha(metadata)
+        expectedSha256: sha256Hex(metadata)
       });
       source.files.set(bodyPath, {
         action: "delete",
         path: bodyPath,
-        expectedSha256: sha(content)
+        expectedSha256: sha256Hex(content)
       });
       source.manifest.entries.push({
         ...entry,

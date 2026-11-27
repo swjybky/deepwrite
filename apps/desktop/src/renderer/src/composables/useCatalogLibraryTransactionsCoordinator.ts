@@ -816,11 +816,7 @@ export function useCatalogLibraryTransactionsCoordinator(
       );
       return;
     }
-    if (
-      payload.domain === "skill" &&
-      "isBuiltin" in library &&
-      library.isBuiltin
-    ) {
+    if ("isBuiltin" in library && library.isBuiltin) {
       uiMessage.warning(
         t(
           "catalogLibraryTransactionsCoordinator.builtInSkillLibrariesAreReadOnlyEntriesCannot"
@@ -942,6 +938,7 @@ export function useCatalogLibraryTransactionsCoordinator(
           : payload.domain,
         projectId
       });
+      if (!duplicated) return;
       await context.refreshWorkspaceDirectory();
       await context.refreshCatalog();
       if (!isGroup) {
@@ -1010,6 +1007,14 @@ export function useCatalogLibraryTransactionsCoordinator(
       return;
     }
     if (payload.action === "edit-group-bindings") {
+      if (payload.node.readOnly) {
+        uiMessage.warning(
+          t(
+            "catalogLibraryTransactionsCoordinator.builtInSkillLibrariesAreReadOnlyEntriesCannot2"
+          )
+        );
+        return;
+      }
       if (!payload.node.groupId) {
         uiMessage.error(
           t("catalogLibraryTransactionsCoordinator.theGroupWasNotFound")
@@ -1031,6 +1036,22 @@ export function useCatalogLibraryTransactionsCoordinator(
     }
     if (payload.action === "copy-entry") {
       copyCatalogLibraryEntry(payload);
+      return;
+    }
+    if (
+      (payload.node.readOnly || payload.node.unavailable) &&
+      (payload.action === "rename-library" ||
+        payload.action === "rename-entry" ||
+        payload.action === "create-entry" ||
+        payload.action === "import-external-skills" ||
+        payload.action === "paste-entry" ||
+        payload.action === "remove-entry")
+    ) {
+      uiMessage.warning(
+        t(
+          "catalogLibraryTransactionsCoordinator.builtInSkillLibrariesAreReadOnlyEntriesCannot2"
+        )
+      );
       return;
     }
     if (payload.action === "rename-library") {
@@ -1056,20 +1077,6 @@ export function useCatalogLibraryTransactionsCoordinator(
             ? { customTag: payload.node.customTag }
             : {})
       };
-      return;
-    }
-    if (
-      (payload.node.readOnly || payload.node.unavailable) &&
-      (payload.action === "create-entry" ||
-        payload.action === "import-external-skills" ||
-        payload.action === "paste-entry" ||
-        payload.action === "remove-entry")
-    ) {
-      uiMessage.warning(
-        t(
-          "catalogLibraryTransactionsCoordinator.builtInSkillLibrariesAreReadOnlyEntriesCannot2"
-        )
-      );
       return;
     }
     if (payload.action === "paste-entry") {

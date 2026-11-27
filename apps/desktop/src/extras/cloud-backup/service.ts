@@ -5,16 +5,14 @@ import {
   type CloudBackupApplyResult,
   type CloudBackupItemKind,
   type CloudBackupPreview,
-  type CloudBackupStatus
+  type CloudBackupStatus,
+  type BackupProjectRegistration,
+  type RestoreBackupFilesInput,
+  type RestoreBackupFilesResult
 } from "@deepwrite/contracts";
-import {
-  allocateProjectDirectory,
-  catalogOpenDomain,
-  writeProjectFiles
-} from "./apply";
+import { catalogGroupDomain, catalogOpenDomain } from "./apply";
 import { listLocalBackupProjects, toManifestItems } from "./catalog-reader";
 import { backupItemKey, countChanges, diffBackupItems } from "./diff";
-import { registerGroupInCatalogRegistry } from "./group-registry";
 import { CloudBackupIdentityStore, formatMachineKey } from "./identity";
 import type { CloudBackupObjectStore } from "./api-client";
 import {
@@ -37,6 +35,10 @@ export interface CloudBackupServiceHooks {
     domain: "book" | "material" | "skill";
   }): Promise<void>;
   registerLongBook(projectDirectory: string): Promise<void>;
+  restoreFiles(
+    input: RestoreBackupFilesInput
+  ): Promise<RestoreBackupFilesResult>;
+  listRegisteredProjects(): Promise<BackupProjectRegistration[]>;
 }
 
 export class CloudBackupService {
@@ -54,7 +56,9 @@ export class CloudBackupService {
 
   async status(): Promise<CloudBackupStatus> {
     const machineKey = await this.identity.getOrCreate(() => this.isoNow());
-    const local = await listLocalBackupProjects(this.userDataPath);
+    const local = await listLocalBackupProjects(
+      await this.hooks.listRegisteredProjects()
+    );
     const remote = this.store
       ? await this.readRemoteManifest(machineKey)
       : null;
@@ -72,7 +76,9 @@ export class CloudBackupService {
   async previewBackup(): Promise<CloudBackupPreview> {
     this.requireStore();
     const machineKey = await this.identity.getOrCreate(() => this.isoNow());
-    const local = await listLocalBackupProjects(this.userDataPath);
+    const local = await listLocalBackupProjects(
+      await this.hooks.listRegisteredProjects()
+    );
     const packed = packBackupSnapshot(machineKey, this.isoNow(), local);
     const remote = await this.readRemoteManifest(machineKey);
     const changes = diffBackupItems(
@@ -120,7 +126,9 @@ export class CloudBackupService {
     if (!remote) {
       throw new Error("未找到该密钥的云端备份。");
     }
-    const local = await listLocalBackupProjects(this.userDataPath);
+    const local = await listLocalBackupProjects(
+      await this.hooks.listRegisteredProjects()
+    );
     const localItems = toManifestItems(local);
     const changes = diffBackupItems("download", localItems, remote.items);
     return this.previews.remember({
@@ -146,7 +154,9 @@ export class CloudBackupService {
     if (!zip) {
       throw new Error("云端备份文件不存在或已被删除。");
     }
-    const local = await listLocalBackupProjects(this.userDataPath);
+    const local = await listLocalBackupProjects(
+      await this.hooks.listRegisteredProjects()
+    );
     assertRestorePreviewLocalCurrent(preview, toManifestItems(local));
     const projects = readBackupSnapshot(zip, preview.remote, preview.changes);
     const localByKey = new Map(
@@ -158,24 +168,31 @@ export class CloudBackupService {
       const key = backupItemKey(change);
       const files = projects.get(key)!;
       const existing = localByKey.get(key);
+      const encoded = files.map((file) => ({
+        relativePath: file.relativePath,
+        contentBase64: file.data.toString("base64")
+      }));
       if (existing) {
-        await writeProjectFiles(existing.projectDirectory, files, {
-          replaceExisting: true
+        await this.hooks.restoreFiles({
+          target: {
+            mode: "replace",
+            projectDirectory: existing.projectDirectory
+          },
+          files: encoded
         });
         continue;
       }
-      const projectDirectory = await allocateProjectDirectory(
-        workspaceDirectory,
-        change.kind,
-        change.title
-      );
-      await writeProjectFiles(projectDirectory, files);
-      await this.registerRestoredProject(
-        change.kind,
-        change.id,
-        projectDirectory,
-        now
-      );
+      const { projectDirectory } = await this.hooks.restoreFiles({
+        target: {
+          mode: "create",
+          workspaceDirectory,
+          kind: change.kind,
+          title: change.title
+        },
+        files: encoded
+      });
+      if (!catalogGroupDomain(change.kind))
+        await this.registerRestoredProject(change.kind, projectDirectory);
     }
     return CloudBackupApplyResultSchema.parse({
       direction: "download",
@@ -187,9 +204,7 @@ export class CloudBackupService {
 
   private async registerRestoredProject(
     kind: CloudBackupItemKind,
-    id: string,
-    projectDirectory: string,
-    now: string
+    projectDirectory: string
   ): Promise<void> {
     const catalogDomain = catalogOpenDomain(kind);
     if (catalogDomain) {
@@ -199,16 +214,7 @@ export class CloudBackupService {
       });
       return;
     }
-    if (kind === "long-book") {
-      await this.hooks.registerLongBook(projectDirectory);
-      return;
-    }
-    await registerGroupInCatalogRegistry(this.userDataPath, {
-      id,
-      kind,
-      projectDirectory,
-      now
-    });
+    await this.hooks.registerLongBook(projectDirectory);
   }
 
   private async readRemoteManifest(

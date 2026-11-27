@@ -17,6 +17,7 @@ import {
   type PortableToolSchemaProfile
 } from "./portable-tool-schema";
 import { enforceProviderToolSchemaCompatibility } from "./provider-tool-schema-compat";
+import { jsonClone } from "@deepwrite/shared";
 
 function evaluationContextText(content: UserMessage["content"]): string {
   if (typeof content === "string") return content;
@@ -140,7 +141,7 @@ function evaluationToolConfiguration(
 ): AgentEvaluationToolConfiguration {
   // TypeBox schemas contain symbol metadata used by local validation. A JSON
   // clone records the exact provider-facing schema without executable hooks.
-  const inputSchema = JSON.parse(JSON.stringify(tool.parameters)) as unknown;
+  const inputSchema = jsonClone(tool.parameters);
   return {
     name: tool.name,
     ...(tool.label ? { label: tool.label } : {}),

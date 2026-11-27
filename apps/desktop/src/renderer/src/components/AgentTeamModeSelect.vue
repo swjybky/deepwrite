@@ -16,13 +16,21 @@ import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
 
 const t = createScopedTranslator("components.agentTeamModeSelect");
 
-const props = defineProps<{
-  modelValue: AgentTeamRunMode;
-  workspaceType: AgentTeamWorkspaceType;
-  parentAgentId:
-    WorkspaceAgentId | LongAgentId | AcademicAgentId | MysteryAgentId;
-  bookId?: string | undefined;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: AgentTeamRunMode;
+    workspaceType: AgentTeamWorkspaceType;
+    parentAgentId:
+      WorkspaceAgentId | LongAgentId | AcademicAgentId | MysteryAgentId;
+    bookId?: string | undefined;
+    align?: "start" | "end";
+    menuZIndex?: number;
+  }>(),
+  {
+    align: "end",
+    menuZIndex: 1000
+  }
+);
 
 const emit = defineEmits<{
   "update:modelValue": [mode: AgentTeamRunMode];
@@ -85,8 +93,9 @@ function updateMode(value: string | number): void {
     :options="options"
     :accessible-label="t('selectAgentMode')"
     variant="compact"
-    align="end"
+    :align="align"
     :menu-min-width="300"
+    :menu-z-index="menuZIndex"
     @update:model-value="updateMode"
   >
     <template #prefix>

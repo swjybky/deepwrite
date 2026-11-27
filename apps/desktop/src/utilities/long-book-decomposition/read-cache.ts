@@ -1,12 +1,12 @@
 import { DecompositionReceiptSchema } from "@deepwrite/contracts";
 import { ValidatedFileReadCache } from "../validated-file-read-cache";
-import { decompositionSha } from "./content-guard";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 // These caches survive command-scoped services, while each read checks the
 // current file metadata. They never cache recovery outcomes or write authority.
 export const decompositionContentReads = new ValidatedFileReadCache(
   32 * 1024 * 1024,
-  (content) => ({ content, sha256: decompositionSha(content) })
+  (content) => ({ content, sha256: sha256Hex(content) })
 );
 export const decompositionReceiptReads = new ValidatedFileReadCache(
   8 * 1024 * 1024,

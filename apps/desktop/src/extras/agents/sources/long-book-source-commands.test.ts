@@ -31,7 +31,7 @@ import {
 import {
   LONG_BOOK_ANALYSIS_SOURCE_DIRECTORY,
   LongBookAnalysisSourceStore
-} from "./long-book-source-store";
+} from "../../../utilities/long-book-sources/long-book-source-store";
 
 const roots: string[] = [];
 vi.setConfig({ testTimeout: 30_000 });

@@ -22,6 +22,7 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "agent.user_input_response",
   "agent.steer",
   "agent.model_test",
+  "agent.model_test_cancel",
   "agent.model_capacity",
   "catalog.createShortBookAtPath",
   "catalog.createScriptBookAtPath",
@@ -37,6 +38,7 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "mystery.openAtPath",
   "catalog.createLibraryAtPath",
   "catalog.createLibraryGroupAtPath",
+  "catalog.duplicateProjectAtPath",
   "catalog.openProjectAtPath",
   "catalog.readLibraryPackageSource",
   "catalog.readWritingWorkspace",
@@ -44,7 +46,23 @@ const FORBIDDEN_RENDERER_COMMAND_TYPES = new Set<string>([
   "catalog.previewLibraryPackageAtPath",
   "catalog.importLibraryPackageAtPath",
   "catalog.installMarketplaceSkillContent",
-  "catalog.installMarketplaceMaterial"
+  "catalog.installMarketplaceMaterial",
+  "catalog.restoreBackupFiles",
+  "catalog.listBackupProjects",
+  "externalControl.locateProject",
+  "deviceSync.workspace",
+  "rendererState.compactionStatus",
+  "rendererState.compactConversations",
+  "rendererState.releaseCompactionBackup",
+  "agentTeams.listActive",
+  "agentTeams.readActiveMembers",
+  "agentTeams.previewActiveChange",
+  "agentTeams.applyActiveChange",
+  "localBackup.coreInventory",
+  "localBackup.coreExportAtPath",
+  "localBackup.coreCancelExport",
+  "localBackup.corePreviewImportAtPath",
+  "localBackup.coreApplyImportAtPath"
 ]);
 
 export function isForbiddenRendererCommand(type: string): boolean {

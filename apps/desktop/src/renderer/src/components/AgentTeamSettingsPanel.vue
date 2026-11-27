@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { removeDraftSubagent } from "./useAgentTeamDraft";
 import { createScopedTranslator } from "../i18n";
 import {
   ACADEMIC_AGENT_IDS,
@@ -59,6 +60,7 @@ const t = createScopedTranslator("components.agentTeamSettingsPanel");
 
 const props = defineProps<{
   workspaceType?: AgentTeamWorkspaceType;
+  readOnly?: boolean;
   settings: readonly (WorkspaceAgentTeamSettings | AcademicAgentTeamSettings)[];
   longSettings: LongAgentTeamSettings | null;
   mysterySettings?: MysteryAgentTeamSettings | null | undefined;
@@ -159,7 +161,7 @@ const activeTeam = computed(() =>
 
 const subagentModelConfig = useSubagentModelConfig({
   models: () => props.models,
-  disabled: () => formDisabled.value
+  disabled: () => formDisabled.value || Boolean(props.readOnly)
 });
 const {
   modelOptions,
@@ -290,7 +292,7 @@ function addSubagent(
   >
 ): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   if (team.subagents.length >= activeSubagentLimit.value) {
     uiMessage.warning(
       t("thisTeamSupportsUpToValueSubagents", {
@@ -315,7 +317,7 @@ function addSubagent(
 
 function duplicateSubagent(index: number): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   const source = team.subagents[index];
   if (!source) return;
   if (team.subagents.length >= activeSubagentLimit.value) {
@@ -337,7 +339,7 @@ function duplicateSubagent(index: number): void {
 }
 
 function openLoadFromSkill(): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   if (!activeTeam.value) return;
   if (activeTeam.value.subagents.length >= activeSubagentLimit.value) {
     uiMessage.warning(
@@ -368,7 +370,8 @@ function confirmLoadFromSkill(draft: SubagentAuthoringDraft): void {
 }
 
 function editSubagent(id: string): void {
-  editingSubagentId.value = id;
+  editingSubagentId.value =
+    props.readOnly && editingSubagentId.value === id ? null : id;
 }
 
 function finishEditing(): void {
@@ -376,13 +379,11 @@ function finishEditing(): void {
 }
 
 function removeSubagent(index: number): void {
-  const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
-  const [removed] = team.subagents.splice(index, 1);
-  if (removed && editingSubagentId.value === removed.id) {
-    editingSubagentId.value = null;
-  }
-  if (removed) {
+  if (
+    !formDisabled.value &&
+    !props.readOnly &&
+    removeDraftSubagent(activeTeam.value, editingSubagentId, index)
+  ) {
     uiMessage.info(t("removedFromTheCurrentDraftSaveTheAgentTeam"));
   }
 }
@@ -391,13 +392,14 @@ function toggleSubagent(
   subagent: ShortAgentSubagentDefinition,
   enabled: boolean
 ): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   subagent.enabled = enabled;
 }
 
 function saveSettings(): void {
   if (
     formDisabled.value ||
+    props.readOnly ||
     activeWorkspaceType.value === "long" ||
     activeWorkspaceType.value === "mystery"
   ) {

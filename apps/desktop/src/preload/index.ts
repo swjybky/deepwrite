@@ -14,6 +14,7 @@ import { webSearch } from "./web-search-api";
 import { bookIdentity } from "./book-identity-api";
 import { longMaterialPack } from "./long-material-pack-api";
 import { libraryPackage } from "./library-package-api";
+import { localBackup } from "./local-backup-api";
 import { mystery } from "./mystery-api";
 import { storageSettings } from "./storage-settings-api";
 import { versions } from "./document-versions-api";
@@ -28,6 +29,7 @@ import {
   createAgentTeam,
   renameAgentTeam,
   deleteAgentTeam,
+  duplicateAgentTeam,
   setAgentTeamEnabled,
   setAgentTeamBookBinding,
   saveAgentTeams,
@@ -861,18 +863,19 @@ async function deleteProject(
 
 async function duplicateProject(
   rawInput: DuplicateCatalogProjectInput
-): Promise<DuplicateCatalogProjectResult> {
+): Promise<DuplicateCatalogProjectResult | null> {
   const input = DuplicateCatalogProjectInputSchema.parse(rawInput);
   const id = browserId("cmd_catalog_duplicate_project");
-  return DuplicateCatalogProjectResultSchema.parse(
-    await invokeCommand<DuplicateCatalogProjectResult>(
-      createEnvelope("catalog.duplicateProject", input, {
-        id,
-        correlationId: id,
-        context: { resourceId: input.projectId }
-      })
-    )
+  const result = await invokeCommand<DuplicateCatalogProjectResult | null>(
+    createEnvelope("catalog.duplicateProject", input, {
+      id,
+      correlationId: id,
+      context: { resourceId: input.projectId }
+    })
   );
+  return result === null
+    ? null
+    : DuplicateCatalogProjectResultSchema.parse(result);
 }
 
 async function listWorkspaceAgents(
@@ -1319,6 +1322,7 @@ const api: DeepWriteApi = {
     create: createAgentTeam,
     rename: renameAgentTeam,
     delete: deleteAgentTeam,
+    duplicate: duplicateAgentTeam,
     setEnabled: setAgentTeamEnabled,
     setBookBinding: setAgentTeamBookBinding,
     save: saveAgentTeams,
@@ -1346,6 +1350,7 @@ const api: DeepWriteApi = {
     exportLong: exportLongManuscript,
     exportShort: exportShortManuscript
   },
+  localBackup,
   mystery,
   ...desktopEvents
 };

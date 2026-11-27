@@ -10,7 +10,10 @@ import {
 import { createDecompositionJob } from "./job-creation";
 import {
   DecompositionResolvedInputSchema,
+  DecompositionResolvedModelsSchema,
   decompositionInputBudget,
+  getModelContentBlockReason,
+  isModelQuotaExhausted,
   type LongBookDecompositionJob,
   type DecompositionSubmitInput,
   type DecompositionTaskInput,
@@ -18,9 +21,10 @@ import {
   type DecompositionUsage,
   type DecompositionReadingCard,
   type DecompositionReceipt,
+  type DecompositionResolvedModels,
   type DecompositionSaveRegistryInput
 } from "@deepwrite/contracts";
-import { LongBookAnalysisSourceStore } from "../../extras/agents/sources/long-book-source-store";
+import { LongBookAnalysisSourceStore } from "../long-book-sources/long-book-source-store";
 import type { FolderCatalogStore } from "../folder-catalog-store";
 import type { LongWorkspaceService } from "../long-workspace-service";
 import {
@@ -227,7 +231,16 @@ export class DecompositionService {
       if (input.data.kind === "review")
         for (const issue of input.data.review.issues) {
           const target = issue.unitId ? job.units[issue.unitId] : undefined;
-          if (issue.resolution === "repair" && target?.phase === "integrate") {
+          const skippedParent = target?.biography
+            ? job.units[`character:${target.biography.registryId}`]?.status ===
+              "skipped"
+            : false;
+          if (
+            issue.resolution === "repair" &&
+            target?.phase === "integrate" &&
+            target.status !== "skipped" &&
+            !skippedParent
+          ) {
             target.phase = "review";
             target.status = "pending";
             target.attempts = 0;
@@ -258,6 +271,49 @@ export class DecompositionService {
   }
   control(input: DecompositionControlInput, usage?: DecompositionUsage) {
     return controlDecompositionJob(this, input, usage);
+  }
+  async updateModels(jobId: string, rawModels: DecompositionResolvedModels) {
+    const models = DecompositionResolvedModelsSchema.parse(rawModels);
+    const job = await this.recover(await this.state.load(jobId));
+    if (job.status === "running") throw new Error("请先停止任务再切换模型。");
+    if (job.phase === "done") throw new Error("任务已完成，无需切换模型。");
+    const readingChain = [models.reading, ...(models.readingFallbacks ?? [])];
+    const integrationChain = [
+      models.integration,
+      ...(models.integrationFallbacks ?? [])
+    ];
+    for (const entry of [...readingChain, ...integrationChain])
+      decompositionInputBudget(entry, job.profile.systemPrompt.length);
+    if (["prepare_target", "read"].includes(job.phase)) {
+      const maxPendingTokens = job.chunks.reduce((max, chunk) => {
+        const unit = job.units[chunk.id];
+        return !unit || !["done", "skipped"].includes(unit.status)
+          ? Math.max(max, chunk.estimatedTokens)
+          : max;
+      }, 0);
+      for (const entry of readingChain) {
+        const budget = decompositionInputBudget(
+          entry,
+          job.profile.systemPrompt.length
+        );
+        if (budget < maxPendingTokens)
+          throw new Error(
+            `所选通读模型（${entry.modelId}）的可用输入预算（${budget.toLocaleString("zh-CN")} tokens）小于未完成阅读块的最大体积（${maxPendingTokens.toLocaleString("zh-CN")} tokens），请换用上下文窗口更大的模型。`
+          );
+      }
+    }
+    const activeChanged = ["prepare_target", "read"].includes(job.phase)
+      ? job.models.reading.modelId !== models.reading.modelId
+      : job.models.integration.modelId !== models.integration.modelId;
+    job.models = models;
+    if (
+      activeChanged &&
+      (isModelQuotaExhausted(job.lastError) ||
+        Boolean(getModelContentBlockReason(job.lastError)))
+    )
+      delete job.lastError;
+    await this.state.save(job);
+    return job;
   }
   saveRegistry(input: DecompositionSaveRegistryInput) {
     return saveDecompositionRegistry(this, input);

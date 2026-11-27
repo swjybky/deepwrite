@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeChapterRange } from "./range-input";
+import {
+  normalizeChapterRange,
+  syncDecompositionChapterRange
+} from "./range-input";
 
 describe("normalizeChapterRange", () => {
   it("clamps typed values into the book", () => {
@@ -34,6 +37,37 @@ describe("normalizeChapterRange", () => {
     expect(normalizeChapterRange({ start: 5, end: 9 }, 0, "end")).toEqual({
       start: 1,
       end: 1
+    });
+  });
+
+  it("syncs range on chapter merge, undo, custom sub-range, and source switch", () => {
+    expect(syncDecompositionChapterRange({ start: 2, end: 5 }, 16)).toEqual({
+      start: 1,
+      end: 16
+    });
+    expect(
+      syncDecompositionChapterRange({ start: 1, end: 16 }, 15, 16)
+    ).toEqual({
+      start: 1,
+      end: 15
+    });
+    expect(
+      syncDecompositionChapterRange({ start: 1, end: 15 }, 16, 15)
+    ).toEqual({
+      start: 1,
+      end: 16
+    });
+    expect(
+      syncDecompositionChapterRange({ start: 1, end: 10 }, 15, 16)
+    ).toEqual({
+      start: 1,
+      end: 10
+    });
+    expect(
+      syncDecompositionChapterRange({ start: 1, end: 10 }, 16, 15)
+    ).toEqual({
+      start: 1,
+      end: 10
     });
   });
 });

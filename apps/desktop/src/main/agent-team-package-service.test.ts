@@ -201,7 +201,7 @@ describe("agent team package service", () => {
       teamName: `${source.name} (2)`
     });
     if (installed.status === "installed") {
-      expect(installed.catalog.teams).toHaveLength(6);
+      expect(installed.catalog.teams).toHaveLength(7);
     }
   });
 

@@ -22,6 +22,7 @@ export async function writeLatestCharacterContinuity(
     ({ tier, ignored }) =>
       !ignored && (tier === "protagonist" || tier === "major_supporting")
   )) {
+    if (job.units[`character:${entry.id}`]?.status === "skipped") continue;
     const dossier = assets.find(
       (asset) => asset.kind === "character" && asset.registryId === entry.id
     );

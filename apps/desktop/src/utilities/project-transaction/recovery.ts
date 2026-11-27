@@ -7,8 +7,7 @@ import {
   DEFAULT_MAX_FILE_BYTES,
   type ProjectTransactionResult,
   type TransactionJournal,
-  ProjectTransactionConflictError,
-  projectTransactionContentSha256
+  ProjectTransactionConflictError
 } from "./types";
 import { parseJournal } from "./validation";
 import {
@@ -19,7 +18,6 @@ import {
   ensureSafeParent,
   readRegularFileOptional,
   readRegularFileRequired,
-  isNodeError,
   positiveByteLimit
 } from "./io";
 import {
@@ -29,6 +27,7 @@ import {
   transactionResult
 } from "./journal";
 import { withProjectTransactionLock } from "./lock";
+import { isNodeError, sha256Hex } from "@deepwrite/shared/node";
 
 /**
  * Finishes an interrupted, already-prepared project transaction. Recovery
@@ -137,9 +136,7 @@ export async function recoverProjectTransactionLocked(
       target,
       maxFileBytes
     );
-    const currentSha256 = current
-      ? projectTransactionContentSha256(current)
-      : null;
+    const currentSha256 = current ? sha256Hex(current) : null;
 
     if (operation.action === "check") {
       if (currentSha256 !== operation.beforeSha256) {
@@ -180,7 +177,7 @@ export async function recoverProjectTransactionLocked(
         staged,
         maxFileBytes
       );
-      const stagedSha256 = projectTransactionContentSha256(stagedBytes);
+      const stagedSha256 = sha256Hex(stagedBytes);
       if (stagedSha256 !== operation.afterSha256) {
         throw new Error(`事务暂存文件校验失败：${operation.path}`);
       }

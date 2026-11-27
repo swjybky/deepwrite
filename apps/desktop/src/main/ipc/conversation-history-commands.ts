@@ -7,6 +7,7 @@ import {
 import { UtilityCommandTimeoutError } from "../supervisor";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 export async function handleConversationHistoryCommands(
   ctx: Pick<IpcCommandContext, "supervisor" | "activeRuns">,
@@ -31,14 +32,11 @@ export async function handleConversationHistoryCommands(
       )
     : () => {};
   if (!release)
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "conversation_history.running",
-        message: "此对话仍在运行，请先停止任务后再管理历史。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "conversation_history.running",
+      "此对话仍在运行，请先停止任务后再管理历史。"
+    );
   try {
     const result = await ctx.supervisor.requestCommand("core", command, 60_000);
     if (result.status === "rejected") return result;
@@ -49,21 +47,18 @@ export async function handleConversationHistoryCommands(
     };
   } catch (error: unknown) {
     const timedOut = error instanceof UtilityCommandTimeoutError;
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: timedOut
-          ? "conversation_history.command_timeout"
-          : "conversation_history.forward_failed",
-        message: timedOut
-          ? "会话历史操作超时，尚未确认保存。"
-          : error instanceof Error
-            ? error.message
-            : "会话历史操作失败。",
-        details: safeErrorDetails(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      timedOut
+        ? "conversation_history.command_timeout"
+        : "conversation_history.forward_failed",
+      timedOut
+        ? "会话历史操作超时，尚未确认保存。"
+        : error instanceof Error
+          ? error.message
+          : "会话历史操作失败。",
+      safeErrorDetails(error)
+    );
   } finally {
     release();
   }

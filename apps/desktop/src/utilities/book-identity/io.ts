@@ -137,7 +137,7 @@ export async function removeOptional(path: string): Promise<void> {
   }
 }
 
-export async function atomicWrite(
+export async function writeIdentityFile(
   path: string,
   bytes: string | Buffer
 ): Promise<void> {

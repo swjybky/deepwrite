@@ -10,6 +10,8 @@ import {
 import { uiMessage } from "../../ui-feedback";
 import { createPromptProfile } from "../agent-runtime/promptProfile";
 import { createStyleComparisonController } from "./controller";
+import { deepwriteApi } from "../../api/deepwrite";
+import { uiStorage } from "../../utils/uiStorage";
 
 const t = createScopedTranslator("extras.styleComparison");
 
@@ -18,7 +20,7 @@ const LEGACY_METHOD_KEY = "deepwrite.style-comparison.method.v1";
 const AUTO_SAVE_DELAY_MS = 800;
 
 function runtimeApi() {
-  return globalThis.window?.deepwrite;
+  return deepwriteApi();
 }
 
 function api() {
@@ -29,8 +31,8 @@ function api() {
 
 function takeLegacyMethod(): string | null {
   try {
-    const saved = localStorage.getItem(LEGACY_METHOD_KEY);
-    localStorage.removeItem(LEGACY_METHOD_KEY);
+    const saved = uiStorage().getItem(LEGACY_METHOD_KEY);
+    uiStorage().removeItem(LEGACY_METHOD_KEY);
     return saved;
   } catch {
     return null;

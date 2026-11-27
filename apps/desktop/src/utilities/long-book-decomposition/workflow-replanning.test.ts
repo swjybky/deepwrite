@@ -5,10 +5,8 @@ import { readyDecompositionUnitIds } from "@deepwrite/contracts";
 import { decompositionFixture } from "./test-support";
 import { cleanupDecompositionRoots } from "./fixture-cleanup.test-support";
 import { addDecompositionUnit } from "./workflow";
-import {
-  assertDecompositionObjectWritable,
-  decompositionSha
-} from "./content-guard";
+import { assertDecompositionObjectWritable } from "./content-guard";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -92,7 +90,7 @@ it("keeps edited index objects protected after dependency replanning", async () 
     assertDecompositionObjectWritable(
       restored,
       "material_entry_fixture",
-      decompositionSha("用户修改后的索引内容")
+      sha256Hex("用户修改后的索引内容")
     )
   ).toThrow("decomposition.conflict");
 });

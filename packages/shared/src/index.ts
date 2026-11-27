@@ -56,3 +56,48 @@ export function reorderItemsByAnchor<T extends { id: string }>(
   const moved = next.some((item, index) => item.id !== items[index]?.id);
   return { items: next, moved };
 }
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+export function formatBytes(bytes: number | undefined): string {
+  if (bytes === undefined || !Number.isFinite(bytes)) return "—";
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+export function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+/** Pretty-printed JSON with a trailing newline, the format of every JSON file DeepWrite writes. */
+export function toJsonFileText(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+/**
+ * A plain JSON copy. Unlike structuredClone it drops undefined and functions and
+ * strips Vue reactive proxies, which IPC and the JSON files require.
+ */
+export function jsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** Encodes a Date into DOS date/time integers clamped to the ZIP specification range. */
+export function zipDateTime(date: Date): { date: number; time: number } {
+  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
+  return {
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+    time:
+      (date.getHours() << 11) |
+      (date.getMinutes() << 5) |
+      Math.floor(date.getSeconds() / 2)
+  };
+}

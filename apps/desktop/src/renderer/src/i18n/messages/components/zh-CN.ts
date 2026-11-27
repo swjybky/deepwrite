@@ -51,6 +51,7 @@ import conversationActivityLabel from "./conversationActivityLabel/zh-CN";
 import conversationComposer from "./conversationComposer/zh-CN";
 import conversationContextCompactionNotice from "./conversationContextCompactionNotice/zh-CN";
 import conversationFileChanges from "./conversationFileChanges/zh-CN";
+import confirmHost from "./confirmHost/zh-CN";
 import conversationHistoryDeleteDialog from "./conversationHistoryDeleteDialog/zh-CN";
 import conversationHistoryMenu from "./conversationHistoryMenu/zh-CN";
 import conversationMessageItem from "./conversationMessageItem/zh-CN";
@@ -83,7 +84,6 @@ import exportLongManuscriptDialog from "./exportLongManuscriptDialog/zh-CN";
 import exportShortManuscriptDialog from "./exportShortManuscriptDialog/zh-CN";
 import externalSkillImportDialog from "./externalSkillImportDialog/zh-CN";
 import importLibraryPackageDialog from "./importLibraryPackageDialog/zh-CN";
-import foreshadowingFilterBar from "./foreshadowingFilterBar/zh-CN";
 import freeModelPresentation from "./freeModelPresentation/zh-CN";
 import freeModelsPanel from "./freeModelsPanel/zh-CN";
 import leftSidebar from "./leftSidebar/zh-CN";
@@ -97,15 +97,12 @@ import loadSubagentFromSkillDialog from "./loadSubagentFromSkillDialog/zh-CN";
 import longAgentSettingsPanel from "./longAgentSettingsPanel/zh-CN";
 import longAgentTeamSettingsPanel from "./longAgentTeamSettingsPanel/zh-CN";
 import longBookActionMenu from "./longBookActionMenu/zh-CN";
-import longBookBindingOptions from "./longBookBindingOptions/zh-CN";
 import longBookRemovalDialog from "./longBookRemovalDialog/zh-CN";
 import longBookRenameDialog from "./longBookRenameDialog/zh-CN";
 import longCharacterNavigation from "./longCharacterNavigation/zh-CN";
 import longChapterPlotBinding from "./longChapterPlotBinding/zh-CN";
 import longContinuationImportDialog from "./longContinuationImportDialog/zh-CN";
 import longContinuityLedgerNavigation from "./longContinuityLedgerNavigation/zh-CN";
-import longContinuityProjectionPanel from "./longContinuityProjectionPanel/zh-CN";
-import longContinuityWorkspace from "./longContinuityWorkspace/zh-CN";
 import longEditorDeleteDialogs from "./longEditorDeleteDialogs/zh-CN";
 import longEditorFindReplaceBar from "./longEditorFindReplaceBar/zh-CN";
 import longEditorFooterMeta from "./longEditorFooterMeta/zh-CN";
@@ -115,7 +112,6 @@ import longImpactConfirmationDetails from "./longImpactConfirmationDetails/zh-CN
 import longLedgerFinalizationCard from "./longLedgerFinalizationCard/zh-CN";
 import longLegacySyncDialog from "./longLegacySyncDialog/zh-CN";
 import longManuscriptEditor from "./longManuscriptEditor/zh-CN";
-import longMigrationReportDialog from "./longMigrationReportDialog/zh-CN";
 import longPlotStoryListPane from "./longPlotStoryListPane/zh-CN";
 import longProposalImpactDetails from "./longProposalImpactDetails/zh-CN";
 import longProposalReview from "./longProposalReview/zh-CN";
@@ -246,6 +242,7 @@ export default {
   conversationComposer,
   conversationContextCompactionNotice,
   conversationFileChanges,
+  confirmHost,
   conversationHistoryDeleteDialog,
   conversationHistoryMenu,
   conversationMessageItem,
@@ -278,7 +275,6 @@ export default {
   exportShortManuscriptDialog,
   externalSkillImportDialog,
   importLibraryPackageDialog,
-  foreshadowingFilterBar,
   freeModelPresentation,
   freeModelsPanel,
   leftSidebar,
@@ -292,15 +288,12 @@ export default {
   longAgentSettingsPanel,
   longAgentTeamSettingsPanel,
   longBookActionMenu,
-  longBookBindingOptions,
   longBookRemovalDialog,
   longBookRenameDialog,
   longCharacterNavigation,
   longChapterPlotBinding,
   longContinuationImportDialog,
   longContinuityLedgerNavigation,
-  longContinuityProjectionPanel,
-  longContinuityWorkspace,
   longEditorDeleteDialogs,
   longEditorFindReplaceBar,
   longEditorFooterMeta,
@@ -310,7 +303,6 @@ export default {
   longLedgerFinalizationCard,
   longLegacySyncDialog,
   longManuscriptEditor,
-  longMigrationReportDialog,
   longPlotStoryListPane,
   longProposalImpactDetails,
   longProposalReview,

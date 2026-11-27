@@ -340,6 +340,7 @@ export function useShortWorkspaceStructureCoordinator(
           domain: "book",
           projectId: book.id
         });
+        if (!duplicated) return;
         await copyBookAgentTeamBinding(
           book.id,
           duplicated.projectId,

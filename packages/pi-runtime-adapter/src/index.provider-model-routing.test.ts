@@ -20,6 +20,7 @@ import {
   ollamaGrammarRegressionTool,
   toolWithParameters
 } from "./index.test-support";
+import { piStrictToolSampling } from "./pi-tool-schema";
 
 describe("DeepWrite Pi runtime adapter: provider-model-routing", () => {
   it("injects AGENTS.md into every long agent and later plot-design turns", () => {
@@ -679,7 +680,7 @@ describe("DeepWrite Pi runtime adapter: provider-model-routing", () => {
           maxTokensField: "max_tokens",
           requiresReasoningContentOnAssistantMessages: true,
           thinkingFormat: "deepseek",
-          supportsStrictMode: true
+          supportsStrictMode: false
         }
       });
     }
@@ -1179,5 +1180,232 @@ describe("DeepWrite Pi runtime adapter: provider-model-routing", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("omits tool strict flags for custom and official fallback DeepSeek routes while preserving other providers", async () => {
+    const strictCandidateSchema = Type.Object(
+      { query: Type.String() },
+      { additionalProperties: false }
+    );
+    const optionalCandidateSchema = Type.Object({
+      query: Type.String(),
+      note: Type.Optional(Type.String())
+    });
+    const mixedTools = [
+      {
+        ...toolWithParameters("strict_candidate", strictCandidateSchema),
+        ...piStrictToolSampling(strictCandidateSchema)
+      },
+      {
+        ...toolWithParameters("optional_candidate", optionalCandidateSchema),
+        ...piStrictToolSampling(optionalCandidateSchema)
+      }
+    ];
+    const baseConfig: AgentProviderRuntimeConfig = {
+      id: "deepseek-compat-test",
+      label: "DeepSeek Compat Test",
+      provider: "deepseek",
+      modelId: "deepseek-flash",
+      api: "openai-completions",
+      baseUrl: "https://gateway.example.test/v1",
+      reasoning: true,
+      defaultThinkingLevel: "high",
+      thinkingLevelOptions: ["low", "high", "max"],
+      temperatureOptions: [0.1, 0.7, 1],
+      apiKey: "test-only"
+    };
+
+    const deepseekRoutes: Array<Partial<AgentProviderRuntimeConfig>> = [
+      { id: "custom-flash", provider: "deepseek", modelId: "deepseek-flash" },
+      { id: "custom-pro", provider: "deepseek", modelId: "deepseek-v4-pro" },
+      {
+        id: "custom-pro-routed",
+        provider: "deepseek",
+        modelId: "deepseek-v4-pro-custom-route"
+      },
+      {
+        id: "custom-v4-flash",
+        provider: "deepseek",
+        modelId: "deepseek-v4-flash"
+      },
+      { id: "custom-chat", provider: "deepseek", modelId: "deepseek-chat" },
+      {
+        id: "custom-endpoint",
+        provider: "custom",
+        modelId: "deepseek-flash",
+        baseUrl: "https://api.deepseek.com/v1"
+      },
+      {
+        id: "custom-apex-endpoint",
+        provider: "custom",
+        modelId: "deepseek-flash",
+        baseUrl: "https://deepseek.com/v1"
+      },
+      {
+        id: "custom-subdomain-endpoint",
+        provider: "custom",
+        modelId: "deepseek-flash",
+        baseUrl: "https://beta.deepseek.com/v1"
+      },
+      {
+        id: "custom-proxy-pro",
+        provider: "custom",
+        modelId: "deepseek-v4-pro"
+      },
+      {
+        id: "deepwrite-site-official-deepseek-v4-flash",
+        provider: "deepwrite-site",
+        modelId: "deepseek-v4-flash"
+      },
+      {
+        id: "deepwrite-site-official-deepseek-v4-pro",
+        provider: "deepwrite-site",
+        modelId: "deepseek-v4-pro"
+      },
+      {
+        id: "deepwrite-site-official-deepseek-v4-flash-vision-exp",
+        provider: "deepwrite-site",
+        modelId: "deepseek-v4-flash-vision-exp"
+      },
+      {
+        id: "deepwrite-site-official-deepseek-v4.1-flash",
+        provider: "deepwrite-site",
+        modelId: "deepseek-v4.1-flash"
+      },
+      {
+        id: "deepwrite-site-official-deepseek-flash-202609",
+        provider: "deepseek",
+        modelId: "deepseek-flash-202609"
+      }
+    ];
+
+    for (const override of deepseekRoutes) {
+      const config = { ...baseConfig, ...override };
+      const { model, streamFn } = buildProviderRuntime(
+        config,
+        undefined,
+        "high"
+      );
+      expect(model.compat).toMatchObject({ supportsStrictMode: false });
+      let payload: Record<string, unknown> | undefined;
+      const stream = await streamFn(
+        model,
+        {
+          systemPrompt: "Use tools.",
+          messages: [{ role: "user", content: "Go", timestamp: 1 }],
+          tools: mixedTools
+        },
+        {
+          reasoning: "high",
+          onPayload: (value) => {
+            payload = value as Record<string, unknown>;
+            throw new Error("payload captured");
+          }
+        }
+      );
+      await stream.result();
+      const serialized =
+        (payload?.tools as Array<{ function: Record<string, unknown> }>) ?? [];
+      expect(serialized).toHaveLength(2);
+      for (const tool of serialized) {
+        expect(tool.function).not.toHaveProperty("strict");
+      }
+    }
+
+    const preservedOtherProviders: Array<Partial<AgentProviderRuntimeConfig>> =
+      [
+        {
+          id: "openrouter-deepseek",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-pro"
+        },
+        {
+          id: "openrouter-deepseek-path",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-pro",
+          baseUrl: "https://proxy.example.test/deepseek.com/v1"
+        },
+        {
+          id: "openrouter-deepseek-query",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-pro",
+          baseUrl: "https://proxy.example.test/v1?upstream=api.deepseek.com"
+        },
+        {
+          id: "openrouter-deepseek-lookalike-host",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-pro",
+          baseUrl: "https://notdeepseek.com/v1"
+        },
+        {
+          id: "openrouter-deepseek-nested-domain",
+          provider: "openrouter",
+          modelId: "deepseek/deepseek-v4-pro",
+          baseUrl: "https://api.deepseek.com.example.test/v1"
+        },
+        {
+          id: "opencode-go-deepseek",
+          provider: "opencode-go",
+          modelId: "deepseek-v4-flash"
+        },
+        {
+          id: "qwen-plan-deepseek",
+          provider: "qwen-token-plan",
+          modelId: "deepseek-v4-flash"
+        },
+        {
+          id: "deepwrite-site-official-kimi-k3",
+          provider: "deepwrite-site",
+          modelId: "kimi-k3"
+        }
+      ];
+
+    for (const override of preservedOtherProviders) {
+      const config = { ...baseConfig, ...override };
+      const { model, streamFn } = buildProviderRuntime(
+        config,
+        undefined,
+        "high"
+      );
+      expect(model.compat).toMatchObject({ supportsStrictMode: true });
+      let payload: Record<string, unknown> | undefined;
+      const stream = await streamFn(
+        model,
+        {
+          systemPrompt: "Use tools.",
+          messages: [{ role: "user", content: "Go", timestamp: 1 }],
+          tools: mixedTools
+        },
+        {
+          reasoning: "high",
+          onPayload: (value) => {
+            payload = value as Record<string, unknown>;
+            throw new Error("payload captured");
+          }
+        }
+      );
+      await stream.result();
+      const serialized =
+        (payload?.tools as Array<{ function: Record<string, unknown> }>) ?? [];
+      expect(serialized.map((tool) => tool.function.strict)).toEqual([
+        true,
+        false
+      ]);
+    }
+
+    expect(
+      buildProviderRuntime(
+        {
+          ...baseConfig,
+          id: "custom-unrelated-with-deepseek-path",
+          provider: "custom",
+          modelId: "unrelated-model",
+          baseUrl:
+            "https://proxy.example.test/deepseek.com/v1?ref=api.deepseek.com"
+        },
+        undefined,
+        "high"
+      ).model.compat
+    ).toBeUndefined();
   });
 });

@@ -13,6 +13,7 @@ import {
 } from "vitest";
 import { build } from "vite";
 import { ConversationStorageWorker } from "./worker-client";
+import { openConversationDatabase, Statements } from "./schema";
 
 let directory: string;
 const clients: ConversationStorageWorker[] = [];
@@ -168,5 +169,170 @@ describe("Core-owned conversation worker", () => {
     expect(
       (await worker.list({ key: "conversation-history:fixture" })).sessions
     ).toEqual([]);
+  });
+
+  it("preempts background compaction cleanly when a user commit arrives in the worker", async () => {
+    vi.stubEnv("DEEPWRITE_MAIN_INSTANCE_ID", "fixture-worker-preempt");
+    const dbPath = join(directory, "renderer-state", "preempt.sqlite");
+    const scopeKey = "conversation-history:preempt-fixture";
+    const sessionId = "session-preempt";
+
+    const seedDb = openConversationDatabase(dbPath);
+    try {
+      const sql = new Statements(seedDb);
+      sql
+        .get(
+          "INSERT INTO scopes(key, active_session_id, metadata_ref, removed, epoch, incremental) VALUES (?, ?, NULL, 0, 0, 1)"
+        )
+        .run(scopeKey, sessionId);
+      sql
+        .get(
+          "INSERT INTO sessions(scope_key, session_id, revision, generation, sequence, deleted, metadata_ref, updated_at, legacy_position, message_count, message_bytes, turn_count) VALUES (?, ?, 1, 0, 1, 0, NULL, '2026-11-26T00:00:00.000Z', 0, 0, 0, 0)"
+        )
+        .run(scopeKey, sessionId);
+      const insertRaw = (
+        val: unknown
+      ):
+        | {
+            value: string | number | boolean | null;
+            bytes: number;
+            chars: number;
+          }
+        | { node: number; bytes: number; chars: number } => {
+        if (val === null || typeof val !== "object") {
+          const enc = JSON.stringify(val);
+          return {
+            value: val as string | number | boolean | null,
+            bytes: Buffer.byteLength(enc),
+            chars: enc.length
+          };
+        }
+        const id = Number(
+          sql.get("INSERT INTO nodes(kind) VALUES ('pending')").run()
+            .lastInsertRowid
+        );
+        if (Array.isArray(val)) {
+          const entries = val.map((item) => insertRaw(item));
+          sql
+            .get("UPDATE nodes SET kind = 'array', value = ? WHERE id = ?")
+            .run(JSON.stringify({ kind: "array", entries }), id);
+          return {
+            node: id,
+            bytes: 2 + entries.reduce((a, e) => a + e.bytes + 1, 0),
+            chars: 2 + entries.reduce((a, e) => a + e.chars + 1, 0)
+          };
+        }
+        const entries = Object.entries(val).map(([k, v]) => [k, insertRaw(v)]);
+        sql
+          .get("UPDATE nodes SET kind = 'object', value = ? WHERE id = ?")
+          .run(JSON.stringify({ kind: "object", entries }), id);
+        return {
+          node: id,
+          bytes: entries.reduce(
+            (a, [k, v]) =>
+              a +
+              Buffer.byteLength(JSON.stringify(k)) +
+              2 +
+              (v as { bytes: number }).bytes,
+            2
+          ),
+          chars: entries.reduce(
+            (a, [k, v]) =>
+              a + JSON.stringify(k).length + 2 + (v as { chars: number }).chars,
+            2
+          )
+        };
+      };
+      const msgStmt = sql.get(
+        "INSERT INTO messages(scope_key, session_id, message_id, position, value_ref, byte_length, role, preview, running, pending, reviewing) VALUES (?, ?, ?, ?, ?, ?, 'assistant', '旧版回复', 0, 0, 0)"
+      );
+      const payloadText = "旧快照填充".repeat(200);
+      seedDb.exec("BEGIN IMMEDIATE");
+      for (let i = 0; i < 150; i += 1) {
+        const ref = insertRaw({
+          id: `msg-legacy-${i}`,
+          role: "assistant",
+          content: `旧版回复-${i}`,
+          subagentRuns: [
+            {
+              subagentRunId: `sr-${i}`,
+              subagentId: "reviewer",
+              name: "审校",
+              status: "completed",
+              modelCalls: [
+                {
+                  requestId: `req-${i}`,
+                  sequence: 1,
+                  status: "completed",
+                  snapshot: { systemPrompt: payloadText }
+                }
+              ]
+            }
+          ]
+        });
+        msgStmt.run(
+          scopeKey,
+          sessionId,
+          `msg-legacy-${i}`,
+          i,
+          JSON.stringify(ref),
+          ref.bytes
+        );
+      }
+      seedDb.exec("COMMIT");
+    } finally {
+      seedDb.close();
+    }
+
+    const worker = client("preempt");
+    const initialStatus = await worker.compactionStatus();
+    expect(initialStatus.phase).toBe("needed");
+    expect(initialStatus.legacyCallsFound).toBe(150);
+
+    const compacting = worker.compactConversations();
+    const committing = worker.commit({
+      key: scopeKey,
+      sessionId,
+      batchId: "batch-concurrent-write",
+      expectedRevision: 1,
+      generation: 0,
+      sequence: 2,
+      operations: [
+        {
+          type: "putMessage",
+          messageId: "msg-user-concurrent",
+          position: 150,
+          value: {
+            id: "msg-user-concurrent",
+            role: "user",
+            content: "并发写消息必须成功"
+          }
+        }
+      ]
+    });
+
+    const [compactResult, commitResult] = await Promise.all([
+      compacting,
+      committing
+    ]);
+    expect(commitResult.revision).toBe(2);
+    expect(["needed", "completed_with_backup"]).toContain(compactResult.phase);
+
+    const finalized =
+      compactResult.phase === "needed"
+        ? await worker.compactConversations()
+        : compactResult;
+    expect(finalized.phase).toBe("completed_with_backup");
+    expect(finalized.legacyCallsFound).toBe(0);
+
+    const session = await worker.session({ key: scopeKey, sessionId });
+    expect(session?.messageCount).toBe(151);
+    const tail = await worker.messages({
+      key: scopeKey,
+      sessionId,
+      direction: "backward",
+      limit: 5
+    });
+    expect(tail.messages.at(-1)?.messageId).toBe("msg-user-concurrent");
   });
 });

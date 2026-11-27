@@ -10,6 +10,7 @@ import {
   type CommandResult
 } from "@deepwrite/contracts";
 import { decodeAnalysisText } from "./text-decoder";
+import { rejectedResult } from "../../../main/ipc/errors";
 export interface ShortBookSourceCommandContext {
   dialog: Pick<Dialog, "showOpenDialog">;
   getMainWindow(): BrowserWindow;
@@ -119,13 +120,10 @@ export async function handleShortBookSourceCommands(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "short_book_analysis.command_failed",
-        message: error instanceof Error ? error.message : "短篇拆书操作失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "short_book_analysis.command_failed",
+      error instanceof Error ? error.message : "短篇拆书操作失败。"
+    );
   }
 }

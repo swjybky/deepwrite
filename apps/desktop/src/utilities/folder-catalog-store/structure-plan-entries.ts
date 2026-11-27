@@ -2,13 +2,13 @@ import {
   reorderLibraryIds,
   type LibraryStructureOperation
 } from "@deepwrite/contracts";
-import { projectTransactionContentSha256 as sha } from "../project-transaction";
 import { nextCopyTitle } from "../copy-title";
 import type {
   StructurePlanState,
   Item,
   Library
 } from "./structure-plan-context";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 type EntryOperation = Extract<
   LibraryStructureOperation,
@@ -60,7 +60,7 @@ export async function applyEntryStructureOperation(
         op.libraryType ?? "short",
         true
       )) as Item & { manifest: Library };
-    const id = `entry-${sha(`${request.requestId}:${op.ref}`).slice(0, 24)}`;
+    const id = `entry-${sha256Hex(`${request.requestId}:${op.ref}`).slice(0, 24)}`;
     if (
       target.manifest.entries.some(
         (entry) => entry.id === id || entry.title === op.title
@@ -140,7 +140,7 @@ export async function applyEntryStructureOperation(
         )
           throw new Error("只有素材条目可以调整内容阶段。");
         if (op.action === "copy-entries") {
-          const copyId = `entry-${sha(JSON.stringify([request.requestId, operationIndex, id])).slice(0, 24)}`;
+          const copyId = `entry-${sha256Hex(JSON.stringify([request.requestId, operationIndex, id])).slice(0, 24)}`;
           const titles = target.manifest.entries
             .filter((item) => item.stageId === stageId)
             .map((item) => item.title);
@@ -180,7 +180,7 @@ export async function applyEntryStructureOperation(
         }
         if (target.manifest.entries.some((item) => item.id === id))
           throw new Error("目标库已存在同 ID 条目。");
-        const path = `entries/${sha(id).slice(0, 32)}.md`;
+        const path = `entries/${sha256Hex(id).slice(0, 32)}.md`;
         target.files.set(path, {
           action: "write",
           path,
@@ -229,7 +229,7 @@ export async function applyEntryStructureOperation(
         source.files.set(entry.path, {
           action: "delete",
           path: entry.path,
-          expectedSha256: previous?.expectedSha256 ?? sha(content)
+          expectedSha256: previous?.expectedSha256 ?? sha256Hex(content)
         });
       source.manifest.entries = source.manifest.entries.filter(
         (item) => item.id !== id

@@ -1,4 +1,5 @@
 import { LongWorkspaceImpactConfirmationSchema } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 const LEGACY_IMPACT_SUMMARY_KEYS = [
   "createdEntityIds",
@@ -22,10 +23,6 @@ const RETIRED_STRICT_BOUNDARY_KEYS = new Set(["before", "fileChanges"]);
 
 const RETIRED_STATUS_MESSAGE_PATTERN =
   /\brevisions?\b|\bversions?\b|\brollback\b|\breversible\b|stale\s+expected|\bcas\b|版本|回滚/iu;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 function isRetiredLongVersionKey(key: string): boolean {
   return (

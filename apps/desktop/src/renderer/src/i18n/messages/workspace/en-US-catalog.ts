@@ -86,7 +86,8 @@ export default {
     unreadableSkillLibrary: "Unreadable skill library ({projectId})",
     unreadableMaterialLibrary: "Unreadable material library ({projectId})",
     skillLibrary: "Skill library",
-    materialLibrary: "Material library"
+    materialLibrary: "Material library",
+    builtin: "Built-in"
   },
   libraryAgentSkillAttachments: {
     deepwriteAttachmentTruncatedAtCharactersOriginalLengthCharacters:
@@ -279,19 +280,6 @@ export default {
     failedToLoadMaterialAndSkillLibraries:
       "Failed to load material and skill libraries.",
     restoredUnsavedDrafts: "Restored {recoveredDraftCount} unsaved drafts"
-  },
-  bookLibraryKinds: {
-    charactersAndRelationships: "Characters and relationships",
-    coreIdeasAndHooks: "Core ideas and hooks",
-    plotOpeningAndRefinement: "Plot, opening, and refinement",
-    proseExcerptsAndWritingReferences: "Prose excerpts and writing references",
-    materialsOutsideTheCategoriesAbove:
-      "Materials outside the categories above",
-    availableAcrossMultipleStages: "Available across multiple stages",
-    characterPlotAndOutlineMethods: "Character, plot, and outline methods",
-    manuscriptAndSectionWritingMethods:
-      "Manuscript and section writing methods",
-    customWritingMethods: "Custom writing methods"
   },
   catalogDocumentPersistence: {
     theLatestDirectorySnapshotCouldNotBeReadAfter:

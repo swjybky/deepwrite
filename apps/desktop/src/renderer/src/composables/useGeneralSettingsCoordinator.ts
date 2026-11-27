@@ -16,6 +16,7 @@ import type { Ref } from "vue";
 import { locale, setAppLanguage, createScopedTranslator } from "../i18n";
 import { takeInitialGeneralSettings } from "../i18n/bootstrap";
 import { saveGeneralPreferences } from "../utils/generalPreferences";
+import { formatError } from "../i18n/errors";
 
 const t = createScopedTranslator("foundation");
 
@@ -241,9 +242,7 @@ export function useGeneralSettingsCoordinator(
       if (disposed) return;
       applyLanguage(options.settings.value.language);
       options.applyApprovalMode(options.settings.value.permissionMode);
-      options.notifications.warning(
-        error instanceof Error ? error.message : t("loadFailed")
-      );
+      options.notifications.warning(formatError(error, t("loadFailed")));
       options.publishLoaded(options.settings.value);
       if (shouldSave) queueSave();
     }

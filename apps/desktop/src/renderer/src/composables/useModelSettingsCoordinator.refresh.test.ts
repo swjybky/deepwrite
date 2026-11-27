@@ -1,6 +1,10 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { DeepWriteApi, ModelSettings } from "@deepwrite/contracts";
+import type {
+  AppAlertSnapshot,
+  DeepWriteApi,
+  ModelSettings
+} from "@deepwrite/contracts";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useModelSettingsCoordinator } from "./useModelSettingsCoordinator";
 
@@ -12,7 +16,10 @@ function deferred() {
   return { promise, resolve };
 }
 
-function harness(list = vi.fn()) {
+function harness(
+  list = vi.fn(),
+  appAlertsGet?: () => Promise<AppAlertSnapshot>
+) {
   const store = useSettingsStore();
   const notifications = {
     error: vi.fn(),
@@ -22,7 +29,13 @@ function harness(list = vi.fn()) {
   };
   const onModelsLoaded = vi.fn();
   const coordinator = useModelSettingsCoordinator({
-    api: () => ({ models: { list } }) as unknown as DeepWriteApi,
+    api: () =>
+      ({
+        models: { list },
+        ...(appAlertsGet
+          ? { appAlerts: { get: appAlertsGet, acknowledgeDesktop: vi.fn() } }
+          : {})
+      }) as unknown as DeepWriteApi,
     settingsStore: store,
     notifications,
     onModelsLoaded
@@ -110,4 +123,27 @@ it("retains visible models on failure, reports a toast, and retries on the next 
   await h.refreshModelSettings();
   expect(h.store.modelSettings?.defaultModelId).toBe("recovered");
   expect(h.store.modelError).toBeNull();
+});
+
+it("loads model announcements silently and hides them without notification errors when fetching fails", async () => {
+  const get = vi
+    .fn<() => Promise<AppAlertSnapshot>>()
+    .mockResolvedValueOnce({
+      desktopMessages: [],
+      modelMessages: ["Gemini 模型逐渐恢复稳定"],
+      desktopRevision: "0".repeat(64),
+      shouldShowDesktop: false
+    })
+    .mockRejectedValueOnce(new Error("network offline"));
+  const h = harness(vi.fn(), get);
+
+  await h.loadAppAlerts();
+  expect(h.store.modelAlertMessages).toEqual(["Gemini 模型逐渐恢复稳定"]);
+  expect(h.notifications.error).not.toHaveBeenCalled();
+  expect(h.notifications.warning).not.toHaveBeenCalled();
+
+  await h.loadAppAlerts();
+  expect(h.store.modelAlertMessages).toEqual([]);
+  expect(h.notifications.error).not.toHaveBeenCalled();
+  expect(h.notifications.warning).not.toHaveBeenCalled();
 });

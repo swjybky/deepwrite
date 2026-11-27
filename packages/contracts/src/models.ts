@@ -131,9 +131,38 @@ export const ModelsSaveCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   payload: ModelSettingsInputSchema
 });
 
+export const ModelTestRequestIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[a-zA-Z0-9_-]+$/u);
+
+export const ModelTestCancelInputSchema = z
+  .object({
+    requestId: ModelTestRequestIdSchema
+  })
+  .strict();
+export type ModelTestCancelInput = z.infer<typeof ModelTestCancelInputSchema>;
+
+export const ModelTestCancelResultSchema = z
+  .object({
+    cancelled: z.boolean()
+  })
+  .strict();
+export type ModelTestCancelResult = z.infer<typeof ModelTestCancelResultSchema>;
+
 export const ModelsTestCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("models.test"),
-  payload: z.object({ model: ModelConfigInputSchema })
+  payload: z.object({
+    model: ModelConfigInputSchema,
+    requestId: ModelTestRequestIdSchema.optional()
+  })
+});
+
+export const ModelsCancelTestCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("models.cancelTest"),
+  payload: ModelTestCancelInputSchema
 });
 
 export const ModelCapacityResultSchema = z.object({
@@ -195,8 +224,17 @@ export const ModelsListRemoteCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
 
 export const AgentModelTestCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agent.model_test"),
-  payload: z.object({ runtimeConfig: AgentProviderRuntimeConfigSchema })
+  payload: z.object({
+    runtimeConfig: AgentProviderRuntimeConfigSchema,
+    requestId: ModelTestRequestIdSchema.optional()
+  })
 });
+
+export const AgentModelTestCancelCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("agent.model_test_cancel"),
+    payload: ModelTestCancelInputSchema
+  });
 
 export const AgentModelCapacityCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({

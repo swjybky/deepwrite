@@ -71,13 +71,14 @@ export function splitAnalysisChapter(
   const left = chapter.text.slice(0, cursor).trim();
   const right = chapter.text.slice(cursor).trim();
   if (!left || !right) throw new Error(t("splitCursorRequired"));
+  const { rawHeading: _rawHeading, ...chapterWithoutHeading } = chapter;
   const next = chapters.slice();
   next.splice(
     index,
     1,
     { ...chapter, text: left, charCount: left.replace(/\s/gu, "").length },
     {
-      ...chapter,
+      ...chapterWithoutHeading,
       id: createId("analysis_chapter"),
       title:
         secondTitle?.trim() ||
@@ -89,6 +90,18 @@ export function splitAnalysisChapter(
     }
   );
   return normalize(next);
+}
+
+export function resolveMergedChapterTargetId(
+  chapters: readonly LongBookAnalysisChapter[],
+  chapterId: string,
+  direction: "previous" | "next"
+): string | undefined {
+  const index = chapters.findIndex((chapter) => chapter.id === chapterId);
+  if (index < 0) return undefined;
+  const adjacentIndex = direction === "previous" ? index - 1 : index + 1;
+  if (adjacentIndex < 0 || adjacentIndex >= chapters.length) return undefined;
+  return chapters[Math.min(index, adjacentIndex)]?.id;
 }
 
 export function mergeAnalysisChapter(
@@ -103,7 +116,10 @@ export function mergeAnalysisChapter(
   if (!chapter || !adjacent) throw new Error(t("noAdjacentChapter"));
   const first = direction === "previous" ? adjacent : chapter;
   const second = direction === "previous" ? chapter : adjacent;
-  const text = `${first.text.trim()}\n\n${second.text.trim()}`;
+  const recoveredHeading = second.rawHeading?.trimEnd();
+  const text = recoveredHeading?.trim()
+    ? `${first.text.trim()}\n${recoveredHeading}\n${second.text.trim()}`
+    : `${first.text.trim()}\n\n${second.text.trim()}`;
   if (text.length > LONG_BOOK_ANALYSIS_MAX_CHAPTER_CHARACTERS) {
     throw new Error(t("mergedChapterTooLong"));
   }
@@ -114,4 +130,42 @@ export function mergeAnalysisChapter(
     charCount: text.replace(/\s/gu, "").length
   });
   return normalize(next);
+}
+
+export interface UndoKeydownLike {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  defaultPrevented?: boolean;
+  isComposing?: boolean;
+  target?: unknown;
+}
+
+export function isEditableUndoTarget(target: unknown): boolean {
+  if (!target || typeof target !== "object") return false;
+  const element = target as {
+    tagName?: unknown;
+    readOnly?: unknown;
+    isContentEditable?: unknown;
+  };
+  if (element.isContentEditable === true) return true;
+  const tag =
+    typeof element.tagName === "string" ? element.tagName.toUpperCase() : "";
+  if (tag === "INPUT" || tag === "SELECT") return true;
+  if (tag === "TEXTAREA") return element.readOnly !== true;
+  return false;
+}
+
+export function shouldHandleChapterCorrectionUndoKeydown(
+  event: UndoKeydownLike,
+  canUndo: boolean
+): boolean {
+  if (!canUndo || event.defaultPrevented || event.isComposing) return false;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+    return false;
+  }
+  if (event.key.toLowerCase() !== "z") return false;
+  return !isEditableUndoTarget(event.target);
 }

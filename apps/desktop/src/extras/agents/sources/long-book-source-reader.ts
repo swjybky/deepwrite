@@ -40,6 +40,7 @@ interface HeadingCandidate {
   blockStart: number;
   contentStart: number;
   title: string;
+  rawHeading: string;
   volume?: string;
   confidence: "strong" | "numeric";
 }
@@ -113,11 +114,13 @@ function collectHeadings(lines: readonly TextLine[]): HeadingCandidate[] {
             ? joinedHeading(numericMatch[1]!, numericMatch[2])
             : undefined;
     if (!title) continue;
+    const rawHeading = line.text.trimEnd();
     candidates.push({
       lineIndex,
       blockStart: pendingVolumeStart ?? line.start,
       contentStart: line.end + (line.end < lines.at(-1)!.end ? 1 : 0),
       title,
+      rawHeading: rawHeading.length <= 1_024 ? rawHeading : cleaned,
       ...(currentVolume ? { volume: currentVolume } : {}),
       confidence: numericMatch ? "numeric" : "strong"
     });
@@ -138,17 +141,20 @@ function chapter(
   title: string,
   sourceName: string,
   text: string,
-  volume?: string
+  volume?: string,
+  rawHeading?: string
 ): LongBookAnalysisChapter | undefined {
   const normalized = normalizeText(text);
   if (!normalized) return undefined;
   if (normalized.length > LONG_BOOK_ANALYSIS_MAX_CHAPTER_CHARACTERS) {
     throw new Error(`章节“${title}”超过 10,000,000 字符，无法安全导入。`);
   }
+  const heading = rawHeading?.trimEnd();
   return {
     id: createId("long_book_analysis_chapter"),
     order,
     title,
+    ...(heading?.trim() ? { rawHeading: heading } : {}),
     ...(volume ? { volume } : {}),
     sourceName,
     text: normalized,
@@ -210,7 +216,8 @@ export function parseLongBookAnalysisTxt(
       heading.title,
       sourceName,
       normalized.slice(heading.contentStart, end),
-      heading.volume
+      heading.volume,
+      heading.rawHeading
     );
     if (parsed) chapters.push(parsed);
     else emptyHeadingCount += 1;

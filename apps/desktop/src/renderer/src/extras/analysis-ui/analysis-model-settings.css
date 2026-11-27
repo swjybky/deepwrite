@@ -42,6 +42,21 @@
   color: var(--text-primary);
   box-shadow: 0 12px 36px var(--shadow-color);
 }
+.analysis-model-panel.is-picker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(clamp(500px, 35.714286rem, 575px), calc(100vw - 16px));
+  height: min(clamp(302px, 21.571429rem, 347px), calc(100dvh - 16px));
+  overflow: hidden;
+  padding: 0;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+  box-shadow:
+    0 18px 46px color-mix(in srgb, var(--theme-foreground) 16%, transparent),
+    0 3px 10px color-mix(in srgb, var(--theme-foreground) 10%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+}
 .analysis-model-panel > header {
   display: flex;
   align-items: center;

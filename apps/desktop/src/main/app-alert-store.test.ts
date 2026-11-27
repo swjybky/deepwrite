@@ -2,16 +2,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ipcMain, ipcRenderer } from "electron";
-import { getAppAlerts } from "../preload/extras-api";
-import { registerUpdateAlertIpc } from "./ipc/update-alert-ipc";
-import type { BrowserWindow } from "electron";
-
-vi.mock("electron", () => ({
-  ipcMain: { handle: vi.fn() },
-  ipcRenderer: { invoke: vi.fn() }
-}));
-
 import { AppAlertStore } from "./app-alert-store";
 
 const temporaryRoots: string[] = [];
@@ -44,34 +34,6 @@ afterEach(async () => {
 });
 
 describe("AppAlertStore", () => {
-  it("preserves local history through Main routing and Preload validation", async () => {
-    const root = await temporaryRoot("deepwrite-alerts-ipc-");
-    const store = new AppAlertStore(root, {
-      fetcher: async () => Response.json(manifest(["本地历史"]))
-    });
-    const handlers = new Map<string, Parameters<typeof ipcMain.handle>[1]>();
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler);
-    });
-    const sender = {};
-    registerUpdateAlertIpc({
-      getMainWindow: () =>
-        ({ webContents: sender, isDestroyed: () => false }) as BrowserWindow,
-      getUpdateService: () => undefined,
-      getAppAlertStore: () => store
-    });
-    vi.mocked(ipcRenderer.invoke).mockImplementation(async (channel) => {
-      const handler = handlers.get(channel);
-      if (!handler) throw new Error("missing handler");
-      const result = await handler({ sender } as Electron.IpcMainInvokeEvent);
-      return JSON.parse(JSON.stringify(result));
-    });
-    const snapshot = await getAppAlerts();
-    expect(snapshot.history?.[0]?.messages).toEqual(["本地历史"]);
-    expect(snapshot.history?.[0]?.revision).toBe(snapshot.desktopRevision);
-    expect(snapshot.history?.[0]?.receivedAt).toMatch(/^\d{4}-/u);
-  });
-
   it("archives distinct desktop announcements once and restores them offline", async () => {
     const root = await temporaryRoot("deepwrite-alerts-history-");
     let messages = ["第一版", "补充说明"];

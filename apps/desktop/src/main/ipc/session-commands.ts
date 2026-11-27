@@ -24,6 +24,7 @@ import { nativeLocale } from "../native-i18n";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
 import { handleSessionRunControlCommands } from "./session-run-control-commands";
+import { rejectedResult } from "./errors";
 
 export async function handleSessionCommands(
   ctx: Pick<
@@ -56,14 +57,11 @@ export async function handleSessionCommands(
       ownerId
     );
     if (!release)
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "agent.session_busy",
-          message: "此对话仍在运行或管理历史，请稍后重试。"
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "agent.session_busy",
+        "此对话仍在运行或管理历史，请稍后重试。"
+      );
     let keepOwnership = false;
     try {
       const shortWorkspace = command.payload.workspaceContext?.shortWorkspace;
@@ -274,29 +272,21 @@ export async function handleSessionCommands(
           result.payload
         );
         if (accepted.sessionId !== command.payload.sessionId) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "ipc.invalid_agent_acceptance",
-              message:
-                "Agent acceptance sessionId does not match the prompt command."
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "ipc.invalid_agent_acceptance",
+            "Agent acceptance sessionId does not match the prompt command."
+          );
         }
         const provisional = [...ctx.activeRuns.entries()].find(
           ([, run]) => run.correlationId === command.context.correlationId
         );
         if (provisional && provisional[0] !== accepted.runId) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "ipc.invalid_agent_acceptance",
-              message:
-                "Agent acceptance runId does not match the provisional event stream."
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "ipc.invalid_agent_acceptance",
+            "Agent acceptance runId does not match the provisional event stream."
+          );
         }
         if (!ctx.terminalRuns.has(accepted.runId)) {
           ctx.activeRuns.set(accepted.runId, {
@@ -375,16 +365,12 @@ export async function handleSessionCommands(
       return { ...result, requestId: command.id };
     } catch (error: unknown) {
       ctx.pendingUsageContexts.delete(command.context.correlationId);
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "ipc.agent_command_failed",
-          message:
-            error instanceof Error ? error.message : "Agent command failed.",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "ipc.agent_command_failed",
+        error instanceof Error ? error.message : "Agent command failed.",
+        safeErrorDetails(error)
+      );
     } finally {
       if (!keepOwnership) release();
     }

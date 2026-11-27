@@ -9,8 +9,7 @@ import {
   type ProjectTransactionResult,
   type JournalOperation,
   type TransactionJournal,
-  ProjectTransactionConflictError,
-  projectTransactionContentSha256
+  ProjectTransactionConflictError
 } from "./types";
 import { validateOperations } from "./validation";
 import {
@@ -26,6 +25,7 @@ import {
 import { writeJournal } from "./journal";
 import { withProjectTransactionLock } from "./lock";
 import { recoverProjectTransactionLocked } from "./recovery";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function commitProjectTransaction(
   rawInput: CommitProjectTransactionInput,
@@ -93,9 +93,7 @@ export async function commitProjectTransactionLocked(
         }
         firstPathByIdentity.set(existing.identity, operation.path);
       }
-      const beforeSha256 = existing
-        ? projectTransactionContentSha256(existing.bytes)
-        : null;
+      const beforeSha256 = existing ? sha256Hex(existing.bytes) : null;
       if (
         operation.expectedSha256 !== undefined &&
         operation.expectedSha256 !== beforeSha256
@@ -124,7 +122,7 @@ export async function commitProjectTransactionLocked(
         );
         await writeDurableNewFile(staged, operation.content);
         stagedDirectories.add(dirname(staged));
-        afterSha256 = projectTransactionContentSha256(operation.content);
+        afterSha256 = sha256Hex(operation.content);
       } else if (operation.action === "check") {
         afterSha256 = beforeSha256;
       }

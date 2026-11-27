@@ -7,11 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import { loadIndexedFile } from "./cache";
 import { assertMutableChapterDocument } from "./integrity";
-import {
-  commitLongProjectTransaction,
-  secureDirectory,
-  serializeJson
-} from "./io";
+import { commitLongProjectTransaction, secureDirectory } from "./io";
 import { loadProject } from "./load-project";
 import { firstEmptyChapter, updateChapterBodyStatus } from "./paths";
 import type { LongProjectStoreContext } from "./store-context";
@@ -20,6 +16,7 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type StoreWriteLongChapterInput
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function writeChapter(
   ctx: LongProjectStoreContext,
@@ -76,7 +73,7 @@ export async function writeChapter(
       ...loaded.index,
       updatedAt: timestamp
     });
-    const indexContent = serializeJson(nextIndex);
+    const indexContent = toJsonFileText(nextIndex);
     const nextManifest = LongProjectManifestSchema.parse({
       ...loaded.manifest,
       updatedAt: timestamp,
@@ -93,7 +90,7 @@ export async function writeChapter(
           content: write.input.content
         })),
         { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });

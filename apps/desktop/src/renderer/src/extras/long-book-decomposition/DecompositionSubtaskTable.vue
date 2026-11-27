@@ -12,6 +12,7 @@ import {
   subagentRetryStatus
 } from "../../components/subagentRunPresentation";
 import { createScopedTranslator, locale } from "../../i18n";
+import { formatModelProviderError } from "../../i18n/errors";
 import {
   SUBTASK_GROUPS,
   subtaskAction,
@@ -101,7 +102,9 @@ function actionText(row: SubtaskRow, now: number): string {
   if (run.status === "completed") return t("subtaskDone");
   if (run.status === "skipped") return t("subtaskSkipped");
   if (run.status === "stopped") return t("stopped");
-  return run.errorMessage ?? t("failed");
+  return run.errorMessage
+    ? formatModelProviderError(run.errorMessage)
+    : t("failed");
 }
 function tone(row: SubtaskRow): string {
   const status = row.run?.status;

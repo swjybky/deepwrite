@@ -223,8 +223,9 @@ export function resolveSidebarOrderDrag(
 
   if (domain === "material" || domain === "skill") {
     if (
-      node.catalogNodeType !== "library" &&
-      node.catalogNodeType !== "group"
+      (node.catalogNodeType !== "library" &&
+        node.catalogNodeType !== "group") ||
+      parent?.readOnly
     ) {
       return undefined;
     }
@@ -232,7 +233,7 @@ export function resolveSidebarOrderDrag(
       (item) =>
         !item.unavailable &&
         !item.missing &&
-        (item.catalogNodeType === "library" || item.catalogNodeType === "group")
+        item.catalogNodeType === node.catalogNodeType
     );
     if (eligible.length < 2) return undefined;
     const eligibleIds = new Set(eligible.map((item) => item.id));

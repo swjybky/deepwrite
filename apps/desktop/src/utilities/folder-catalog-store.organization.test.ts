@@ -6,6 +6,7 @@ import {
   it,
   expect,
   readFile,
+  rm,
   writeFile
 } from "./folder-catalog-store.test-support";
 import { planLibraryStructure } from "./folder-catalog-store/structure-plan";
@@ -498,5 +499,219 @@ describe("library organization", () => {
         await new FolderCatalogStore({ userDataPath: root }).snapshot()
       ).skills.map((item) => item.title)
     ).toEqual(["甲改", "乙改"]);
+  });
+
+  it("allows unregistering unreadable unbound libraries, prunes libraryOrganization, and lets new unbound entries be created", async () => {
+    const root = await makeTemporaryRoot("deepwrite-unbound-unreadable-");
+    const store = new FolderCatalogStore({ userDataPath: root });
+    const skillLoose = await store.createUnboundEntry({
+      domain: "skill",
+      title: "零散技能",
+      content: "技能正文",
+      libraryType: "short",
+      stageId: "draft"
+    });
+    const materialLoose = await store.createUnboundEntry({
+      domain: "material",
+      title: "零散素材",
+      content: "素材正文",
+      libraryType: "short",
+      stageId: "character"
+    });
+
+    await rm(await store.projectDirectory(skillLoose.libraryId), {
+      recursive: true,
+      force: true
+    });
+    await writeFile(
+      join(
+        await store.projectDirectory(materialLoose.libraryId),
+        "deepwrite.json"
+      ),
+      "{broken-json",
+      "utf8"
+    );
+
+    const index = await store.indexSnapshot();
+    const snapshot = await store.snapshot();
+    for (const diagnostics of [
+      index.projectDiagnostics,
+      snapshot.projectDiagnostics
+    ]) {
+      expect(diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            projectId: skillLoose.libraryId,
+            kind: "deepwrite.skill-library",
+            code: "unavailable"
+          }),
+          expect.objectContaining({
+            projectId: materialLoose.libraryId,
+            kind: "deepwrite.material-library",
+            code: "invalid"
+          })
+        ])
+      );
+    }
+
+    expect(
+      await store.unregisterProject({
+        domain: "skill",
+        projectId: skillLoose.libraryId
+      })
+    ).toEqual({
+      domain: "skill",
+      projectId: skillLoose.libraryId,
+      unregistered: true
+    });
+    expect(
+      await store.unregisterProject({
+        domain: "material",
+        projectId: materialLoose.libraryId
+      })
+    ).toEqual({
+      domain: "material",
+      projectId: materialLoose.libraryId,
+      unregistered: true
+    });
+
+    const reopened = new FolderCatalogStore({ userDataPath: root });
+    expect((await reopened.indexSnapshot()).projectDiagnostics).toBeUndefined();
+    expect((await reopened.snapshot()).projectDiagnostics).toBeUndefined();
+    const registry = JSON.parse(await readFile(store.registryPath, "utf8")) as {
+      projects: unknown[];
+      libraryOrganization?: { unboundLibraryIds: string[] };
+    };
+    expect(registry.projects).toEqual([]);
+    expect(registry.libraryOrganization?.unboundLibraryIds).toEqual([]);
+
+    const recreated = await reopened.createUnboundEntry({
+      domain: "skill",
+      title: "重建零散技能",
+      content: "重建正文",
+      libraryType: "short",
+      stageId: "draft"
+    });
+    expect(recreated.libraryId).not.toBe(skillLoose.libraryId);
+
+    const manifestPath = join(
+      await reopened.projectDirectory(recreated.libraryId),
+      "deepwrite.json"
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      entries: Array<{ path: string }>;
+    };
+    await rm(
+      join(
+        await reopened.projectDirectory(recreated.libraryId),
+        manifest.entries[0]!.path
+      )
+    );
+    expect((await reopened.indexSnapshot()).projectDiagnostics).toEqual([
+      expect.objectContaining({
+        projectId: recreated.libraryId,
+        kind: "deepwrite.skill-library",
+        code: "unavailable"
+      })
+    ]);
+    expect(
+      await reopened.unregisterProject({
+        domain: "skill",
+        projectId: recreated.libraryId
+      })
+    ).toEqual({
+      domain: "skill",
+      projectId: recreated.libraryId,
+      unregistered: true
+    });
+    expect(
+      (await reopened.indexSnapshot()).libraryOrganization?.unboundLibraryIds
+    ).toEqual([]);
+  });
+
+  it("ignores unrelated unreadable libraries during entry removal, move, and structure planning while rejecting unreadable targets", async () => {
+    const root = await makeTemporaryRoot("deepwrite-unrelated-unreadable-");
+    const store = new FolderCatalogStore({ userDataPath: root });
+    const healthyA = (
+      await store.createLibrary({
+        domain: "skill",
+        name: "健康库甲",
+        skillKind: "general"
+      })
+    ).resource;
+    const healthyB = (
+      await store.createLibrary({
+        domain: "skill",
+        name: "健康库乙",
+        skillKind: "general"
+      })
+    ).resource;
+    const broken = (
+      await store.createLibrary({
+        domain: "skill",
+        name: "损坏库",
+        skillKind: "general"
+      })
+    ).resource;
+    const entryToRemove = await store.createLibraryEntry({
+      domain: "skill",
+      libraryId: healthyA.id,
+      title: "待删除条目",
+      content: "正文一",
+      stageId: "draft"
+    });
+    const entryToMove = await store.createLibraryEntry({
+      domain: "skill",
+      libraryId: healthyA.id,
+      title: "待移动条目",
+      content: "正文二",
+      stageId: "draft"
+    });
+
+    await rm(await store.projectDirectory(broken.id), {
+      recursive: true,
+      force: true
+    });
+
+    expect(
+      await store.removeLibraryEntry({
+        domain: "skill",
+        libraryId: healthyA.id,
+        entryId: entryToRemove.id
+      })
+    ).toMatchObject({ deleted: true });
+
+    await store.moveLibraryEntry({
+      domain: "skill",
+      sourceLibraryId: healthyA.id,
+      targetLibraryId: healthyB.id,
+      entryId: entryToMove.id
+    });
+
+    const renamePlan = await store.previewLibraryStructure({
+      domain: "skill",
+      requestId: "rename-healthy",
+      operations: [
+        { action: "rename-library", id: healthyB.id, title: "健康库乙改" }
+      ]
+    });
+    await store.applyLibraryStructure(renamePlan);
+    const snapshot = await store.snapshot();
+    expect(
+      snapshot.skills.find((library) => library.id === healthyB.id)
+    ).toMatchObject({
+      title: "健康库乙改",
+      entries: [expect.objectContaining({ id: entryToMove.id, body: "正文二" })]
+    });
+
+    await expect(
+      store.previewLibraryStructure({
+        domain: "skill",
+        requestId: "rename-broken",
+        operations: [
+          { action: "rename-library", id: broken.id, title: "无法读取" }
+        ]
+      })
+    ).rejects.toThrow("目标资料库无法读取");
   });
 });

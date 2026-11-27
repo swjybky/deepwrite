@@ -94,10 +94,7 @@ export function createLibraryProposalStager(
       event.payload.libraryId
     );
     const libraryReadOnly =
-      !library ||
-      (event.payload.domain === "skill" &&
-        "isBuiltin" in library &&
-        library.isBuiltin);
+      !library || ("isBuiltin" in library && Boolean(library.isBuiltin));
     let target: WorkspaceDocument | undefined;
     if (event.payload.operation === "edit") {
       const editPayload = event.payload;

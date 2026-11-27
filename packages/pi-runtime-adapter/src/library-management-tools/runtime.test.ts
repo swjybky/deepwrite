@@ -6,7 +6,7 @@ import {
 } from "@deepwrite/contracts";
 import type { AgentRunInput } from "../runtime-types";
 import { createLibraryManagementRuntime } from "../library-management-runtime";
-import { materialWorkspace } from "../library-agent-tools/test-fixtures";
+import { materialWorkspace } from "../library-agent-tools/library-tools.test-support";
 import { toRuntimeEvents } from "../event-mapping";
 import { libraryExecutor } from "./test-support";
 

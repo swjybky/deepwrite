@@ -1,6 +1,6 @@
 import { withConfigurationLock } from "../../main/configuration-lock";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   ExtrasAgentSettingsInputSchema,
   ExtrasAgentSettingsSchema,
@@ -16,6 +16,7 @@ import {
 } from "./profile-catalogs";
 import { previousLongBookPrompts } from "./previous-long-book-prompts";
 import { mergeSettingsById } from "../../main/merge-agent-settings";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 interface StoredProfile {
   id: string;
@@ -43,16 +44,6 @@ async function readJson(path: string): Promise<unknown> {
     if (error instanceof SyntaxError) return undefined;
     throw error;
   }
-}
-
-async function atomicWrite(path: string, value: DiskSettings): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
 }
 
 function validTimestamp(value: unknown): string | undefined {
@@ -368,7 +359,7 @@ export class ExtrasAgentConfigStore {
       withConfigurationLock(this.path(agentId), async () => {
         const disk = await operation();
         saved = this.publicSettings(agentId, disk);
-        await atomicWrite(this.path(agentId), disk);
+        await writeJsonAtomic(this.path(agentId), disk);
       })
     );
     this.writeChain = pending.then(

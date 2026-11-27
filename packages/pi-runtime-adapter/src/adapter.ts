@@ -10,6 +10,12 @@ import type {
   SessionUserInputResponsePayload
 } from "@deepwrite/contracts";
 import { isJevModel } from "@deepwrite/contracts";
+import {
+  ModelConnectionTestCancelledError,
+  ModelConnectionTestTimeoutError,
+  awaitStreamResultWithAbortGrace,
+  createConnectionTestAbortScope
+} from "./connection-test-errors";
 import { normalizeUsage } from "./event-mapping";
 import { testJevConnection } from "./jev-systemone-client";
 import { planExtrasRun, type ExtrasAgentRunInput } from "./extras/run-plan";
@@ -107,67 +113,105 @@ export class PiAgentRuntimeAdapter implements AgentRuntime {
   }
 
   async testConnection(
-    config: AgentProviderRuntimeConfig
+    config: AgentProviderRuntimeConfig,
+    options: { signal?: AbortSignal; timeoutMs?: number } = {}
   ): Promise<ModelConnectionTestResult> {
-    // Jev is a judgment model with its own endpoint; a chat probe would only
-    // test an unrelated completions route.
-    if (isJevModel(config)) return testJevConnection(config);
-    const configuredThinkingLevel = config.defaultThinkingLevel;
-    const effectiveTemperature =
-      configuredThinkingLevel === "off"
-        ? config.temperatureOptions[1]
-        : undefined;
-    let developerRoleFallback = false;
-    const { model, streamFn } = buildProviderRuntime(
-      config,
-      effectiveTemperature,
-      configuredThinkingLevel,
-      {
-        onDeveloperRoleFallback: () => {
-          developerRoleFallback = true;
-        }
-      }
-    );
-    const stream = streamFn(
-      model,
-      {
-        systemPrompt: "You are a connection test. Reply with OK only.",
-        messages: [{ role: "user", content: "OK", timestamp: Date.now() }]
-      },
-      {
-        ...(config.apiKey ? { apiKey: config.apiKey } : {}),
-        maxTokens: 8,
-        maxRetries: 0,
-        ...(configuredThinkingLevel === "off"
-          ? {}
-          : {
-              reasoning: toPiThinkingLevel(
-                configuredThinkingLevel
-              ) as ProviderThinkingLevel
-            }),
-        timeoutMs: 15_000
-      }
-    );
-    const result = await (await stream).result();
-    if (result.stopReason === "error" || result.stopReason === "aborted") {
-      throw new Error(result.errorMessage || "模型连接测试失败。");
+    if (options.signal?.aborted) {
+      throw new ModelConnectionTestCancelledError();
     }
-    const usage = normalizeUsage(result.usage);
-    const supportsDeveloperRole = developerRoleFallback
-      ? false
-      : config.supportsDeveloperRole;
-    return {
-      modelId: config.id,
-      ok: true,
-      message: developerRoleFallback
-        ? "连接成功，检测到接口不支持 developer 角色，已自动开启兼容配置。"
-        : "连接成功，模型已返回有效响应。",
-      testedAt: new Date().toISOString(),
-      contextWindow: model.contextWindow,
-      maxTokens: model.maxTokens,
-      ...(supportsDeveloperRole !== undefined ? { supportsDeveloperRole } : {}),
-      ...(usage ? { usage } : {})
-    };
+    const timeoutMs = options.timeoutMs ?? 15_000;
+    const abortScope = createConnectionTestAbortScope(
+      options.signal,
+      timeoutMs
+    );
+    try {
+      // Jev is a judgment model with its own endpoint; a chat probe would only
+      // test an unrelated completions route.
+      if (isJevModel(config)) {
+        return await testJevConnection(config, {
+          signal: abortScope.signal,
+          timeoutMs
+        });
+      }
+      const configuredThinkingLevel = config.defaultThinkingLevel;
+      const effectiveTemperature =
+        configuredThinkingLevel === "off"
+          ? config.temperatureOptions[1]
+          : undefined;
+      let developerRoleFallback = false;
+      const { model, streamFn } = buildProviderRuntime(
+        config,
+        effectiveTemperature,
+        configuredThinkingLevel,
+        {
+          onDeveloperRoleFallback: () => {
+            developerRoleFallback = true;
+          }
+        }
+      );
+      const stream = streamFn(
+        model,
+        {
+          systemPrompt: "You are a connection test. Reply with OK only.",
+          messages: [{ role: "user", content: "OK", timestamp: Date.now() }]
+        },
+        {
+          ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+          maxTokens: 8,
+          maxRetries: 0,
+          ...(configuredThinkingLevel === "off"
+            ? {}
+            : {
+                reasoning: toPiThinkingLevel(
+                  configuredThinkingLevel
+                ) as ProviderThinkingLevel
+              }),
+          timeoutMs,
+          signal: abortScope.signal
+        }
+      );
+      const result = await awaitStreamResultWithAbortGrace(
+        stream,
+        abortScope.signal
+      );
+      if (abortScope.wasCancelled()) {
+        throw new ModelConnectionTestCancelledError();
+      }
+      if (abortScope.didTimeout()) {
+        throw new ModelConnectionTestTimeoutError();
+      }
+      if (result.stopReason === "error" || result.stopReason === "aborted") {
+        throw new Error(result.errorMessage || "模型连接测试失败。");
+      }
+      const usage = normalizeUsage(result.usage);
+      const supportsDeveloperRole = developerRoleFallback
+        ? false
+        : config.supportsDeveloperRole;
+      return {
+        modelId: config.id,
+        ok: true,
+        message: developerRoleFallback
+          ? "连接成功，检测到接口不支持 developer 角色，已自动开启兼容配置。"
+          : "连接成功，模型已返回有效响应。",
+        testedAt: new Date().toISOString(),
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+        ...(supportsDeveloperRole !== undefined
+          ? { supportsDeveloperRole }
+          : {}),
+        ...(usage ? { usage } : {})
+      };
+    } catch (error: unknown) {
+      if (abortScope.wasCancelled()) {
+        throw new ModelConnectionTestCancelledError();
+      }
+      if (abortScope.didTimeout()) {
+        throw new ModelConnectionTestTimeoutError();
+      }
+      throw error;
+    } finally {
+      abortScope.dispose();
+    }
   }
 
   /** Runs a creation-space or library agent from a `session.prompt` request. */

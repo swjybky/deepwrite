@@ -12,5 +12,17 @@ export default {
   model: "Model",
   webAccess: "Web access",
   on: "On",
-  backToModelSettings: "Back to model settings"
+  backToModelSettings: "Back to model settings",
+  searchModels: "Search models...",
+  clearSearch: "Clear search",
+  favorites: "Favorites",
+  allModels: "All models",
+  favoriteModel: "Favorite model",
+  unfavoriteModel: "Remove favorite",
+  noMatchingModels: "No matching models",
+  noFavoriteModelsHint: "Star a model to pin it here",
+  providerCategories: "Model categories",
+  parameters: "Parameters",
+  refreshOfficialModels: "Refresh official site models",
+  refreshingOfficialModels: "Refreshing official site models..."
 };

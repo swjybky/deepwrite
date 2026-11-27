@@ -1,4 +1,5 @@
 import type { ConversationPersistenceApi } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 function sameJsonValue(left: unknown, right: unknown): boolean {
   try {
@@ -8,16 +9,12 @@ function sameJsonValue(left: unknown, right: unknown): boolean {
   }
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export function conversationEnvelopeHasContent(value: unknown): boolean {
-  if (!isPlainRecord(value) || !Array.isArray(value.conversations)) {
+  if (!isRecord(value) || !Array.isArray(value.conversations)) {
     return false;
   }
   return value.conversations.some((conversation) => {
-    if (!isPlainRecord(conversation)) return false;
+    if (!isRecord(conversation)) return false;
     if (typeof conversation.draft === "string" && conversation.draft.trim()) {
       return true;
     }
@@ -29,7 +26,7 @@ export function conversationEnvelopeHasContent(value: unknown): boolean {
 
 export function isEmptyConversationEnvelope(value: unknown): boolean {
   return (
-    isPlainRecord(value) &&
+    isRecord(value) &&
     value.version === 1 &&
     Array.isArray(value.conversations) &&
     !conversationEnvelopeHasContent(value)
@@ -40,16 +37,16 @@ function mapEnvelopeMessages(
   value: unknown,
   mapMessage: (message: Record<string, unknown>) => Record<string, unknown>
 ): unknown {
-  if (!isPlainRecord(value) || !Array.isArray(value.conversations)) {
+  if (!isRecord(value) || !Array.isArray(value.conversations)) {
     return value;
   }
   let changed = false;
   const conversations = value.conversations.map((conversation) => {
-    if (!isPlainRecord(conversation) || !Array.isArray(conversation.messages)) {
+    if (!isRecord(conversation) || !Array.isArray(conversation.messages)) {
       return conversation;
     }
     const messages = conversation.messages.map((message) => {
-      if (!isPlainRecord(message)) return message;
+      if (!isRecord(message)) return message;
       const next = mapMessage(message);
       if (next !== message) changed = true;
       return next;
@@ -63,7 +60,7 @@ function compactEvaluationToolSchemas(value: unknown): unknown {
   return mapEnvelopeMessages(value, (message) => {
     const snapshot = message.evaluationSnapshot;
     if (
-      !isPlainRecord(snapshot) ||
+      !isRecord(snapshot) ||
       !Array.isArray(snapshot.tools) ||
       snapshot.tools.length === 0
     ) {
@@ -74,7 +71,7 @@ function compactEvaluationToolSchemas(value: unknown): unknown {
       evaluationSnapshot: {
         ...snapshot,
         tools: snapshot.tools.map((tool) => {
-          if (!isPlainRecord(tool)) return tool;
+          if (!isRecord(tool)) return tool;
           const { inputSchema: _inputSchema, ...rest } = tool;
           return rest;
         })

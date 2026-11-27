@@ -88,7 +88,8 @@ async function storageUiInRenderer(input: {
     await until(() => {
       const categories = document.querySelectorAll(".settings-category");
       return (
-        categories.length === 1 && categories[0]?.textContent?.trim() === "存储"
+        categories.length === 1 &&
+        categories[0]?.textContent?.trim() === "存储与备份"
       );
     }, "storage search points to storage settings");
     search.value = "";
@@ -121,9 +122,10 @@ async function storageUiInRenderer(input: {
       "custom accent did not apply"
     );
 
-  await clickText(".settings-nav", "存储");
+  await clickText(".settings-nav", "存储与备份");
   await until(
     () =>
+      Boolean(selector(".storage-backup-card")) &&
       document.querySelectorAll(".storage-card").length === 2 &&
       selector('[aria-labelledby="storage-settings-title"]')?.getAttribute(
         "aria-busy"
@@ -168,7 +170,7 @@ async function storageUiInRenderer(input: {
       !selector(".storage-card"),
       "storage appears in general after reset"
     );
-    await clickText(".settings-nav", "存储");
+    await clickText(".settings-nav", "存储与备份");
     await until(
       () =>
         selector('[aria-labelledby="storage-settings-title"]')?.getAttribute(

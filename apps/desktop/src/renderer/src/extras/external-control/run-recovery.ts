@@ -3,6 +3,7 @@ import {
   type DeepWriteApi,
   type ExternalRunRecovery
 } from "@deepwrite/contracts/renderer";
+import { jsonClone } from "@deepwrite/shared";
 
 const key = (runId: string) =>
   `conversation-preferences:external-run:${encodeURIComponent(runId)}`;
@@ -21,9 +22,7 @@ export function createExternalRunRecovery(api: () => DeepWriteApi | undefined) {
         : undefined;
     },
     save(value: ExternalRunRecovery): Promise<void> {
-      const snapshot = ExternalRunRecoverySchema.parse(
-        JSON.parse(JSON.stringify(value))
-      );
+      const snapshot = ExternalRunRecoverySchema.parse(jsonClone(value));
       const next = writes.then(() =>
         api()?.conversationPersistence?.save(key(snapshot.runId), snapshot)
       );

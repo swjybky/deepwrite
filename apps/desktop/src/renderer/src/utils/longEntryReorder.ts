@@ -68,5 +68,6 @@ export function longEntryReorderOperation(
           orderedIds
         };
       }
+      return;
   }
 }

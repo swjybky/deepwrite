@@ -23,6 +23,7 @@ import {
   workspaceGroupParent,
   workspaceResourceParent
 } from "./workspace-paths";
+import { rejectedResult } from "./errors";
 
 export interface LibraryPackagePreviewSource extends ImportPreviewSource {
   sourceKind: LibraryPackageSourceKind;
@@ -172,14 +173,11 @@ export async function handleLibraryPackageCommands(
     if (error instanceof CoreRejection) {
       return { ...error.result, requestId: command.id };
     }
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "catalog.library_package_failed",
-        message: error instanceof Error ? error.message : "素材包操作失败。",
-        details: safeErrorDetails(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "catalog.library_package_failed",
+      error instanceof Error ? error.message : "素材包操作失败。",
+      safeErrorDetails(error)
+    );
   }
 }

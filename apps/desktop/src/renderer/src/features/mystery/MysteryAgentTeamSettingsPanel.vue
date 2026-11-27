@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAgentTeamDraft } from "../../components/useAgentTeamDraft";
 import {
   LONG_AGENT_SUBAGENT_MAX_COUNT,
   MYSTERY_AGENT_IDS,
@@ -9,18 +10,14 @@ import {
   type MysteryAgentTeamSettings,
   type ShortAgentSubagentDefinition
 } from "@deepwrite/contracts/renderer";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import AgentTeamParallelSwitch from "../../components/AgentTeamParallelSwitch.vue";
 import AgentTeamSaveBar from "../../components/AgentTeamSaveBar.vue";
 import AgentTeamSubagentCard from "../../components/AgentTeamSubagentCard.vue";
 import AgentTeamSubagentEditor from "../../components/AgentTeamSubagentEditor.vue";
 import AgentTeamSubagentSection from "../../components/AgentTeamSubagentSection.vue";
+import { savedDrawField } from "../../components/agentTeamDrawDraft";
 import {
-  clonedDrawField,
-  savedDrawField
-} from "../../components/agentTeamDrawDraft";
-import {
-  agentTeamDraftSignature,
   createCopiedSubagent,
   savedWebSearchField,
   validateAgentTeamDraft
@@ -32,6 +29,7 @@ import { mysteryLabels } from "./mysterySharedLabels";
 
 const props = defineProps<{
   settings: MysteryAgentTeamSettings | null;
+  readOnly?: boolean;
   models: readonly ModelConfig[];
   loading: boolean;
   saving: boolean;
@@ -46,9 +44,15 @@ const emit = defineEmits<{
 }>();
 
 const parentAgentId: MysteryAgentId = MYSTERY_AGENT_IDS[0];
-const draftTeams = ref<MysteryAgentTeamSettings["teams"]>([]);
-const draftParallelSubagents = ref(false);
 const editingSubagentId = ref<string | null>(null);
+const { draftTeams, draftParallelSubagents, dirty, discardChanges } =
+  useAgentTeamDraft<MysteryAgentId>({
+    settings: () => props.settings,
+    onReseed: () => {
+      editingSubagentId.value = null;
+    },
+    onDirtyChange: (value) => emit("dirtyChange", value)
+  });
 let generatedIdSequence = 0;
 
 const formDisabled = computed(
@@ -60,7 +64,7 @@ const activeTeam = computed(() =>
 
 const subagentModelConfig = useSubagentModelConfig({
   models: () => props.models,
-  disabled: () => formDisabled.value
+  disabled: () => formDisabled.value || Boolean(props.readOnly)
 });
 const {
   modelOptions,
@@ -73,69 +77,6 @@ const {
   subagentModelSummary
 } = subagentModelConfig;
 
-const baselineSignature = ref("");
-let seeded = false;
-const dirty = computed(
-  () =>
-    agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value) !==
-    baselineSignature.value
-);
-
-function cloneTeams(
-  settings: MysteryAgentTeamSettings
-): MysteryAgentTeamSettings["teams"] {
-  return settings.teams.map((team) => ({
-    parentAgentId: team.parentAgentId,
-    subagents: team.subagents.map((definition) => ({
-      ...definition,
-      ...clonedDrawField(definition.draw),
-      agentMode: definition.agentMode ?? "standard",
-      modelMode: definition.modelMode ?? "inherit",
-      ...(definition.modelId ? { modelId: definition.modelId } : {}),
-      ...(definition.thinkingLevel !== undefined
-        ? { thinkingLevel: definition.thinkingLevel }
-        : {}),
-      ...(definition.temperature !== undefined
-        ? { temperature: definition.temperature }
-        : {})
-    }))
-  }));
-}
-
-function syncDraft(force = false): void {
-  const settings = props.settings;
-  const parallel = settings?.parallelSubagents ?? false;
-  const teams = settings ? cloneTeams(settings) : [];
-  const signature = agentTeamDraftSignature(parallel, teams);
-  if (!force && seeded && signature === baselineSignature.value) return;
-  if (
-    !force &&
-    seeded &&
-    dirty.value &&
-    signature !==
-      agentTeamDraftSignature(draftParallelSubagents.value, draftTeams.value)
-  ) {
-    return;
-  }
-  seeded = true;
-  draftParallelSubagents.value = parallel;
-  draftTeams.value = teams;
-  baselineSignature.value = signature;
-  editingSubagentId.value = null;
-}
-
-watch(
-  () => props.settings,
-  () => syncDraft(),
-  { immediate: true, deep: true }
-);
-
-watch(dirty, (value) => emit("dirtyChange", value), { immediate: true });
-
-function discardChanges(): void {
-  syncDraft(true);
-}
-
 function nextSubagentId(): string {
   generatedIdSequence += 1;
   return `mystery_subagent_${Date.now().toString(36)}_${generatedIdSequence.toString(36)}`;
@@ -143,7 +84,7 @@ function nextSubagentId(): string {
 
 function addSubagent(): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   if (team.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT) return;
   const id = nextSubagentId();
   team.subagents.push({
@@ -160,7 +101,7 @@ function addSubagent(): void {
 
 function duplicateSubagent(index: number): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   const source = team.subagents[index];
   if (!source || team.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT) return;
   const copied = createCopiedSubagent(
@@ -173,7 +114,8 @@ function duplicateSubagent(index: number): void {
 }
 
 function editSubagent(id: string): void {
-  editingSubagentId.value = id;
+  editingSubagentId.value =
+    props.readOnly && editingSubagentId.value === id ? null : id;
 }
 
 function finishEditing(): void {
@@ -182,7 +124,7 @@ function finishEditing(): void {
 
 function removeSubagent(index: number): void {
   const team = activeTeam.value;
-  if (!team || formDisabled.value) return;
+  if (!team || formDisabled.value || props.readOnly) return;
   const [removed] = team.subagents.splice(index, 1);
   if (removed && editingSubagentId.value === removed.id) {
     editingSubagentId.value = null;
@@ -193,12 +135,12 @@ function toggleSubagent(
   definition: ShortAgentSubagentDefinition,
   enabled: boolean
 ): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   definition.enabled = enabled;
 }
 
 function saveSettings(): void {
-  if (formDisabled.value) return;
+  if (formDisabled.value || props.readOnly) return;
   const message = validateAgentTeamDraft(draftTeams.value, props.models);
   if (message) {
     uiMessage.warning(message);
@@ -265,7 +207,7 @@ function saveSettings(): void {
   <div v-else class="team-editor">
     <AgentTeamParallelSwitch
       v-model="draftParallelSubagents"
-      :disabled="formDisabled"
+      :disabled="formDisabled || Boolean(readOnly)"
     />
     <AgentTeamSubagentSection
       :count="activeTeam.subagents.length"
@@ -273,6 +215,7 @@ function saveSettings(): void {
       :description="mysteryT('teamPanelSubtitle')"
       :note="mysteryT('subagentModePureBare')"
       :disabled="formDisabled"
+      :read-only="Boolean(readOnly)"
       :limit-reached="
         activeTeam.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT
       "
@@ -285,6 +228,7 @@ function saveSettings(): void {
         :subagent="definition"
         :editing="editingSubagentId === definition.id"
         :disabled="formDisabled"
+        :read-only="Boolean(readOnly)"
         :duplicate-disabled="
           activeTeam.subagents.length >= LONG_AGENT_SUBAGENT_MAX_COUNT
         "
@@ -304,6 +248,7 @@ function saveSettings(): void {
           :model-config="subagentModelConfig"
           :subagent="definition"
           :disabled="formDisabled"
+          :read-only="Boolean(readOnly)"
           :model-options="modelOptions"
           :thinking-options="thinkingOptionsFor(definition)"
           :temperature-options="temperatureOptionsFor(definition)"
@@ -317,6 +262,7 @@ function saveSettings(): void {
     </AgentTeamSubagentSection>
 
     <AgentTeamSaveBar
+      v-if="!readOnly"
       :dirty="dirty"
       :saving="saving"
       :disabled="formDisabled"

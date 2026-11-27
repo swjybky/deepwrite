@@ -3,7 +3,8 @@ import { computed, ref } from "vue";
 import type { FeedbackTag } from "@deepwrite/contracts";
 import {
   FEEDBACK_CONTENT_MAX_LENGTH,
-  FEEDBACK_MAX_IMAGES
+  FEEDBACK_MAX_IMAGES,
+  FEEDBACK_TOTAL_IMAGE_MAX_BYTES
 } from "@deepwrite/contracts/renderer";
 import AgentTeamSegmented from "../../components/AgentTeamSegmented.vue";
 import { createScopedTranslator } from "../../i18n";
@@ -11,6 +12,7 @@ import { pastedImages } from "./feedbackImage";
 import { feedbackDraft } from "./feedbackDraft";
 
 const t = createScopedTranslator("extras.feedback");
+const maxTotalMb = FEEDBACK_TOTAL_IMAGE_MAX_BYTES / 1_000_000;
 
 defineProps<{
   submitting: boolean;
@@ -81,7 +83,12 @@ function onPaste(event: ClipboardEvent): void {
     </label>
 
     <div class="feedback-field">
-      <span>{{ t("screenshotsLabel", { max: FEEDBACK_MAX_IMAGES }) }}</span>
+      <span>{{
+        t("screenshotsLabel", {
+          max: FEEDBACK_MAX_IMAGES,
+          maxMb: maxTotalMb
+        })
+      }}</span>
       <ul v-if="images.length" class="feedback-previews">
         <li v-for="(image, index) in images" :key="image.id">
           <img

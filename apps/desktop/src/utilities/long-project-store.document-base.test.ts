@@ -6,10 +6,10 @@ import {
   expect,
   firstChapterFiles,
   it,
-  projectTransactionContentSha256
+  sha256Hex
 } from "./long-project-store.test-support";
 
-const sha = (text: string) => projectTransactionContentSha256(text);
+const sha = (text: string) => sha256Hex(text);
 
 describe("LongProjectStore: agent writes check the text they edited", () => {
   it("refuses to overwrite a chapter the user edited after the agent read it", async () => {

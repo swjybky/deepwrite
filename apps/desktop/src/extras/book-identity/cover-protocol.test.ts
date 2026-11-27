@@ -6,7 +6,7 @@ import {
   createCoverProtocolHandler,
   registerCoverScheme
 } from "./cover-protocol";
-import { IMAGE_PNG } from "../../main/image/image-test-support";
+import { IMAGE_PNG } from "../../main/image/image.test-support";
 
 vi.mock("electron", () => ({ protocol: {} }));
 const roots: string[] = [];

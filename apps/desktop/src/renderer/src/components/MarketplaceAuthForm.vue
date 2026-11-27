@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import { onUnmounted, ref } from "vue";
 import {
@@ -31,7 +32,7 @@ onUnmounted(() => {
   alive = false;
 });
 async function submitAuth(): Promise<void> {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api || pending.value || sending.value) return;
   const login = MarketplaceLoginInputSchema.safeParse(
     loginMethod.value === "email-password"

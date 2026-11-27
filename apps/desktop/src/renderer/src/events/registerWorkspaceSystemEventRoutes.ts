@@ -1,6 +1,11 @@
 import type { SystemEventEnvelope } from "@deepwrite/contracts";
+import { createScopedTranslator } from "../i18n";
+import { dismissUiMessage, uiMessage } from "../ui-feedback";
 import { subscribeNotificationBlockedToast } from "./notificationBlockedToast";
 import type { SystemEventCenter } from "./systemEventCenter";
+import { deepwriteApi } from "../api/deepwrite";
+
+const tStorage = createScopedTranslator("workspace.storageSettings");
 
 type EventOf<Type extends SystemEventEnvelope["type"]> = Extract<
   SystemEventEnvelope,
@@ -73,7 +78,41 @@ export function registerWorkspaceSystemEventRoutes(
   center: SystemEventCenter,
   dependencies: WorkspaceSystemEventRouteDependencies
 ): () => void {
+  let lastCompactionKey = "";
+  let compactionToastId = -1;
+  let sawActiveCompaction = false;
   const disposers = [
+    center.subscribe("rendererState.compactionUpdated", ({ payload }) => {
+      const { phase, failureCode, failureDetail } = payload.status;
+      if (
+        phase === "running" ||
+        phase === "verifying" ||
+        phase === "swapping"
+      ) {
+        sawActiveCompaction = true;
+        return;
+      }
+      const key = `${phase}:${failureCode ?? ""}:${failureDetail ?? ""}`;
+      if (key === lastCompactionKey) return;
+      if (phase === "failed") {
+        lastCompactionKey = key;
+        dismissUiMessage(compactionToastId);
+        compactionToastId = uiMessage.warning(
+          failureDetail
+            ? tStorage("compactionFailedWithReason", { reason: failureDetail })
+            : tStorage("compactionFailed"),
+          { duration: 8_000 }
+        );
+      } else if (phase === "completed_with_backup" && sawActiveCompaction) {
+        lastCompactionKey = key;
+        sawActiveCompaction = false;
+        dismissUiMessage(compactionToastId);
+        compactionToastId = uiMessage.success(
+          tStorage("compactionCompletedWithBackup"),
+          { duration: 6_000 }
+        );
+      }
+    }),
     center.subscribe("decomposition.target_updated", (event) => {
       void dependencies
         .refreshDecompositionTarget?.(event)
@@ -177,7 +216,7 @@ export function startNativeWorkspaceSystemEvents(
         );
       })
   });
-  const removeNative = window.deepwrite?.events.subscribe((event) => {
+  const removeNative = deepwriteApi()?.events.subscribe((event) => {
     center.publish(event);
   });
   let stopped = false;

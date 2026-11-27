@@ -7,6 +7,7 @@ import {
   type ModelConfig
 } from "@deepwrite/contracts/renderer";
 import { useIdentityWorkbench } from "./useIdentityWorkbench";
+import { deepwriteApi } from "../../api/deepwrite";
 
 // These tests exercise setup state without mounting the page or loading books.
 vi.mock("vue", async (importOriginal) => ({
@@ -61,7 +62,7 @@ async function loadImageProfile(
       }
     ]
   };
-  Object.assign(window.deepwrite!, {
+  Object.assign(deepwriteApi()!, {
     imageModels: { getSettings: async () => imageSettings }
   });
   vi.spyOn(workbench.books, "load").mockResolvedValue();
@@ -96,7 +97,7 @@ async function coverHarness() {
     description: "封面测试",
     systemPrompt: "测试设计方法"
   });
-  Object.assign(window.deepwrite!, {
+  Object.assign(deepwriteApi()!, {
     bookIdentity: { get: async () => record }
   });
   workbench.book.value = book;

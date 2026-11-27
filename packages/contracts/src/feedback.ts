@@ -6,14 +6,31 @@ import { z } from "zod";
  */
 export const FEEDBACK_IPC_CHANNEL = "deepwrite:feedback" as const;
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5_000;
-export const FEEDBACK_MAX_IMAGES = 3;
+export const FEEDBACK_MAX_IMAGES = 6;
 /** Server limit; keeps a base64 image inside Main's 2 MiB response limit. */
 export const FEEDBACK_IMAGE_MAX_BYTES = 1_400_000;
+export const FEEDBACK_TOTAL_IMAGE_MAX_BYTES = 20_000_000;
 export const FEEDBACK_PAGE_SIZE = 10;
 const FEEDBACK_IMAGE_MAX_BASE64_LENGTH =
   Math.ceil(FEEDBACK_IMAGE_MAX_BYTES / 3) * 4;
 /** An uncompressed PNG of the window; the Renderer compresses it before sending. */
 const FEEDBACK_CAPTURE_MAX_BASE64_LENGTH = 64 * 1024 * 1024;
+
+/** Decoded byte length of a base64 screenshot payload. */
+export function feedbackImageByteLength(base64: string): number {
+  const trimmed = base64.trim();
+  if (!trimmed) return 0;
+  const padding = trimmed.endsWith("==") ? 2 : trimmed.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((trimmed.length * 3) / 4) - padding);
+}
+
+export function feedbackImagesTotalBytes(images: readonly string[]): number {
+  let total = 0;
+  for (const image of images) {
+    total += feedbackImageByteLength(image);
+  }
+  return total;
+}
 
 const Base64Pattern = /^[A-Za-z0-9+/]+={0,2}$/u;
 const RemoteIdSchema = z.string().trim().min(1).max(128);
@@ -36,8 +53,22 @@ export const FeedbackSubmitInputSchema = z
           .min(1)
           .max(FEEDBACK_IMAGE_MAX_BASE64_LENGTH)
           .regex(Base64Pattern)
+          .refine(
+            (image) =>
+              feedbackImageByteLength(image) <= FEEDBACK_IMAGE_MAX_BYTES,
+            {
+              message: `Feedback image exceeds ${FEEDBACK_IMAGE_MAX_BYTES} bytes.`
+            }
+          )
       )
       .max(FEEDBACK_MAX_IMAGES)
+      .refine(
+        (images) =>
+          feedbackImagesTotalBytes(images) <= FEEDBACK_TOTAL_IMAGE_MAX_BYTES,
+        {
+          message: `Feedback attachments exceed ${FEEDBACK_TOTAL_IMAGE_MAX_BYTES} bytes.`
+        }
+      )
   })
   .strict();
 export type FeedbackSubmitInput = z.infer<typeof FeedbackSubmitInputSchema>;

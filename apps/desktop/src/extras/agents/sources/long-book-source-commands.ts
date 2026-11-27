@@ -7,6 +7,7 @@ import {
 } from "@deepwrite/contracts";
 import type { BrowserWindow, Dialog } from "electron";
 import { readLongBookAnalysisSource } from "./long-book-source-reader";
+import { rejectedResult } from "../../../main/ipc/errors";
 
 export interface LongBookAnalysisCommandContext {
   dialog: Pick<Dialog, "showOpenDialog">;
@@ -40,14 +41,11 @@ function failure(
   fallback: string,
   error: unknown
 ): CommandResult {
-  return {
-    status: "rejected",
-    requestId: command.id,
-    error: {
-      code,
-      message: error instanceof Error ? error.message : fallback
-    }
-  };
+  return rejectedResult(
+    command.id,
+    code,
+    error instanceof Error ? error.message : fallback
+  );
 }
 
 export async function handleLongBookSourceCommands(

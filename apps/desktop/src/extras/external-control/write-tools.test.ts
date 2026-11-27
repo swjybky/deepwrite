@@ -26,13 +26,43 @@ import {
   MysteryWorkspaceService
 } from "../../utilities/mystery-store";
 import { AgentTeamConfigStore } from "../../main/agent-team-config-store";
-import type { ExternalWindowRequest } from "@deepwrite/contracts/external-control";
+import {
+  ExternalWriteDocumentInputSchema,
+  ExternalWriteEntryInputSchema,
+  type ExternalWindowRequest
+} from "@deepwrite/contracts/external-control";
 import { createExternalControl } from "./index";
 import {
   callExternalControlTool,
   type ExternalControlAppState
 } from "./tool-routes";
 import { createTrashStore } from "./trash-store";
+
+it("requires the observed revision and rejects force on external text writes", () => {
+  for (const [schema, input] of [
+    [
+      ExternalWriteDocumentInputSchema,
+      {
+        workId: "book-example",
+        documentId: "section-example",
+        content: "sample"
+      }
+    ],
+    [
+      ExternalWriteEntryInputSchema,
+      {
+        libraryId: "library-example",
+        entryId: "entry-example",
+        content: "sample"
+      }
+    ]
+  ] as const) {
+    const versioned = { ...input, baseRevision: "revision-example" };
+    expect(schema.safeParse(input).success).toBe(false);
+    expect(schema.safeParse(versioned).success).toBe(true);
+    expect(schema.safeParse({ ...versioned, force: true }).success).toBe(false);
+  }
+});
 
 interface Mutation {
   id: string;

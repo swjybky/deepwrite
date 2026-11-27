@@ -5,6 +5,7 @@ import {
   ref,
   type CSSProperties
 } from "vue";
+import { uiStorage } from "../../utils/uiStorage";
 export function useChatAssistantWindow() {
   const SIZE_STORAGE_KEY = "deepwrite:chat-assistant-size:v2";
   const DESKTOP_BREAKPOINT = 760;
@@ -58,7 +59,7 @@ export function useChatAssistantWindow() {
     if (typeof window === "undefined") return clampSize(defaultSize());
     try {
       const stored = JSON.parse(
-        window.localStorage.getItem(SIZE_STORAGE_KEY) ?? "null"
+        uiStorage().getItem(SIZE_STORAGE_KEY) ?? "null"
       ) as Partial<ChatAssistantSize> | null;
       if (Number.isFinite(stored?.width) && Number.isFinite(stored?.height)) {
         return clampSize({
@@ -84,10 +85,7 @@ export function useChatAssistantWindow() {
   function persistSize(): void {
     if (typeof window === "undefined") return;
     try {
-      window.localStorage.setItem(
-        SIZE_STORAGE_KEY,
-        JSON.stringify(windowSize.value)
-      );
+      uiStorage().setItem(SIZE_STORAGE_KEY, JSON.stringify(windowSize.value));
     } catch {
       // A blocked storage API should not prevent resizing for the current session.
     }

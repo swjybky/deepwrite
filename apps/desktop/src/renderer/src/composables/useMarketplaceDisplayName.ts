@@ -1,12 +1,13 @@
 import type { MarketplaceSession } from "@deepwrite/contracts";
 import { ref } from "vue";
+import { optionalUiStorage } from "../utils/uiStorage";
 
 const STORAGE_KEY = "deepwrite.marketplace-display-name.v1";
 type ProfileStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export function useMarketplaceDisplayName(
   storage: () => ProfileStorage | undefined = () =>
-    typeof window === "undefined" ? undefined : window.localStorage,
+    optionalUiStorage() ?? undefined,
   now: () => number = Date.now
 ) {
   const marketplaceDisplayName = ref<string>();

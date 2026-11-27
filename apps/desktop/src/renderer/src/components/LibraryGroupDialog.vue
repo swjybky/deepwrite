@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { formatError } from "../i18n/errors";
 import { createScopedTranslator } from "../i18n";
 import {
@@ -91,7 +92,9 @@ const candidateLibraries = computed<GroupCandidateItem[]>(() => {
   return [...merged.values()]
     .filter(
       (library) =>
-        !library.isUnbound && !unavailableLibraryIds.value.has(library.id)
+        !library.isUnbound &&
+        !library.isBuiltin &&
+        !unavailableLibraryIds.value.has(library.id)
     )
     .map((library) => ({
       id: library.id,
@@ -129,7 +132,7 @@ function toggleMember(libraryId: string): void {
 
 async function quickCreateLibrary(): Promise<void> {
   if (busy.value) return;
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api) {
     uiMessage.error(t("theDesktopBridgeIsNotReadyTryAgainShortly"));
     return;

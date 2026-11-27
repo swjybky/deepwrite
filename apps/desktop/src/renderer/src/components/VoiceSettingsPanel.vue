@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
@@ -18,7 +19,7 @@ const t = createScopedTranslator("components.voiceSettingsPanel");
 
 const props = defineProps<{ runtimeAvailable: boolean }>();
 const configuration = useVoiceSettings({
-  api: () => window.deepwrite?.voice,
+  api: () => deepwriteApi()?.voice,
   notifications: uiMessage
 });
 const {

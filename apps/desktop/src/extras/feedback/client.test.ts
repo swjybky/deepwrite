@@ -113,13 +113,45 @@ describe("FeedbackClient", () => {
     await expect(client.list()).rejects.toBeInstanceOf(MarketplaceClientError);
   });
 
+  it("accepts up to six screenshots and sends all of them", async () => {
+    const sixImages = ["AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF"];
+    const { client, request } = clientFor({
+      ...wireItem,
+      images: sixImages.map((_, index) => ({
+        id: `i${index + 1}`,
+        content_type: "image/webp",
+        byte_size: 3
+      }))
+    });
+    const created = await client.submit({
+      content: "六张截图",
+      images: sixImages
+    });
+    expect(request).toHaveBeenCalledWith("POST", "/market/v1/me/feedback", {
+      authenticated: true,
+      timeoutMs: 60_000,
+      body: {
+        tag: "",
+        content: "六张截图",
+        images: sixImages,
+        client_version: "1.7.9",
+        client_platform: "darwin",
+        client_device_model: "MacBookPro18,3"
+      }
+    });
+    expect(created.images).toHaveLength(6);
+  });
+
   it("does not send invalid feedback", async () => {
     const { client, request } = clientFor(wireItem);
     await expect(
       client.submit({ content: "   ", images: [] })
     ).rejects.toThrow();
     await expect(
-      client.submit({ content: "x", images: ["a", "b", "c", "d"] })
+      client.submit({
+        content: "x",
+        images: ["a", "b", "c", "d", "e", "f", "g"]
+      })
     ).rejects.toThrow();
     expect(request).not.toHaveBeenCalled();
   });

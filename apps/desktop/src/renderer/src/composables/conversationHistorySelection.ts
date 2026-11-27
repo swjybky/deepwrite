@@ -1,4 +1,5 @@
 import type { AgentConversationController } from "./useAgentConversation";
+import { formatError } from "../i18n/errors";
 
 interface HistorySelectionOptions {
   prepare(): boolean;
@@ -36,14 +37,10 @@ export function createConversationHistorySelection(
       if (typeof selected === "boolean") settled(selected);
       else
         void selected.then(settled, (error: unknown) => {
-          options.warning(
-            error instanceof Error ? error.message : options.unavailableMessage
-          );
+          options.warning(formatError(error, options.unavailableMessage));
         });
     } catch (error) {
-      options.warning(
-        error instanceof Error ? error.message : options.unavailableMessage
-      );
+      options.warning(formatError(error, options.unavailableMessage));
     }
   };
 }

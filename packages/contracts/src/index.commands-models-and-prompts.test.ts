@@ -625,7 +625,7 @@ describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
     ).toThrow();
   });
 
-  it("accepts an unsaved model draft for a connection test", () => {
+  it("accepts an unsaved model draft for a connection test and cancelTest envelopes", () => {
     const envelope = createEnvelope(
       "models.test",
       {
@@ -639,12 +639,35 @@ describe("DeepWrite desktop contracts: commands-models-and-prompts", () => {
           reasoning: false,
           defaultThinkingLevel: "off" as const,
           apiKey: "not-yet-saved"
-        }
+        },
+        requestId: "req_test_1"
       },
       { id: "cmd_test_draft" }
     );
+    const cancelEnvelope = createEnvelope(
+      "models.cancelTest",
+      { requestId: "req_test_1" },
+      { id: "cmd_cancel_test" }
+    );
+    const agentCancelEnvelope = createEnvelope(
+      "agent.model_test_cancel",
+      { requestId: "req_test_1" },
+      { id: "cmd_agent_cancel_test" }
+    );
+    const invalidCancelEnvelope = createEnvelope(
+      "models.cancelTest",
+      { requestId: "invalid request id!" },
+      { id: "cmd_cancel_invalid" }
+    );
 
     expect(CommandEnvelopeSchema.parse(envelope).type).toBe("models.test");
+    expect(CommandEnvelopeSchema.parse(cancelEnvelope).type).toBe(
+      "models.cancelTest"
+    );
+    expect(CommandEnvelopeSchema.parse(agentCancelEnvelope).type).toBe(
+      "agent.model_test_cancel"
+    );
+    expect(() => CommandEnvelopeSchema.parse(invalidCancelEnvelope)).toThrow();
   });
 
   it("accepts a model capacity lookup for an unsaved draft", () => {

@@ -48,7 +48,7 @@ import {
   type ProjectTransactionFileOperation
 } from "../project-transaction";
 import {
-  atomicWriteJson,
+  writeBoundedProjectJson,
   commitProjectMarkdownUpdate,
   portableContentPathKey,
   readProjectMarkdown,
@@ -1418,7 +1418,7 @@ export async function scrubAcademicBookLibraryBindings(params: {
         linkedSkillIds: nextSkills,
         updatedAt: now
       });
-      await atomicWriteJson(
+      await writeBoundedProjectJson(
         join(projectDirectory, MANIFEST_FILE),
         nextManifest,
         maxManifestBytes

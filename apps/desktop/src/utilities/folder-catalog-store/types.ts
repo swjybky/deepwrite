@@ -121,6 +121,7 @@ export interface OpenFolderCatalogProjectResult<
 
 export interface FolderCatalogStoreOptions {
   userDataPath: string;
+  includeBuiltinLibraries?: boolean;
   initialSnapshot?: CatalogSnapshot;
   now?: () => string;
   maxManifestBytes?: number;
@@ -162,10 +163,13 @@ export interface CreateScriptBookAtDirectoryInput {
 export type FolderCatalogLibraryDomain = "material" | "skill";
 
 export type CreateFolderLibraryInput = CreateLibraryInput & {
+  id?: string;
   parentDirectory?: string | undefined;
+  unbound?: boolean;
 };
 
 export type CreateFolderLibraryGroupInput = CreateLibraryGroupInput & {
+  id?: string;
   parentDirectory?: string | undefined;
 };
 
@@ -229,6 +233,7 @@ export interface DuplicateProjectWritePlan {
   parentDirectory: string;
   resource: FolderCatalogResource;
   writingContext?: string;
+  sourceBookDirectory?: string;
 }
 
 export type SaveFolderDocumentInput = SaveDocumentInput;

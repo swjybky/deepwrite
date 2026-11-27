@@ -10,8 +10,8 @@ import {
   recoverProjectTransaction
 } from "../project-transaction";
 import { readNoFollowFile } from "../long-project-store/io";
-import { decompositionSha } from "../long-book-decomposition/content-guard";
 import { assertManagedStage } from "./managed-entry";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
@@ -54,12 +54,12 @@ export async function readManagedLibrary(
         "素材条目",
         root
       );
-      entrySha256[entry.id] = decompositionSha(bytes.toString("utf8"));
+      entrySha256[entry.id] = sha256Hex(bytes.toString("utf8"));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  return { manifest, manifestSha256: decompositionSha(text), entrySha256 };
+  return { manifest, manifestSha256: sha256Hex(text), entrySha256 };
 }
 
 export interface ManagedEntriesWrite {
@@ -89,7 +89,7 @@ export async function writeManagedEntries(
   const { text, manifest } = await readManifest(root);
   if (manifest.id !== input.libraryId)
     throw new Error("转换目标素材库不匹配。");
-  if (decompositionSha(text) !== input.manifestSha256)
+  if (sha256Hex(text) !== input.manifestSha256)
     throw new Error("素材库在转换期间被修改，请重新转换。");
   for (const write of input.writes)
     assertManagedStage(manifest.materialKind, write.stageId);

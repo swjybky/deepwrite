@@ -4,8 +4,12 @@ import {
   DEFAULT_DECOMPOSITION_PROFILE,
   splitDecompositionChunks,
   decompositionInputBudget,
+  limitingDecompositionReadingModel,
   estimateDecomposition,
+  isModelQuotaExhausted,
   type DeepWriteApi,
+  type DecompositionModelsInput,
+  type DecompositionModelSelection,
   type ModelConfig,
   type ThinkingLevel,
   type LongBookDecompositionProfile,
@@ -20,7 +24,12 @@ import { createLongAnalysisSources } from "../long-book-analysis/long-analysis-s
 import { createDecompositionEngine } from "./engine";
 import { createDecompositionCreationRecovery } from "./creation-recovery";
 import { createDecompositionRegistryBinding } from "./registry-binding";
-import { getErrorPayload } from "../../i18n/errors";
+import {
+  formatError,
+  formatModelProviderError,
+  getErrorPayload
+} from "../../i18n/errors";
+import { jsonClone } from "@deepwrite/shared";
 
 export function useLongBookDecomposition(options: {
   api(): DeepWriteApi | undefined;
@@ -62,18 +71,28 @@ export function useLongBookDecomposition(options: {
   const integrationModelId = ref("");
   const readingThinkingLevel = ref<ThinkingLevel>("off");
   const integrationThinkingLevel = ref<ThinkingLevel>("off");
+  const readingFallbacks = ref<DecompositionModelSelection[]>([]);
+  const integrationFallbacks = ref<DecompositionModelSelection[]>([]);
   const loading = ref(false);
+  const selectedModelIds = computed(
+    () =>
+      new Set([
+        readingModelId.value,
+        integrationModelId.value,
+        ...readingFallbacks.value.map(({ modelId }) => modelId),
+        ...integrationFallbacks.value.map(({ modelId }) => modelId)
+      ])
+  );
   const stopCapacityWatch = watch(
-    [configuredModels, readingModelId, integrationModelId],
+    [configuredModels, selectedModelIds],
     () => {
       void Promise.allSettled(
         configuredModels.value
-          .filter(({ id }) =>
-            [readingModelId.value, integrationModelId.value].includes(id)
-          )
+          .filter(({ id }) => selectedModelIds.value.has(id))
           .map(engine.resolveModelCapacity)
       );
-    }
+    },
+    { immediate: true }
   );
   const selectedProfile = computed(
     () =>
@@ -138,8 +157,16 @@ export function useLongBookDecomposition(options: {
       sources.sourceDeleting.value
     )
       throw new Error("请先保存并确认章节与范围。");
+    const uniqueModelIds = [
+      ...new Set([
+        readingModelId.value,
+        ...readingFallbacks.value.map(({ modelId }) => modelId),
+        integrationModelId.value,
+        ...integrationFallbacks.value.map(({ modelId }) => modelId)
+      ])
+    ];
     await Promise.all(
-      [readingModelId.value, integrationModelId.value].map(async (id) => {
+      uniqueModelIds.map(async (id) => {
         const model = configuredModels.value.find((model) => model.id === id);
         if (!model) throw new Error("请选择可用的拆解模型。");
         decompositionInputBudget(
@@ -161,7 +188,13 @@ export function useLongBookDecomposition(options: {
           integration: {
             modelId: integrationModelId.value,
             thinkingLevel: integrationThinkingLevel.value
-          }
+          },
+          ...(readingFallbacks.value.length
+            ? { readingFallbacks: jsonClone(readingFallbacks.value) }
+            : {}),
+          ...(integrationFallbacks.value.length
+            ? { integrationFallbacks: jsonClone(integrationFallbacks.value) }
+            : {})
         }
       });
     } catch (cause) {
@@ -177,12 +210,25 @@ export function useLongBookDecomposition(options: {
     concurrency?: number
   ) {
     const source = sources.source.value;
-    const model = configuredModels.value.find(
+    const primaryModel = configuredModels.value.find(
       ({ id }) => id === readingModelId.value
     );
-    if (!source || !model) return null;
-    const capacity = engine.modelCapacity(model);
-    if (!capacity) return null;
+    if (!source || !primaryModel) return null;
+    const primaryCapacity = engine.modelCapacity(primaryModel);
+    if (!primaryCapacity) return null;
+    const capacities = [
+      primaryCapacity,
+      ...readingFallbacks.value
+        .map(({ modelId }) =>
+          configuredModels.value.find(({ id }) => id === modelId)
+        )
+        .map((item) => (item ? engine.modelCapacity(item) : undefined))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    ];
+    const capacity = limitingDecompositionReadingModel(
+      capacities,
+      selectedProfile.value.systemPrompt.length
+    );
     const chapters = source.chapters.filter(
       ({ order }) => order >= range.start && order <= range.end
     );
@@ -197,6 +243,27 @@ export function useLongBookDecomposition(options: {
       chunks.length,
       concurrency
     );
+  }
+  async function updateJobModels(models: DecompositionModelsInput) {
+    const current = engine.job.value;
+    if (!current) throw new Error("没有打开的拆解任务。");
+    if (engine.isBusy.value) throw new Error("请先停止任务再切换模型。");
+    const updated = await api().longBookDecomposition.updateModels({
+      jobId: current.id,
+      models
+    });
+    engine.job.value = updated;
+    if (
+      !updated.lastError &&
+      (isModelQuotaExhausted(engine.error.value) ||
+        (current.lastError !== undefined &&
+          (engine.error.value === current.lastError ||
+            engine.error.value ===
+              formatModelProviderError(current.lastError))))
+    )
+      engine.error.value = null;
+    jobs.value = await api().longBookDecomposition.listJobs();
+    return updated;
   }
   return {
     ...sources,
@@ -213,9 +280,12 @@ export function useLongBookDecomposition(options: {
     integrationModelId,
     readingThinkingLevel,
     integrationThinkingLevel,
+    readingFallbacks,
+    integrationFallbacks,
     load,
     confirm,
     create,
+    updateJobModels,
     selectJob,
     inspect,
     estimate,
@@ -229,8 +299,7 @@ export function useLongBookDecomposition(options: {
         await inspect();
       } catch (cause) {
         engine.error.value ??=
-          getErrorPayload(cause)?.message ??
-          (cause instanceof Error ? cause.message : String(cause));
+          getErrorPayload(cause)?.message ?? formatError(cause, String(cause));
       }
     },
     /** Task-local records for the progress dialog. */
@@ -245,7 +314,7 @@ export function useLongBookDecomposition(options: {
       engine.job.value = await api().longBookDecomposition.saveRegistry({
         jobId: engine.job.value.id,
         baseRevision: base.version,
-        registry: JSON.parse(JSON.stringify(next)) as DecompositionRegistryData,
+        registry: jsonClone(next),
         confirm: confirmed
       });
       await inspect();
@@ -306,6 +375,29 @@ export function useLongBookDecomposition(options: {
           thinking.value = selected.defaultThinkingLevel;
         }
       }
+      const sanitizeFallbacks = (
+        primaryId: string,
+        items: readonly DecompositionModelSelection[]
+      ) => {
+        const seen = new Set<string>([primaryId]);
+        return items.filter((item) => {
+          if (
+            seen.has(item.modelId) ||
+            !configuredModels.value.some(({ id }) => id === item.modelId)
+          )
+            return false;
+          seen.add(item.modelId);
+          return true;
+        });
+      };
+      readingFallbacks.value = sanitizeFallbacks(
+        readingModelId.value,
+        readingFallbacks.value
+      );
+      integrationFallbacks.value = sanitizeFallbacks(
+        integrationModelId.value,
+        integrationFallbacks.value
+      );
     },
     dispose() {
       disposed = true;

@@ -6,7 +6,9 @@ import {
   type ModelSettings
 } from "@deepwrite/contracts";
 import type { IpcCommandContext } from "./command-types";
+import { UtilityCommandTimeoutError } from "../supervisor";
 import { handleModelCommands } from "./model-commands";
+import { ModelTestRegistry } from "./model-test-registry";
 
 vi.mock("../deepwrite-public-data-config", () => ({
   DEEPWRITE_PUBLIC_DATA_API_BASE_URL: "https://gateway.example.test"
@@ -387,6 +389,192 @@ describe("model commands", () => {
       status: "accepted",
       payload: { supportsDeveloperRole: false }
     });
-    expect(disableDeveloperRole).toHaveBeenCalledWith(custom.id);
+    expect(disableDeveloperRole).toHaveBeenCalledWith(
+      custom.id,
+      expect.objectContaining({
+        provider: custom.provider,
+        modelId: custom.modelId,
+        api: custom.api,
+        baseUrl: custom.baseUrl
+      })
+    );
+  });
+
+  it("isolates models.cancelTest by ownerId, forwards agent.model_test_cancel, and prevents stale developer-role writes", async () => {
+    const custom = {
+      ...freeModel,
+      id: "custom-gemini-test",
+      managedBy: undefined,
+      provider: "google",
+      modelId: "gemini-2.5-pro",
+      api: "google-generative-ai" as const,
+      baseUrl: "https://provider.example.test/v1beta"
+    };
+    const resolveDraft = vi.fn(async () => ({ ...custom, apiKey: "test-key" }));
+    const disableDeveloperRole = vi.fn(async () => undefined);
+    let resolveAgentTest!: (value: {
+      status: "accepted";
+      requestId: string;
+      payload: unknown;
+    }) => void;
+    const requestCommand = vi.fn((_worker: string, cmd: { type: string }) => {
+      if (cmd.type === "agent.model_test") {
+        return new Promise((resolve) => {
+          resolveAgentTest = resolve as typeof resolveAgentTest;
+        });
+      }
+      return Promise.resolve({
+        status: "accepted" as const,
+        requestId: "cmd_cancel_agent",
+        payload: { cancelled: true }
+      });
+    });
+    const modelTestRegistry = new ModelTestRegistry();
+    const baseCtx = {
+      requireModelConfigStore: () => ({ resolveDraft, disableDeveloperRole }),
+      supervisor: { requestCommand },
+      modelTestRegistry
+    };
+
+    const testCommand = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "models.test",
+        { model: custom, requestId: "req_owner_1" },
+        { id: "cmd_test_owner_1" }
+      )
+    );
+    const pendingTest = handleModelCommands(
+      { ...baseCtx, ownerId: 101 } as unknown as IpcCommandContext,
+      testCommand
+    );
+    await vi.waitFor(() => expect(requestCommand).toHaveBeenCalledTimes(1));
+
+    // Different owner cannot cancel
+    const foreignCancel = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "models.cancelTest",
+        { requestId: "req_owner_1" },
+        { id: "cmd_cancel_foreign" }
+      )
+    );
+    await expect(
+      handleModelCommands(
+        { ...baseCtx, ownerId: 202 } as unknown as IpcCommandContext,
+        foreignCancel
+      )
+    ).resolves.toMatchObject({
+      status: "accepted",
+      payload: { cancelled: false }
+    });
+
+    // Same owner cancels
+    const ownCancel = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "models.cancelTest",
+        { requestId: "req_owner_1" },
+        { id: "cmd_cancel_own" }
+      )
+    );
+    await expect(
+      handleModelCommands(
+        { ...baseCtx, ownerId: 101 } as unknown as IpcCommandContext,
+        ownCancel
+      )
+    ).resolves.toMatchObject({
+      status: "accepted",
+      payload: { cancelled: true }
+    });
+
+    expect(requestCommand).toHaveBeenNthCalledWith(
+      2,
+      "agent",
+      expect.objectContaining({
+        type: "agent.model_test_cancel",
+        payload: { requestId: "req_owner_1" }
+      }),
+      5_000
+    );
+
+    // Even if agent resolves accepted right as cancel arrived, Main keeps cancelled semantics and skips disableDeveloperRole
+    resolveAgentTest({
+      status: "accepted",
+      requestId: "cmd_test_owner_1",
+      payload: {
+        modelId: custom.id,
+        ok: true,
+        message: "ok",
+        testedAt: "2026-10-01T00:00:00.000Z",
+        contextWindow: 272_000,
+        maxTokens: 128_000,
+        supportsDeveloperRole: false
+      }
+    });
+    await expect(pendingTest).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "models.test_cancelled" }
+    });
+    expect(disableDeveloperRole).not.toHaveBeenCalled();
+  });
+
+  it("cancels all active tests on cancelOwner and notifies agent on UtilityCommandTimeoutError", async () => {
+    const custom = {
+      ...freeModel,
+      id: "custom-timeout-test",
+      managedBy: undefined,
+      provider: "google",
+      modelId: "gemini-2.5-pro",
+      api: "google-generative-ai" as const
+    };
+    const resolveDraft = vi.fn(async () => ({ ...custom, apiKey: "test-key" }));
+    const cancelSpy = vi.fn(async () => true);
+    const modelTestRegistry = new ModelTestRegistry();
+    const requestCommand = vi.fn(
+      async (_worker: string, cmd: { type: string }) => {
+        if (cmd.type === "agent.model_test") {
+          throw new UtilityCommandTimeoutError(
+            "agent utility command timed out"
+          );
+        }
+        return {
+          status: "accepted" as const,
+          requestId: "cmd_cancel",
+          payload: { cancelled: true }
+        };
+      }
+    );
+    const ctx = {
+      requireModelConfigStore: () => ({ resolveDraft }),
+      supervisor: { requestCommand },
+      ownerId: 55,
+      modelTestRegistry
+    } as unknown as IpcCommandContext;
+
+    const timeoutCommand = CommandEnvelopeSchema.parse(
+      createEnvelope(
+        "models.test",
+        { model: custom, requestId: "req_timeout_1" },
+        { id: "cmd_timeout_1" }
+      )
+    );
+    await expect(
+      handleModelCommands(ctx, timeoutCommand)
+    ).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "models.test_timeout" }
+    });
+    expect(requestCommand).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        type: "agent.model_test_cancel",
+        payload: { requestId: "req_timeout_1" }
+      }),
+      5_000
+    );
+
+    modelTestRegistry.begin("req_owner_unload", 77);
+    modelTestRegistry.markDispatched("req_owner_unload");
+    await modelTestRegistry.cancelOwner(77, cancelSpy);
+    expect(cancelSpy).toHaveBeenCalledWith("req_owner_unload");
+    expect(modelTestRegistry.isCancelled("req_owner_unload")).toBe(true);
   });
 });

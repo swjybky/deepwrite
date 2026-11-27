@@ -1,5 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import {
   DEFAULT_MYSTERY_AGENT_PROFILES,
   MYSTERY_AGENT_IDS,
@@ -16,6 +15,8 @@ import {
 import { localizeAgentSystemPrompt } from "./builtin-agent-prompts";
 import { withConfigurationLock } from "./configuration-lock";
 import { mergeSettingsById } from "./merge-agent-settings";
+import { isRecord } from "@deepwrite/shared";
+import { writeJsonAtomic, readJsonIfExists } from "@deepwrite/shared/node";
 
 export const MYSTERY_AGENT_SETTINGS_DISK_VERSION = 1 as const;
 
@@ -61,31 +62,6 @@ function defaultsAsInput(): MysteryAgentSettingsInput {
       ]
     }))
   };
-}
-
-async function readJson(path: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(path, "utf8")) as unknown;
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600
-  });
-  await rename(temporary, path);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function parseDiskSettings(raw: unknown): MysteryAgentSettingsInput {
@@ -212,7 +188,7 @@ export class MysteryAgentConfigStore {
   }
 
   private async readInput(): Promise<MysteryAgentSettingsInput> {
-    return parseDiskSettings(await readJson(this.settingsPath));
+    return parseDiskSettings(await readJsonIfExists(this.settingsPath));
   }
 
   private async writeInput(input: MysteryAgentSettingsInput): Promise<void> {
@@ -221,7 +197,7 @@ export class MysteryAgentConfigStore {
       workspaceType: "mystery",
       agents: input.agents.map(cloneInputAgent)
     };
-    await atomicWriteJson(this.settingsPath, disk);
+    await writeJsonAtomic(this.settingsPath, disk);
   }
 
   private toPublicSettings(

@@ -3,17 +3,14 @@ import {
   normalizeContext,
   type Context
 } from "@earendil-works/pi-ai";
-
-function isSchemaRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 
 function assertPortableSchemaKeywords(toolName: string, value: unknown): void {
   if (Array.isArray(value)) {
     value.forEach((item) => assertPortableSchemaKeywords(toolName, item));
     return;
   }
-  if (!isSchemaRecord(value)) return;
+  if (!isRecord(value)) return;
   if (Object.prototype.hasOwnProperty.call(value, "const")) {
     throw new Error(
       `工具“${toolName}”的参数 schema 不得使用 const，请使用 PI StringEnum。`
@@ -34,7 +31,7 @@ export function assertProviderToolParameterSchema(
   toolName: string,
   value: unknown
 ): Record<string, unknown> {
-  if (!isSchemaRecord(value)) {
+  if (!isRecord(value)) {
     throw new Error(
       `工具“${toolName}”的参数 schema 必须是 JSON Schema 对象，当前根节点无效。`
     );

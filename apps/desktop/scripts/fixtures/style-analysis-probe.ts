@@ -176,23 +176,29 @@ async function selectHeaderModel(): Promise<void> {
   );
   trigger.click();
   await frame();
-  const selects = document.querySelectorAll<HTMLButtonElement>(
-    '.analysis-model-panel [role="combobox"]'
+  const allTab = document.querySelector<HTMLButtonElement>(
+    '.analysis-model-panel .model-picker-rail-btn[aria-label="全部模型"]'
   );
-  check(selects.length === 2, "右上角模型配置只应包含模型和思考强度");
-  for (const [index, text] of [
-    [0, alternateModel.label],
-    [1, thinkingLabel("high")]
-  ] as const) {
-    selects[index]!.click();
-    await frame();
-    const option = [
-      ...document.querySelectorAll<HTMLElement>('[role="option"]')
-    ].find((candidate) => candidate.textContent?.trim() === text);
-    check(option, `模型配置缺少选项：${text}`);
-    option.click();
-    await frame();
-  }
+  allTab?.click();
+  await frame();
+  const modelOption = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.analysis-model-panel [role="listbox"][aria-label="模型"] [role="option"]'
+    )
+  ].find((candidate) => candidate.textContent?.trim() === alternateModel.label);
+  check(modelOption, `模型配置缺少选项：${alternateModel.label}`);
+  modelOption.click();
+  await frame();
+  const thinkingOption = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.analysis-model-panel [role="listbox"][aria-label="思考等级"] [role="option"]'
+    )
+  ].find(
+    (candidate) => candidate.textContent?.trim() === thinkingLabel("high")
+  );
+  check(thinkingOption, `模型配置缺少选项：${thinkingLabel("high")}`);
+  thinkingOption.click();
+  await frame();
   trigger.click();
   await frame();
   check(!document.querySelector(".analysis-model-panel"), "模型配置可以收起");

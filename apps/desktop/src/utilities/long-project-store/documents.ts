@@ -17,8 +17,7 @@ import {
   boundedPositiveInteger,
   commitLongProjectTransaction,
   nonnegativeInteger,
-  secureDirectory,
-  serializeJson
+  secureDirectory
 } from "./io";
 import { loadProject } from "./load-project";
 import { loadProjectForRead } from "./read-project";
@@ -41,6 +40,7 @@ import {
   type WriteLongDocumentInput,
   type WriteLongDocumentResult
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function openBook(
   ctx: LongProjectStoreContext,
@@ -83,7 +83,7 @@ export async function updateBindings(
       ...loaded.index,
       updatedAt: timestamp
     });
-    const indexContent = serializeJson(nextIndex);
+    const indexContent = toJsonFileText(nextIndex);
     const nextManifest = LongProjectManifestSchema.parse({
       ...loaded.manifest,
       linkedMaterialIdsByKind: input.linkedMaterialIdsByKind,
@@ -99,7 +99,7 @@ export async function updateBindings(
       projectRoot: loaded.projectDirectory,
       operations: [
         { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });
@@ -121,7 +121,7 @@ export async function renameBook(
       ...loaded.index,
       updatedAt: timestamp
     });
-    const indexContent = serializeJson(nextIndex);
+    const indexContent = toJsonFileText(nextIndex);
     const nextManifest = LongProjectManifestSchema.parse({
       ...loaded.manifest,
       title: input.title,
@@ -135,7 +135,7 @@ export async function renameBook(
       projectRoot: loaded.projectDirectory,
       operations: [
         { path: LONG_WORKSPACE_INDEX_PATH, content: indexContent },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     });
@@ -291,7 +291,7 @@ export async function writeDocumentLocked(
     ...loaded.index,
     updatedAt: timestamp
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   const nextManifest = LongProjectManifestSchema.parse({
     ...loaded.manifest,
     updatedAt: timestamp,
@@ -300,7 +300,7 @@ export async function writeDocumentLocked(
       updatedAt: timestamp
     }
   });
-  const manifestContent = serializeJson(nextManifest);
+  const manifestContent = toJsonFileText(nextManifest);
 
   await commitLongProjectTransaction(
     {

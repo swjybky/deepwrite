@@ -2,6 +2,7 @@ import { constants, type Stats } from "node:fs";
 import { access, lstat, mkdir, readdir, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
+  ConversationCompactionStatus,
   StorageDirectoryKind,
   StorageLocation,
   StorageSettingsErrorCode,
@@ -30,6 +31,13 @@ interface StorageSettingsOptions {
   busy(): boolean;
   flushRenderer(): Promise<void>;
   restart(): void;
+  compaction?: {
+    status(): Promise<ConversationCompactionStatus>;
+    compact(options?: {
+      force?: boolean;
+    }): Promise<ConversationCompactionStatus>;
+    releaseBackup(): Promise<ConversationCompactionStatus>;
+  };
 }
 
 /** Carries a stable code across IPC; the message stays a local diagnostic. */
@@ -121,13 +129,53 @@ export class StorageSettingsService {
       "DeepWriteBooks"
     );
     const workspace = await this.options.workspace().list();
+    const conversationCompaction = this.options.compaction
+      ? await this.options.compaction.status().catch(() => undefined)
+      : undefined;
     return {
       userData: await location(locations.currentPath, locations.defaultPath),
       workspace: await location(
         workspace.path ?? defaultWorkspace,
         defaultWorkspace
-      )
+      ),
+      ...(conversationCompaction ? { conversationCompaction } : {})
     };
+  }
+
+  async getCompactionStatus(): Promise<
+    ConversationCompactionStatus | undefined
+  > {
+    if (!this.options.compaction) return undefined;
+    return this.options.compaction.status();
+  }
+
+  async compactConversations(options?: {
+    force?: boolean;
+  }): Promise<ConversationCompactionStatus> {
+    if (!this.options.compaction) {
+      throw new StorageSettingsError(
+        "storage_settings.busy",
+        "历史对话整理服务尚未就绪，请稍后重试。"
+      );
+    }
+    this.assertIdle();
+    return this.options.compaction.compact(options);
+  }
+
+  async releaseConversationBackup(): Promise<ConversationCompactionStatus> {
+    if (!this.options.compaction) {
+      throw new StorageSettingsError(
+        "storage_settings.busy",
+        "历史对话整理服务尚未就绪，请稍后重试。"
+      );
+    }
+    if (this.restarting || this.changing) {
+      throw new StorageSettingsError(
+        "storage_settings.busy",
+        "请等待当前存储操作结束后再释放备份。"
+      );
+    }
+    return this.options.compaction.releaseBackup();
   }
 
   async openDirectory(kind: StorageDirectoryKind): Promise<{ opened: true }> {
@@ -166,6 +214,10 @@ export class StorageSettingsService {
 
   get restartPending(): boolean {
     return this.restarting;
+  }
+
+  get busy(): boolean {
+    return this.changing || this.restarting;
   }
 
   private assertIdle(): void {

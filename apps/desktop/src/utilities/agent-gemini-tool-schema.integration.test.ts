@@ -21,7 +21,7 @@ import {
   materialWorkspace,
   profile as libraryProfile,
   skillWorkspace
-} from "../../../../packages/pi-runtime-adapter/src/library-agent-tools/test-fixtures";
+} from "../../../../packages/pi-runtime-adapter/src/library-agent-tools/library-tools.test-support";
 import { createAgentRunInput } from "./agent-run-input";
 
 type Domain = "short" | "script" | "long" | "material" | "skill";

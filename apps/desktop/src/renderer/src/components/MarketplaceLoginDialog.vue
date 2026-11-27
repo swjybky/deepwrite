@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { onBeforeUnmount, onMounted } from "vue";
 import type { MarketplaceSession } from "@deepwrite/contracts";
 import { createScopedTranslator } from "../i18n";
@@ -26,7 +27,7 @@ onMounted(async () => {
   document.addEventListener("keydown", handleKeydown);
   // The shell may not know yet that Main already holds a valid sign-in.
   try {
-    const session = await window.deepwrite?.marketplace.session();
+    const session = await deepwriteApi()?.marketplace.session();
     if (!alive || !session) return;
     emit("sessionChange", session);
     if (session.authenticated) completeMarketplaceLogin();

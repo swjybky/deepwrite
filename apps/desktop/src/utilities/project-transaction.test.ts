@@ -16,11 +16,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   ProjectTransactionConflictError,
   commitProjectTransaction,
-  projectTransactionContentSha256,
   projectTransactionFileIdentity,
   recoverProjectTransaction
 } from "./project-transaction";
 import { withProjectTransactionLock } from "./project-transaction/lock";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const temporaryRoots: string[] = [];
 
@@ -68,7 +68,7 @@ describe("project transaction", () => {
         {
           path: "deepwrite.json",
           content: "new manifest",
-          expectedSha256: projectTransactionContentSha256("old manifest")
+          expectedSha256: sha256Hex("old manifest")
         },
         {
           path: "long/index.json",
@@ -86,15 +86,15 @@ describe("project transaction", () => {
     expect(result.files).toEqual([
       {
         path: "deepwrite.json",
-        sha256: projectTransactionContentSha256("new manifest")
+        sha256: sha256Hex("new manifest")
       },
       {
         path: "long/index.json",
-        sha256: projectTransactionContentSha256("new index")
+        sha256: sha256Hex("new index")
       },
       {
         path: "long/chapters/chapter-1/body.md",
-        sha256: projectTransactionContentSha256("第一章正文")
+        sha256: sha256Hex("第一章正文")
       }
     ]);
     await expect(readFile(join(root, "deepwrite.json"), "utf8")).resolves.toBe(
@@ -146,7 +146,7 @@ describe("project transaction", () => {
           {
             path: "deepwrite.json",
             content: "stale overwrite",
-            expectedSha256: projectTransactionContentSha256("older")
+            expectedSha256: sha256Hex("older")
           }
         ]
       })
@@ -158,7 +158,7 @@ describe("project transaction", () => {
 
   it("serializes concurrent writers and preserves the successful request identity", async () => {
     const root = await temporaryProject();
-    const expectedSha256 = projectTransactionContentSha256("before");
+    const expectedSha256 = sha256Hex("before");
     for (let round = 0; round < 12; round += 1) {
       const path = `shared-${round}.md`;
       await writeFile(join(root, path), "before", "utf8");
@@ -278,7 +278,7 @@ describe("project transaction", () => {
       files: [
         {
           path: "recovered.md",
-          sha256: projectTransactionContentSha256("已恢复写入")
+          sha256: sha256Hex("已恢复写入")
         }
       ]
     });
@@ -300,12 +300,12 @@ describe("project transaction", () => {
         {
           action: "check",
           path: "pinned.md",
-          expectedSha256: projectTransactionContentSha256("pinned")
+          expectedSha256: sha256Hex("pinned")
         },
         {
           path: "index.json",
           content: "new index",
-          expectedSha256: projectTransactionContentSha256("old index")
+          expectedSha256: sha256Hex("old index")
         }
       ]
     });
@@ -313,11 +313,11 @@ describe("project transaction", () => {
     expect(result.files).toEqual([
       {
         path: "pinned.md",
-        sha256: projectTransactionContentSha256("pinned")
+        sha256: sha256Hex("pinned")
       },
       {
         path: "index.json",
-        sha256: projectTransactionContentSha256("new index")
+        sha256: sha256Hex("new index")
       }
     ]);
     await expect(readFile(join(root, "pinned.md"), "utf8")).resolves.toBe(
@@ -359,16 +359,16 @@ describe("project transaction", () => {
               path: "pinned.md",
               stagePath: null,
               backupPath: null,
-              beforeSha256: projectTransactionContentSha256("pinned"),
-              afterSha256: projectTransactionContentSha256("pinned")
+              beforeSha256: sha256Hex("pinned"),
+              afterSha256: sha256Hex("pinned")
             },
             {
               action: "write",
               path: "index.json",
               stagePath: `.deepwrite/transactions/${transactionId}/stage/1.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/1.previous`,
-              beforeSha256: projectTransactionContentSha256("old index"),
-              afterSha256: projectTransactionContentSha256("new index")
+              beforeSha256: sha256Hex("old index"),
+              afterSha256: sha256Hex("new index")
             }
           ]
         },
@@ -401,7 +401,7 @@ describe("project transaction", () => {
           {
             path: "target.md",
             content: "replacement",
-            expectedSha256: projectTransactionContentSha256("shared")
+            expectedSha256: sha256Hex("shared")
           }
         ]
       })
@@ -421,12 +421,12 @@ describe("project transaction", () => {
         {
           action: "delete",
           path: "orphan.md",
-          expectedSha256: projectTransactionContentSha256("待删除正文")
+          expectedSha256: sha256Hex("待删除正文")
         },
         {
           path: "index.json",
           content: "new index",
-          expectedSha256: projectTransactionContentSha256("old index")
+          expectedSha256: sha256Hex("old index")
         }
       ]
     });
@@ -435,7 +435,7 @@ describe("project transaction", () => {
       { path: "orphan.md", sha256: null },
       {
         path: "index.json",
-        sha256: projectTransactionContentSha256("new index")
+        sha256: sha256Hex("new index")
       }
     ]);
     await expect(lstat(join(root, "orphan.md"))).rejects.toMatchObject({
@@ -484,15 +484,15 @@ describe("project transaction", () => {
           path: "one.md",
           stagePath: `.deepwrite/transactions/${transactionId}/stage/0.next`,
           backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-          beforeSha256: projectTransactionContentSha256("one-before"),
-          afterSha256: projectTransactionContentSha256("one-next")
+          beforeSha256: sha256Hex("one-before"),
+          afterSha256: sha256Hex("one-next")
         },
         {
           path: "two.md",
           stagePath: `.deepwrite/transactions/${transactionId}/stage/1.next`,
           backupPath: `.deepwrite/transactions/${transactionId}/backup/1.previous`,
-          beforeSha256: projectTransactionContentSha256("two-before"),
-          afterSha256: projectTransactionContentSha256("two-next")
+          beforeSha256: sha256Hex("two-before"),
+          afterSha256: sha256Hex("two-next")
         }
       ]
     };
@@ -560,16 +560,16 @@ describe("project transaction", () => {
               path: "deepwrite.json",
               stagePath: `.deepwrite/transactions/${transactionId}/stage/0.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-              beforeSha256: projectTransactionContentSha256("old manifest"),
-              afterSha256: projectTransactionContentSha256("new manifest")
+              beforeSha256: sha256Hex("old manifest"),
+              afterSha256: sha256Hex("new manifest")
             },
             {
               action: "write",
               path: "index.json",
               stagePath: `.deepwrite/transactions/${transactionId}/stage/1.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/1.previous`,
-              beforeSha256: projectTransactionContentSha256("old index"),
-              afterSha256: projectTransactionContentSha256("new index")
+              beforeSha256: sha256Hex("old index"),
+              afterSha256: sha256Hex("new index")
             }
           ]
         },
@@ -584,11 +584,11 @@ describe("project transaction", () => {
       files: [
         {
           path: "deepwrite.json",
-          sha256: projectTransactionContentSha256("new manifest")
+          sha256: sha256Hex("new manifest")
         },
         {
           path: "index.json",
-          sha256: projectTransactionContentSha256("new index")
+          sha256: sha256Hex("new index")
         }
       ]
     });
@@ -635,7 +635,7 @@ describe("project transaction", () => {
               path: "deleted.md",
               stagePath: null,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-              beforeSha256: projectTransactionContentSha256("before delete"),
+              beforeSha256: sha256Hex("before delete"),
               afterSha256: null
             }
           ]
@@ -685,8 +685,8 @@ describe("project transaction", () => {
               path: "target.md",
               stagePath: `.deepwrite/transactions/${transactionId}/stage/0.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-              beforeSha256: projectTransactionContentSha256("before"),
-              afterSha256: projectTransactionContentSha256("next")
+              beforeSha256: sha256Hex("before"),
+              afterSha256: sha256Hex("next")
             }
           ]
         },

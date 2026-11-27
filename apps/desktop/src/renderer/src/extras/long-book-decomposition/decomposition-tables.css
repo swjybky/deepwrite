@@ -42,6 +42,102 @@
   transition: width 240ms ease;
 }
 
+.decomposition-status-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+.decomposition-status-banner.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--theme-line-soft));
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface-raised));
+}
+.decomposition-status-banner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.decomposition-status-banner-head h3 {
+  margin: 0;
+  font-size: 0.928571rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.decomposition-status-banner.is-danger .decomposition-status-banner-head h3 {
+  color: var(--danger-text);
+}
+.decomposition-status-banner-summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.decomposition-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.decomposition-status-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+}
+.decomposition-status-item-main {
+  display: flex;
+  flex: 1 1 280px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.decomposition-status-item-title {
+  font-size: 0.857143rem;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.decomposition-status-item-reason {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--danger-text);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.decomposition-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.decomposition-unit-error {
+  margin: 4px 0 0;
+  color: var(--danger-text);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.decomposition-table-empty {
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 .decomposition-table-scroll {
   max-height: 560px;
   overflow: auto;
@@ -88,10 +184,11 @@
 }
 .decomposition-table-scroll .is-actions {
   text-align: right;
+  white-space: nowrap;
 }
 .decomposition-row-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
 }
@@ -100,6 +197,7 @@
   padding: 3px 9px;
   background: transparent;
   font-size: 0.785714rem;
+  white-space: nowrap;
 }
 .decomposition-pager {
   display: flex;
@@ -181,4 +279,14 @@
 }
 .decomposition-registry-table .popup-select {
   min-width: 140px;
+}
+
+html[data-theme="dark"]
+  .long-book-decomposition-page
+  :is(
+    .decomposition-status-banner.is-danger .decomposition-status-banner-head h3,
+    .decomposition-status-item-reason,
+    .decomposition-unit-error
+  ) {
+  color: color-mix(in srgb, var(--danger) 68%, var(--text-primary));
 }

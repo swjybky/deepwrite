@@ -4,7 +4,7 @@ import {
 } from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
 import type { AgentSubagentDraw } from "../../types/conversation";
-import { isRecord } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 
 const t = createScopedTranslator("workspace.parseSubagent");
 

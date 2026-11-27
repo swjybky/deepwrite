@@ -40,6 +40,46 @@ describe("control paths", () => {
     expect(development.endpoint).not.toBe(packaged.endpoint);
   });
 
+  it("moves only a development endpoint into an isolated test directory", () => {
+    const isolated = resolveExternalControlPaths({
+      homeDirectory: "/home/writer",
+      packaged: false,
+      platform: "linux",
+      developmentDirectory: "/tmp/deepwrite-test/control"
+    });
+    expect(isolated).toEqual({
+      directory: "/tmp/deepwrite-test/control",
+      stateFile: "/tmp/deepwrite-test/control/control.json",
+      endpoint: "/tmp/deepwrite-test/control/control.sock"
+    });
+    const packaged = resolveExternalControlPaths({
+      homeDirectory: "/home/writer",
+      packaged: true,
+      platform: "linux",
+      developmentDirectory: "/tmp/deepwrite-test/control"
+    });
+    expect(packaged.directory).toBe("/home/writer/.deepwrite/control");
+  });
+
+  it("gives an isolated Windows test instance its own pipe", () => {
+    const development = resolveExternalControlPaths({
+      homeDirectory: "C:\\Users\\writer",
+      packaged: false,
+      platform: "win32"
+    });
+    const isolated = resolveExternalControlPaths({
+      homeDirectory: "C:\\Users\\writer",
+      packaged: false,
+      platform: "win32",
+      developmentDirectory:
+        "C:\\Users\\writer\\.deepwrite-test\\default\\control"
+    });
+    expect(isolated.endpoint).toMatch(
+      /^\\\\\.\\pipe\\deepwrite-control-[a-f0-9]{16}-test$/u
+    );
+    expect(isolated.endpoint).not.toBe(development.endpoint);
+  });
+
   it("uses a per-user named pipe on Windows", () => {
     const first = resolveExternalControlPaths({
       homeDirectory: "C:\\Users\\写作者",

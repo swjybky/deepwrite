@@ -11,12 +11,12 @@ import {
 } from "@deepwrite/contracts";
 import {
   assertContained,
-  atomicWriteText,
-  isNodeError,
+  writeProjectTextAtomic,
   readRequiredUtf8File,
   secureExistingProjectPath,
   secureProjectRoot
 } from "./paths-io";
+import { isNodeError } from "@deepwrite/shared/node";
 
 const MAX_WRITING_CONTEXT_BYTES = WRITING_CONTEXT_MAX_CHARACTERS * 4 + 4;
 
@@ -88,7 +88,7 @@ export async function readOrCreateWritingContext(
   }
 
   const content = defaultWritingContext(workspaceType);
-  await atomicWriteText(
+  await writeProjectTextAtomic(
     await secureWritingContextTarget(projectDirectory),
     content
   );
@@ -105,7 +105,7 @@ export async function writeWritingContextFile(
     );
   }
   const projectDirectory = await secureProjectRoot(rawProjectDirectory);
-  await atomicWriteText(
+  await writeProjectTextAtomic(
     await secureWritingContextTarget(projectDirectory),
     content
   );

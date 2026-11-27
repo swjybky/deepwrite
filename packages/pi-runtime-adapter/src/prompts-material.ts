@@ -12,6 +12,17 @@ export function buildWorkspaceMaterialContext(input: AgentRunInput): string {
 }
 
 export function buildSubagentMaterialContext(input: AgentRunInput): string {
+  const context = input.workspaceContext;
+  const materials = context?.materialCatalog
+    ? materialCatalogEntries(context.materialCatalog)
+    : (context?.attachedMaterials ?? []);
+  const hasMaterials =
+    materials.length > 0 || (context?.materialCatalog?.total ?? 0) > 0;
+  const hasNotices =
+    (context?.materialCatalog?.notices.length ?? 0) > 0 ||
+    context?.materialCatalog?.nextCursor !== undefined ||
+    Boolean(context?.materialReadNotice?.trim());
+  if (!hasMaterials && !hasNotices) return "";
   return [
     buildWorkspaceMaterialContext(input),
     ...materialCatalogNotes(input)

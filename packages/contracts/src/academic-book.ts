@@ -5,38 +5,16 @@ import {
 } from "./academic-citation-style";
 import { SHORT_WORKSPACE_FILE_MAX_CHARACTERS } from "./expert-draft";
 import { DocumentVersionOriginSchema } from "./document-version-origin";
+import { isRelativeMarkdownPath, uniqueIds } from "./catalog/kinds";
 
 const CatalogIdSchema = z.string().trim().min(1).max(512);
 const CatalogTitleSchema = z.string().trim().min(1).max(256);
 const TimestampSchema = z.string().datetime();
 const MAX_CONTENT_ITEMS = 4_096;
 
-function uniqueStrings(values: readonly string[]): boolean {
-  return new Set(values).size === values.length;
-}
-
-const UniqueCatalogIdListSchema = z
-  .array(CatalogIdSchema)
-  .refine(uniqueStrings, {
-    message: "Catalog id lists cannot contain duplicates."
-  });
-
-function isRelativeMarkdownPath(value: string): boolean {
-  if (
-    value.startsWith("/") ||
-    /^[a-zA-Z]:\//u.test(value) ||
-    value.includes("\\") ||
-    value.includes("\0") ||
-    !value.endsWith(".md")
-  ) {
-    return false;
-  }
-  return value
-    .split("/")
-    .every(
-      (segment) => segment.length > 0 && segment !== "." && segment !== ".."
-    );
-}
+const UniqueCatalogIdListSchema = z.array(CatalogIdSchema).refine(uniqueIds, {
+  message: "Catalog id lists cannot contain duplicates."
+});
 
 const AcademicContentPathSchema = z
   .string()
@@ -700,7 +678,7 @@ export const AcademicManuscriptSectionManifestSchema = z
       }
     }
     const paths = [section.brief.path, section.body.path, section.state.path];
-    if (!uniqueStrings(paths)) {
+    if (!uniqueIds(paths)) {
       context.addIssue({
         code: "custom",
         path: ["body", "path"],
@@ -808,7 +786,7 @@ export function validateAcademicBookState(
       message: `Academic terminology document id must be ${ACADEMIC_TERMINOLOGY_DOCUMENT_ID}.`
     });
   }
-  if (!uniqueStrings(book.foundation.cards.map((card) => card.id))) {
+  if (!uniqueIds(book.foundation.cards.map((card) => card.id))) {
     context.addIssue({
       code: "custom",
       path: ["foundation", "cards"],
@@ -887,7 +865,7 @@ export function validateAcademicBookState(
       section.state.id
     ])
   ];
-  if (!uniqueStrings(allDocumentIds)) {
+  if (!uniqueIds(allDocumentIds)) {
     context.addIssue({
       code: "custom",
       path: ["documents"],
@@ -924,7 +902,7 @@ export function validateAcademicBookManifestFiles(
       section.state.path
     ])
   ];
-  if (!uniqueStrings(allPaths)) {
+  if (!uniqueIds(allPaths)) {
     context.addIssue({
       code: "custom",
       path: ["documents"],
@@ -1012,7 +990,7 @@ export const CreateAcademicBookInputSchema = z.object({
     .array(AcademicFrameworkStageIdSchema)
     .min(1)
     .max(ACADEMIC_FRAMEWORK_STAGE_MAX_COUNT)
-    .refine(uniqueStrings, {
+    .refine(uniqueIds, {
       message: "Default academic framework stage ids cannot contain duplicates."
     })
     .optional(),

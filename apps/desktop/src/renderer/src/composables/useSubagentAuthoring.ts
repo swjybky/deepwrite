@@ -8,6 +8,7 @@ import {
 } from "@deepwrite/contracts";
 import { createId } from "@deepwrite/shared";
 import { computed, ref, type Ref } from "vue";
+import { formatError } from "../i18n/errors";
 
 const t = createScopedTranslator("workspace.subagentAuthoring");
 
@@ -80,12 +81,6 @@ export interface SubagentAuthoringController {
 
 function fallbackId(prefix: string): string {
   return createId(prefix);
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : fallback;
 }
 
 export function useSubagentAuthoring(
@@ -200,7 +195,7 @@ export function useSubagentAuthoring(
       return true;
     } catch (cause: unknown) {
       status.value = "error";
-      error.value = errorMessage(cause, t("failedToGenerateTheSubagentDraft"));
+      error.value = formatError(cause, t("failedToGenerateTheSubagentDraft"));
       statusText.value = null;
       return false;
     }
@@ -218,7 +213,7 @@ export function useSubagentAuthoring(
         runId: activeRunId.value
       });
     } catch (cause: unknown) {
-      error.value = errorMessage(cause, t("failedToStopGeneration"));
+      error.value = formatError(cause, t("failedToStopGeneration"));
       status.value = "error";
       statusText.value = null;
     }

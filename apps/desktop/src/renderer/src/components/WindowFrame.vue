@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import {
   computed,
@@ -17,7 +18,7 @@ import { uiMessage } from "../ui-feedback";
 import { WindowMenuBar } from "./lazyAppComponents";
 
 const t = createScopedTranslator("components.windowFrame");
-const api = window.deepwrite?.windowFrame;
+const api = deepwriteApi()?.windowFrame;
 const state = ref<WindowFrameState>({
   customTitlebar: false,
   maximized: false,

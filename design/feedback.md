@@ -24,8 +24,6 @@
 
 ## 加载与 pending（防闪烁）
 
-完整的排查过程见 `docs/前端闪烁问题排查与修复.md`。
-
 - **页面级 `saving` / `loading` 只给需要阻断的显式操作**（保存、创建、安装、删除），且只影响触发它的按钮。不得借它改动无关控件的 `disabled`、透明度，也不得用 `v-if="loading"` 整块替换已有内容。
 - **即时可逆操作**（开关、勾选、排序）先乐观更新，再用 Main 返回的快照收敛；失败时 toast 提示并从权威数据恢复。并发请求用递增序号丢弃过期回复。参考 `useAgentTeamCatalogCoordinator.setAgentTeamEnabled`。
 - **受控控件**：显示值只来自数据，见 [forms.md](forms.md) 的“开关”。

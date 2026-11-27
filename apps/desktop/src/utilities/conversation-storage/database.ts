@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   ConversationHistoryBatch,
@@ -24,6 +25,7 @@ export { ConversationStorageError } from "./errors";
 
 export class ConversationDatabase extends ConversationQueries {
   readonly database: DatabaseSync;
+  readonly databasePath: string;
   private readonly staged: StagedMessages;
   private readonly recovery: ConversationRuntimeRecovery;
   constructor(path: string) {
@@ -33,10 +35,55 @@ export class ConversationDatabase extends ConversationQueries {
     const records = new MessageRecords(sql, nodes);
     super(sql, nodes, records);
     this.database = database;
+    this.databasePath = path;
     this.recovery = new ConversationRuntimeRecovery(sql, nodes, records);
     this.staged = new StagedMessages(sql, nodes, () =>
       this.recovery.assertWriter()
     );
+    this.initializeCompactionMetadataIfFresh();
+  }
+
+  get statements(): Statements {
+    return this.sql;
+  }
+
+  get jsonNodes(): JsonNodes {
+    return this.nodes;
+  }
+
+  get messageRecords(): MessageRecords {
+    return this.records;
+  }
+
+  private initializeCompactionMetadataIfFresh(): void {
+    const existing = this.sql
+      .get(
+        "SELECT value FROM runtime_meta WHERE key = 'legacy_model_call_compaction_v1'"
+      )
+      .get();
+    if (existing) return;
+    const counts = this.sql
+      .get(
+        `SELECT
+          EXISTS(SELECT 1 FROM sessions) AS has_sessions,
+          EXISTS(SELECT 1 FROM legacy_values) AS has_legacy,
+          EXISTS(SELECT 1 FROM legacy_backups) AS has_backups`
+      )
+      .get() as
+      | { has_sessions?: number; has_legacy?: number; has_backups?: number }
+      | undefined;
+    if (!counts?.has_sessions && !counts?.has_legacy && !counts?.has_backups) {
+      this.sql
+        .get(
+          "INSERT OR IGNORE INTO runtime_meta(key, value) VALUES ('legacy_model_call_compaction_v1', ?)"
+        )
+        .run(
+          JSON.stringify({
+            phase: "skipped_new",
+            updatedAt: new Date().toISOString()
+          })
+        );
+    }
   }
 
   claimMainInstance(id: string): void {
@@ -367,10 +414,34 @@ export class ConversationDatabase extends ConversationQueries {
     return removed;
   }
 
-  checkpoint(): void {
-    this.database.exec("PRAGMA wal_checkpoint(PASSIVE)");
+  checkpoint(truncateThresholdBytes = 16 * 1024 * 1024): void {
+    const result = this.database
+      .prepare("PRAGMA wal_checkpoint(PASSIVE)")
+      .get() as { busy?: number } | undefined;
+    if (
+      !this.databasePath ||
+      this.databasePath === ":memory:" ||
+      Number(result?.busy ?? 1) !== 0
+    ) {
+      return;
+    }
+    try {
+      const walSize = statSync(`${this.databasePath}-wal`).size;
+      if (walSize >= truncateThresholdBytes) {
+        this.database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      }
+    } catch {
+      // Ignore missing or concurrently removed -wal file.
+    }
   }
   close(): void {
+    if (this.databasePath && this.databasePath !== ":memory:") {
+      try {
+        this.database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      } catch {
+        // Best-effort WAL truncate during shutdown.
+      }
+    }
     this.database.close();
   }
 }

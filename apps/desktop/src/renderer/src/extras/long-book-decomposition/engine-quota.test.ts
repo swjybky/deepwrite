@@ -1,9 +1,15 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createSSRApp, shallowRef } from "vue";
 import { renderToString } from "vue/server-renderer";
-import type { LongBookDecompositionJob } from "@deepwrite/contracts/renderer";
+import type {
+  LongBookDecompositionJob,
+  ModelConfig
+} from "@deepwrite/contracts/renderer";
 import { runEvent } from "../agent-runtime/extrasAgent.test-support";
-import { decompositionEngineFixture as fixture } from "./engine.test-support";
+import {
+  decompositionEngineFixture as fixture,
+  model
+} from "./engine.test-support";
 import { createScopedTranslator } from "../../i18n";
 import DecompositionProgress from "./DecompositionProgress.vue";
 import type { LongBookDecompositionController } from "./useLongBookDecomposition";
@@ -175,5 +181,207 @@ it("启动拒绝和运行错误保留结构化额度错误码，不进入并发�
     } finally {
       f.engine.dispose();
     }
+  }
+});
+
+const altModel = (id: string, label = id): ModelConfig => ({
+  ...model,
+  id,
+  label,
+  modelId: id
+});
+
+it("配置备选模型后，主模型额度耗尽自动切换下一个模型并接续完成", async () => {
+  const models = [
+    altModel("primary", "主模型"),
+    altModel("fallback_1", "备选一"),
+    altModel("fallback_2", "备选二")
+  ];
+  const f = fixture(models);
+  const completed = structuredClone({
+    ...f.stored().units["chunk:1"]!,
+    status: "done" as const
+  });
+  f.stored().units["chunk:saved"] = completed;
+  f.stored().models.readingFallbacks = [
+    {
+      modelId: "fallback_1",
+      thinkingLevel: "low",
+      contextWindow: 128_000,
+      maxTokens: 8192
+    },
+    {
+      modelId: "fallback_2",
+      thinkingLevel: "off",
+      contextWindow: 128_000,
+      maxTokens: 8192
+    }
+  ];
+  f.engine.job.value = structuredClone(f.stored());
+
+  let attempt = 0;
+  f.accept();
+  const baseAccept = f.extras.run.getMockImplementation()!;
+  f.extras.run.mockImplementation(async (request) => {
+    attempt++;
+    if (attempt === 1) {
+      expect(request.modelId).toBe("primary");
+      setTimeout(
+        () =>
+          f.engine.handleEvent(
+            runEvent("agent.error", request, {
+              code: "insufficient_quota",
+              message: "primary out of quota"
+            })
+          ),
+        0
+      );
+      return {
+        sessionId: request.sessionId,
+        runId: `${request.sessionId}-run`,
+        acceptedAt: new Date().toISOString(),
+        runtime: { provider: "test", model: "primary", mode: "provider" }
+      };
+    }
+    expect(request.modelId).toBe("fallback_1");
+    expect(request.thinkingLevel).toBe("low");
+    return baseAccept(request);
+  });
+
+  try {
+    await f.engine.run();
+    expect(f.extras.run).toHaveBeenCalledTimes(2);
+    expect(f.updateModels).toHaveBeenCalledTimes(1);
+    expect(f.engine.lastModelSwitch.value).toMatchObject({
+      slot: "reading",
+      fromModelId: "primary",
+      toModelId: "fallback_1"
+    });
+    expect(f.engine.job.value?.phase).toBe("registry_review");
+    expect(f.engine.job.value?.models.reading.modelId).toBe("fallback_1");
+    expect(f.engine.job.value?.models.readingFallbacks).toHaveLength(1);
+    expect(f.engine.error.value).toBeNull();
+    expect(f.stored().units["chunk:saved"]).toEqual(completed);
+  } finally {
+    f.engine.dispose();
+  }
+});
+
+it("子智能体连续额度耗尽时跳过失效备选按序推进，全部耗尽才暂停", async () => {
+  const models = [
+    altModel("m1", "模型一"),
+    altModel("m2", "模型二"),
+    altModel("m3", "模型三")
+  ];
+  const f = fixture(models);
+  f.stored().models.readingFallbacks = [
+    {
+      modelId: "deleted_model",
+      thinkingLevel: "off",
+      contextWindow: 128_000,
+      maxTokens: 8192
+    },
+    {
+      modelId: "m2",
+      thinkingLevel: "off",
+      contextWindow: 128_000,
+      maxTokens: 8192
+    },
+    {
+      modelId: "m3",
+      thinkingLevel: "off",
+      contextWindow: 128_000,
+      maxTokens: 8192
+    }
+  ];
+  f.engine.job.value = structuredClone(f.stored());
+  const usedModels: string[] = [];
+  f.extras.run.mockImplementation(async (request) => {
+    usedModels.push(request.modelId ?? "");
+    const base = {
+      parentToolCallId: "call_reader",
+      subagentRunId: `run_${usedModels.length}`,
+      subagentId: "reader",
+      name: "通读员",
+      runtime: {
+        provider: "test",
+        model: request.modelId ?? "",
+        mode: "provider"
+      }
+    };
+    setTimeout(() => {
+      f.engine.handleEvent(
+        runEvent("subagent.started", request, { ...base, task: "chunk:1" })
+      );
+      f.engine.handleEvent(
+        runEvent("subagent.completed", request, {
+          ...base,
+          status: "error",
+          summary: "子智能体执行失败：用户额度已用尽",
+          errorMessage: "用户额度已用尽"
+        })
+      );
+    }, 0);
+    return {
+      sessionId: request.sessionId,
+      runId: `${request.sessionId}-run`,
+      acceptedAt: new Date().toISOString(),
+      runtime: { provider: "test", model: "test", mode: "provider" }
+    };
+  });
+
+  try {
+    await f.engine.run();
+    expect(usedModels).toEqual(["m1", "m2", "m3"]);
+    expect(f.engine.job.value?.status).toBe("stopped");
+    expect(f.engine.job.value?.models.reading.modelId).toBe("m3");
+    expect(f.engine.job.value?.models.readingFallbacks ?? []).toEqual([]);
+    expect(f.engine.error.value).toContain("用户额度已用尽");
+  } finally {
+    f.engine.dispose();
+  }
+});
+
+it("任务停止后渲染模型切换区并支持保存新模型接续执行", async () => {
+  const models = [altModel("m1", "模型一"), altModel("m2", "模型二")];
+  const f = fixture(models);
+  f.stored().status = "stopped";
+  f.engine.job.value = structuredClone(f.stored());
+
+  const html = await renderToString(
+    createSSRApp(DecompositionProgress, {
+      controller: {
+        ...f.engine,
+        registry: shallowRef(null)
+      } as unknown as LongBookDecompositionController,
+      models,
+      disabled: false
+    })
+  );
+  expect(html).toContain(t("readingModel"));
+  expect(html).toContain(t("integrationModel"));
+  expect(html).toContain("模型一");
+  expect(html).toContain(t("modelsHintPaused"));
+
+  f.engine.job.value = await f.api.longBookDecomposition.updateModels({
+    jobId: f.stored().id,
+    models: {
+      reading: { modelId: "m2", thinkingLevel: "low" },
+      integration: { modelId: "m1", thinkingLevel: "off" }
+    }
+  });
+  f.accept();
+  const baseAccept = f.extras.run.getMockImplementation()!;
+  f.extras.run.mockImplementation(async (request) => {
+    expect(request.modelId).toBe("m2");
+    expect(request.thinkingLevel).toBe("low");
+    return baseAccept(request);
+  });
+
+  try {
+    await f.engine.run();
+    expect(f.engine.job.value?.phase).toBe("registry_review");
+  } finally {
+    f.engine.dispose();
   }
 });

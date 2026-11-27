@@ -9,9 +9,7 @@ import {
 } from "@deepwrite/contracts";
 import {
   commitLongProjectTransaction,
-  isNodeError,
   readSecureTextFile,
-  serializeJson,
   unknownRecord
 } from "../io";
 import { chapterPath } from "../paths";
@@ -21,6 +19,8 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type SecureTextFile
 } from "../types";
+import { isNodeError } from "@deepwrite/shared/node";
+import { toJsonFileText } from "@deepwrite/shared";
 
 /**
  * Moves legacy chapter-card structured fields (outline / worldConstraints /
@@ -239,7 +239,7 @@ export async function migrateLegacyChapterCardContent(input: {
     },
     chapters: nextChapters
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   const nextManifest = LongProjectManifestSchema.parse({
     ...input.manifest
   });
@@ -258,7 +258,7 @@ export async function migrateLegacyChapterCardContent(input: {
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: input.manifestDisk.sha256
       }
     ],
@@ -294,7 +294,7 @@ export async function migrateLegacyChapterBodyStatus(input: {
     );
     chapter.bodyStatus = disk.content.trim() ? "written" : "empty";
   }
-  const indexContent = serializeJson(parsed);
+  const indexContent = toJsonFileText(parsed);
   const nextManifest = LongProjectManifestSchema.parse({
     ...input.manifest
   });
@@ -308,7 +308,7 @@ export async function migrateLegacyChapterBodyStatus(input: {
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: input.manifestDisk.sha256
       }
     ],

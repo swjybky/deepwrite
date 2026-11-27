@@ -4,6 +4,7 @@ import {
   ShortAgentSubagentDefinitionSchema,
   type ShortAgentSubagentDefinition
 } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 const LEGACY_PARENT_SUBAGENT_MAX_COUNT = 20;
 
@@ -11,10 +12,6 @@ export interface LegacyAgentTeamMigrationOptions {
   workspaceType: "short" | "script";
   parentLabels: Readonly<Record<string, string>>;
   parentSets: readonly (readonly string[])[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function matchesParentSet(

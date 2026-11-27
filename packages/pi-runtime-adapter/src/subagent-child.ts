@@ -3,7 +3,6 @@ import { randomBytes } from "node:crypto";
 import { createModels, fauxProvider } from "@earendil-works/pi-ai";
 import {
   Agent,
-  type AgentMessage,
   type AgentToolResult,
   type StreamFn
 } from "@earendil-works/pi-agent-core";
@@ -115,18 +114,47 @@ export function reportUnstartedSubagentTask(
   );
 }
 
-function handoffMessage(handoffs: readonly SubagentHandoff[]): AgentMessage {
-  return {
-    role: "user",
-    content: [
-      "【前置任务交接】本任务依赖的前置子任务已经完成，以下是它们的交接摘要，按需参考：",
-      ...handoffs.map(
-        (handoff) =>
-          `### ${handoff.key}（${handoff.name}）\n${handoff.summary.slice(0, HANDOFF_SUMMARY_MAX_LENGTH)}`
-      )
-    ].join("\n\n"),
-    timestamp: Date.now()
-  };
+function handoffSection(
+  handoffs: readonly SubagentHandoff[],
+  english: boolean
+): string {
+  return [
+    english
+      ? "[Predecessor task handoffs] Dependencies finished; use their summaries as needed:"
+      : "【前置任务交接】本任务依赖的前置子任务已经完成，以下是它们的交接摘要，按需参考：",
+    ...handoffs.map(
+      (handoff) =>
+        `### ${handoff.key}（${handoff.name}）\n${handoff.summary.slice(0, HANDOFF_SUMMARY_MAX_LENGTH)}`
+    )
+  ].join("\n\n");
+}
+
+/** Joins optional background sections and the task into one user message. */
+export function composeSubagentTaskPrompt(options: {
+  task: string;
+  materialContext?: string;
+  handoffs: readonly SubagentHandoff[];
+  english: boolean;
+}): string {
+  const sections: string[] = [];
+  const material = options.materialContext?.trim();
+  if (material) {
+    sections.push(
+      options.english
+        ? `[Available materials for this turn]\n${material}`
+        : `【本轮可按需读取的素材上下文】\n${material}`
+    );
+  }
+  if (options.handoffs.length > 0) {
+    sections.push(handoffSection(options.handoffs, options.english));
+  }
+  if (sections.length === 0) return options.task;
+  sections.push(
+    options.english
+      ? `[Assigned task — execute immediately]\n${options.task}`
+      : `【本轮委派任务（请立即执行）】\n${options.task}`
+  );
+  return sections.join("\n\n");
 }
 
 /** Builds a fresh, uncached child Agent for one task and runs it to the end. */
@@ -138,18 +166,11 @@ export async function runSubagentTask(
   const { request, signal } = context;
   const definition = request.definition;
   const mode = subagentAgentMode(definition);
+  const english = input.promptLocale === "en-US";
   const childMessages =
     definition.contextMode === "parent-snapshot"
       ? snapshotSubagentHistory(input.getParentMessages?.() ?? [])
       : [];
-  if (mode !== "pure-bare" && input.materialContext?.trim()) {
-    childMessages.push({
-      role: "user",
-      content: `【本轮可按需读取的素材上下文】\n${input.materialContext.trim()}`,
-      timestamp: Date.now()
-    });
-  }
-  if (handoffs.length > 0) childMessages.push(handoffMessage(handoffs));
   const base = progressBase(input, context);
   const emitProgress = emitter(context);
   emitProgress(
@@ -166,6 +187,11 @@ export async function runSubagentTask(
   );
   let child: Agent;
   let childTask = request.task;
+  let prepared:
+    | Awaited<
+        ReturnType<NonNullable<BuildSpawnSubagentToolInput["prepareChild"]>>
+      >
+    | undefined;
   try {
     const resolvedModel = resolveSubagentModel(
       input,
@@ -175,7 +201,7 @@ export async function runSubagentTask(
     const childModel = resolvedModel.model;
     let childStreamFn = resolvedModel.streamFn;
     const childThinkingLevel = resolvedModel.thinkingLevel;
-    const prepared =
+    prepared =
       input.workspaceAccess === "none"
         ? await waitForSubagentPreparation(
             input.prepareChild?.(
@@ -281,7 +307,8 @@ export async function runSubagentTask(
       streamFn: traceSubagentStream(
         withoutProviderRetries(childStreamFn),
         (activity) =>
-          emitProgress({ ...base, type: "activity", activity }, "模型调用记录")
+          emitProgress({ ...base, type: "activity", activity }, "模型调用记录"),
+        ...(input.evaluationMode ? [{ captureSnapshot: true }] : [])
       ),
       sessionId: `${input.parentSessionId}:${base.subagentRunId}`,
       toolExecution: "sequential",
@@ -309,14 +336,23 @@ export async function runSubagentTask(
     return { status, summary };
   }
 
-  return runSubagentLifecycle(
+  const materialContext =
+    mode !== "pure-bare" ? input.materialContext?.trim() : undefined;
+  const promptTask = composeSubagentTaskPrompt({
+    task: childTask,
+    ...(materialContext ? { materialContext } : {}),
+    handoffs,
+    english
+  });
+
+  const outcome = await runSubagentLifecycle(
     child,
     {
       ...input,
       ...(childContextPolicy ? { contextPolicy: childContextPolicy } : {})
     },
     base,
-    childTask,
+    promptTask,
     base.runtime!,
     emitProgress,
     signal,
@@ -324,4 +360,6 @@ export async function runSubagentTask(
       for (const listener of compactionListeners) listener(ids);
     }
   );
+  prepared?.onComplete?.(outcome);
+  return outcome;
 }

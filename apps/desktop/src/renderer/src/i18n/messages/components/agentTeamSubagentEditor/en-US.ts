@@ -13,5 +13,6 @@ export default {
   systemPrompt: "System prompt",
   defineTheSubagentSRoleMethodsAndHandoffRequirements:
     "Define the subagent's role, methods, and handoff requirements.",
-  doneEditing: "Done editing"
+  doneEditing: "Done editing",
+  collapse: "Collapse"
 };

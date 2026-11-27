@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { ModelConfigInput } from "@deepwrite/contracts";
 import {
   useModelEditor,
   type ModelEditorSavePayload
 } from "../composables/useModelEditor";
+import {
+  isModelTestActiveStatus,
+  modelTestConfigSignature,
+  type ModelTestStateEntry
+} from "../utils/modelTestState";
 import CreateCustomProviderDialog from "./CreateCustomProviderDialog.vue";
+import ModelTestStatusNote from "./ModelTestStatusNote.vue";
 import type { DraftModel } from "./modelSettingsDraft";
 import PopupSelect from "./PopupSelect.vue";
 
@@ -18,6 +24,7 @@ const props = withDefaults(
     editing: boolean;
     saving: boolean;
     testingModelId: string | null;
+    modelTestState?: ModelTestStateEntry | undefined;
     knownUserProviders?: readonly string[];
   }>(),
   { knownUserProviders: () => [] }
@@ -27,6 +34,7 @@ const emit = defineEmits<{
   cancel: [];
   save: [payload: ModelEditorSavePayload];
   test: [model: ModelConfigInput];
+  cancelTest: [modelId: string];
 }>();
 
 const fetchHintConfirmButton = ref<HTMLButtonElement | null>(null);
@@ -78,6 +86,16 @@ function openCreateProvider(): void {
 function submitCreateProvider(name: string): void {
   if (applyCustomProvider(name)) createProviderOpen.value = false;
 }
+
+const isCurrentTesting = computed(() =>
+  props.modelTestState
+    ? isModelTestActiveStatus(props.modelTestState.status)
+    : props.testingModelId === editor.value.id
+);
+const isCurrentCancelling = computed(
+  () => props.modelTestState?.status === "cancelling"
+);
+const editorSignature = computed(() => modelTestConfigSignature(editor.value));
 
 watch(fetchHintDialog, (message) => {
   if (message) void nextTick(() => fetchHintConfirmButton.value?.focus());
@@ -318,16 +336,28 @@ watch(fetchHintDialog, (message) => {
         {{ t("clearSavedKey") }}
       </button>
     </div>
+    <ModelTestStatusNote
+      :entry="modelTestState"
+      :current-signature="editorSignature"
+    />
     <div class="dialog-actions">
+      <button
+        v-if="isCurrentTesting"
+        class="dialog-secondary-button"
+        type="button"
+        :disabled="isCurrentCancelling"
+        @click="emit('cancelTest', editor.id)"
+      >
+        {{ isCurrentCancelling ? t("cancelingTest") : t("cancelTest") }}
+      </button>
       <button
         class="dialog-secondary-button"
         type="button"
-        :disabled="testingModelId !== null"
+        :disabled="isCurrentTesting"
+        :aria-busy="isCurrentTesting"
         @click="test"
       >
-        {{
-          testingModelId === editor.id ? t("testing") : t("testCurrentValues")
-        }}
+        {{ isCurrentTesting ? t("testing") : t("testCurrentValues") }}
       </button>
       <button class="dialog-primary-button" type="button" @click="save">
         {{ saving ? t("saving") : t("applyAndSaveConfigurations") }}

@@ -6,12 +6,8 @@ import {
   type LongProjectManifest,
   type LongWorkspaceFileReference
 } from "@deepwrite/contracts";
-import { createId } from "@deepwrite/shared";
-import {
-  commitLongProjectTransaction,
-  serializeJson,
-  unknownRecord
-} from "../io";
+import { createId, toJsonFileText } from "@deepwrite/shared";
+import { commitLongProjectTransaction, unknownRecord } from "../io";
 import { storyPlotPath } from "../paths";
 import {
   MANIFEST_PATH,
@@ -122,7 +118,7 @@ export async function migrateLegacyArcOutlineToStoryPlots(input: {
       ]
     }
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   const nextManifest = LongProjectManifestSchema.parse({
     ...input.manifest
   });
@@ -141,7 +137,7 @@ export async function migrateLegacyArcOutlineToStoryPlots(input: {
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(nextManifest),
+        content: toJsonFileText(nextManifest),
         expectedSha256: input.manifestDisk.sha256
       }
     ],

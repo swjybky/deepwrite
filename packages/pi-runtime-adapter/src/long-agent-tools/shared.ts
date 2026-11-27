@@ -1,5 +1,4 @@
-import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
-import type { Static, TSchema } from "@earendil-works/pi-ai";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { createHash } from "node:crypto";
 import {
   LongWorkspaceOperationError,
@@ -8,7 +7,6 @@ import {
   type LongWorkspaceIndexSnapshot,
   type LongWorkspaceOperationBatch
 } from "@deepwrite/contracts";
-import { piStrictToolSampling } from "../pi-tool-schema";
 import type { LongAgentToolDetails, LongCommandExecutor } from "./index";
 
 export function textResult(
@@ -52,30 +50,7 @@ export function preflightLongMutationProposal(
   }
 }
 
-export function defineTool<T extends TSchema>(definition: {
-  name: string;
-  label: string;
-  description: string;
-  parameters: T;
-  execute: (
-    toolCallId: string,
-    params: Static<T>,
-    signal?: AbortSignal
-  ) => Promise<AgentToolResult<LongAgentToolDetails>>;
-  executionMode?: AgentTool["executionMode"];
-}): AgentTool<T, LongAgentToolDetails> {
-  return {
-    name: definition.name,
-    label: definition.label,
-    description: definition.description,
-    parameters: definition.parameters,
-    ...piStrictToolSampling(definition.parameters),
-    execute: definition.execute,
-    ...(definition.executionMode
-      ? { executionMode: definition.executionMode }
-      : {})
-  };
-}
+export { defineTool } from "../kernel/define-tool";
 
 function abortError(): Error {
   const error = new Error("Long workspace query was aborted.");

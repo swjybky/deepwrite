@@ -1,7 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
-import { resolveRendererStyles } from "./tools/resolve-renderer-styles.mjs";
 
 const configuredMaxWorkers = process.env.DEEPWRITE_TEST_MAX_WORKERS;
 const maxWorkers =
@@ -35,7 +34,7 @@ const diskIntegrationTests = [
   "apps/desktop/src/extras/agents/config-store*.test.ts",
   "apps/desktop/src/extras/agents/short-style-prompt.test.ts",
   "apps/desktop/src/extras/agents/sources/long-book-source-reader.test.ts",
-  "apps/desktop/src/extras/agents/sources/long-book-source-store.test.ts",
+  "apps/desktop/src/utilities/long-book-sources/long-book-source-store.test.ts",
   "apps/desktop/src/extras/agents/sources/short-book-source-commands.test.ts",
   "apps/desktop/src/extras/book-identity/cover-protocol.test.ts",
   "apps/desktop/src/extras/cloud-backup/identity.test.ts",
@@ -204,22 +203,7 @@ export default defineConfig({
         // synthetic file:///app-icon.png modules that are invalid on Windows.
         transformAssetUrls: { tags: { image: [] } }
       }
-    }),
-    {
-      name: "deepwrite-test-source",
-      enforce: "pre",
-      resolveId(id) {
-        if (id === "virtual:deepwrite-renderer-styles") {
-          return "\0virtual:deepwrite-renderer-styles";
-        }
-        return null;
-      },
-      load(id) {
-        if (id !== "\0virtual:deepwrite-renderer-styles") return null;
-        const source = resolveRendererStyles();
-        return `export default ${JSON.stringify(source)};`;
-      }
-    }
+    })
   ],
   test: {
     maxWorkers,

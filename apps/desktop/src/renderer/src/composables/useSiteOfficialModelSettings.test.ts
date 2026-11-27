@@ -148,4 +148,89 @@ describe("new-site quota loading and refresh feedback", () => {
     expect(store.modelSettings?.models).toHaveLength(1);
     expect(notifications.success).not.toHaveBeenCalled();
   });
+
+  describe("refreshSiteOfficialModelCatalog", () => {
+    it("refreshes the catalog without querying quota, preserves custom models and default, and announces success", async () => {
+      const { coordinator, models, notifications, store } = setup();
+      const customModel = {
+        id: "custom-openai",
+        label: "Custom OpenAI",
+        hasApiKey: true
+      };
+      const refreshed = {
+        defaultModelId: customModel.id,
+        models: [
+          customModel,
+          { id: "deepwrite-site-official-new-model", hasApiKey: true }
+        ]
+      } as ModelSettings;
+      models.refreshSiteOfficial.mockResolvedValueOnce(refreshed);
+
+      await coordinator.refreshSiteOfficialModelCatalog();
+
+      expect(models.refreshSiteOfficial).toHaveBeenCalledOnce();
+      expect(models.querySiteOfficialQuota).not.toHaveBeenCalled();
+      expect(store.modelSettings).toEqual(refreshed);
+      expect(store.siteOfficialModelsRefreshing).toBe(false);
+      expect(notifications.success).toHaveBeenCalledWith(
+        "官方小站模型列表已刷新。"
+      );
+      expect(notifications.error).not.toHaveBeenCalled();
+    });
+
+    it("deduplicates concurrent clicks and respects saving locks", async () => {
+      const { coordinator, models, store } = setup();
+      let resolveRefresh!: (value: ModelSettings) => void;
+      models.refreshSiteOfficial.mockImplementationOnce(
+        () =>
+          new Promise<ModelSettings>((resolve) => {
+            resolveRefresh = resolve;
+          })
+      );
+
+      const first = coordinator.refreshSiteOfficialModelCatalog();
+      const second = coordinator.refreshSiteOfficialModelCatalog();
+      expect(store.siteOfficialModelsRefreshing).toBe(true);
+      expect(models.refreshSiteOfficial).toHaveBeenCalledOnce();
+
+      resolveRefresh({ ...settings });
+      await Promise.all([first, second]);
+      expect(store.siteOfficialModelsRefreshing).toBe(false);
+
+      store.modelSaving = true;
+      await coordinator.refreshSiteOfficialModelCatalog();
+      expect(models.refreshSiteOfficial).toHaveBeenCalledOnce();
+      store.modelSaving = false;
+
+      store.siteOfficialModelsSaving = true;
+      await coordinator.refreshSiteOfficialModelCatalog();
+      expect(models.refreshSiteOfficial).toHaveBeenCalledOnce();
+    });
+
+    it("keeps existing displayed models on failure and allows immediate retry", async () => {
+      const { coordinator, models, notifications, store } = setup();
+      models.refreshSiteOfficial.mockRejectedValueOnce(new Error("网络超时"));
+
+      await coordinator.refreshSiteOfficialModelCatalog();
+
+      expect(store.modelSettings).toEqual(settings);
+      expect(store.siteOfficialModelsRefreshing).toBe(false);
+      expect(notifications.error).toHaveBeenCalledWith("网络超时");
+      expect(notifications.success).not.toHaveBeenCalled();
+
+      const updated = {
+        defaultModelId: "deepwrite-site-official-updated",
+        models: [{ id: "deepwrite-site-official-updated", hasApiKey: true }]
+      } as ModelSettings;
+      models.refreshSiteOfficial.mockResolvedValueOnce(updated);
+
+      await coordinator.refreshSiteOfficialModelCatalog();
+
+      expect(models.refreshSiteOfficial).toHaveBeenCalledTimes(2);
+      expect(store.modelSettings).toEqual(updated);
+      expect(notifications.success).toHaveBeenCalledWith(
+        "官方小站模型列表已刷新。"
+      );
+    });
+  });
 });

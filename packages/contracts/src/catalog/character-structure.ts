@@ -72,3 +72,42 @@ export type BookCharacterStructure = z.infer<
 export function createDefaultBookCharacterStructure(): BookCharacterStructure {
   return { format: "text" };
 }
+
+export const CharacterStructureMutationSchema = z.discriminatedUnion("type", [
+  z
+    .object({ type: z.literal("setFormat"), format: BookCharacterFormatSchema })
+    .strict(),
+  z
+    .object({
+      type: z.literal("createItem"),
+      title: CatalogTitleSchema,
+      itemId: CatalogIdSchema.optional()
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("updateItem"),
+      itemId: CatalogIdSchema,
+      title: CatalogTitleSchema
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("moveItem"),
+      itemId: CatalogIdSchema,
+      direction: z.enum(["up", "down"])
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("reorderItem"),
+      itemId: CatalogIdSchema,
+      anchorId: CatalogIdSchema,
+      position: z.enum(["before", "after"])
+    })
+    .strict(),
+  z.object({ type: z.literal("deleteItem"), itemId: CatalogIdSchema }).strict()
+]);
+export type CharacterStructureMutation = z.infer<
+  typeof CharacterStructureMutationSchema
+>;

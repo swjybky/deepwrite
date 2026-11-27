@@ -11,6 +11,7 @@ import {
 } from "../agent-team-package-service";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 export async function handleAgentTeamCommands(
   ctx: Pick<
     IpcCommandContext,
@@ -28,16 +29,12 @@ export async function handleAgentTeamCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "agent_teams.list_failed",
-          message:
-            error instanceof Error ? error.message : "加载智能体团队设置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "agent_teams.list_failed",
+        error instanceof Error ? error.message : "加载智能体团队设置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -57,16 +54,12 @@ export async function handleAgentTeamCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "agent_teams.export_failed",
-          message:
-            error instanceof Error ? error.message : "下载智能体团队失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "agent_teams.export_failed",
+        error instanceof Error ? error.message : "下载智能体团队失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -85,16 +78,12 @@ export async function handleAgentTeamCommands(
         )
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "agent_teams.install_failed",
-          message:
-            error instanceof Error ? error.message : "安装智能体团队失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "agent_teams.install_failed",
+        error instanceof Error ? error.message : "安装智能体团队失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 
@@ -102,6 +91,7 @@ export async function handleAgentTeamCommands(
     command.type === "agentTeams.create" ||
     command.type === "agentTeams.rename" ||
     command.type === "agentTeams.delete" ||
+    command.type === "agentTeams.duplicate" ||
     command.type === "agentTeams.setEnabled" ||
     command.type === "agentTeams.setBookBinding" ||
     command.type === "agentTeams.save" ||
@@ -116,29 +106,27 @@ export async function handleAgentTeamCommands(
             ? await store.rename(command.payload)
             : command.type === "agentTeams.delete"
               ? await store.delete(command.payload)
-              : command.type === "agentTeams.setEnabled"
-                ? await store.setEnabled(command.payload)
-                : command.type === "agentTeams.setBookBinding"
-                  ? await store.setBookBinding(command.payload)
-                  : command.type === "agentTeams.saveBuiltins"
-                    ? await store.saveBuiltins(command.payload)
-                    : await store.save(command.payload);
+              : command.type === "agentTeams.duplicate"
+                ? await store.duplicate(command.payload)
+                : command.type === "agentTeams.setEnabled"
+                  ? await store.setEnabled(command.payload)
+                  : command.type === "agentTeams.setBookBinding"
+                    ? await store.setBookBinding(command.payload)
+                    : command.type === "agentTeams.saveBuiltins"
+                      ? await store.saveBuiltins(command.payload)
+                      : await store.save(command.payload);
       return {
         status: "accepted",
         requestId: command.id,
         payload: AgentTeamCatalogSnapshotSchema.parse(snapshot)
       };
     } catch (error: unknown) {
-      return {
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "agent_teams.save_failed",
-          message:
-            error instanceof Error ? error.message : "保存智能体团队设置失败。",
-          details: safeErrorDetails(error)
-        }
-      };
+      return rejectedResult(
+        command.id,
+        "agent_teams.save_failed",
+        error instanceof Error ? error.message : "保存智能体团队设置失败。",
+        safeErrorDetails(error)
+      );
     }
   }
 

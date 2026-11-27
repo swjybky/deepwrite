@@ -1,6 +1,7 @@
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
 import { ref, type Ref } from "vue";
+import { jsonClone } from "@deepwrite/shared";
 import type {
   AgentUserInputAnswer,
   AgentUserInputRequestedPayload,
@@ -70,9 +71,7 @@ export function createAgentUserInputController(options: {
         answers: cloneAnswersForIpc(answers),
         ...(writeApproval
           ? {
-              writeApproval: JSON.parse(
-                JSON.stringify(writeApproval)
-              ) as AgentWriteApprovalResponse
+              writeApproval: jsonClone(writeApproval)
             }
           : {})
       });

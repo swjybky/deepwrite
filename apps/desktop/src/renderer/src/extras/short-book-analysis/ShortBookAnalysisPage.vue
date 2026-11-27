@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiConfirm } from "../../ui-confirm";
 import { presetLabel } from "../analysis-ui/preset-labels";
 import { formatError } from "../../i18n/errors";
 import { createScopedTranslator } from "../../i18n";
@@ -83,11 +84,13 @@ async function act(action: () => unknown) {
     );
   }
 }
-function start() {
+async function start() {
   const unsaved = c.batch.unsavedCount.value;
   if (
     unsaved &&
-    !window.confirm(t("analysisUi.replaceUnsavedConfirm", { count: unsaved }))
+    !(await uiConfirm({
+      message: t("analysisUi.replaceUnsavedConfirm", { count: unsaved })
+    }))
   )
     return;
   return act(() => c.start());

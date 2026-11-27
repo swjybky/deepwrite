@@ -115,6 +115,14 @@ describe("web search settings", () => {
       supportsFetch: true,
       fetchUrlMaxChars: 8192
     });
+    expect(WEB_SEARCH_PROVIDERS.tinyfish).toMatchObject({
+      supportsFetch: true,
+      fetchUrlMaxChars: 8192,
+      maxResultsCap: 10
+    });
+    expect(
+      new URL(WEB_SEARCH_PROVIDERS.tinyfish.defaultFetchBaseUrl).protocol
+    ).toBe("https:");
   });
 
   it("checks limits and provider uniqueness", () => {
@@ -126,6 +134,10 @@ describe("web search settings", () => {
       {
         ...settings,
         profiles: [{ providerId: "deepseek", maxResults: 21, hasApiKey: false }]
+      },
+      {
+        ...settings,
+        profiles: [{ providerId: "tinyfish", maxResults: 11, hasApiKey: false }]
       },
       { ...settings, profiles: [...settings.profiles, ...settings.profiles] }
     ]) {
@@ -178,6 +190,13 @@ describe("web search settings", () => {
     expect(WebSearchRuntimeConfigSchema.safeParse(runtime).success).toBe(true);
     expect(
       WebSearchRuntimeConfigSchema.safeParse({ ...runtime, apiKey: "" }).success
+    ).toBe(false);
+    expect(
+      WebSearchRuntimeConfigSchema.safeParse({
+        ...runtime,
+        providerId: "tinyfish",
+        apiKey: ""
+      }).success
     ).toBe(false);
   });
 });

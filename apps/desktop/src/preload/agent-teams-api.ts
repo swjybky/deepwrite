@@ -37,6 +37,7 @@ async function mutateAgentTeams(
     | "agentTeams.create"
     | "agentTeams.rename"
     | "agentTeams.delete"
+    | "agentTeams.duplicate"
     | "agentTeams.setEnabled"
     | "agentTeams.setBookBinding"
     | "agentTeams.save"
@@ -66,6 +67,11 @@ export const renameAgentTeam = (input: AgentTeamProfileRenameInput) =>
 export const deleteAgentTeam = (input: AgentTeamProfileTargetInput) =>
   mutateAgentTeams(
     "agentTeams.delete",
+    AgentTeamProfileTargetInputSchema.parse(input)
+  );
+export const duplicateAgentTeam = (input: AgentTeamProfileTargetInput) =>
+  mutateAgentTeams(
+    "agentTeams.duplicate",
     AgentTeamProfileTargetInputSchema.parse(input)
   );
 export const setAgentTeamEnabled = (input: AgentTeamProfileSetEnabledInput) =>

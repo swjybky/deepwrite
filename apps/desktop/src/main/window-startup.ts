@@ -5,6 +5,8 @@ interface WindowStartupOptions {
   log: StartupLog;
   onFailure: (error: unknown) => void;
   show: boolean;
+  /** False shows the window behind the current app without taking focus. */
+  activate?: boolean;
   timeoutMs?: number;
 }
 
@@ -18,7 +20,8 @@ export function guardWindowStartup(
   const show = (): void => {
     if (!shown && !settled && !window.isDestroyed() && options.show) {
       shown = true;
-      window.show();
+      if (options.activate === false) window.showInactive();
+      else window.show();
     }
   };
   const cleanup = (): void => {

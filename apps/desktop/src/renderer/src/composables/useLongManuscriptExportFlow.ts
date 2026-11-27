@@ -12,6 +12,7 @@ import type {
   LongBookLifecycleState,
   PendingLane
 } from "./longBookLifecycleTypes";
+import { formatError } from "../i18n/errors";
 
 const t = createScopedTranslator("workspace.longManuscriptExportFlow");
 
@@ -54,7 +55,6 @@ export interface LongManuscriptExportFlowContext {
     lease: LongManuscriptExportLease,
     task: () => Promise<void>
   ): Promise<void>;
-  errorMessage(error: unknown, fallback: string): string;
 }
 
 function clearExportSelection(
@@ -181,7 +181,7 @@ export function createLongManuscriptExportFlow(
           context.dialogRequestIsCurrent(requestId)
         ) {
           uiMessage.error(
-            context.errorMessage(error, t("couldNotExportTheLongFormProject"))
+            formatError(error, t("couldNotExportTheLongFormProject"))
           );
         }
       }

@@ -237,4 +237,11 @@ export class LongProjectStore {
   ) {
     return await deleteLedgerCommit(this.context, projectDirectory, input);
   }
+
+  clearReadCaches(): void {
+    this.context.documentReadCache.clear();
+    this.context.documentReadCacheCost = 0;
+    this.context.projectReadCache.clear();
+    this.context.projectReadCacheCost = 0;
+  }
 }

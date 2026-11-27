@@ -25,7 +25,7 @@ import {
   type LongLedgerCommitRecord,
   type LongWorkspaceFileReference
 } from "@deepwrite/contracts";
-import { createId, randomHex8 } from "@deepwrite/shared";
+import { createId, randomHex8, toJsonFileText } from "@deepwrite/shared";
 import { assertLongLedgerRecordMatchesIndex } from "../long-portable-bundle";
 import { parseLongLedgerCommitRecord } from "../long-version-metadata";
 import { copyBookImages } from "../book-images/copy";
@@ -36,8 +36,7 @@ import {
   parseJson,
   readSecureTextFile,
   requireMissing,
-  secureDirectory,
-  serializeJson
+  secureDirectory
 } from "./io";
 import { loadProject } from "./load-project";
 import {
@@ -176,7 +175,7 @@ export async function duplicateBook(
               bookId
             )
           });
-          const content = serializeJson(record);
+          const content = toJsonFileText(record);
           const entry = index.ledger.commits.find(
             (candidate) => candidate.id === record.id
           );
@@ -218,7 +217,7 @@ export async function duplicateBook(
           content
         );
       }
-      const indexContent = serializeJson(validatedIndex);
+      const indexContent = toJsonFileText(validatedIndex);
       await copyBookImages(source.projectDirectory, stagingDirectory);
       const manifest = LongProjectManifestSchema.parse({
         ...replaceExactIdentity(
@@ -248,7 +247,7 @@ export async function duplicateBook(
         },
         {
           path: MANIFEST_PATH,
-          content: serializeJson(manifest),
+          content: toJsonFileText(manifest),
           expectedSha256: null
         }
       );
@@ -383,7 +382,7 @@ export function createInitialProjectFiles(
     ],
     ledger: { committedThroughChapterId: null, commits: [] }
   });
-  const indexContent = serializeJson(index);
+  const indexContent = toJsonFileText(index);
   const manifest = LongProjectManifestSchema.parse({
     schemaVersion: 1,
     kind: "deepwrite.long-book",
@@ -446,7 +445,7 @@ export function createInitialProjectFiles(
       },
       {
         path: MANIFEST_PATH,
-        content: serializeJson(manifest),
+        content: toJsonFileText(manifest),
         expectedSha256: null
       }
     ]

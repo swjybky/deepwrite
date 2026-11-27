@@ -3,10 +3,11 @@ import type { BrowserWindow } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guardWindowStartup } from "./window-startup";
 
-function setup(show = true) {
+function setup(show = true, activate?: boolean) {
   const window = Object.assign(new EventEmitter(), {
     webContents: new EventEmitter(),
     show: vi.fn(),
+    showInactive: vi.fn(),
     isDestroyed: vi.fn(() => false)
   });
   const onFailure = vi.fn();
@@ -15,6 +16,7 @@ function setup(show = true) {
     log,
     onFailure,
     show,
+    ...(activate === undefined ? {} : { activate }),
     timeoutMs: 1000
   });
   return { window, onFailure, log, guard };
@@ -42,6 +44,13 @@ describe("window startup", () => {
     expect(onFailure).not.toHaveBeenCalled();
     expect(window.webContents.listenerCount("preload-error")).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("shows a test instance without taking focus", () => {
+    const { window } = setup(true, false);
+    window.webContents.emit("did-finish-load");
+    expect(window.showInactive).toHaveBeenCalledOnce();
+    expect(window.show).not.toHaveBeenCalled();
   });
 
   it("keeps smoke windows hidden while still observing successful loading", () => {

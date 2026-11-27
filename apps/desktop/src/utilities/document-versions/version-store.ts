@@ -16,7 +16,6 @@ import {
 } from "@deepwrite/contracts";
 import {
   ensureSafeDirectory,
-  isNodeError,
   readRegularFileOptional,
   secureProjectRoot,
   syncDirectory,
@@ -27,6 +26,7 @@ import {
   type VersionCaptureAction
 } from "./capture-rules";
 import { DocumentVersionError } from "./version-errors";
+import { isNodeError } from "@deepwrite/shared/node";
 
 const MAX_INDEX_BYTES = 256 * 1024;
 const StoredIndexSchema = DocumentVersionIndexSchema;

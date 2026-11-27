@@ -1,7 +1,7 @@
 export default {
   title: "Web search",
   keywords:
-    "web search internet online DeepSeek Tavily Exa Brave Bocha Zhipu Serper SerpApi SearchAPI Search1API SearXNG",
+    "web search internet online DeepSeek Tavily Exa Brave Bocha Zhipu Serper SerpApi SearchAPI Search1API SearXNG TinyFish",
   intro:
     "Gives agents in the writing space, material library and skill library, and their subagents, a web search tool. Search queries are sent to the selected search service and billed by it.",
   serviceTitle: "Search service",
@@ -32,6 +32,8 @@ export default {
   providerNameSearch1api: "Search1API",
   providerSearxng: "SearXNG (self-hosted)",
   providerNameSearxng: "SearXNG",
+  providerTinyfish: "TinyFish",
+  providerNameTinyfish: "TinyFish",
   selfHostedHint:
     "Enter your SearXNG instance base URL and enable JSON search output. Leave the key blank unless your gateway requires a Bearer key.",
   statusNeedsEndpoint: "Enter the self-hosted search endpoint first.",

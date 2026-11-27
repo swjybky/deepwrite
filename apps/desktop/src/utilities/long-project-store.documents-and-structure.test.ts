@@ -17,7 +17,7 @@ import {
   longWorldbuildingOverviewContentPath,
   longWorldbuildingOverviewFileId,
   lstat,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   unlink,
   writeFile
@@ -105,9 +105,7 @@ describe("LongProjectStore: documents-and-structure", () => {
         manifestPath,
         indexPath,
         join(created.projectDirectory, files.body.path)
-      ].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
-      )
+      ].map(async (path) => sha256Hex(await readFile(path)))
     );
     const oversizedBody = "界".repeat(Math.floor(MAX_MARKDOWN_BYTES / 3) + 1);
 
@@ -131,9 +129,7 @@ describe("LongProjectStore: documents-and-structure", () => {
         manifestPath,
         indexPath,
         join(created.projectDirectory, files.body.path)
-      ].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
-      )
+      ].map(async (path) => sha256Hex(await readFile(path)))
     );
     expect(after).toEqual(before);
   }, 30_000);
@@ -151,7 +147,7 @@ describe("LongProjectStore: documents-and-structure", () => {
     const manifestPath = join(created.projectDirectory, "deepwrite.json");
     const before = await Promise.all(
       [manifestPath, indexPath, bodyPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
     await expect(
@@ -181,7 +177,7 @@ describe("LongProjectStore: documents-and-structure", () => {
 
     const after = await Promise.all(
       [manifestPath, indexPath, bodyPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
     expect(after).toEqual(before);
@@ -193,7 +189,7 @@ describe("LongProjectStore: documents-and-structure", () => {
     const indexPath = join(created.projectDirectory, LONG_WORKSPACE_INDEX_PATH);
     const before = await Promise.all(
       [manifestPath, indexPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
     const oversizedIds = Array.from(
@@ -221,7 +217,7 @@ describe("LongProjectStore: documents-and-structure", () => {
 
     const after = await Promise.all(
       [manifestPath, indexPath].map(async (path) =>
-        projectTransactionContentSha256(await readFile(path))
+        sha256Hex(await readFile(path))
       )
     );
     expect(after).toEqual(before);

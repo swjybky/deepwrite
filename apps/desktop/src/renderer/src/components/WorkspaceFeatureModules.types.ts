@@ -22,6 +22,7 @@ import type {
 } from "@deepwrite/contracts";
 import type { LongBookAnalysisController } from "../extras/long-book-analysis/useLongBookAnalysis";
 import type { SubagentAuthoringController } from "../composables/useSubagentAuthoring";
+import type { ModelTestStateEntry } from "../utils/modelTestState";
 
 export interface SettingsFeatureModule {
   kind: "settings";
@@ -68,6 +69,7 @@ export interface SettingsFeatureModule {
   modelError: string | null;
   modelTestMessage: string | null;
   testingModelId: string | null;
+  modelTestStates: Readonly<Record<string, ModelTestStateEntry>>;
   runtimeAvailable: boolean;
 }
 

@@ -7,7 +7,7 @@ import type {
   AgentEditProposal,
   AgentTextDiffHunk
 } from "../../types/conversation";
-import { isRecord, nonnegativeInteger, validDate } from "./shared";
+import { nonnegativeInteger, validDate } from "./shared";
 import {
   parseStoredDiscardSnapshot,
   parseStoredDiscardState
@@ -34,6 +34,7 @@ import {
   parseStoredLongPlotDesignTarget,
   parseStoredLongDraftTarget
 } from "./parse-long-targets";
+import { isRecord } from "@deepwrite/shared";
 export function parseStoredEditProposal(
   value: unknown
 ): AgentEditProposal | undefined {

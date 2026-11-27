@@ -5,7 +5,12 @@ import type {
   FeedbackPage,
   MarketplaceSession
 } from "@deepwrite/contracts";
-import { FEEDBACK_MAX_IMAGES } from "@deepwrite/contracts/renderer";
+import {
+  FEEDBACK_MAX_IMAGES,
+  FEEDBACK_TOTAL_IMAGE_MAX_BYTES,
+  feedbackImageByteLength,
+  feedbackImagesTotalBytes
+} from "@deepwrite/contracts/renderer";
 import { createScopedTranslator } from "../../i18n";
 import { uiMessage } from "../../ui-feedback";
 import { marketplaceAccountError } from "../../utils/marketplaceAccountError";
@@ -17,6 +22,8 @@ import {
 import { feedbackDraft } from "./feedbackDraft";
 
 export type FeedbackTab = "compose" | "history";
+
+const FEEDBACK_TOTAL_IMAGE_MAX_MB = FEEDBACK_TOTAL_IMAGE_MAX_BYTES / 1_000_000;
 
 function nextPaint(): Promise<void> {
   return new Promise((resolve) => {
@@ -117,6 +124,19 @@ export function useFeedback(options: {
     const api = options.api();
     if (!api || !canSubmit.value) return;
     const snapshot = feedbackDraft.snapshot();
+    if (snapshot.images.length > FEEDBACK_MAX_IMAGES) {
+      uiMessage.warning(t("imageLimit", { max: FEEDBACK_MAX_IMAGES }));
+      return;
+    }
+    if (
+      feedbackImagesTotalBytes(snapshot.images.map((image) => image.data)) >
+      FEEDBACK_TOTAL_IMAGE_MAX_BYTES
+    ) {
+      uiMessage.warning(
+        t("imageTotalLimit", { maxMb: FEEDBACK_TOTAL_IMAGE_MAX_MB })
+      );
+      return;
+    }
     submitting.value = true;
     try {
       await api.feedback.submit({
@@ -147,10 +167,26 @@ export function useFeedback(options: {
       uiMessage.warning(t("imageLimit", { max: FEEDBACK_MAX_IMAGES }));
     }
     processingImages.value = true;
+    let totalLimitWarned = false;
     try {
       for (const source of sources.slice(0, Math.max(room, 0))) {
         try {
           const image = await compress(source);
+          const currentTotal = feedbackImagesTotalBytes(
+            feedbackDraft.images.value.map((item) => item.data)
+          );
+          if (
+            currentTotal + feedbackImageByteLength(image.data) >
+            FEEDBACK_TOTAL_IMAGE_MAX_BYTES
+          ) {
+            if (!totalLimitWarned) {
+              totalLimitWarned = true;
+              uiMessage.warning(
+                t("imageTotalLimit", { maxMb: FEEDBACK_TOTAL_IMAGE_MAX_MB })
+              );
+            }
+            continue;
+          }
           feedbackDraft.images.value = [...feedbackDraft.images.value, image];
         } catch {
           uiMessage.error(t("imageUnreadable"));

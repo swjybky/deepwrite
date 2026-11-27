@@ -4,6 +4,8 @@ import type {
   ModelConfigInput,
   ModelSettings,
   ModelSettingsInput,
+  ModelTestCancelInput,
+  ModelTestCancelResult,
   RemoteModelListInput,
   RemoteModelListResult,
   SiteOfficialQuota
@@ -32,7 +34,11 @@ export interface ModelPreloadApi {
     enabled: boolean
   ): Promise<ModelSettings>;
   save(settings: ModelSettingsInput): Promise<ModelSettings>;
-  test(model: ModelConfigInput): Promise<ModelConnectionTestResult>;
+  test(
+    model: ModelConfigInput,
+    options?: { requestId?: string }
+  ): Promise<ModelConnectionTestResult>;
+  cancelTest(input: ModelTestCancelInput): Promise<ModelTestCancelResult>;
   resolveCapacity(model: ModelConfigInput): Promise<ModelCapacityResult>;
   listRemote(input: RemoteModelListInput): Promise<RemoteModelListResult>;
 }

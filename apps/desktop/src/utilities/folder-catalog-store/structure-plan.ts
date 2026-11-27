@@ -9,7 +9,6 @@ import {
   type LibraryStructureRequest,
   type LibraryStructurePlan
 } from "@deepwrite/contracts";
-import { projectTransactionContentSha256 as sha } from "../project-transaction";
 import type { StructureTransactionRoot } from "./structure-transaction";
 import {
   createStructurePlanContext,
@@ -21,6 +20,7 @@ import {
   applyEntryStructureOperation,
   isEntryStructureOperation
 } from "./structure-plan-entries";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function planLibraryStructure(
   raw: LibraryStructureRequest,
@@ -190,7 +190,7 @@ export async function planLibraryStructure(
           {
             action: "check",
             path: "deepwrite.json",
-            expectedSha256: sha(item.original)
+            expectedSha256: sha256Hex(item.original)
           }
         ]
       });
@@ -213,7 +213,7 @@ export async function planLibraryStructure(
       action: "write",
       path: "deepwrite.json",
       content: JSON.stringify(manifest),
-      expectedSha256: item.original === null ? null : sha(item.original)
+      expectedSha256: item.original === null ? null : sha256Hex(item.original)
     });
     roots.push({
       root: item.registration.projectDirectory,
@@ -232,14 +232,16 @@ export async function planLibraryStructure(
         action: "write",
         path: "catalog-registry.json",
         content: JSON.stringify(registry),
-        expectedSha256: sha(registryText)
+        expectedSha256: sha256Hex(registryText)
       }
     ]
   });
   return {
     plan: {
       ...request,
-      baseVersion: sha(JSON.stringify([baseVersion, fingerprints.sort()])),
+      baseVersion: sha256Hex(
+        JSON.stringify([baseVersion, fingerprints.sort()])
+      ),
       summary: summary.join("\n")
     },
     roots

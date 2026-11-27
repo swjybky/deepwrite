@@ -7,8 +7,7 @@ import {
   JOURNAL_FILE,
   type ProjectTransactionResult,
   type TransactionJournal,
-  ProjectTransactionConflictError,
-  projectTransactionContentSha256
+  ProjectTransactionConflictError
 } from "./types";
 import {
   writeDurableNewFile,
@@ -19,6 +18,7 @@ import {
   assertContained,
   unlinkOptional
 } from "./io";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function assertJournalPreconditions(
   projectRoot: string,
@@ -33,9 +33,7 @@ export async function assertJournalPreconditions(
       target,
       maxFileBytes
     );
-    const currentSha256 = current
-      ? projectTransactionContentSha256(current)
-      : null;
+    const currentSha256 = current ? sha256Hex(current) : null;
     const appliedStateAllowed =
       allowAppliedState &&
       operation.action !== "check" &&

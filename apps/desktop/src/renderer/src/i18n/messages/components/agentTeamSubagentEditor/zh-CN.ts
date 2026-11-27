@@ -13,5 +13,6 @@ export default {
   systemPrompt: "系统提示词",
   defineTheSubagentSRoleMethodsAndHandoffRequirements:
     "定义子智能体的职责、工作方法和交接要求。",
-  doneEditing: "完成编辑"
+  doneEditing: "完成编辑",
+  collapse: "收起"
 };

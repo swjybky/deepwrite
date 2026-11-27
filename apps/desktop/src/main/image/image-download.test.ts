@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { decodeImage, downloadImage, identifyImage } from "./image-download";
-import { IMAGE_PNG, testImageDecoder } from "./image-test-support";
+import { IMAGE_PNG, testImageDecoder } from "./image.test-support";
 import type { NativeImage } from "electron";
 
 vi.mock("electron", () => ({ nativeImage: { createFromBuffer: vi.fn() } }));

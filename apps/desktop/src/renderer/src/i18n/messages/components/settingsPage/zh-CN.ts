@@ -2,7 +2,7 @@ export default {
   writing: "创作设置",
   moreFeaturesSettings: "更多功能",
   moreFeaturesKeywords: "更多功能 显示 隐藏 排序 顺序",
-  storage: "存储",
+  storage: "存储与备份",
   workspaceSettings: "创作空间",
   skillLibrarySettings: "技能库",
   materialLibrarySettings: "素材库",
@@ -14,7 +14,7 @@ export default {
   personal: "个人",
   general: "常规",
   storageUserDataHistoryDefaultLocationWorkspaceFolder:
-    "存储 用户数据 历史记录 默认位置 工作目录",
+    "存储 备份 迁移 导出 导入 换机 用户数据 历史记录 默认位置 工作目录",
   manuscriptText: "正文文本",
   appearance: "外观",
   voiceSettings: "语音模型",

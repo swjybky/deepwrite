@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { createScopedTranslator } from "../i18n";
-import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
+import type { ModelSelectOption } from "../utils/modelSelectOptions";
+import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
+import type { PopupSelectOption } from "./PopupSelect.vue";
 
 const t = createScopedTranslator(
   "components.subagentAuthoringGenerateControls"
@@ -8,7 +10,7 @@ const t = createScopedTranslator(
 
 const modelId = defineModel<string>({ required: true });
 defineProps<{
-  modelOptions: readonly PopupSelectOption[];
+  modelOptions: readonly (ModelSelectOption | PopupSelectOption)[];
   generating: boolean;
   canGenerate: boolean;
   statusText: string | null;
@@ -22,13 +24,18 @@ const emit = defineEmits<{ generate: []; stop: [] }>();
   <div class="generate-controls">
     <div class="form-field">
       <span>{{ t("generationModel") }}</span>
-      <PopupSelect
-        :model-value="modelId"
-        :options="[...modelOptions]"
+      <ConversationModelConfigSelect
+        variant="field"
+        hides-web-search
+        close-on-model-select
+        :menu-z-index="1200"
+        :selected-model-id="modelId"
+        :model-options="modelOptions"
+        :thinking-options="[]"
         :accessible-label="t('generationModel')"
         :disabled="generating || !modelOptions.length"
         :placeholder="t('selectModel')"
-        @update:model-value="modelId = String($event)"
+        @select-model="modelId = $event"
       />
     </div>
     <div class="generate-row">

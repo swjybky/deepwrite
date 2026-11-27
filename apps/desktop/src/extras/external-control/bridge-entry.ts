@@ -16,24 +16,38 @@ import {
   launchApp,
   resolveAppLaunchCommand
 } from "./bridge-launch";
-import { resolveExternalControlPaths } from "./control-paths";
+import {
+  DEVELOPMENT_CONTROL_DIRECTORY_ENV,
+  resolveExternalControlPaths
+} from "./control-paths";
 import { readExternalControlState } from "./control-state-file";
 import { ExternalControlError } from "./errors";
 
 /** Runs with ELECTRON_RUN_AS_NODE. Stdout carries MCP only: never log to it. */
 const paths = resolveExternalControlPaths({
   homeDirectory: homedir(),
-  packaged: isPackagedBridge(import.meta.url)
+  packaged: isPackagedBridge(import.meta.url),
+  developmentDirectory: process.env[DEVELOPMENT_CONTROL_DIRECTORY_ENV]
 });
+
+function logBridgeError(prefix: string, error: unknown): void {
+  const detail =
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+  process.stderr.write(`[deepwrite-mcp] ${prefix}: ${detail}\n`);
+}
 
 const server = new Server(
   { name: "deepwrite", version },
   {
     capabilities: { tools: {} },
     instructions:
-      "Operates the user's running DeepWrite writing app. Call get_app_status first; DeepWrite starts automatically when it is not running."
+      "Operates the user's running DeepWrite writing app. Call get_app_status first; DeepWrite starts automatically when it is not running. Call restart_app if DeepWrite needs to restart; the bridge waits and reconnects automatically."
   }
 );
+
+server.onerror = (error) => {
+  logBridgeError("MCP server error", error);
+};
 
 const connection = createBridgeConnection({
   readState: () => readExternalControlState(paths.stateFile),
@@ -82,7 +96,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+let shuttingDown = false;
+
 function shutdown(): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
   connection.close();
   process.exit(0);
 }
@@ -90,5 +108,21 @@ function shutdown(): void {
 // An open control socket would otherwise outlive the MCP client.
 process.stdin.once("end", shutdown);
 process.stdin.once("close", shutdown);
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE" || error.code === "ERR_STREAM_DESTROYED") {
+    shutdown();
+  } else {
+    logBridgeError("stdout error", error);
+  }
+});
+process.on("unhandledRejection", (reason) => {
+  logBridgeError("Unhandled rejection", reason);
+});
+process.on("uncaughtException", (error: NodeJS.ErrnoException) => {
+  logBridgeError("Uncaught exception", error);
+  if (error.code === "EPIPE" || error.code === "ERR_STREAM_DESTROYED") {
+    shutdown();
+  }
+});
 
 await server.connect(new StdioServerTransport());

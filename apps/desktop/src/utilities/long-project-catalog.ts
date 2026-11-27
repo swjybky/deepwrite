@@ -15,7 +15,7 @@ import {
   type LongListBooksResult,
   type LongOpenBookResult
 } from "@deepwrite/contracts";
-import { randomHex8 } from "@deepwrite/shared";
+import { randomHex8, isRecord, escapeRegExp } from "@deepwrite/shared";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -552,16 +552,18 @@ export class LongProjectCatalog {
   private async repairRegistryCopiesBestEffort(
     registry: LongProjectRegistry
   ): Promise<void> {
-    await atomicWriteJson(this.registryPath, registry).catch(() => undefined);
-    await atomicWriteJson(this.registryBackupPath, registry).catch(
+    await writeLongProjectRegistry(this.registryPath, registry).catch(
+      () => undefined
+    );
+    await writeLongProjectRegistry(this.registryBackupPath, registry).catch(
       () => undefined
     );
   }
 
   private async writeRegistry(registry: LongProjectRegistry): Promise<void> {
     const parsed = parseRegistry(registry);
-    await atomicWriteJson(this.registryPath, parsed);
-    await atomicWriteJson(this.registryBackupPath, parsed).catch(
+    await writeLongProjectRegistry(this.registryPath, parsed);
+    await writeLongProjectRegistry(this.registryBackupPath, parsed).catch(
       () => undefined
     );
   }
@@ -706,7 +708,10 @@ function parseRegistry(value: unknown): LongProjectRegistry {
   };
 }
 
-async function atomicWriteJson(path: string, value: unknown): Promise<void> {
+async function writeLongProjectRegistry(
+  path: string,
+  value: unknown
+): Promise<void> {
   const content = `${JSON.stringify(value, null, 2)}\n`;
   if (Buffer.byteLength(content, "utf8") > MAX_REGISTRY_BYTES) {
     throw new Error("长篇项目注册表超过安全大小限制。");
@@ -1009,10 +1014,6 @@ async function assertSafeStagedDeletionDirectory(path: string): Promise<void> {
   }
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
 async function pathExists(path: string): Promise<boolean> {
   try {
     await lstat(path);
@@ -1029,8 +1030,4 @@ function isMissingPathError(error: unknown): boolean {
     "code" in error &&
     (error.code === "ENOENT" || error.code === "ENOTDIR")
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

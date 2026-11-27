@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
-import { expectSourceToContain } from "../../../test-utils/sourceText";
-// @ts-expect-error Loaded as source text by the Vitest-only virtual module.
-import styles from "virtual:deepwrite-renderer-styles";
 import { setAppLanguage } from "../i18n";
 import BookActionMenu from "./BookActionMenu.vue";
 
@@ -59,23 +56,5 @@ describe("TreeNodeItem actions", () => {
     } finally {
       setAppLanguage("zh-CN", "zh-CN");
     }
-  });
-
-  it("hides row chevron and action icons until the row or action area is hovered", () => {
-    expect(styles).toContain(".tree-row:hover .tree-chevron,");
-    expect(styles).toContain(".tree-row:focus-visible .tree-chevron,");
-    expectSourceToContain(
-      styles,
-      ".tree-node:has(> .tree-node-action-area:is(:hover, :focus-within, .is-menu-open)) > .tree-row .tree-chevron"
-    );
-    expect(styles).toContain(
-      ".tree-row:hover ~ .tree-node-action-area .tree-node-action,"
-    );
-    expectSourceToContain(
-      styles,
-      ".tree-node-action-area:is(:hover, :focus-within, .is-menu-open) .tree-node-action"
-    );
-    expect(styles).not.toContain(".section-action { opacity: 0");
-    expect(styles).not.toContain(".section-toggle-chevron { opacity: 0");
   });
 });

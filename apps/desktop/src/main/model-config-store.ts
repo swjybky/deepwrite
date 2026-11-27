@@ -115,7 +115,13 @@ export class ModelConfigStore {
   }
 
   async disableDeveloperRole(
-    modelId: string
+    modelId: string,
+    expected?: {
+      provider: string;
+      modelId: string;
+      api: string;
+      baseUrl: string;
+    }
   ): Promise<ModelSettings | undefined> {
     const trimmedId = modelId.trim();
     if (!trimmedId) return undefined;
@@ -126,15 +132,25 @@ export class ModelConfigStore {
           !isDeepWriteSiteOfficialModel(model) &&
           model.id === trimmedId
       );
+      if (index < 0) {
+        return undefined;
+      }
+      const current = prepared.settings.models[index]!;
+      if (current.supportsDeveloperRole !== undefined) {
+        return undefined;
+      }
       if (
-        index < 0 ||
-        prepared.settings.models[index]!.supportsDeveloperRole !== undefined
+        expected &&
+        (current.provider !== expected.provider ||
+          current.modelId !== expected.modelId ||
+          current.api !== expected.api ||
+          current.baseUrl !== expected.baseUrl)
       ) {
         return undefined;
       }
       const nextModels = [...prepared.settings.models];
       nextModels[index] = {
-        ...nextModels[index]!,
+        ...current,
         supportsDeveloperRole: false
       };
       return {

@@ -12,6 +12,8 @@ import {
   type ExternalAgentRunInput,
   type ExternalAnswerAgentQuestionInput,
   type ExternalOpenInAppInput,
+  type ExternalRestartAppInput,
+  type ExternalRestartAppResult,
   type ExternalRunAgentInput,
   type ExternalWindowRequest,
   type ExternalGetLibraryInput,
@@ -43,6 +45,7 @@ import {
   answerAgentQuestion,
   getAgentRun,
   openInApp,
+  restartApp,
   runAgent,
   stopAgentRun
 } from "./run-tools";
@@ -59,6 +62,10 @@ export interface ExternalControlAppState {
   appVersion: string;
   platform: NodeJS.Platform;
   rendererReady(): boolean;
+  ensureWindow?(): Promise<boolean>;
+  requestRestart?(options: {
+    force: boolean;
+  }): Promise<ExternalRestartAppResult> | ExternalRestartAppResult;
   activeRunCount(): number;
   activeResourceIds?(): ReadonlySet<string>;
   generalSettings(): GeneralSettings;
@@ -171,6 +178,8 @@ export async function callExternalControlTool(
         );
       case "stop_agent_run":
         return stopAgentRun(mutation, input<ExternalAgentRunInput>());
+      case "restart_app":
+        return restartApp(state, input<ExternalRestartAppInput>());
       case "list_trash":
         input<Record<string, never>>();
         return listTrash(mutation);
@@ -188,6 +197,7 @@ export async function callExternalControlTool(
   };
   const concurrent =
     tool.annotations.readOnlyHint ||
-    ["answer_agent_question", "stop_agent_run"].includes(tool.name);
+    ["answer_agent_question", "stop_agent_run"].includes(tool.name) ||
+    (tool.name === "restart_app" && rawArguments.force === true);
   return concurrent ? dispatch() : queueExternalOperation(state, dispatch);
 }

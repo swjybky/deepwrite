@@ -5,8 +5,10 @@ import {
   EXTERNAL_CONTROL_TOOLS,
   ExternalControlCallEnvelopeSchema,
   ExternalControlHelloEnvelopeSchema,
+  ExternalControlPingEnvelopeSchema,
   ExternalControlResultSchema,
   ExternalControlStateFileSchema,
+  ExternalRestartAppInputSchema,
   GetAppStatusInputSchema,
   externalControlToolInputJsonSchema,
   findExternalControlTool
@@ -47,6 +49,21 @@ describe("external control tools", () => {
       false
     );
   });
+
+  it("includes restart_app with strict boolean options", () => {
+    const tool = findExternalControlTool("restart_app");
+    expect(tool?.annotations.destructiveHint).toBe(false);
+    expect(ExternalRestartAppInputSchema.safeParse({}).success).toBe(true);
+    expect(
+      ExternalRestartAppInputSchema.safeParse({
+        force: true,
+        waitForReady: false
+      }).success
+    ).toBe(true);
+    expect(
+      ExternalRestartAppInputSchema.safeParse({ unknown: true }).success
+    ).toBe(false);
+  });
 });
 
 describe("external control protocol", () => {
@@ -70,6 +87,23 @@ describe("external control protocol", () => {
     });
     expect(disabled).not.toHaveProperty("token");
     expect(disabled).not.toHaveProperty("endpoint");
+    const restarting = ExternalControlStateFileSchema.parse({
+      status: "restarting",
+      protocolVersion: EXTERNAL_CONTROL_PROTOCOL_VERSION,
+      appVersion: "1.0.0",
+      pid: 42,
+      startedAt: "2026-10-31T00:00:00.000Z"
+    });
+    expect(restarting.status).toBe("restarting");
+    expect(restarting).not.toHaveProperty("token");
+    expect(
+      ExternalControlStateFileSchema.safeParse({
+        status: "restarting",
+        protocolVersion: EXTERNAL_CONTROL_PROTOCOL_VERSION,
+        appVersion: "1.0.0",
+        pid: 42
+      }).success
+    ).toBe(false);
   });
 
   it("rejects a ready state without a usable token", () => {
@@ -104,6 +138,16 @@ describe("external control protocol", () => {
       ExternalControlCallEnvelopeSchema.safeParse({
         ...call,
         payload: { tool: "get_app_status", arguments: [] }
+      }).success
+    ).toBe(false);
+    const ping = createEnvelope("externalControl.ping", {}, { id: "ping-1" });
+    expect(ExternalControlPingEnvelopeSchema.safeParse(ping).success).toBe(
+      true
+    );
+    expect(
+      ExternalControlPingEnvelopeSchema.safeParse({
+        ...ping,
+        payload: { extra: 1 }
       }).success
     ).toBe(false);
   });

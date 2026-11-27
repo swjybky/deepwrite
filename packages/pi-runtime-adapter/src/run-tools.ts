@@ -56,6 +56,7 @@ export interface BuildRunToolsOptions extends Pick<
   | "toolExecutionHooks"
   | "retryPolicy"
   | "timeoutMs"
+  | "evaluationMode"
 > {
   parentRuntime: NonNullable<BuildSpawnSubagentToolInput["parentRuntime"]>;
   toolExecutionHooks: NonNullable<
@@ -350,6 +351,9 @@ export function buildRunTools(
       model,
       thinkingLevel: effectiveThinkingLevel,
       streamFn: spawnStreamFn,
+      ...(options.evaluationMode !== undefined
+        ? { evaluationMode: options.evaluationMode }
+        : {}),
       requestUserInput,
       pausesForWriteApproval: input.writeApprovalMode !== "auto-approve",
       definitions: input.subagentDefinitions ?? [],

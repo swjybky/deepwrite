@@ -12,6 +12,7 @@ defineProps<{
   note: string;
   disabled: boolean;
   limitReached: boolean;
+  readOnly?: boolean;
   hideLoadFromSkill?: boolean;
 }>();
 
@@ -29,7 +30,7 @@ const titleId = useId();
         </h3>
         <p>{{ description }}</p>
       </div>
-      <div class="section-actions">
+      <div v-if="!readOnly" class="section-actions">
         <button
           v-if="!hideLoadFromSkill"
           type="button"

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import {
   AcademicAgentSettingsInputSchema,
   ACADEMIC_AGENT_IDS,
   type AcademicAgentSettingsInputAgent,
-  type ShortAgentSubagentModelMode
+  type ShortAgentSubagentModelMode,
+  type ThinkingLevel
 } from "@deepwrite/contracts/renderer";
 import { computed, onMounted, ref, watch } from "vue";
 import { formatError } from "../../i18n/errors";
@@ -14,6 +16,7 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { uiMessage } from "../../ui-feedback";
 import { withAcademicAgentBaseline } from "../../utils/agentSettingsBaseline";
+import ConversationModelConfigSelect from "../ConversationModelConfigSelect.vue";
 import PopupSelect from "../PopupSelect.vue";
 import { useSubagentModelConfig } from "../useSubagentModelConfig";
 import { academicAgentT } from "./academicAgentLabels";
@@ -52,7 +55,7 @@ const modelModeOptions = computed(() => [
 ]);
 
 async function ensureLoaded(): Promise<void> {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api) return;
   try {
     await Promise.all([
@@ -120,7 +123,7 @@ function handleTemperatureChange(value: string | number): void {
 }
 
 async function resetDefaults(): Promise<void> {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   if (!api || formDisabled.value) return;
   settingsStore.academicAgentSaving = true;
   try {
@@ -135,7 +138,7 @@ async function resetDefaults(): Promise<void> {
 }
 
 async function saveSettings(): Promise<void> {
-  const api = window.deepwrite;
+  const api = deepwriteApi();
   const current = draftAgent.value;
   if (!api || !current || formDisabled.value) return;
 
@@ -238,38 +241,35 @@ async function saveSettings(): Promise<void> {
               @update:model-value="handleModelModeChange"
             />
           </label>
-          <template v-if="draftAgent.modelMode === 'custom'">
-            <label class="field-item">
-              <span>{{ academicAgentT("modelSelectLabel") }}</span>
-              <PopupSelect
-                :model-value="draftAgent.modelId ?? ''"
-                :options="modelConfig.modelOptions.value"
-                :accessible-label="academicAgentT('modelSelectLabel')"
-                :disabled="formDisabled"
-                @update:model-value="handleModelIdChange"
-              />
-            </label>
-            <label class="field-item">
-              <span>{{ academicAgentT("thinkingSelectLabel") }}</span>
-              <PopupSelect
-                :model-value="draftAgent.thinkingLevel ?? 'medium'"
-                :options="modelConfig.thinkingOptionsFor(draftAgent)"
-                :accessible-label="academicAgentT('thinkingSelectLabel')"
-                :disabled="formDisabled"
-                @update:model-value="handleThinkingChange"
-              />
-            </label>
-            <label v-if="draftAgent.thinkingLevel === 'off'" class="field-item">
-              <span>{{ academicAgentT("temperatureSelectLabel") }}</span>
-              <PopupSelect
-                :model-value="draftAgent.temperature ?? 0.7"
-                :options="modelConfig.temperatureOptionsFor(draftAgent)"
-                :accessible-label="academicAgentT('temperatureSelectLabel')"
-                :disabled="formDisabled"
-                @update:model-value="handleTemperatureChange"
-              />
-            </label>
-          </template>
+          <div v-if="draftAgent.modelMode === 'custom'" class="field-item">
+            <span>{{ academicAgentT("modelSelectLabel") }}</span>
+            <ConversationModelConfigSelect
+              variant="field"
+              hides-web-search
+              :selected-model-id="draftAgent.modelId ?? ''"
+              :model-options="modelConfig.modelOptions.value"
+              :thinking-level="draftAgent.thinkingLevel ?? 'medium'"
+              :thinking-options="
+                modelConfig.thinkingOptionsFor(draftAgent).map((option) => ({
+                  value: String(option.value) as ThinkingLevel,
+                  label: option.label
+                }))
+              "
+              :shows-temperature="draftAgent.thinkingLevel === 'off'"
+              :temperature="draftAgent.temperature ?? 0.7"
+              :temperature-options="
+                modelConfig.temperatureOptionsFor(draftAgent).map((option) => ({
+                  value: Number(option.value),
+                  label: option.label
+                }))
+              "
+              :accessible-label="academicAgentT('modelSelectLabel')"
+              :disabled="formDisabled"
+              @select-model="handleModelIdChange"
+              @select-thinking="handleThinkingChange"
+              @select-temperature="handleTemperatureChange"
+            />
+          </div>
         </div>
       </section>
 

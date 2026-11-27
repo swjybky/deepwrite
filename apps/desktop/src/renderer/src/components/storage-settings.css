@@ -1,3 +1,8 @@
+.storage-sections {
+  display: grid;
+  gap: 8px;
+}
+
 .storage-heading,
 .storage-actions {
   display: flex;
@@ -16,7 +21,9 @@
   margin: 0;
 }
 
-.storage-card {
+.storage-card,
+.storage-backup-card,
+.storage-compaction-card {
   min-width: 0;
   padding: 18px;
   gap: 16px;
@@ -67,6 +74,23 @@
   user-select: text;
 }
 
+.storage-compaction-metrics .storage-metrics-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-metric-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.storage-metric-label {
+  color: var(--text-secondary);
+}
+
 .storage-button,
 .storage-refresh {
   padding: 8px 12px;
@@ -114,4 +138,205 @@
 button:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+.local-backup-receipt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font-size: 0.892857rem;
+}
+
+.local-backup-dialog {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+}
+
+.local-backup-dialog-body {
+  display: grid;
+  gap: 16px;
+  overscroll-behavior: contain;
+}
+
+.local-backup-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.local-backup-group {
+  display: grid;
+  gap: 8px;
+}
+
+.local-backup-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.local-backup-group-head h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.928571rem;
+  font-weight: 600;
+}
+
+.local-backup-group-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.local-backup-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.local-backup-row {
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+}
+
+.local-backup-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.local-backup-check input {
+  margin-top: 3px;
+}
+
+.local-backup-row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.local-backup-row-text strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-size: 0.928571rem;
+  font-weight: 560;
+}
+
+.local-backup-row-text small {
+  color: var(--text-secondary);
+  font-size: 0.821429rem;
+  overflow-wrap: anywhere;
+}
+
+.local-backup-tag,
+.local-backup-status {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 540;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.local-backup-status.is-new {
+  background: var(--accent-soft, var(--surface-selected));
+  color: var(--accent);
+}
+
+.local-backup-status.is-conflict_same_id {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-main));
+  color: var(--danger);
+}
+
+.local-backup-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.857143rem;
+  line-height: 1.5;
+  border: 1px solid var(--theme-line-soft);
+  background: var(--surface-main);
+  color: var(--text-primary);
+}
+
+.local-backup-banner.is-warn {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--theme-line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-main));
+}
+
+.local-backup-banner.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--theme-line));
+  background: var(
+    --danger-soft,
+    color-mix(in srgb, var(--danger) 10%, var(--surface-main))
+  );
+  color: var(--danger-text, var(--danger));
+}
+
+.local-backup-policy {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--theme-line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+}
+
+.local-backup-policy legend {
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+}
+
+.local-backup-policy label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.928571rem;
+  cursor: pointer;
+}
+
+.export-dialog-backdrop {
+  padding: 24px;
+}
+
+.export-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+
+.export-dialog-footer .dialog-actions {
+  margin: 0 0 0 auto;
+}
+
+.export-dialog-summary {
+  color: var(--text-secondary);
+  font-size: 0.821429rem;
+}
+
+.dialog-primary-button.is-danger {
+  border-color: var(--danger);
+  background: var(--danger);
 }

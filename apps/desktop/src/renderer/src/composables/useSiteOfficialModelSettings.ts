@@ -31,7 +31,7 @@ interface SiteOfficialModelSettingsContext {
   loadModelSettings(): Promise<void>;
 }
 
-function errorMessage(error: unknown, fallback: string): string {
+function siteOfficialErrorMessage(error: unknown, fallback: string): string {
   return (getErrorDetail(error) ?? fallback).replace(
     /^models\.[a-z_]+:\s*/u,
     ""
@@ -54,7 +54,7 @@ export function useSiteOfficialModelSettings(
       if (current()) {
         settingsStore.siteOfficialQuota = null;
         uiMessage.warning(
-          errorMessage(
+          siteOfficialErrorMessage(
             error,
             t(
               "siteOfficialModelSettings.couldNotRetrieveTheNewOfficialSiteSBalance"
@@ -150,7 +150,7 @@ export function useSiteOfficialModelSettings(
         }
       }
     } catch (error: unknown) {
-      settingsStore.modelError = errorMessage(
+      settingsStore.modelError = siteOfficialErrorMessage(
         error,
         t("siteOfficialModelSettings.couldNotSaveTheNewOfficialSiteSModel")
       );
@@ -189,7 +189,7 @@ export function useSiteOfficialModelSettings(
         t("siteOfficialModelSettings.theNewOfficialSiteSModelKeyWasRemoved")
       );
     } catch (error: unknown) {
-      settingsStore.modelError = errorMessage(
+      settingsStore.modelError = siteOfficialErrorMessage(
         error,
         t("siteOfficialModelSettings.couldNotRemoveTheNewOfficialSiteSModel")
       );
@@ -219,7 +219,7 @@ export function useSiteOfficialModelSettings(
         catalogRefreshed = true;
       } catch (error: unknown) {
         uiMessage.error(
-          errorMessage(
+          siteOfficialErrorMessage(
             error,
             t(
               "siteOfficialModelSettings.couldNotRefreshTheNewOfficialSiteSModels"
@@ -239,6 +239,36 @@ export function useSiteOfficialModelSettings(
           t("siteOfficialModelSettings.theNewOfficialSiteSModelPageHasBeen")
         );
       }
+    } finally {
+      settingsStore.siteOfficialModelsRefreshing = false;
+    }
+  }
+
+  async function refreshSiteOfficialModelCatalog(): Promise<void> {
+    const api = context.api();
+    if (
+      !api ||
+      settingsStore.modelSaving ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+    )
+      return;
+    settingsStore.siteOfficialModelsRefreshing = true;
+    try {
+      const settings = await api.models.refreshSiteOfficial();
+      context.applyLoadedModelSettings(settings);
+      uiMessage.success(
+        t("siteOfficialModelSettings.officialSiteModelsRefreshed")
+      );
+    } catch (error: unknown) {
+      uiMessage.error(
+        siteOfficialErrorMessage(
+          error,
+          t(
+            "siteOfficialModelSettings.couldNotRefreshTheNewOfficialSiteSModels"
+          )
+        )
+      );
     } finally {
       settingsStore.siteOfficialModelsRefreshing = false;
     }
@@ -276,7 +306,7 @@ export function useSiteOfficialModelSettings(
       );
     } catch (error: unknown) {
       uiMessage.error(
-        errorMessage(
+        siteOfficialErrorMessage(
           error,
           t("modelSettingsCoordinator.failedToUpdateModelStatus")
         )
@@ -291,6 +321,7 @@ export function useSiteOfficialModelSettings(
     saveSiteOfficialToken,
     clearSiteOfficialToken,
     refreshSiteOfficialModels,
+    refreshSiteOfficialModelCatalog,
     setSiteOfficialModelEnabled
   };
 }

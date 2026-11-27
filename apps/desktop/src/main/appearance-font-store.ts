@@ -29,6 +29,7 @@ import {
   readAppearanceFontCandidate,
   safeAppearanceFontFileName
 } from "./appearance-font-file";
+import { isNodeError } from "@deepwrite/shared/node";
 
 interface DiskAppearanceFontCatalog {
   version: 1;
@@ -39,10 +40,6 @@ export interface ResolvedAppearanceFontAsset {
   byteSize: number;
   format: AppearanceCustomFontFormat;
   path: string;
-}
-
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
 }
 
 async function removeIfPresent(path: string): Promise<void> {

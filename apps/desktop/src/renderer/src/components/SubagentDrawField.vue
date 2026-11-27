@@ -14,7 +14,7 @@ import { computed, watch } from "vue";
 import { createScopedTranslator } from "../i18n";
 import AgentTeamSegmented from "./AgentTeamSegmented.vue";
 import AgentTeamSwitch from "./AgentTeamSwitch.vue";
-import AppIcon from "./AppIcon.vue";
+import ConversationModelConfigSelect from "./ConversationModelConfigSelect.vue";
 import PopupSelect, { type PopupSelectOption } from "./PopupSelect.vue";
 import SubagentModelField from "./SubagentModelField.vue";
 import { newSubagentDraw } from "./agentTeamDrawDraft";
@@ -260,22 +260,22 @@ function restoreDefaultPrompt(): void {
         />
         <div v-else class="draw-jev-model">
           <span class="draw-field-label">{{ t("selectJevModel") }}</span>
-          <PopupSelect
+          <ConversationModelConfigSelect
             class="draw-jev-select"
-            :model-value="draw.evaluator.modelId ?? ''"
-            :options="[...modelConfig.jevModelOptions.value]"
+            variant="field"
+            hides-web-search
+            close-on-model-select
+            :menu-z-index="1200"
+            :selected-model-id="draw.evaluator.modelId ?? ''"
+            :model-options="modelConfig.jevModelOptions.value"
+            :thinking-options="[]"
             :accessible-label="t('selectJevModel')"
             :placeholder="t('selectJevModel')"
-            size="large"
             :disabled="
               disabled || modelConfig.jevModelOptions.value.length === 0
             "
-            :menu-min-width="260"
-            :menu-z-index="1200"
-            @update:model-value="setJevModelId(String($event))"
-          >
-            <template #prefix><AppIcon name="model" :size="14" /></template>
-          </PopupSelect>
+            @select-model="setJevModelId"
+          />
           <p
             v-if="modelConfig.jevModelOptions.value.length === 0"
             class="draw-hint"

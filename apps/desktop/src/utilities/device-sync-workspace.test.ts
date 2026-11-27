@@ -1,4 +1,4 @@
-import { readFile, writeFile, realpath } from "node:fs/promises";
+import { readFile, readdir, writeFile, realpath } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -138,5 +138,35 @@ describe("双端同步 Core 事务与桌面真实契约", () => {
         "/tmp/device-sync-desktop-fixtures.json",
         JSON.stringify(inventory.items, null, 2)
       );
+  });
+  it("远端删除未绑定技能收纳区时可完成同步且不残留不可用注册项", async () => {
+    const { workspace, root, userDataPath, catalog } = await fixture();
+    const created = await catalog.createUnboundEntry({
+      domain: "skill",
+      title: "未绑定技能条目",
+      content: "正文",
+      libraryType: "short",
+      stageId: "draft"
+    });
+    const item = (await workspace.list()).items.find(
+      (entry) => entry.id === created.libraryId
+    );
+    expect(item).toBeDefined();
+    await workspace.apply(syncKey(item!), item!, null, root);
+    const index = await catalog.indexSnapshot();
+    expect(index.projectDiagnostics).toBeUndefined();
+    expect(index.skills).toEqual([]);
+    const registry = JSON.parse(
+      await readFile(catalog.registryPath, "utf8")
+    ) as {
+      projects: unknown[];
+      libraryOrganization?: { unboundLibraryIds: string[] };
+    };
+    expect(registry.projects).toEqual([]);
+    expect(registry.libraryOrganization?.unboundLibraryIds).toEqual([]);
+    await expect(
+      readFile(join(userDataPath, "device-sync-workspace-intent.json"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readdir(userDataPath)).not.toContain("device-sync-paused");
   });
 });

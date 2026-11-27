@@ -369,6 +369,59 @@ describe("external control bridge", () => {
     test.dispose();
   });
 
+  it("keeps a run running while its automatic edits save", async () => {
+    const test = harness({}, true);
+    const { result } = await test.start();
+    const status = async () =>
+      (await test.ask({ action: "run_status", runId: String(result.runId) }))
+        .result;
+    test.messages.value[1]!.editProposals = [
+      { title: "导语", status: "accepting", approvalMode: "auto-approve" },
+      { title: "正文", status: "pending", approvalMode: "auto-approve" }
+    ];
+    test.messages.value[1]!.status = "completed";
+    test.activeRunId.value = null;
+    test.busy.value = false;
+    expect(await status()).toMatchObject({ status: "running" });
+
+    test.messages.value[1]!.editProposals = [
+      { title: "导语", status: "accepted", approvalMode: "auto-approve" },
+      { title: "正文", status: "accepted", approvalMode: "auto-approve" }
+    ];
+    expect(await status()).toMatchObject({
+      status: "completed",
+      changes: ["导语", "正文"]
+    });
+    test.dispose();
+  });
+
+  it("fails a run whose latest edit of a document was not saved", async () => {
+    const test = harness({}, true);
+    const { result } = await test.start();
+    test.messages.value[1]!.editProposals = [
+      { title: "导语", status: "accepted", laneId: "intro", generation: 1 },
+      {
+        title: "正文",
+        status: "conflict",
+        statusMessage: "本地文件已在其他位置更新。",
+        laneId: "body",
+        generation: 1
+      }
+    ];
+    test.messages.value[1]!.status = "completed";
+    test.activeRunId.value = null;
+    test.busy.value = false;
+    expect(
+      (await test.ask({ action: "run_status", runId: String(result.runId) }))
+        .result
+    ).toMatchObject({
+      status: "failed",
+      changes: ["导语"],
+      error: "1 处修改未能保存：「正文」（本地文件已在其他位置更新。）"
+    });
+    test.dispose();
+  });
+
   it("marks a stopped run as stopped", async () => {
     const test = harness({}, true);
     const { result } = await test.start();

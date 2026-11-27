@@ -59,6 +59,7 @@ export interface AgentRunBuildContext {
   runtime: AgentRuntimeRef;
   spawnStreamFn: StreamFn;
   parentSignal: AbortSignal;
+  evaluationMode?: boolean;
   requestUserInput: AgentUserInputRequester;
   getParentMessages(): readonly AgentMessage[];
   /**

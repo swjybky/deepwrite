@@ -82,7 +82,8 @@ function profileSchema<Extra extends z.ZodRawShape>(extra: Extra) {
     z.strictObject({ ...paramsShape("bocha"), ...extra }),
     z.strictObject({ ...paramsShape("zhipu"), ...extra }),
     z.strictObject({ ...paramsShape("search1api"), ...extra }),
-    z.strictObject({ ...paramsShape("searxng"), ...extra })
+    z.strictObject({ ...paramsShape("searxng"), ...extra }),
+    z.strictObject({ ...paramsShape("tinyfish"), ...extra })
   ]);
 }
 
@@ -138,6 +139,10 @@ export const WebSearchStoredProfileSchema = z.discriminatedUnion("providerId", [
   }),
   z.object({
     ...paramsShape("searxng"),
+    keySource: WebSearchKeySourceSchema.optional()
+  }),
+  z.object({
+    ...paramsShape("tinyfish"),
     keySource: WebSearchKeySourceSchema.optional()
   })
 ]);

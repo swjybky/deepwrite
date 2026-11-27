@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import { nextTick, onUnmounted, ref, useId, watch } from "vue";
 import {
@@ -67,7 +68,7 @@ function trapFocus(event: KeyboardEvent): void {
   }
 }
 async function bind(): Promise<void> {
-  const api = window.deepwrite?.marketplace;
+  const api = deepwriteApi()?.marketplace;
   if (!api || pending.value || sending.value) return;
   const parsed = MarketplaceBindEmailInputSchema.safeParse({
     email: email.value,

@@ -75,6 +75,7 @@
   <LongAgentTeamSettingsPanel
     v-if="activeWorkspaceType === 'long'"
     :settings="longSettings"
+    :read-only="Boolean(readOnly)"
     :models="models"
     :skills="activeSkills"
     :preferred-model-id="preferredModelId ?? null"
@@ -96,6 +97,7 @@
   <MysteryAgentTeamSettingsPanel
     v-else-if="activeWorkspaceType === 'mystery'"
     :settings="mysterySettings ?? null"
+    :read-only="Boolean(readOnly)"
     :models="models"
     :loading="longLoading"
     :saving="longSaving"
@@ -153,7 +155,7 @@
 
     <AgentTeamParallelSwitch
       v-model="draftParallelSubagents"
-      :disabled="formDisabled"
+      :disabled="formDisabled || Boolean(readOnly)"
     />
 
     <AgentTeamSubagentSection
@@ -162,6 +164,7 @@
       :description="activeParentMeta.description"
       :note="t('subagentsUseThePrimaryAgentSModelByDefault')"
       :disabled="formDisabled"
+      :read-only="Boolean(readOnly)"
       :limit-reached="activeTeam.subagents.length >= activeSubagentLimit"
       @load-from-skill="openLoadFromSkill"
       @add="addSubagent()"
@@ -172,6 +175,7 @@
         :subagent="subagent"
         :editing="editingSubagentId === subagent.id"
         :disabled="formDisabled"
+        :read-only="Boolean(readOnly)"
         :duplicate-disabled="activeTeam.subagents.length >= activeSubagentLimit"
         :model-summary="subagentModelSummary(subagent)"
         @toggle="toggleSubagent(subagent, $event)"
@@ -189,6 +193,7 @@
           :model-config="subagentModelConfig"
           :subagent="subagent"
           :disabled="formDisabled"
+          :read-only="Boolean(readOnly)"
           :model-options="modelOptions"
           :thinking-options="thinkingOptionsFor(subagent)"
           :temperature-options="temperatureOptionsFor(subagent)"
@@ -202,6 +207,7 @@
     </AgentTeamSubagentSection>
 
     <AgentTeamSaveBar
+      v-if="!readOnly"
       :dirty="dirty"
       :saving="saving"
       :disabled="formDisabled"
@@ -211,6 +217,7 @@
   </div>
 
   <LoadSubagentFromSkillDialog
+    v-if="!readOnly"
     :open="loadFromSkillOpen"
     :parent-agent-id="activeParentAgentId"
     :parent-agent-label="activeParentMeta.label"

@@ -19,9 +19,7 @@ import type { ProjectTransactionFileOperation } from "../../project-transaction"
 import {
   commitLongProjectTransaction,
   encodeUtf8Strict,
-  isNodeError,
   readSecureTextFile,
-  serializeJson,
   unknownRecord
 } from "../io";
 import {
@@ -29,6 +27,8 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type SecureTextFile
 } from "../types";
+import { isNodeError } from "@deepwrite/shared/node";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export async function migrateLegacyWorldbuildingStorage(input: {
   projectDirectory: string;
@@ -156,7 +156,7 @@ export async function migrateLegacyWorldbuildingStorage(input: {
     ...rawIndex,
     worldbuilding
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   await commitLongProjectTransaction({
     projectRoot: input.projectDirectory,
     operations: [
@@ -184,7 +184,7 @@ export async function migrateLegacyCharacterTypes(input: {
     ...rawIndex,
     characterTypes: structuredClone(DEFAULT_LONG_CHARACTER_TYPES)
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   await commitLongProjectTransaction({
     projectRoot: input.projectDirectory,
     operations: [
@@ -252,7 +252,7 @@ export async function migrateLegacyCharacterOverviewStorage(input: {
         updatedAt: existingOverview.updatedAt
       }
     });
-    const indexContent = serializeJson(nextIndex);
+    const indexContent = toJsonFileText(nextIndex);
     await commitLongProjectTransaction({
       projectRoot: input.projectDirectory,
       operations: [
@@ -272,7 +272,7 @@ export async function migrateLegacyCharacterOverviewStorage(input: {
     ...rawIndex,
     characterOverview: overview
   });
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   await commitLongProjectTransaction({
     projectRoot: input.projectDirectory,
     operations: [
@@ -344,7 +344,7 @@ export async function migrateLegacyCharacterStateFiles(input: {
   }
 
   const nextIndex = LongWorkspaceIndexSnapshotSchema.parse(index);
-  const indexContent = serializeJson(nextIndex);
+  const indexContent = toJsonFileText(nextIndex);
   await commitLongProjectTransaction({
     projectRoot: input.projectDirectory,
     operations: [

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { uiStorage } from "./utils/uiStorage";
+import { deepwriteApi } from "./api/deepwrite";
 import { createDecompositionWorkspaceBridge } from "./composables/decompositionWorkspaceBridge";
 import { formatError } from "./i18n/errors";
 import { createScopedTranslator } from "./i18n";
@@ -24,6 +26,7 @@ import type {
 import { bookBindingsTarget } from "./stores/bookBindingsDialog";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import ToastHost from "./components/ToastHost.vue";
+import ConfirmHost from "./components/ConfirmHost.vue";
 import WritingWorkspaceModule from "./components/WritingWorkspaceModule.vue";
 import { startNativeWorkspaceSystemEvents } from "./events/registerWorkspaceSystemEventRoutes";
 import { systemEventCenter } from "./events/systemEventCenter";
@@ -43,6 +46,7 @@ import { useCatalogWorkspaceProjectionCoordinator } from "./composables/useCatal
 import { conversationRuntimeRegistryStorePort } from "./composables/conversationRuntimeRegistryStorePort";
 import { useConversationRuntimeRegistryCoordinator } from "./composables/useConversationRuntimeRegistryCoordinator";
 import { AGENT_ACTIVITY_CONTEXT_KEY } from "./composables/agentActivityContext";
+import { OFFICIAL_MODEL_REFRESH_CONTEXT_KEY } from "./composables/officialModelRefreshContext";
 import { useAgentActivityCoordinator } from "./composables/useAgentActivityCoordinator";
 import { useCurrentAgentActivityView } from "./composables/useCurrentAgentActivityView";
 import {
@@ -161,7 +165,7 @@ const documents = shallowRef<WorkspaceDocument[]>([
 const editorDrafts = shallowRef<Record<string, EditorDraftState>>({});
 const draftRecoveryPersistence = useDraftRecoveryPersistence({
   drafts: editorDrafts,
-  api: () => window.deepwrite?.catalog,
+  api: () => deepwriteApi()?.catalog,
   warning: (message) => uiMessage.warning(message)
 });
 const nextDraftRecoveryTimestamp = draftRecoveryPersistence.nextTimestamp;
@@ -176,7 +180,7 @@ const {
   longAgentLoadError,
   libraryAgentSettings
 } = storeToRefs(settingsStore);
-const legacyGeneralPreferences = loadGeneralPreferences(window.localStorage);
+const legacyGeneralPreferences = loadGeneralPreferences(uiStorage());
 const selectedExpertSectionIds = ref<Record<string, string>>({});
 const selectedDraftFileKinds = ref<Record<string, DraftFileKind>>({});
 const pendingEditorReferences = ref<EditorTextReference[]>([]);
@@ -194,16 +198,16 @@ const {
   disposeAnalysisFeatures,
   longBookAnalysisRunning,
   shortBookAnalysisRunning
-} = useBookAnalysisFeatures(() => window.deepwrite);
+} = useBookAnalysisFeatures(() => deepwriteApi());
 const subagentAuthoringFeature = useLazySubagentAuthoringController({
-  api: () => window.deepwrite
+  api: () => deepwriteApi()
 });
 // The catalog can contain all manuscript and library bodies. It is never
 // mutated in place, so deep observation only adds proxy/allocation overhead.
 const catalogIndexStore = useCatalogIndexStore();
 const catalogDocumentLoader = useCatalogDocumentLoader({
   catalogIndex: catalogIndexStore,
-  reader: () => window.deepwrite?.catalog,
+  reader: () => deepwriteApi()?.catalog,
   documents
 });
 const documentById = catalogDocumentLoader.documentsById;
@@ -213,7 +217,7 @@ const {
   snapshotLoading: catalogLoading
 } = storeToRefs(catalogIndexStore);
 const catalogWorkspaceProjection = useCatalogWorkspaceProjectionCoordinator({
-  api: () => window.deepwrite?.catalog,
+  api: () => deepwriteApi()?.catalog,
   index: {
     snapshot: catalogSnapshot,
     projection: catalogProjection,
@@ -266,7 +270,7 @@ const {
   overwriteSaveConflictOnDisk,
   dispose: disposeCatalogDocumentPersistence
 } = useCatalogDocumentPersistence({
-  api: () => window.deepwrite?.catalog,
+  api: () => deepwriteApi()?.catalog,
   documents,
   drafts: editorDrafts,
   acceptingWorkspaceIds: acceptingAgentEditWorkspaceIds,
@@ -334,10 +338,10 @@ const {
 } = useGeneralSettingsCoordinator({
   settings: generalSettings,
   autoSaveEnabled: editorAutoSaveEnabled,
-  api: () => window.deepwrite?.generalSettings,
+  api: () => deepwriteApi()?.generalSettings,
   publishLoaded: (settings) => settingsStore.markLoaded("general", settings),
   legacyAutoSave: legacyGeneralPreferences.autoSave,
-  storage: window.localStorage,
+  storage: uiStorage(),
   documentRoot: document.documentElement,
   browserLanguage: () => navigator.language,
   applyApprovalMode: applyDefaultApprovalMode,
@@ -413,8 +417,8 @@ const {
   confirmLibraryRemoval,
   handleResourceNodeAction
 } = useCatalogLibraryTransactionsCoordinator({
-  api: () => window.deepwrite?.catalog,
-  libraryPackageApi: () => window.deepwrite?.libraryPackage,
+  api: () => deepwriteApi()?.catalog,
+  libraryPackageApi: () => deepwriteApi()?.libraryPackage,
   snapshot: catalogSnapshot,
   documents,
   drafts: editorDrafts,
@@ -455,9 +459,9 @@ const {
 const conversations = conversationControllers.value;
 const conversationScopes = conversationScopesByKey.value;
 const conversationPersistenceAdapter = createConversationPersistenceAdapter(
-  window.deepwrite?.conversationPersistence,
+  deepwriteApi()?.conversationPersistence,
   {
-    storage: window.localStorage,
+    storage: uiStorage(),
     beforeClose: async () => {
       if (!(await mysteryBridge.navigationPort.saveActiveEditorBeforeLeaving()))
         throw new Error(t("couldNotSaveEditorDraft"));
@@ -466,7 +470,7 @@ const conversationPersistenceAdapter = createConversationPersistenceAdapter(
       await appearance.flush();
       await draftRecoveryPersistence.flush({ strict: true });
       // The Main store serializes this read after any pending directory write.
-      await window.deepwrite?.workspaceDirectory.list();
+      await deepwriteApi()?.workspaceDirectory.list();
     }
   }
 );
@@ -477,7 +481,7 @@ const conversationRuntimeRegistry = useConversationRuntimeRegistryCoordinator({
   permissionMode: () => generalSettings.value.permissionMode,
   createController: (hooks) =>
     useAgentConversation({
-      api: () => window.deepwrite,
+      api: () => deepwriteApi(),
       contextCompactionBudgetTokens: () =>
         generalSettings.value.contextCompaction.budgetTokens,
       onContextWarning: (message) => uiMessage.warning(message),
@@ -529,12 +533,12 @@ const {
   activeLongSelection,
   ...mysteryBridge.treePorts,
   selectedResourceId,
-  storage: () => window.localStorage,
+  storage: () => uiStorage(),
   notifications: uiMessage
 });
 
 const featureHost = useWorkspaceFeatureHostCoordinator({
-  api: () => window.deepwrite,
+  api: () => deepwriteApi(),
   view: {
     current: currentView,
     settingsInitialCategory,
@@ -926,9 +930,9 @@ const {
     }
   },
   manuscript: {
-    available: () => Boolean(window.deepwrite),
+    available: () => Boolean(deepwriteApi()),
     exportLong(input) {
-      const desktop = window.deepwrite;
+      const desktop = deepwriteApi();
       if (!desktop) {
         throw new Error(
           t("theDesktopRuntimeDisconnectedTheNovelCannotBeExported")
@@ -1055,7 +1059,7 @@ const {
   confirmRemoveExpertSection,
   dispose: disposeShortWorkspaceStructure
 } = useShortWorkspaceStructureCoordinatorWithContext({
-  api: () => window.deepwrite?.catalog,
+  api: () => deepwriteApi()?.catalog,
   state: {
     documents,
     drafts: editorDrafts,
@@ -1143,7 +1147,7 @@ const shortBookLifecycle = useLazyShortBookLifecycleCoordinator({
     selectedDraftFileKinds
   },
   catalog: {
-    api: () => window.deepwrite?.catalog,
+    api: () => deepwriteApi()?.catalog,
     book: catalogBook,
     refresh: loadCatalogSnapshot,
     refreshWorkspaceDirectory: featureHost.loadWorkspaceDirectory,
@@ -1268,7 +1272,7 @@ const shortBookLifecycle = useLazyShortBookLifecycleCoordinator({
     }
   },
   manuscript: {
-    api: () => window.deepwrite?.manuscript,
+    api: () => deepwriteApi()?.manuscript,
     ensureDocumentsLoaded: ensureCatalogDocumentsLoaded
   },
   clipboard: {
@@ -1403,11 +1407,13 @@ const {
   saveSiteOfficialToken,
   clearSiteOfficialToken,
   refreshSiteOfficialModels,
+  refreshSiteOfficialModelCatalog,
   setSiteOfficialModelEnabled,
   saveModelSettings,
   refreshFreeModels,
   setFreeModelEnabled,
   testModel,
+  cancelModelTest,
   loadShortAndScriptAgentSettings,
   loadLongAgentSettings,
   ensureLongAgentSettingsLoaded,
@@ -1418,6 +1424,7 @@ const {
   createAgentTeam,
   renameAgentTeam,
   deleteAgentTeam,
+  duplicateAgentTeam,
   downloadAgentTeam,
   installAgentTeam,
   setAgentTeamEnabled,
@@ -1426,7 +1433,7 @@ const {
   saveLibraryAgentSettings,
   resetLibraryAgentSettings
 } = useSettingsFeatureCoordinator({
-  api: () => window.deepwrite,
+  api: () => deepwriteApi(),
   settingsStore,
   notifications: uiMessage,
   onModelsLoaded(settings) {
@@ -1505,7 +1512,7 @@ const {
   showConversation: featureHost.showConversation,
   notifications: uiMessage
 });
-const hasDesktopRuntime = computed(() => Boolean(window.deepwrite));
+const hasDesktopRuntime = computed(() => Boolean(deepwriteApi()));
 const proposalEditQueueBridge = {
   hasQueued: (): boolean => false
 };
@@ -1650,6 +1657,16 @@ const agentActivity = useAgentActivityCoordinator({
   notifications: uiMessage
 });
 provide(AGENT_ACTIVITY_CONTEXT_KEY, agentActivity.context);
+provide(OFFICIAL_MODEL_REFRESH_CONTEXT_KEY, {
+  refreshing: computed(
+    () =>
+      settingsStore.modelSaving ||
+      settingsStore.siteOfficialModelsSaving ||
+      settingsStore.siteOfficialModelsRefreshing
+  ),
+  announcements: computed(() => settingsStore.modelAlertMessages),
+  refresh: refreshSiteOfficialModelCatalog
+});
 const catalogManuscriptFormatting = useCatalogManuscriptFormatting({
   documents,
   drafts: editorDrafts,
@@ -1752,7 +1769,7 @@ async function handleResourceAction(
     (payload.action === "choose-open-book" ||
       payload.action === "choose-import-book")
   ) {
-    if (!window.deepwrite) {
+    if (!deepwriteApi()) {
       uiMessage.warning(t("browserPreviewsCannotOpenLocalWorksUseTheDesktop"));
       return;
     }
@@ -1819,7 +1836,7 @@ async function handleResourceAction(
     payload.action === "create-group" &&
     (payload.domain === "material" || payload.domain === "skill")
   ) {
-    if (!window.deepwrite) {
+    if (!deepwriteApi()) {
       uiMessage.warning(
         t("browserPreviewsCannotCreateLocalGroupsUseTheDesktop")
       );
@@ -1849,7 +1866,7 @@ async function handleResourceAction(
     await openCatalogProjectAction(
       payload.domain === "creation" ? "book" : payload.domain,
       {
-        api: window.deepwrite,
+        api: deepwriteApi(),
         pending: catalogMutationPending,
         refresh: refreshImportedCatalog,
         select: async (opened) => {
@@ -2193,7 +2210,7 @@ const {
   stageLongWorldbuildingEditProposal,
   dispose: disposeProposalCoordinator
 } = useLazyProposalCoordinator({
-  api: () => window.deepwrite,
+  api: () => deepwriteApi(),
   notifications: uiMessage,
   catalog: {
     snapshot: catalogSnapshot,
@@ -2309,7 +2326,7 @@ const handleGlobalKeydown = useWorkspaceWindowMenus({
 });
 
 async function refreshWorkspaceOnWindowFocus(): Promise<void> {
-  if (!window.deepwrite) return;
+  if (!deepwriteApi()) return;
   const refreshCatalog = async (): Promise<void> => {
     if (await loadCatalogSnapshot()) {
       await retryPendingBookReconciliations({
@@ -2345,7 +2362,7 @@ watch(
 const workspaceLifecycle = useWorkspaceLifecycleCoordinator({
   windowTarget: window,
   activeFeature,
-  desktopAvailable: () => Boolean(window.deepwrite),
+  desktopAvailable: () => Boolean(deepwriteApi()),
   handleKeydown: handleGlobalKeydown,
   reconcileLayout: reconcilePaneWidths,
   draftRecovery: draftRecoveryPersistence,
@@ -2407,6 +2424,7 @@ onBeforeUnmount(() => {
 
 <template>
   <ToastHost />
+  <ConfirmHost />
   <WorkspaceFeatureModules
     v-if="workspaceFeatureModule?.kind === 'settings'"
     :module="workspaceFeatureModule"
@@ -2435,6 +2453,7 @@ onBeforeUnmount(() => {
     @load-models="refreshModelSettings"
     @save-models="saveModelSettings"
     @test-model="testModel"
+    @cancel-test-model="cancelModelTest"
     @load-site-official-models="loadSiteOfficialModels"
     @save-site-official-token="saveSiteOfficialToken"
     @clear-site-official-token="clearSiteOfficialToken"
@@ -2515,6 +2534,7 @@ onBeforeUnmount(() => {
       @create-agent-team="createAgentTeam"
       @rename-agent-team="renameAgentTeam"
       @delete-agent-team="deleteAgentTeam"
+      @duplicate-agent-team="duplicateAgentTeam"
       @download-agent-team="downloadAgentTeam"
       @install-agent-team="installAgentTeam"
       @set-agent-team-enabled="setAgentTeamEnabled"
@@ -2523,6 +2543,7 @@ onBeforeUnmount(() => {
       @reset-workspace-directory="featureHost.resetWorkspaceDirectory"
       @save-models="saveModelSettings"
       @test-model="testModel"
+      @cancel-test-model="cancelModelTest"
       @open-official-models="featureHost.openOfficialModelsSettings"
       @refresh-catalog="loadCatalogSnapshot"
       @open-identity-book="openIdentityBook"

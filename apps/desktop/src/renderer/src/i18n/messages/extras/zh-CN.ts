@@ -286,6 +286,12 @@ export default {
     checkRemoteUpdates: "检查远端更新",
     downloadPreviewAgain: "重新下载预览",
     downloadPreview: "下载并预览远端数据",
+    initializationFailedTitle: "初始化未完成",
+    ignoreOtherDevicesPreview: "忽略其他设备，仅按此设备预览",
+    ignoredDevicesSummary:
+      "已忽略未合并设备（{devices}）的远端记录，仅采用“{device}”当前版本。",
+    skippedUnsupportedSummary:
+      "已跳过 {count} 项当前版本暂不支持的作品，云端原件保持不变。",
     remoteVerified: "远端数据已校验",
     sourceSummary: "来源：{device} · {date}",
     replacementSummary:
@@ -426,9 +432,11 @@ export default {
     mergeIntoPrevious: "并入上一章",
     mergeNextChapter: "合并下一章",
     splitAtCursor: "在光标处拆分",
+    undoChapterCorrection: "撤回",
+    undoChapterCorrectionHint: "撤回上一步章节校正（⌘Z / Ctrl+Z）",
     chapterPreview: "章节正文预览",
     chapterCorrectionHelp:
-      "把光标放到正文中的分界位置，再点击“在光标处拆分”。校正只保留在当前页面内存中，不会修改源文件。",
+      "把光标放到正文中的分界位置，可点击“在光标处拆分”；未保存的校正可点“撤回”或按 Ctrl/⌘+Z 恢复。保存校对、开始分析或切换来源后撤回记录会清空，原始文件不会被修改。",
     selectedChapterCount: "已选 {count} 章",
     novelAnalysisProcess: "长篇拆书执行过程",
     viewGeneratedResult: "查看生成结果",

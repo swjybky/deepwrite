@@ -4,7 +4,8 @@ import {
   type WebSearchHit,
   type WebSearchProviderClient
 } from "../types";
-import { httpUrl, isRecord, requestJson } from "./http";
+import { httpUrl, requestJson } from "./http";
+import { isRecord } from "@deepwrite/shared";
 
 type ProviderId = "tavily" | "exa" | "brave";
 

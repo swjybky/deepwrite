@@ -46,6 +46,11 @@ export const ExternalControlStateFileSchema = z.discriminatedUnion("status", [
   StateFileBaseSchema.extend({
     status: z.literal("updating"),
     startedAt: z.string().datetime()
+  }),
+  /** The app is restarting: bridges wait for the new instance instead of spawning a duplicate. */
+  StateFileBaseSchema.extend({
+    status: z.literal("restarting"),
+    startedAt: z.string().datetime()
   })
 ]);
 export type ExternalControlStateFile = z.infer<
@@ -103,6 +108,14 @@ export const ExternalControlCallEnvelopeSchema = EnvelopeBaseSchema.extend({
 });
 export type ExternalControlCallEnvelope = z.infer<
   typeof ExternalControlCallEnvelopeSchema
+>;
+
+export const ExternalControlPingEnvelopeSchema = EnvelopeBaseSchema.extend({
+  type: z.literal("externalControl.ping"),
+  payload: z.object({}).strict()
+});
+export type ExternalControlPingEnvelope = z.infer<
+  typeof ExternalControlPingEnvelopeSchema
 >;
 
 /** Same accepted/rejected shape as Main's command results. */

@@ -9,7 +9,7 @@ import {
   type LongBookDecompositionJob,
   type LongBookDecompositionProfile
 } from "@deepwrite/contracts";
-import { LongBookAnalysisSourceStore } from "../../extras/agents/sources/long-book-source-store";
+import { LongBookAnalysisSourceStore } from "../long-book-sources/long-book-source-store";
 import { LongWorkspaceService } from "../long-workspace-service";
 import { FolderCatalogStore } from "../folder-catalog-store";
 import { DecompositionService } from "./service";

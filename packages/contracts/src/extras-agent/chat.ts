@@ -9,6 +9,7 @@ import {
   chatAssistantProjectKey
 } from "../chat-assistant-base";
 import { ExtrasAgentProfileIdSchema } from "./ids";
+import { isRecord } from "@deepwrite/shared";
 
 const ChatPromptSchema = z
   .string()
@@ -89,10 +90,6 @@ export const ChatProjectTaskInputSchema = z
   })
   .strict();
 export const ChatRoleplayTaskInputSchema = z.object({}).strict();
-
-function isRecord(value: unknown): boolean {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * Chat inputs Main hands the Agent Utility. Main fully parses the runtime

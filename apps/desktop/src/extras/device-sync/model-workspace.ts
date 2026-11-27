@@ -64,6 +64,12 @@ export function withModelConfigSync(
       if (isModelItem(item)) parseSyncModelEntry(item);
       else await projects.validate(item);
     },
+    ...(projects.supportsItem
+      ? {
+          supportsItem: (item) =>
+            isModelItem(item) || projects.supportsItem!(item)
+        }
+      : {}),
     recover: () => projects.recover(),
     apply: async (key, expected, next) => {
       if (!key.startsWith(MODEL_KEY_PREFIX))

@@ -4,8 +4,9 @@ import type {
   AgentConversationPersistenceSnapshot,
   ConversationStorage
 } from "./types";
-import { isRecord, validDate } from "./shared";
+import { validDate } from "./shared";
 import { parseStoredMessage } from "./parse";
+import { isRecord } from "@deepwrite/shared";
 
 /** Destructive migration is allowed only when every original record is readable. */
 export function isCompletePersistenceSnapshot(value: unknown): boolean {

@@ -91,23 +91,16 @@ if (electronFlag === "--electron") {
           await frame();
           const panel = document.querySelector('.analysis-model-panel');
           if (!panel) throw new Error('Model settings panel did not open');
-          panel.querySelector('[role="combobox"]').click();
-          await frame();
-          const menu = document.querySelector('.popup-select-menu');
-          if (!menu) throw new Error('Model menu did not open');
-          // Allow Vue's deferred enter transition to start before collecting animations.
           await new Promise(resolve => setTimeout(resolve, 150));
-          await Promise.all(menu.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {})));
           await frame();
-          for (const element of [panel, menu]) {
-            const rect = element.getBoundingClientRect();
-            if (rect.left < 0 || rect.right > innerWidth + 1 || rect.top < 0 || rect.bottom > innerHeight + 1 || element.scrollWidth > element.clientWidth + 1)
-              throw new Error('Model settings must fit the viewport');
-          }
-          const option = menu.querySelector('[role="option"]');
-          const rect = option.getBoundingClientRect();
-          if (!menu.contains(document.elementFromPoint(rect.left + 10, rect.top + 10)))
-            throw new Error('Model menu must appear above the settings panel');
+          const rect = panel.getBoundingClientRect();
+          if (rect.left < 0 || rect.right > innerWidth + 1 || rect.top < 0 || rect.bottom > innerHeight + 1 || panel.scrollWidth > panel.clientWidth + 1)
+            throw new Error('Model settings must fit the viewport');
+          const option = panel.querySelector('.model-picker-list [role="option"]');
+          if (!option) throw new Error('Model list options did not render');
+          const optRect = option.getBoundingClientRect();
+          if (!panel.contains(document.elementFromPoint(optRect.left + 10, optRect.top + 10)))
+            throw new Error('Model picker option must be clickable inside the panel');
           return { scheme: '${scheme}', size: ${size}, modelSettings: true, menuAbovePanel: true };
         })()`)
         );
@@ -117,10 +110,8 @@ if (electronFlag === "--electron") {
         );
         await execute(`(async () => {
           const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          document.querySelector('.popup-select-menu').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-          await frame();
           const panel = document.querySelector('.analysis-model-panel');
-          if (!panel) throw new Error('Closing the model menu must keep settings open');
+          if (!panel) throw new Error('Model settings panel closed unexpectedly');
           panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
           await frame();
           if (document.querySelector('.analysis-model-panel') || document.activeElement !== document.querySelector('.analysis-model-trigger'))

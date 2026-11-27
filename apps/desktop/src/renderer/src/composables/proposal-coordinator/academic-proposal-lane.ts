@@ -236,6 +236,24 @@ function renderAcademicMutationPreview(target: AcademicMutationTarget): {
   }
 }
 
+/**
+ * A document edit folded into a still-unsaved proposal keeps that proposal's
+ * base: the agent's base is its own overlay, which never reached disk.
+ */
+export function coalescedAcademicTarget(
+  target: AcademicMutationTarget,
+  previous: AcademicMutationTarget | undefined
+): AcademicMutationTarget {
+  if (target.kind !== "document-edit" || previous?.kind !== "document-edit") {
+    return target;
+  }
+  return {
+    ...target,
+    beforeText: previous.beforeText,
+    baseRevision: previous.baseRevision
+  };
+}
+
 function provisionalIdsCreatedByTarget(
   target: AcademicMutationTarget
 ): string[] {
@@ -364,15 +382,19 @@ export function createAcademicProposalLane(
       !canUpdateLatestInPlace && latestInLane
         ? latestInLane.id
         : generationInfo.predecessorProposalId;
-
-    const diff = buildAgentTextDiff(preview.beforeText, preview.proposedText);
+    const target = coalescedAcademicTarget(
+      payload.target,
+      canUpdateLatestInPlace ? latestInLane?.academicMutationTarget : undefined
+    );
+    const shown = renderAcademicMutationPreview(target);
+    const diff = buildAgentTextDiff(shown.beforeText, shown.proposedText);
     const documentId = preview.catalogDocumentId
       ? projectedAcademicDocId(payload.workspaceId, preview.catalogDocumentId)
       : `academic-proposal:${payload.workspaceId}:${payload.toolCallId}`;
 
     const baseRevision =
-      payload.target.kind === "document-edit"
-        ? payload.target.baseRevision
+      target.kind === "document-edit"
+        ? target.baseRevision
         : createShortWorkspaceContentRevision(preview.beforeText);
     const proposedRevision = createShortWorkspaceContentRevision(
       preview.proposedText
@@ -394,9 +416,7 @@ export function createAcademicProposalLane(
       baseRevision,
       proposedRevision,
       proposedText:
-        payload.target.kind === "document-edit"
-          ? payload.target.text
-          : preview.proposedText,
+        target.kind === "document-edit" ? target.text : preview.proposedText,
       toolCallIds: [
         ...new Set([
           ...(canUpdateLatestInPlace && latestInLane
@@ -416,7 +436,7 @@ export function createAcademicProposalLane(
       ...(payload.baseProjectRevision === undefined
         ? {}
         : { academicBaseProjectRevision: payload.baseProjectRevision }),
-      academicMutationTarget: payload.target
+      academicMutationTarget: target
     });
 
     if (approvalMode === "auto-approve") {

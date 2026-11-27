@@ -13,15 +13,12 @@ import {
   type VoiceSettingsInput,
   type VoiceUsageRecord
 } from "@deepwrite/contracts";
+import { isRecord } from "@deepwrite/shared";
 
 export interface VoiceSecureStorage {
   isEncryptionAvailable(): boolean;
   encryptString(value: string): Buffer;
   decryptString(value: Buffer): string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function readJson(path: string): Promise<unknown> {

@@ -7,6 +7,7 @@ import {
   projectTransactionFileIdentity
 } from "./types";
 import { validateRelativeProjectPath } from "./validation";
+import { isNodeError } from "@deepwrite/shared/node";
 
 export async function writeDurableNewFile(
   path: string,
@@ -267,11 +268,4 @@ export async function unlinkOptional(path: string): Promise<void> {
   } catch (error: unknown) {
     if (!isNodeError(error, "ENOENT")) throw error;
   }
-}
-
-export function isNodeError(
-  error: unknown,
-  code: string
-): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === code;
 }

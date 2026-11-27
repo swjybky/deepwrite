@@ -13,6 +13,7 @@ import {
 import { ref, watch } from "vue";
 import { uiMessage } from "../ui-feedback";
 import WorkspaceAgentProfileForm from "./WorkspaceAgentProfileForm.vue";
+import { patchWorkspaceAgentReadAccess } from "./workspaceAgentProfileDraft";
 
 const t = createScopedTranslator("components.scriptAgentSettingsPanel");
 
@@ -58,11 +59,7 @@ function patchAccess(
   id: string,
   checked: boolean
 ): void {
-  if (!draft.value) return;
-  const values = new Set(draft.value.readAccess[scope] as readonly string[]);
-  if (checked) values.add(id);
-  else values.delete(id);
-  Object.assign(draft.value.readAccess, { [scope]: [...values] });
+  patchWorkspaceAgentReadAccess(draft.value, scope, id, checked);
 }
 
 function patchShortcut(index: number, value: string): void {

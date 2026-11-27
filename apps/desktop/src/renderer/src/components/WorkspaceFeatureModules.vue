@@ -101,6 +101,7 @@ const emit = defineEmits<{
   loadModels: [];
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
+  cancelTestModel: [modelId: string];
   loadSiteOfficialModels: [];
   saveSiteOfficialToken: [apiKey: string];
   clearSiteOfficialToken: [];
@@ -111,6 +112,7 @@ const emit = defineEmits<{
   createAgentTeam: [input: AgentTeamProfileCreateInput];
   renameAgentTeam: [input: AgentTeamProfileRenameInput];
   deleteAgentTeam: [input: AgentTeamProfileTargetInput];
+  duplicateAgentTeam: [input: AgentTeamProfileTargetInput];
   downloadAgentTeam: [input: AgentTeamProfileTargetInput];
   installAgentTeam: [];
   setAgentTeamEnabled: [input: AgentTeamProfileSetEnabledInput];
@@ -173,6 +175,7 @@ const emit = defineEmits<{
     :model-error="module.modelError"
     :model-test-message="module.modelTestMessage"
     :testing-model-id="module.testingModelId"
+    :model-test-states="module.modelTestStates"
     :runtime-available="module.runtimeAvailable"
     @back="emit('back')"
     @update-permission-mode="emit('updatePermissionMode', $event)"
@@ -205,6 +208,7 @@ const emit = defineEmits<{
     @load-models="emit('loadModels')"
     @save-models="emit('saveModels', $event)"
     @test-model="emit('testModel', $event)"
+    @cancel-test-model="emit('cancelTestModel', $event)"
     @load-site-official-models="emit('loadSiteOfficialModels')"
     @save-site-official-token="emit('saveSiteOfficialToken', $event)"
     @clear-site-official-token="emit('clearSiteOfficialToken')"
@@ -247,6 +251,7 @@ const emit = defineEmits<{
       @create="emit('createAgentTeam', $event)"
       @rename="emit('renameAgentTeam', $event)"
       @delete="emit('deleteAgentTeam', $event)"
+      @duplicate="emit('duplicateAgentTeam', $event)"
       @download="emit('downloadAgentTeam', $event)"
       @install="emit('installAgentTeam')"
       @set-enabled="emit('setAgentTeamEnabled', $event)"

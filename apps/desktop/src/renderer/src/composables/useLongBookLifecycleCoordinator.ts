@@ -1,4 +1,8 @@
 import {
+  acquireBookLifecycleLease,
+  type BookLifecyclePendingLease
+} from "./book-lifecycle-operations";
+import {
   bookBindingsTarget,
   type BookBindingsTarget
 } from "../stores/bookBindingsDialog";
@@ -39,11 +43,7 @@ import {
 
 const t = createScopedTranslator("workspace");
 
-interface PendingLease {
-  readonly lane: PendingLane;
-  readonly requestId: number;
-  readonly pending: Ref<boolean>;
-}
+type PendingLease = BookLifecyclePendingLease<PendingLane>;
 
 /**
  * Owns long-book creation/import and whole-book lifecycle mutations.
@@ -81,18 +81,13 @@ export function useLongBookLifecycleCoordinator(
   }
 
   function acquirePendingLease(lane: PendingLane): PendingLease | null {
-    if (disposed || ownedPendingLeases.has(lane)) return null;
-    const pending = pendingRef(lane);
-    // A true value without a locally owned lease belongs to another boundary.
-    if (pending.value) return null;
-    const lease: PendingLease = {
+    if (disposed) return null;
+    return acquireBookLifecycleLease(
+      ownedPendingLeases,
       lane,
-      requestId: ++pendingRequestClock,
-      pending
-    };
-    ownedPendingLeases.set(lane, lease);
-    pending.value = true;
-    return lease;
+      pendingRef(lane),
+      () => ++pendingRequestClock
+    );
   }
 
   function leaseIsCurrent(lease: PendingLease): boolean {
@@ -170,10 +165,6 @@ export function useLongBookLifecycleCoordinator(
     dialogRequestEpoch += 1;
   }
 
-  function errorMessage(error: unknown, fallback: string): string {
-    return formatError(error, fallback);
-  }
-
   function clearRefreshStatusFor(bookId: string): void {
     if (state.refreshStatus.value?.bookId === bookId) {
       state.refreshStatus.value = null;
@@ -242,7 +233,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToCreateNovel")
             )
@@ -282,7 +273,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToOpenExistingNovel")
             )
@@ -332,7 +323,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t(
                 "longBookLifecycleCoordinator.failedToScanTheChapterFolderForContinuation"
@@ -374,7 +365,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToImportPortableNovel")
             )
@@ -445,7 +436,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToImportForContinuation")
             )
@@ -497,7 +488,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToDuplicateNovel")
             )
@@ -556,7 +547,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToReadTheLegacyArchive")
             )
@@ -646,7 +637,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToSyncLegacyProject")
             )
@@ -675,8 +666,7 @@ export function useLongBookLifecycleCoordinator(
       ownedPendingLeases.set(lease.lane, lease);
     },
     getOwnedExportLease: () => ownedPendingLeases.get("manuscript-export"),
-    runWithLease,
-    errorMessage
+    runWithLease
   });
 
   function openExportDialog(bookId: string, title: string): void {
@@ -782,7 +772,7 @@ export function useLongBookLifecycleCoordinator(
       } catch (error: unknown) {
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToRenameNovel")
             )
@@ -969,7 +959,7 @@ export function useLongBookLifecycleCoordinator(
     } catch (error: unknown) {
       if (!disposed) {
         uiMessage.error(
-          errorMessage(
+          formatError(
             error,
             t("longBookLifecycleCoordinator.failedToRestoreNovelRuntimeState")
           )
@@ -1065,7 +1055,7 @@ export function useLongBookLifecycleCoordinator(
         ) {
           if (cleanupError) {
             uiMessage.error(
-              errorMessage(
+              formatError(
                 cleanupError,
                 t(
                   "longBookLifecycleCoordinator.novelRemovedButFailedToCleanUpLocalRuntime"
@@ -1091,7 +1081,7 @@ export function useLongBookLifecycleCoordinator(
         }
         if (leaseIsCurrent(lease) && dialogRequestIsCurrent(requestId)) {
           uiMessage.error(
-            errorMessage(
+            formatError(
               error,
               t("longBookLifecycleCoordinator.failedToProcessNovelProject")
             )

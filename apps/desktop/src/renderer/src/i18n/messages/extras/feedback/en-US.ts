@@ -9,7 +9,7 @@ export default {
   tagOther: "Other",
   contentLabel: "Your feedback",
   contentPlaceholder: "What went wrong, or what would you like to see added?",
-  screenshotsLabel: "Screenshots (optional, up to {max})",
+  screenshotsLabel: "Screenshots (optional, up to {max}, {maxMb} MB total)",
   captureWindow: "Capture this window",
   chooseImage: "Choose image",
   screenshotHint:
@@ -22,6 +22,8 @@ export default {
   submitFailed: "Could not send feedback. Try again later.",
   loadFailed: "Could not load feedback. Try again later.",
   imageLimit: "Each feedback can have up to {max} screenshots.",
+  imageTotalLimit:
+    "Screenshots can't exceed {maxMb} MB in total. Remove some or choose smaller images.",
   imageUnreadable: "This image can't be read or is too large. Try another one.",
   captureFailed: "Could not capture the window. Try again.",
   imageLoadFailed: "Could not load the screenshot. Try again later.",

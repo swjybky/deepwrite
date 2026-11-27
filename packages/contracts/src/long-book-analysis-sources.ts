@@ -10,6 +10,13 @@ export const LongBookAnalysisChapterSchema = z.object({
   id: LongBookAnalysisIdSchema,
   order: z.number().int().min(1).max(LONG_BOOK_ANALYSIS_MAX_SOURCE_CHAPTERS),
   title: LongBookAnalysisTitleSchema,
+  rawHeading: z
+    .string()
+    .max(1_024)
+    .refine((value) => value.trim().length > 0 && !/[\r\n]/u.test(value), {
+      message: "Chapter rawHeading must be a single non-empty line."
+    })
+    .optional(),
   volume: z.string().trim().min(1).max(256).optional(),
   sourceName: z.string().trim().min(1).max(1_024),
   text: z.string().trim().min(1).max(LONG_BOOK_ANALYSIS_MAX_CHAPTER_CHARACTERS),

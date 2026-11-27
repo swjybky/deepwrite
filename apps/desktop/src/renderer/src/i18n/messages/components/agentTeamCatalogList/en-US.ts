@@ -27,6 +27,8 @@ export default {
   disableTeam: "Disable team",
   enableThisValueTeam: "Enable this {arg0} team",
   download: "Download",
+  duplicate: "Duplicate",
+  builtin: "Built-in",
   rename: "Rename",
   deleteTeam: "Delete team",
   disableThisTeamFirst: "Disable this team first",

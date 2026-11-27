@@ -3,7 +3,7 @@ import {
   type DecompositionSubmissionData,
   type LongBookDecompositionJob
 } from "@deepwrite/contracts";
-import { LongBookAnalysisSourceStore } from "../../extras/agents/sources/long-book-source-store";
+import { LongBookAnalysisSourceStore } from "../long-book-sources/long-book-source-store";
 import {
   planDecompositionTarget,
   prepareDecompositionTarget

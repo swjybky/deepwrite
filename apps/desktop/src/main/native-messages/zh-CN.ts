@@ -110,5 +110,8 @@ export default {
   startupWindow: "加载主界面",
   updateFilesInUse: "仍有程序在使用 DeepWrite",
   installAnyway: "仍然安装",
-  updateNotInstalled: "更新没有安装成功"
+  updateNotInstalled: "更新没有安装成功",
+  exportLocalBackup: "导出本地备份包",
+  chooseLocalBackup: "选择本地备份包",
+  localBackupArchive: "DeepWrite 本地备份包"
 };

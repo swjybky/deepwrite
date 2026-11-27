@@ -96,39 +96,6 @@ export interface LibraryReadableLibraryShape {
   customTag?: string;
 }
 
-export interface LibraryWorkspaceShape {
-  id?: string;
-  libraryId?: string;
-  domain?: LibraryDomain;
-  title?: string;
-  kind?: string;
-  customTag?: string;
-  materialKind?: string;
-  skillKind?: string;
-  readOnly?: boolean;
-  isReadOnly?: boolean;
-  projectRevision?: number;
-  baseProjectRevision?: number;
-  overview?: string;
-  overviewDocumentId?: string;
-  overviewRevision?: string;
-  overviewTruncated?: boolean;
-  overviewOriginalLength?: number;
-  omittedEntryCount?: number;
-  allowedStageIds?: readonly string[];
-  stageIds?: readonly string[];
-  groupId?: string;
-  groupTitle?: string;
-  readableLibraries?: readonly LibraryReadableLibraryShape[];
-  entries?: readonly LibraryEntryShape[];
-}
-
-export interface LibraryProfileShape {
-  id?: string;
-  domain?: LibraryDomain;
-  readOnly?: boolean;
-}
-
 export interface MutableLibraryEntry {
   entryId: string;
   documentId: string;

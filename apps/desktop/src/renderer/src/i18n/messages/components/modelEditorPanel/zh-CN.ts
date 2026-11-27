@@ -44,6 +44,8 @@ export default {
   theExistingKeyWillBeKept: "已有密钥会保持不变。",
   clearSavedKey: "清除已保存密钥",
   testing: "测试中…",
+  cancelTest: "取消测试",
+  cancelingTest: "取消中…",
   testCurrentValues: "测试当前填写",
   saving: "保存中…",
   applyAndSaveConfigurations: "批量应用并保存配置",

@@ -1,0 +1,94 @@
+{
+  "title": "验证 CLI P4：五类真实模型场景",
+  "generatedAt": "2026-11-23T12:34:24.797Z",
+  "passed": false,
+  "doctor": {
+    "healthy": true,
+    "reasons": []
+  },
+  "scenarios": [
+    {
+      "scenario": "academic",
+      "report": "rerun/academic.json",
+      "ok": false,
+      "status": "completed",
+      "runId": "173c2381-a023-457f-82bd-c5d08da795c6",
+      "workId": "book-593818e0",
+      "durationMs": 78765,
+      "failed": [
+        "document:3 方法设计 · 写作指引 含「DW-ACADEMIC-F99E」",
+        "document:3 方法设计 · 正文 含「DW-ACADEMIC-F99E」",
+        "document:3 方法设计 · 正文 含「[待补数据: 配对阅读时间]」"
+      ]
+    },
+    {
+      "scenario": "long",
+      "report": "rerun/long.json",
+      "ok": true,
+      "status": "completed",
+      "runId": "d1ad7199-c4c9-42cc-bf08-cb30389758a0",
+      "workId": "longbook_9d3fdd23",
+      "durationMs": 48211,
+      "failed": []
+    },
+    {
+      "scenario": "academic",
+      "report": "scenarios/academic.json",
+      "ok": false,
+      "status": "waiting_for_user",
+      "runId": "88852a2a-8f08-4c37-8fdf-60e4c935ac54",
+      "workId": "book-26401a9b",
+      "durationMs": 32716,
+      "failed": [
+        "status=completed"
+      ]
+    },
+    {
+      "scenario": "long",
+      "report": "scenarios/long.json",
+      "ok": false,
+      "status": "completed",
+      "runId": "69da863f-351b-460d-9a88-b549d5534167",
+      "workId": "longbook_9f3903e4",
+      "durationMs": 54133,
+      "failed": [
+        "document:第一章 · 正文 含「DW-LONG-0CCC」"
+      ]
+    },
+    {
+      "scenario": "mystery",
+      "report": "scenarios/mystery.json",
+      "ok": true,
+      "status": "completed",
+      "runId": "ab230f8a-817c-432f-b55d-c2eac9a2142a",
+      "workId": "mys_e58175a4",
+      "durationMs": 35184,
+      "failed": []
+    },
+    {
+      "scenario": "script",
+      "report": "scenarios/script.json",
+      "ok": false,
+      "status": "completed",
+      "runId": "7a3432c0-b6ba-4287-9fd1-98e8aeb7bb08",
+      "workId": "book-468ef92b",
+      "durationMs": 32642,
+      "failed": [
+        "noFailedTools"
+      ]
+    },
+    {
+      "scenario": "short",
+      "report": "scenarios/short.json",
+      "ok": true,
+      "status": "completed",
+      "runId": "4e07d3ac-e726-47c7-b1f8-5cf83577281e",
+      "workId": "book-243c65a4",
+      "durationMs": 82668,
+      "failed": []
+    }
+  ],
+  "screenshots": [
+    "academic-rerun-empty.png"
+  ]
+}

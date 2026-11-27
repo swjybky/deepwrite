@@ -88,10 +88,15 @@ const { editingMessageId, messageIsEditable, requestEdit, cancelEdit } =
       Boolean(props.canRewriteHistory && props.submitEditedMessage)
   });
 const scroller = ref<HTMLElement>();
+// CSS content-visibility: auto already keeps selected and focused subtrees
+// relevant; avoid toggling deferral on selection/focus so remembered sizes
+// and scroll anchoring stay intact.
 const pinnedIds = useConversationWindowPins({
   container: scroller,
   editingIds: () => (editingMessageId.value ? [editingMessageId.value] : []),
-  attribute: "data-conversation-message-id"
+  attribute: "data-conversation-message-id",
+  trackSelection: false,
+  trackFocus: false
 });
 const { groups, canDefer } = useConversationContentGroups({
   messages: () => props.messages,
@@ -144,7 +149,10 @@ const { handleConversationContextMenu } = useConversationSelectionInsertion({
         v-for="group in groups"
         :key="group.id"
         class="conversation-message-group"
-        :class="{ 'is-deferred': canDefer(group) }"
+        :class="{
+          'is-defer-eligible': group.eligible,
+          'is-deferred': canDefer(group)
+        }"
         :style="{
           '--conversation-group-estimate': `${group.messages.length * 12}lh`
         }"
@@ -189,9 +197,13 @@ const { handleConversationContextMenu } = useConversationSelectionInsertion({
 .conversation-message-group {
   display: flow-root;
 }
+/* Preserve auto-remembered block sizes while deferred rendering is eligible
+   so temporary un-deferral (editing, streaming, focus) never resets height. */
+.conversation-message-group.is-defer-eligible {
+  contain-intrinsic-block-size: auto var(--conversation-group-estimate);
+}
 .conversation-message-group.is-deferred {
   content-visibility: auto;
-  contain-intrinsic-block-size: auto var(--conversation-group-estimate);
 }
 .conversation-message-group.is-deferred:focus-within {
   content-visibility: visible;

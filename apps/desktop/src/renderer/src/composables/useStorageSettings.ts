@@ -7,6 +7,7 @@ import {
 import { createScopedTranslator } from "../i18n";
 import { ref } from "vue";
 import type {
+  ConversationCompactionStatus,
   DeepWriteApi,
   StorageSettingsErrorCode
 } from "@deepwrite/contracts";
@@ -65,8 +66,18 @@ export function useStorageSettings(context: StorageSettingsContext) {
   const loading = ref(false);
   const migrating = ref(false);
   const restarting = ref(false);
+  const compacting = ref(false);
+  const releasingBackup = ref(false);
   let disposed = false;
   let loadGeneration = 0;
+
+  function applyCompactionStatus(status: ConversationCompactionStatus): void {
+    if (disposed || !settings.value) return;
+    settings.value = {
+      ...settings.value,
+      conversationCompaction: status
+    };
+  }
 
   function showError(
     error: unknown,
@@ -139,6 +150,76 @@ export function useStorageSettings(context: StorageSettingsContext) {
     }
   }
 
+  async function compactConversations(): Promise<void> {
+    const api = context.api();
+    if (
+      !api ||
+      disposed ||
+      loading.value ||
+      migrating.value ||
+      restarting.value ||
+      compacting.value ||
+      releasingBackup.value
+    ) {
+      return;
+    }
+    compacting.value = true;
+    try {
+      const status = await api.compactConversations();
+      if (disposed) return;
+      applyCompactionStatus(status);
+      if (status.phase === "completed_with_backup") {
+        context.notifications.success(t("compactionCompletedWithBackup"));
+      } else if (status.phase === "failed") {
+        context.notifications.error(
+          status.failureDetail
+            ? t("compactionFailedWithReason", { reason: status.failureDetail })
+            : t("compactionFailed")
+        );
+      }
+    } catch (error) {
+      showError(error, t("compactionFailed"), (detail) =>
+        t("compactionFailedWithReason", { reason: detail })
+      );
+    } finally {
+      compacting.value = false;
+    }
+  }
+
+  async function releaseConversationBackup(): Promise<void> {
+    const api = context.api();
+    if (
+      !api ||
+      disposed ||
+      loading.value ||
+      migrating.value ||
+      restarting.value ||
+      compacting.value ||
+      releasingBackup.value
+    ) {
+      return;
+    }
+    releasingBackup.value = true;
+    try {
+      const status = await api.releaseConversationBackup();
+      if (disposed) return;
+      applyCompactionStatus(status);
+      if (status.phase === "backup_released") {
+        context.notifications.success(t("compactionBackupReleased"));
+      } else if (status.failureDetail) {
+        context.notifications.error(
+          t("compactionFailedWithReason", { reason: status.failureDetail })
+        );
+      }
+    } catch (error) {
+      showError(error, t("compactionFailed"), (detail) =>
+        t("compactionFailedWithReason", { reason: detail })
+      );
+    } finally {
+      releasingBackup.value = false;
+    }
+  }
+
   function dispose(): void {
     disposed = true;
     loadGeneration += 1;
@@ -149,9 +230,14 @@ export function useStorageSettings(context: StorageSettingsContext) {
     loading,
     migrating,
     restarting,
+    compacting,
+    releasingBackup,
     load,
     changeUserData,
     openDirectory,
+    applyCompactionStatus,
+    compactConversations,
+    releaseConversationBackup,
     dispose
   };
 }

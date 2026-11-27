@@ -1,8 +1,6 @@
 import { LibraryManagementScopeSchema } from "@deepwrite/contracts/renderer";
 import type { AgentEditProposal } from "../../types/conversation";
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "@deepwrite/shared";
 function nonnegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }

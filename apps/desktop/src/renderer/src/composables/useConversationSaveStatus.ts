@@ -19,7 +19,7 @@ interface ConversationSaveStatusStore {
   flushPersistence(key?: string): Promise<void>;
 }
 
-function errorMessage(error: unknown): string {
+function saveFailureMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error) return error;
   return t("theConversationCouldNotBeSavedLocallyPleaseTry");
@@ -76,7 +76,8 @@ export function createConversationSaveStatus(options: {
     () => !!owner.value && retryingKey.value === owner.value.key
   );
   function showError(): void {
-    if (status.value === "error") options.showError(errorMessage(error.value));
+    if (status.value === "error")
+      options.showError(saveFailureMessage(error.value));
   }
   async function retry(): Promise<void> {
     const current = owner.value;
@@ -89,7 +90,7 @@ export function createConversationSaveStatus(options: {
       );
       await options.store.flushPersistence(current.key);
     } catch (reason) {
-      options.showError(errorMessage(reason));
+      options.showError(saveFailureMessage(reason));
     } finally {
       if (retryingKey.value === current.key) retryingKey.value = undefined;
     }

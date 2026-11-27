@@ -4,7 +4,7 @@ import {
 } from "./book-images/protocol";
 import { pickBookImages, BookImageError } from "./book-images/pick";
 import { createBookImageExportLoader } from "./book-images/export-assets";
-import { appendSubagentCallJournal } from "./subagent-call-journal";
+import { createSubagentCallJournal } from "./subagent-call-journal";
 import { activeRunResourceIds } from "./active-resource-runs";
 import {
   filterVersionOrigin,
@@ -20,7 +20,8 @@ import {
   LibraryStructurePlanSchema,
   LibraryStructureResultSchema,
   MutateAcademicManuscriptResultSchema,
-  UpdateAcademicReferenceCardResultSchema
+  UpdateAcademicReferenceCardResultSchema,
+  stripModelCallSnapshot
 } from "@deepwrite/contracts";
 import { nativeMessages, nativeText, setNativeLanguage } from "./native-i18n";
 import { handleSessionCommands } from "./ipc/session-commands";
@@ -44,11 +45,14 @@ import { BookTemplateStore } from "./book-template-store";
 import { configureLinuxSecretStorage } from "./linux-secret-storage";
 import {
   acquireStorageInstanceLock,
-  initializeStorageLocation
+  initializeStorageLocation,
+  recordStorageBootstrapOwner
 } from "./storage-bootstrap";
 import { createStorageSettingsService } from "./storage-settings-runtime";
 import type { StorageSettingsService } from "./storage-settings-service";
 import { handleStorageSettingsCommands } from "./ipc/storage-settings-commands";
+import { createLocalBackupController } from "./ipc/local-backup-commands";
+import { isForbiddenRendererCommand } from "./ipc/forbidden-commands";
 import { runStorageSmoke } from "./smoke-storage";
 import {
   recordUsageObservation,
@@ -65,7 +69,9 @@ import {
 import { releaseDrainedAgentRun } from "./ipc/agent-run-drain";
 import { createRendererStateFlushCoordinator } from "./renderer-state-flush";
 import {
+  DEVELOPMENT_CONTROL_DIRECTORY_ENV,
   EXTERNAL_CONTROL_LAUNCH_FLAG,
+  ExternalControlError,
   createClientConfirmDialog,
   createExternalControl,
   resolveExternalControlPaths
@@ -88,7 +94,8 @@ import {
   dialog,
   ipcMain,
   nativeImage,
-  nativeTheme
+  nativeTheme,
+  shell
 } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -144,6 +151,7 @@ import {
   LongPreviewLegacySyncAtPathResultSchema,
   LongChooseLegacySyncSourceResultSchema,
   LongListBooksResultSchema,
+  LongResolveConflictsResultSchema,
   LongOpenBookResultSchema,
   LongPreviewOperationsResultSchema,
   LongReadDocumentResultSchema,
@@ -206,6 +214,7 @@ import {
 import { resolveContextCompactionRun } from "./context-compaction-run";
 import { ModelConfigStore } from "./model-config-store";
 import { electronRemoteFetch } from "./electron-remote-fetch";
+import { isTestEnvironment, readOnlyOnlineFetch } from "./test-environment";
 import { applyNetworkProxyPreference } from "./network-proxy-preference";
 import { listRemoteModels } from "./list-remote-models";
 import { ModelUsageStore } from "./model-usage-store";
@@ -258,6 +267,7 @@ import {
 import { createTaskNotifier } from "./task-notification";
 import { configureBootstrapEnvironment } from "./bootstrap-environment";
 import { handleModelCommands } from "./ipc/model-commands";
+import { ModelTestRegistry } from "./ipc/model-test-registry";
 import { handleAppearanceCommands } from "./ipc/appearance-commands";
 import {
   installAppearanceFontProtocolHandler,
@@ -269,6 +279,7 @@ import {
   type AgentTeamMarketplaceClient
 } from "../extras/agent-team-marketplace";
 import { registerFeedbackIpc, type FeedbackClient } from "../extras/feedback";
+import { rejectedResult } from "./ipc/errors";
 
 const privilegedSchemes: Parameters<
   typeof protocol.registerSchemesAsPrivileged
@@ -283,6 +294,9 @@ registerCoverScheme(schemeCollector);
 registerBookImageScheme(schemeCollector);
 protocol.registerSchemesAsPrivileged(privilegedSchemes);
 const sharedConfigurationDefault = applyDevelopmentProfile(app);
+// macOS activates a launched app even when its window is shown inactive.
+if (process.platform === "darwin" && isTestEnvironment(app.isPackaged))
+  app.setActivationPolicy("accessory");
 const hasSingleInstanceLock = acquireStorageInstanceLock(app);
 // A second instance must not write diagnostics into a profile being migrated.
 if (!hasSingleInstanceLock) app.exit(0);
@@ -316,6 +330,7 @@ interface ActiveRun extends MainInternalCommandActiveRun {
 const activeRuns = new Map<string, ActiveRun>();
 const terminalRuns = new Set<string>();
 const pendingUsageContexts = new Map<string, UsageRunContext>();
+const modelTestRegistry = new ModelTestRegistry();
 let smokeEventTap: ((event: SystemEventEnvelope) => void) | undefined;
 let mainWindow: BrowserWindow | undefined;
 let modelConfigStore: ModelConfigStore | undefined;
@@ -345,17 +360,50 @@ const externalControl = createExternalControl({
   configurationDirectory: () => configurationPath,
   paths: resolveExternalControlPaths({
     homeDirectory: app.getPath("home"),
-    packaged: app.isPackaged
+    packaged: app.isPackaged,
+    developmentDirectory: process.env[DEVELOPMENT_CONTROL_DIRECTORY_ENV]
   }),
   app: {
     appVersion: app.getVersion(),
     platform: process.platform,
-    rendererReady: () =>
-      Boolean(
-        mainWindow &&
-        !mainWindow.isDestroyed() &&
-        !mainWindow.webContents.isLoading()
-      ),
+    rendererReady: isMainWindowRendererReady,
+    ensureWindow: ensureMainWindowReady,
+    requestRestart: ({ force }) => {
+      if (updateService?.getState().status === "installing") {
+        throw new ExternalControlError(
+          "external.app_unavailable",
+          "DeepWrite 正在安装更新，暂时不能重启。"
+        );
+      }
+      if (
+        quitting ||
+        shutdownComplete ||
+        externalRestartPending ||
+        storageSettingsService?.busy ||
+        localBackupController.isBusy()
+      ) {
+        throw new ExternalControlError(
+          "external.busy",
+          "DeepWrite 正在执行退出、存储迁移或备份操作，暂时不能重启。"
+        );
+      }
+      if (!force && activeRuns.size > 0) {
+        throw new ExternalControlError(
+          "external.busy",
+          "当前有智能体正在运行，暂时不能重启 DeepWrite。请等待任务结束、先调用 stop_agent_run，或传 force: true 强制重启。"
+        );
+      }
+      externalRestartPending = true;
+      externalRestartForce = force;
+      const timer = setTimeout(() => beginGracefulShutdown(), 100);
+      timer.unref();
+      return {
+        restarted: false,
+        restarting: true,
+        forced: force,
+        previousPid: process.pid
+      };
+    },
     activeRunCount: () => activeRuns.size,
     activeResourceIds: () => activeRunResourceIds(activeRuns.values()),
     generalSettings: () => cachedGeneralSettings,
@@ -394,6 +442,8 @@ let bookTemplateStore: BookTemplateStore | undefined;
 let storageSettingsService: StorageSettingsService | undefined;
 let quitting = false;
 let shutdownComplete = false;
+let externalRestartPending = false;
+let externalRestartForce = false;
 let menuBarTray: Tray | undefined;
 let updateService: UpdateService | undefined;
 let appAlertStore: AppAlertStore | undefined;
@@ -412,9 +462,12 @@ const libraryPackagePreviews =
     now: Date.now
   });
 const legacySyncPreviews = new LegacySyncPreviewRegistry();
+const localBackupController = createLocalBackupController();
 const mainWindowStartupGate = createMainWindowStartupGate(() =>
   showMainWindow()
 );
+const subagentCallJournal = createSubagentCallJournal();
+
 const taskNotifier = createTaskNotifier({
   isEnabled: () => cachedGeneralSettings.taskNotification,
   getWindow: () => mainWindow,
@@ -439,15 +492,47 @@ function broadcastEvent(event: SystemEventEnvelope): void {
   }
 }
 
+function relaunchDesktopApp(): void {
+  const rawArgs = process.argv
+    .slice(1)
+    .filter((arg) => arg !== EXTERNAL_CONTROL_LAUNCH_FLAG);
+  const args = externalRestartPending
+    ? [...rawArgs, EXTERNAL_CONTROL_LAUNCH_FLAG]
+    : rawArgs;
+  const execPath = process.env.APPIMAGE;
+  app.relaunch(execPath ? { execPath, args } : { args });
+}
+
 const gracefulShutdown = createGracefulShutdown({
   flushRenderer: async () => {
+    if (externalRestartPending && externalRestartForce) {
+      await Promise.race([
+        rendererStateFlush.request(mainWindow),
+        new Promise<void>((resolve) => setTimeout(resolve, 5_000))
+      ]).catch(() => undefined);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.close();
+        if (!mainWindow.isDestroyed()) mainWindow.destroy();
+      }
+      return;
+    }
     // Storage migration already awaited this flush before accepting the IPC request.
     if (!storageSettingsService?.restartPending)
       await rendererStateFlush.request(mainWindow);
     mainWindow?.close();
   },
   shutdownUtilities: async (installUpdate) => {
-    await externalControl.stop({ updating: installUpdate });
+    await Promise.race([
+      subagentCallJournal.close(),
+      new Promise<void>((resolve) => setTimeout(resolve, 2_000))
+    ]);
+    await externalControl.stop({
+      updating: installUpdate,
+      restarting:
+        !installUpdate &&
+        (externalRestartPending ||
+          Boolean(storageSettingsService?.restartPending))
+    });
     await supervisor.shutdownAll();
   },
   flushUsage: () => modelUsageStore?.flush(),
@@ -457,12 +542,17 @@ const gracefulShutdown = createGracefulShutdown({
     destroyMenuBarTray();
     if (installUpdate && updateService) updateService.quitAndInstall();
     else {
-      if (storageSettingsService?.restartPending) app.relaunch();
+      if (storageSettingsService?.restartPending || externalRestartPending) {
+        app.releaseSingleInstanceLock();
+        relaunchDesktopApp();
+      }
       app.quit();
     }
   },
   cancel(error) {
     quitting = false;
+    externalRestartPending = false;
+    externalRestartForce = false;
     if (storageSettingsService?.restartPending) {
       storageSettingsService.cancelRestart();
       dialog.showErrorBox(
@@ -581,18 +671,29 @@ function handleUtilityEvent(
   const validated = SystemEventEnvelopeSchema.parse(
     event
   ) as SystemEventEnvelope;
+  let forwardedEvent: SystemEventEnvelope = validated;
   if (
     validated.type === "subagent.activity" &&
     validated.payload.activity.type === "model_call"
   ) {
     try {
-      appendSubagentCallJournal(
+      subagentCallJournal.enqueue(
         join(configurationPath, "diagnostics"),
         validated
       );
     } catch (error) {
-      console.error("DeepWrite model call journal write failed:", error);
+      console.error("DeepWrite model call journal enqueue failed:", error);
     }
+    forwardedEvent = {
+      ...validated,
+      payload: {
+        ...validated.payload,
+        activity: {
+          ...validated.payload.activity,
+          call: stripModelCallSnapshot(validated.payload.activity.call)
+        }
+      }
+    };
   }
   if (validated.type === "agent.user_input_requested")
     teamPromptReviews.receive(validated.payload);
@@ -689,8 +790,8 @@ function handleUtilityEvent(
       });
     }
   }
-  smokeEventTap?.(validated);
-  broadcastEvent(validated);
+  smokeEventTap?.(forwardedEvent);
+  broadcastEvent(forwardedEvent);
 }
 
 function handleUnexpectedExit(worker: UtilityWorkerName, reason: string): void {
@@ -790,20 +891,97 @@ const supervisor: UtilitySupervisor = new UtilitySupervisor({
     )
 });
 
+function isMainWindowRendererReady(): boolean {
+  return Boolean(
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.webContents.isLoading()
+  );
+}
+
+function syncMainWindowThrottling(window: BrowserWindow | undefined): void {
+  if (!window || window.isDestroyed()) return;
+  const keepAwake =
+    cachedGeneralSettings.externalControlEnabled ||
+    process.env.DEEPWRITE_SMOKE === "1" ||
+    isTestEnvironment(app.isPackaged);
+  window.webContents.setBackgroundThrottling(!keepAwake);
+}
+
+async function ensureMainWindowReady(): Promise<boolean> {
+  if (quitting || shutdownComplete) return false;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createMainWindow();
+  }
+  const window = mainWindow;
+  if (!window || window.isDestroyed()) return false;
+  if (!window.webContents.isLoading()) {
+    return isMainWindowRendererReady();
+  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.off("closed", finish);
+      window.webContents.off("did-finish-load", finish);
+      window.webContents.off("did-fail-load", finish);
+      window.webContents.off("render-process-gone", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, 15_000);
+    timer.unref();
+    window.once("closed", finish);
+    window.webContents.once("did-finish-load", finish);
+    window.webContents.once("did-fail-load", finish);
+    window.webContents.once("render-process-gone", finish);
+  });
+  return isMainWindowRendererReady();
+}
+
 function createMainWindow(): BrowserWindow {
   const window = createDesktopWindow(cachedAppearanceSettings, {
     log: desktopStartup.log,
     fail: (error) => desktopStartup.fail(error, "window")
   });
+  syncMainWindowThrottling(window);
   const windowWebContentsId = window.webContents.id;
   installVoicePermissions(window);
   const cancelWindowMedia = () => {
     voiceService?.cancelOwner(windowWebContentsId);
     imageService?.cancelOwner(windowWebContentsId);
     coverRenderService?.cancelOwner(windowWebContentsId);
+    void modelTestRegistry
+      .cancelOwner(windowWebContentsId, async (requestId) => {
+        const cancelCommand = CommandEnvelopeSchema.parse(
+          createEnvelope(
+            "agent.model_test_cancel",
+            { requestId },
+            { id: createId("cmd_agent_model_test_cancel") }
+          )
+        );
+        const result = await supervisor.requestCommand(
+          "agent",
+          cancelCommand,
+          5_000
+        );
+        return result.status === "accepted"
+          ? Boolean(
+              (result.payload as { cancelled?: unknown } | undefined)?.cancelled
+            )
+          : false;
+      })
+      .catch(() => undefined);
   };
   window.webContents.on("did-start-loading", cancelWindowMedia);
-  window.webContents.on("render-process-gone", cancelWindowMedia);
+  window.webContents.on("render-process-gone", () => {
+    cancelWindowMedia();
+    externalControl.failPendingWindowRequests(
+      "external.not_ready",
+      "DeepWrite 窗口渲染进程意外退出。请稍后重试或调用 restart_app 重启软件。"
+    );
+  });
   window.webContents.once("did-finish-load", () => {
     void announceReady(window).catch((error: unknown) => {
       desktopStartup.log.write("utilities.health.failed", { error });
@@ -837,7 +1015,12 @@ function createMainWindow(): BrowserWindow {
     continuationImportPreviews.clearForWebContents(windowWebContentsId);
     libraryPackagePreviews.clearForWebContents(windowWebContentsId);
     legacySyncPreviews.clearForWebContents(windowWebContentsId);
+    localBackupController.clearForWebContents(windowWebContentsId);
     if (mainWindow === window) {
+      externalControl.failPendingWindowRequests(
+        "external.not_ready",
+        "DeepWrite 窗口已关闭。请稍后重试。"
+      );
       mainWindow = undefined;
     }
   });
@@ -909,16 +1092,22 @@ function bridgeConnection() {
 }
 
 /** Sends a command through the window's route, as if the window had sent it. */
-function routeExternalCommand(
+async function routeExternalCommand(
   command: CommandEnvelope
 ): Promise<CommandResult> {
-  const webContents = mainWindow?.webContents;
+  if (
+    (!mainWindow || mainWindow.isDestroyed()) &&
+    !quitting &&
+    !shutdownComplete
+  ) {
+    await ensureMainWindowReady();
+  }
+  const webContents =
+    mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow.webContents
+      : undefined;
   if (!webContents || !commandRoute) {
-    return Promise.resolve({
-      status: "rejected",
-      requestId: command.id,
-      error: { code: "ipc.window_unavailable", message: "No window." }
-    });
+    return rejectedResult(command.id, "ipc.window_unavailable", "No window.");
   }
   return commandRoute(
     {
@@ -941,6 +1130,7 @@ function syncGeneralSettings(settings: GeneralSettings): void {
   cachedGeneralSettings = settings;
   // Startup connects after the window step, once Core can answer tools.
   if (mainWindow) void externalControl.sync(settings.externalControlEnabled);
+  syncMainWindowThrottling(mainWindow);
   setNativeLanguage(settings.language, app.getLocale());
   syncMenuBarTray();
   applyNetworkProxyPreference(settings.useNetworkProxy);
@@ -1238,14 +1428,11 @@ function registerIpc(): void {
         mainWindow.isDestroyed() ||
         event.sender !== mainWindow.webContents
       ) {
-        return {
-          status: "rejected",
+        return rejectedResult(
           requestId,
-          error: {
-            code: "ipc.untrusted_sender",
-            message: "IPC command sender is not the active DeepWrite window."
-          }
-        };
+          "ipc.untrusted_sender",
+          "IPC command sender is not the active DeepWrite window."
+        );
       }
       const parsed = CommandEnvelopeSchema.safeParse(rawCommand);
       if (!parsed.success) {
@@ -1262,15 +1449,20 @@ function registerIpc(): void {
           `DeepWrite IPC rejected invalid command ${requestId}:`,
           details
         );
-        return {
-          status: "rejected",
+        return rejectedResult(
           requestId,
-          error: {
-            code: "ipc.invalid_command",
-            message: `Command envelope failed schema validation.${issueHint}`,
-            details
-          }
-        };
+          "ipc.invalid_command",
+          `Command envelope failed schema validation.${issueHint}`,
+          details
+        );
+      }
+
+      if (isForbiddenRendererCommand(parsed.data.type)) {
+        return rejectedResult(
+          parsed.data.id,
+          "ipc.forbidden_internal_command",
+          "Renderer cannot invoke internal commands."
+        );
       }
 
       const command = filterVersionOrigin(
@@ -1291,14 +1483,11 @@ function registerIpc(): void {
         command.type.startsWith("bookIdentity.")
       ) {
         if (event.senderFrame !== event.sender.mainFrame)
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "image.untrusted_frame",
-              message: "图片与设计操作仅允许从应用主界面发起。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "image.untrusted_frame",
+            "图片与设计操作仅允许从应用主界面发起。"
+          );
         if (imageService && command.type.startsWith("imageModels.")) {
           const result = await handleImageCommands(
             command,
@@ -1319,14 +1508,11 @@ function registerIpc(): void {
       }
       if (command.type.startsWith("webSearch.")) {
         if (event.senderFrame !== event.sender.mainFrame)
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "web_search.untrusted_frame",
-              message: "联网搜索配置仅允许从应用主界面操作。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "web_search.untrusted_frame",
+            "联网搜索配置仅允许从应用主界面操作。"
+          );
         if (webSearchService) {
           const result = await handleWebSearchCommands(
             command,
@@ -1340,14 +1526,11 @@ function registerIpc(): void {
         storageSettingsService
       ) {
         if (event.senderFrame !== event.sender.mainFrame) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "storage_settings.untrusted_frame",
-              message: "存储操作仅允许从应用主界面发起。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "storage_settings.untrusted_frame",
+            "存储操作仅允许从应用主界面发起。"
+          );
         }
         const result = await handleStorageSettingsCommands(
           command,
@@ -1355,16 +1538,44 @@ function registerIpc(): void {
         );
         if (result) return result;
       }
+      const localBackupResult = await localBackupController.handleCommand(
+        {
+          supervisor,
+          window: mainWindow,
+          dialog,
+          documentsPath: app.getPath("documents"),
+          appVersion: app.getVersion(),
+          platform: process.platform,
+          isTestEnvironment: isTestEnvironment(app.isPackaged),
+          webContentsId: event.sender.id,
+          isMainFrame: event.senderFrame === event.sender.mainFrame,
+          isAppBusy: () =>
+            quitting ||
+            activeRuns.size > 0 ||
+            pendingUsageContexts.size > 0 ||
+            Boolean(storageSettingsService?.busy),
+          flushRenderer: () => rendererStateFlush.request(mainWindow),
+          requireSelectedWorkspaceDirectory,
+          showItemInFolder: (fullPath) => shell.showItemInFolder(fullPath),
+          broadcastResourceChanged: (change) =>
+            broadcastEvent(
+              SystemEventEnvelopeSchema.parse(
+                createEnvelope("externalControl.resource_changed", change, {
+                  id: createId("evt_local_backup_changed")
+                })
+              )
+            )
+        },
+        command
+      );
+      if (localBackupResult) return localBackupResult;
       if (command.type.startsWith("voice.") && voiceService) {
         if (event.senderFrame !== event.sender.mainFrame) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "voice.untrusted_frame",
-              message: "语音操作仅允许从应用主界面发起。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "voice.untrusted_frame",
+            "语音操作仅允许从应用主界面发起。"
+          );
         }
         const result = await handleVoiceCommands(
           command,
@@ -1387,52 +1598,6 @@ function registerIpc(): void {
           payload: { ok: true }
         };
       }
-      if (
-        command.type === "externalControl.locateProject" ||
-        command.type === "deviceSync.workspace" ||
-        command.type === "agent.prompt" ||
-        command.type === "agent.extras_run" ||
-        command.type === "agent.abort" ||
-        command.type === "agent.user_input_response" ||
-        command.type === "agent.steer" ||
-        command.type === "agent.model_test" ||
-        command.type === "agent.model_capacity" ||
-        command.type === "agentTeams.listActive" ||
-        command.type === "agentTeams.readActiveMembers" ||
-        command.type === "agentTeams.previewActiveChange" ||
-        command.type === "agentTeams.applyActiveChange" ||
-        command.type === "catalog.createShortBookAtPath" ||
-        command.type === "catalog.createScriptBookAtPath" ||
-        command.type === "catalog.createAcademicBookAtPath" ||
-        command.type === "long.createBookAtPath" ||
-        command.type === "long.previewLegacySyncAtPath" ||
-        command.type === "long.applyLegacySyncAtPath" ||
-        command.type === "long.importPortableAtPath" ||
-        command.type === "long.previewContinuationImportAtPath" ||
-        command.type === "long.importContinuationAtPath" ||
-        command.type === "long.openAtPath" ||
-        command.type === "mystery.createBookAtPath" ||
-        command.type === "mystery.openAtPath" ||
-        command.type === "catalog.createLibraryAtPath" ||
-        command.type === "catalog.createLibraryGroupAtPath" ||
-        command.type === "catalog.openProjectAtPath" ||
-        command.type === "catalog.readWritingWorkspace" ||
-        command.type === "catalog.readLibraryAgentLibrary" ||
-        command.type === "catalog.readLibraryPackageSource" ||
-        command.type === "catalog.previewLibraryPackageAtPath" ||
-        command.type === "catalog.importLibraryPackageAtPath" ||
-        command.type === "catalog.installMarketplaceSkillContent" ||
-        command.type === "catalog.installMarketplaceMaterial"
-      ) {
-        return {
-          status: "rejected",
-          requestId: command.id,
-          error: {
-            code: "ipc.forbidden_internal_command",
-            message: "Renderer cannot invoke internal commands."
-          }
-        };
-      }
       if (command.type === "system.health") {
         return {
           status: "accepted",
@@ -1445,14 +1610,11 @@ function registerIpc(): void {
 
       if (command.type === "bookImages.pick") {
         if (event.senderFrame !== event.sender.mainFrame)
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "image.untrusted_frame",
-              message: "图片操作仅允许从应用主界面发起。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "image.untrusted_frame",
+            "图片操作仅允许从应用主界面发起。"
+          );
         try {
           return {
             status: "accepted",
@@ -1464,17 +1626,13 @@ function registerIpc(): void {
             )
           };
         } catch (error) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code:
-                error instanceof BookImageError
-                  ? error.code
-                  : "book_image.write_failed",
-              message: error instanceof Error ? error.message : "图片写入失败。"
-            }
-          };
+          return rejectedResult(
+            command.id,
+            error instanceof BookImageError
+              ? error.code
+              : "book_image.write_failed",
+            error instanceof Error ? error.message : "图片写入失败。"
+          );
         }
       }
 
@@ -1494,19 +1652,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code:
-                error instanceof BookImageError
-                  ? error.code
-                  : "manuscript.export_failed",
-              message:
-                error instanceof Error ? error.message : "导出正文失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
+            error instanceof Error ? error.message : "导出正文失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1526,19 +1679,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code:
-                error instanceof BookImageError
-                  ? error.code
-                  : "manuscript.export_failed",
-              message:
-                error instanceof Error ? error.message : "导出长篇失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
+            error instanceof Error ? error.message : "导出长篇失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1558,19 +1706,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code:
-                error instanceof BookImageError
-                  ? error.code
-                  : "manuscript.export_failed",
-              message:
-                error instanceof Error ? error.message : "导出学术稿件失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            error instanceof BookImageError
+              ? error.code
+              : "manuscript.export_failed",
+            error instanceof Error ? error.message : "导出学术稿件失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1584,16 +1727,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "workspace_directory.list_failed",
-              message:
-                error instanceof Error ? error.message : "加载工作目录失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "workspace_directory.list_failed",
+            error instanceof Error ? error.message : "加载工作目录失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1605,16 +1744,12 @@ function registerIpc(): void {
             payload: await chooseWorkspaceDirectory()
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "workspace_directory.choose_failed",
-              message:
-                error instanceof Error ? error.message : "切换工作目录失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "workspace_directory.choose_failed",
+            error instanceof Error ? error.message : "切换工作目录失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1691,16 +1826,12 @@ function registerIpc(): void {
             payload: snapshot
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "general_settings.list_failed",
-              message:
-                error instanceof Error ? error.message : "加载常规设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "general_settings.list_failed",
+            error instanceof Error ? error.message : "加载常规设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1723,16 +1854,12 @@ function registerIpc(): void {
             payload: snapshot
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "general_settings.save_failed",
-              message:
-                error instanceof Error ? error.message : "保存常规设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "general_settings.save_failed",
+            error instanceof Error ? error.message : "保存常规设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1801,16 +1928,12 @@ function registerIpc(): void {
             payload: LongOpenBookResultSchema.parse(result.payload)
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.forward_failed",
-              message:
-                error instanceof Error ? error.message : "长篇目录操作失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.forward_failed",
+            error instanceof Error ? error.message : "长篇目录操作失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1863,18 +1986,12 @@ function registerIpc(): void {
             })
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.preview_continuation_import_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "扫描续写章节文件夹失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.preview_continuation_import_failed",
+            error instanceof Error ? error.message : "扫描续写章节文件夹失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1925,18 +2042,12 @@ function registerIpc(): void {
             })
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.preview_legacy_sync_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "读取旧版本压缩包失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.preview_legacy_sync_failed",
+            error instanceof Error ? error.message : "读取旧版本压缩包失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -1971,16 +2082,12 @@ function registerIpc(): void {
             payload: LongApplyLegacySyncResultSchema.parse(result.payload)
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.apply_legacy_sync_failed",
-              message:
-                error instanceof Error ? error.message : "同步旧版本失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.apply_legacy_sync_failed",
+            error instanceof Error ? error.message : "同步旧版本失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2027,16 +2134,12 @@ function registerIpc(): void {
             payload: LongImportContinuationResultSchema.parse(result.payload)
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.import_continuation_failed",
-              message:
-                error instanceof Error ? error.message : "续写导入失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.import_continuation_failed",
+            error instanceof Error ? error.message : "续写导入失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2095,18 +2198,12 @@ function registerIpc(): void {
             payload: LongImportPortableResultSchema.parse(result.payload)
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.import_portable_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "导入长篇可移植工程失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.import_portable_failed",
+            error instanceof Error ? error.message : "导入长篇可移植工程失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2145,6 +2242,7 @@ function registerIpc(): void {
       if (catalogProjectResult) return catalogProjectResult;
 
       if (
+        command.type === "long.resolveConflicts" ||
         command.type === "long.list" ||
         command.type === "long.open" ||
         command.type === "long.duplicateBook" ||
@@ -2170,6 +2268,9 @@ function registerIpc(): void {
           if (result.status === "rejected") return result;
           let payload: unknown;
           switch (command.type) {
+            case "long.resolveConflicts":
+              payload = LongResolveConflictsResultSchema.parse(result.payload);
+              break;
             case "long.list":
               payload = LongListBooksResultSchema.parse(result.payload);
               break;
@@ -2227,16 +2328,12 @@ function registerIpc(): void {
           }
           return { status: "accepted", requestId: command.id, payload };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long.forward_failed",
-              message:
-                error instanceof Error ? error.message : "长篇操作失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long.forward_failed",
+            error instanceof Error ? error.message : "长篇操作失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2306,16 +2403,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "catalog.choose_external_library_entries_failed",
-              message:
-                error instanceof Error ? error.message : "读取外部资料失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "catalog.choose_external_library_entries_failed",
+            error instanceof Error ? error.message : "读取外部资料失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2507,21 +2600,16 @@ function registerIpc(): void {
           return { status: "accepted", requestId: command.id, payload };
         } catch (error: unknown) {
           const timedOut = error instanceof UtilityCommandTimeoutError;
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: timedOut
-                ? "catalog.command_timeout"
-                : "catalog.forward_failed",
-              message: timedOut
-                ? catalogCommandTimeoutMessage(command.type)
-                : error instanceof Error
-                  ? error.message
-                  : "目录操作失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            timedOut ? "catalog.command_timeout" : "catalog.forward_failed",
+            timedOut
+              ? catalogCommandTimeoutMessage(command.type)
+              : error instanceof Error
+                ? error.message
+                : "目录操作失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2530,8 +2618,12 @@ function registerIpc(): void {
           requireModelConfigStore,
           requireModelUsageStore,
           listRemoteModels,
-          remoteFetch: electronRemoteFetch,
-          supervisor
+          remoteFetch: isTestEnvironment(app.isPackaged)
+            ? readOnlyOnlineFetch(electronRemoteFetch)
+            : electronRemoteFetch,
+          supervisor,
+          ownerId: event.sender.id,
+          modelTestRegistry
         },
         command
       );
@@ -2551,18 +2643,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "workspace_agents.list_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "加载创作空间智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "workspace_agents.list_failed",
+            error instanceof Error
+              ? error.message
+              : "加载创作空间智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2586,18 +2674,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "workspace_agents.save_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "保存创作空间智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "workspace_agents.save_failed",
+            error instanceof Error
+              ? error.message
+              : "保存创作空间智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2614,18 +2698,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "workspace_agents.reset_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "恢复创作空间默认设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "workspace_agents.reset_failed",
+            error instanceof Error
+              ? error.message
+              : "恢复创作空间默认设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2639,18 +2719,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long_agents.list_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "加载长篇智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long_agents.list_failed",
+            error instanceof Error ? error.message : "加载长篇智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2664,18 +2738,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long_agents.save_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "保存长篇智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long_agents.save_failed",
+            error instanceof Error ? error.message : "保存长篇智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2689,18 +2757,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "long_agents.reset_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "恢复长篇智能体默认设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "long_agents.reset_failed",
+            error instanceof Error
+              ? error.message
+              : "恢复长篇智能体默认设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2714,18 +2778,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "academic_agents.list_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "加载学术智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "academic_agents.list_failed",
+            error instanceof Error ? error.message : "加载学术智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2739,18 +2797,12 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "academic_agents.save_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "保存学术智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "academic_agents.save_failed",
+            error instanceof Error ? error.message : "保存学术智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2766,18 +2818,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "academic_agents.reset_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "恢复学术智能体默认设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "academic_agents.reset_failed",
+            error instanceof Error
+              ? error.message
+              : "恢复学术智能体默认设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2791,18 +2839,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "library_agents.list_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "加载资料库智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "library_agents.list_failed",
+            error instanceof Error
+              ? error.message
+              : "加载资料库智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2816,18 +2860,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "library_agents.save_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "保存资料库智能体设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "library_agents.save_failed",
+            error instanceof Error
+              ? error.message
+              : "保存资料库智能体设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2843,18 +2883,14 @@ function registerIpc(): void {
             )
           };
         } catch (error: unknown) {
-          return {
-            status: "rejected",
-            requestId: command.id,
-            error: {
-              code: "library_agents.reset_failed",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "恢复资料库智能体默认设置失败。",
-              details: safeErrorDetails(error)
-            }
-          };
+          return rejectedResult(
+            command.id,
+            "library_agents.reset_failed",
+            error instanceof Error
+              ? error.message
+              : "恢复资料库智能体默认设置失败。",
+            safeErrorDetails(error)
+          );
         }
       }
 
@@ -2896,6 +2932,72 @@ function registerIpc(): void {
   );
 }
 
+let startupCompactionScheduled = false;
+const STARTUP_COMPACTION_MAX_RETRIES = 3;
+const STARTUP_COMPACTION_RETRY_DELAY_MS = 15_000;
+
+function scheduleStartupConversationCompaction(
+  delayMs = 1_200,
+  retriesRemaining = STARTUP_COMPACTION_MAX_RETRIES
+): void {
+  if (
+    (delayMs === 1_200 && startupCompactionScheduled) ||
+    process.env.DEEPWRITE_SMOKE === "1" ||
+    process.env.DEEPWRITE_STORAGE_SMOKE
+  ) {
+    return;
+  }
+  startupCompactionScheduled = true;
+  const retryLater = () => {
+    if (retriesRemaining > 0 && !quitting && !shutdownComplete) {
+      scheduleStartupConversationCompaction(
+        STARTUP_COMPACTION_RETRY_DELAY_MS,
+        retriesRemaining - 1
+      );
+    }
+  };
+  const timer = setTimeout(() => {
+    void (async () => {
+      if (quitting || shutdownComplete) return;
+      if (activeRuns.size > 0) {
+        retryLater();
+        return;
+      }
+      try {
+        const status = await storageSettingsService?.getCompactionStatus();
+        if (
+          status &&
+          (status.phase === "needed" || status.phase === "failed")
+        ) {
+          if (activeRuns.size > 0 || quitting || shutdownComplete) {
+            if (!quitting && !shutdownComplete) retryLater();
+            return;
+          }
+          const result = await storageSettingsService?.compactConversations();
+          if (result?.phase === "needed") {
+            retryLater();
+          }
+        }
+      } catch (error: unknown) {
+        if (
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code === "storage_settings.busy"
+        ) {
+          retryLater();
+          return;
+        }
+        console.warn(
+          "DeepWrite startup conversation compaction failed:",
+          error
+        );
+      }
+    })();
+  }, delayMs);
+  timer.unref();
+}
+
 async function announceReady(window: BrowserWindow): Promise<void> {
   const health = SystemHealthPayloadSchema.parse(
     await supervisor.collectHealth()
@@ -2935,7 +3037,9 @@ async function announceReady(window: BrowserWindow): Promise<void> {
     } finally {
       app.quit();
     }
+    return;
   }
+  scheduleStartupConversationCompaction();
 }
 
 applyNetworkProxyPreference(false);
@@ -2963,8 +3067,15 @@ if (!hasSingleInstanceLock) {
       app.setAppUserModelId("cn.deepwrite.desktop");
     const userDataPath = configureBootstrapEnvironment(
       app,
-      import.meta.env.MAIN_VITE_DEEPWRITE_APP_MODE
+      import.meta.env.MAIN_VITE_DEEPWRITE_APP_MODE,
+      storageBootstrap?.locations.defaultPath
     );
+    if (storageBootstrap) {
+      recordStorageBootstrapOwner(
+        storageBootstrap.locations.defaultPath,
+        process.env.DEEPWRITE_MAIN_INSTANCE_ID ?? ""
+      );
+    }
     const services = await desktopStartup.step("services", () =>
       createDesktopServices({
         userDataPath,
@@ -3007,12 +3118,16 @@ if (!hasSingleInstanceLock) {
       workspace: requireWorkspaceDirectoryStore,
       getWindow: requireMainWindow,
       busy: () =>
-        quitting || activeRuns.size > 0 || pendingUsageContexts.size > 0,
+        quitting ||
+        activeRuns.size > 0 ||
+        pendingUsageContexts.size > 0 ||
+        localBackupController.isBusy(),
       flushRenderer: () => rendererStateFlush.request(mainWindow),
       restart: () => {
         quitting = true;
         setImmediate(() => beginGracefulShutdown());
-      }
+      },
+      command: (command) => supervisor.requestCommand("core", command, 0)
     });
     if (storageBootstrap?.migrationError) {
       void dialog.showMessageBox({

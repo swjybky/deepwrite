@@ -49,7 +49,7 @@ const DEEPWRITE_RUNTIME_MODELS = [
       maxTokensField: "max_tokens",
       requiresReasoningContentOnAssistantMessages: true,
       thinkingFormat: "deepseek",
-      supportsStrictMode: true
+      supportsStrictMode: false
     },
     reasoning: true,
     thinkingLevelMap: {
@@ -77,7 +77,7 @@ const DEEPWRITE_RUNTIME_MODELS = [
       maxTokensField: "max_tokens",
       requiresReasoningContentOnAssistantMessages: true,
       thinkingFormat: "deepseek",
-      supportsStrictMode: true
+      supportsStrictMode: false
     },
     reasoning: true,
     thinkingLevelMap: {
@@ -105,7 +105,7 @@ const DEEPWRITE_RUNTIME_MODELS = [
       maxTokensField: "max_tokens",
       requiresReasoningContentOnAssistantMessages: true,
       thinkingFormat: "deepseek",
-      supportsStrictMode: true
+      supportsStrictMode: false
     },
     reasoning: true,
     thinkingLevelMap: {
@@ -130,7 +130,8 @@ const DEEPWRITE_RUNTIME_MODELS = [
       supportsStore: false,
       supportsDeveloperRole: false,
       requiresReasoningContentOnAssistantMessages: true,
-      thinkingFormat: "deepseek"
+      thinkingFormat: "deepseek",
+      supportsStrictMode: false
     },
     reasoning: true,
     // The 0731 release is the production DeepSeek V4 Flash checkpoint and

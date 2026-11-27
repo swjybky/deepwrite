@@ -28,15 +28,52 @@ describe("library ordering projection", () => {
       groups: { group: ["b", "a"] }
     };
     const result = orderLibraryNodes(nodes, "skill", organization);
-    expect(result.map((node) => node.id)).toEqual(["c", "group-row"]);
-    expect(result[1]?.children?.map((node) => node.id)).toEqual(["b", "a"]);
-    expect(result[1]?.children?.[0]).toMatchObject({
+    expect(result.map((node) => node.id)).toEqual(["group-row", "c"]);
+    expect(result[0]?.children?.map((node) => node.id)).toEqual(["b", "a"]);
+    expect(result[0]?.children?.[0]).toMatchObject({
       canMoveLibraryUp: false,
       canMoveLibraryDown: true
     });
-    expect(result[1]?.children?.[1]).toMatchObject({
+    expect(result[0]?.children?.[1]).toMatchObject({
       canMoveLibraryUp: true,
       canMoveLibraryDown: false
     });
+  });
+
+  it("keeps groups above libraries and limits move bounds to the same kind", () => {
+    const nodes: ResourceTreeNode[] = [
+      {
+        id: "lib1",
+        label: "库1",
+        catalogNodeType: "library",
+        libraryId: "lib1"
+      },
+      { id: "g1", label: "组1", catalogNodeType: "group", groupId: "g1" },
+      {
+        id: "lib2",
+        label: "库2",
+        catalogNodeType: "library",
+        libraryId: "lib2"
+      },
+      { id: "g2", label: "组2", catalogNodeType: "group", groupId: "g2" }
+    ];
+    const organization = {
+      ...emptyLibraryOrganization(),
+      material: ["lib1", "g1", "lib2", "g2"]
+    };
+    const result = orderLibraryNodes(nodes, "material", organization);
+    expect(result.map((node) => node.id)).toEqual(["g1", "g2", "lib1", "lib2"]);
+    expect(result.map((node) => node.canMoveLibraryUp)).toEqual([
+      false,
+      true,
+      false,
+      true
+    ]);
+    expect(result.map((node) => node.canMoveLibraryDown)).toEqual([
+      true,
+      false,
+      true,
+      false
+    ]);
   });
 });

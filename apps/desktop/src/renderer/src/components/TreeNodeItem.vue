@@ -970,11 +970,12 @@ onBeforeUnmount(() => {
             <span>{{ t("paste") }}</span>
           </button>
           <div
-            v-if="pinnable"
+            v-if="pinnable && !node.readOnly"
             class="tree-node-action-menu-divider"
             role="separator"
           />
           <button
+            v-if="!node.readOnly"
             class="tree-node-action-menu-item is-danger"
             type="button"
             role="menuitem"
@@ -984,7 +985,7 @@ onBeforeUnmount(() => {
             <span>{{ t("remove") }}</span>
           </button>
           <button
-            v-if="!node.unavailable"
+            v-if="!node.readOnly && !node.unavailable"
             class="tree-node-action-menu-item is-danger"
             type="button"
             role="menuitem"
@@ -997,6 +998,7 @@ onBeforeUnmount(() => {
         <LibraryGroupActionMenu
           v-else-if="node.catalogNodeType === 'group' && libraryDomain"
           :unavailable="node.unavailable ?? false"
+          :read-only="node.readOnly ?? false"
           @action="activateResourceNodeAction"
         />
         <template

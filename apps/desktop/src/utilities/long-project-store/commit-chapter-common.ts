@@ -18,7 +18,7 @@ import {
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { loadIndexedFile } from "./cache";
 import { deriveLongForeshadowingStatus } from "./continuity";
-import { commitLongProjectTransaction, serializeJson } from "./io";
+import { commitLongProjectTransaction } from "./io";
 import { contiguousRecordedThrough, ledgerPath } from "./paths";
 import type { LongProjectStoreContext } from "./store-context";
 import {
@@ -26,6 +26,7 @@ import {
   MAX_LEDGER_RECORD_BYTES,
   type LoadedLongProject
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 export interface ChapterCommitTargets {
   placements: LongWorkspaceIndexSnapshot["plot"]["narrativePlacements"];
@@ -174,7 +175,7 @@ export async function finishChapterCommit(input: {
       sha256: (await loadIndexedFile(input.loaded, entry.body.id)).disk.sha256
     }))
   );
-  const recordContent = serializeJson(input.record);
+  const recordContent = toJsonFileText(input.record);
   const recordReference: LongWorkspaceFileReference = {
     id: longLedgerCommitFileId(input.record.id),
     path: ledgerPath(input.record.id),
@@ -234,9 +235,9 @@ export async function finishChapterCommit(input: {
         },
         {
           path: LONG_WORKSPACE_INDEX_PATH,
-          content: serializeJson(nextIndex)
+          content: toJsonFileText(nextIndex)
         },
-        { path: MANIFEST_PATH, content: serializeJson(nextManifest) }
+        { path: MANIFEST_PATH, content: toJsonFileText(nextManifest) }
       ],
       maxFileBytes: MAX_LEDGER_RECORD_BYTES
     },

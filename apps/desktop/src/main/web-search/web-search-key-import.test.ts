@@ -7,7 +7,7 @@ import {
   deepSeekModel,
   settingsInput,
   setup
-} from "./web-search-test-support";
+} from "./web-search.test-support";
 
 const models = [
   deepSeekModel("m_chat", SEARCH_KEY),

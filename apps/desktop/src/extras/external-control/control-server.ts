@@ -4,6 +4,7 @@ import {
   EXTERNAL_CONTROL_PROTOCOL_VERSION,
   ExternalControlCallEnvelopeSchema,
   ExternalControlHelloEnvelopeSchema,
+  ExternalControlPingEnvelopeSchema,
   type ExternalControlClient,
   type ExternalControlErrorCode,
   type ExternalControlResult
@@ -16,7 +17,8 @@ import { createLineReader, encodeLine } from "./line-framing";
 
 const HELLO_TIMEOUT_MS = 5_000;
 const PROBE_TIMEOUT_MS = 1_000;
-const MAX_CONNECTIONS = 16;
+const MAX_CONNECTIONS = 64;
+const SOCKET_KEEPALIVE_MS = 15_000;
 const UNIDENTIFIED_REQUEST = "unidentified";
 
 export interface ExternalControlServerOptions {
@@ -30,6 +32,8 @@ export interface ExternalControlServerOptions {
     args: Record<string, unknown>,
     client: ExternalControlClient
   ): Promise<unknown>;
+  onUnexpectedError?: (error: Error) => void;
+  onUnexpectedClose?: () => void;
 }
 
 function digest(value: string): Buffer {
@@ -74,9 +78,16 @@ export function createExternalControlServer(
   const sockets = new Set<Socket>();
   const clients = new Map<Socket, string>();
   let server: Server | undefined;
+  let stopping = false;
 
   function serve(socket: Socket): void {
     sockets.add(socket);
+    socket.setNoDelay(true);
+    try {
+      socket.setKeepAlive(true, SOCKET_KEEPALIVE_MS);
+    } catch {
+      /* Named pipes do not support TCP keepalive. */
+    }
     socket.on("error", () => socket.destroy());
     socket.on("close", () => {
       sockets.delete(socket);
@@ -140,7 +151,10 @@ export function createExternalControlServer(
           send({
             status: "accepted",
             requestId: id,
-            payload: { protocolVersion: EXTERNAL_CONTROL_PROTOCOL_VERSION }
+            payload: {
+              protocolVersion: EXTERNAL_CONTROL_PROTOCOL_VERSION,
+              ping: true
+            }
           });
         },
         (error: unknown) =>
@@ -160,9 +174,17 @@ export function createExternalControlServer(
       line: string,
       caller: ExternalControlClient
     ): Promise<void> {
-      const parsed = ExternalControlCallEnvelopeSchema.safeParse(
-        parseJson(line)
-      );
+      const raw = parseJson(line);
+      const ping = ExternalControlPingEnvelopeSchema.safeParse(raw);
+      if (ping.success) {
+        send({
+          status: "accepted",
+          requestId: ping.data.id,
+          payload: { ok: true }
+        });
+        return;
+      }
+      const parsed = ExternalControlCallEnvelopeSchema.safeParse(raw);
       if (!parsed.success) {
         send(
           rejected(
@@ -222,18 +244,47 @@ export function createExternalControlServer(
   return {
     async start(): Promise<void> {
       if (server) return;
+      stopping = false;
       // The caller has checked that no other instance answers here.
       if (platform !== "win32") await rm(options.endpoint, { force: true });
       const instance = createServer(serve);
       instance.maxConnections = MAX_CONNECTIONS;
       await new Promise<void>((resolve, reject) => {
-        instance.once("error", reject);
-        instance.listen(options.endpoint, () => {
-          instance.off("error", reject);
+        const onListenError = (error: Error) => {
+          instance.off("listening", onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          instance.off("error", onListenError);
           resolve();
-        });
+        };
+        instance.once("error", onListenError);
+        instance.once("listening", onListening);
+        instance.listen(options.endpoint);
       });
-      if (platform !== "win32") await chmod(options.endpoint, 0o600);
+      let unexpectedHandled = false;
+      instance.on("error", (error: Error) => {
+        if (stopping) return;
+        unexpectedHandled = true;
+        if (server === instance) server = undefined;
+        for (const socket of sockets) socket.destroy();
+        instance.close();
+        options.onUnexpectedError?.(error);
+      });
+      instance.on("close", () => {
+        const wasActive = server === instance;
+        if (wasActive) server = undefined;
+        if (!stopping && !unexpectedHandled && wasActive) {
+          options.onUnexpectedClose?.();
+        }
+      });
+      try {
+        if (platform !== "win32") await chmod(options.endpoint, 0o600);
+      } catch (error) {
+        stopping = true;
+        instance.close();
+        throw error;
+      }
       server = instance;
     },
 
@@ -244,6 +295,7 @@ export function createExternalControlServer(
     },
 
     async stop(): Promise<void> {
+      stopping = true;
       const instance = server;
       server = undefined;
       if (!instance) return;

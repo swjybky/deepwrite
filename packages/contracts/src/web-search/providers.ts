@@ -18,7 +18,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   "bocha",
   "zhipu",
   "search1api",
-  "searxng"
+  "searxng",
+  "tinyfish"
 ] as const;
 export const WebSearchProviderIdSchema = z.enum(WEB_SEARCH_PROVIDER_IDS);
 export type WebSearchProviderId = z.infer<typeof WebSearchProviderIdSchema>;
@@ -37,6 +38,8 @@ export interface WebSearchProviderDescriptor {
   id: WebSearchProviderId;
   /** Default service address; a saved profile may select a compatible endpoint. */
   defaultBaseUrl: string;
+  /** Separate default endpoint for `web_fetch` when search and fetch use different hosts. */
+  defaultFetchBaseUrl?: string;
   /** Most results one call may ask for, whatever the service itself allows. */
   maxResultsCap: number;
   defaultMaxResults: number;
@@ -154,6 +157,16 @@ export const WEB_SEARCH_PROVIDERS = {
     requiresApiKey: false,
     supportsFetch: false,
     fetchUrlMaxChars: 0
+  },
+  tinyfish: {
+    id: "tinyfish",
+    defaultBaseUrl: "https://api.search.tinyfish.ai",
+    defaultFetchBaseUrl: "https://api.fetch.tinyfish.ai",
+    maxResultsCap: 10,
+    defaultMaxResults: 8,
+    queryMaxChars: 400,
+    supportsFetch: true,
+    fetchUrlMaxChars: 8192
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderDescriptor>;
 

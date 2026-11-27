@@ -10,9 +10,9 @@ import type { FolderCatalogStore } from "../folder-catalog-store";
 import { readSecureTextFile } from "../long-project-store/io";
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { decompositionReceiptId } from "./identity";
-import { decompositionSha } from "./content-guard";
 import type { DecompositionRecordsReader } from "./records-reader";
 import { requeueDecompositionUnit } from "./unit-retry";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export async function resolveDecompositionConflict(
   job: LongBookDecompositionJob,
@@ -115,7 +115,7 @@ export async function resolveDecompositionConflict(
                 file.path,
                 32 * 1024 * 1024
               );
-              ref.sha256 = decompositionSha(disk.content);
+              ref.sha256 = sha256Hex(disk.content);
               operations.push({
                 action: "check",
                 path: file.path,
@@ -124,7 +124,7 @@ export async function resolveDecompositionConflict(
             } else {
               const object = objects.find(({ id }) => id === ref.resourceId);
               if (!object) throw new Error("用户对象已移除。");
-              ref.sha256 = decompositionSha(JSON.stringify(object));
+              ref.sha256 = sha256Hex(JSON.stringify(object));
             }
             ref.revision = revision;
             ref.userOwned = true;

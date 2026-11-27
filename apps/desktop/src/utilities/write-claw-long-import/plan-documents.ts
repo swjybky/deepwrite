@@ -1,11 +1,12 @@
 import type { LongWorkspaceFileReference } from "@deepwrite/contracts";
-import { contentSha256, safeUnicode, type WarningCollector } from "./normalize";
+import { safeUnicode, type WarningCollector } from "./normalize";
 import type { WriteClawLongImportDocument } from "./types";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 const MAX_DOCUMENT_BYTES = 32 * 1024 * 1024;
 
 export function storageKey(id: string): string {
-  return contentSha256(id).slice(0, 32);
+  return sha256Hex(id).slice(0, 32);
 }
 
 export function characterPath(characterId: string, filename: string): string {

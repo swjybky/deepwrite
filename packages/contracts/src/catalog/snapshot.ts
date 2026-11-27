@@ -28,6 +28,7 @@ import {
   DEFAULT_CREATIVE_PLOT_STAGES,
   type CreativePlotStage
 } from "./plot-stages";
+import { LibraryOrganizationSchema } from "../library-organization";
 
 export const CatalogLegacyImportSchema = z.object({
   sourceRoot: CatalogIdSchema,
@@ -130,6 +131,7 @@ export const CatalogSnapshotSchema = z
     z.object({
       schemaVersion: z.literal(1),
       revision: z.number().int().nonnegative(),
+      libraryOrganization: LibraryOrganizationSchema.optional(),
       creativePlotStages: CreativePlotStagesSchema,
       books: z.array(BookSchema),
       materials: z.array(MaterialLibrarySchema),
@@ -278,10 +280,11 @@ export const CatalogIndexSkillLibrarySchema = SkillLibrarySchema.extend({
   entries: z.array(CatalogIndexSkillEntrySchema)
 }).strict();
 
-const CatalogIndexSnapshotObjectSchema = z
+export const CatalogIndexSnapshotObjectSchema = z
   .object({
     schemaVersion: z.literal(1),
     revision: z.number().int().nonnegative(),
+    libraryOrganization: LibraryOrganizationSchema.optional(),
     creativePlotStages: CreativePlotStagesSchema,
     books: z.array(CatalogIndexBookSchema),
     materials: z.array(CatalogIndexMaterialLibrarySchema),

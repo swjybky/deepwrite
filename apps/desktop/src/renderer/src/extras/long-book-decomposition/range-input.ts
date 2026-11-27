@@ -17,3 +17,22 @@ export function normalizeChapterRange(
     ? { start, end: Math.max(start, end) }
     : { start: Math.min(start, end), end };
 }
+
+export function syncDecompositionChapterRange(
+  current: { start: unknown; end: unknown },
+  nextTotal: number,
+  previousTotal?: number
+): ChapterRange {
+  const total = Math.max(1, nextTotal);
+  if (previousTotal === undefined) {
+    return { start: 1, end: total };
+  }
+  const normalized = normalizeChapterRange(current, total, "end");
+  if (
+    Math.round(Number(current.end) || 0) === Math.max(1, previousTotal) &&
+    total > Math.max(1, previousTotal)
+  ) {
+    return { start: normalized.start, end: total };
+  }
+  return normalized;
+}

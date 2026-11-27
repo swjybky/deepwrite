@@ -7,7 +7,7 @@ import {
   LongProjectManifestSchema,
   LongWorkspaceIndexSnapshotSchema
 } from "@deepwrite/contracts";
-import { randomHex8 } from "@deepwrite/shared";
+import { randomHex8, toJsonFileText } from "@deepwrite/shared";
 import { parseLongPortableExportBundle } from "../long-portable-bundle";
 import {
   createContinuationImportPlan,
@@ -20,8 +20,7 @@ import {
   commitLongProjectTransaction,
   ensureSecureDirectory,
   readPortableBundleSource,
-  requireMissing,
-  serializeJson
+  requireMissing
 } from "./io";
 import {
   validateImportPlan,
@@ -84,12 +83,12 @@ export async function importWriteClawBook(
           },
           {
             path: LONG_WORKSPACE_INDEX_PATH,
-            content: serializeJson(index),
+            content: toJsonFileText(index),
             expectedSha256: null
           },
           {
             path: MANIFEST_PATH,
-            content: serializeJson(manifest),
+            content: toJsonFileText(manifest),
             expectedSha256: null
           }
         ],
@@ -186,12 +185,12 @@ export async function importPortableBundle(
           },
           {
             path: LONG_WORKSPACE_INDEX_PATH,
-            content: serializeJson(index),
+            content: toJsonFileText(index),
             expectedSha256: null
           },
           {
             path: MANIFEST_PATH,
-            content: serializeJson(manifest),
+            content: toJsonFileText(manifest),
             expectedSha256: null
           }
         ],
@@ -247,12 +246,12 @@ export async function commitContinuationImportPlan(
         },
         {
           path: LONG_WORKSPACE_INDEX_PATH,
-          content: serializeJson(index),
+          content: toJsonFileText(index),
           expectedSha256: null
         },
         {
           path: MANIFEST_PATH,
-          content: serializeJson(manifest),
+          content: toJsonFileText(manifest),
           expectedSha256: null
         }
       ],

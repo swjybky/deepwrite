@@ -178,16 +178,32 @@ async function reviewBrief(context: BriefContext, unitId: string) {
         context.job.units[id]!.topic?.domain === domain)
   );
   const sections = await assetSections(context, ids);
-  if (domain === "character")
-    sections.unshift({
-      title: "【确认名册中的人物】",
-      lines: (await context.registry()).characters
-        .filter(({ ignored, tier }) => !ignored && tier !== "passerby")
-        .map(
+  if (domain === "character") {
+    const characters = (await context.registry()).characters.filter(
+      ({ ignored, tier }) => !ignored && tier !== "passerby"
+    );
+    const active = characters.filter(
+      ({ id }) => context.job.units[`character:${id}`]?.status !== "skipped"
+    );
+    const skipped = characters.filter(
+      ({ id }) => context.job.units[`character:${id}`]?.status === "skipped"
+    );
+    if (skipped.length)
+      sections.unshift({
+        title: "【用户已跳过的人物（无需审校或修复）】",
+        lines: skipped.map(
           ({ id, name, tier }) =>
             `character:${id}｜${name}｜${TIERS[tier] ?? tier}`
         )
+      });
+    sections.unshift({
+      title: "【确认名册中的人物】",
+      lines: active.map(
+        ({ id, name, tier }) =>
+          `character:${id}｜${name}｜${TIERS[tier] ?? tier}`
+      )
     });
+  }
   return sections;
 }
 

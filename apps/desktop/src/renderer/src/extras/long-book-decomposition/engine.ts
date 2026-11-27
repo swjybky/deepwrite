@@ -4,6 +4,8 @@ import {
   assertExtrasAgentBudget,
   decompositionInputBudget,
   type DeepWriteApi,
+  type DecompositionModelsInput,
+  type DecompositionModelSelection,
   type LongBookDecompositionJob,
   type ModelConfig,
   type SystemEventEnvelope
@@ -15,6 +17,7 @@ import {
   decompositionFailureMessage as failureMessage,
   startDecompositionPackage
 } from "./package-runner";
+import { formatModelProviderError } from "../../i18n/errors";
 
 /** The page can unmount; this controller belongs to the workspace feature host. */
 export function createDecompositionEngine(
@@ -26,7 +29,14 @@ export function createDecompositionEngine(
   const running = ref(false);
   const error = ref<string | null>(null);
   const waitingForSlot = ref(false);
+  const lastModelSwitch = shallowRef<{
+    id: number;
+    slot: "reading" | "integration";
+    fromModelId: string;
+    toModelId: string;
+  } | null>(null);
   let wakeSlot: (() => void) | undefined;
+  let switchSequence = 0;
   // Children of the latest packages: who runs, who waits, what they did.
   const subtasks = createSubagentRunTracker();
   // Another task's board is not this one's; a running package keeps its own.
@@ -43,10 +53,22 @@ export function createDecompositionEngine(
   let refreshing = false;
   let refreshPending = false;
   function reportBlockedUnit() {
+    if (job.value?.status === "ended") {
+      error.value = null;
+      return;
+    }
     const blocked = Object.values(job.value?.units ?? {}).find(
       (unit) => ["conflict", "failed"].includes(unit.status) && unit.lastError
     );
-    if (blocked?.lastError) error.value = blocked.lastError;
+    if (blocked?.lastError) {
+      error.value = formatModelProviderError(blocked.lastError);
+      return;
+    }
+    if (job.value?.status === "failed" && job.value.lastError) {
+      error.value = formatModelProviderError(job.value.lastError);
+      return;
+    }
+    if (job.value?.status !== "stopped") error.value = null;
   }
   async function refresh() {
     const id = job.value?.id;
@@ -91,6 +113,72 @@ export function createDecompositionEngine(
       ...(conflictChoice ? { conflictChoice } : {})
     });
     reportBlockedUnit();
+  }
+  async function promoteNextFallback(
+    current: LongBookDecompositionJob,
+    slot: "reading" | "integration"
+  ): Promise<boolean> {
+    const fallbacks =
+      slot === "reading"
+        ? (current.models.readingFallbacks ?? [])
+        : (current.models.integrationFallbacks ?? []);
+    if (!fallbacks.length) return false;
+    const fromModelId =
+      slot === "reading"
+        ? current.models.reading.modelId
+        : current.models.integration.modelId;
+    const pick = ({
+      modelId,
+      thinkingLevel
+    }: DecompositionModelSelection): DecompositionModelSelection => ({
+      modelId,
+      thinkingLevel
+    });
+    for (let index = 0; index < fallbacks.length; index++) {
+      const candidate = fallbacks[index]!;
+      if (!models().some(({ id }) => id === candidate.modelId)) continue;
+      const remaining = fallbacks.slice(index + 1).map(pick);
+      const otherFallbacks =
+        slot === "reading"
+          ? current.models.integrationFallbacks?.map(pick)
+          : current.models.readingFallbacks?.map(pick);
+      const nextModels: DecompositionModelsInput =
+        slot === "reading"
+          ? {
+              reading: pick(candidate),
+              integration: pick(current.models.integration),
+              ...(remaining.length ? { readingFallbacks: remaining } : {}),
+              ...(otherFallbacks?.length
+                ? { integrationFallbacks: otherFallbacks }
+                : {})
+            }
+          : {
+              reading: pick(current.models.reading),
+              integration: pick(candidate),
+              ...(otherFallbacks?.length
+                ? { readingFallbacks: otherFallbacks }
+                : {}),
+              ...(remaining.length ? { integrationFallbacks: remaining } : {})
+            };
+      try {
+        refreshSequence++;
+        job.value = await api().longBookDecomposition.updateModels({
+          jobId: current.id,
+          models: nextModels
+        });
+        error.value = null;
+        lastModelSwitch.value = {
+          id: ++switchSequence,
+          slot,
+          fromModelId,
+          toModelId: candidate.modelId
+        };
+        return true;
+      } catch {
+        /* Skip unusable fallback and try the next candidate in order. */
+      }
+    }
+    return false;
   }
   async function run() {
     if (running.value || !job.value) return;
@@ -170,16 +258,25 @@ export function createDecompositionEngine(
           }
         );
         handle = pkg.handle;
-        const { failure, capacity, quota } = await pkg.outcome;
+        const { failure, capacity, quota, unitErrors } = await pkg.outcome;
         if (epoch !== generation) break;
         if (quota) {
-          error.value = failure ?? null;
           refreshSequence++;
           job.value = await api().longBookDecomposition.control({
             jobId: current.id,
             action: "stop",
             ...(failure ? { error: failure.slice(0, 2000) } : {})
           });
+          handle = undefined;
+          if (epoch !== generation || !job.value) break;
+          const slot = phase === "read" ? "reading" : "integration";
+          const switched = await promoteNextFallback(job.value, slot);
+          if (epoch !== generation || !job.value) break;
+          if (switched) {
+            await control("resume");
+            continue;
+          }
+          error.value = failure ?? null;
           break;
         }
         if (capacity && epoch === generation) {
@@ -211,7 +308,8 @@ export function createDecompositionEngine(
             jobId: current.id,
             action: "finish-package",
             attemptId,
-            ...(failure ? { error: failure, failed: true } : {})
+            ...(failure ? { error: failure, failed: true } : {}),
+            ...(Object.keys(unitErrors).length ? { unitErrors } : {})
           });
         else await refresh();
         reportBlockedUnit();
@@ -226,7 +324,7 @@ export function createDecompositionEngine(
         if (failure && !attemptId) throw new Error(failure);
       }
     } catch (cause) {
-      error.value = failureMessage(cause);
+      error.value = formatModelProviderError(failureMessage(cause));
     } finally {
       handle = undefined;
       running.value = false;
@@ -237,6 +335,7 @@ export function createDecompositionEngine(
     error,
     subtasks,
     waitingForSlot,
+    lastModelSwitch,
     modelCapacity: modelCapacities.peek,
     resolveModelCapacity: modelCapacities.resolve,
     isBusy: computed(() => running.value),

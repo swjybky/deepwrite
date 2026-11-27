@@ -13,6 +13,7 @@ import {
 import { formatError } from "../../i18n/errors";
 import { uiMessage } from "../../ui-feedback";
 import { identityT as t } from "./book-identity-utils";
+import { uiStorage } from "../../utils/uiStorage";
 export interface IdentityBookChoice {
   key: string;
   title: string;
@@ -24,7 +25,7 @@ const storageKey = "deepwrite:book-identity:selection:v1";
 function read(): ChatAssistantProjectRef | null {
   try {
     const result = ChatAssistantProjectRefSchema.safeParse(
-      JSON.parse(localStorage.getItem(storageKey) ?? "null")
+      JSON.parse(uiStorage().getItem(storageKey) ?? "null")
     );
     return result.success ? result.data : null;
   } catch {
@@ -82,7 +83,7 @@ export function useIdentityBooks() {
   }
   watch(book, (value) => {
     try {
-      if (value) localStorage.setItem(storageKey, JSON.stringify(value));
+      if (value) uiStorage().setItem(storageKey, JSON.stringify(value));
     } catch {
       /* Optional UI preference. */
     }

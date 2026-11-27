@@ -28,6 +28,7 @@ import {
   repairSubmissionArguments,
   withEmptyCollections
 } from "./submission-schema";
+import { isRecord } from "@deepwrite/shared";
 type Task = ExtrasAgentResolvedTaskOf<"long-book-decomposition">;
 export async function saveDecompositionSubmission(
   task: Task,
@@ -97,17 +98,15 @@ export async function persistDecompositionSubmission(
   );
   return decompositionOutput(task, unitId, data, receipt);
 }
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === "object" && !Array.isArray(value);
 /** The tool decides the kinds; whatever the model sent for them is replaced. */
 function withToolKind(name: string, data: unknown): unknown {
-  if (!isObject(data)) return data;
+  if (!isRecord(data)) return data;
   const asset = assetKinds[name];
   if (!asset) return { ...data, kind: dataKinds[name] };
   return {
     ...data,
     kind: "asset",
-    asset: isObject(data.asset) ? { ...data.asset, kind: asset } : data.asset
+    asset: isRecord(data.asset) ? { ...data.asset, kind: asset } : data.asset
   };
 }
 /** A chunk completes as soon as every one of its checkpoints is saved. */
@@ -207,7 +206,7 @@ export function decompositionSubmissionTools(
             );
             const partial = staged && item.batch_mode === "partial";
             const data =
-              partial && isObject(filled)
+              partial && isRecord(filled)
                 ? { ...filled, kind: "asset-part" }
                 : name === "submit_chapter_reading"
                   ? decodeReadingEvidence(filled)

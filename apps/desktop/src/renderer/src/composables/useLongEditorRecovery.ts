@@ -6,6 +6,7 @@ import type {
 } from "@deepwrite/contracts";
 import { uiMessage } from "../ui-feedback";
 import { isEditableLongFile } from "../types/longWorkspace";
+import { optionalUiStorage } from "../utils/uiStorage";
 
 const t = createScopedTranslator("workspace.longEditorRecovery");
 
@@ -68,7 +69,7 @@ export function useLongEditorRecovery(options: {
 
   function resolveRecoveryStorage(): Storage | null {
     try {
-      return typeof window === "undefined" ? null : window.localStorage;
+      return optionalUiStorage();
     } catch {
       return null;
     }

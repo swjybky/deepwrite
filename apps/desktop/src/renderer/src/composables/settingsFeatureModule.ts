@@ -52,6 +52,7 @@ export function buildSettingsFeatureModule(
     modelError: settingsStore.modelError,
     modelTestMessage: settingsStore.modelTestMessage,
     testingModelId: settingsStore.testingModelId,
+    modelTestStates: settingsStore.modelTestStates,
     runtimeAvailable: Boolean(options.api())
   };
 }

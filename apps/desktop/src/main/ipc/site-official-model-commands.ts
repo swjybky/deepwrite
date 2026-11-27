@@ -22,6 +22,7 @@ import { loadDeepWriteSiteOfficialCatalog } from "../deepwrite-site-official-cat
 import { queryDeepWriteSiteOfficialQuota } from "../deepwrite-site-official-quota";
 import { safeErrorDetails } from "./errors";
 import type { IpcCommandContext } from "./command-types";
+import { rejectedResult } from "./errors";
 
 type SiteOfficialModelCommandContext = Pick<
   IpcCommandContext,
@@ -72,15 +73,12 @@ function rejected(
   fallback: string,
   error: unknown
 ): CommandResult {
-  return {
-    status: "rejected",
-    requestId: command.id,
-    error: {
-      code,
-      message: error instanceof Error ? error.message : fallback,
-      details: safeErrorDetails(error)
-    }
-  };
+  return rejectedResult(
+    command.id,
+    code,
+    error instanceof Error ? error.message : fallback,
+    safeErrorDetails(error)
+  );
 }
 
 export async function handleSiteOfficialModelCommands(

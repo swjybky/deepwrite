@@ -1,6 +1,59 @@
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { ConversationStorageError } from "./errors";
 
+export const BACKUP_READONLY_TRIGGER_PREFIX = "__deepwrite_backup_readonly_";
+const BACKUP_READONLY_TABLES = [
+  "schema_version",
+  "scopes",
+  "sessions",
+  "purged_sessions",
+  "messages",
+  "receipts",
+  "nodes",
+  "chunks",
+  "node_chunks",
+  "chunk_collection_queue",
+  "runtime_meta",
+  "migrations",
+  "legacy_values",
+  "legacy_backups",
+  "migration_records",
+  "stages",
+  "stage_receipts"
+] as const;
+
+export function sealDatabaseAsReadonlyBackup(database: DatabaseSync): void {
+  for (const table of BACKUP_READONLY_TABLES) {
+    database.exec(`
+      CREATE TRIGGER IF NOT EXISTS ${BACKUP_READONLY_TRIGGER_PREFIX}${table}_i
+        BEFORE INSERT ON ${table}
+        BEGIN SELECT RAISE(ABORT, 'deepwrite_compaction_backup_readonly'); END;
+      CREATE TRIGGER IF NOT EXISTS ${BACKUP_READONLY_TRIGGER_PREFIX}${table}_u
+        BEFORE UPDATE ON ${table}
+        BEGIN SELECT RAISE(ABORT, 'deepwrite_compaction_backup_readonly'); END;
+      CREATE TRIGGER IF NOT EXISTS ${BACKUP_READONLY_TRIGGER_PREFIX}${table}_d
+        BEFORE DELETE ON ${table}
+        BEGIN SELECT RAISE(ABORT, 'deepwrite_compaction_backup_readonly'); END;
+    `);
+  }
+}
+
+export function unsealReadonlyBackupTriggers(database: DatabaseSync): void {
+  const rows = database
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '__deepwrite_backup_readonly_%'"
+    )
+    .all() as { name?: string }[];
+  for (const row of rows) {
+    if (
+      typeof row.name === "string" &&
+      /^__deepwrite_backup_readonly_[a-z0-9_]+$/u.test(row.name)
+    ) {
+      database.exec(`DROP TRIGGER IF EXISTS ${row.name};`);
+    }
+  }
+}
+
 /** Only the Core-owned storage worker opens this database in production. */
 export function openConversationDatabase(path: string): DatabaseSync {
   const database = new DatabaseSync(path);
@@ -127,6 +180,9 @@ export function openConversationDatabase(path: string): DatabaseSync {
         "schema_unsupported",
         "Unsupported conversation database version."
       );
+    if (path !== ":memory:" && !path.includes(".bak-")) {
+      unsealReadonlyBackupTriggers(database);
+    }
     return database;
   } catch (error) {
     database.close();

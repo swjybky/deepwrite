@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { AgentUsageSchema } from "../agent-usage";
+import { stripModelCallSnapshot } from "./model-call-strip";
+export { stripModelCallSnapshot };
 import {
   AgentRetryScheduledFieldsSchema,
   AgentTurnStartedFieldsSchema,
@@ -78,6 +80,15 @@ export const SubagentEventBaseSchema = z.object({
 });
 export type SubagentEventBase = z.infer<typeof SubagentEventBaseSchema>;
 
+export const ModelCallInputSummarySchema = z.object({
+  systemPromptChars: z.number().int().nonnegative(),
+  messageCount: z.number().int().nonnegative(),
+  toolCount: z.number().int().nonnegative(),
+  providerMessageCount: z.number().int().nonnegative().optional(),
+  hasProviderTools: z.boolean().optional()
+});
+export type ModelCallInputSummary = z.infer<typeof ModelCallInputSummarySchema>;
+
 export const ModelCallTraceSchema = z.object({
   snapshot: z
     .object({
@@ -96,8 +107,12 @@ export const ModelCallTraceSchema = z.object({
   startedAt: z.string(),
   endedAt: z.string().optional(),
   durationMs: z.number().nonnegative().optional(),
-  status: z.enum(["running", "completed", "error", "aborted", "interrupted"])
+  status: z.enum(["running", "completed", "error", "aborted", "interrupted"]),
+  stopReason: z.string().optional(),
+  usage: AgentUsageSchema.optional(),
+  inputSummary: ModelCallInputSummarySchema.optional()
 });
+export type ModelCallTrace = z.infer<typeof ModelCallTraceSchema>;
 
 export const SubagentActivitySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("model_call"), call: ModelCallTraceSchema }),

@@ -10,6 +10,7 @@ import {
 } from "@deepwrite/contracts/renderer";
 import { uiMessage } from "../../ui-feedback";
 import { useSyncScope } from "./useSyncScope";
+import { deepwriteApi } from "../../api/deepwrite";
 
 const t = createScopedTranslator("extras.deviceSync");
 /** Operations that report progress while they run; any other one returns its status when done. */
@@ -27,6 +28,10 @@ export function useDeviceSync(
   const status = ref<SyncStatus | null>(null);
   const pending = ref(false);
   const initialLoading = ref(true);
+  const initError = ref<string | null>(null);
+  function clearInitError() {
+    initError.value = null;
+  }
   let timer: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
   let epoch = 0;
@@ -35,7 +40,7 @@ export function useDeviceSync(
   let polling = false;
   const request = async (input: SyncRequest): Promise<SyncResponse> => {
     const started = epoch;
-    const api = window.deepwrite?.deviceSync;
+    const api = deepwriteApi()?.deviceSync;
     if (!api) throw new Error(t("desktopSyncRequired"));
     // Clone nested reactive values before contextBridge copies the arguments.
     // Preload validation runs too late to remove proxies from this boundary.
@@ -68,6 +73,10 @@ export function useDeviceSync(
   });
   const run = async (input: SyncRequest): Promise<SyncResponse | null> => {
     if (pending.value && input.operation !== "cancel") return null;
+    const isInitOp =
+      input.operation === "preview-initialization" ||
+      input.operation === "initialize";
+    if (isInitOp) initError.value = null;
     // The first sync only previews the plan until explicitly confirmed.
     // It neither saves editor drafts nor reloads the local workspace.
     const previewOnly =
@@ -127,7 +136,9 @@ export function useDeviceSync(
       }
       return response;
     } catch (error) {
-      uiMessage.error(formatError(error, t("syncIncompleteRetry")));
+      const message = formatError(error, t("syncIncompleteRetry"));
+      if (isInitOp) initError.value = message;
+      uiMessage.error(message);
       return null;
     } finally {
       if (mutation) {
@@ -181,6 +192,8 @@ export function useDeviceSync(
     status,
     pending,
     initialLoading,
+    initError,
+    clearInitError,
     loadInitialStatus,
     run,
     request,

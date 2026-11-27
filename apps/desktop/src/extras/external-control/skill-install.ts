@@ -9,6 +9,11 @@ const SKILL_TARGETS = [
   { id: "claude", label: "Claude Code", directory: [".claude", "skills"] },
   { id: "codex", label: "Codex", directory: [".codex", "skills"] },
   { id: "agents", label: "DeepSeek Harness", directory: [".agents", "skills"] },
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    directory: [".gemini", "config", "skills"]
+  },
   { id: "workbuddy", label: "WorkBuddy", directory: [".workbuddy", "skills"] }
 ] as const;
 

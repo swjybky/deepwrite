@@ -7,7 +7,7 @@ import {
   imageSettingsInput,
   INVALID_IMAGE_KEY,
   testSecureStorage
-} from "./image-test-support";
+} from "./image.test-support";
 
 const roots: string[] = [];
 afterEach(async () => {

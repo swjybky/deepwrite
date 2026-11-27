@@ -5,6 +5,7 @@ import {
 import { deepSeekWebSearchClient } from "./providers/deepseek";
 import { additionalSearchApiClient } from "./providers/additional-search-apis";
 import { searchApiClient } from "./providers/search-apis";
+import { tinyFishWebSearchClient } from "./providers/tinyfish";
 import type { WebSearchProviderClient } from "./types";
 
 /** A new search provider registers its client here; the type checks the table is complete. */
@@ -19,7 +20,8 @@ export const WEB_SEARCH_CLIENTS = {
   bocha: additionalSearchApiClient("bocha"),
   zhipu: additionalSearchApiClient("zhipu"),
   search1api: additionalSearchApiClient("search1api"),
-  searxng: additionalSearchApiClient("searxng")
+  searxng: additionalSearchApiClient("searxng"),
+  tinyfish: tinyFishWebSearchClient
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderClient>;
 
 export function webSearchClient(

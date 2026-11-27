@@ -9,6 +9,7 @@ import {
   AgentTeamProfileSchema,
   activeAgentTeams,
   agentTeamBoundBookCount,
+  isBuiltinAgentTeamId,
   type AgentTeamBookBindings,
   type AgentTeamCatalogSnapshot,
   type AgentTeamChange,
@@ -272,6 +273,10 @@ export function previewActiveTeamChange(
 ): AgentTeamChangeReview {
   const input = AgentTeamChangePreviewInputSchema.parse(raw);
   const team = requireTeam(snapshot, input.scope, input.teamId);
+  if (team.isBuiltin || isBuiltinAgentTeamId(team.id))
+    throw new Error(
+      "内置智能体团队为只读，不能直接修改，请先复制团队后再调整。"
+    );
   if (activeTeamRevision(team) !== input.baseRevision)
     throw new Error("团队设置已变化，请重新读取后再生成审阅。");
   const draft = structuredClone(team.settings);
@@ -339,6 +344,10 @@ export function applyActiveTeamChange(
     change.scope,
     change.teamId
   );
+  if (team.isBuiltin || isBuiltinAgentTeamId(team.id))
+    throw new Error(
+      "内置智能体团队为只读，不能直接修改，请先复制团队后再调整。"
+    );
   if (activeTeamRevision(team) !== change.baseRevision)
     throw new Error(
       "团队设置已被其他操作修改，请重新读取并审阅，当前修改未保存。"

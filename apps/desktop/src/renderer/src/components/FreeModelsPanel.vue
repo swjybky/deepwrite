@@ -8,23 +8,36 @@ import type {
 } from "@deepwrite/contracts";
 import AppIcon from "./AppIcon.vue";
 import ModelAnnouncementNotice from "./ModelAnnouncementNotice.vue";
+import ModelTestStatusNote from "./ModelTestStatusNote.vue";
 import { freeModelStatus, isFreeModelAvailable } from "./freeModelPresentation";
 import { toModelInput } from "./modelSettingsDraft";
+import {
+  isModelTestActiveStatus,
+  modelTestConfigSignature,
+  type ModelTestStateEntry
+} from "../utils/modelTestState";
 
 const t = createScopedTranslator("components.freeModelsPanel");
 
-const props = defineProps<{
-  settings: ModelSettings | null;
-  refreshing: boolean;
-  saving: boolean;
-  testingModelId: string | null;
-  modelAlertMessages: readonly string[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    settings: ModelSettings | null;
+    refreshing: boolean;
+    saving: boolean;
+    testingModelId: string | null;
+    modelTestStates?: Readonly<Record<string, ModelTestStateEntry>>;
+    modelAlertMessages: readonly string[];
+  }>(),
+  {
+    modelTestStates: () => ({})
+  }
+);
 
 const emit = defineEmits<{
   refresh: [];
   setModelEnabled: [payload: { modelId: string; enabled: boolean }];
   test: [model: ModelConfigInput];
+  cancelTest: [modelId: string];
   openOfficialModels: [];
 }>();
 
@@ -50,6 +63,20 @@ function toggleModel(model: ModelConfig, event: Event): void {
 
 function testModel(model: ModelConfig): void {
   emit("test", toModelInput(model));
+}
+
+function modelTestEntry(id: string): ModelTestStateEntry | undefined {
+  return props.modelTestStates[id];
+}
+
+function isModelTesting(id: string): boolean {
+  const entry = modelTestEntry(id);
+  if (entry) return isModelTestActiveStatus(entry.status);
+  return props.testingModelId === id;
+}
+
+function isModelCancelling(id: string): boolean {
+  return modelTestEntry(id)?.status === "cancelling";
 }
 </script>
 
@@ -126,13 +153,18 @@ function testModel(model: ModelConfig): void {
               </div>
               <small>{{ model.provider }} · {{ model.modelId }}</small>
               <small>{{ model.api }} · {{ model.id }}</small>
+              <ModelTestStatusNote
+                :entry="modelTestEntry(model.id)"
+                :current-signature="modelTestConfigSignature(model)"
+              />
             </div>
             <div class="free-model-actions">
               <button
                 v-if="isFreeModelAvailable(model)"
                 class="free-model-test"
                 type="button"
-                :disabled="saving || refreshing || testingModelId !== null"
+                :disabled="saving || refreshing || isModelTesting(model.id)"
+                :aria-busy="isModelTesting(model.id)"
                 :aria-label="
                   t('testValueConnection', {
                     arg0: model.label
@@ -141,9 +173,25 @@ function testModel(model: ModelConfig): void {
                 @click="testModel(model)"
               >
                 {{
-                  testingModelId === model.id
-                    ? t("testing")
-                    : t("testConnection")
+                  isModelTesting(model.id) ? t("testing") : t("testConnection")
+                }}
+              </button>
+              <button
+                v-if="isFreeModelAvailable(model) && isModelTesting(model.id)"
+                class="free-model-test"
+                type="button"
+                :disabled="isModelCancelling(model.id)"
+                :aria-label="
+                  t('cancelValueConnectionTest', {
+                    arg0: model.label
+                  })
+                "
+                @click="emit('cancelTest', model.id)"
+              >
+                {{
+                  isModelCancelling(model.id)
+                    ? t("cancelingTest")
+                    : t("cancelTest")
                 }}
               </button>
               <label class="free-model-toggle">

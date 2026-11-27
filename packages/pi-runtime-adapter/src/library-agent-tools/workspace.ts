@@ -2,13 +2,10 @@ import {
   MATERIAL_STAGE_IDS,
   SKILL_STAGE_IDS,
   type LibraryAgentProfile,
-  type LibraryAgentWorkspaceSnapshot,
-  createShortWorkspaceContentRevision
+  type LibraryAgentWorkspaceSnapshot
 } from "@deepwrite/contracts";
 import {
   type LibraryDomain,
-  type LibraryProfileShape,
-  type LibraryWorkspaceShape,
   type MutableLibraryEntry,
   type MutableLibraryOverview
 } from "./types";
@@ -30,112 +27,57 @@ export const SKILL_KIND_STAGE_IDS: Record<string, readonly string[]> = {
 };
 
 export function profileDomain(profile: LibraryAgentProfile): LibraryDomain {
-  const value = profile as unknown as LibraryProfileShape;
-  if (value.domain === "material" || value.domain === "skill")
-    return value.domain;
-  if (value.id?.includes("material")) return "material";
-  if (value.id?.includes("skill")) return "skill";
+  if (profile.domain === "material" || profile.domain === "skill")
+    return profile.domain;
   throw new Error("Library agent profile does not declare a supported domain.");
-}
-
-export function workspaceShape(
-  workspace: LibraryAgentWorkspaceSnapshot
-): LibraryWorkspaceShape {
-  return workspace as unknown as LibraryWorkspaceShape;
 }
 
 export function workspaceDomain(
   workspace: LibraryAgentWorkspaceSnapshot
 ): LibraryDomain {
-  const value = workspaceShape(workspace).domain;
-  if (value === "material" || value === "skill") return value;
-  throw new Error(
-    "Library workspace snapshot does not declare a supported domain."
-  );
+  return workspace.domain;
 }
 
 export function libraryId(workspace: LibraryAgentWorkspaceSnapshot): string {
-  const value = workspaceShape(workspace);
-  const id = String(value.libraryId ?? value.id ?? "").trim();
-  if (!id)
-    throw new Error("Library workspace snapshot is missing its library id.");
-  return id;
+  return workspace.libraryId;
 }
 
 export function libraryTitle(workspace: LibraryAgentWorkspaceSnapshot): string {
-  return (
-    String(workspaceShape(workspace).title ?? "未命名资料库").trim() ||
-    "未命名资料库"
-  );
+  return workspace.title;
 }
 
 export function libraryProjectRevision(
   workspace: LibraryAgentWorkspaceSnapshot
 ): number | undefined {
-  const value = workspaceShape(workspace);
-  return value.projectRevision ?? value.baseProjectRevision;
+  return workspace.projectRevision;
 }
 
 export function omittedEntryCount(
   workspace: LibraryAgentWorkspaceSnapshot
 ): number {
-  return Math.max(0, Number(workspaceShape(workspace).omittedEntryCount ?? 0));
-}
-
-export function isReadOnly(
-  workspace: LibraryAgentWorkspaceSnapshot,
-  profile: LibraryAgentProfile
-): boolean {
-  const value = workspaceShape(workspace);
-  const profileValue = profile as unknown as LibraryProfileShape;
-  return (
-    value.readOnly === true ||
-    value.isReadOnly === true ||
-    profileValue.readOnly === true
-  );
+  return workspace.omittedEntryCount ?? 0;
 }
 
 export function readableLibraries(
   workspace: LibraryAgentWorkspaceSnapshot
 ): Array<{ libraryId: string; title: string; kind: string }> {
-  const value = workspaceShape(workspace);
-  const currentId = libraryId(workspace);
-  const currentTitle = libraryTitle(workspace);
-  const currentKind = String(
-    value.customTag ??
-      value.kind ??
-      (workspaceDomain(workspace) === "material"
-        ? value.materialKind
-        : value.skillKind) ??
-      "unknown"
-  );
-  const listed = (value.readableLibraries ?? [])
-    .map((library) => ({
-      libraryId: String(library.libraryId ?? library.id ?? "").trim(),
-      title: String(library.title ?? "").trim() || "未命名资料库",
-      kind: String(library.customTag ?? library.kind ?? "").trim() || "unknown"
-    }))
-    .filter((library) => library.libraryId);
-  if (!listed.length) {
-    return [{ libraryId: currentId, title: currentTitle, kind: currentKind }];
-  }
-  if (!listed.some((library) => library.libraryId === currentId)) {
-    return [
-      { libraryId: currentId, title: currentTitle, kind: currentKind },
-      ...listed
-    ];
-  }
+  const current = {
+    libraryId: workspace.libraryId,
+    title: workspace.title,
+    kind: workspace.customTag ?? workspace.kind
+  };
+  const listed = (workspace.readableLibraries ?? []).map((library) => ({
+    libraryId: library.libraryId,
+    title: library.title,
+    kind: library.customTag ?? library.kind
+  }));
+  if (!listed.length) return [current];
+  if (!listed.some((library) => library.libraryId === current.libraryId))
+    return [current, ...listed];
   return listed;
 }
 
-export function allowedStageIds(
-  workspace: LibraryAgentWorkspaceSnapshot,
-  domain: LibraryDomain
-): string[] {
-  const value = workspaceShape(workspace);
-  const explicit = value.allowedStageIds ?? value.stageIds;
-  if (explicit?.length)
-    return [...new Set(explicit.map(String).filter(Boolean))];
+export function allowedStageIds(domain: LibraryDomain): string[] {
   return [...(domain === "material" ? MATERIAL_STAGE_IDS : SKILL_STAGE_IDS)];
 }
 
@@ -143,35 +85,28 @@ export function mutableEntries(
   workspace: LibraryAgentWorkspaceSnapshot,
   libraryReadOnly: boolean
 ): MutableLibraryEntry[] {
-  const currentLibraryId = libraryId(workspace);
-  const currentLibraryTitle = libraryTitle(workspace);
-  return (workspaceShape(workspace).entries ?? []).map((entry, index) => {
-    const entryId = String(entry.entryId ?? entry.id ?? `entry-${index + 1}`);
-    const content = String(entry.content ?? entry.body ?? "");
-    const sourceLibraryId =
-      String(entry.sourceLibraryId ?? currentLibraryId).trim() ||
-      currentLibraryId;
+  const currentLibraryId = workspace.libraryId;
+  return workspace.entries.map((entry) => {
+    const sourceLibraryId = entry.sourceLibraryId ?? currentLibraryId;
     const sourceLibraryTitle =
-      String(entry.sourceLibraryTitle ?? "").trim() ||
+      entry.sourceLibraryTitle ??
       (sourceLibraryId === currentLibraryId
-        ? currentLibraryTitle
+        ? workspace.title
         : sourceLibraryId);
     return {
-      entryId,
-      documentId: String(entry.documentId ?? entryId),
-      stageId: String(entry.stageId ?? ""),
-      title: String(entry.title ?? "").trim() || "未命名条目",
-      content,
-      revision: String(
-        entry.revision ?? createShortWorkspaceContentRevision(content)
-      ),
+      entryId: entry.id,
+      documentId: entry.documentId,
+      stageId: entry.stageId,
+      title: entry.title,
+      content: entry.content,
+      revision: entry.revision,
       truncated: entry.truncated === true,
       ...(entry.originalLength === undefined
         ? {}
         : { originalLength: entry.originalLength }),
       readOnly:
         libraryReadOnly ||
-        entry.readOnly === true ||
+        entry.readOnly ||
         sourceLibraryId !== currentLibraryId,
       pendingCreate: false,
       sourceLibraryId,
@@ -184,19 +119,13 @@ export function mutableEntries(
 export function mutableOverview(
   workspace: LibraryAgentWorkspaceSnapshot
 ): MutableLibraryOverview {
-  const value = workspaceShape(workspace);
-  const content = String(value.overview ?? "");
   return {
-    documentId:
-      String(value.overviewDocumentId ?? "").trim() ||
-      `library:${workspaceDomain(workspace)}:${libraryId(workspace)}:overview`,
-    content,
-    revision:
-      String(value.overviewRevision ?? "").trim() ||
-      createShortWorkspaceContentRevision(content),
-    truncated: value.overviewTruncated === true,
-    ...(value.overviewOriginalLength === undefined
+    documentId: workspace.overviewDocumentId,
+    content: workspace.overview,
+    revision: workspace.overviewRevision,
+    truncated: workspace.overviewTruncated === true,
+    ...(workspace.overviewOriginalLength === undefined
       ? {}
-      : { originalLength: value.overviewOriginalLength })
+      : { originalLength: workspace.overviewOriginalLength })
   };
 }

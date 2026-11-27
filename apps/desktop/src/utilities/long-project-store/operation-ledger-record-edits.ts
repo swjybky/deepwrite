@@ -7,8 +7,9 @@ import {
 import type { ProjectTransactionFileOperation } from "../project-transaction";
 import { parseLongLedgerCommitRecord } from "../long-version-metadata";
 import { loadIndexedFile } from "./cache";
-import { parseJson, serializeJson } from "./io";
+import { parseJson } from "./io";
 import type { LoadedLongProject } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
 
 interface LoadedLedgerRecordEdit {
   edit: LongWorkspaceLedgerRecordEdit;
@@ -212,6 +213,6 @@ export async function buildLedgerRecordEditOperations(input: {
   const cleanup = collectSemanticCleanup(records, input.nextIndex);
   return records.map((source) => ({
     path: source.edit.recordFile.path,
-    content: serializeJson(editLedgerRecord(source, input.nextIndex, cleanup))
+    content: toJsonFileText(editLedgerRecord(source, input.nextIndex, cleanup))
   }));
 }

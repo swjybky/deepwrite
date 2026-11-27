@@ -59,6 +59,38 @@ export const ExternalAnswerAgentQuestionInputSchema = z
   })
   .strict();
 
+export const ExternalRestartAppInputSchema = z
+  .object({
+    force: z
+      .boolean()
+      .optional()
+      .describe(
+        "Force restart even if agent runs are active or the app window/process is unresponsive. Defaults to false."
+      ),
+    waitForReady: z
+      .boolean()
+      .optional()
+      .describe(
+        "Wait for the restarted DeepWrite instance to come back online and reconnect automatically. Defaults to true."
+      )
+  })
+  .strict();
+
+export const ExternalRestartAppResultSchema = z
+  .object({
+    restarted: z.boolean(),
+    restarting: z.boolean().optional(),
+    launched: z.boolean().optional(),
+    forced: z.boolean().optional(),
+    previousPid: z.number().int().positive().optional(),
+    pid: z.number().int().positive().optional(),
+    appVersion: z.string().min(1).optional(),
+    rendererReady: z.boolean().optional(),
+    activeRunCount: z.number().int().nonnegative().optional(),
+    permissionMode: z.string().min(1).optional()
+  })
+  .strict();
+
 export type ExternalOpenInAppInput = z.infer<
   typeof ExternalOpenInAppInputSchema
 >;
@@ -66,6 +98,12 @@ export type ExternalRunAgentInput = z.infer<typeof ExternalRunAgentInputSchema>;
 export type ExternalAgentRunInput = z.infer<typeof ExternalAgentRunInputSchema>;
 export type ExternalAnswerAgentQuestionInput = z.infer<
   typeof ExternalAnswerAgentQuestionInputSchema
+>;
+export type ExternalRestartAppInput = z.infer<
+  typeof ExternalRestartAppInputSchema
+>;
+export type ExternalRestartAppResult = z.infer<
+  typeof ExternalRestartAppResultSchema
 >;
 
 export const ExternalAgentRunStatusSchema = z.enum([

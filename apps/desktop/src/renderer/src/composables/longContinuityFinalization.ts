@@ -6,15 +6,12 @@ import {
   type SystemEventEnvelope
 } from "@deepwrite/contracts";
 import type { LongWorkspaceRendererApi } from "../types/longWorkspace";
+import { jsonClone } from "@deepwrite/shared";
 
 export type LongContinuityFinalizationEvent = Extract<
   SystemEventEnvelope,
   { type: "long.ledger_commit_proposal" }
 >;
-
-function ipcSafeJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
 
 export function continuityFinalizationKey(
   event: LongContinuityFinalizationEvent
@@ -41,5 +38,5 @@ export async function commitLongContinuityFinalization(
           }
         }
       : parsedInput;
-  await api.commitChapter(ipcSafeJson(input));
+  await api.commitChapter(jsonClone(input));
 }

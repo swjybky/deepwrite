@@ -59,16 +59,28 @@ export async function verifyHeaderModelSettings(frame: Frame) {
     document.querySelector(".analysis-model-panel"),
     "Header opens model settings"
   );
-  await choose(
-    t("extras.longBookAnalysis.analysisModel"),
-    "验证推理模型",
-    frame
-  );
-  await choose(
-    t("extras.longBookAnalysis.thinkingLevel"),
-    thinkingLabel("high"),
-    frame
-  );
+  document
+    .querySelector<HTMLButtonElement>(
+      '.analysis-model-panel .model-picker-rail-btn[aria-label="全部模型"]'
+    )
+    ?.click();
+  await frame();
+  const modelOption = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.analysis-model-panel [role="listbox"][aria-label="模型"] [role="option"]'
+    )
+  ].find((item) => item.textContent?.includes("验证推理模型"));
+  check(modelOption, "Missing option 验证推理模型");
+  modelOption.click();
+  await frame();
+  const thinkingOption = [
+    ...document.querySelectorAll<HTMLElement>(
+      '.analysis-model-panel [role="listbox"][aria-label="思考等级"] [role="option"]'
+    )
+  ].find((item) => item.textContent?.includes(thinkingLabel("high")));
+  check(thinkingOption, `Missing option ${thinkingLabel("high")}`);
+  thinkingOption.click();
+  await frame();
   trigger.click();
   await frame();
 }

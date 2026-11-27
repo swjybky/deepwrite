@@ -25,7 +25,7 @@ import {
   longWorldbuildingOverviewFileId,
   lstat,
   mkdir,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   readdir,
   realpath,
@@ -239,9 +239,7 @@ describe("LongProjectStore: creation-and-migration", () => {
       chapters: Array<{ body: { revision: string } }>;
       chapterFileRevisions?: Record<string, string>;
     };
-    index.chapters[0]!.body.revision = `v1:0:${projectTransactionContentSha256(
-      ""
-    ).slice(0, 8)}`;
+    index.chapters[0]!.body.revision = `v1:0:${sha256Hex("").slice(0, 8)}`;
     index.chapterFileRevisions = { body: "v1:legacy" };
     const indexContent = `${JSON.stringify(index, null, 2)}\n`;
     await writeFile(indexPath, indexContent, "utf8");
@@ -251,7 +249,7 @@ describe("LongProjectStore: creation-and-migration", () => {
     manifest.workspaceIndexFile.revision = `v1:${Buffer.byteLength(
       indexContent,
       "utf8"
-    )}:${projectTransactionContentSha256(indexContent).slice(0, 8)}`;
+    )}:${sha256Hex(indexContent).slice(0, 8)}`;
     await writeFile(
       manifestPath,
       `${JSON.stringify(manifest, null, 2)}\n`,

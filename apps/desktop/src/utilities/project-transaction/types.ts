@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 export const INTERNAL_DIRECTORY = ".deepwrite";
 export const TRANSACTION_DIRECTORY = "transactions";
 export const JOURNAL_FILE = "transaction.json";
@@ -80,12 +78,6 @@ export class ProjectTransactionConflictError extends Error {
     );
     this.name = "ProjectTransactionConflictError";
   }
-}
-
-export function projectTransactionContentSha256(
-  content: string | Uint8Array
-): string {
-  return createHash("sha256").update(content).digest("hex");
 }
 
 /**

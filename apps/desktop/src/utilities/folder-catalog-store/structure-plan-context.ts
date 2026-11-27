@@ -3,16 +3,15 @@ import {
   CatalogProjectManifestSchema,
   LibraryStructureRequestSchema,
   emptyLibraryOrganization,
+  isBuiltinCatalogProjectId,
   type CatalogProjectManifest,
   type LibraryStructureRequest
 } from "@deepwrite/contracts";
-import {
-  projectTransactionContentSha256 as sha,
-  type ProjectTransactionFileOperation
-} from "../project-transaction";
+import { type ProjectTransactionFileOperation } from "../project-transaction";
 import { readNoFollowFile } from "../long-project-store/io";
 import type { FolderCatalogRegistry, RegistryProject } from "./registry-types";
 import { secureProjectRoot } from "./paths-io";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export type Library = Extract<
   CatalogProjectManifest,
@@ -48,6 +47,7 @@ export async function createStructurePlanContext(
   const organization = (registry.libraryOrganization ??=
     emptyLibraryOrganization());
   const items = new Map<string, Item>();
+  const unreadable = new Map<string, string>();
   const refs = new Map<string, string>();
   const summary: string[] = [];
   const fingerprints: string[] = [];
@@ -61,35 +61,49 @@ export async function createStructurePlanContext(
   for (const registration of registry.projects.filter((item) =>
     item.domain.startsWith(`${request.domain}-`)
   )) {
-    const root = await secureProjectRoot(registration.projectDirectory);
-    const text = (
-      await readNoFollowFile(
-        join(root, "deepwrite.json"),
-        ctx.maxManifestBytes ?? 1024 * 1024,
-        "library manifest",
-        root
+    try {
+      const root = await secureProjectRoot(registration.projectDirectory);
+      const text = (
+        await readNoFollowFile(
+          join(root, "deepwrite.json"),
+          ctx.maxManifestBytes ?? 1024 * 1024,
+          "library manifest",
+          root
+        )
+      ).bytes.toString("utf8");
+      const manifest = CatalogProjectManifestSchema.parse(JSON.parse(text));
+      if (
+        manifest.kind === "deepwrite.book" ||
+        manifest.id !== registration.id ||
+        manifest.kind !== `deepwrite.${registration.domain}`
       )
-    ).bytes.toString("utf8");
-    const manifest = CatalogProjectManifestSchema.parse(JSON.parse(text));
-    if (
-      manifest.kind === "deepwrite.book" ||
-      manifest.id !== registration.id ||
-      manifest.kind !== `deepwrite.${registration.domain}`
-    )
-      throw new Error("资料库注册信息与清单不符。");
-    items.set(manifest.id, {
-      manifest,
-      registration: { ...registration, projectDirectory: root },
-      original: text,
-      originalNormalized: JSON.stringify(manifest),
-      files: new Map()
-    });
-    fingerprints.push(`${manifest.id}:${sha(text)}`);
+        throw new Error("资料库注册信息与清单不符。");
+      items.set(manifest.id, {
+        manifest,
+        registration: { ...registration, projectDirectory: root },
+        original: text,
+        originalNormalized: JSON.stringify(manifest),
+        files: new Map()
+      });
+      fingerprints.push(`${manifest.id}:${sha256Hex(text)}`);
+    } catch (error: unknown) {
+      unreadable.set(
+        registration.id,
+        error instanceof Error ? error.message : "资料库当前无法读取。"
+      );
+      fingerprints.push(`${registration.id}:unreadable`);
+    }
   }
-  const baseVersion = sha(JSON.stringify([registry, fingerprints.sort()]));
+  const baseVersion = sha256Hex(
+    JSON.stringify([registry, fingerprints.sort()])
+  );
   const resolveId = (id: string) => refs.get(id) ?? id;
   function get(id: string): Item {
-    const item = items.get(resolveId(id));
+    const resolved = resolveId(id);
+    if (isBuiltinCatalogProjectId(resolved)) {
+      throw new Error("内置资料库为只读，不能直接整理。");
+    }
+    const item = items.get(resolved);
     if (
       !item ||
       !registry.projects.some(
@@ -97,8 +111,13 @@ export async function createStructurePlanContext(
           entry.id === item.manifest.id &&
           entry.domain === item.registration.domain
       )
-    )
+    ) {
+      const failure = unreadable.get(resolved);
+      if (failure !== undefined) {
+        throw new Error(`目标资料库无法读取：${failure}`);
+      }
       throw new Error("目标不存在或不属于当前领域。");
+    }
     return item;
   }
   function writable(item: Item, allowUnbound = false) {
@@ -133,7 +152,7 @@ export async function createStructurePlanContext(
     if (refs.has(ref) || items.has(ref))
       throw new Error("新建对象的引用重复。");
     const isGroup = "memberIds" in fields;
-    const id = `${request.domain}-${isGroup ? "group" : "library"}-${sha(`${request.requestId}:${ref}`).slice(0, 24)}`;
+    const id = `${request.domain}-${isGroup ? "group" : "library"}-${sha256Hex(`${request.requestId}:${ref}`).slice(0, 24)}`;
     if (items.has(id)) throw new Error("新建对象已存在。");
     const domain =
       `${request.domain}-${isGroup ? "group" : "library"}` as RegistryProject["domain"];
@@ -270,7 +289,7 @@ export async function createStructurePlanContext(
       )
     ).bytes.toString("utf8");
     // Entry bodies are part of the optimistic read set, even for metadata-only operations.
-    const expectedSha256 = sha(text);
+    const expectedSha256 = sha256Hex(text);
     fingerprints.push(`${item.manifest.id}/${entry.id}:${expectedSha256}`);
     item.files.set(entry.path, {
       action: "check",

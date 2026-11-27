@@ -215,16 +215,20 @@ const CONNECTION_TEST_CRITERIA = ["不是连接测试", "是连接测试"];
  */
 export async function testJevConnection(
   config: AgentProviderRuntimeConfig,
-  options: Pick<JevSystemOneCallOptions, "fetchImpl" | "signal"> = {}
+  options: Pick<
+    JevSystemOneCallOptions,
+    "fetchImpl" | "signal" | "timeoutMs"
+  > = {}
 ): Promise<ModelConnectionTestResult> {
   if (!config.baseUrl.trim()) throw new Error("JEV 模型未配置 API 地址。");
   if (!config.apiKey.trim()) throw new Error("JEV 模型未配置 API Key。");
   const response = await requestJevSystemOne({
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
-    timeoutMs: 15_000,
+    timeoutMs: options.timeoutMs ?? 15_000,
     maxAttempts: 1,
-    ...options,
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
     request: {
       model: config.modelId,
       state: "DeepWrite 正在测试 JEV 连接。",

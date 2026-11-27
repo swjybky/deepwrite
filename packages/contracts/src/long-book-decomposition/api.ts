@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type {
   CreateDecompositionJobInput,
-  DecompositionControlInput
+  DecompositionControlInput,
+  UpdateDecompositionModelsInput
 } from "./commands";
 import { DecompositionRegistrySchema } from "./registry";
 import type { DecompositionRegistryData } from "./registry";
@@ -39,6 +40,9 @@ export interface LongBookDecompositionApi {
   control(
     input: DecompositionControlInput
   ): Promise<z.infer<typeof LongBookDecompositionJobSchema> | null>;
+  updateModels(
+    input: UpdateDecompositionModelsInput
+  ): Promise<z.infer<typeof LongBookDecompositionJobSchema>>;
   getRegistry(
     jobId: string
   ): Promise<z.infer<typeof DecompositionRegistrySchema>>;

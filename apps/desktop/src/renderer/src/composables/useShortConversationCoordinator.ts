@@ -45,6 +45,7 @@ import { buildLibraryAgentWorkspaceContext } from "../utils/libraryAgentContext"
 import { buildLibraryAgentSkillAttachments } from "../utils/libraryAgentSkillAttachments";
 import { buildLibraryAttachments } from "../utils/libraryAttachments";
 import { createConversationHistoryRewriteDispatcher } from "./agent-conversation/history-rewrite-dispatcher";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("workspace");
 
@@ -657,11 +658,11 @@ export function useShortConversationCoordinator(
           options.resource.activeAgentDocument.value.workspaceType ===
             "academic" &&
           !settingsStore.academicAgentLoaded &&
-          window.deepwrite
+          deepwriteApi()
         ) {
           await settingsStore
             .ensureAcademicAgentsLoaded(() =>
-              window.deepwrite!.academicAgents.list()
+              deepwriteApi()!.academicAgents.list()
             )
             .catch(() => undefined);
         }

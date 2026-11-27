@@ -12,6 +12,7 @@ import {
   loadLongEditorPanePreferences,
   saveLongEditorPanePreferences
 } from "../utils/longEditorPanePreferences";
+import { uiStorage } from "../utils/uiStorage";
 
 const LONG_EDITOR_DIVIDER_WIDTH = 7;
 const LONG_EDITOR_DEFAULT_LIST_RATIO = 0.38;
@@ -27,7 +28,7 @@ export function useLongEditorPaneResize(options: {
   const { currentUsesAnyRightEntryList, currentIsPlotPointStoryline } = options;
   const longEditorDocumentElement = ref<HTMLElement | null>(null);
   const storyPlotLayoutElement = ref<HTMLElement | null>(null);
-  const preferences = loadLongEditorPanePreferences(window.localStorage);
+  const preferences = loadLongEditorPanePreferences(uiStorage());
   const preferredEntryListWidth = ref(preferences.entryListWidth);
   const preferredStoryPlotListWidth = ref(preferences.storyPlotListWidth);
   const initialRange = {
@@ -129,7 +130,7 @@ export function useLongEditorPaneResize(options: {
   ): void {
     if (pane === "entry-list") preferredEntryListWidth.value = width;
     else preferredStoryPlotListWidth.value = width;
-    saveLongEditorPanePreferences(window.localStorage, {
+    saveLongEditorPanePreferences(uiStorage(), {
       ...(preferredEntryListWidth.value !== undefined && {
         entryListWidth: preferredEntryListWidth.value
       }),

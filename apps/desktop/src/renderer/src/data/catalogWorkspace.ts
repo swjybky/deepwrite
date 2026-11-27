@@ -978,6 +978,7 @@ function createMaterialLibraryNode(library: MaterialLibrary): ResourceTreeNode {
     icon: "archive",
     catalogNodeType: "library",
     libraryId: library.id,
+    ...(library.isBuiltin ? { readOnly: true } : {}),
     ...(library.projectRevision === undefined
       ? {}
       : { projectRevision: library.projectRevision }),
@@ -1002,6 +1003,7 @@ function createMaterialLibraryNode(library: MaterialLibrary): ResourceTreeNode {
         libraryId: library.id,
         workspaceType: library.materialType,
         catalogEntryId: entry.id,
+        ...(library.isBuiltin ? { readOnly: true } : {}),
         materialKind: MATERIAL_STAGE_KINDS[entry.stageId],
         stageCategoryId: entry.stageId,
         ...(library.parentGenre.trim()
@@ -1020,6 +1022,7 @@ function createMaterialDocuments(
 ): WorkspaceDocument[] {
   const typeLabel = () => t("catalogWorkspace.material");
   const genreParts = materialGenreParts(library);
+  const readOnly = library.isBuiltin ? { readOnly: true as const } : {};
   const overviewKind =
     library.materialKind === "mixed" ? undefined : library.materialKind;
   const overview: WorkspaceDocument = {
@@ -1052,7 +1055,8 @@ function createMaterialDocuments(
     ...(library.parentGenre.trim()
       ? { parentGenre: library.parentGenre.trim() }
       : {}),
-    ...(library.subGenre.trim() ? { subGenre: library.subGenre.trim() } : {})
+    ...(library.subGenre.trim() ? { subGenre: library.subGenre.trim() } : {}),
+    ...readOnly
   };
   return [
     overview,
@@ -1095,7 +1099,8 @@ function createMaterialDocuments(
           : {}),
         ...(library.subGenre.trim()
           ? { subGenre: library.subGenre.trim() }
-          : {})
+          : {}),
+        ...readOnly
       };
     })
   ];
@@ -1175,6 +1180,14 @@ function createMaterialGroupNodes(
       icon: "folder",
       catalogNodeType: "group",
       groupId: group.id,
+      ...(group.isBuiltin
+        ? {
+            readOnly: true,
+            get badge() {
+              return t("catalogWorkspace.builtin");
+            }
+          }
+        : {}),
       ...(group.projectRevision === undefined
         ? {}
         : { projectRevision: group.projectRevision }),
@@ -1193,6 +1206,13 @@ function createSkillLibraryNode(library: SkillLibrary): ResourceTreeNode {
     catalogNodeType: "library",
     libraryId: library.id,
     readOnly: library.isBuiltin,
+    ...(library.isBuiltin
+      ? {
+          get badge() {
+            return t("catalogWorkspace.builtin");
+          }
+        }
+      : {}),
     skillKind: library.skillKind,
     ...(library.customTag ? { customTag: library.customTag } : {}),
     workspaceType: library.skillType,
@@ -1310,6 +1330,14 @@ function createSkillGroupNodes(snapshot: CatalogSnapshot): ResourceTreeNode[] {
       icon: "folder",
       catalogNodeType: "group",
       groupId: group.id,
+      ...(group.isBuiltin
+        ? {
+            readOnly: true,
+            get badge() {
+              return t("catalogWorkspace.builtin");
+            }
+          }
+        : {}),
       ...(group.projectRevision === undefined
         ? {}
         : { projectRevision: group.projectRevision }),
@@ -1338,6 +1366,13 @@ export function projectCatalogWorkspace(
     )
     .map((library) => ({
       ...createMaterialLibraryNode(library),
+      ...(library.isBuiltin
+        ? {
+            get badge() {
+              return t("catalogWorkspace.builtin");
+            }
+          }
+        : {}),
       categoryTag: materialLibraryCategoryTag(library)
     }));
   const skillGroupNodes = createSkillGroupNodes(snapshot);

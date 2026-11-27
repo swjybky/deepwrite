@@ -1,6 +1,5 @@
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { writeSyncJson } from "./atomic-json";
 import { safeStorage } from "electron";
 import { deepFreeze } from "@deepwrite/shared";
 import {
@@ -13,6 +12,7 @@ import {
   type SyncMetadata,
   type SyncMetadataStore
 } from "@deepwrite/contracts";
+import { writeTextFileDurable } from "@deepwrite/shared/node";
 
 async function readOptional(path: string): Promise<string | null> {
   try {
@@ -89,7 +89,7 @@ export class DesktopSyncMetadataStore implements SyncMetadataStore {
     const next = this.writing.then(async () => {
       try {
         const sealed = await sealSyncMetadata(parsed, secretSealer);
-        await writeSyncJson(this.path, JSON.stringify(sealed));
+        await writeTextFileDurable(this.path, JSON.stringify(sealed));
         // A recovered intent arrives sealed; readers always get usable keys.
         this.cached = deepFreeze(await openSyncMetadata(parsed, secretSealer));
       } catch (error) {
@@ -122,7 +122,7 @@ export class DesktopSyncCredentialStore implements SyncCredentialStore {
   }
   async set(value: string): Promise<void> {
     this.check();
-    await writeSyncJson(
+    await writeTextFileDurable(
       this.path,
       JSON.stringify({
         schemaVersion: 1,

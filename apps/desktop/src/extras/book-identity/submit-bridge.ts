@@ -13,6 +13,7 @@ import {
   type MainInternalCommandActiveRun
 } from "../../main/internal-command-authorizer";
 import type { UtilityInternalCommandAuthorizationContext } from "../../main/supervisor";
+import { rejectedResult } from "../../main/ipc/errors";
 
 /** Executes only the semantic round append authorized for this accepted run. */
 export async function handleBookIdentitySubmission(
@@ -81,14 +82,11 @@ export async function handleBookIdentitySubmission(
     registration.submitted = true;
     return { status: "accepted", requestId: command.id, payload: receipt };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "book_identity.submit_failed",
-        message: error instanceof Error ? error.message : "保存设计候选失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "book_identity.submit_failed",
+      error instanceof Error ? error.message : "保存设计候选失败。"
+    );
   } finally {
     if (registration && claimed) registration.submitting = false;
   }

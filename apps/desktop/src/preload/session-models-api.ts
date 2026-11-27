@@ -5,6 +5,9 @@ import {
   ModelConnectionTestResultSchema,
   ModelSettingsInputSchema,
   ModelSettingsSchema,
+  ModelTestCancelInputSchema,
+  ModelTestCancelResultSchema,
+  ModelTestRequestIdSchema,
   ModelUsageDashboardSchema,
   ModelUsageQueryInputSchema,
   RemoteModelListInputSchema,
@@ -22,6 +25,8 @@ import {
   type ModelConnectionTestResult,
   type ModelSettings,
   type ModelSettingsInput,
+  type ModelTestCancelInput,
+  type ModelTestCancelResult,
   type ModelUsageDashboard,
   type ModelUsageQueryInput,
   type RemoteModelListInput,
@@ -148,13 +153,34 @@ export async function saveModels(
 }
 
 export async function testModel(
-  rawModel: ModelConfigInput
+  rawModel: ModelConfigInput,
+  options?: { requestId?: string }
 ): Promise<ModelConnectionTestResult> {
   const model = ModelConfigInputSchema.parse(rawModel);
+  const requestId =
+    options?.requestId !== undefined
+      ? ModelTestRequestIdSchema.parse(options.requestId)
+      : undefined;
   const id = browserId("cmd_models_test");
   return ModelConnectionTestResultSchema.parse(
     await invokeCommand<ModelConnectionTestResult>(
-      createEnvelope("models.test", { model }, { id, correlationId: id })
+      createEnvelope(
+        "models.test",
+        { model, ...(requestId !== undefined ? { requestId } : {}) },
+        { id, correlationId: id }
+      )
+    )
+  );
+}
+
+export async function cancelModelTest(
+  rawInput: ModelTestCancelInput
+): Promise<ModelTestCancelResult> {
+  const input = ModelTestCancelInputSchema.parse(rawInput);
+  const id = browserId("cmd_models_cancel_test");
+  return ModelTestCancelResultSchema.parse(
+    await invokeCommand<ModelTestCancelResult>(
+      createEnvelope("models.cancelTest", input, { id, correlationId: id })
     )
   );
 }
@@ -213,6 +239,7 @@ export const models: DeepWriteApi["models"] = {
   ...siteOfficialModelsApi,
   save: saveModels,
   test: testModel,
+  cancelTest: cancelModelTest,
   resolveCapacity: resolveModelCapacity,
   listRemote: listRemoteModels
 };

@@ -72,13 +72,41 @@ export function clonePersistenceValue(value: unknown): ConversationHistoryJson {
       const result: ConversationHistoryRecord = {};
       for (const key of Object.keys(current)) {
         const child: unknown = Reflect.get(current, key);
-        if (child !== undefined)
+        if (child === undefined) continue;
+        if (
+          key === "modelCalls" &&
+          Array.isArray(child) &&
+          ("subagentRunId" in current || "subagentId" in current)
+        ) {
+          const sanitized = child.map((entry) => {
+            if (
+              entry &&
+              typeof entry === "object" &&
+              !Array.isArray(entry) &&
+              "snapshot" in entry
+            ) {
+              const { snapshot: _omitted, ...rest } = entry as Record<
+                string,
+                unknown
+              >;
+              return copy(rest);
+            }
+            return copy(entry);
+          });
           Object.defineProperty(result, key, {
-            value: copy(child),
+            value: sanitized,
             enumerable: true,
             writable: true,
             configurable: true
           });
+          continue;
+        }
+        Object.defineProperty(result, key, {
+          value: copy(child),
+          enumerable: true,
+          writable: true,
+          configurable: true
+        });
       }
       return result;
     } finally {

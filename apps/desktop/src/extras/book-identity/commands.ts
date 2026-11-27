@@ -8,6 +8,7 @@ import type { CoverRenderService } from "./cover-render-service";
 import { exportCover } from "./cover-export";
 import type { IdentityCore } from "./core-client";
 import { validateComposedCover } from "./composed-cover-validation";
+import { rejectedResult } from "../../main/ipc/errors";
 
 const publicCoreCommands = new Set<string>([
   "bookIdentity.get",
@@ -57,13 +58,10 @@ export async function handleBookIdentityCommands(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "book_identity.operation_failed",
-        message: safeImageError(error)
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "book_identity.operation_failed",
+      safeImageError(error)
+    );
   }
 }

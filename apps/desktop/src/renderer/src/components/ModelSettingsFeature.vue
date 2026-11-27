@@ -19,8 +19,14 @@ import ModelAdvancedConfigDialog from "./ModelAdvancedConfigDialog.vue";
 import ModelAnnouncementNotice from "./ModelAnnouncementNotice.vue";
 import JevModelEditorPanel from "./JevModelEditorPanel.vue";
 import ModelEditorPanel from "./ModelEditorPanel.vue";
+import ModelTestStatusNote from "./ModelTestStatusNote.vue";
 import { MODEL_PROVIDER_OPTIONS } from "./modelProviderPresets";
 import { thinkingLabel } from "./modelSettingsDraft";
+import {
+  isModelTestActiveStatus,
+  modelTestConfigSignature,
+  type ModelTestStateEntry
+} from "../utils/modelTestState";
 
 const t = createScopedTranslator("components.modelSettingsFeature");
 
@@ -35,18 +41,21 @@ const props = withDefaults(
     modelError: string | null;
     modelTestMessage: string | null;
     testingModelId: string | null;
+    modelTestStates?: Readonly<Record<string, ModelTestStateEntry>>;
     modelAlertMessages: readonly string[];
   }>(),
   {
     active: false,
     modelScope: "all",
-    embedded: false
+    embedded: false,
+    modelTestStates: () => ({})
   }
 );
 
 const emit = defineEmits<{
   saveModels: [settings: ModelSettingsInput];
   testModel: [model: ModelConfigInput];
+  cancelTestModel: [modelId: string];
   openOfficialModels: [];
 }>();
 
@@ -68,6 +77,7 @@ const {
   modelConfigRows,
   createModel,
   editModel,
+  cancelModelEditor,
   saveModelEditor,
   testDraftModel,
   removeModel,
@@ -78,8 +88,23 @@ const {
 } = useModelSettingsDraft(props, {
   saveModels: (settings) => emit("saveModels", settings),
   testModel: (model) => emit("testModel", model),
+  cancelTestModel: (modelId) => emit("cancelTestModel", modelId),
   editorOpened: scrollModelEditorIntoView
 });
+
+function modelTestEntry(id: string): ModelTestStateEntry | undefined {
+  return props.modelTestStates[id];
+}
+
+function isModelTesting(id: string): boolean {
+  const entry = modelTestEntry(id);
+  if (entry) return isModelTestActiveStatus(entry.status);
+  return props.testingModelId === id;
+}
+
+function isModelCancelling(id: string): boolean {
+  return modelTestEntry(id)?.status === "cancelling";
+}
 const { modelProviderGroups, expandedProviders, toggleProvider } =
   useModelProviderGroups(modelConfigRows);
 const knownUserProviders = computed(() =>
@@ -207,9 +232,11 @@ const knownUserProviders = computed(() =>
                   :editing="Boolean(modelEditor.originalId)"
                   :saving="modelSaving"
                   :testing-model-id="testingModelId"
-                  @cancel="modelEditor = null"
+                  :model-test-state="modelTestEntry(modelEditor.id)"
+                  @cancel="cancelModelEditor"
                   @save="saveModelEditor"
                   @test="emit('testModel', $event)"
+                  @cancel-test="emit('cancelTestModel', $event)"
                 />
                 <ModelEditorPanel
                   v-else-if="row.type === 'editor' && modelEditor"
@@ -217,10 +244,12 @@ const knownUserProviders = computed(() =>
                   :editing="Boolean(modelEditor.originalId)"
                   :saving="modelSaving"
                   :testing-model-id="testingModelId"
+                  :model-test-state="modelTestEntry(modelEditor.id)"
                   :known-user-providers="knownUserProviders"
-                  @cancel="modelEditor = null"
+                  @cancel="cancelModelEditor"
                   @save="saveModelEditor"
                   @test="emit('testModel', $event)"
+                  @cancel-test="emit('cancelTestModel', $event)"
                 />
 
                 <article
@@ -273,6 +302,10 @@ const knownUserProviders = computed(() =>
                             : t("noKeyConfigured")
                       }}
                     </small>
+                    <ModelTestStatusNote
+                      :entry="modelTestEntry(row.model.id)"
+                      :current-signature="modelTestConfigSignature(row.model)"
+                    />
                   </div>
                   <div class="model-card-actions">
                     <button
@@ -317,14 +350,27 @@ const knownUserProviders = computed(() =>
                     </button>
                     <button
                       type="button"
-                      :disabled="testingModelId !== null"
+                      :disabled="isModelTesting(row.model.id)"
+                      :aria-busy="isModelTesting(row.model.id)"
                       :title="t('testTheCurrentUnsavedSettings')"
                       @click="testDraftModel(row.model)"
                     >
                       {{
-                        testingModelId === row.model.id
+                        isModelTesting(row.model.id)
                           ? t("testing")
                           : t("testConnection")
+                      }}
+                    </button>
+                    <button
+                      v-if="isModelTesting(row.model.id)"
+                      type="button"
+                      :disabled="isModelCancelling(row.model.id)"
+                      @click="emit('cancelTestModel', row.model.id)"
+                    >
+                      {{
+                        isModelCancelling(row.model.id)
+                          ? t("cancelingTest")
+                          : t("cancelTest")
                       }}
                     </button>
                     <button
@@ -360,9 +406,11 @@ const knownUserProviders = computed(() =>
             :editing="false"
             :saving="modelSaving"
             :testing-model-id="testingModelId"
-            @cancel="modelEditor = null"
+            :model-test-state="modelTestEntry(modelEditor.id)"
+            @cancel="cancelModelEditor"
             @save="saveModelEditor"
             @test="emit('testModel', $event)"
+            @cancel-test="emit('cancelTestModel', $event)"
           />
           <ModelEditorPanel
             v-else-if="modelEditor && !modelEditor.originalId"
@@ -371,10 +419,12 @@ const knownUserProviders = computed(() =>
             :editing="false"
             :saving="modelSaving"
             :testing-model-id="testingModelId"
+            :model-test-state="modelTestEntry(modelEditor.id)"
             :known-user-providers="knownUserProviders"
-            @cancel="modelEditor = null"
+            @cancel="cancelModelEditor"
             @save="saveModelEditor"
             @test="emit('testModel', $event)"
+            @cancel-test="emit('cancelTestModel', $event)"
           />
         </template>
       </div>

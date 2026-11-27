@@ -13,6 +13,7 @@ export function createBookAnalysisTestApi(): Pick<
       listJobs: async () => unused(),
       getJob: async () => unused(),
       control: async () => unused(),
+      updateModels: async () => unused(),
       getRegistry: async () => unused(),
       saveRegistry: async () => unused(),
       listResults: async () => unused(),

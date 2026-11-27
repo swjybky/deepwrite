@@ -1,4 +1,4 @@
-import { LongBookAnalysisSourceStore } from "../extras/agents/sources/long-book-source-store";
+import { LongBookAnalysisSourceStore } from "./long-book-sources/long-book-source-store";
 import type { CommandEnvelope, CommandResult } from "@deepwrite/contracts";
 
 const queues = new Map<string, Promise<unknown>>();

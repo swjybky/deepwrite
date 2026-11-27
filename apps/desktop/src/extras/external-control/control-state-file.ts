@@ -13,16 +13,9 @@ import {
 } from "node:fs/promises";
 import { dirname } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { isNodeError } from "@deepwrite/shared/node";
 
 const RENAME_ATTEMPTS = 4;
-
-function isNodeError(error: unknown, ...codes: string[]): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    codes.includes(String(error.code))
-  );
-}
 
 export async function ensurePrivateDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -67,16 +60,25 @@ export async function readPrivateJson<T>(
   path: string,
   schema: { parse(value: unknown): T }
 ): Promise<T | undefined> {
-  try {
-    return schema.parse(JSON.parse(await readFile(path, "utf8")));
-  } catch (error: unknown) {
-    if (
-      isNodeError(error, "ENOENT") ||
-      error instanceof SyntaxError ||
-      (error instanceof Error && error.name === "ZodError")
-    )
-      return undefined;
-    throw error;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return schema.parse(JSON.parse(await readFile(path, "utf8")));
+    } catch (error: unknown) {
+      if (
+        attempt < RENAME_ATTEMPTS &&
+        isNodeError(error, "EPERM", "EACCES", "EBUSY")
+      ) {
+        await delay(50 * attempt);
+        continue;
+      }
+      if (
+        isNodeError(error, "ENOENT") ||
+        error instanceof SyntaxError ||
+        (error instanceof Error && error.name === "ZodError")
+      )
+        return undefined;
+      throw error;
+    }
   }
 }
 

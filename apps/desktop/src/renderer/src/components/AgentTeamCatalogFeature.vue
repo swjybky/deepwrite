@@ -50,6 +50,7 @@ const emit = defineEmits<{
   create: [input: { name: string; workspaceType: AgentTeamWorkspaceType }];
   rename: [input: { teamId: string; name: string }];
   delete: [input: { teamId: string }];
+  duplicate: [input: { teamId: string }];
   download: [input: { teamId: string }];
   install: [];
   setEnabled: [input: { teamId: string; enabled: boolean }];
@@ -66,6 +67,7 @@ const editorDirty = ref(false);
 const dialogMode = ref<AgentTeamDialogMode | null>(null);
 const dialogTeam = ref<AgentTeamProfile | null>(null);
 const pendingCreatedName = ref<string | null>(null);
+const pendingSelectDuplicate = ref(false);
 let pendingExistingTeamIds = new Set<string>();
 
 const selectedTeam = computed(
@@ -106,16 +108,28 @@ watch(
     ) {
       selectedTeamId.value = null;
     }
-    if (pendingCreatedName.value) {
+    if (pendingCreatedName.value || pendingSelectDuplicate.value) {
       const created = catalog?.teams.find(
         (team) =>
-          team.name === pendingCreatedName.value &&
-          !pendingExistingTeamIds.has(team.id)
+          !pendingExistingTeamIds.has(team.id) &&
+          (!pendingCreatedName.value || team.name === pendingCreatedName.value)
       );
       if (created) {
         selectedTeamId.value = created.id;
       }
       pendingCreatedName.value = null;
+      pendingSelectDuplicate.value = false;
+      pendingExistingTeamIds = new Set();
+    }
+  }
+);
+
+watch(
+  () => props.saving,
+  (saving, wasSaving) => {
+    if (wasSaving && !saving) {
+      pendingCreatedName.value = null;
+      pendingSelectDuplicate.value = false;
       pendingExistingTeamIds = new Set();
     }
   }
@@ -165,10 +179,19 @@ function submitCreate(input: {
   name: string;
   workspaceType: AgentTeamWorkspaceType;
 }): void {
+  pendingSelectDuplicate.value = false;
   pendingCreatedName.value = input.name;
   pendingExistingTeamIds = new Set(props.catalog?.teams.map((team) => team.id));
   emit("create", input);
   closeDialog(true);
+}
+
+function duplicateSelectedTeam(): void {
+  if (!selectedTeam.value) return;
+  pendingCreatedName.value = null;
+  pendingSelectDuplicate.value = true;
+  pendingExistingTeamIds = new Set(props.catalog?.teams.map((team) => team.id));
+  emit("duplicate", { teamId: selectedTeam.value.id });
 }
 
 function submitRename(name: string): void {
@@ -205,29 +228,48 @@ function discardAndLeave(): void {
     <header class="detail-header">
       <div class="detail-title">
         <h2>{{ selectedTeam.name }}</h2>
+        <span v-if="selectedTeam.isBuiltin" class="type-badge builtin-badge">{{
+          t("builtin")
+        }}</span>
         <span class="type-badge">{{
           workspaceTypeLabel(selectedTeam.workspaceType)
         }}</span>
       </div>
-      <label class="detail-enable" :class="{ 'is-on': selectedTeamEnabled }">
-        {{ selectedTeamEnabled ? t("enabled") : t("notEnabled") }}
-        <AgentTeamSwitch
-          :model-value="selectedTeamEnabled"
+      <div class="detail-actions">
+        <button
+          v-if="selectedTeam.isBuiltin"
+          type="button"
+          class="secondary-button"
           :disabled="saving || !runtimeAvailable"
-          :label="
-            t('teamToggleLabel', {
-              action: selectedTeamEnabled ? t('disable') : t('enable'),
-              name: selectedTeam.name
-            })
-          "
-          @update:model-value="
-            emit('setEnabled', { teamId: selectedTeam.id, enabled: $event })
-          "
-        />
-      </label>
+          @click="duplicateSelectedTeam"
+        >
+          <AppIcon name="copy" :size="15" />
+          {{ t("duplicateToCustomize") }}
+        </button>
+        <label class="detail-enable" :class="{ 'is-on': selectedTeamEnabled }">
+          {{ selectedTeamEnabled ? t("enabled") : t("notEnabled") }}
+          <AgentTeamSwitch
+            :model-value="selectedTeamEnabled"
+            :disabled="saving || !runtimeAvailable"
+            :label="
+              t('teamToggleLabel', {
+                action: selectedTeamEnabled ? t('disable') : t('enable'),
+                name: selectedTeam.name
+              })
+            "
+            @update:model-value="
+              emit('setEnabled', { teamId: selectedTeam.id, enabled: $event })
+            "
+          />
+        </label>
+      </div>
     </header>
+    <p v-if="selectedTeam.isBuiltin" class="builtin-note" role="status">
+      {{ t("builtinTeamReadOnlyNotice") }}
+    </p>
     <AgentTeamSettingsPanel
       :workspace-type="selectedTeam.workspaceType"
+      :read-only="Boolean(selectedTeam.isBuiltin)"
       :settings="editorSettings"
       :long-settings="editorLongSettings"
       :mystery-settings="editorMysterySettings"
@@ -271,6 +313,7 @@ function discardAndLeave(): void {
       @new-team="openDialog('create')"
       @select="selectedTeamId = $event"
       @set-enabled="emit('setEnabled', $event)"
+      @duplicate="emit('duplicate', { teamId: $event })"
       @download="emit('download', { teamId: $event })"
       @rename="openDialog('rename', $event)"
       @delete="openDialog('delete', $event)"

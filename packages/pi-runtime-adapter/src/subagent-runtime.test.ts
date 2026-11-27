@@ -175,11 +175,42 @@ describe("blocking subagent runtime", () => {
     expect(prompt).toContain("write_draft_section（写入章节正文）");
     expect(prompt).toContain("replace_draft_section_text（替换正文章节文本）");
     expect(prompt).toContain("不继承主对话历史");
+    expect(prompt).toContain("下一条用户消息即本轮完整委派任务");
+    expect(prompt).toContain("不要只回复“任务就绪”");
     expect(prompt).toContain("你不能创建或调用其它子智能体。");
     expect(prompt).toContain("文档中的 ![…](images/…) 是作者插图");
     expect(prompt).toContain("不要新增图片引用");
     expect(prompt).toContain("不要整段粘贴文件原文");
     expect(prompt).not.toContain("你是短篇正文主智能体");
+
+    const enPrompt = buildSubagentSystemPrompt(
+      {
+        ...enabledDefinition,
+        systemPrompt: "Draft the assigned chapter."
+      },
+      [
+        {
+          ...childTool(),
+          name: "write_draft_section",
+          label: "Write section"
+        }
+      ],
+      undefined,
+      undefined,
+      "en-US"
+    );
+    expect(enPrompt).toContain(
+      "The user message is the complete assigned task"
+    );
+    expect(enPrompt).toContain(
+      "never reply with only a readiness acknowledgement"
+    );
+    expect(
+      enPrompt
+        .split("\n")
+        .filter((line) => !line.includes(enabledDefinition.name))
+        .some((line) => /[㐀-鿿]/u.test(line))
+    ).toBe(false);
   });
 
   it("appends runtime-owned screenplay requirements after the editable child prompt", () => {
@@ -953,6 +984,52 @@ describe("blocking subagent runtime", () => {
     expect(result.content[0]).toMatchObject({
       type: "text",
       text: expect.stringContaining("模型不可用")
+    });
+  });
+
+  it("invokes prepareChild onComplete without breaking workspace-mode children", async () => {
+    const faux = fauxProvider({
+      api: "subagent-oncomplete-test",
+      provider: "subagent-oncomplete-test",
+      models: [
+        { id: "subagent-model", name: "Subagent Model", reasoning: true }
+      ],
+      tokensPerSecond: 0
+    });
+    const models = createModels();
+    models.setProvider(faux.provider);
+    faux.setResponses([fauxAssistantMessage(fauxText("准备完成。"))]);
+    const model = faux.getModel("subagent-model") as Model<Api>;
+    const onComplete = vi.fn();
+    const extrasTool = buildSpawnSubagentTool({
+      parentSessionId: "parent-extras",
+      model,
+      thinkingLevel: "off",
+      streamFn: models.streamSimple.bind(models) as StreamFn,
+      definitions: [{ ...enabledDefinition, agentMode: "pure-bare" }],
+      buildChildTools: () => [],
+      workspaceAccess: "none",
+      prepareChild: async () => ({
+        tools: [],
+        systemPrompt: "只做检查。",
+        onComplete
+      })
+    });
+    if (!extrasTool) throw new Error("spawn_subagent was not built");
+
+    const result = await extrasTool.execute("call-extras", {
+      subagent_id: "continuity_checker",
+      task: "检查准备完成回调"
+    } as never);
+
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: "准备完成。"
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith({
+      status: "completed",
+      summary: "准备完成。"
     });
   });
 });

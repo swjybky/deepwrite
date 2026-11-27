@@ -1,6 +1,7 @@
 import { createScopedTranslator } from "../i18n";
 import { dismissUiMessage, uiMessage } from "../ui-feedback";
 import type { SystemEventCenter } from "./systemEventCenter";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("foundation");
 
@@ -8,8 +9,8 @@ const t = createScopedTranslator("foundation");
 const NOTIFICATION_BLOCKED_TOAST_MS = 8_000;
 
 function openSystemNotificationSettings(): void {
-  void window.deepwrite?.generalSettings
-    .openNotificationSettings()
+  void deepwriteApi()
+    ?.generalSettings.openNotificationSettings()
     .catch(() => uiMessage.error(t("taskNotificationOpenSettingsFailed")));
 }
 

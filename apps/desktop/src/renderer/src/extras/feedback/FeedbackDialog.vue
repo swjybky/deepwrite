@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { computed, onMounted } from "vue";
 import type { MarketplaceSession } from "@deepwrite/contracts";
 import MarketplaceAuthForm from "../../components/MarketplaceAuthForm.vue";
@@ -14,7 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const feedback = useFeedback({
-  api: () => window.deepwrite,
+  api: () => deepwriteApi(),
   onSessionChange: (session) => emit("sessionChange", session),
   onUnavailable: () => emit("close")
 });

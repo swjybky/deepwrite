@@ -13,7 +13,7 @@ import {
   longWorldbuildingItemFileId,
   lstat,
   mkdir,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   symlink,
   unlink,
@@ -76,8 +76,8 @@ describe("LongProjectStore: path-safety-and-compatibility", () => {
               path: body.path,
               stagePath: `.deepwrite/transactions/${transactionId}/stage/0.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-              beforeSha256: projectTransactionContentSha256(""),
-              afterSha256: projectTransactionContentSha256("恢复后的正文")
+              beforeSha256: sha256Hex(""),
+              afterSha256: sha256Hex("恢复后的正文")
             }
           ]
         },
@@ -186,19 +186,16 @@ describe("LongProjectStore: path-safety-and-compatibility", () => {
               path: LONG_WORKSPACE_INDEX_PATH,
               stagePath: `.deepwrite/transactions/${transactionId}/stage/0.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/0.previous`,
-              beforeSha256:
-                projectTransactionContentSha256(previousIndexContent),
-              afterSha256: projectTransactionContentSha256(nextIndexContent)
+              beforeSha256: sha256Hex(previousIndexContent),
+              afterSha256: sha256Hex(nextIndexContent)
             },
             {
               action: "write",
               path: "deepwrite.json",
               stagePath: `.deepwrite/transactions/${transactionId}/stage/1.next`,
               backupPath: `.deepwrite/transactions/${transactionId}/backup/1.previous`,
-              beforeSha256: projectTransactionContentSha256(
-                previousManifestContent
-              ),
-              afterSha256: projectTransactionContentSha256(nextManifestContent)
+              beforeSha256: sha256Hex(previousManifestContent),
+              afterSha256: sha256Hex(nextManifestContent)
             }
           ]
         },
@@ -324,9 +321,10 @@ describe("LongProjectStore: path-safety-and-compatibility", () => {
       "legacy-world-role-path"
     );
     const categoryId = "world_legacy_hashed_path";
-    const legacyPath = `long/worldbuilding/${projectTransactionContentSha256(
-      categoryId
-    ).slice(0, 32)}/content.md`;
+    const legacyPath = `long/worldbuilding/${sha256Hex(categoryId).slice(
+      0,
+      32
+    )}/content.md`;
     await projectStore.applyWorkspaceOperations(created.projectDirectory, {
       batch: {
         updatedAt: FIXED_NOW,

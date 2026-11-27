@@ -7,6 +7,7 @@ const allowedExtensions = new Set([".ts", ".vue"]);
 const forbiddenImports = [
   /^electron$/,
   /^node:/,
+  /^@deepwrite\/shared\/node(?:\/|$)/,
   /^(fs|path|os|child_process|worker_threads|net|tls|http|https)$/,
   /^better-sqlite3$/,
   /^sqlite3(?:\/|$)/,

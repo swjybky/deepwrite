@@ -33,6 +33,7 @@ export function buildWindowFrameMenus(
         if (value === "create" && !actions.busy()) actions.create();
         if (value === "open" && !actions.busy()) return actions.open();
         if (value === "settings") return actions.settings();
+        return undefined;
       }
     },
     {
@@ -62,6 +63,7 @@ export function buildWindowFrameMenus(
         if (value === "right" && actions.canToggleRight())
           actions.toggleRight();
         if (value === "appearance") return actions.settings("appearance");
+        return undefined;
       }
     }
   ];

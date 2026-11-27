@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   DeepWriteApi,
   FeedbackItem,
@@ -8,9 +8,11 @@ import type {
 import { uiMessage } from "../../ui-feedback";
 import { createSSRApp, effectScope, h } from "vue";
 import { renderToString } from "vue/server-renderer";
+import { setAppLanguage } from "../../i18n";
 import { useFeedback } from "./useFeedback";
 import { feedbackDraft } from "./feedbackDraft";
-import { pastedImages } from "./feedbackImage";
+import { pastedImages, type FeedbackDraftImage } from "./feedbackImage";
+import FeedbackComposer from "./FeedbackComposer.vue";
 import FeedbackHistory from "./FeedbackHistory.vue";
 
 function deferred<T>() {
@@ -71,7 +73,7 @@ function setup(session: MarketplaceSession = signedIn) {
   const api = { marketplace, feedback } as unknown as DeepWriteApi;
   const onSessionChange = vi.fn();
   const onUnavailable = vi.fn();
-  const compress = vi.fn(async () => ({
+  const compress = vi.fn<() => Promise<FeedbackDraftImage>>(async () => ({
     id: crypto.randomUUID(),
     data: "QUJD",
     previewUrl: "data:image/webp;base64,QUJD"
@@ -104,6 +106,10 @@ describe("useFeedback", () => {
     vi.spyOn(uiMessage, "error").mockReturnValue(0);
     vi.spyOn(uiMessage, "warning").mockReturnValue(0);
     vi.spyOn(uiMessage, "success").mockReturnValue(0);
+  });
+
+  afterEach(() => {
+    setAppLanguage("zh-CN", "zh-CN");
   });
 
   it("asks a signed-out user to sign in and shares the new session", async () => {
@@ -283,20 +289,140 @@ describe("useFeedback", () => {
     expect(state.authenticated.value).toBe(false);
   });
 
-  it("stops at three screenshots", async () => {
-    const { state, compress } = setup();
+  it("accepts up to six screenshots, allows removing and refilling, and stops at the seventh", async () => {
+    const { state, compress, feedback } = setup();
+    await state.addImages([
+      new Blob(["1"]),
+      new Blob(["2"]),
+      new Blob(["3"]),
+      new Blob(["4"]),
+      new Blob(["5"]),
+      new Blob(["6"]),
+      new Blob(["7"])
+    ]);
+    expect(compress).toHaveBeenCalledTimes(6);
+    expect(feedbackDraft.images.value).toHaveLength(6);
+    expect(uiMessage.warning).toHaveBeenCalledWith("每条反馈最多 6 张截图。");
+    expect(state.imagesFull.value).toBe(true);
+    await state.captureWindow();
+    expect(compress).toHaveBeenCalledTimes(6);
+
+    const removedIds = feedbackDraft.images.value
+      .slice(0, 2)
+      .map((item) => item.id);
+    for (const id of removedIds) {
+      state.removeImage(id);
+    }
+    expect(feedbackDraft.images.value).toHaveLength(4);
+    expect(state.imagesFull.value).toBe(false);
+
+    await state.addImages([new Blob(["8"]), new Blob(["9"])]);
+    expect(feedbackDraft.images.value).toHaveLength(6);
+    feedbackDraft.content.value = "六张截图反馈";
+    await state.submit();
+    expect(feedback.submit).toHaveBeenCalledWith({
+      content: "六张截图反馈",
+      images: ["QUJD", "QUJD", "QUJD", "QUJD", "QUJD", "QUJD"]
+    });
+  });
+
+  it("blocks attachments that push the actual sent total past 20,000,000 bytes", async () => {
+    const { state, compress, feedback } = setup();
+    const sevenMbBase64 = "A".repeat(9_333_336);
+    compress
+      .mockResolvedValueOnce({
+        id: "img-1",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      })
+      .mockResolvedValueOnce({
+        id: "img-2",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      })
+      .mockResolvedValueOnce({
+        id: "img-3",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      });
     await state.addImages([
       new Blob(["1"]),
       new Blob(["2"]),
       new Blob(["3"]),
       new Blob(["4"])
     ]);
-    expect(compress).toHaveBeenCalledTimes(3);
     expect(feedbackDraft.images.value).toHaveLength(3);
-    expect(uiMessage.warning).toHaveBeenCalledOnce();
-    expect(state.imagesFull.value).toBe(true);
-    await state.captureWindow();
-    expect(compress).toHaveBeenCalledTimes(3);
+    expect(
+      feedbackDraft.images.value.slice(0, 2).map((image) => image.id)
+    ).toEqual(["img-1", "img-2"]);
+    expect(uiMessage.warning).toHaveBeenCalledWith(
+      "截图总大小不能超过 20 MB，请移除部分截图或换小图后重试。"
+    );
+
+    feedbackDraft.images.value.push({
+      id: "img-over",
+      data: sevenMbBase64,
+      previewUrl: "data:image/webp;base64,AAAA"
+    });
+    feedbackDraft.content.value = "总大小超限";
+    await state.submit();
+    expect(feedback.submit).not.toHaveBeenCalled();
+    expect(uiMessage.warning).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders limits and warnings in both Chinese and English", async () => {
+    const renderComposer = () =>
+      renderToString(
+        createSSRApp({
+          render: () =>
+            h(FeedbackComposer, {
+              submitting: false,
+              processingImages: false,
+              capturing: false,
+              imagesFull: false,
+              canSubmit: false
+            })
+        })
+      );
+    expect(await renderComposer()).toContain(
+      "截图（可选，最多 6 张，总计不超过 20 MB）"
+    );
+
+    setAppLanguage("en-US", "zh-CN");
+    expect(await renderComposer()).toContain(
+      "Screenshots (optional, up to 6, 20 MB total)"
+    );
+
+    const { state, compress } = setup();
+    await state.addImages(
+      Array.from({ length: 7 }, (_, index) => new Blob([String(index)]))
+    );
+    expect(uiMessage.warning).toHaveBeenCalledWith(
+      "Each feedback can have up to 6 screenshots."
+    );
+
+    feedbackDraft.reset();
+    const sevenMbBase64 = "A".repeat(9_333_336);
+    compress
+      .mockResolvedValueOnce({
+        id: "en-1",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      })
+      .mockResolvedValueOnce({
+        id: "en-2",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      })
+      .mockResolvedValueOnce({
+        id: "en-3",
+        data: sevenMbBase64,
+        previewUrl: "data:image/webp;base64,AAAA"
+      });
+    await state.addImages([new Blob(["1"]), new Blob(["2"]), new Blob(["3"])]);
+    expect(uiMessage.warning).toHaveBeenCalledWith(
+      "Screenshots can't exceed 20 MB in total. Remove some or choose smaller images."
+    );
   });
 
   it("skips an unreadable image and keeps the others", async () => {

@@ -1,12 +1,8 @@
-import { createHash } from "node:crypto";
 import type {
   DecompositionContentRef,
   LongBookDecompositionJob
 } from "@deepwrite/contracts";
-
-export function decompositionSha(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
+import { sha256Hex } from "@deepwrite/shared/node";
 
 /** The newest version any unit of this job wrote to a target resource. */
 export function latestDecompositionRef(
@@ -43,7 +39,7 @@ export function assertDecompositionDocumentWritable(
   const latest = latestDecompositionRef(job, resourceId);
   if (
     latest
-      ? latest.userOwned || latest.sha256 !== decompositionSha(current)
+      ? latest.userOwned || latest.sha256 !== sha256Hex(current)
       : current !== next
   )
     throw new Error(`decomposition.conflict: ${resourceId} 已被编辑。`);

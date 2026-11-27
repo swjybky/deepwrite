@@ -19,6 +19,7 @@ import {
   replaceLongBookSummary,
   type LongWorkspaceSelection
 } from "../types/longWorkspace";
+import { formatError } from "../i18n/errors";
 
 export type LongCatalogDiagnostic = NonNullable<
   LongListBooksResult["diagnostics"]
@@ -117,10 +118,6 @@ interface WorkspaceLoadRecord {
   readonly activeGeneration: number;
   readonly requestId: number;
   readonly promise: Promise<LongWorkspaceLoadPayload | null>;
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }
 
 function disposedError(): Error {
@@ -374,7 +371,7 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
           requestStateGeneration === stateGeneration &&
           requestBookListGeneration === bookListGeneration
         ) {
-          bookListError.value = errorMessage(
+          bookListError.value = formatError(
             error,
             "Failed to load long workspace books."
           );
@@ -450,7 +447,7 @@ export const useLongWorkspaceStore = defineStore("longWorkspace", () => {
           generation === workspaceGeneration(bookId) &&
           activeBookId.value === bookId
         ) {
-          const message = errorMessage(
+          const message = formatError(
             error,
             "Failed to load the long workspace."
           );

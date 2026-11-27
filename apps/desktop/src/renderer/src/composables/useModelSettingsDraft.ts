@@ -20,6 +20,10 @@ import { applyBatchModelSettings } from "../utils/batchModelSettings";
 import { resolveSavedModelLabel } from "../utils/customModelLabel";
 import { mergeCustomModelSettings } from "../utils/customModelSettings";
 import {
+  isModelTestActiveStatus,
+  modelTestConfigSignature
+} from "../utils/modelTestState";
+import {
   cloneDraftModel,
   findCustomThinkingLevel,
   toModelInput,
@@ -45,6 +49,7 @@ export interface ModelSettingsDraftProps {
 export interface ModelSettingsDraftActions {
   saveModels(settings: ModelSettingsInput): void;
   testModel(model: ModelConfigInput): void;
+  cancelTestModel?(modelId: string, options?: { silent?: boolean }): void;
   editorOpened(): void;
 }
 
@@ -98,6 +103,7 @@ export function useModelSettingsDraft(
     contextWindow: number;
     maxTokens: number;
     supportsDeveloperRole?: boolean;
+    configSignature?: string;
   }): void {
     let developerRoleAutoUpdated = false;
     const apply = (
@@ -107,6 +113,12 @@ export function useModelSettingsDraft(
       // Jev has a fixed judgment window; capacity overrides do not apply.
       if (isJevModel(model)) return model;
       if (model.managedBy || model.id !== capacity.modelId) return model;
+      if (
+        capacity.configSignature &&
+        modelTestConfigSignature(model) !== capacity.configSignature
+      ) {
+        return model;
+      }
       const missingCapacity =
         model.contextWindow === undefined || model.maxTokens === undefined;
       const shouldDisableDeveloperRole =
@@ -136,7 +148,12 @@ export function useModelSettingsDraft(
     if (advancedConfigModel.value) {
       advancedConfigModel.value = apply(advancedConfigModel.value);
     }
-    if (developerRoleAutoUpdated && !modelEditor.value && !props.modelSaving) {
+    if (
+      developerRoleAutoUpdated &&
+      !modelEditor.value &&
+      !advancedConfigModel.value &&
+      !props.modelSaving
+    ) {
       submitModelSettings();
     }
   }
@@ -232,11 +249,32 @@ export function useModelSettingsDraft(
     );
   }
 
+  function cancelModelEditor(): void {
+    const editing = modelEditor.value;
+    if (editing) {
+      const savedCard = draftModels.value.find(
+        (model) => model.id === editing.originalId
+      );
+      const activeEntry = settingsStore.modelTestStates[editing.id];
+      if (activeEntry && isModelTestActiveStatus(activeEntry.status)) {
+        if (
+          !editing.originalId ||
+          (savedCard &&
+            activeEntry.configSignature !== modelTestConfigSignature(savedCard))
+        ) {
+          actions.cancelTestModel?.(editing.id, { silent: true });
+        }
+      }
+    }
+    modelEditor.value = null;
+  }
+
   function removeModel(modelId: string): void {
     if (props.modelSaving || modelEditor.value) return;
     if (draftModels.value.find((model) => model.id === modelId)?.managedBy) {
       return;
     }
+    actions.cancelTestModel?.(modelId, { silent: true });
     draftModels.value = draftModels.value.filter(
       (model) => model.id !== modelId
     );
@@ -367,6 +405,7 @@ export function useModelSettingsDraft(
     modelConfigRows,
     createModel,
     editModel,
+    cancelModelEditor,
     saveModelEditor,
     testDraftModel,
     removeModel,

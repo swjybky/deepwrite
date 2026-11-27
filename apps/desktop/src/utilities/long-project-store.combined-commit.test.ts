@@ -14,7 +14,7 @@ import {
   FIXED_NOW,
   it,
   join,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile
 } from "./long-project-store.test-support";
 
@@ -229,7 +229,7 @@ describe("combined continuity transaction", () => {
     )!;
     expect(foreshadowing).toMatchObject({
       mode: "replace",
-      expectedSha256: projectTransactionContentSha256(priorForeshadowing)
+      expectedSha256: sha256Hex(priorForeshadowing)
     });
     const first = await h.projectStore.commitChapter(h.dir, h.input);
     expect(await h.projectStore.commitChapter(h.dir, h.input)).toEqual(first);
@@ -388,12 +388,10 @@ describe("continuity body evidence", () => {
       h.chapter.body.id,
       ...committed.record.continuityFiles.map((f) => f.fileId)
     ];
-    const { projectTransactionContentSha256 } =
-      await import("./project-transaction");
     const versions = await Promise.all(
       ids.map(async (fileId) => ({
         fileId,
-        expectedSha256: projectTransactionContentSha256(
+        expectedSha256: sha256Hex(
           (await h.projectStore.readDocument(h.dir, { fileId })).content
         )
       }))

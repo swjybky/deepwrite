@@ -4,6 +4,7 @@ import {
   ConversationHistoryCommandEnvelopeSchemas,
   type ConversationHistoryApi
 } from "./conversation-history";
+import { ConversationCompactionStatusSchema } from "./storage-settings";
 
 export * from "./renderer-state-key";
 import { RendererStateKeySchema } from "./renderer-state-key";
@@ -159,6 +160,30 @@ export const RendererStateFlushRequestedEventEnvelopeSchema =
     payload: z.object({}).strict()
   });
 
+export const RendererStateCompactionUpdatedEventEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("rendererState.compactionUpdated"),
+    payload: z.object({ status: ConversationCompactionStatusSchema }).strict()
+  });
+
+export const RendererStateCompactionStatusCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("rendererState.compactionStatus"),
+    payload: z.object({}).strict()
+  });
+
+export const RendererStateCompactConversationsCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("rendererState.compactConversations"),
+    payload: z.object({ force: z.boolean().optional() }).strict()
+  });
+
+export const RendererStateReleaseCompactionBackupCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("rendererState.releaseCompactionBackup"),
+    payload: z.object({}).strict()
+  });
+
 export const RendererStateCommandEnvelopeSchemas = [
   ...ConversationHistoryCommandEnvelopeSchemas,
   RendererStateListHistoryKeysCommandEnvelopeSchema,
@@ -167,5 +192,8 @@ export const RendererStateCommandEnvelopeSchemas = [
   RendererStateSaveCommandEnvelopeSchema,
   RendererStateRemoveCommandEnvelopeSchema,
   RendererStateFlushReadyCommandEnvelopeSchema,
-  RendererStateFlushCompletedCommandEnvelopeSchema
+  RendererStateFlushCompletedCommandEnvelopeSchema,
+  RendererStateCompactionStatusCommandEnvelopeSchema,
+  RendererStateCompactConversationsCommandEnvelopeSchema,
+  RendererStateReleaseCompactionBackupCommandEnvelopeSchema
 ] as const;

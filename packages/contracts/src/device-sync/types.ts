@@ -108,6 +108,7 @@ export interface SyncWorkspacePort {
     next: SyncItem | null
   ): Promise<void>;
   validate(item: SyncItem): Promise<void>;
+  supportsItem?(item: SyncItem): boolean;
   recover(): Promise<void>;
 }
 export interface SyncMetadataStore {
@@ -133,7 +134,10 @@ export interface SyncServiceOptions {
   transport(config: SyncConfig, password: string): SyncTransport;
 }
 export interface SyncApi {
-  previewInitialization(deviceId: string): Promise<SyncInitializationPreview>;
+  previewInitialization(
+    deviceId: string,
+    options?: { ignoreOtherDevices?: boolean }
+  ): Promise<SyncInitializationPreview>;
   initializeFromRemote(token: string): Promise<SyncStatus>;
   status(): Promise<SyncStatus>;
   check(): Promise<SyncStatus>;

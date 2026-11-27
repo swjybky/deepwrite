@@ -25,6 +25,7 @@ export interface MutationContext {
   /** Main-owned resource ids; unknown runs use "*". */
   activeResourceIds?(): ReadonlySet<string>;
   rendererReady(): boolean;
+  ensureWindow?(): Promise<boolean>;
   windowRequest(request: ExternalWindowRequest): Promise<unknown>;
   agentTeams(): Promise<AgentTeamCatalogSnapshot>;
   broadcastChange(change: ExternalControlResourceChange): void;

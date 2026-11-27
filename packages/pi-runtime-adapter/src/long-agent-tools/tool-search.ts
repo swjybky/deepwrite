@@ -43,7 +43,7 @@ export function buildSearchTool(ctx: LongToolContext): AgentTool {
             ...(params.cursor ? { cursor: params.cursor } : {})
           },
           {
-            id: `long-query-${ctx.input.runId}-search-${++sequence}`,
+            id: `long-query-${ctx.input.runId}-c${ctx.contextId}-search-${++sequence}`,
             context: {
               sessionId: ctx.input.sessionId,
               runId: ctx.input.runId,

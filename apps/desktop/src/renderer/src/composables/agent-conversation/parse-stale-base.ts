@@ -1,5 +1,6 @@
 import type { AgentEditProposal } from "../../types/conversation";
-import { isRecord, validDate } from "./shared";
+import { validDate } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 

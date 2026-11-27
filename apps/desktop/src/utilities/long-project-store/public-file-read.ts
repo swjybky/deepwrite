@@ -1,11 +1,10 @@
 import {
   ProjectTransactionConflictError,
-  commitProjectTransaction,
-  projectTransactionContentSha256
+  commitProjectTransaction
 } from "../project-transaction";
 import { normalizeLongLedgerCommitRecord } from "../long-version-metadata";
 import { createCachedPagedTextFile, loadPagedIndexedFile } from "./cache";
-import { parseJson, serializeJson } from "./io";
+import { parseJson } from "./io";
 import type { LongProjectStoreContext } from "./store-context";
 import {
   MAX_LEDGER_RECORD_BYTES,
@@ -13,6 +12,8 @@ import {
   type LoadedPagedIndexedFile,
   type SecureTextFile
 } from "./types";
+import { toJsonFileText } from "@deepwrite/shared";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 function publicLedgerFile(
   file: LoadedPagedIndexedFile,
@@ -23,7 +24,7 @@ function publicLedgerFile(
     ...file.disk,
     content,
     bytes,
-    sha256: projectTransactionContentSha256(bytes),
+    sha256: sha256Hex(bytes),
     size: bytes.byteLength
   };
   return {
@@ -78,7 +79,7 @@ export async function loadPublicPagedIndexedFile(
   const normalized = normalizeLongLedgerCommitRecord(
     parseJson(file.disk.content, `长篇账本 ${file.reference.id}`)
   );
-  const content = serializeJson(normalized.record);
+  const content = toJsonFileText(normalized.record);
   if (normalized.changed) {
     await persistRetiredLedgerMetadataRemovalBestEffort(loaded, file, content);
   }

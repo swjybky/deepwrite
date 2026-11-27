@@ -10,6 +10,7 @@ import { createScopedTranslator } from "../i18n";
 import { formatError, getErrorPayload } from "../i18n/errors";
 import { uiMessage } from "../ui-feedback";
 import { buildAgentTextDiff } from "../utils/agentTextDiff";
+import { deepwriteApi } from "../api/deepwrite";
 
 const t = createScopedTranslator("components.documentVersions");
 
@@ -48,7 +49,7 @@ export function useDocumentVersionHistory(
       listRequest++;
       readRequest++;
     });
-  const api = () => options.api?.() ?? window.deepwrite?.versions;
+  const api = () => options.api?.() ?? deepwriteApi()?.versions;
   const versions = computed(() => snapshot.value.versions);
   const selected = computed(() =>
     versions.value.find(({ id }) => id === selectedId.value)

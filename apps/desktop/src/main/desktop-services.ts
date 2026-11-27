@@ -9,6 +9,8 @@ import {
 } from "@deepwrite/contracts";
 import { createId } from "@deepwrite/shared";
 import { app, safeStorage } from "electron";
+import { electronRemoteFetch } from "./electron-remote-fetch";
+import { isTestEnvironment, readOnlyOnlineFetch } from "./test-environment";
 import { join } from "node:path";
 import { createCloudBackupFeature } from "../extras/cloud-backup/create-service";
 import { createDesktopDeviceSync } from "../extras/device-sync";
@@ -55,6 +57,7 @@ interface DesktopServiceOptions {
 export function createDesktopServices(options: DesktopServiceOptions) {
   const { userDataPath, command } = options;
   const configurationPath = options.configurationPath ?? userDataPath;
+  const testEnvironment = isTestEnvironment(app.isPackaged);
   const modelConfigStore = new ModelConfigStore(configurationPath, {
     appVersion: options.appVersion,
     ...modelSmokeOptions()
@@ -77,6 +80,9 @@ export function createDesktopServices(options: DesktopServiceOptions) {
   });
   const agentTeamConfigStore = new AgentTeamConfigStore(configurationPath);
   const marketplaceClient = new MarketplaceClient(configurationPath, {
+    ...(testEnvironment
+      ? { fetcher: readOnlyOnlineFetch(electronRemoteFetch) }
+      : {}),
     loadCatalogSnapshot: async () => {
       const id = createId("cmd_marketplace_snapshot");
       const result = await command(
@@ -124,7 +130,8 @@ export function createDesktopServices(options: DesktopServiceOptions) {
     modelUsageStore,
     softwareTokenUsageReporter: new SoftwareTokenUsageReporter(
       userDataPath,
-      modelUsageStore
+      modelUsageStore,
+      testEnvironment ? { fetcher: readOnlyOnlineFetch(fetch) } : undefined
     ),
     workspaceAgentConfigStore: new WorkspaceAgentConfigStore(configurationPath),
     agentTeamConfigStore,

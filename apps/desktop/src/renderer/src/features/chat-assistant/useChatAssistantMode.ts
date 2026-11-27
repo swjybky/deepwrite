@@ -15,6 +15,8 @@ import {
 } from "./chatAssistantProfiles";
 import { computed, ref, shallowRef, type Ref } from "vue";
 import type { AgentConversationController } from "../../composables/useAgentConversation";
+import { deepwriteApi } from "../../api/deepwrite";
+import { uiStorage } from "../../utils/uiStorage";
 
 const MODE_STORAGE_KEY = "deepwrite:chat-assistant-mode:v1";
 const PROJECT_STORAGE_KEY = "deepwrite:chat-assistant-project:v1";
@@ -34,7 +36,7 @@ export interface ChatAssistantModeOptions {
 
 function readMode(): ChatAssistantMode {
   try {
-    const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+    const stored = uiStorage().getItem(MODE_STORAGE_KEY);
     return stored === "project" || stored === "roleplay" ? stored : "normal";
   } catch {
     return "normal";
@@ -44,7 +46,7 @@ function readMode(): ChatAssistantMode {
 function readProject(): ChatAssistantProjectRef | null {
   try {
     const value = JSON.parse(
-      window.localStorage.getItem(PROJECT_STORAGE_KEY) ?? "null"
+      uiStorage().getItem(PROJECT_STORAGE_KEY) ?? "null"
     ) as Partial<ChatAssistantProjectRef> | null;
     if (
       value &&
@@ -70,9 +72,9 @@ function persistPreference(
   project: ChatAssistantProjectRef | null
 ): void {
   try {
-    window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+    uiStorage().setItem(MODE_STORAGE_KEY, mode);
     if (project) {
-      window.localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
+      uiStorage().setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
     }
   } catch {
     // Local preferences are optional; the active in-memory state remains valid.
@@ -215,7 +217,7 @@ export function useChatAssistantMode(options: ChatAssistantModeOptions) {
   }
 
   async function refreshConfiguredProjects(): Promise<boolean> {
-    if (!window.deepwrite) return false;
+    if (!deepwriteApi()) return false;
     try {
       configuredProjects.value = await listChatProjects();
       return true;

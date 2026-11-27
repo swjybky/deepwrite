@@ -4,6 +4,7 @@ import {
   isWebSearchUsable,
   type WebSearchSettings
 } from "@deepwrite/contracts/renderer";
+import { deepwriteApi } from "../api/deepwrite";
 
 /**
  * Whether web search can be given to a run, as the session switches need it.
@@ -23,7 +24,7 @@ export const useWebSearchStatusStore = defineStore("webSearchStatus", () => {
 
   async function refresh(): Promise<void> {
     try {
-      const api = window.deepwrite?.webSearch;
+      const api = deepwriteApi()?.webSearch;
       if (api) settings.value = await api.getSettings();
     } catch {
       // Without a readable setting the switches stay unavailable.

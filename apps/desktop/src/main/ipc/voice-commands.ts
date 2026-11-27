@@ -6,6 +6,7 @@ import {
   type CommandResult
 } from "@deepwrite/contracts";
 import type { VoiceService } from "../voice/voice-service";
+import { rejectedResult } from "./errors";
 
 export async function handleVoiceCommands(
   command: CommandEnvelope,
@@ -46,14 +47,10 @@ export async function handleVoiceCommands(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "voice.operation_failed",
-        message:
-          error instanceof Error ? error.message : "语音操作失败，请重试。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "voice.operation_failed",
+      error instanceof Error ? error.message : "语音操作失败，请重试。"
+    );
   }
 }

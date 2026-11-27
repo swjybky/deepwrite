@@ -232,6 +232,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
   bookIdentity: import("./book-identity").BookIdentityApi;
   longMaterialPack: import("./long-material-pack").LongMaterialPackApi;
   libraryPackage: import("./library-package").LibraryPackageApi;
+  localBackup?: import("./local-backup").LocalBackupApi;
   imageModels: import("./image-models").ImageModelsApi;
   webSearch: import("./web-search").WebSearchApi;
   windowFrame?: WindowFrameApi;
@@ -437,7 +438,7 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
     ): Promise<DeleteCatalogProjectResult>;
     duplicateProject(
       input: DuplicateCatalogProjectInput
-    ): Promise<DuplicateCatalogProjectResult>;
+    ): Promise<DuplicateCatalogProjectResult | null>;
   };
   long: LongPreloadApi;
   versions: DocumentVersionsApi;
@@ -493,6 +494,9 @@ export interface DeepWriteApi extends TextContextMenuPreloadApi {
       input: AgentTeamProfileRenameInput
     ): Promise<AgentTeamCatalogSnapshot>;
     delete(
+      input: AgentTeamProfileTargetInput
+    ): Promise<AgentTeamCatalogSnapshot>;
+    duplicate(
       input: AgentTeamProfileTargetInput
     ): Promise<AgentTeamCatalogSnapshot>;
     setEnabled(

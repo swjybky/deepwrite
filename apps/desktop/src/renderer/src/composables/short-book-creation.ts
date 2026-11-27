@@ -6,6 +6,7 @@ import type {
   CreateShortOrScriptBookInput,
   ShortBookLifecycleCoordinatorOptions
 } from "./useShortBookLifecycleCoordinator";
+import { formatError } from "../i18n/errors";
 
 const t = createScopedTranslator("workspace");
 export function createShortBookCreator<Lease>(
@@ -18,7 +19,6 @@ export function createShortBookCreator<Lease>(
     leaseIsOwned(lease: Lease): boolean;
     leaseCanPublish(lease: Lease): boolean;
     refreshAfterDurableMutation(): Promise<boolean>;
-    errorMessage(error: unknown, fallback: string): string;
   }
 ) {
   const {
@@ -30,8 +30,7 @@ export function createShortBookCreator<Lease>(
     runWithLease,
     leaseIsOwned,
     leaseCanPublish,
-    refreshAfterDurableMutation,
-    errorMessage
+    refreshAfterDurableMutation
   } = options;
   function createBook(input: CreateShortOrScriptBookInput): Promise<void> {
     const api = catalog.api();
@@ -145,7 +144,7 @@ export function createShortBookCreator<Lease>(
           );
         } else {
           notifications.error(
-            errorMessage(error, t("shortBookCreation.failedToCreateProject"))
+            formatError(error, t("shortBookCreation.failedToCreateProject"))
           );
         }
       }

@@ -2,10 +2,8 @@ import {
   AgentTeamBookBindingDiskSchema,
   type AgentTeamBookBindings
 } from "@deepwrite/contracts";
-import {
-  atomicWriteAgentTeamJson,
-  readAgentTeamJson
-} from "./agent-team-config-migration";
+import { readAgentTeamJson } from "./agent-team-config-migration";
+import { writeJsonAtomic } from "@deepwrite/shared/node";
 
 /** The file only exists once a book has been bound. */
 export async function readAgentTeamBookBindings(
@@ -25,7 +23,7 @@ export async function writeAgentTeamBookBindings(
   path: string,
   bindings: AgentTeamBookBindings
 ): Promise<void> {
-  await atomicWriteAgentTeamJson(path, { version: 1, bindings });
+  await writeJsonAtomic(path, { version: 1, bindings });
 }
 
 export function withAgentTeamBookBinding(

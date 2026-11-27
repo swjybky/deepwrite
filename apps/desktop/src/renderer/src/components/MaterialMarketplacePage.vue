@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { computed, onMounted, ref, watch } from "vue";
 import type {
   MarketplaceMaterialDetail,
@@ -45,7 +46,7 @@ async function load(): Promise<void> {
   loading.value = true;
   loadFailed.value = false;
   try {
-    libraries.value = await window.deepwrite!.marketplace.listMaterials({
+    libraries.value = await deepwriteApi()!.marketplace.listMaterials({
       query: query.value,
       ...(kind.value ? { kind: kind.value } : {})
     });
@@ -65,7 +66,7 @@ async function openDetail(
   detailPending.value = true;
   detailTrigger = event.currentTarget as HTMLElement;
   try {
-    detail.value = await window.deepwrite!.marketplace.materialDetail(item.id);
+    detail.value = await deepwriteApi()!.marketplace.materialDetail(item.id);
   } catch (error: unknown) {
     uiMessage.error(formatError(error, t("loadMaterialDetailFailed")));
   } finally {
@@ -84,7 +85,7 @@ async function install(): Promise<void> {
   const { id, version } = detail.value;
   installing.value = true;
   try {
-    const result = await window.deepwrite!.marketplace.installMaterial({
+    const result = await deepwriteApi()!.marketplace.installMaterial({
       id,
       version
     });

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readBookImage } from "./read";
 import { verifyBookImageHandle } from "./verify-file";
-import { IMAGE_PNG } from "../image/image-test-support";
+import { IMAGE_PNG } from "../image/image.test-support";
 vi.mock("electron", () => ({ nativeImage: {} }));
 const roots: string[] = [];
 afterEach(async () => {

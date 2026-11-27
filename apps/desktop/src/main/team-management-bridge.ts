@@ -17,6 +17,7 @@ import {
   readActiveMembers
 } from "./agent-team-active-management";
 import { teamPromptReviews } from "./team-prompt-reviews";
+import { rejectedResult } from "./ipc/errors";
 
 /** Models a member may use; the agent only ever sees ids and run options. */
 export function teamModelChoices(
@@ -90,13 +91,10 @@ export async function handleTeamManagementCommand(
     }
     return { status: "accepted", requestId: command.id, payload };
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code: "agent_teams.team_management_failed",
-        message: error instanceof Error ? error.message : "管理智能体团队失败。"
-      }
-    };
+    return rejectedResult(
+      command.id,
+      "agent_teams.team_management_failed",
+      error instanceof Error ? error.message : "管理智能体团队失败。"
+    );
   }
 }

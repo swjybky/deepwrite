@@ -27,6 +27,8 @@ export default {
   disableTeam: "关闭团队",
   enableThisValueTeam: "启用该{arg0}团队",
   download: "下载",
+  duplicate: "复制",
+  builtin: "内置",
   rename: "重命名",
   deleteTeam: "删除团队",
   disableThisTeamFirst: "请先关闭该团队",

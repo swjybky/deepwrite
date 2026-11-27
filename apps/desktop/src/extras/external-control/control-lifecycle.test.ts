@@ -170,6 +170,23 @@ describe("external control lifecycle", () => {
     );
   });
 
+  it("writes a restarting marker while the app relaunches", async () => {
+    await control.sync(true);
+    await control.stop({ restarting: true });
+    expect(await readExternalControlState(paths.stateFile)).toMatchObject({
+      status: "restarting",
+      pid: 4242,
+      startedAt: expect.any(String) as string
+    });
+    expect(await readExternalControlState(paths.stateFile)).not.toHaveProperty(
+      "token"
+    );
+    await control.sync(true);
+    expect((await readExternalControlState(paths.stateFile))?.status).toBe(
+      "restarting"
+    );
+  });
+
   it("clears a state file left behind by a crash", async () => {
     await writeExternalControlState(paths.stateFile, {
       status: "disabled",

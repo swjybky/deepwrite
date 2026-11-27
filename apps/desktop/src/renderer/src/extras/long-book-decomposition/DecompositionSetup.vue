@@ -6,7 +6,7 @@ import {
   type CreateDecompositionJobInput,
   type ModelConfig
 } from "@deepwrite/contracts/renderer";
-import AnalysisModelSettings from "../analysis-ui/AnalysisModelSettings.vue";
+import DecompositionModelField from "./DecompositionModelField.vue";
 import PopupSelect from "../../components/PopupSelect.vue";
 import { createScopedTranslator } from "../../i18n";
 import DecompositionEstimate from "./DecompositionEstimate.vue";
@@ -166,10 +166,10 @@ function create() {
       </label>
       <div class="setup-field">
         <span class="setup-field-label">{{ t("readingModel") }}</span>
-        <AnalysisModelSettings
+        <DecompositionModelField
           v-model:model-id="controller.readingModelId.value"
           v-model:thinking-level="controller.readingThinkingLevel.value"
-          field
+          v-model:fallbacks="controller.readingFallbacks.value"
           :label="t('readingModel')"
           :models="models"
           :disabled="disabled"
@@ -177,10 +177,10 @@ function create() {
       </div>
       <div class="setup-field">
         <span class="setup-field-label">{{ t("integrationModel") }}</span>
-        <AnalysisModelSettings
+        <DecompositionModelField
           v-model:model-id="controller.integrationModelId.value"
           v-model:thinking-level="controller.integrationThinkingLevel.value"
-          field
+          v-model:fallbacks="controller.integrationFallbacks.value"
           :label="t('integrationModel')"
           :models="models"
           :disabled="disabled"

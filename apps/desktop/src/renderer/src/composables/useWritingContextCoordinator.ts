@@ -1,6 +1,7 @@
 import { createScopedTranslator } from "../i18n";
 import type { DeepWriteApi } from "@deepwrite/contracts/renderer";
 import { ref, watch, type Ref } from "vue";
+import { formatError } from "../i18n/errors";
 
 const t = createScopedTranslator("workspace.writingContextCoordinator");
 
@@ -18,12 +19,6 @@ export interface WritingContextCoordinatorOptions {
   bookId: Readonly<Ref<string | null>>;
   api: () => DeepWriteApi["catalog"] | undefined;
   notifications: WritingContextNotifications;
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : fallback;
 }
 
 export function useWritingContextCoordinator(
@@ -51,7 +46,7 @@ export function useWritingContextCoordinator(
       if (epoch === requestEpoch && options.bookId.value === bookId) {
         content.value = null;
         options.notifications.error(
-          errorMessage(error, t("failedToReadProjectContext"))
+          formatError(error, t("failedToReadProjectContext"))
         );
       }
     } finally {
@@ -88,7 +83,7 @@ export function useWritingContextCoordinator(
       completion.succeed();
     } catch (error: unknown) {
       options.notifications.error(
-        errorMessage(error, t("failedToSaveProjectContext"))
+        formatError(error, t("failedToSaveProjectContext"))
       );
       completion.fail();
     } finally {

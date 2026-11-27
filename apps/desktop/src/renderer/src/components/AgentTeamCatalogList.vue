@@ -31,6 +31,7 @@ const emit = defineEmits<{
   newTeam: [];
   select: [teamId: string];
   setEnabled: [input: { teamId: string; enabled: boolean }];
+  duplicate: [teamId: string];
   download: [teamId: string];
   rename: [team: AgentTeamProfile];
   delete: [team: AgentTeamProfile];
@@ -203,9 +204,16 @@ function subagentCount(team: AgentTeamProfile): number {
             >
               <span class="team-title-row">
                 <strong>{{ team.name }}</strong>
-                <span class="type-badge">{{
-                  workspaceTypeLabel(team.workspaceType)
-                }}</span>
+                <span class="team-badges">
+                  <span
+                    v-if="team.isBuiltin"
+                    class="type-badge builtin-badge"
+                    >{{ t("builtin") }}</span
+                  >
+                  <span class="type-badge">{{
+                    workspaceTypeLabel(team.workspaceType)
+                  }}</span>
+                </span>
               </span>
               <span class="team-meta">
                 <span>{{
@@ -249,6 +257,15 @@ function subagentCount(team: AgentTeamProfile): number {
                 <button
                   type="button"
                   :disabled="busy"
+                  :aria-label="t('duplicate')"
+                  :title="t('duplicate')"
+                  @click="emit('duplicate', team.id)"
+                >
+                  <AppIcon name="copy" :size="15" />
+                </button>
+                <button
+                  type="button"
+                  :disabled="busy"
                   :aria-label="t('download')"
                   :title="t('download')"
                   @click="emit('download', team.id)"
@@ -256,6 +273,7 @@ function subagentCount(team: AgentTeamProfile): number {
                   <AppIcon name="download" :size="15" />
                 </button>
                 <button
+                  v-if="!team.isBuiltin"
                   type="button"
                   :disabled="busy"
                   :aria-label="t('rename')"
@@ -265,6 +283,7 @@ function subagentCount(team: AgentTeamProfile): number {
                   <AppIcon name="edit" :size="15" />
                 </button>
                 <button
+                  v-if="!team.isBuiltin"
                   type="button"
                   class="is-danger"
                   :disabled="busy || isEnabled(team)"

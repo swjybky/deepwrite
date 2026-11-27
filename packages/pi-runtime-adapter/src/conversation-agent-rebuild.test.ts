@@ -41,7 +41,7 @@ describe("conversation agent rebuild", () => {
 it("reuses the domain conversation after changing library focus", async () => {
   const { conversationAgentKey } = await import("./conversation-agent-rebuild");
   const { materialWorkspace, profile } =
-    await import("./library-agent-tools/test-fixtures");
+    await import("./library-agent-tools/library-tools.test-support");
   const input = {
     runId: "run",
     sessionId: "session",

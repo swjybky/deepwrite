@@ -77,6 +77,9 @@ export function planWorkspaceRun(
         streamFn: context.spawnStreamFn,
         parentRuntime: context.runtime,
         parentSignal: context.parentSignal,
+        ...(context.evaluationMode !== undefined
+          ? { evaluationMode: context.evaluationMode }
+          : {}),
         requestUserInput: context.requestUserInput,
         portableToolSchemaProfile,
         toolExecutionHooks: options.toolExecutionHooks,

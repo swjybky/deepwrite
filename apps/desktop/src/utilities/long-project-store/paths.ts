@@ -1,4 +1,3 @@
-import { projectTransactionContentSha256 } from "../project-transaction";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import {
@@ -17,6 +16,7 @@ import {
   type IndexedFileSlot,
   type LoadedLongProject
 } from "./types";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 export function storageKey(id: string): string {
   return createHash("sha256").update(id, "utf8").digest("hex").slice(0, 32);
@@ -344,7 +344,7 @@ export function updateChapterBodyStatus(
   );
   if (!commit || !evidence) return;
   const changed = new Set(commit.changedChapterIds ?? []);
-  if (evidence.sha256 === projectTransactionContentSha256(content))
+  if (evidence.sha256 === sha256Hex(content))
     changed.delete(chapter.chapterCardId);
   else changed.add(chapter.chapterCardId);
   commit.changedChapterIds = [...changed];

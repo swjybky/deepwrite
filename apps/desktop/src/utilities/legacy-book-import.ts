@@ -4,6 +4,7 @@ import type {
   ShortBookGenre
 } from "@deepwrite/contracts";
 import { openLegacyZipArchive } from "./legacy-zip";
+import { isRecord } from "@deepwrite/shared";
 
 const MAX_IMPORTED_CONTENT_BYTES = 128 * 1024 * 1024;
 
@@ -45,10 +46,6 @@ export interface ImportedLegacyBook {
   linkedMaterialIdsByKind: LinkedMaterialIdsByKind;
   linkedSkillIdsByKind: LinkedSkillIdsByKind;
   documents: ImportedLegacyBookDocument[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function asString(value: unknown): string {

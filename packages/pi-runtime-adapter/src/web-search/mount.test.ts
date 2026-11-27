@@ -119,5 +119,9 @@ describe("web search prompt", () => {
       WEB_SEARCH_FETCH_PROMPT
     );
     expect(webToolNamesFor("deepseek")).toBe("web_search、web_fetch");
+    expect(webSearchPromptForProvider("tinyfish")).toBe(
+      WEB_SEARCH_FETCH_PROMPT
+    );
+    expect(webToolNamesFor("tinyfish")).toBe("web_search、web_fetch");
   });
 });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { uiConfirm } from "../../ui-confirm";
 import { presetLabel } from "../analysis-ui/preset-labels";
 import { createScopedTranslator } from "../../i18n";
 import { computed, nextTick, ref, useId, watch } from "vue";
@@ -88,15 +89,16 @@ function copyPreset(index: number): void {
   void editPreset(id);
 }
 
-function removePreset(index: number): void {
+async function removePreset(index: number): Promise<void> {
   const current = draft.value[index];
   if (!current) return;
   if (
-    !window.confirm(
-      t("longBookAnalysis.deletePresetConfirmation", {
+    !(await uiConfirm({
+      message: t("longBookAnalysis.deletePresetConfirmation", {
         name: presetLabel(current)
-      })
-    )
+      }),
+      danger: true
+    }))
   )
     return;
   draft.value.splice(index, 1);

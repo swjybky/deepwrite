@@ -4,14 +4,8 @@ import type {
   AgentTool,
   AgentToolResult
 } from "@earendil-works/pi-agent-core";
+import type { Api, Model, AssistantMessage } from "@earendil-works/pi-ai";
 import type {
-  Api,
-  Model,
-  AssistantMessage,
-  Usage
-} from "@earendil-works/pi-ai";
-import type {
-  AgentUsage,
   AgentRuntimeRef,
   AgentProviderRuntimeConfig,
   AgentUsageObservationStatus
@@ -36,29 +30,6 @@ export function readAssistantText(message: AssistantMessage): string {
     .filter((item) => item.type === "text")
     .map((item) => item.text)
     .join("");
-}
-
-export function normalizeUsage(
-  usage: Usage | undefined
-): AgentUsage | undefined {
-  if (!usage) return undefined;
-  const values = [
-    usage.input,
-    usage.output,
-    usage.cacheRead,
-    usage.cacheWrite,
-    usage.totalTokens
-  ];
-  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)) {
-    return undefined;
-  }
-  return {
-    inputTokens: usage.input,
-    outputTokens: usage.output,
-    cacheReadTokens: usage.cacheRead,
-    cacheWriteTokens: usage.cacheWrite,
-    totalTokens: usage.totalTokens
-  };
 }
 
 export function runtimeFromConfig(
@@ -166,6 +137,7 @@ export function buildSubagentSystemPrompt(
       definition.contextMode === "parent-snapshot"
         ? "You inherit a conversation snapshot. Read editing targets with your own tools."
         : "You have fresh context for the assigned task.",
+      "The user message is the complete assigned task (even when long or structured). Execute it immediately and return the result; never reply with only a readiness acknowledgement (such as 'ready') or wait for further instructions.",
       "You cannot delegate to other agents.",
       bookImagePreservationRule(locale),
       runtimeNote,
@@ -188,6 +160,7 @@ export function buildSubagentSystemPrompt(
     definition.contextMode === "parent-snapshot"
       ? "你继承了主智能体调用时的对话快照。历史工具结果仅供理解任务，不代表你拥有那些工具或已经读取过待编辑条目；必须使用自己的工具重新读取。"
       : "你由当前主智能体为一个明确子任务临时创建。本次运行使用全新上下文，不继承主对话历史。",
+    "下一条用户消息即本轮完整委派任务（即使较长或含结构化分段），请立即开始执行并交付结果；不要只回复“任务就绪”“收到”“明白”等确认语，也不要等待后续指令。",
     "你不能创建或调用其它子智能体。",
     bookImagePreservationRule(),
     ...(runtimeNote ? [runtimeNote] : []),

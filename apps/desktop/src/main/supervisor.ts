@@ -12,6 +12,8 @@ import {
   type UtilityWorkerName
 } from "@deepwrite/contracts";
 import { createId, nowIso } from "@deepwrite/shared";
+import { rejectedResult } from "./ipc/errors";
+import { UTILITY_ENTRY_NAMES } from "./utility-entry-names";
 
 type WorkerStatus = UtilityHealthPayload["status"];
 
@@ -185,14 +187,13 @@ class UtilityWorker {
   ): Promise<CommandResult> {
     const child = this.child;
     if (!child || this.isStopping) {
-      return Promise.resolve({
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "utility.not_running",
-          message: `${this.name} utility is not available.`
-        }
-      });
+      return Promise.resolve(
+        rejectedResult(
+          command.id,
+          "utility.not_running",
+          `${this.name} utility is not available.`
+        )
+      );
     }
 
     if (
@@ -201,14 +202,13 @@ class UtilityWorker {
         (pending) => pending.commandId === command.id
       )
     ) {
-      return Promise.resolve({
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "utility.duplicate_command",
-          message: `A command with id ${command.id} is already pending.`
-        }
-      });
+      return Promise.resolve(
+        rejectedResult(
+          command.id,
+          "utility.duplicate_command",
+          `A command with id ${command.id} is already pending.`
+        )
+      );
     }
 
     return new Promise<CommandResult>((resolve, reject) => {
@@ -469,7 +469,7 @@ export class UtilitySupervisor {
     const makeWorker = (name: UtilityWorkerName): UtilityWorker =>
       new UtilityWorker(
         name,
-        join(__dirname, "utilities", `${name}-entry.js`),
+        join(__dirname, `${UTILITY_ENTRY_NAMES[name]}.js`),
         (worker, reason) => this.handleUnexpectedExit(worker, reason),
         (worker) => this.handleWorkerReady(worker),
         options.onUtilityEvent,
@@ -500,14 +500,13 @@ export class UtilitySupervisor {
   ): Promise<CommandResult> {
     const target = this.workers.get(worker);
     if (!target) {
-      return Promise.resolve({
-        status: "rejected",
-        requestId: command.id,
-        error: {
-          code: "utility.unknown_worker",
-          message: `Unknown utility worker: ${worker}`
-        }
-      });
+      return Promise.resolve(
+        rejectedResult(
+          command.id,
+          "utility.unknown_worker",
+          `Unknown utility worker: ${worker}`
+        )
+      );
     }
     return target.requestCommand(command, timeoutMs);
   }
@@ -777,15 +776,7 @@ export class UtilitySupervisor {
     message: string,
     details?: Record<string, unknown>
   ): CommandResult {
-    return {
-      status: "rejected",
-      requestId: commandId,
-      error: {
-        code,
-        message,
-        ...(details ? { details } : {})
-      }
-    };
+    return rejectedResult(commandId, code, message, details);
   }
 
   private authorizeInternalCommand(

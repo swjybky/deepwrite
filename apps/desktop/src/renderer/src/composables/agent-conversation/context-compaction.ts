@@ -10,7 +10,8 @@ import type {
   ChatContextCompaction,
   ChatMessage
 } from "../../types/conversation";
-import { isRecord, validDate } from "./shared";
+import { validDate } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 
 const MAX_COMPACTIONS_PER_MESSAGE = 8;
 const REASONS = new Set([

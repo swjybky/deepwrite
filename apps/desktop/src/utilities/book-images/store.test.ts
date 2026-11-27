@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BookImageStore, sanitizeBookImageBaseName } from "./store";
-import { IMAGE_PNG } from "../../main/image/image-test-support";
+import { IMAGE_PNG } from "../../main/image/image.test-support";
 
 const roots: string[] = [];
 const book = { projectType: "short" as const, projectId: "book_test" };

@@ -14,6 +14,7 @@ defineProps<{
   subagent: ShortAgentSubagentDefinition;
   editing: boolean;
   disabled: boolean;
+  readOnly?: boolean;
   duplicateDisabled: boolean;
   modelSummary: string;
 }>();
@@ -32,7 +33,7 @@ const emit = defineEmits<{
       <div
         class="subagent-copy"
         :class="{ 'is-disabled': !subagent.enabled }"
-        @click="!disabled && emit('edit')"
+        @click="(!disabled || readOnly) && emit('edit')"
       >
         <span class="subagent-title-row">
           <strong>{{ subagent.name || t("untitledSubagent") }}</strong>
@@ -65,7 +66,7 @@ const emit = defineEmits<{
       <div class="subagent-controls">
         <AgentTeamSwitch
           :model-value="subagent.enabled"
-          :disabled="disabled"
+          :disabled="disabled || Boolean(readOnly)"
           :label="
             t('valueEnabledStatus', { arg0: subagent.name || t('subagent') })
           "
@@ -74,36 +75,58 @@ const emit = defineEmits<{
         />
         <div class="subagent-actions">
           <button
+            v-if="readOnly"
             type="button"
             class="icon-button"
-            :disabled="disabled"
-            :aria-label="t('editValue', { arg0: subagent.name })"
+            :aria-label="
+              editing
+                ? t('collapseValue', { arg0: subagent.name })
+                : t('viewValue', { arg0: subagent.name })
+            "
             :aria-expanded="editing"
-            :title="t('edit')"
+            :title="editing ? t('collapse') : t('view')"
             @click="emit('edit')"
           >
-            <AppIcon name="edit" :size="15" />
+            <AppIcon
+              name="chevron"
+              :size="15"
+              class="view-chevron"
+              :class="{ 'is-open': editing }"
+            />
           </button>
-          <button
-            type="button"
-            class="icon-button"
-            :disabled="disabled || duplicateDisabled"
-            :aria-label="t('duplicateValue', { arg0: subagent.name })"
-            :title="t('duplicate')"
-            @click="emit('duplicate')"
-          >
-            <AppIcon name="copy" :size="15" />
-          </button>
-          <button
-            type="button"
-            class="icon-button is-danger"
-            :disabled="disabled"
-            :aria-label="t('deleteValue', { arg0: subagent.name })"
-            :title="t('delete')"
-            @click="emit('remove')"
-          >
-            <AppIcon name="trash" :size="15" />
-          </button>
+          <template v-else>
+            <button
+              type="button"
+              class="icon-button"
+              :disabled="disabled"
+              :aria-label="t('editValue', { arg0: subagent.name })"
+              :aria-expanded="editing"
+              :title="t('edit')"
+              @click="emit('edit')"
+            >
+              <AppIcon name="edit" :size="15" />
+            </button>
+            <button
+              type="button"
+              class="icon-button"
+              :disabled="disabled || duplicateDisabled"
+              :aria-label="t('duplicateValue', { arg0: subagent.name })"
+              :title="t('duplicate')"
+              @click="emit('duplicate')"
+            >
+              <AppIcon name="copy" :size="15" />
+            </button>
+            <button
+              type="button"
+              class="icon-button is-danger"
+              :disabled="disabled"
+              :aria-label="t('deleteValue', { arg0: subagent.name })"
+              :title="t('delete')"
+              @click="emit('remove')"
+            >
+              <AppIcon name="trash" :size="15" />
+            </button>
+          </template>
         </div>
       </div>
     </header>
@@ -221,5 +244,11 @@ const emit = defineEmits<{
 .icon-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 2px;
+}
+.view-chevron {
+  transition: transform 150ms ease;
+}
+.view-chevron.is-open {
+  transform: rotate(90deg);
 }
 </style>

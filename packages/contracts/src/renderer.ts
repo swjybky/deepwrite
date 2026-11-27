@@ -23,7 +23,6 @@ export { ErrorPayloadSchema } from "./error-payload";
  * surface here, but expose only runtime values that Renderer code uses.
  */
 export type * from "./book-templates";
-export { DEFAULT_NEW_BOOK_ENABLED_PLOT_STAGE_IDS } from "./catalog";
 export { loadBookTemplateDraftSchema } from "./load-book-template-schema";
 export type * from "./appearance";
 export type * from "./voice";
@@ -98,12 +97,14 @@ export {
 } from "./long-book-decomposition/profile";
 export {
   splitDecompositionChunks,
-  decompositionInputBudget
+  decompositionInputBudget,
+  limitingDecompositionReadingModel
 } from "./long-book-decomposition/chunking";
 export { estimateDecomposition } from "./long-book-decomposition/estimate";
 export {
   DECOMPOSITION_DEFAULT_CONCURRENCY,
-  DECOMPOSITION_MAX_CONCURRENCY
+  DECOMPOSITION_MAX_CONCURRENCY,
+  DECOMPOSITION_MAX_FALLBACK_MODELS
 } from "./long-book-decomposition/limits";
 export { DecompositionCommandRecoverySchema } from "./long-book-decomposition/commands";
 export {
@@ -112,6 +113,7 @@ export {
 } from "./long-book-decomposition/usage";
 export {
   decompositionTaskUnitIds,
+  isSkippableDecompositionUnitId,
   readyDecompositionUnitIds
 } from "./long-book-decomposition/job";
 export { decompositionAssetProse } from "./long-book-decomposition/records";
@@ -298,11 +300,19 @@ export {
 export {
   FEEDBACK_CONTENT_MAX_LENGTH,
   FEEDBACK_IMAGE_MAX_BYTES,
-  FEEDBACK_MAX_IMAGES
+  FEEDBACK_MAX_IMAGES,
+  FEEDBACK_TOTAL_IMAGE_MAX_BYTES,
+  feedbackImageByteLength,
+  feedbackImagesTotalBytes
 } from "./feedback";
 export {
+  DEFAULT_NEW_BOOK_ENABLED_PLOT_STAGE_IDS,
+  createDefaultBookPlotStages,
+  createDefaultCreativePlotStages,
+  isBuiltinCreativePlotStageId
+} from "./catalog/plot-stages";
+export {
   ACADEMIC_BOOK_SUBTYPES,
-  ACADEMIC_CITATION_STYLES,
   ACADEMIC_CITE_KEY_MAX_LENGTH,
   ACADEMIC_FOUNDATION_DOCUMENT_IDS,
   ACADEMIC_FRAMEWORK_STAGE_MAX_COUNT,
@@ -316,17 +326,28 @@ export {
   ACADEMIC_THESIS_OVERVIEW_DOCUMENT_ID,
   ACADEMIC_THESIS_OVERVIEW_TITLE,
   AcademicBookSubtypeSchema,
-  AcademicCitationStyleSchema,
   AcademicCiteKeySchema,
   AcademicReferenceCardTypeSchema,
   AcademicSectionFileKindSchema,
+  DEFAULT_ACADEMIC_FRAMEWORK_STAGES,
+  createAcademicCardDocumentId,
+  createAcademicSectionDocumentId,
+  createDefaultAcademicFrameworkStages,
+  enabledAcademicFrameworkStages,
+  getAcademicSubtypePreset,
+  isBuiltinAcademicFrameworkStageId,
+  parseAcademicCardDocumentId,
+  parseAcademicSectionDocumentId
+} from "./academic-book";
+export {
+  ACADEMIC_CITATION_STYLES,
+  AcademicCitationStyleSchema,
+  academicCitationStyleRequirements
+} from "./academic-citation-style";
+export {
   CATALOG_LIBRARY_ENTRY_MAX_CHARACTERS,
   CATALOG_LIBRARY_OVERVIEW_MAX_CHARACTERS,
   CATALOG_PROJECT_MAX_CONTENT_ITEMS,
-  CatalogIndexSnapshotSchema,
-  CatalogSnapshotSchema,
-  CharacterStructureMutationSchema,
-  DEFAULT_ACADEMIC_FRAMEWORK_STAGES,
   LIBRARY_CUSTOM_TAG_MAX_LENGTH,
   LibraryCustomTagSchema,
   MATERIAL_KINDS,
@@ -341,32 +362,28 @@ export {
   ScriptBookGenreSchema,
   ShortBookGenreSchema,
   SkillStageIdSchema,
-  academicCitationStyleRequirements,
-  catalogDraftBodyDocumentId,
-  catalogDraftCharacterStateDocumentId,
-  createAcademicCardDocumentId,
-  createAcademicSectionDocumentId,
-  createCatalogDraftDirectory,
-  createDefaultAcademicFrameworkStages,
-  createDefaultBookPlotStages,
-  createDefaultCreativePlotStages,
-  enabledAcademicFrameworkStages,
   extractLegacyGroupMemberIds,
   flattenMaterialIdsByKind,
   flattenSkillIdsByKind,
-  getAcademicSubtypePreset,
-  isBuiltinAcademicFrameworkStageId,
-  isBuiltinCreativePlotStageId,
   materialIdsToByKind,
-  parseAcademicCardDocumentId,
-  parseAcademicSectionDocumentId,
-  parseCatalogDraftDocumentId,
   skillIdsToByKind
-} from "./catalog";
+} from "./catalog/kinds";
+export {
+  CatalogIndexSnapshotSchema,
+  CatalogSnapshotSchema
+} from "./catalog/snapshot";
+export { CharacterStructureMutationSchema } from "./catalog/character-structure";
+export {
+  catalogDraftBodyDocumentId,
+  catalogDraftCharacterStateDocumentId,
+  createCatalogDraftDirectory,
+  parseCatalogDraftDocumentId
+} from "./catalog/draft-directory";
 export { createEnvelope } from "./envelope";
 export {
   DraftSectionChangeSchema,
   DraftSectionTitleSchema,
+  chineseSectionNumber,
   parseExpertDraftMarkdown,
   serializeExpertDraftMarkdown
 } from "./expert-draft";
@@ -518,6 +535,7 @@ export {
   WorkspaceRuntimeContextSchema
 } from "./session/runtime";
 export { AgentEvaluationSnapshotSchema } from "./session/evaluation";
+export { stripModelCallSnapshot } from "./session/model-call-strip";
 export {
   CONTEXT_COMPACTION_BUDGET_MAX_TOKENS,
   CONTEXT_COMPACTION_BUDGET_MIN_TOKENS,
@@ -673,6 +691,11 @@ export type * from "./writing-context";
 export * from "./book-images";
 
 export type * from "./mystery";
+export type * from "./local-backup";
+export {
+  LOCAL_BACKUP_FILE_EXTENSION,
+  LOCAL_BACKUP_FORMAT_VERSION
+} from "./local-backup";
 export { getDefaultMysteryAgentProfile } from "./mystery/agent-defaults";
 export {
   MYSTERY_AGENT_IDS,

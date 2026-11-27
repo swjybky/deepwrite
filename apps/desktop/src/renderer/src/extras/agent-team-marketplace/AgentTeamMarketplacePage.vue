@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../../api/deepwrite";
 import { computed, onMounted } from "vue";
 import type {
   AgentTeamCatalogSnapshot,
@@ -27,7 +28,7 @@ const emit = defineEmits<{
   catalogChange: [catalog: AgentTeamCatalogSnapshot];
 }>();
 
-const api = () => window.deepwrite;
+const api = () => deepwriteApi();
 const plaza = useTeamPlaza({
   api,
   catalog: () => props.catalog,
@@ -47,7 +48,7 @@ const { session, authenticated, tab, detail, deleteTarget, deletePending } =
   plaza;
 
 const apiAvailable = computed(() =>
-  Boolean(window.deepwrite?.agentTeamMarketplace)
+  Boolean(deepwriteApi()?.agentTeamMarketplace)
 );
 const tabs = computed<Array<{ id: TeamPlazaTab; label: string }>>(() => [
   { id: "browse", label: t("tabBrowse") },

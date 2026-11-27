@@ -8,8 +8,13 @@ import {
   splitDecompositionChunks,
   estimateDecomposition,
   decompositionInputBudget,
+  limitingDecompositionReadingModel,
   type CommandEnvelope,
   type CommandResult,
+  type DecompositionModelsInput,
+  type DecompositionModelSelection,
+  type DecompositionResolvedModel,
+  type DecompositionResolvedModels,
   type LongBookDecompositionJob
 } from "@deepwrite/contracts";
 import {
@@ -21,6 +26,114 @@ import type { ExtrasAgentConfigStore } from "../config-store";
 import { decompositionModelCapacity } from "./model-capacity";
 import { UtilityCommandTimeoutError } from "../../../main/supervisor";
 import { decompositionCore, controlWithUsage } from "./core-bridge";
+import { rejectedResult } from "../../../main/ipc/errors";
+
+async function resolveDecompositionModels(
+  context: ExtrasAgentCommandContext,
+  command: CommandEnvelope,
+  models: DecompositionModelsInput,
+  promptLength: number,
+  existing?: LongBookDecompositionJob
+): Promise<DecompositionResolvedModels> {
+  const capacities = new Map<
+    string,
+    Promise<{ contextWindow: number; maxTokens?: number }>
+  >();
+  const resolveCapacity = (modelId: string) => {
+    let pending = capacities.get(modelId);
+    if (!pending) {
+      const suffix = String(capacities.size);
+      pending = (async () => {
+        const model = await context.resolveModel(modelId);
+        if (!model) {
+          if (!context.evaluationMode)
+            throw new Error("拆解模型不可用，请重新选择。");
+          return { contextWindow: 128_000, maxTokens: 8192 };
+        }
+        const capacity = await decompositionModelCapacity(
+          context.requestAgent,
+          command,
+          model,
+          suffix
+        );
+        decompositionInputBudget(capacity, promptLength);
+        return {
+          contextWindow: capacity.contextWindow,
+          ...(capacity.maxTokens !== undefined
+            ? { maxTokens: capacity.maxTokens }
+            : {})
+        };
+      })();
+      capacities.set(modelId, pending);
+    }
+    return pending;
+  };
+  const resolveSlot = async (
+    primary: DecompositionModelSelection,
+    fallbacks: readonly DecompositionModelSelection[] = [],
+    preserved?: {
+      primary: DecompositionResolvedModel;
+      fallbacks?: readonly DecompositionResolvedModel[];
+    }
+  ): Promise<{
+    primary: DecompositionResolvedModel;
+    fallbacks?: DecompositionResolvedModel[];
+  }> => {
+    if (preserved) {
+      const nextList = [primary, ...fallbacks];
+      const prevList = [preserved.primary, ...(preserved.fallbacks ?? [])];
+      if (
+        nextList.length === prevList.length &&
+        nextList.every(
+          (item, index) =>
+            item.modelId === prevList[index]!.modelId &&
+            item.thinkingLevel === prevList[index]!.thinkingLevel
+        )
+      ) {
+        return {
+          primary: preserved.primary,
+          ...(preserved.fallbacks?.length
+            ? { fallbacks: [...preserved.fallbacks] }
+            : {})
+        };
+      }
+    }
+    const resolveItem = async (
+      item: DecompositionModelSelection
+    ): Promise<DecompositionResolvedModel> => ({
+      ...item,
+      ...(await resolveCapacity(item.modelId))
+    });
+    const resolvedPrimary = await resolveItem(primary);
+    const resolvedFallbacks = await Promise.all(fallbacks.map(resolveItem));
+    return {
+      primary: resolvedPrimary,
+      ...(resolvedFallbacks.length ? { fallbacks: resolvedFallbacks } : {})
+    };
+  };
+  const preserveReading =
+    existing && !["prepare_target", "read"].includes(existing.phase)
+      ? {
+          primary: existing.models.reading,
+          ...(existing.models.readingFallbacks
+            ? { fallbacks: existing.models.readingFallbacks }
+            : {})
+        }
+      : undefined;
+  const [reading, integration] = await Promise.all([
+    resolveSlot(models.reading, models.readingFallbacks, preserveReading),
+    resolveSlot(models.integration, models.integrationFallbacks)
+  ]);
+  return {
+    reading: reading.primary,
+    integration: integration.primary,
+    ...(reading.fallbacks ? { readingFallbacks: reading.fallbacks } : {}),
+    ...(integration.fallbacks
+      ? { integrationFallbacks: integration.fallbacks }
+      : {})
+  };
+}
+
 export async function handleDecompositionCommands(
   context: ExtrasAgentCommandContext,
   config: ExtrasAgentConfigStore,
@@ -89,34 +202,19 @@ export async function handleDecompositionCommands(
         "long-book-decomposition",
         profileId
       );
-      const configs = await Promise.all([
-        context.resolveModel(models.reading.modelId),
-        context.resolveModel(models.integration.modelId)
-      ]);
-      const capacities = await Promise.all(
-        configs.map(async (model, index) => {
-          if (!model) {
-            if (!context.evaluationMode)
-              throw new Error("拆解模型不可用，请重新选择。");
-            return { contextWindow: 128_000, maxTokens: 8192 };
-          }
-          const capacity = await decompositionModelCapacity(
-            context.requestAgent,
-            command,
-            model,
-            String(index)
-          );
-          decompositionInputBudget(capacity, profile.systemPrompt.length);
-          return {
-            contextWindow: capacity.contextWindow,
-            maxTokens: capacity.maxTokens
-          };
-        })
+      const resolvedModels = await resolveDecompositionModels(
+        context,
+        command,
+        models,
+        profile.systemPrompt.length
       );
-      const capacity = (index: number) => capacities[index]!;
+      const readingCapacity = limitingDecompositionReadingModel(
+        [resolvedModels.reading, ...(resolvedModels.readingFallbacks ?? [])],
+        profile.systemPrompt.length
+      );
       const chunks = splitDecompositionChunks(
         chapters,
-        capacity(0),
+        readingCapacity,
         profile.systemPrompt.length
       );
       estimateDecomposition(chapters.length, characterCount, chunks.length);
@@ -142,10 +240,7 @@ export async function handleDecompositionCommands(
             range: persisted.range
           },
           profile,
-          models: {
-            reading: { ...models.reading, ...capacity(0) },
-            integration: { ...models.integration, ...capacity(1) }
-          },
+          models: resolvedModels,
           chunks,
           chronicleSegments: [],
           phase: "prepare_target",
@@ -196,6 +291,42 @@ export async function handleDecompositionCommands(
       });
     if (command.type === "longBookDecomposition.control")
       return await controlWithUsage(context, command, command.payload);
+    if (command.type === "longBookDecomposition.updateModels") {
+      const activeRuns = context.activeRuns
+        ? [...context.activeRuns.values()]
+        : [];
+      if (
+        activeRuns.some(
+          (run) => run.decompositionJobId === command.payload.jobId
+        )
+      )
+        throw new Error("请先停止任务再切换模型。");
+      const existingResult = await decompositionCore(context, command, {
+        operation: "get",
+        jobId: command.payload.jobId,
+        recover: true
+      });
+      if (existingResult.status !== "accepted") return existingResult;
+      const existing = LongBookDecompositionJobSchema.parse(
+        existingResult.payload
+      );
+      if (existing.status === "running")
+        throw new Error("请先停止任务再切换模型。");
+      if (existing.phase === "done")
+        throw new Error("任务已完成，无需切换模型。");
+      const resolvedModels = await resolveDecompositionModels(
+        context,
+        command,
+        command.payload.models,
+        existing.profile.systemPrompt.length,
+        existing
+      );
+      return await decompositionCore(context, command, {
+        operation: "update-models",
+        jobId: existing.id,
+        models: resolvedModels
+      });
+    }
     if (command.type === "longBookDecomposition.getRegistry")
       return await decompositionCore(context, command, {
         operation: "registry",
@@ -220,28 +351,19 @@ export async function handleDecompositionCommands(
       });
     return undefined;
   } catch (error) {
-    return {
-      status: "rejected",
-      requestId: command.id,
-      error: {
-        code:
-          error instanceof UtilityCommandTimeoutError
-            ? "decomposition.command_timeout"
-            : "decomposition.command_failed",
-        message:
-          error instanceof UtilityCommandTimeoutError
-            ? "本地拆解操作等待超时，后台操作可能仍在进行。请刷新任务或点击继续，接续已保存的进度。"
-            : error instanceof Error
-              ? error.message
-              : "拆解操作失败。",
-        ...(createdJobId
-          ? {
-              details: DecompositionCommandRecoverySchema.parse({
-                jobId: createdJobId
-              })
-            }
-          : {})
-      }
-    };
+    return rejectedResult(
+      command.id,
+      error instanceof UtilityCommandTimeoutError
+        ? "decomposition.command_timeout"
+        : "decomposition.command_failed",
+      error instanceof UtilityCommandTimeoutError
+        ? "本地拆解操作等待超时，后台操作可能仍在进行。请刷新任务或点击继续，接续已保存的进度。"
+        : error instanceof Error
+          ? error.message
+          : "拆解操作失败。",
+      createdJobId
+        ? DecompositionCommandRecoverySchema.parse({ jobId: createdJobId })
+        : undefined
+    );
   }
 }

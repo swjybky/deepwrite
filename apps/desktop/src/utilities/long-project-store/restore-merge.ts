@@ -35,7 +35,7 @@ const POSITION_GROUP_KEYS = [
   "chapterCardId"
 ] as const;
 
-function isObject(value: Slot): value is JsonObject {
+function isJsonObject(value: Slot): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -46,7 +46,7 @@ export function sameJson(left: Slot, right: Slot): boolean {
     if (left.length !== right.length) return false;
     return left.every((item, index) => sameJson(item, right[index]));
   }
-  if (!isObject(left) || !isObject(right)) return false;
+  if (!isJsonObject(left) || !isJsonObject(right)) return false;
   const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
   for (const key of keys) {
     if (VOLATILE_KEYS.has(key) || POSITION_KEY_SET.has(key)) continue;
@@ -58,7 +58,7 @@ export function sameJson(left: Slot, right: Slot): boolean {
 /** Arrays whose members carry a stable identity merge member by member. */
 function memberKey(item: JsonValue): string | undefined {
   if (typeof item === "string") return `s:${item}`;
-  if (isObject(item) && typeof item.id === "string") return `o:${item.id}`;
+  if (isJsonObject(item) && typeof item.id === "string") return `o:${item.id}`;
   return undefined;
 }
 
@@ -153,13 +153,13 @@ function revertKeyedArray(
 }
 
 function positionOf(item: JsonValue, positionKey: string): number | undefined {
-  if (!isObject(item)) return undefined;
+  if (!isJsonObject(item)) return undefined;
   const value = item[positionKey];
   return Number.isInteger(value) ? (value as number) : undefined;
 }
 
 function groupOf(item: JsonValue, groupKey: string | undefined): string {
-  if (groupKey === undefined || !isObject(item)) return "";
+  if (groupKey === undefined || !isJsonObject(item)) return "";
   return JSON.stringify(item[groupKey] ?? null);
 }
 
@@ -282,7 +282,11 @@ function revertValue(
   if (Array.isArray(current) && Array.isArray(before) && Array.isArray(after)) {
     const merged = revertKeyedArray(current, before, after, path, conflicts);
     if (merged) return merged;
-  } else if (isObject(current) && isObject(before) && isObject(after)) {
+  } else if (
+    isJsonObject(current) &&
+    isJsonObject(before) &&
+    isJsonObject(after)
+  ) {
     const result: JsonObject = {};
     const keys = new Set([
       ...Object.keys(current),

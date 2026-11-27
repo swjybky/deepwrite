@@ -19,6 +19,7 @@ import {
   readWebSearchJson,
   writeWebSearchJson
 } from "./web-search-json";
+import { isRecord } from "@deepwrite/shared";
 
 /** What `config/web-search.json` holds; keys stay encrypted at rest. */
 export interface StoredWebSearch {
@@ -30,10 +31,6 @@ function corrupt(): SafeWebSearchError {
   return new SafeWebSearchError(
     `联网搜索配置文件（${WEB_SEARCH_CONFIG_FILE}）损坏，无法读取。`
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function defaultState(): StoredWebSearch {

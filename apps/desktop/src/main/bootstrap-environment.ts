@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createId } from "@deepwrite/shared";
+import { resolveStorageBootstrapLockRoot } from "@deepwrite/shared/node";
 import { resolveDeepWriteAppMode } from "./app-run-mode";
 
 interface ApplicationPaths {
@@ -26,11 +27,15 @@ export function createBootstrapEnvironment(
   const instanceId = options.createInstanceId?.() ?? createId("main_instance");
   return (
     application: ApplicationPaths,
-    configuredMode: string | undefined
+    configuredMode: string | undefined,
+    defaultUserDataPath?: string
   ): string => {
     const userDataPath = application.getPath("userData");
     environment.DEEPWRITE_USER_DATA_PATH = userDataPath;
     environment.DEEPWRITE_APP_MODE = resolveDeepWriteAppMode(configuredMode);
+    environment.DEEPWRITE_STORAGE_BOOTSTRAP_LOCK_ROOT =
+      resolveStorageBootstrapLockRoot(defaultUserDataPath ?? userDataPath);
+    environment.DEEPWRITE_MAIN_PID = String(process.pid);
 
     const currentLegacyRoot = join(
       application.getPath("home"),

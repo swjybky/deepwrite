@@ -45,11 +45,11 @@ import {
   serializeLongWorldbuildingMarkdownList,
   type LongForeshadowing
 } from "@deepwrite/contracts";
-import { projectTransactionContentSha256 } from "./project-transaction";
 import {
   deriveLongForeshadowingStatus,
   LongProjectStore
 } from "./long-project-store";
+import { sha256Hex } from "@deepwrite/shared/node";
 
 // This fixture creates real long projects and durable multi-file transactions.
 // Give its integration suites a disk budget on slower concurrent CI runners.
@@ -74,7 +74,7 @@ function store(): LongProjectStore {
 function createLongFileRevision(content: string | Uint8Array): string {
   const bytes =
     typeof content === "string" ? Buffer.from(content, "utf8") : content;
-  return `v2:${bytes.byteLength}:${projectTransactionContentSha256(bytes)}`;
+  return `v2:${bytes.byteLength}:${sha256Hex(bytes)}`;
 }
 
 async function createFixture(suffix: string) {
@@ -156,7 +156,7 @@ export {
   lstat,
   mkdir,
   mkdtemp,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile,
   readdir,
   realpath,

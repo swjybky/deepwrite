@@ -1,6 +1,7 @@
 import type { AgentRuntimeRef, AgentUsage } from "@deepwrite/contracts";
 import type { AgentToolTrace } from "../../types/conversation";
-import { isRecord, nonnegativeInteger } from "./shared";
+import { nonnegativeInteger } from "./shared";
+import { isRecord } from "@deepwrite/shared";
 export function parseStoredRuntime(
   value: unknown
 ): AgentRuntimeRef | undefined {

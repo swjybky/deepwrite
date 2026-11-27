@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deepwriteApi } from "../api/deepwrite";
 import { createScopedTranslator } from "../i18n";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { MarketplaceEmailSchema } from "@deepwrite/contracts/renderer";
@@ -42,7 +43,7 @@ function changeEmail(event: Event): void {
   code.value = "";
 }
 async function send(): Promise<void> {
-  const api = window.deepwrite?.marketplace;
+  const api = deepwriteApi()?.marketplace;
   if (!api || props.disabled || sending.value || remaining.value > 0) return;
   const parsed = MarketplaceEmailSchema.safeParse(email.value);
   if (!parsed.success) {

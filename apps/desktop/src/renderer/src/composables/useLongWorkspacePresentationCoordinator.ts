@@ -346,7 +346,7 @@ export function useLongWorkspacePresentationCoordinator(
   }
 
   // Running agents and pending reviews never lock editing: proposals check
-  // their base revision when accepted (docs/智能体运行中编辑正文设计.md).
+  // their base revision when accepted.
   const editorLocked = computed(() => {
     const editor = editorPort.value;
     if (!editor) return false;

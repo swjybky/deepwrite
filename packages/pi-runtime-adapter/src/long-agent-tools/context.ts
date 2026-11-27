@@ -45,7 +45,10 @@ export function longProposalResultSummary(
     : pendingSummary;
 }
 
+let nextLongContextId = 0;
+
 export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
+  const contextId = ++nextLongContextId;
   const { workspace, profile } = input;
   if (
     profile.workspaceType !== "long" ||
@@ -97,40 +100,73 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
     return requireAccepted(result);
   };
 
+  function raceWithAbort<T>(
+    promise: Promise<T>,
+    signal?: AbortSignal
+  ): Promise<T> {
+    throwIfAborted(signal);
+    if (!signal) return promise;
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = (): void => {
+        try {
+          throwIfAborted(signal);
+          reject(new Error("Operation aborted."));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      promise.then(
+        (value) => {
+          signal.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (error) => {
+          signal.removeEventListener("abort", onAbort);
+          reject(error);
+        }
+      );
+    });
+  }
+
   const loadIndex = async (
     signal?: AbortSignal
   ): Promise<LongWorkspaceIndexSnapshot> => {
+    throwIfAborted(signal);
     if (!indexPromise) {
-      const command = LongGetWorkspaceIndexCommandEnvelopeSchema.parse(
-        createEnvelope(
-          "long.getWorkspaceIndex",
-          { bookId: workspace.bookId },
-          {
-            id: `long-query-${input.runId}-index-${++indexSequence}`,
-            context: {
-              sessionId: input.sessionId,
-              runId: input.runId,
-              resourceId: workspace.bookId
-            }
-          }
-        )
-      );
-      indexPromise = execute(command, signal)
-        .then((payload) => LongWorkspaceIndexResultSchema.parse(payload))
-        .then((result) => {
-          if (result.bookId !== workspace.bookId) {
-            throw new Error(
-              "Core returned a workspace index for another book."
-            );
-          }
-          return result.workspaceIndex;
+      indexPromise = proposalOverlay
+        .coalesceIndexReload(() => {
+          const command = LongGetWorkspaceIndexCommandEnvelopeSchema.parse(
+            createEnvelope(
+              "long.getWorkspaceIndex",
+              { bookId: workspace.bookId },
+              {
+                id: `long-query-${input.runId}-c${contextId}-index-${++indexSequence}`,
+                context: {
+                  sessionId: input.sessionId,
+                  runId: input.runId,
+                  resourceId: workspace.bookId
+                }
+              }
+            )
+          );
+          return execute(command)
+            .then((payload) => LongWorkspaceIndexResultSchema.parse(payload))
+            .then((result) => {
+              if (result.bookId !== workspace.bookId) {
+                throw new Error(
+                  "Core returned a workspace index for another book."
+                );
+              }
+              return result.workspaceIndex;
+            });
         })
         .catch((error) => {
           indexPromise = undefined;
           throw error;
         });
     }
-    const value = await indexPromise;
+    const value = await raceWithAbort(indexPromise, signal);
     throwIfAborted(signal);
     return proposalOverlay.applyToIndex(value);
   };
@@ -156,7 +192,7 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
           maxCharacters
         },
         {
-          id: `long-query-${input.runId}-read-${++querySequence}`,
+          id: `long-query-${input.runId}-c${contextId}-read-${++querySequence}`,
           context: {
             sessionId: input.sessionId,
             runId: input.runId,
@@ -316,6 +352,7 @@ export function createLongToolContext(input: BuildLongWorkspaceToolsInput) {
   };
 
   return {
+    contextId,
     input,
     workspace,
     profile,

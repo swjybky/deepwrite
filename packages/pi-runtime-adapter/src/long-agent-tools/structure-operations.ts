@@ -1,6 +1,7 @@
-import type {
-  LongWorkspaceIndexSnapshot,
-  LongWorkspaceOperation
+import {
+  LongWorkspaceOperationSchema,
+  type LongWorkspaceIndexSnapshot,
+  type LongWorkspaceOperation
 } from "@deepwrite/contracts";
 import {
   LONG_DELETABLE_KINDS,
@@ -49,7 +50,7 @@ export function longStructureUpdateOperation(
   ) {
     throw new Error(`故事情节 ${target.id} 不存在。`);
   }
-  return operation as unknown as LongWorkspaceOperation;
+  return LongWorkspaceOperationSchema.parse(operation);
 }
 
 /** Optional chapter continuity files are the only deletable documents. */
@@ -92,11 +93,11 @@ export function longEntityDeleteOperation(
   }
   const type = DELETE_OPERATION_TYPES[target.kind];
   if (target.kind === "worldbuilding_item") {
-    return {
+    return LongWorkspaceOperationSchema.parse({
       type: "worldbuildingItem.delete",
       categoryId: target.categoryId,
       id: target.id
-    } as unknown as LongWorkspaceOperation;
+    });
   }
-  return { type, id: target.id } as unknown as LongWorkspaceOperation;
+  return LongWorkspaceOperationSchema.parse({ type, id: target.id });
 }

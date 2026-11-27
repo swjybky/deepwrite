@@ -26,7 +26,13 @@ export const model: ModelConfig = {
   contextWindow: 128_000,
   maxTokens: 8192
 };
-export function decompositionEngineFixture(selectedModel = model) {
+export function decompositionEngineFixture(
+  selectedModels: ModelConfig | readonly ModelConfig[] = model
+) {
+  const availableModels = Array.isArray(selectedModels)
+    ? selectedModels
+    : [selectedModels];
+  const primary = availableModels[0] ?? model;
   const now = new Date().toISOString();
   let stored: LongBookDecompositionJob = {
     schemaVersion: 1,
@@ -68,16 +74,16 @@ export function decompositionEngineFixture(selectedModel = model) {
     },
     models: {
       reading: {
-        modelId: model.id,
+        modelId: primary.id,
         thinkingLevel: "off",
-        contextWindow: 128_000,
-        maxTokens: 8192
+        contextWindow: primary.contextWindow ?? 128_000,
+        maxTokens: primary.maxTokens ?? 8192
       },
       integration: {
-        modelId: model.id,
+        modelId: primary.id,
         thinkingLevel: "off",
-        contextWindow: 128_000,
-        maxTokens: 8192
+        contextWindow: primary.contextWindow ?? 128_000,
+        maxTokens: primary.maxTokens ?? 8192
       }
     },
     chunks: [
@@ -133,14 +139,51 @@ export function decompositionEngineFixture(selectedModel = model) {
     }
   );
   const getJob = vi.fn(async () => structuredClone(stored));
+  const updateModels = vi.fn<
+    DeepWriteApi["longBookDecomposition"]["updateModels"]
+  >(async (input) => {
+    const resolve = (item: {
+      modelId: string;
+      thinkingLevel: LongBookDecompositionJob["models"]["reading"]["thinkingLevel"];
+    }) => {
+      const found = availableModels.find((entry) => entry.id === item.modelId);
+      if (!found) throw new Error(`拆解模型不可用：${item.modelId}`);
+      return {
+        modelId: item.modelId,
+        thinkingLevel: item.thinkingLevel,
+        contextWindow: found.contextWindow ?? 128_000,
+        ...(found.maxTokens !== undefined ? { maxTokens: found.maxTokens } : {})
+      };
+    };
+    stored = {
+      ...stored,
+      models: {
+        reading: resolve(input.models.reading),
+        integration: resolve(input.models.integration),
+        ...(input.models.readingFallbacks?.length
+          ? {
+              readingFallbacks: input.models.readingFallbacks.map(resolve)
+            }
+          : {}),
+        ...(input.models.integrationFallbacks?.length
+          ? {
+              integrationFallbacks:
+                input.models.integrationFallbacks.map(resolve)
+            }
+          : {})
+      }
+    };
+    delete stored.lastError;
+    return structuredClone(stored);
+  });
   const api = {
     extrasAgents: extras.extrasAgents,
     session: { abort: vi.fn(async () => undefined) },
-    longBookDecomposition: { control, getJob }
+    longBookDecomposition: { control, getJob, updateModels }
   } as unknown as DeepWriteApi;
   const engine = createDecompositionEngine(
     () => api,
-    () => [selectedModel]
+    () => availableModels
   );
   engine.job.value = structuredClone(stored);
   function accept() {
@@ -171,6 +214,7 @@ export function decompositionEngineFixture(selectedModel = model) {
     extras,
     control,
     getJob,
+    updateModels,
     accept,
     api,
     stored: () => stored,

@@ -178,6 +178,38 @@ describe("subagent agent modes in a short workspace", () => {
     expect(spawn.description).toContain("［纯净·无工具");
     expect(spawn.description).toMatch(/成员-standard \(member_standard\)：/);
   });
+
+  it("combines materials, predecessor handoffs and the task into one user message", async () => {
+    const runtime = harness(2);
+    const spawn = buildRunTools(shortInput(), runToolOptions(runtime)).find(
+      (tool) => tool.name === "spawn_subagent"
+    )!;
+    await spawn.execute("call", {
+      tasks: [
+        {
+          key: "plan",
+          subagent_id: member("pure-read").id,
+          task: "读取设定"
+        },
+        {
+          key: "write",
+          subagent_id: member("standard").id,
+          task: "依据交接写正文",
+          depends_on: ["plan"]
+        }
+      ]
+    } as never);
+    const secondContext = runtime.contexts[1]!;
+    expect(secondContext.messages).toHaveLength(1);
+    expect(secondContext.messages[0]?.role).toBe("user");
+    const serialized = JSON.stringify(secondContext.messages[0]);
+    expect(serialized).toContain("【本轮可按需读取的素材上下文】");
+    expect(serialized).toContain(MATERIAL_TITLE);
+    expect(serialized).toContain("【前置任务交接】");
+    expect(serialized).toContain("第 1 个完成");
+    expect(serialized).toContain("【本轮委派任务（请立即执行）】");
+    expect(serialized).toContain("依据交接写正文");
+  });
 });
 
 describe("subagent agent modes in a long workspace", () => {
@@ -271,9 +303,14 @@ describe("handoffs reach a bare child", () => {
         }
       ]
     } as never);
-    const bare = JSON.stringify(runtime.contexts[1]);
+    const secondContext = runtime.contexts[1]!;
+    expect(secondContext.messages).toHaveLength(1);
+    expect(secondContext.messages[0]?.role).toBe("user");
+    const bare = JSON.stringify(secondContext);
     expect(bare).toContain("【前置任务交接】");
     expect(bare).toContain("第 1 个完成");
+    expect(bare).toContain("【本轮委派任务（请立即执行）】");
+    expect(bare).toContain("再润色");
     expect(bare).not.toContain("不应出现的素材目录");
   });
 });

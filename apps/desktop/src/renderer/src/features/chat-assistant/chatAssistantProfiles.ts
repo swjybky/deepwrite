@@ -10,6 +10,7 @@ import type {
   ExtrasAgentApi,
   ExtrasChatTask
 } from "@deepwrite/contracts";
+import { deepwriteApi } from "../../api/deepwrite";
 
 const t = createScopedTranslator("extras.chatAssistant");
 
@@ -21,7 +22,7 @@ export interface ChatAssistantProjectConfig {
 }
 
 function profilesApi(): ExtrasAgentApi["profiles"] {
-  const api = window.deepwrite?.extrasAgents?.profiles;
+  const api = deepwriteApi()?.extrasAgents?.profiles;
   if (!api) throw new Error(t("desktopBridgeNotReady"));
   return api;
 }

@@ -15,7 +15,7 @@ import {
   longChapterHandoffFileId,
   longWorldbuildingItemContentPath,
   longWorldbuildingItemFileId,
-  projectTransactionContentSha256,
+  sha256Hex,
   readFile
 } from "./long-project-store.test-support";
 
@@ -95,7 +95,7 @@ async function setup(name: string) {
 }
 
 function chapterFiles(chapterCardId: string) {
-  const storage = projectTransactionContentSha256(chapterCardId).slice(0, 32);
+  const storage = sha256Hex(chapterCardId).slice(0, 32);
   const file = (id: string, path: string) =>
     createEmptyLongMarkdownFileReference(id, path, FIXED_NOW);
   return {

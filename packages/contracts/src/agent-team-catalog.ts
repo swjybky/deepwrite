@@ -58,6 +58,7 @@ export type AgentTeamMarketplaceSource = z.infer<
 const AgentTeamProfileBaseSchema = z.object({
   id: AgentTeamProfileIdSchema,
   name: AgentTeamProfileNameSchema,
+  isBuiltin: z.boolean().optional(),
   /** Absent on local, file-installed and older teams. */
   marketplaceSource: AgentTeamMarketplaceSourceSchema.optional()
 });
@@ -290,6 +291,11 @@ export const AgentTeamsDeleteCommandEnvelopeSchema = EnvelopeBaseSchema.extend({
   type: z.literal("agentTeams.delete"),
   payload: AgentTeamProfileTargetInputSchema
 });
+export const AgentTeamsDuplicateCommandEnvelopeSchema =
+  EnvelopeBaseSchema.extend({
+    type: z.literal("agentTeams.duplicate"),
+    payload: AgentTeamProfileTargetInputSchema
+  });
 export const AgentTeamsSetEnabledCommandEnvelopeSchema =
   EnvelopeBaseSchema.extend({
     type: z.literal("agentTeams.setEnabled"),

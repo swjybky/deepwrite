@@ -5,10 +5,11 @@ import type {
   ModelConfig,
   ModelConfigInput
 } from "@deepwrite/contracts/renderer";
+import { jsonClone } from "@deepwrite/shared";
 
 function capacityInput(model: ModelConfig): ModelConfigInput {
   const { hasApiKey: _hasApiKey, ...identity } = model;
-  return JSON.parse(JSON.stringify(identity)) as ModelConfigInput;
+  return jsonClone(identity);
 }
 
 /** Capacity resolution reads the existing runtime catalog; it never calls a model. */
