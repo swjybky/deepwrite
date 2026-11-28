@@ -21,6 +21,15 @@ import {
 
 const ALIVE = process.pid;
 const DEAD = 999_999;
+let mockEndpointCounter = 0;
+
+function mockEndpoint(paths: ExternalControlPaths, name: string): string {
+  if (process.platform === "win32") {
+    mockEndpointCounter += 1;
+    return `\\\\.\\pipe\\deepwrite-bridge-test-${process.pid}-${Date.now()}-${mockEndpointCounter}-${name}`;
+  }
+  return join(paths.directory, `${name}.sock`);
+}
 
 describe("bridge connection", () => {
   let paths: ExternalControlPaths;
@@ -95,8 +104,10 @@ describe("bridge connection", () => {
       socket: Socket
     ) => void
   ): Promise<{ close(): Promise<void> }> {
-    await mkdir(dirname(endpoint), { recursive: true });
-    if (process.platform !== "win32") await rm(endpoint, { force: true });
+    if (process.platform !== "win32") {
+      await mkdir(dirname(endpoint), { recursive: true });
+      await rm(endpoint, { force: true });
+    }
     const sockets = new Set<Socket>();
     const server: Server = createServer((socket) => {
       sockets.add(socket);
@@ -386,7 +397,7 @@ describe("bridge connection", () => {
   });
 
   it("evicts a hung connection via idle heartbeat and reconnects on next call", async () => {
-    const hungEndpoint = join(paths.directory, "h.sock");
+    const hungEndpoint = mockEndpoint(paths, "h");
     let useHealthy = false;
     const mock = await startRawMockServer(hungEndpoint, (msg, socket) => {
       if (msg.type === "externalControl.hello") {
@@ -443,7 +454,7 @@ describe("bridge connection", () => {
   });
 
   it("verifies idle connections before sending writes and reconnects transparently", async () => {
-    const staleEndpoint = join(paths.directory, "s.sock");
+    const staleEndpoint = mockEndpoint(paths, "s");
     let useHealthy = false;
     let writeCallsOnStale = 0;
     const mock = await startRawMockServer(staleEndpoint, (msg, socket) => {
@@ -521,7 +532,7 @@ describe("bridge connection", () => {
   });
 
   it("retries read-only calls after mid-call disconnect but does not replay sent writes", async () => {
-    const flakyEndpoint = join(paths.directory, "f.sock");
+    const flakyEndpoint = mockEndpoint(paths, "f");
     let useHealthy = false;
     let writeAttempts = 0;
     const mock = await startRawMockServer(flakyEndpoint, (msg, socket) => {
@@ -585,7 +596,7 @@ describe("bridge connection", () => {
   });
 
   it("falls back to launching when handshake drops mid-flight", async () => {
-    const droppingEndpoint = join(paths.directory, "d.sock");
+    const droppingEndpoint = mockEndpoint(paths, "d");
     let launched = false;
     const mock = await startRawMockServer(droppingEndpoint, (_msg, socket) => {
       socket.destroy();
@@ -857,7 +868,7 @@ describe("bridge connection", () => {
     });
 
     it("refuses unresponsive app unless force is true, then terminates and relaunches", async () => {
-      const hungEndpoint = join(paths.directory, "hr.sock");
+      const hungEndpoint = mockEndpoint(paths, "hr");
       const alivePids = new Set([30_001]);
       let launched = false;
       const mock = await startRawMockServer(hungEndpoint, (msg, socket) => {
