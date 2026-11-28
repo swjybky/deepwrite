@@ -1,5 +1,5 @@
 import { open, readdir, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { DESKTOP_APP_DIR, REPO_ROOT } from "./paths.mjs";
 
 /** `pnpm dev` builds these once at startup and never reloads them. */
@@ -38,7 +38,7 @@ export async function backendChangesSince(sinceMs, root = REPO_ROOT) {
       if (entry.isDirectory()) await walk(path);
       else if (SOURCE_FILE.test(entry.name) && !TEST_FILE.test(entry.name)) {
         if ((await stat(path)).mtimeMs > sinceMs) {
-          changed.push(relative(root, path));
+          changed.push(relative(root, path).split(sep).join("/"));
         }
       }
     }

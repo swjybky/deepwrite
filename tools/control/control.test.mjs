@@ -273,7 +273,10 @@ describe("control client", () => {
   async function fakeApp(layout, respond) {
     await mkdir(layout.control, { recursive: true });
     // macOS caps socket paths near 104 bytes; the temporary directory is deeper.
-    const endpoint = `/tmp/dwctl-${process.pid}-${Date.now()}.sock`;
+    const endpoint =
+      process.platform === "win32"
+        ? `\\\\.\\pipe\\dwctl-${process.pid}-${Date.now()}`
+        : `/tmp/dwctl-${process.pid}-${Date.now()}.sock`;
     const server = createServer((socket) => {
       let buffer = "";
       socket.on("data", (chunk) => {
