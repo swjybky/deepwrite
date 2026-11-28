@@ -1,4 +1,12 @@
-import { mkdtemp, readdir, rm, stat, writeFile, mkdir } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  stat,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,9 +28,21 @@ const tempRoots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    tempRoots
-      .splice(0)
-      .map((root) => rm(root, { recursive: true, force: true }))
+    tempRoots.splice(0).map(async (root) => {
+      for (const rel of [
+        "renderer-state/conversations.sqlite.bak-v190",
+        "renderer-state/conversations.sqlite.bak-v190-wal",
+        "renderer-state/conversations.sqlite.bak-v190-shm"
+      ]) {
+        await chmod(join(root, rel), 0o600).catch(() => undefined);
+      }
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100
+      });
+    })
   );
 });
 

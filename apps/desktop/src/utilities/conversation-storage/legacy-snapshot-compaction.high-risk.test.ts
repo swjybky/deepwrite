@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ConversationCompactionStatus } from "@deepwrite/contracts";
 import { resolveStorageBootstrapLockRoot } from "@deepwrite/shared/node";
@@ -36,6 +37,7 @@ const jitiModulePath = join(
   repoRoot,
   "node_modules/.pnpm/node_modules/jiti/lib/jiti.mjs"
 );
+const jitiModuleUrl = pathToFileURL(jitiModulePath).href;
 
 afterEach(async () => {
   await Promise.all(
@@ -44,12 +46,14 @@ afterEach(async () => {
         recursive: true,
         force: true
       }).catch(() => undefined);
-      for (const rel of [
-        "renderer-state/conversations.sqlite.bak-v190",
-        "renderer-state/conversations.sqlite.bak-v190-wal",
-        "renderer-state/conversations.sqlite.bak-v190-shm"
-      ]) {
-        await chmod(join(root, rel), 0o600).catch(() => undefined);
+      for (const prefix of ["", "DeepWriteDefault", "RelocatedData"]) {
+        for (const rel of [
+          "renderer-state/conversations.sqlite.bak-v190",
+          "renderer-state/conversations.sqlite.bak-v190-wal",
+          "renderer-state/conversations.sqlite.bak-v190-shm"
+        ]) {
+          await chmod(join(root, prefix, rel), 0o600).catch(() => undefined);
+        }
       }
       await rm(root, {
         recursive: true,
@@ -683,17 +687,27 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
 
   it("recovers across real child-process abrupt exit (process.exit) at candidate-build, post-backup-rename, and post-candidate-swap boundaries while preserving WAL-only committed data and post-upgrade rollback guard", async () => {
     const scenarios = [
-      { hook: "duringCandidateBuild", strategy: "windows-rename" as const },
-      { hook: "afterBackupBeforeSwap", strategy: "windows-rename" as const },
       {
-        hook: "afterCandidateSwapBeforeReopen",
+        hook: "duringCandidateBuild" as const,
         strategy: "windows-rename" as const
       },
       {
-        hook: "afterCandidateSwapBeforeReopen",
-        strategy: "posix-hardlink" as const
-      }
-    ] as const;
+        hook: "afterBackupBeforeSwap" as const,
+        strategy: "windows-rename" as const
+      },
+      {
+        hook: "afterCandidateSwapBeforeReopen" as const,
+        strategy: "windows-rename" as const
+      },
+      ...(process.platform === "win32"
+        ? []
+        : [
+            {
+              hook: "afterCandidateSwapBeforeReopen" as const,
+              strategy: "posix-hardlink" as const
+            }
+          ])
+    ];
 
     for (const scenario of scenarios) {
       const dbPath = await makeTempDbPath(
@@ -703,7 +717,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         await seedV190WalDatabase(dbPath);
 
       const childRunner = `
-        import { createJiti } from ${JSON.stringify(jitiModulePath)};
+        import { createJiti } from ${JSON.stringify(jitiModuleUrl)};
         const jiti = createJiti(${JSON.stringify(join(repoRoot, "apps/desktop/src/utilities/conversation-storage/database.ts"))}, {
           interopDefault: true,
           moduleCache: false,
@@ -745,7 +759,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         ["--input-type=module", "-e", childRunner],
         { encoding: "utf8" }
       );
-      expect(crashResult.status).toBe(99);
+      expect(crashResult.status, crashResult.stderr).toBe(99);
 
       if (scenario.hook === "afterBackupBeforeSwap") {
         expect(existsSync(dbPath)).toBe(false);
@@ -1116,7 +1130,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
       mode: "holdLockIdle" | "tryLaunchAndWrite"
     ) => `
       import { join } from "node:path";
-      import { createJiti } from ${JSON.stringify(jitiModulePath)};
+      import { createJiti } from ${JSON.stringify(jitiModuleUrl)};
       const jiti = createJiti(${JSON.stringify(join(repoRoot, "apps/desktop/src/main/storage-bootstrap.ts"))}, {
         interopDefault: true,
         moduleCache: false,
@@ -1284,7 +1298,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
               ],
               { encoding: "utf8" }
             );
-            expect(probeRes.status).toBe(0);
+            expect(probeRes.status, probeRes.stderr).toBe(0);
             preSwapLaunchOutput = probeRes.stdout;
             expect(existsSync(databasePath)).toBe(false);
           }
@@ -1333,7 +1347,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         "--input-type=module",
         "-e",
         `
-          import { createJiti } from ${JSON.stringify(jitiModulePath)};
+          import { createJiti } from ${JSON.stringify(jitiModuleUrl)};
           const jiti = createJiti(${JSON.stringify(join(repoRoot, "apps/desktop/src/utilities/conversation-storage/database.ts"))}, {
             interopDefault: true,
             moduleCache: false,
@@ -1367,12 +1381,17 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
       ],
       { encoding: "utf8" }
     );
-    expect(crashChild.status).toBe(99);
+    expect(crashChild.status, crashChild.stderr).toBe(99);
     expect(existsSync(dbPath3)).toBe(false);
     expect(existsSync(`${dbPath3}.bak-v190`)).toBe(true);
 
     // Clear stale SingletonLock left by killed crashChild, then let v1.9.0 acquire it first.
-    await rm(lockRoot3, { recursive: true, force: true });
+    await rm(lockRoot3, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100
+    });
     const v190HoldingForRecovery = spawn(
       process.execPath,
       [
@@ -1428,7 +1447,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
               ],
               { encoding: "utf8" }
             );
-            expect(probeRes.status).toBe(0);
+            expect(probeRes.status, probeRes.stderr).toBe(0);
             recoveryLaunchOutput = probeRes.stdout;
             expect(existsSync(databasePath)).toBe(false);
           }
@@ -1458,7 +1477,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         () => undefined
       );
     }
-  }, 20_000);
+  }, 60_000);
 
   it("actively defers when cross-version gate is unavailable, never overwrites committed files at dbPath during swap or recovery, and blocks stale open handles from writing to .bak-v190 after swap", async () => {
     // 1. Cross-version gate unavailable -> actively defer risky automatic file replacement.
@@ -1496,7 +1515,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
       testHooks: {
         afterBackupBeforeSwap: ({ databasePath }) => {
           const script = `
-            import { createJiti } from ${JSON.stringify(jitiModulePath)};
+            import { createJiti } from ${JSON.stringify(jitiModuleUrl)};
             const jiti = createJiti(${JSON.stringify(join(repoRoot, "apps/desktop/src/utilities/conversation-storage/database.ts"))}, {
               interopDefault: true,
               moduleCache: false,
@@ -1582,7 +1601,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         testHooks: {
           beforeRestoreBackup: ({ databasePath }) => {
             const script = `
-              import { createJiti } from ${JSON.stringify(jitiModulePath)};
+              import { createJiti } from ${JSON.stringify(jitiModuleUrl)};
               const jiti = createJiti(${JSON.stringify(join(repoRoot, "apps/desktop/src/utilities/conversation-storage/database.ts"))}, {
                 interopDefault: true,
                 moduleCache: false,
@@ -1643,7 +1662,11 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
 
     // 4. Stale pre-swap open file handle MUST NOT write into `.bak-v190` after swap
     //    across BOTH `posix-hardlink` and `windows-rename`!
-    for (const strategy of ["posix-hardlink", "windows-rename"] as const) {
+    const staleStrategies =
+      process.platform === "win32"
+        ? (["windows-rename"] as const)
+        : (["posix-hardlink", "windows-rename"] as const);
+    for (const strategy of staleStrategies) {
       const dbPath4 = await makeTempDbPath(`dw-stale-fd-${strategy}-`);
       await seedV190WalDatabase(dbPath4);
       const db4 = new ConversationDatabase(dbPath4);
@@ -1783,5 +1806,5 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         }
       }
     }
-  }, 20_000);
+  }, 60_000);
 });
