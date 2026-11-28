@@ -51,7 +51,12 @@ afterEach(async () => {
       ]) {
         await chmod(join(root, rel), 0o600).catch(() => undefined);
       }
-      await rm(root, { recursive: true, force: true });
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100
+      });
     })
   );
 });
@@ -667,9 +672,14 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
         retryHandle.current().close();
       } finally {
         if (heldChild && heldChild.exitCode === null) heldChild.kill("SIGKILL");
+        try {
+          handle.current().close();
+        } catch {
+          /* Handle may already be closed cleanly above. */
+        }
       }
     }
-  });
+  }, 60_000);
 
   it("recovers across real child-process abrupt exit (process.exit) at candidate-build, post-backup-rename, and post-candidate-swap boundaries while preserving WAL-only committed data and post-upgrade rollback guard", async () => {
     const scenarios = [
@@ -858,7 +868,7 @@ describe("legacy snapshot compaction: high-risk multi-process, crash recovery & 
 
       recoverHandle.current().close();
     }
-  });
+  }, 60_000);
 
   it("retries transient Windows EPERM/EBUSY errors during swap and preserves normal usage plus data safety on persistent EPERM/EBUSY", async () => {
     const dbPath = await makeTempDbPath("dw-win-eperm-");

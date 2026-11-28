@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,7 +17,9 @@ import { MaterialQueryService } from "./material-query-service";
 const roots: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "deepwrite-catalog-builtin-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "deepwrite-catalog-builtin-"))
+  );
   roots.push(root);
   return root;
 }

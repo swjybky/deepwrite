@@ -6,7 +6,6 @@ import type {
   SessionPromptAcceptedPayload,
   SystemEventEnvelope
 } from "@deepwrite/contracts";
-import { jsonClone } from "@deepwrite/shared";
 
 /** Covers contracts, Preload/Main routing, Utility events and Core persistence. */
 async function compactionSmokeInRenderer() {
@@ -142,7 +141,7 @@ async function compactionSmokeInRenderer() {
               reason: "manual",
               level: "summary",
               createdAt: timestamp,
-              checkpoint: jsonClone(
+              checkpoint: structuredClone(
                 workspace.checkpoint
               ) as ConversationHistoryJson
             }

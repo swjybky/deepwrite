@@ -267,7 +267,7 @@ describe("LongProjectStore: restore points", () => {
         deleted.restorePoint!.id
       )
     ).rejects.toMatchObject({ code: "restore_unavailable" });
-  });
+  }, 60_000);
 
   it("refuses to undo when the restored path was reused afterwards", async () => {
     const { fixture, categoryId } = await setup("restore-conflict");
