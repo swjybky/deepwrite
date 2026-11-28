@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { AgentProviderRuntimeConfig } from "@deepwrite/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   ModelConnectionTestCancelledError,
   ModelConnectionTestTimeoutError,
@@ -139,6 +139,15 @@ async function waitForCondition(
 
 const serversToClose: Array<() => Promise<void>> = [];
 
+beforeAll(async () => {
+  // Preload lazy provider SDK modules so cold ESM import time does not eat the
+  // short timeout budgets below on busy CI runners before TCP connects.
+  await Promise.all([
+    import("@earendil-works/pi-ai/api/google-generative-ai"),
+    import("@earendil-works/pi-ai/api/openai-completions")
+  ]);
+});
+
 afterEach(async () => {
   while (serversToClose.length > 0) {
     await serversToClose.pop()!();
@@ -155,7 +164,7 @@ describe("PiAgentRuntimeAdapter connection test cancel & timeout", () => {
     const adapter = new PiAgentRuntimeAdapter();
 
     await expect(
-      adapter.testConnection(geminiOfficialConfig(port), { timeoutMs: 150 })
+      adapter.testConnection(geminiOfficialConfig(port), { timeoutMs: 350 })
     ).rejects.toBeInstanceOf(ModelConnectionTestTimeoutError);
 
     await waitForCondition(() => mock.requests[0]?.closed === true);
@@ -293,7 +302,7 @@ describe("PiAgentRuntimeAdapter connection test cancel & timeout", () => {
 
     // Timeout
     await expect(
-      adapter.testConnection(config, { timeoutMs: 150 })
+      adapter.testConnection(config, { timeoutMs: 350 })
     ).rejects.toBeInstanceOf(ModelConnectionTestTimeoutError);
     await waitForCondition(() => mock.requests[0]?.closed === true);
 
@@ -347,7 +356,7 @@ describe("PiAgentRuntimeAdapter connection test cancel & timeout", () => {
     await expect(
       adapter.testConnection(config, {
         signal: raceController.signal,
-        timeoutMs: 100
+        timeoutMs: 300
       })
     ).rejects.toBeInstanceOf(ModelConnectionTestTimeoutError);
     raceController.abort();
@@ -362,7 +371,7 @@ describe("PiAgentRuntimeAdapter connection test cancel & timeout", () => {
     const config = jevConfig(port);
 
     await expect(
-      adapter.testConnection(config, { timeoutMs: 120 })
+      adapter.testConnection(config, { timeoutMs: 300 })
     ).rejects.toBeInstanceOf(ModelConnectionTestTimeoutError);
     await waitForCondition(() => mock.requests[0]?.closed === true);
 
