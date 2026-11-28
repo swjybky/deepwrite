@@ -140,6 +140,7 @@ const diskIntegrationTests = [
   "apps/desktop/src/extras/agents/sources/long-book-source-commands.test.ts",
   ...[
     "briefs",
+    "character-failure-recovery",
     "creation-recovery",
     "evidence-validation",
     "generated-record-storage",
@@ -147,6 +148,7 @@ const diskIntegrationTests = [
     "query",
     "read-cache",
     "source-version",
+    "update-models",
     "usage-guard",
     "workflow-replanning"
   ].map(
@@ -159,6 +161,8 @@ const diskIntegrationTests = [
   "apps/desktop/src/utilities/renderer-state-store.test.ts",
   "tools/renderer-state-history-migration.test.mjs",
   "apps/desktop/src/utilities/local-backup/local-backup.test.ts",
+  "apps/desktop/src/extras/external-control/resilience.test.ts",
+  "apps/desktop/src/utilities/folder-catalog-builtin.test.ts",
   ...[
     "bootstrap-gate",
     "capacity",

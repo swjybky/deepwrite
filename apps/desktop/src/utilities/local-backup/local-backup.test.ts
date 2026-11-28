@@ -1227,7 +1227,7 @@ describe("LocalBackup Core 引擎与事务验收", () => {
 
     const regs = (await readAllRegistries(dst.userDataPath)).catalog.projects;
     const dirMap = new Map(regs.map((r) => [r.id, r.projectDirectory]));
-    expect(dirMap.get(b1.resource.id)).toMatch(/\/CON_dw$/u);
+    expect(dirMap.get(b1.resource.id)).toMatch(/[/\\]CON_dw$/u);
     expect(dirMap.get(b2.resource.id)?.toLowerCase()).not.toBe(
       dirMap.get(b3.resource.id)?.toLowerCase()
     );
