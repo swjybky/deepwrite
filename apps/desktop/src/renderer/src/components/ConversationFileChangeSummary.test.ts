@@ -4,6 +4,10 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import type { AgentEditProposal } from "../types/conversation";
 import type { ApprovalCardItem } from "./conversationToolPresentation";
+import {
+  provideConversationDisclosureState,
+  useConversationDisclosure
+} from "../composables/conversationDisclosureState";
 import ConversationFileChangeSummary from "./ConversationFileChangeSummary.vue";
 
 function proposal(
@@ -56,15 +60,31 @@ function edit(value: AgentEditProposal, remoteDevice?: string) {
   } satisfies ApprovalCardItem;
 }
 
-async function render(approvals: ApprovalCardItem[]): Promise<string> {
+async function render(
+  approvals: ApprovalCardItem[],
+  options: { historyKey?: string; allowLiveEditReview?: boolean } = {}
+): Promise<string> {
+  const content = {
+    setup() {
+      if (options.historyKey) {
+        useConversationDisclosure(
+          () => `file-change-history:${options.historyKey}`
+        ).value = true;
+      }
+      return () =>
+        h(ConversationFileChangeSummary, {
+          approvals,
+          messageStatus: "completed",
+          allowLiveEditReview: options.allowLiveEditReview ?? false,
+          longWorkspaceIndex: null
+        });
+    }
+  };
   const app = createSSRApp({
-    render: () =>
-      h(ConversationFileChangeSummary, {
-        approvals,
-        messageStatus: "completed",
-        allowLiveEditReview: false,
-        longWorkspaceIndex: null
-      })
+    setup() {
+      provideConversationDisclosureState(() => "test");
+      return () => h(content);
+    }
   });
   app.use(createPinia());
   return await renderToString(app);
@@ -139,6 +159,39 @@ describe("ConversationFileChangeSummary", () => {
     expect(html).toContain("写入 2 次");
     expect(html).toContain("+59");
     expect(html).toContain("更早的写入（1）");
+  });
+
+  it("issue #79：历史人工提案保留接受和拒绝入口", async () => {
+    const first = proposal("伏笔触点", { summary: "删除第一个伏笔触点" });
+    const second = proposal("伏笔触点", {
+      id: `${first.laneId}:generation:2`,
+      generation: 2,
+      approvalMode: "auto-approve",
+      predecessorProposalId: first.id
+    });
+    const third = proposal("伏笔触点", {
+      id: `${first.laneId}:generation:3`,
+      generation: 3,
+      approvalMode: "auto-approve",
+      predecessorProposalId: second.id
+    });
+    const fourth = proposal("伏笔触点", {
+      id: `${first.laneId}:generation:4`,
+      generation: 4,
+      approvalMode: "auto-approve",
+      predecessorProposalId: third.id
+    });
+    const key = "edit:run:book:draft:伏笔触点";
+
+    const html = await render(
+      [edit(first), edit(second), edit(third), edit(fourth)],
+      { historyKey: key, allowLiveEditReview: true }
+    );
+    const row = rowHtml(html, key);
+
+    expect(row).toContain("删除第一个伏笔触点");
+    expect(row.match(/接受并保存/g) ?? []).toHaveLength(1);
+    expect(row.match(/拒绝/g) ?? []).toHaveLength(1);
   });
 
   it("shows another device's proposals read-only", async () => {
