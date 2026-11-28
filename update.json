@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "1.9.0",
-  "title": "DeepWrite 1.9.0",
-  "publishedAt": "2026-11-21T17:10:53+08:00",
+  "version": "1.9.2",
+  "title": "DeepWrite 1.9.2",
+  "publishedAt": "2026-11-28T14:27:28+08:00",
   "releaseNotes": [
-    "统一短篇、剧本、长篇、学术写作、剧本杀和资料库的导出弹窗，新增带内嵌图片的 Markdown 导出。",
-    "所有写作空间共用分栏拖拽，长篇编辑器调整宽度更流畅。",
-    "重新设计作品绑定弹窗：实时显示当前绑定，技能列表分组，悬停可看完整名称。",
-    "长篇章卡移入正文章节标签页，侧栏与学术框架统一长按拖动排序。",
-    "停用设备间对话同步，已同步的消息仍可查看；云备份暂时隐藏。",
-    "修复资料库概览标题显示问题。"
+    "重构全局模型选择面板，支持搜索、供应商分类与星标收藏；官方小站新增一键刷新目录与公告悬停提示，测试连接支持随时取消，并新增 TinyFish 联网搜索与分析页完整思考等级。",
+    "根治百章长篇多智能体并发卡顿与对话库膨胀问题；升级后自动无损整理旧版历史对话库并修复 Windows 锁库问题，设置页新增空间整理与备份释放入口。",
+    "「存储」升级为「存储与备份」，新增单文件离线备份包（.dwbackup.zip）跨设备迁移，默认保留两份防覆盖并支持冲突重映射。",
+    "原生内置「基础长篇」默认智能体团队（9 个子智能体）、团队操作技能库与三套素材库，支持只读保护与一键复制自定义。",
+    "长篇整书拆解支持中途切换主/备选模型、跳过内容拦截项与保留进度结束；拆书章节校对修复合并吞字并新增逐步撤销，作品素材绑定支持分组与标签筛选。",
+    "强化外部智能体 MCP 心跳保活与断线重连，新增 restart_app 重启工具与 Antigravity 客户端接入，意见反馈扩容至最多 6 张截图。"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "1.0.0",
-  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.9.0",
+  "releasePage": "https://github.com/swjybky/deepwrite/releases/tag/v1.9.2",
   "feedUrl": "https://github.com/swjybky/deepwrite/releases/latest/download"
 }
